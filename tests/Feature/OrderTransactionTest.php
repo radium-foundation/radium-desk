@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AuditLog;
+use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -51,6 +52,156 @@ class OrderTransactionTest extends TestCase
             'auditable_type' => $order->getMorphClass(),
             'auditable_id' => $order->id,
         ]);
+    }
+
+    public function test_admin_can_assign_transaction_via_json_for_dashboard_inline_edit(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TXN-AJAX',
+            'serial_number' => 'SN-TXN-AJAX',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-AJAX-1',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'AJAX assign',
+            'description' => 'AJAX assign.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('orders.transaction.store', $order), [
+                'transaction_id' => 'TX123456',
+                'incident_id' => $incident->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('order_id', $order->id)
+            ->assertJsonPath('incident_id', $incident->id)
+            ->assertJsonStructure(['row_html']);
+
+        $order->refresh();
+        $this->assertSame('TX123456', $order->transaction_id);
+        $this->assertNotNull($order->completed_at);
+    }
+
+    public function test_admin_can_bulk_assign_transaction_to_multiple_service_cases(): void
+    {
+        $admin = User::factory()->create(['name' => 'Bulk Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $incidents = collect(range(1, 3))->map(function (int $index) use ($admin) {
+            $order = Order::query()->create([
+                'order_id' => "RD-BULK-{$index}",
+                'serial_number' => "SN-BULK-{$index}",
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+
+            return Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => "SC-BULK-{$index}",
+                'category' => 'General',
+                'source' => \App\Enums\IncidentSource::Call,
+                'title' => "Bulk case {$index}",
+                'description' => "Bulk case {$index}.",
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        });
+
+        $alreadyCompletedOrder = Order::query()->create([
+            'order_id' => 'RD-BULK-DONE',
+            'serial_number' => 'SN-BULK-DONE',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TX-OLD',
+            'completed_at' => now(),
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $completedIncident = Incident::query()->create([
+            'order_id' => $alreadyCompletedOrder->id,
+            'reference_no' => 'SC-BULK-DONE',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Email,
+            'title' => 'Already completed',
+            'description' => 'Already completed.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $incidentIds = $incidents->pluck('id')->push($completedIncident->id)->all();
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.transactions.bulk'), [
+                'incident_ids' => $incidentIds,
+                'transaction_id' => 'TX123456',
+            ])
+            ->assertOk()
+            ->assertJsonPath('count', 3)
+            ->assertJsonPath('transaction_id', 'TX123456');
+
+        $this->assertStringContainsString(
+            'Transaction TX123456 applied to 3 service cases.',
+            $response->json('message')
+        );
+
+        foreach ($incidents as $incident) {
+            $this->assertSame('TX123456', $incident->order->fresh()->transaction_id);
+            $this->assertDatabaseHas('audit_logs', [
+                'event' => 'transaction.assigned',
+                'auditable_type' => $incident->order->getMorphClass(),
+                'auditable_id' => $incident->order_id,
+            ]);
+        }
+
+        $this->assertSame('TX-OLD', $alreadyCompletedOrder->fresh()->transaction_id);
+    }
+
+    public function test_agent_cannot_bulk_assign_transactions(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-BULK-AGENT',
+            'serial_number' => 'SN-BULK-AGENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-BULK-AGENT',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Agent bulk',
+            'description' => 'Agent bulk.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->postJson(route('dashboard.transactions.bulk'), [
+                'incident_ids' => [$incident->id],
+                'transaction_id' => 'TX123456',
+            ])
+            ->assertForbidden();
     }
 
     public function test_locked_order_cannot_be_edited_by_admin(): void

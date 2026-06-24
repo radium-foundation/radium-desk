@@ -20,4 +20,15 @@ enum IncidentSource: string
             self::Internal => 'Internal',
         };
     }
+
+    public function icon(): string
+    {
+        return match ($this) {
+            self::Call => 'bi-telephone-fill',
+            self::WhatsApp => 'bi-whatsapp',
+            self::Email => 'bi-envelope-fill',
+            self::Telegram => 'bi-telegram',
+            self::Internal => 'bi-building',
+        };
+    }
 }

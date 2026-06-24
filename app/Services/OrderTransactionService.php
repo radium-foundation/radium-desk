@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -57,6 +59,81 @@ class OrderTransactionService
 
             return $freshOrder;
         });
+    }
+
+    /**
+     * @param  list<int>  $incidentIds
+     * @return array{count: int, transaction_id: string, rows: array<int, array{incident_id: int, html: string}>}
+     */
+    public function assignTransactionIdToIncidents(array $incidentIds, string $transactionId, User $actor): array
+    {
+        $transactionId = trim($transactionId);
+
+        if ($transactionId === '') {
+            throw ValidationException::withMessages([
+                'transaction_id' => 'Transaction ID is required.',
+            ]);
+        }
+
+        $incidents = Incident::query()
+            ->with(['order.transactionAssigner', 'creator'])
+            ->whereIn('id', $incidentIds)
+            ->get();
+
+        $pendingIncidents = $incidents->filter(
+            fn (Incident $incident): bool => $incident->order !== null && ! $incident->order->isTransactionLocked()
+        );
+
+        $ordersToUpdate = $pendingIncidents
+            ->pluck('order.id')
+            ->unique()
+            ->values();
+
+        foreach ($ordersToUpdate as $orderId) {
+            $order = Order::query()->find($orderId);
+
+            if ($order === null || ! $actor->can('assignTransaction', $order)) {
+                continue;
+            }
+
+            $this->assignTransactionId($order, $transactionId, $actor);
+        }
+
+        $refreshedIncidents = Incident::query()
+            ->with(['order.transactionAssigner', 'creator'])
+            ->whereIn('id', $incidentIds)
+            ->get()
+            ->keyBy('id');
+
+        $canManageBulk = $actor->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ]);
+
+        $rows = [];
+
+        foreach ($incidentIds as $incidentId) {
+            $incident = $refreshedIncidents->get($incidentId);
+
+            if ($incident === null) {
+                continue;
+            }
+
+            $rows[] = [
+                'incident_id' => $incident->id,
+                'html' => view('dashboard.partials.service-case-row', [
+                    'serviceCase' => $incident,
+                    'canManageTransactions' => $canManageBulk,
+                    'canSelectRows' => $canManageBulk,
+                ])->render(),
+            ];
+        }
+
+        return [
+            'count' => $pendingIncidents->count(),
+            'transaction_id' => $transactionId,
+            'rows' => $rows,
+        ];
     }
 
     public function unlockTransaction(Order $order, User $actor, ?string $reason = null): Order

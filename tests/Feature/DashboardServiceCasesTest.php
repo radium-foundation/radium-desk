@@ -60,7 +60,8 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('RD3421021')
             ->assertSee('SN001')
             ->assertSee('MFS 110')
-            ->assertSee('Call')
+            ->assertSee('bi-telephone-fill', false)
+            ->assertSee('data-bs-title="Call"', false)
             ->assertSee('Pending Admin')
             ->assertSee('Waiting for Transaction ID')
             ->assertSee('Created:')
@@ -190,13 +191,222 @@ class DashboardServiceCasesTest extends TestCase
         ]);
 
         $this->actingAs($agent)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['filter' => 'completed']))
             ->assertOk()
             ->assertSee('Completed')
             ->assertSee('Transaction ID: TX123456')
             ->assertSee('25 Jun 2026, 10:45 AM')
             ->assertSee('Total turnaround:')
-            ->assertSee('1 day 3 hours');
+            ->assertSee('1 day 3 hours')
+            ->assertSee('dashboard-case-row--completed', false);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_dashboard_defaults_to_pending_admin_filter(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $pendingOrder = Order::query()->create([
+            'order_id' => 'RD-PENDING-1',
+            'serial_number' => 'SN-PENDING-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $completedOrder = Order::query()->create([
+            'order_id' => 'RD-COMPLETE-2',
+            'serial_number' => 'SN-COMPLETE-2',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TX999',
+            'completed_at' => now(),
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $pendingOrder->id,
+            'reference_no' => 'SC-PENDING-1',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Pending case',
+            'description' => 'Pending case.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $completedOrder->id,
+            'reference_no' => 'SC-COMPLETE-2',
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Completed case',
+            'description' => 'Completed case.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('SC-PENDING-1')
+            ->assertDontSee('SC-COMPLETE-2');
+    }
+
+    public function test_dashboard_high_priority_filter_shows_only_high_priority_cases(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-FILTER-HP',
+            'serial_number' => 'SN-FILTER-HP',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-HP-ONLY',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'High priority',
+            'description' => 'High priority.',
+            'status' => 'open',
+            'high_priority' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-NORMAL',
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Normal',
+            'description' => 'Normal.',
+            'status' => 'open',
+            'high_priority' => false,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'high_priority']))
+            ->assertOk()
+            ->assertSee('SC-HP-ONLY')
+            ->assertDontSee('SC-NORMAL');
+    }
+
+    public function test_admin_dashboard_shows_bulk_selection_and_inline_transaction_controls(): void
+    {
+        $admin = User::factory()->create(['name' => 'Admin User']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-INLINE-1',
+            'serial_number' => 'SN-INLINE-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-INLINE-1',
+            'category' => 'General',
+            'source' => IncidentSource::WhatsApp,
+            'title' => 'Inline transaction test',
+            'description' => 'Inline transaction test.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-bulk-bar', false)
+            ->assertSee('service-case-select', false)
+            ->assertSee('Click to add')
+            ->assertSee('data-inline-transaction="true"', false)
+            ->assertSee('bi-whatsapp', false);
+    }
+
+    public function test_agent_dashboard_does_not_show_transaction_management_controls(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-AGENT-1',
+            'serial_number' => 'SN-AGENT-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-AGENT-1',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Agent view',
+            'description' => 'Agent view.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('service-case-select', false)
+            ->assertDontSee('Click to add')
+            ->assertDontSee('data-bulk-bar', false);
+    }
+
+    public function test_admin_completed_row_shows_transaction_with_assign_tooltip(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-25 09:00:00'));
+
+        $admin = User::factory()->create(['name' => 'Priya Sharma']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-ADMIN-COMPLETE',
+            'serial_number' => 'SN-ADMIN-COMPLETE',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TX123456',
+            'completed_at' => now(),
+            'transaction_assigned_by' => $admin->id,
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-ADMIN-COMPLETE',
+            'category' => 'General',
+            'source' => IncidentSource::Telegram,
+            'title' => 'Completed admin row',
+            'description' => 'Completed admin row.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'completed']))
+            ->assertOk()
+            ->assertSee('TX123456')
+            ->assertSee('Assigned by Priya', false)
+            ->assertSee('bi-check-circle-fill', false)
+            ->assertDontSee('data-inline-transaction="true"', false);
 
         Carbon::setTestNow();
     }

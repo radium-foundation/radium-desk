@@ -4,6 +4,7 @@ use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
@@ -18,6 +19,10 @@ Route::redirect('/', '/dashboard');
 
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
+        ->name('dashboard.service-cases.row');
+    Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
+        ->name('dashboard.transactions.bulk');
     Route::post('service-requests/quick', [QuickServiceRequestController::class, 'store'])
         ->name('service-requests.quick.store');
     Route::get('/search', [SearchController::class, 'index'])->name('search.index');

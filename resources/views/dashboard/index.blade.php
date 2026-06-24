@@ -20,7 +20,11 @@
 
         @if($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view'))
             <div class="mb-3">
-                @include('dashboard.partials.recent-service-cases', ['recentServiceCases' => $recentServiceCases])
+                @include('dashboard.partials.recent-service-cases', [
+                    'recentServiceCases' => $recentServiceCases,
+                    'serviceCaseFilter' => $serviceCaseFilter ?? 'pending_admin',
+                    'canManageTransactions' => $canManageTransactions ?? false,
+                ])
             </div>
         @endif
 

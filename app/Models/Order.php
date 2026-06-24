@@ -118,6 +118,19 @@ class Order extends Model
         return implode(' ', $parts);
     }
 
+    public function transactionAssignTooltipHtml(): string
+    {
+        $lines = [
+            'Completed',
+            $this->completed_at?->format('d M Y, h:i A') ?? '—',
+            'Assigned by '.($this->transactionAssigner?->firstName() ?? '—'),
+        ];
+
+        return collect($lines)
+            ->map(fn (string $line): string => e($line))
+            ->implode('<br>');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

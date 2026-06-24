@@ -64,10 +64,27 @@ class DashboardService
         return $stats;
     }
 
-    public function recentServiceCases(int $limit = 10): Collection
+    public function recentServiceCases(string $filter = 'pending_admin', int $limit = 10): Collection
     {
-        return Incident::query()
-            ->with(['order.transactionAssigner', 'creator'])
+        $query = Incident::query()
+            ->with(['order.transactionAssigner', 'creator']);
+
+        match ($filter) {
+            'pending_admin' => $query->whereHas('order', function ($orderQuery): void {
+                $orderQuery->where(function ($pendingQuery): void {
+                    $pendingQuery->whereNull('transaction_id')
+                        ->orWhere('transaction_id', '');
+                });
+            }),
+            'completed' => $query->whereHas('order', function ($orderQuery): void {
+                $orderQuery->whereNotNull('transaction_id')
+                    ->where('transaction_id', '!=', '');
+            }),
+            'high_priority' => $query->where('high_priority', true),
+            default => null,
+        };
+
+        return $query
             ->orderByDesc('high_priority')
             ->latest()
             ->limit($limit)

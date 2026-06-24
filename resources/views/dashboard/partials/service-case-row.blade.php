@@ -1,0 +1,57 @@
+@php
+    $order = $serviceCase->order;
+    $isCompleted = $order?->isTransactionLocked() ?? false;
+@endphp
+
+<tr id="service-case-row-{{ $serviceCase->id }}"
+    data-incident-id="{{ $serviceCase->id }}"
+    data-order-id="{{ $order?->id }}"
+    @class([
+        'dashboard-case-row--completed' => $isCompleted,
+        'dashboard-case-row--pending' => $order && ! $isCompleted,
+    ])>
+    @if($canSelectRows ?? false)
+        <td class="dashboard-select-cell">
+            @if($order && ! $isCompleted)
+                <input type="checkbox"
+                       class="form-check-input service-case-select"
+                       value="{{ $serviceCase->id }}"
+                       data-order-id="{{ $order->id }}"
+                       aria-label="Select {{ $serviceCase->reference_no }}">
+            @endif
+        </td>
+    @endif
+    <td class="fw-semibold">
+        <div class="d-flex flex-wrap align-items-center gap-1">
+            <a href="{{ route('incidents.show', $serviceCase) }}" class="text-decoration-none">
+                {{ $serviceCase->reference_no }}
+            </a>
+            @if($serviceCase->high_priority)
+                @include('dashboard.partials.high-priority-badge')
+            @endif
+        </div>
+    </td>
+    <td>{{ $order?->order_id ?: '—' }}</td>
+    <td>{{ $order?->serial_number ?: '—' }}</td>
+    <td class="d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
+    <td class="source-cell">
+        @include('dashboard.partials.source-icon', ['source' => $serviceCase->source])
+    </td>
+    <td class="status-cell">
+        @if($order)
+            @include('dashboard.partials.completion-status-tooltip', [
+                'order' => $order,
+                'loggedAt' => $serviceCase->created_at,
+            ])
+        @else
+            —
+        @endif
+    </td>
+    @include('dashboard.partials.transaction-id-cell', [
+        'serviceCase' => $serviceCase,
+        'canManageTransactions' => $canManageTransactions ?? false,
+    ])
+    <td class="d-none d-sm-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
+    <td class="text-nowrap">{{ $serviceCase->created_at?->format('d M Y, h:i A') ?: '—' }}</td>
+    <td class="d-none d-md-table-cell text-nowrap">{{ $serviceCase->updated_at?->format('d M Y, h:i A') ?: '—' }}</td>
+</tr>

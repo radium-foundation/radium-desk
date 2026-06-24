@@ -166,6 +166,51 @@ html.sidebar-expanded .app-main {
     white-space: nowrap;
 }
 
+.dashboard-cases-table tr.dashboard-case-row--completed {
+    background-color: rgba(25, 135, 84, 0.08);
+}
+
+.dashboard-cases-table tr.dashboard-case-row--completed:hover {
+    background-color: rgba(25, 135, 84, 0.12);
+}
+
+.dashboard-select-cell {
+    width: 2rem;
+    text-align: center;
+}
+
+.dashboard-case-filters .btn {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+}
+
+.dashboard-bulk-bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 0.5rem 0.75rem;
+    background: #fff;
+    border-bottom: 1px solid #dee2e6;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
+}
+
+.transaction-id-cell[data-inline-transaction="true"] {
+    cursor: pointer;
+}
+
+.transaction-id-cell[data-inline-transaction="true"]:hover .transaction-cell-trigger {
+    color: var(--bs-primary) !important;
+}
+
+.transaction-inline-editor .input-group {
+    min-width: 10rem;
+}
+
+.source-cell {
+    text-align: center;
+    width: 2.5rem;
+}
+
 .high-priority-dot {
     display: inline-block;
     width: 0.5rem;
