@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'is_active'])]
@@ -76,5 +77,16 @@ class User extends Authenticatable
     public function telegramNotifications(): HasMany
     {
         return $this->hasMany(TelegramNotification::class);
+    }
+
+    public function firstName(): string
+    {
+        $name = trim($this->name);
+
+        if ($name === '') {
+            return '';
+        }
+
+        return Str::before($name, ' ') ?: $name;
     }
 }

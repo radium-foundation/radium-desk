@@ -166,6 +166,20 @@ html.sidebar-expanded .app-main {
     white-space: nowrap;
 }
 
+.high-priority-badge {
+    animation: high-priority-pulse 2s ease-in-out infinite;
+}
+
+@keyframes high-priority-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.35);
+    }
+
+    50% {
+        box-shadow: 0 0 0 0.35rem rgba(220, 53, 69, 0.12);
+    }
+}
+
 .toast-container {
     z-index: 1090;
 }

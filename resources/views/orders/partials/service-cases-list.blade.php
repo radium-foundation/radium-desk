@@ -32,7 +32,7 @@
                             </td>
                             <td>{{ $serviceCase->source->label() }}</td>
                             <td>@include('incidents.partials.status-badge', ['status' => $serviceCase->status])</td>
-                            <td>{{ $serviceCase->creator?->name ?? '—' }}</td>
+                            <td>{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
                             <td class="text-nowrap">{{ $serviceCase->created_at?->format('d M Y, h:i A') ?: '—' }}</td>
                         </tr>
                     @endforeach

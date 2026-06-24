@@ -68,6 +68,7 @@ class DashboardService
     {
         return Incident::query()
             ->with(['order.transactionAssigner', 'creator'])
+            ->orderByDesc('high_priority')
             ->latest()
             ->limit($limit)
             ->get();

@@ -67,9 +67,90 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('24 Jun 2026, 02:35 PM')
             ->assertSee('Pending for:')
             ->assertSee('6 hours 12 minutes')
+            ->assertSee('Last Updated')
             ->assertSee('Ravi');
 
         Carbon::setTestNow();
+    }
+
+    public function test_dashboard_shows_first_name_only_for_logged_by(): void
+    {
+        $agent = User::factory()->create(['name' => 'Ravi Kumar']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-NAME-001',
+            'serial_number' => 'SN-NAME-001',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Name display test',
+            'description' => 'Testing first name display.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('>Ravi</td>', false);
+    }
+
+    public function test_dashboard_sorts_high_priority_service_cases_first(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SORT-001',
+            'serial_number' => 'SN-SORT-001',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-00002',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Newer normal case',
+            'description' => 'Normal priority case.',
+            'status' => 'open',
+            'high_priority' => false,
+            'created_by' => $agent->id,
+            'created_at' => now()->subHour(),
+            'updated_at' => now()->subHour(),
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-00001',
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Older high priority case',
+            'description' => 'High priority case.',
+            'status' => 'open',
+            'high_priority' => true,
+            'created_by' => $agent->id,
+            'created_at' => now()->subDay(),
+            'updated_at' => now()->subDay(),
+        ]);
+
+        $response = $this->actingAs($agent)->get(route('dashboard'));
+
+        $response->assertOk();
+        $response->assertSeeInOrder(['SC-00001', 'SC-00002']);
+        $response->assertSee('High Priority');
     }
 
     public function test_dashboard_completed_tooltip_shows_transaction_and_turnaround(): void

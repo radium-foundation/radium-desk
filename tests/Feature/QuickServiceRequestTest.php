@@ -34,8 +34,9 @@ class QuickServiceRequestTest extends TestCase
             'notes' => 'Customer reported device not powering on.',
         ]);
 
-        $response->assertRedirect();
-        $response->assertSessionHas('status', 'incident-created');
+        $response->assertRedirect(route('dashboard'));
+        $response->assertSessionHas('status', 'service-case-created');
+        $response->assertSessionHas('service_case_reference', 'SC-00001');
 
         $this->assertDatabaseHas('orders', [
             'order_id' => 'RD3421021',
@@ -47,6 +48,26 @@ class QuickServiceRequestTest extends TestCase
         $this->assertNotNull($incident);
         $this->assertSame('SC-00001', $incident->reference_no);
         $this->assertSame(IncidentSource::Call, $incident->source);
+        $this->assertFalse($incident->high_priority);
+    }
+
+    public function test_quick_create_allows_optional_comment_and_high_priority(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)->post(route('service-requests.quick.store'), [
+            'order_id' => 'RD-HP-001',
+            'serial_number' => 'SN-HP-001',
+            'product' => 'MFS 110',
+            'source' => IncidentSource::Call->value,
+            'high_priority' => '1',
+        ])->assertRedirect(route('dashboard'));
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->high_priority);
+        $this->assertSame('', $incident->description);
     }
 
     public function test_quick_create_rejects_serial_mismatch_for_existing_order(): void
@@ -70,7 +91,6 @@ class QuickServiceRequestTest extends TestCase
                 'serial_number' => 'SN999',
                 'product' => 'MFS 110',
                 'source' => IncidentSource::Email->value,
-                'notes' => 'Customer reported device not powering on.',
             ])
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasErrors('serial_number');
@@ -95,8 +115,7 @@ class QuickServiceRequestTest extends TestCase
             'serial_number' => 'SN001',
             'product' => 'MFS 110',
             'source' => IncidentSource::WhatsApp->value,
-            'notes' => 'Follow-up service case for same order.',
-        ])->assertRedirect();
+        ])->assertRedirect(route('dashboard'));
 
         $this->assertSame(1, Order::query()->count());
         $this->assertSame(1, Incident::query()->where('order_id', $order->id)->count());

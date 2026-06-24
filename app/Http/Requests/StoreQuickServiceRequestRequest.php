@@ -27,7 +27,8 @@ class StoreQuickServiceRequestRequest extends FormRequest
             'serial_number' => ['required', 'string', 'max:100'],
             'product' => ['required', 'string', Rule::in(config('products'))],
             'source' => ['required', Rule::enum(IncidentSource::class)],
-            'notes' => ['required', 'string', 'min:10', 'max:5000'],
+            'notes' => ['nullable', 'string', 'max:5000'],
+            'high_priority' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -42,6 +43,7 @@ class StoreQuickServiceRequestRequest extends FormRequest
             'product' => 'product',
             'source' => 'source',
             'notes' => 'comment',
+            'high_priority' => 'high priority',
         ];
     }
 }

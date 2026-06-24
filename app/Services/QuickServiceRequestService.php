@@ -23,9 +23,10 @@ class QuickServiceRequestService
         string $serialNumber,
         string $product,
         IncidentSource $source,
-        string $notes,
+        ?string $notes,
+        bool $highPriority = false,
     ): Incident {
-        return DB::transaction(function () use ($user, $orderId, $serialNumber, $product, $source, $notes): Incident {
+        return DB::transaction(function () use ($user, $orderId, $serialNumber, $product, $source, $notes, $highPriority): Incident {
             $order = Order::query()
                 ->where('order_id', $orderId)
                 ->first();
@@ -64,8 +65,9 @@ class QuickServiceRequestService
                 'category' => 'General',
                 'source' => $source,
                 'title' => 'Service request — '.$product,
-                'description' => $notes,
+                'description' => $notes ?? '',
                 'status' => IncidentStatus::Open,
+                'high_priority' => $highPriority,
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ]);

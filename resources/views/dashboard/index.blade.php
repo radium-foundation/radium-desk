@@ -7,7 +7,7 @@
         <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-3">
             <div>
                 <h1 class="h4 mb-0">Dashboard</h1>
-                <p class="text-muted small mb-0">Welcome back, {{ auth()->user()->name }}.</p>
+                <p class="text-muted small mb-0">Welcome back, {{ auth()->user()->firstName() }}.</p>
             </div>
             @if($canQuickCreate)
                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickCreateModal">

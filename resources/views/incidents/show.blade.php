@@ -60,7 +60,7 @@
                         <dd class="col-sm-8">{!! nl2br(e($incident->description)) !!}</dd>
 
                         <dt class="col-sm-4 text-muted">Logged By</dt>
-                        <dd class="col-sm-8">{{ $incident->creator?->name ?? '—' }}</dd>
+                        <dd class="col-sm-8">{{ $incident->creator?->firstName() ?: '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Created</dt>
                         <dd class="col-sm-8">{{ $incident->created_at?->format('d M Y, H:i') ?: '—' }}</dd>

@@ -23,6 +23,7 @@ class Incident extends Model
         'title',
         'description',
         'status',
+        'high_priority',
         'created_by',
         'updated_by',
     ];
@@ -32,6 +33,7 @@ class Incident extends Model
         return [
             'status' => IncidentStatus::class,
             'source' => IncidentSource::class,
+            'high_priority' => 'boolean',
         ];
     }
 

@@ -1,5 +1,5 @@
 <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-labelledby="quickCreateModalLabel"
-     data-show-on-load="{{ ($errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes')) ? 'true' : 'false' }}">
+     data-show-on-load="{{ ($errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority')) ? 'true' : 'false' }}">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header py-2">
@@ -43,9 +43,8 @@
                             <select name="product" id="quick_product"
                                     class="form-select @error('product') is-invalid @enderror"
                                     required>
-                                <option value="" disabled @selected(old('product') === null)>Select product</option>
                                 @foreach(config('products') as $productOption)
-                                    <option value="{{ $productOption }}" @selected(old('product') === $productOption)>
+                                    <option value="{{ $productOption }}" @selected(old('product', 'MFS 110') === $productOption)>
                                         {{ $productOption }}
                                     </option>
                                 @endforeach
@@ -73,11 +72,27 @@
                         </div>
 
                         <div class="col-12">
-                            <label for="quick_notes" class="form-label">Comment / Notes <span class="text-danger">*</span></label>
+                            <div class="form-check">
+                                <input type="checkbox"
+                                       name="high_priority"
+                                       value="1"
+                                       id="quick_high_priority"
+                                       class="form-check-input @error('high_priority') is-invalid @enderror"
+                                       @checked(old('high_priority'))>
+                                <label class="form-check-label" for="quick_high_priority">
+                                    High Priority
+                                </label>
+                                @error('high_priority')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="quick_notes" class="form-label">Comment / Notes</label>
                             <textarea name="notes" id="quick_notes" rows="3"
                                       class="form-control @error('notes') is-invalid @enderror"
-                                      placeholder="Describe the issue or service request..."
-                                      required>{{ old('notes') }}</textarea>
+                                      placeholder="Describe the issue or service request (optional)...">{{ old('notes') }}</textarea>
                             @error('notes')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror

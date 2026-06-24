@@ -24,15 +24,21 @@
                             <th class="d-none d-md-table-cell">Transaction ID</th>
                             <th class="d-none d-sm-table-cell">Logged By</th>
                             <th>Created</th>
+                            <th class="d-none d-md-table-cell">Last Updated</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach($recentServiceCases as $serviceCase)
                             <tr>
                                 <td class="fw-semibold">
-                                    <a href="{{ route('incidents.show', $serviceCase) }}" class="text-decoration-none">
-                                        {{ $serviceCase->reference_no }}
-                                    </a>
+                                    <div class="d-flex flex-wrap align-items-center gap-1">
+                                        <a href="{{ route('incidents.show', $serviceCase) }}" class="text-decoration-none">
+                                            {{ $serviceCase->reference_no }}
+                                        </a>
+                                        @if($serviceCase->high_priority)
+                                            @include('dashboard.partials.high-priority-badge')
+                                        @endif
+                                    </div>
                                 </td>
                                 <td>{{ $serviceCase->order?->order_id ?: '—' }}</td>
                                 <td>{{ $serviceCase->order?->serial_number ?: '—' }}</td>
@@ -49,8 +55,9 @@
                                     @endif
                                 </td>
                                 <td class="d-none d-md-table-cell">{{ $serviceCase->order?->transaction_id ?: '—' }}</td>
-                                <td class="d-none d-sm-table-cell">{{ $serviceCase->creator?->name ?? '—' }}</td>
+                                <td class="d-none d-sm-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
                                 <td class="text-nowrap">{{ $serviceCase->created_at?->format('d M Y, h:i A') ?: '—' }}</td>
+                                <td class="d-none d-md-table-cell text-nowrap">{{ $serviceCase->updated_at?->format('d M Y, h:i A') ?: '—' }}</td>
                             </tr>
                         @endforeach
                     </tbody>
