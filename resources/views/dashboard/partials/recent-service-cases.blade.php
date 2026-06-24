@@ -69,6 +69,7 @@
                             <th class="d-none d-lg-table-cell">Product</th>
                             <th>Source</th>
                             <th>Status</th>
+                            <th class="sla-cell">SLA</th>
                             <th class="d-none d-md-table-cell">Transaction ID</th>
                             <th class="d-none d-sm-table-cell">Owner</th>
                             <th class="d-none d-sm-table-cell">Logged By</th>

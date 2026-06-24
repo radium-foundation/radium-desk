@@ -18,6 +18,8 @@
 
         @include('dashboard.partials.action-stats', ['stats' => $stats])
 
+        @include('dashboard.partials.sla-alert-cards', ['stats' => $stats])
+
         @if($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view'))
             <div class="mb-3">
                 @include('dashboard.partials.recent-service-cases', [

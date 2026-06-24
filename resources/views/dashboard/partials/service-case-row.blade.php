@@ -47,6 +47,9 @@
             —
         @endif
     </td>
+    <td class="sla-cell">
+        @include('dashboard.partials.sla-status', ['serviceCase' => $serviceCase])
+    </td>
     @include('dashboard.partials.transaction-id-cell', [
         'serviceCase' => $serviceCase,
         'canManageTransactions' => $canManageTransactions ?? false,

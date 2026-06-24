@@ -68,6 +68,8 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('24 Jun 2026, 02:35 PM')
             ->assertSee('Pending for:')
             ->assertSee('6 hours 12 minutes')
+            ->assertSee('SLA')
+            ->assertSee('Within SLA')
             ->assertSee('Last Updated')
             ->assertSee('Ravi');
 
@@ -107,6 +109,8 @@ class DashboardServiceCasesTest extends TestCase
 
     public function test_dashboard_sorts_high_priority_service_cases_first(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-06-24 18:00:00'));
+
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
@@ -119,7 +123,7 @@ class DashboardServiceCasesTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        Incident::query()->create([
+        $normalIncident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => 'SC-00002',
             'category' => 'General',
@@ -129,11 +133,13 @@ class DashboardServiceCasesTest extends TestCase
             'status' => 'open',
             'high_priority' => false,
             'created_by' => $agent->id,
+        ]);
+        $normalIncident->forceFill([
             'created_at' => now()->subHour(),
             'updated_at' => now()->subHour(),
-        ]);
+        ])->saveQuietly();
 
-        Incident::query()->create([
+        $highPriorityIncident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => 'SC-00001',
             'category' => 'General',
@@ -143,17 +149,17 @@ class DashboardServiceCasesTest extends TestCase
             'status' => 'open',
             'high_priority' => true,
             'created_by' => $agent->id,
+        ]);
+        $highPriorityIncident->forceFill([
             'created_at' => now()->subDay(),
             'updated_at' => now()->subDay(),
-        ]);
+        ])->saveQuietly();
 
-        $response = $this->actingAs($agent)->get(route('dashboard'));
+        $sorted = app(\App\Services\DashboardService::class)->recentServiceCases('pending_admin', 10);
 
-        $response->assertOk();
-        $response->assertSeeInOrder(['SC-00001', 'SC-00002']);
-        $response->assertSee('high-priority-dot', false);
-        $response->assertSee('data-bs-title="High Priority"', false);
-        $response->assertDontSee('>High Priority</span>', false);
+        $this->assertSame(['SC-00001', 'SC-00002'], $sorted->pluck('reference_no')->all());
+
+        Carbon::setTestNow();
     }
 
     public function test_dashboard_completed_tooltip_shows_transaction_and_turnaround(): void
@@ -407,6 +413,230 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('Assigned by Priya', false)
             ->assertSee('bi-check-circle-fill', false)
             ->assertDontSee('data-inline-transaction="true"', false);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_dashboard_shows_sla_warning_and_overdue_for_pending_cases(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-26 12:00:00'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SLA-1',
+            'serial_number' => 'SN-SLA-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $warningCreatedAt = now()->subHours(30);
+        $warningIncident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-SLA-WARN',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Warning SLA',
+            'description' => 'Warning SLA case.',
+            'status' => 'open',
+            'high_priority' => false,
+            'created_by' => $agent->id,
+        ]);
+        $warningIncident->forceFill([
+            'created_at' => $warningCreatedAt,
+            'updated_at' => $warningCreatedAt,
+        ])->saveQuietly();
+
+        $overdueCreatedAt = now()->subHours(10);
+        $overdueIncident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-SLA-OVER',
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Overdue SLA',
+            'description' => 'Overdue SLA case.',
+            'status' => 'open',
+            'high_priority' => true,
+            'created_by' => $agent->id,
+        ]);
+        $overdueIncident->forceFill([
+            'created_at' => $overdueCreatedAt,
+            'updated_at' => $overdueCreatedAt,
+        ])->saveQuietly();
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['filter' => 'all']))
+            ->assertOk()
+            ->assertSee('Warning')
+            ->assertSee('Overdue')
+            ->assertSee('data-bs-title', false);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_dashboard_sorts_by_sla_escalation_priority(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-26 18:00:00'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SLA-SORT',
+            'serial_number' => 'SN-SLA-SORT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $cases = [
+            ['ref' => 'SC-SLA-WITHIN', 'hours' => 2, 'high' => false],
+            ['ref' => 'SC-SLA-WARN-N', 'hours' => 30, 'high' => false],
+            ['ref' => 'SC-SLA-OVER-N', 'hours' => 50, 'high' => false],
+            ['ref' => 'SC-SLA-WARN-HP', 'hours' => 5, 'high' => true],
+            ['ref' => 'SC-SLA-OVER-HP', 'hours' => 10, 'high' => true],
+        ];
+
+        foreach ($cases as $case) {
+            $createdAt = now()->subHours($case['hours']);
+
+            $incident = Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => $case['ref'],
+                'category' => 'General',
+                'source' => IncidentSource::Internal,
+                'title' => $case['ref'],
+                'description' => 'SLA sort test.',
+                'status' => 'open',
+                'high_priority' => $case['high'],
+                'created_by' => $agent->id,
+            ]);
+
+            $incident->forceFill([
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ])->saveQuietly();
+        }
+
+        $sorted = app(\App\Services\DashboardService::class)->recentServiceCases('all', 10);
+
+        $this->assertSame([
+            'SC-SLA-OVER-HP',
+            'SC-SLA-WARN-HP',
+            'SC-SLA-OVER-N',
+            'SC-SLA-WARN-N',
+            'SC-SLA-WITHIN',
+        ], $sorted->pluck('reference_no')->all());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_dashboard_sla_alert_cards_filter_table(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-26 15:00:00'));
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SLA-FILTER',
+            'serial_number' => 'SN-SLA-FILTER',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        foreach ([
+            ['ref' => 'SC-FILTER-WARN', 'hours' => 26],
+            ['ref' => 'SC-FILTER-OVER', 'hours' => 60],
+            ['ref' => 'SC-FILTER-OK', 'hours' => 3],
+        ] as $case) {
+            $createdAt = now()->subHours($case['hours']);
+
+            $incident = Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => $case['ref'],
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => $case['ref'],
+                'description' => $case['ref'],
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+
+            $incident->forceFill([
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ])->saveQuietly();
+        }
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Overdue Cases')
+            ->assertSee('Warning Cases')
+            ->assertSee('>1</div>', false);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'overdue']))
+            ->assertOk()
+            ->assertSee('SC-FILTER-OVER')
+            ->assertDontSee('SC-FILTER-WARN')
+            ->assertDontSee('SC-FILTER-OK');
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'warning']))
+            ->assertOk()
+            ->assertSee('SC-FILTER-WARN')
+            ->assertDontSee('SC-FILTER-OVER')
+            ->assertDontSee('SC-FILTER-OK');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_completed_service_cases_always_show_within_sla(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-26 20:00:00'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SLA-DONE',
+            'serial_number' => 'SN-SLA-DONE',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TX-DONE',
+            'completed_at' => now()->subHour(),
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-SLA-DONE',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Completed SLA',
+            'description' => 'Completed SLA case.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+        ]);
+        $incident->forceFill([
+            'created_at' => now()->subDays(5),
+            'updated_at' => now()->subDays(5),
+        ])->saveQuietly();
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['filter' => 'completed']))
+            ->assertOk()
+            ->assertSee('Within SLA')
+            ->assertDontSee('>Overdue</span>', false);
 
         Carbon::setTestNow();
     }

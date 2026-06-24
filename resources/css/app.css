@@ -211,6 +211,37 @@ html.sidebar-expanded .app-main {
     width: 2.5rem;
 }
 
+.sla-cell {
+    white-space: nowrap;
+}
+
+.sla-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8125rem;
+}
+
+.sla-status-indicator {
+    line-height: 1;
+}
+
+.sla-status-label {
+    font-weight: 500;
+}
+
+.sla-status--within .sla-status-label {
+    color: var(--bs-success);
+}
+
+.sla-status--warning .sla-status-label {
+    color: var(--bs-warning-text-emphasis, #997404);
+}
+
+.sla-status--overdue .sla-status-label {
+    color: var(--bs-danger);
+}
+
 .high-priority-dot {
     display: inline-block;
     width: 0.5rem;

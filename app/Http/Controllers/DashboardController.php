@@ -17,7 +17,7 @@ class DashboardController extends Controller
         $user = $request->user();
         $filter = $request->string('filter')->toString() ?: 'pending_admin';
 
-        if (! in_array($filter, ['all', 'pending_admin', 'completed', 'high_priority'], true)) {
+        if (! in_array($filter, ['all', 'pending_admin', 'completed', 'high_priority', 'overdue', 'warning'], true)) {
             $filter = 'pending_admin';
         }
 

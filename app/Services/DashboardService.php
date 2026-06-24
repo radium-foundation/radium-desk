@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\ApprovalStatus;
 use App\Enums\IncidentStatus;
 use App\Enums\RefundStatus;
+use App\Enums\ServiceCaseSlaStatus;
 use App\Models\ApprovalNumber;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -61,6 +62,13 @@ class DashboardService
             $stats['audit_log_count'] = AuditLog::query()->count();
         }
 
+        if ($user->can('incidents.view')) {
+            $stats = [
+                ...$stats,
+                ...$this->slaCounts(),
+            ];
+        }
+
         return $stats;
     }
 
@@ -81,14 +89,93 @@ class DashboardService
                     ->where('transaction_id', '!=', '');
             }),
             'high_priority' => $query->where('high_priority', true),
+            'overdue' => $query->whereHas('order', function ($orderQuery): void {
+                $orderQuery->where(function ($pendingQuery): void {
+                    $pendingQuery->whereNull('transaction_id')
+                        ->orWhere('transaction_id', '');
+                });
+            }),
+            'warning' => $query->whereHas('order', function ($orderQuery): void {
+                $orderQuery->where(function ($pendingQuery): void {
+                    $pendingQuery->whereNull('transaction_id')
+                        ->orWhere('transaction_id', '');
+                });
+            }),
             default => null,
         };
 
-        return $query
-            ->orderByDesc('high_priority')
-            ->latest()
-            ->limit($limit)
+        $incidents = $query->get();
+
+        $incidents = match ($filter) {
+            'overdue' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Overdue),
+            'warning' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Warning),
+            default => $incidents,
+        };
+
+        return $this->sortIncidentsForDashboard($incidents)
+            ->take($limit)
+            ->values();
+    }
+
+    /**
+     * @return array{overdue_cases: int, warning_cases: int}
+     */
+    public function slaCounts(): array
+    {
+        $pendingIncidents = Incident::query()
+            ->with('order')
+            ->whereHas('order', function ($orderQuery): void {
+                $orderQuery->where(function ($pendingQuery): void {
+                    $pendingQuery->whereNull('transaction_id')
+                        ->orWhere('transaction_id', '');
+                });
+            })
             ->get();
+
+        $now = now();
+
+        return [
+            'overdue_cases' => $pendingIncidents
+                ->filter(fn (Incident $incident): bool => $incident->slaStatus($now) === ServiceCaseSlaStatus::Overdue)
+                ->count(),
+            'warning_cases' => $pendingIncidents
+                ->filter(fn (Incident $incident): bool => $incident->slaStatus($now) === ServiceCaseSlaStatus::Warning)
+                ->count(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidents
+     * @return Collection<int, Incident>
+     */
+    private function sortIncidentsForDashboard(Collection $incidents): Collection
+    {
+        $now = now();
+
+        return $incidents
+            ->sort(function (Incident $left, Incident $right) use ($now): int {
+                $rankComparison = $left->slaSortRank($now) <=> $right->slaSortRank($now);
+
+                if ($rankComparison !== 0) {
+                    return $rankComparison;
+                }
+
+                return ($left->created_at?->timestamp ?? 0) <=> ($right->created_at?->timestamp ?? 0);
+            })
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidents
+     * @return Collection<int, Incident>
+     */
+    private function filterIncidentsBySlaStatus(Collection $incidents, ServiceCaseSlaStatus $status): Collection
+    {
+        $now = now();
+
+        return $incidents
+            ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin() && $incident->slaStatus($now) === $status)
+            ->values();
     }
 
     public function recentActivity(int $limit = 10): Collection

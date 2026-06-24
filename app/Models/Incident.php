@@ -4,12 +4,14 @@ namespace App\Models;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\ServiceCaseSlaStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 class Incident extends Model
 {
@@ -72,5 +74,72 @@ class Incident extends Model
     {
         return $this->belongsToMany(ApprovalNumber::class, 'approval_incident')
             ->withPivot(['linked_by', 'created_at']);
+    }
+
+    public function isPendingAdmin(): bool
+    {
+        return $this->order !== null && ! $this->order->isTransactionLocked();
+    }
+
+    public function slaStatus(?Carbon $now = null): ServiceCaseSlaStatus
+    {
+        if (! $this->isPendingAdmin() || $this->created_at === null) {
+            return ServiceCaseSlaStatus::WithinSla;
+        }
+
+        $now ??= now();
+        $hoursPending = (int) $this->created_at->diffInHours($now);
+
+        if ($this->high_priority) {
+            return match (true) {
+                $hoursPending >= 8 => ServiceCaseSlaStatus::Overdue,
+                $hoursPending >= 4 => ServiceCaseSlaStatus::Warning,
+                default => ServiceCaseSlaStatus::WithinSla,
+            };
+        }
+
+        return match (true) {
+            $hoursPending >= 48 => ServiceCaseSlaStatus::Overdue,
+            $hoursPending >= 24 => ServiceCaseSlaStatus::Warning,
+            default => ServiceCaseSlaStatus::WithinSla,
+        };
+    }
+
+    public function slaSortRank(?Carbon $now = null): int
+    {
+        if (! $this->isPendingAdmin()) {
+            return 6;
+        }
+
+        $status = $this->slaStatus($now);
+
+        return match (true) {
+            $this->high_priority && $status === ServiceCaseSlaStatus::Overdue => 1,
+            $this->high_priority && $status === ServiceCaseSlaStatus::Warning => 2,
+            ! $this->high_priority && $status === ServiceCaseSlaStatus::Overdue => 3,
+            ! $this->high_priority && $status === ServiceCaseSlaStatus::Warning => 4,
+            default => 5,
+        };
+    }
+
+    public function slaTooltipHtml(?Carbon $now = null): string
+    {
+        $now ??= now();
+        $status = $this->slaStatus($now);
+
+        $lines = [
+            'Created:',
+            $this->created_at?->format('d M Y h:i A') ?? '—',
+            '',
+            'Pending:',
+            Order::formatDurationBetween($this->created_at, $now) ?? '—',
+            '',
+            'SLA:',
+            $status->label(),
+        ];
+
+        return collect($lines)
+            ->map(fn (string $line): string => e($line))
+            ->implode('<br>');
     }
 }
