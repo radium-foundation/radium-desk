@@ -1,5 +1,5 @@
 <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-labelledby="quickCreateModalLabel"
-     data-show-on-load="{{ ($errors->has('customer_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('notes')) ? 'true' : 'false' }}">
+     data-show-on-load="{{ ($errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes')) ? 'true' : 'false' }}">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header py-2">
@@ -10,18 +10,18 @@
                 @csrf
                 <div class="modal-body py-3">
                     <p class="text-muted small mb-3">
-                        Order ID and case reference are assigned automatically after submission.
+                        {{ config('ui.service_case.reference_label') }} is assigned automatically after submission.
                     </p>
 
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label for="quick_customer_id" class="form-label">Customer ID <span class="text-danger">*</span></label>
-                            <input type="text" name="customer_id" id="quick_customer_id"
-                                   class="form-control @error('customer_id') is-invalid @enderror"
-                                   value="{{ old('customer_id') }}"
-                                   placeholder="Customer ID"
+                            <label for="quick_order_id" class="form-label">Order ID <span class="text-danger">*</span></label>
+                            <input type="text" name="order_id" id="quick_order_id"
+                                   class="form-control @error('order_id') is-invalid @enderror"
+                                   value="{{ old('order_id') }}"
+                                   placeholder="Order ID"
                                    required>
-                            @error('customer_id')
+                            @error('order_id')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
@@ -38,7 +38,7 @@
                             @enderror
                         </div>
 
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label for="quick_product" class="form-label">Product <span class="text-danger">*</span></label>
                             <select name="product" id="quick_product"
                                     class="form-select @error('product') is-invalid @enderror"
@@ -55,8 +55,25 @@
                             @enderror
                         </div>
 
+                        <div class="col-md-6">
+                            <label for="quick_source" class="form-label">Source <span class="text-danger">*</span></label>
+                            <select name="source" id="quick_source"
+                                    class="form-select @error('source') is-invalid @enderror"
+                                    required>
+                                <option value="" disabled @selected(old('source') === null)>Select source</option>
+                                @foreach(\App\Enums\IncidentSource::cases() as $sourceOption)
+                                    <option value="{{ $sourceOption->value }}" @selected(old('source', 'call') === $sourceOption->value)>
+                                        {{ $sourceOption->label() }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('source')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
                         <div class="col-12">
-                            <label for="quick_notes" class="form-label">Notes <span class="text-danger">*</span></label>
+                            <label for="quick_notes" class="form-label">Comment / Notes <span class="text-danger">*</span></label>
                             <textarea name="notes" id="quick_notes" rows="3"
                                       class="form-control @error('notes') is-invalid @enderror"
                                       placeholder="Describe the issue or service request..."

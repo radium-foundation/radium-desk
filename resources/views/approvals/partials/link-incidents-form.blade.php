@@ -1,18 +1,18 @@
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white py-3">
-        <h2 class="h6 mb-0">Link Incidents</h2>
+        <h2 class="h6 mb-0">{{ config('ui.service_case.link_action') }}</h2>
     </div>
     <div class="card-body">
         <p class="text-muted small">
-            Search and select incidents to attach. You can link up to
-            <strong>{{ $remainingSlots }}</strong> more incident(s).
+            Search and select service cases to attach. You can link up to
+            <strong>{{ $remainingSlots }}</strong> more service case(s).
         </p>
 
         <form method="POST" action="{{ route('approvals.incidents.link', $approval) }}" id="link_incidents_form">
             @csrf
 
             <div class="mb-3">
-                <label for="incident_search" class="form-label">Search Incidents</label>
+                <label for="incident_search" class="form-label">Search {{ config('ui.service_case.plural') }}</label>
                 <div class="position-relative">
                     <input type="text"
                            id="incident_search"
@@ -24,14 +24,14 @@
                          class="list-group position-absolute w-100 shadow-sm d-none"
                          style="z-index: 1050; max-height: 240px; overflow-y: auto;"></div>
                 </div>
-                <div class="form-text">Select incidents from the search results to add them below.</div>
+                <div class="form-text">Select service cases from the search results to add them below.</div>
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Selected Incidents</label>
+                <label class="form-label">Selected {{ config('ui.service_case.plural') }}</label>
                 <div id="selected_incidents_list" class="list-group mb-2">
                     <div id="selected_incidents_empty" class="list-group-item text-muted small">
-                        No incidents selected yet.
+                        {{ config('ui.service_case.no_selection') }}
                     </div>
                 </div>
                 @error('incident_ids')
@@ -43,7 +43,7 @@
             </div>
 
             <button type="submit" class="btn btn-primary" id="link_incidents_submit" disabled>
-                <i class="bi bi-link-45deg me-1"></i> Link Selected Incidents
+                <i class="bi bi-link-45deg me-1"></i> Link Selected {{ config('ui.service_case.plural') }}
             </button>
         </form>
     </div>
@@ -121,7 +121,7 @@
                 }
 
                 if (selectedIncidents.size >= maxSelections) {
-                    window.alert(`You can only link ${maxSelections} more incident(s) to this approval number.`);
+                    window.alert(`You can only link ${maxSelections} more service case(s) to this approval number.`);
                     return;
                 }
 
@@ -135,7 +135,7 @@
                 resultsBox.innerHTML = '';
 
                 if (!incidents.length) {
-                    resultsBox.innerHTML = '<div class="list-group-item text-muted small">No incidents found.</div>';
+                    resultsBox.innerHTML = '<div class="list-group-item text-muted small">No service cases found.</div>';
                     resultsBox.classList.remove('d-none');
                     return;
                 }

@@ -33,9 +33,9 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a @class(['nav-link', 'active' => request()->routeIs('incidents.*')]) href="{{ route('incidents.index') }}" title="Incidents">
+                <a @class(['nav-link', 'active' => request()->routeIs('incidents.*')]) href="{{ route('incidents.index') }}" title="{{ config('ui.service_case.plural') }}">
                     <i class="bi bi-exclamation-triangle nav-icon me-2"></i>
-                    <span class="nav-label">Incidents</span>
+                    <span class="nav-label">{{ config('ui.service_case.plural') }}</span>
                 </a>
             </li>
             <li class="nav-item">

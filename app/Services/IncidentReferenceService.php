@@ -10,8 +10,7 @@ class IncidentReferenceService
     public function generate(): string
     {
         return DB::transaction(function (): string {
-            $year = now()->format('Y');
-            $prefix = "INC-{$year}-";
+            $prefix = 'SC-';
 
             $latestReference = Incident::withTrashed()
                 ->where('reference_no', 'like', $prefix.'%')
@@ -20,10 +19,10 @@ class IncidentReferenceService
                 ->value('reference_no');
 
             $sequence = $latestReference
-                ? ((int) substr($latestReference, -6)) + 1
+                ? ((int) substr($latestReference, strlen($prefix))) + 1
                 : 1;
 
-            return $prefix.str_pad((string) $sequence, 6, '0', STR_PAD_LEFT);
+            return $prefix.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
         });
     }
 }

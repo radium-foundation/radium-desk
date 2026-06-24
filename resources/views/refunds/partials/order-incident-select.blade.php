@@ -39,14 +39,14 @@
 </div>
 
 <div class="col-12">
-    <label for="incident_search" class="form-label">Incident <span class="text-muted">(optional)</span></label>
+    <label for="incident_search" class="form-label">{{ config('ui.service_case.select_optional') }}</label>
     <input type="hidden" name="incident_id" id="incident_id" value="{{ $incidentIdValue }}">
     <div class="position-relative">
         <input type="text"
                id="incident_search"
                class="form-control @error('incident_id') is-invalid @enderror"
                value="{{ $incidentDisplayValue }}"
-               placeholder="Select an order first, then search incidents..."
+               placeholder="{{ config('ui.service_case.select_prompt') }}"
                autocomplete="off"
                data-lookup-url="{{ route('refunds.incidents.lookup') }}"
                @disabled(! $orderIdValue)>
@@ -174,7 +174,7 @@
                     incidentResultsBox.innerHTML = '';
 
                     if (!incidents.length) {
-                        incidentResultsBox.innerHTML = '<div class="list-group-item text-muted small">No incidents found for this order.</div>';
+                        incidentResultsBox.innerHTML = '<div class="list-group-item text-muted small">No service cases found for this order.</div>';
                         incidentResultsBox.classList.remove('d-none');
                         return;
                     }

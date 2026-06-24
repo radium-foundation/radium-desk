@@ -36,7 +36,7 @@
                 </div>
                 <div class="col-sm-6 col-xl-3">
                     @include('dashboard.partials.stat-card', [
-                        'label' => 'Resolved Incidents',
+                        'label' => config('ui.service_case.resolved_label'),
                         'value' => $stats['resolved_incidents'],
                         'icon' => 'bi-check-circle',
                         'color' => 'success',
@@ -44,7 +44,7 @@
                 </div>
                 <div class="col-sm-6 col-xl-3">
                     @include('dashboard.partials.stat-card', [
-                        'label' => 'Closed Incidents',
+                        'label' => config('ui.service_case.closed_label'),
                         'value' => $stats['closed_incidents'],
                         'icon' => 'bi-archive',
                         'color' => 'secondary',

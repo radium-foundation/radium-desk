@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Order;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 
 class OrderPolicy
 {
@@ -24,11 +25,25 @@ class OrderPolicy
 
     public function update(User $user, Order $order): bool
     {
+        if ($order->isTransactionLocked()) {
+            return false;
+        }
+
         return $user->can('orders.update');
     }
 
     public function delete(User $user, Order $order): bool
     {
         return $user->can('orders.delete');
+    }
+
+    public function assignTransaction(User $user, Order $order): bool
+    {
+        return $user->can('orders.update') && ! $order->isTransactionLocked();
+    }
+
+    public function unlockTransaction(User $user, Order $order): bool
+    {
+        return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) && $order->isTransactionLocked();
     }
 }

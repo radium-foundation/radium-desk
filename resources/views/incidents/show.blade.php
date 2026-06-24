@@ -7,7 +7,7 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-2">
-                    <li class="breadcrumb-item"><a href="{{ route('incidents.index') }}">Incidents</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('incidents.index') }}">{{ config('ui.service_case.plural') }}</a></li>
                     <li class="breadcrumb-item active" aria-current="page">{{ $incident->reference_no }}</li>
                 </ol>
             </nav>
@@ -22,7 +22,7 @@
             @endcan
             @can('delete', $incident)
                 <form method="POST" action="{{ route('incidents.destroy', $incident) }}"
-                      onsubmit="return confirm('Are you sure you want to delete this incident?');">
+                      onsubmit="return confirm('{{ config('ui.service_case.delete_confirm') }}');">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="btn btn-outline-danger">
@@ -37,14 +37,14 @@
         <div class="col-lg-7">
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-3">
-                    <h2 class="h6 mb-0">Incident Information</h2>
+                    <h2 class="h6 mb-0">{{ config('ui.service_case.information_heading') }}</h2>
                 </div>
                 <div class="card-body">
                     <dl class="row mb-0">
-                        <dt class="col-sm-4 text-muted">Reference No</dt>
+                        <dt class="col-sm-4 text-muted">{{ config('ui.service_case.reference_label') }}</dt>
                         <dd class="col-sm-8 fw-semibold">{{ $incident->reference_no }}</dd>
 
-                        <dt class="col-sm-4 text-muted">Status</dt>
+                        <dt class="col-sm-4 text-muted">Service Case Status</dt>
                         <dd class="col-sm-8">@include('incidents.partials.status-badge', ['status' => $incident->status])</dd>
 
                         <dt class="col-sm-4 text-muted">Category</dt>
@@ -88,6 +88,10 @@
                             <dd class="col-sm-8">{{ $incident->order->product_name }}</dd>
                             <dt class="col-sm-4 text-muted">Device Model</dt>
                             <dd class="col-sm-8">{{ $incident->order->device_model }}</dd>
+                            <dt class="col-sm-4 text-muted">Order Completion Status</dt>
+                            <dd class="col-sm-8">@include('orders.partials.completion-status-badge', ['order' => $incident->order])</dd>
+                            <dt class="col-sm-4 text-muted">Transaction ID</dt>
+                            <dd class="col-sm-8">{{ $incident->order->transaction_id ?: '—' }}</dd>
                             <dt class="col-sm-4 text-muted">Customer</dt>
                             <dd class="col-sm-8">{{ $incident->order->customer_name ?: '—' }}</dd>
                         </dl>

@@ -6,8 +6,7 @@
     <div class="mb-4">
         <h1 class="h3 mb-1">Global Search</h1>
         <p class="text-muted mb-0">
-            Search by order ID, serial number, customer ID, incident reference, approval number, refund reference,
-            transaction ID, or customer name, email, or phone.
+            Search by order ID, serial number, transaction ID, or {{ strtolower(config('ui.service_case.reference_label')) }}.
         </p>
     </div>
 
@@ -19,7 +18,7 @@
                         type="search"
                         name="q"
                         class="form-control form-control-lg"
-                        placeholder="Search orders, incidents, approvals, refunds..."
+                        placeholder="Search orders, service cases, approvals, refunds..."
                         value="{{ $query }}"
                         autofocus
                     >
@@ -33,7 +32,7 @@
 
     @if($query === '')
         <div class="alert alert-info mb-0">
-            Enter an identifier or customer detail to begin searching.
+            Enter an order ID, serial number, or transaction ID to begin searching.
         </div>
     @elseif($totalResults === 0)
         <div class="alert alert-warning mb-0">
@@ -56,7 +55,7 @@
 
             @if($results['incidents'])
                 @include('search.partials.group', [
-                    'title' => 'Incidents',
+                    'title' => config('ui.service_case.plural'),
                     'paginator' => $results['incidents'],
                     'emptyMessage' => null,
                 ])

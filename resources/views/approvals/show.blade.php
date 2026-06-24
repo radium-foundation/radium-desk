@@ -49,7 +49,7 @@
                         <dt class="col-sm-4 text-muted">Description</dt>
                         <dd class="col-sm-8">{{ $approval->description ?: '—' }}</dd>
 
-                        <dt class="col-sm-4 text-muted">Linked Incidents</dt>
+                        <dt class="col-sm-4 text-muted">Linked {{ config('ui.service_case.plural') }}</dt>
                         <dd class="col-sm-8">
                             @include('approvals.partials.incident-counter', ['count' => $approval->incidents_count])
                             @if($approval->incidents_count >= \App\Models\ApprovalNumber::MAX_INCIDENTS)
@@ -77,11 +77,11 @@
 
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                    <h2 class="h6 mb-0">Linked Incidents</h2>
-                    <span class="text-muted small">{{ $approval->incidents_count }} incident(s)</span>
+                    <h2 class="h6 mb-0">Linked {{ config('ui.service_case.plural') }}</h2>
+                    <span class="text-muted small">{{ $approval->incidents_count }} service case(s)</span>
                 </div>
                 @if($approval->incidents->isEmpty())
-                    <div class="card-body text-muted">No incidents linked to this approval number yet.</div>
+                    <div class="card-body text-muted">{{ config('ui.service_case.linked_empty') }}</div>
                 @else
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
@@ -121,7 +121,7 @@
                                             <td class="text-end">
                                                 <form method="POST"
                                                       action="{{ route('approvals.incidents.unlink', [$approval, $incident]) }}"
-                                                      onsubmit="return confirm('Remove this incident from the approval number?');">
+                                                      onsubmit="return confirm('Remove this service case from the approval number?');">
                                                     @csrf
                                                     @method('DELETE')
                                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Unlink">
@@ -143,7 +143,7 @@
                     <h2 class="h6 mb-0">Linked Orders</h2>
                 </div>
                 @if($linkedOrders->isEmpty())
-                    <div class="card-body text-muted">No orders linked yet. Orders are derived from linked incidents.</div>
+                    <div class="card-body text-muted">No orders linked yet. Orders are derived from linked service cases.</div>
                 @else
                     <ul class="list-group list-group-flush">
                         @foreach($linkedOrders as $order)
@@ -158,7 +158,7 @@
                                 </div>
                                 <span class="badge text-bg-light text-dark border">
                                     {{ $approval->incidents->where('order_id', $order->id)->count() }}
-                                    incident(s)
+                                    service case(s)
                                 </span>
                             </li>
                         @endforeach
@@ -180,7 +180,7 @@
                             <div class="alert alert-warning mb-0">
                                 <i class="bi bi-exclamation-triangle me-1"></i>
                                 This approval number has reached the maximum of
-                                {{ \App\Models\ApprovalNumber::MAX_INCIDENTS }} linked incidents.
+                                {{ \App\Models\ApprovalNumber::MAX_INCIDENTS }} linked service cases.
                             </div>
                         </div>
                     </div>

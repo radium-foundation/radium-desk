@@ -32,9 +32,9 @@
                            value="{{ $filters['order_id'] ?? '' }}" placeholder="Search order ID">
                 </div>
                 <div class="col-md-6 col-lg-4">
-                    <label for="filter_incident_reference_no" class="form-label">Incident Reference Number</label>
+                    <label for="filter_incident_reference_no" class="form-label">{{ config('ui.service_case.reference_label') }}</label>
                     <input type="text" name="incident_reference_no" id="filter_incident_reference_no" class="form-control"
-                           value="{{ $filters['incident_reference_no'] ?? '' }}" placeholder="e.g. INC-2026-000001">
+                           value="{{ $filters['incident_reference_no'] ?? '' }}" placeholder="e.g. SC-00001">
                 </div>
                 <div class="col-md-6 col-lg-4">
                     <label for="filter_status" class="form-label">Status</label>
@@ -91,7 +91,7 @@
                             <tr>
                                 <th>Refund Ref</th>
                                 <th>Order ID</th>
-                                <th>Incident Ref</th>
+                                <th>{{ config('ui.service_case.reference_short') }}</th>
                                 <th>Amount</th>
                                 <th>Status</th>
                                 <th>Requested By</th>

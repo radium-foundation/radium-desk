@@ -67,7 +67,7 @@ class DashboardService
     public function recentServiceCases(int $limit = 10): Collection
     {
         return Incident::query()
-            ->with(['order', 'creator'])
+            ->with(['order.transactionAssigner', 'creator'])
             ->latest()
             ->limit($limit)
             ->get();

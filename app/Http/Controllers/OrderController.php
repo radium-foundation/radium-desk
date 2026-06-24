@@ -94,6 +94,10 @@ class OrderController extends Controller
     public function show(Order $order): View
     {
         $order->loadCount(['incidents', 'refundRequests']);
+        $order->load([
+            'incidents' => fn ($query) => $query->with('creator')->latest(),
+            'transactionAssigner',
+        ]);
 
         return view('orders.show', [
             'order' => $order,

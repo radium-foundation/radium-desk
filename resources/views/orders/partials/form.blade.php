@@ -41,16 +41,6 @@
         @enderror
     </div>
 
-    <div class="col-md-6">
-        <label for="transaction_id" class="form-label">Transaction ID</label>
-        <input type="text" name="transaction_id" id="transaction_id"
-               class="form-control @error('transaction_id') is-invalid @enderror"
-               value="{{ old('transaction_id', $order->transaction_id) }}">
-        @error('transaction_id')
-            <div class="invalid-feedback">{{ $message }}</div>
-        @enderror
-    </div>
-
     @if($showStatus)
         <div class="col-md-6">
             <label for="status" class="form-label">Status <span class="text-danger">*</span></label>

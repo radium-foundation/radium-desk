@@ -87,7 +87,7 @@
 
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-3">
-                    <h2 class="h6 mb-0">Related Incident</h2>
+                    <h2 class="h6 mb-0">Related {{ config('ui.service_case.singular') }}</h2>
                 </div>
                 <div class="card-body">
                     @if($refund->incident)
@@ -106,7 +106,7 @@
                             </dd>
                         </dl>
                     @else
-                        <p class="text-muted mb-0">No related incident.</p>
+                        <p class="text-muted mb-0">No related service case.</p>
                     @endif
                 </div>
             </div>

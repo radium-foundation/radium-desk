@@ -14,7 +14,7 @@ class UpdateOrderRequest extends FormRequest
         /** @var Order $order */
         $order = $this->route('order');
 
-        return $this->user()?->can('orders.update') ?? false;
+        return $this->user()?->can('update', $order) ?? false;
     }
 
     /**
@@ -40,7 +40,6 @@ class UpdateOrderRequest extends FormRequest
             ],
             'product_name' => ['required', 'string', 'max:255'],
             'device_model' => ['required', 'string', 'max:255'],
-            'transaction_id' => ['nullable', 'string', 'max:100'],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_email' => ['nullable', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],

@@ -57,27 +57,24 @@ class SearchService
                 $builder->where('order_id', 'like', $like)
                     ->orWhere('serial_number', 'like', $like)
                     ->orWhere('transaction_id', 'like', $like)
-                    ->orWhere('customer_id', 'like', $like)
                     ->orWhere('customer_name', 'like', $like)
-                    ->orWhere('customer_email', 'like', $like)
-                    ->orWhere('customer_phone', 'like', $like);
+                    ->orWhere($this->futureContactField('customer_email'), 'like', $like)
+                    ->orWhere($this->futureContactField('customer_phone'), 'like', $like);
             })
             ->orderByRaw(
                 'CASE
                     WHEN order_id = ? THEN 0
                     WHEN serial_number = ? THEN 1
                     WHEN transaction_id = ? THEN 2
-                    WHEN customer_id = ? THEN 3
-                    WHEN order_id LIKE ? THEN 4
-                    WHEN serial_number LIKE ? THEN 5
-                    WHEN transaction_id LIKE ? THEN 6
-                    WHEN customer_id LIKE ? THEN 7
-                    WHEN customer_email = ? THEN 8
-                    WHEN customer_phone = ? THEN 9
-                    WHEN customer_name = ? THEN 10
-                    ELSE 11
+                    WHEN order_id LIKE ? THEN 3
+                    WHEN serial_number LIKE ? THEN 4
+                    WHEN transaction_id LIKE ? THEN 5
+                    WHEN customer_email = ? THEN 6
+                    WHEN customer_phone = ? THEN 7
+                    WHEN customer_name = ? THEN 8
+                    ELSE 9
                 END',
-                [$query, $query, $query, $query, $prefix, $prefix, $prefix, $prefix, $query, $query, $query]
+                [$query, $query, $query, $prefix, $prefix, $prefix, $query, $query, $query]
             )
             ->orderBy('order_id')
             ->paginate(self::PER_PAGE, ['*'], 'orders_page', $page)
@@ -90,15 +87,7 @@ class SearchService
             ->with('order')
             ->where(function (Builder $builder) use ($like) {
                 $builder->where('reference_no', 'like', $like)
-                    ->orWhereHas('order', function (Builder $orderQuery) use ($like) {
-                        $orderQuery->where('order_id', 'like', $like)
-                            ->orWhere('serial_number', 'like', $like)
-                            ->orWhere('transaction_id', 'like', $like)
-                            ->orWhere('customer_id', 'like', $like)
-                            ->orWhere('customer_name', 'like', $like)
-                            ->orWhere('customer_email', 'like', $like)
-                            ->orWhere('customer_phone', 'like', $like);
-                    });
+                    ->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like));
             })
             ->orderByRaw(
                 'CASE
@@ -107,16 +96,21 @@ class SearchService
                     WHEN EXISTS (
                         SELECT 1 FROM orders
                         WHERE orders.id = incidents.order_id
-                          AND orders.customer_id = ?
+                          AND orders.order_id = ?
                     ) THEN 2
                     WHEN EXISTS (
                         SELECT 1 FROM orders
                         WHERE orders.id = incidents.order_id
-                          AND orders.customer_id LIKE ?
+                          AND orders.serial_number = ?
                     ) THEN 3
-                    ELSE 4
+                    WHEN EXISTS (
+                        SELECT 1 FROM orders
+                        WHERE orders.id = incidents.order_id
+                          AND orders.transaction_id = ?
+                    ) THEN 4
+                    ELSE 5
                 END',
-                [$query, $prefix, $query, $prefix]
+                [$query, $prefix, $query, $query, $query]
             )
             ->orderByDesc('created_at')
             ->paginate(self::PER_PAGE, ['*'], 'incidents_page', $page)
@@ -147,15 +141,7 @@ class SearchService
             ->where(function (Builder $builder) use ($like) {
                 $builder->where('reference_no', 'like', $like)
                     ->orWhere('refund_transaction_id', 'like', $like)
-                    ->orWhereHas('order', function (Builder $orderQuery) use ($like) {
-                        $orderQuery->where('order_id', 'like', $like)
-                            ->orWhere('serial_number', 'like', $like)
-                            ->orWhere('transaction_id', 'like', $like)
-                            ->orWhere('customer_id', 'like', $like)
-                            ->orWhere('customer_name', 'like', $like)
-                            ->orWhere('customer_email', 'like', $like)
-                            ->orWhere('customer_phone', 'like', $like);
-                    });
+                    ->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like));
             })
             ->orderByRaw(
                 'CASE
@@ -166,20 +152,43 @@ class SearchService
                     WHEN EXISTS (
                         SELECT 1 FROM orders
                         WHERE orders.id = refund_requests.order_id
-                          AND orders.customer_id = ?
+                          AND orders.order_id = ?
                     ) THEN 4
                     WHEN EXISTS (
                         SELECT 1 FROM orders
                         WHERE orders.id = refund_requests.order_id
-                          AND orders.customer_id LIKE ?
+                          AND orders.serial_number = ?
                     ) THEN 5
-                    ELSE 6
+                    WHEN EXISTS (
+                        SELECT 1 FROM orders
+                        WHERE orders.id = refund_requests.order_id
+                          AND orders.transaction_id = ?
+                    ) THEN 6
+                    ELSE 7
                 END',
-                [$query, $query, $prefix, $prefix, $query, $prefix]
+                [$query, $query, $prefix, $prefix, $query, $query, $query]
             )
             ->orderByDesc('created_at')
             ->paginate(self::PER_PAGE, ['*'], 'refunds_page', $page)
             ->withQueryString();
+    }
+
+    private function applyOrderSearchFilters(Builder $orderQuery, string $like): void
+    {
+        $orderQuery->where('order_id', 'like', $like)
+            ->orWhere('serial_number', 'like', $like)
+            ->orWhere('transaction_id', 'like', $like)
+            ->orWhere('customer_name', 'like', $like)
+            ->orWhere($this->futureContactField('customer_email'), 'like', $like)
+            ->orWhere($this->futureContactField('customer_phone'), 'like', $like);
+    }
+
+    /**
+     * Reserved for future mobile/email search exposure in the UI.
+     */
+    private function futureContactField(string $column): string
+    {
+        return $column;
     }
 
     /**

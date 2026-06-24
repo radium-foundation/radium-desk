@@ -1,7 +1,9 @@
 @php
+    $serviceCaseGroup = config('ui.service_case.plural');
+
     $label = match ($group) {
         'Orders' => $result->order_id,
-        'Incidents' => $result->reference_no,
+        $serviceCaseGroup => $result->reference_no,
         'Approvals' => $result->approval_number,
         'Refunds' => $result->reference_no,
         default => 'View',
@@ -9,7 +11,7 @@
 
     $url = match ($group) {
         'Orders' => route('orders.show', $result),
-        'Incidents' => route('incidents.show', $result),
+        $serviceCaseGroup => route('incidents.show', $result),
         'Approvals' => route('approvals.show', $result),
         'Refunds' => route('refunds.show', $result),
         default => '#',
@@ -17,19 +19,20 @@
 
     $meta = match ($group) {
         'Orders' => collect([
-            $result->customer_id,
             $result->serial_number,
-            $result->customer_name,
+            $result->transaction_id,
         ])->filter()->implode(' · '),
-        'Incidents' => collect([
-            $result->order?->customer_id,
+        $serviceCaseGroup => collect([
             $result->order?->order_id,
+            $result->order?->serial_number,
+            $result->order?->transaction_id,
             $result->title,
         ])->filter()->implode(' · '),
         'Approvals' => $result->description,
         'Refunds' => collect([
-            $result->order?->customer_id,
             $result->order?->order_id,
+            $result->order?->serial_number,
+            $result->order?->transaction_id,
             $result->status->label(),
         ])->filter()->implode(' · '),
         default => null,

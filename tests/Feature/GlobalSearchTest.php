@@ -49,7 +49,7 @@ class GlobalSearchTest extends TestCase
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => 'INC-2026-000123',
+            'reference_no' => 'SC-00099',
             'category' => 'Hardware',
             'source' => 'call',
             'title' => 'Screen issue',
@@ -79,10 +79,10 @@ class GlobalSearchTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('Orders');
-        $response->assertSee('Incidents');
+        $response->assertSee(config('ui.service_case.plural'));
         $response->assertSee('Refunds');
         $response->assertSee('RD3421021');
-        $response->assertSee('INC-2026-000123');
+        $response->assertSee('SC-00099');
         $response->assertSee('REF-2026-000011');
         $response->assertSee(route('orders.show', $order), false);
         $response->assertSee(route('incidents.show', $incident), false);
@@ -118,100 +118,66 @@ class GlobalSearchTest extends TestCase
             ->assertSee(route('orders.show', $order), false);
     }
 
-    public function test_search_finds_order_by_exact_customer_id(): void
+    public function test_search_finds_order_by_serial_number(): void
     {
         $user = User::factory()->create();
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $order = Order::query()->create([
-            'order_id' => 'RD-CUST-001',
-            'serial_number' => 'SN-CUST-001',
+            'order_id' => 'RD-SER-001',
+            'serial_number' => 'SN-SEARCH-001',
             'product_name' => 'Radium Device',
             'device_model' => 'Model X',
-            'customer_id' => 'TEST2345',
             'status' => 'active',
             'created_by' => $user->id,
         ]);
 
         $this->actingAs($user)
-            ->get(route('search.index', ['q' => 'TEST2345']))
+            ->get(route('search.index', ['q' => 'SN-SEARCH-001']))
             ->assertOk()
-            ->assertSee('RD-CUST-001')
-            ->assertSee('TEST2345')
+            ->assertSee('RD-SER-001')
             ->assertSee(route('orders.show', $order), false);
     }
 
-    public function test_search_finds_order_by_partial_customer_id(): void
+    public function test_search_finds_order_by_transaction_id(): void
     {
         $user = User::factory()->create();
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $order = Order::query()->create([
-            'order_id' => 'RD-CUST-002',
-            'serial_number' => 'SN-CUST-002',
+            'order_id' => 'RD-TXN-SRCH',
+            'serial_number' => 'SN-TXN-SRCH',
             'product_name' => 'Radium Device',
             'device_model' => 'Model X',
-            'customer_id' => 'TEST2345',
+            'transaction_id' => 'TXN-SEARCH-001',
             'status' => 'active',
             'created_by' => $user->id,
         ]);
 
         $this->actingAs($user)
-            ->get(route('search.index', ['q' => 'TEST23']))
+            ->get(route('search.index', ['q' => 'TXN-SEARCH-001']))
             ->assertOk()
-            ->assertSee('RD-CUST-002')
-            ->assertSee('TEST2345')
+            ->assertSee('RD-TXN-SRCH')
             ->assertSee(route('orders.show', $order), false);
     }
 
-    public function test_search_prioritizes_exact_customer_id_over_partial_match(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
-
-        Order::query()->create([
-            'order_id' => 'RD-CUST-PARTIAL',
-            'serial_number' => 'SN-CUST-PARTIAL',
-            'product_name' => 'Radium Device',
-            'device_model' => 'Model X',
-            'customer_id' => 'TEST234567',
-            'status' => 'active',
-            'created_by' => $user->id,
-        ]);
-
-        Order::query()->create([
-            'order_id' => 'RD-CUST-EXACT',
-            'serial_number' => 'SN-CUST-EXACT',
-            'product_name' => 'Radium Device',
-            'device_model' => 'Model X',
-            'customer_id' => 'TEST2345',
-            'status' => 'active',
-            'created_by' => $user->id,
-        ]);
-
-        $results = app(SearchService::class)->search($user, 'TEST2345');
-
-        $this->assertSame('RD-CUST-EXACT', $results['orders']->first()->order_id);
-    }
-
-    public function test_search_finds_incident_through_related_order_customer_id(): void
+    public function test_search_finds_service_case_through_related_order_serial(): void
     {
         $user = User::factory()->create();
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $order = Order::query()->create([
-            'order_id' => 'RD-INC-CUST',
-            'serial_number' => 'SN-INC-CUST',
+            'order_id' => 'RD-SC-SRCH',
+            'serial_number' => 'SN-SC-001',
             'product_name' => 'Radium Device',
             'device_model' => 'Model X',
-            'customer_id' => 'TEST2345',
             'status' => 'active',
             'created_by' => $user->id,
         ]);
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => 'INC-CUST-0001',
+            'reference_no' => 'SC-00055',
             'category' => 'Hardware',
             'source' => 'call',
             'title' => 'Battery issue',
@@ -221,32 +187,31 @@ class GlobalSearchTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('search.index', ['q' => 'TEST2345']))
+            ->get(route('search.index', ['q' => 'SN-SC-001']))
             ->assertOk()
-            ->assertSee('Incidents')
-            ->assertSee('INC-CUST-0001')
-            ->assertSee('TEST2345')
+            ->assertSee(config('ui.service_case.plural'))
+            ->assertSee('SC-00055')
             ->assertSee(route('incidents.show', $incident), false);
     }
 
-    public function test_search_finds_refund_through_related_order_customer_id(): void
+    public function test_search_finds_refund_through_related_order_transaction_id(): void
     {
         $user = User::factory()->create();
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $order = Order::query()->create([
-            'order_id' => 'RD-REF-CUST',
-            'serial_number' => 'SN-REF-CUST',
+            'order_id' => 'RD-REF-TXN',
+            'serial_number' => 'SN-REF-TXN',
             'product_name' => 'Radium Device',
             'device_model' => 'Model X',
-            'customer_id' => 'TEST2345',
+            'transaction_id' => 'TXN-REF-001',
             'status' => 'active',
             'created_by' => $user->id,
         ]);
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => 'INC-REF-CUST-001',
+            'reference_no' => 'SC-00056',
             'category' => 'Billing',
             'source' => 'call',
             'title' => 'Refund request',
@@ -258,7 +223,7 @@ class GlobalSearchTest extends TestCase
         $refund = RefundRequest::query()->create([
             'order_id' => $order->id,
             'incident_id' => $incident->id,
-            'reference_no' => 'REF-CUST-0001',
+            'reference_no' => 'REF-TXN-0001',
             'amount' => 500.00,
             'reason' => 'Customer cancellation',
             'status' => 'pending',
@@ -266,11 +231,10 @@ class GlobalSearchTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('search.index', ['q' => 'TEST2345']))
+            ->get(route('search.index', ['q' => 'TXN-REF-001']))
             ->assertOk()
             ->assertSee('Refunds')
-            ->assertSee('REF-CUST-0001')
-            ->assertSee('TEST2345')
+            ->assertSee('REF-TXN-0001')
             ->assertSee(route('refunds.show', $refund), false);
     }
 

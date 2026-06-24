@@ -14,7 +14,8 @@
             <h1 class="h3 mb-1">{{ $order->order_id }}</h1>
             <p class="text-muted mb-0">Order detail and related activity summary.</p>
         </div>
-        <div class="d-flex flex-wrap gap-2">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            @include('orders.partials.completion-status-badge', ['order' => $order])
             @can('update', $order)
                 <a href="{{ route('orders.edit', $order) }}" class="btn btn-outline-primary">
                     <i class="bi bi-pencil me-1"></i> Edit
@@ -33,11 +34,19 @@
         </div>
     </div>
 
+    @if($order->isTransactionLocked())
+        <div class="alert alert-success py-2 small mb-3">
+            <i class="bi bi-lock-fill me-1"></i>
+            This order is completed. Transaction ID <strong>{{ $order->transaction_id }}</strong>
+            was saved on {{ $order->completed_at?->format('d M Y, h:i A') ?: '—' }}.
+        </div>
+    @endif
+
     <div class="row g-3 mb-4">
         <div class="col-sm-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Incidents</div>
+                    <div class="text-muted small">{{ config('ui.service_case.plural') }}</div>
                     <div class="fs-3 fw-semibold">{{ $order->incidents_count }}</div>
                 </div>
             </div>
@@ -53,7 +62,7 @@
         <div class="col-sm-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Status</div>
+                    <div class="text-muted small">Order Status</div>
                     <div class="mt-1">
                         <span @class([
                             'badge fs-6',
@@ -70,6 +79,9 @@
 
     <div class="row g-3">
         <div class="col-lg-7">
+            @include('orders.partials.update-transaction-form', ['order' => $order])
+            @include('orders.partials.service-cases-list', ['order' => $order])
+
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-3">
                     <h2 class="h6 mb-0">Order Information</h2>
@@ -90,6 +102,9 @@
 
                         <dt class="col-sm-4 text-muted">Transaction ID</dt>
                         <dd class="col-sm-8">{{ $order->transaction_id ?: '—' }}</dd>
+
+                        <dt class="col-sm-4 text-muted">Order Completion Status</dt>
+                        <dd class="col-sm-8">@include('orders.partials.completion-status-badge', ['order' => $order])</dd>
 
                         <dt class="col-sm-4 text-muted">Customer Name</dt>
                         <dd class="col-sm-8">{{ $order->customer_name ?: '—' }}</dd>

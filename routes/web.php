@@ -11,6 +11,7 @@ use App\Http\Controllers\QuickServiceRequestController;
 use App\Http\Controllers\RefundRequestController;
 use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\OrderTransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -22,6 +23,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/search', [SearchController::class, 'index'])->name('search.index');
 
     Route::get('orders/lookup', [OrderController::class, 'lookup'])->name('orders.lookup');
+    Route::post('orders/{order}/transaction', [OrderTransactionController::class, 'store'])->name('orders.transaction.store');
+    Route::delete('orders/{order}/transaction', [OrderTransactionController::class, 'destroy'])->name('orders.transaction.destroy');
     Route::resource('orders', OrderController::class);
     Route::resource('incidents', IncidentController::class);
 

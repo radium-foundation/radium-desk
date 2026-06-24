@@ -1,16 +1,16 @@
 @extends('layouts.app')
 
-@section('title', 'Incidents')
+@section('title', config('ui.service_case.plural'))
 
 @section('content')
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
         <div>
-            <h1 class="h3 mb-1">Incidents</h1>
-            <p class="text-muted mb-0">Track and manage service desk incidents.</p>
+            <h1 class="h3 mb-1">{{ config('ui.service_case.plural') }}</h1>
+            <p class="text-muted mb-0">Track and manage service desk service cases.</p>
         </div>
         @can('create', App\Models\Incident::class)
             <a href="{{ route('incidents.create') }}" class="btn btn-primary">
-                <i class="bi bi-plus-lg me-1"></i> Log Incident
+                <i class="bi bi-plus-lg me-1"></i> {{ config('ui.service_case.log_action') }}
             </a>
         @endcan
     </div>
@@ -27,9 +27,9 @@
                            value="{{ $filters['order_id'] ?? '' }}" placeholder="Search order ID">
                 </div>
                 <div class="col-md-6 col-lg-4">
-                    <label for="filter_reference_no" class="form-label">Reference No</label>
+                    <label for="filter_reference_no" class="form-label">{{ config('ui.service_case.reference_label') }}</label>
                     <input type="text" name="reference_no" id="filter_reference_no" class="form-control"
-                           value="{{ $filters['reference_no'] ?? '' }}" placeholder="e.g. INC-2026-000001">
+                           value="{{ $filters['reference_no'] ?? '' }}" placeholder="e.g. SC-00001">
                 </div>
                 <div class="col-md-6 col-lg-4">
                     <label for="filter_category" class="form-label">Category</label>
@@ -87,13 +87,13 @@
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
             @if($incidents->isEmpty())
-                <div class="p-4 text-center text-muted">No incidents found.</div>
+                <div class="p-4 text-center text-muted">{{ config('ui.service_case.empty') }}</div>
             @else
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Reference</th>
+                                <th>{{ config('ui.service_case.reference_short') }}</th>
                                 <th>Order ID</th>
                                 <th>Title</th>
                                 <th>Category</th>
