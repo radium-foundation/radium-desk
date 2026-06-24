@@ -37,6 +37,7 @@ class QuickServiceRequestTest extends TestCase
         $response->assertRedirect(route('dashboard'));
         $response->assertSessionHas('status', 'service-case-created');
         $response->assertSessionHas('service_case_reference', 'SC-00001');
+        $response->assertSessionHas('reopen_quick_create', true);
 
         $this->assertDatabaseHas('orders', [
             'order_id' => 'RD3421021',
@@ -68,6 +69,24 @@ class QuickServiceRequestTest extends TestCase
         $this->assertNotNull($incident);
         $this->assertTrue($incident->high_priority);
         $this->assertSame('', $incident->description);
+    }
+
+    public function test_dashboard_reopens_quick_create_modal_after_successful_create(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->withSession([
+            'status' => 'service-case-created',
+            'service_case_reference' => 'SC-00001',
+            'reopen_quick_create' => true,
+        ])
+            ->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-show-on-load="true"', false)
+            ->assertSee('data-reset-on-show="true"', false)
+            ->assertSee('Service Case SC-00001 created successfully.');
     }
 
     public function test_quick_create_rejects_serial_mismatch_for_existing_order(): void

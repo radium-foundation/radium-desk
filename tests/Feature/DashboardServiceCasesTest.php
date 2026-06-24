@@ -150,7 +150,9 @@ class DashboardServiceCasesTest extends TestCase
 
         $response->assertOk();
         $response->assertSeeInOrder(['SC-00001', 'SC-00002']);
-        $response->assertSee('High Priority');
+        $response->assertSee('high-priority-dot', false);
+        $response->assertSee('data-bs-title="High Priority"', false);
+        $response->assertDontSee('>High Priority</span>', false);
     }
 
     public function test_dashboard_completed_tooltip_shows_transaction_and_turnaround(): void

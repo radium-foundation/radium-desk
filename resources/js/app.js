@@ -39,6 +39,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (quickCreateModalElement) {
         const quickCreateModal = bootstrap.Modal.getOrCreateInstance(quickCreateModalElement);
+        const quickCreateForm = quickCreateModalElement.querySelector('form');
+
+        const resetQuickCreateForm = () => {
+            if (!quickCreateForm) {
+                return;
+            }
+
+            quickCreateForm.reset();
+
+            const productField = quickCreateForm.querySelector('#quick_product');
+            if (productField) {
+                productField.value = 'MFS 110';
+            }
+
+            const sourceField = quickCreateForm.querySelector('#quick_source');
+            if (sourceField) {
+                sourceField.value = 'call';
+            }
+
+            quickCreateForm.querySelectorAll('.is-invalid').forEach((field) => {
+                field.classList.remove('is-invalid');
+            });
+        };
+
+        quickCreateModalElement.addEventListener('show.bs.modal', () => {
+            if (quickCreateModalElement.dataset.resetOnShow === 'true') {
+                resetQuickCreateForm();
+            }
+        });
 
         if (quickCreateModalElement.dataset.showOnLoad === 'true') {
             quickCreateModal.show();

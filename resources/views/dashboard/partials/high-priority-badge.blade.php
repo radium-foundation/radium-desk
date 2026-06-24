@@ -1,1 +1,5 @@
-<span class="badge text-bg-danger high-priority-badge">High Priority</span>
+<span class="high-priority-dot"
+      data-bs-toggle="tooltip"
+      data-bs-title="High Priority"
+      aria-label="High Priority"
+      role="img"></span>
