@@ -4,6 +4,9 @@ namespace App\Services;
 
 use App\Models\Incident;
 use App\Models\User;
+use App\Notifications\HighPriorityServiceCaseNotification;
+use App\Notifications\ServiceCaseAssignedNotification;
+use App\Notifications\ServiceCaseReassignedNotification;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -111,8 +114,30 @@ class ServiceCaseAssignmentService
                 ],
             );
 
+            $this->sendAssignmentNotifications(
+                incident: $freshIncident,
+                assignee: $assignee,
+                actor: $actor,
+                event: $event,
+            );
+
             return $freshIncident;
         });
+    }
+
+    private function sendAssignmentNotifications(
+        Incident $incident,
+        User $assignee,
+        User $actor,
+        string $event,
+    ): void {
+        if ($event === 'service_case.assigned') {
+            $assignee->notify(new ServiceCaseAssignedNotification($incident, $actor));
+        }
+
+        if ($event === 'service_case.reassigned') {
+            $assignee->notify(new ServiceCaseReassignedNotification($incident, $actor));
+        }
     }
 
     private function ensureAdminAssignee(User $assignee): void

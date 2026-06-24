@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Notifications\TransactionCompletedNotification;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -57,8 +58,25 @@ class OrderTransactionService
                 ],
             );
 
+            $this->notifyTransactionCompleted($freshOrder, $transactionId, $actor);
+
             return $freshOrder;
         });
+    }
+
+    private function notifyTransactionCompleted(Order $order, string $transactionId, User $actor): void
+    {
+        $recipients = Incident::query()
+            ->with(['creator', 'assignee'])
+            ->where('order_id', $order->id)
+            ->get()
+            ->flatMap(fn (Incident $incident) => collect([$incident->creator, $incident->assignee]))
+            ->filter(fn (?User $user): bool => $user !== null)
+            ->unique('id');
+
+        foreach ($recipients as $recipient) {
+            $recipient->notify(new TransactionCompletedNotification($order, $transactionId, $actor));
+        }
     }
 
     /**

@@ -19,6 +19,8 @@
         </div>
     </form>
 
+    @include('layouts.partials.notification-bell')
+
     <div class="dropdown">
         <button
             class="btn btn-light border dropdown-toggle d-flex align-items-center"

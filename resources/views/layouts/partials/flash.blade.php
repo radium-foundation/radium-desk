@@ -10,6 +10,8 @@
             'order-transaction-unlocked' => 'Order unlocked successfully.',
             'service-case-created' => 'Service Case '.session('service_case_reference').' created successfully.',
             'service-case-reassigned' => 'Service case owner updated successfully.',
+            'notification-read' => 'Notification marked as read.',
+            'notifications-read-all' => 'All notifications marked as read.',
             'incident-created' => 'Service case created successfully.',
             'incident-updated' => 'Service case updated successfully.',
             'incident-deleted' => 'Service case deleted successfully.',

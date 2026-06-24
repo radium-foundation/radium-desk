@@ -8,6 +8,7 @@ use App\Enums\OrderStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Notifications\HighPriorityServiceCaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -73,7 +74,13 @@ class QuickServiceRequestService
                 'updated_by' => $user->id,
             ]);
 
-            return $this->serviceCaseAssignmentService->assignOnCreate($incident, $user);
+            $incident = $this->serviceCaseAssignmentService->assignOnCreate($incident, $user);
+
+            if ($highPriority && $incident->assignee !== null) {
+                $incident->assignee->notify(new HighPriorityServiceCaseNotification($incident, $user));
+            }
+
+            return $incident;
         });
     }
 }
