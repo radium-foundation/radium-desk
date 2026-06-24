@@ -13,7 +13,7 @@ class DashboardServiceCaseController extends Controller
     {
         $this->authorize('view', $incident);
 
-        $incident->load(['order.transactionAssigner', 'creator']);
+        $incident->load(['order.transactionAssigner', 'creator', 'assignee']);
 
         $canManageTransactions = $request->user()?->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,

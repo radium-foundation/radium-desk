@@ -9,6 +9,7 @@
             'order-transaction-assigned' => 'Transaction ID saved. Order marked as completed.',
             'order-transaction-unlocked' => 'Order unlocked successfully.',
             'service-case-created' => 'Service Case '.session('service_case_reference').' created successfully.',
+            'service-case-reassigned' => 'Service case owner updated successfully.',
             'incident-created' => 'Service case created successfully.',
             'incident-updated' => 'Service case updated successfully.',
             'incident-deleted' => 'Service case deleted successfully.',

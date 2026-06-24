@@ -70,6 +70,7 @@
                             <th>Source</th>
                             <th>Status</th>
                             <th class="d-none d-md-table-cell">Transaction ID</th>
+                            <th class="d-none d-sm-table-cell">Owner</th>
                             <th class="d-none d-sm-table-cell">Logged By</th>
                             <th>Created</th>
                             <th class="d-none d-md-table-cell">Last Updated</th>

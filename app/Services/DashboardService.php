@@ -67,7 +67,7 @@ class DashboardService
     public function recentServiceCases(string $filter = 'pending_admin', int $limit = 10): Collection
     {
         $query = Incident::query()
-            ->with(['order.transactionAssigner', 'creator']);
+            ->with(['order.transactionAssigner', 'creator', 'assignee']);
 
         match ($filter) {
             'pending_admin' => $query->whereHas('order', function ($orderQuery): void {

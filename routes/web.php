@@ -13,6 +13,7 @@ use App\Http\Controllers\RefundRequestController;
 use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\OrderTransactionController;
+use App\Http\Controllers\ServiceCaseAssignmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -32,6 +33,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::delete('orders/{order}/transaction', [OrderTransactionController::class, 'destroy'])->name('orders.transaction.destroy');
     Route::resource('orders', OrderController::class);
     Route::resource('incidents', IncidentController::class);
+    Route::patch('incidents/{incident}/assignment', [ServiceCaseAssignmentController::class, 'update'])
+        ->name('incidents.assignment.update');
 
     Route::post('remarks', [RemarkController::class, 'store'])->name('remarks.store');
     Route::delete('remarks/{remark}', [RemarkController::class, 'destroy'])->name('remarks.destroy');

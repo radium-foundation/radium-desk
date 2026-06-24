@@ -62,6 +62,9 @@
                         <dt class="col-sm-4 text-muted">Logged By</dt>
                         <dd class="col-sm-8">{{ $incident->creator?->firstName() ?: '—' }}</dd>
 
+                        <dt class="col-sm-4 text-muted">Assigned To</dt>
+                        <dd class="col-sm-8">{{ $incident->assignee?->firstName() ?: '—' }}</dd>
+
                         <dt class="col-sm-4 text-muted">Created</dt>
                         <dd class="col-sm-8">{{ $incident->created_at?->format('d M Y, H:i') ?: '—' }}</dd>
 
@@ -103,6 +106,11 @@
         </div>
 
         <div class="col-lg-5">
+            @include('incidents.partials.reassign-form', [
+                'incident' => $incident,
+                'reassignableAdmins' => $reassignableAdmins,
+            ])
+
             <div class="card border-0 shadow-sm mb-3">
                 <div class="card-header bg-white py-3">
                     <h2 class="h6 mb-0">Approval Numbers</h2>

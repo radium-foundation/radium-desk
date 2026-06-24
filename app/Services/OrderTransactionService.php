@@ -76,7 +76,7 @@ class OrderTransactionService
         }
 
         $incidents = Incident::query()
-            ->with(['order.transactionAssigner', 'creator'])
+            ->with(['order.transactionAssigner', 'creator', 'assignee'])
             ->whereIn('id', $incidentIds)
             ->get();
 
@@ -100,7 +100,7 @@ class OrderTransactionService
         }
 
         $refreshedIncidents = Incident::query()
-            ->with(['order.transactionAssigner', 'creator'])
+            ->with(['order.transactionAssigner', 'creator', 'assignee'])
             ->whereIn('id', $incidentIds)
             ->get()
             ->keyBy('id');

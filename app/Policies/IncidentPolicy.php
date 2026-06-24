@@ -31,4 +31,12 @@ class IncidentPolicy
     {
         return $user->can('incidents.delete');
     }
+
+    public function reassign(User $user, Incident $incident): bool
+    {
+        return $user->hasAnyRole([
+            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+        ]);
+    }
 }

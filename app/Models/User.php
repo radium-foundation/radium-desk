@@ -79,6 +79,11 @@ class User extends Authenticatable
         return $this->hasMany(TelegramNotification::class);
     }
 
+    public function assignedIncidents(): HasMany
+    {
+        return $this->hasMany(Incident::class, 'assigned_to_user_id');
+    }
+
     public function firstName(): string
     {
         $name = trim($this->name);

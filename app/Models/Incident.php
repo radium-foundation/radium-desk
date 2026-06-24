@@ -24,6 +24,7 @@ class Incident extends Model
         'description',
         'status',
         'high_priority',
+        'assigned_to_user_id',
         'created_by',
         'updated_by',
     ];
@@ -45,6 +46,11 @@ class Incident extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to_user_id');
     }
 
     public function updater(): BelongsTo

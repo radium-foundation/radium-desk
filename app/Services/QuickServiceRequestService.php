@@ -15,6 +15,7 @@ class QuickServiceRequestService
 {
     public function __construct(
         private readonly IncidentReferenceService $incidentReferenceService,
+        private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
     ) {}
 
     public function create(
@@ -59,7 +60,7 @@ class QuickServiceRequestService
                 }
             }
 
-            return Incident::query()->create([
+            $incident = Incident::query()->create([
                 'order_id' => $order->id,
                 'reference_no' => $this->incidentReferenceService->generate(),
                 'category' => 'General',
@@ -71,6 +72,8 @@ class QuickServiceRequestService
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ]);
+
+            return $this->serviceCaseAssignmentService->assignOnCreate($incident, $user);
         });
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Services\IncidentReferenceService;
 use App\Services\RemarkTimelineService;
+use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ class IncidentController extends Controller
     public function __construct(
         private readonly IncidentReferenceService $referenceService,
         private readonly RemarkTimelineService $remarkTimelineService,
+        private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
     ) {
         $this->authorizeResource(Incident::class, 'incident');
     }
@@ -113,6 +115,7 @@ class IncidentController extends Controller
         $incident->load([
             'order',
             'creator',
+            'assignee',
             'updater',
             'approvalNumbers',
             'refundRequests',
@@ -121,6 +124,7 @@ class IncidentController extends Controller
         return view('incidents.show', [
             'incident' => $incident,
             'timelineRemarks' => $this->remarkTimelineService->forRemarkable($incident),
+            'reassignableAdmins' => $this->serviceCaseAssignmentService->reassignableAdmins(),
         ]);
     }
 

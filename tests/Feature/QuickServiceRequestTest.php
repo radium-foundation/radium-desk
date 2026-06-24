@@ -19,6 +19,17 @@ class QuickServiceRequestTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+
+        config([
+            'service_case_assignment.day_shift.assignee_email' => 'day-admin@test.com',
+            'service_case_assignment.after_hours.assignee_email' => 'night-admin@test.com',
+        ]);
+
+        $dayAdmin = User::factory()->create(['email' => 'day-admin@test.com']);
+        $dayAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        User::factory()->create(['email' => 'night-admin@test.com'])
+            ->assignRole(RolePermissionSeeder::ROLE_ADMIN);
     }
 
     public function test_quick_create_creates_order_and_service_case_with_sc_reference(): void

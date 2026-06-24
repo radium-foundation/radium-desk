@@ -33,7 +33,7 @@ class OrderTransactionController extends Controller
 
             if ($request->filled('incident_id')) {
                 $incident = Incident::query()
-                    ->with(['order.transactionAssigner', 'creator'])
+                    ->with(['order.transactionAssigner', 'creator', 'assignee'])
                     ->where('order_id', $order->id)
                     ->find($request->integer('incident_id'));
             }
