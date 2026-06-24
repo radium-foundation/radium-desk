@@ -26,7 +26,7 @@ return [
     'day_shift' => [
         'start' => env('SERVICE_CASE_DAY_SHIFT_START', '09:00'),
         'end' => env('SERVICE_CASE_DAY_SHIFT_END', '18:30'),
-        'assignee_email' => env('SERVICE_CASE_DAY_ADMIN_EMAIL', 'avinash.jha@radium.example'),
+        'assignee_email' => env('SERVICE_CASE_DAY_ADMIN_EMAIL', 'avinash@radiumbox.com'),
     ],
 
     /*
@@ -39,7 +39,22 @@ return [
     */
 
     'after_hours' => [
-        'assignee_email' => env('SERVICE_CASE_AFTER_HOURS_ADMIN_EMAIL', 'shipra.kumari@radium.example'),
+        'assignee_email' => env('SERVICE_CASE_AFTER_HOURS_ADMIN_EMAIL', 'shipra@radiumbox.com'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fallback Admin Assignees
+    |--------------------------------------------------------------------------
+    |
+    | Tried in order when the primary assignee is missing, inactive, or lacks
+    | an admin role. Assignment only fails when no valid admin remains.
+    |
+    */
+
+    'fallback_admins' => [
+        env('SERVICE_CASE_FALLBACK_ADMIN_1', 'dileep@radiumbox.com'),
+        env('SERVICE_CASE_FALLBACK_ADMIN_2', 'admin@radium.local'),
     ],
 
 ];

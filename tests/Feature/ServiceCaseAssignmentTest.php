@@ -11,6 +11,7 @@ use App\Services\ServiceCaseAssignmentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class ServiceCaseAssignmentTest extends TestCase
@@ -25,64 +26,96 @@ class ServiceCaseAssignmentTest extends TestCase
         $this->configureAssignmentRules();
     }
 
-    /**
-     * @return array{avinash: User, shipra: User}
-     */
-    private function createConfiguredAssignees(): array
-    {
-        $avinash = User::factory()->create([
-            'name' => 'Avinash Jha',
-            'email' => 'avinash@test.com',
-        ]);
-        $avinash->assignRole(RolePermissionSeeder::ROLE_ADMIN);
-
-        $shipra = User::factory()->create([
-            'name' => 'Shipra Kumari',
-            'email' => 'shipra@test.com',
-        ]);
-        $shipra->assignRole(RolePermissionSeeder::ROLE_ADMIN);
-
-        return compact('avinash', 'shipra');
-    }
-
     private function configureAssignmentRules(): void
     {
         config([
             'service_case_assignment.timezone' => 'Asia/Kolkata',
             'service_case_assignment.day_shift.start' => '09:00',
             'service_case_assignment.day_shift.end' => '18:30',
-            'service_case_assignment.day_shift.assignee_email' => 'avinash@test.com',
-            'service_case_assignment.after_hours.assignee_email' => 'shipra@test.com',
+            'service_case_assignment.day_shift.assignee_email' => 'avinash@radiumbox.com',
+            'service_case_assignment.after_hours.assignee_email' => 'shipra@radiumbox.com',
+            'service_case_assignment.fallback_admins' => [
+                'dileep@radiumbox.com',
+                'admin@radium.local',
+            ],
         ]);
+    }
+
+    private function createAdminUser(string $email, string $name, bool $active = true): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'email' => $email,
+            'is_active' => $active,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        return $user;
     }
 
     public function test_day_shift_assigns_configured_day_admin(): void
     {
-        $assignees = $this->createConfiguredAssignees();
+        $avinash = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 
         $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
 
-        $this->assertTrue($assignee->is($assignees['avinash']));
+        $this->assertTrue($assignee->is($avinash));
 
         Carbon::setTestNow();
     }
 
     public function test_after_hours_assigns_configured_after_hours_admin(): void
     {
-        $assignees = $this->createConfiguredAssignees();
+        $shipra = $this->createAdminUser('shipra@radiumbox.com', 'Shipra Kumari');
         Carbon::setTestNow(Carbon::parse('2026-06-24 20:15:00', 'Asia/Kolkata'));
 
         $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
 
-        $this->assertTrue($assignee->is($assignees['shipra']));
+        $this->assertTrue($assignee->is($shipra));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_falls_back_to_dileep_when_primary_admin_missing(): void
+    {
+        $dileep = $this->createAdminUser('dileep@radiumbox.com', 'Dileep Admin');
+        Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
+
+        $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
+
+        $this->assertTrue($assignee->is($dileep));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_falls_back_to_local_admin_when_dileep_unavailable(): void
+    {
+        $this->createAdminUser('dileep@radiumbox.com', 'Dileep Admin', active: false);
+        $localAdmin = $this->createAdminUser('admin@radium.local', 'Local Admin');
+        Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
+
+        $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
+
+        $this->assertTrue($assignee->is($localAdmin));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_throws_when_no_valid_admin_exists(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
+
+        $this->expectException(ValidationException::class);
+
+        app(ServiceCaseAssignmentService::class)->resolveAssignee();
 
         Carbon::setTestNow();
     }
 
     public function test_quick_create_automatically_assigns_owner_by_time(): void
     {
-        $this->createConfiguredAssignees();
+        $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
 
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -98,7 +131,7 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $incident = Incident::query()->first();
         $this->assertNotNull($incident);
-        $this->assertSame('avinash@test.com', $incident->assignee?->email);
+        $this->assertSame('avinash@radiumbox.com', $incident->assignee?->email);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.assigned',
@@ -111,7 +144,8 @@ class ServiceCaseAssignmentTest extends TestCase
 
     public function test_admin_can_manually_reassign_service_case(): void
     {
-        $assignees = $this->createConfiguredAssignees();
+        $avinash = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $shipra = $this->createAdminUser('shipra@radiumbox.com', 'Shipra Kumari');
 
         $admin = User::factory()->create(['name' => 'Other Admin']);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -133,19 +167,19 @@ class ServiceCaseAssignmentTest extends TestCase
             'title' => 'Reassign test',
             'description' => 'Reassign test.',
             'status' => 'open',
-            'assigned_to_user_id' => $assignees['avinash']->id,
+            'assigned_to_user_id' => $avinash->id,
             'created_by' => $admin->id,
         ]);
 
         $this->actingAs($admin)
             ->patch(route('incidents.assignment.update', $incident), [
-                'assigned_to_user_id' => $assignees['shipra']->id,
+                'assigned_to_user_id' => $shipra->id,
             ])
             ->assertRedirect(route('incidents.show', $incident))
             ->assertSessionHas('status', 'service-case-reassigned');
 
         $incident->refresh();
-        $this->assertSame($assignees['shipra']->id, $incident->assigned_to_user_id);
+        $this->assertSame($shipra->id, $incident->assigned_to_user_id);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.reassigned',
@@ -156,7 +190,7 @@ class ServiceCaseAssignmentTest extends TestCase
 
     public function test_dashboard_displays_owner_first_name(): void
     {
-        $assignees = $this->createConfiguredAssignees();
+        $avinash = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
 
         $agent = User::factory()->create(['name' => 'Agent User']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -178,7 +212,7 @@ class ServiceCaseAssignmentTest extends TestCase
             'title' => 'Owner display test',
             'description' => 'Owner display test.',
             'status' => 'open',
-            'assigned_to_user_id' => $assignees['avinash']->id,
+            'assigned_to_user_id' => $avinash->id,
             'created_by' => $agent->id,
         ]);
 
@@ -191,7 +225,7 @@ class ServiceCaseAssignmentTest extends TestCase
 
     public function test_service_case_detail_shows_assigned_to_first_name(): void
     {
-        $assignees = $this->createConfiguredAssignees();
+        $shipra = $this->createAdminUser('shipra@radiumbox.com', 'Shipra Kumari');
 
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -213,7 +247,7 @@ class ServiceCaseAssignmentTest extends TestCase
             'title' => 'Detail assignee test',
             'description' => 'Detail assignee test.',
             'status' => 'open',
-            'assigned_to_user_id' => $assignees['shipra']->id,
+            'assigned_to_user_id' => $shipra->id,
             'created_by' => $agent->id,
         ]);
 

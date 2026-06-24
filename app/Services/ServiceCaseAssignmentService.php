@@ -33,19 +33,28 @@ class ServiceCaseAssignmentService
 
     public function resolveAssignee(?Carbon $at = null): User
     {
-        $email = $this->resolveAssigneeEmail($at);
+        foreach ($this->assigneeCandidateEmails($at) as $email) {
+            $assignee = $this->findValidAdminAssignee($email);
 
-        $assignee = User::query()
-            ->where('email', $email)
-            ->first();
-
-        if ($assignee === null) {
-            throw ValidationException::withMessages([
-                'assigned_to_user_id' => "Configured assignee ({$email}) was not found.",
-            ]);
+            if ($assignee !== null) {
+                return $assignee;
+            }
         }
 
-        return $assignee;
+        throw ValidationException::withMessages([
+            'assigned_to_user_id' => 'No valid admin assignee is available for service case assignment.',
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function assigneeCandidateEmails(?Carbon $at = null): array
+    {
+        $primary = $this->resolveAssigneeEmail($at);
+        $fallbacks = config('service_case_assignment.fallback_admins', []);
+
+        return array_values(array_unique(array_merge([$primary], $fallbacks)));
     }
 
     public function assignOnCreate(Incident $incident, User $actor, ?Carbon $at = null): Incident
@@ -142,7 +151,7 @@ class ServiceCaseAssignmentService
 
     private function ensureAdminAssignee(User $assignee): void
     {
-        if (! $assignee->hasAnyRole([
+        if (! $assignee->is_active || ! $assignee->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ])) {
@@ -150,6 +159,26 @@ class ServiceCaseAssignmentService
                 'assigned_to_user_id' => 'The selected user must be an admin.',
             ]);
         }
+    }
+
+    private function findValidAdminAssignee(string $email): ?User
+    {
+        $assignee = User::query()
+            ->where('email', $email)
+            ->first();
+
+        if ($assignee === null || ! $assignee->is_active) {
+            return null;
+        }
+
+        if (! $assignee->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ])) {
+            return null;
+        }
+
+        return $assignee;
     }
 
     private function normalizeTime(Carbon $at): Carbon
