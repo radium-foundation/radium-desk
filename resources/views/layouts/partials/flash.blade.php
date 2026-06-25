@@ -26,6 +26,12 @@
             'refund-approved' => 'Refund request approved successfully.',
             'refund-rejected' => 'Refund request rejected successfully.',
             'refund-deleted' => 'Refund request deleted successfully.',
+            'user-created' => 'User created successfully.',
+            'user-updated' => 'User updated successfully.',
+            'user-activated' => 'User activated successfully.',
+            'user-deactivated' => 'User deactivated successfully.',
+            'user-password-reset' => 'Password reset successfully.',
+            'user-deleted' => 'User deleted successfully.',
             default => session('status'),
         };
     @endphp

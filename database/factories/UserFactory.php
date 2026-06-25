@@ -24,14 +24,33 @@ class UserFactory extends Factory
      */
     public function definition(): array
     {
+        $firstName = fake()->firstName();
+        $lastName = fake()->lastName();
+
         return [
-            'name' => fake()->name(),
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'name' => trim($firstName.' '.$lastName),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'is_active' => true,
             'remember_token' => Str::random(10),
         ];
+    }
+
+    public function configure(): static
+    {
+        return $this->afterMaking(function (User $user): void {
+            $name = trim((string) $user->name);
+            $computedName = trim(trim((string) $user->first_name).' '.trim((string) $user->last_name));
+
+            if ($name !== '' && $name !== $computedName) {
+                $firstName = Str::before($name, ' ') ?: $name;
+                $user->first_name = $firstName;
+                $user->last_name = trim(Str::after($name, $firstName));
+            }
+        });
     }
 
     /**

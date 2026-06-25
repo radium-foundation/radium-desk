@@ -15,6 +15,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\ServiceCaseAssignmentController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -57,6 +58,10 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::resource('audit-logs', AuditLogController::class)
         ->only(['index', 'show'])
         ->parameters(['audit-logs' => 'auditLog']);
+
+    Route::resource('users', UserController::class)->except(['show']);
+    Route::patch('users/{user}/status', [UserController::class, 'updateStatus'])->name('users.status.update');
+    Route::patch('users/{user}/password-reset', [UserController::class, 'resetPassword'])->name('users.password-reset.update');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

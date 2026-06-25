@@ -25,7 +25,9 @@ class ReassignServiceCaseRequest extends FormRequest
             'assigned_to_user_id' => [
                 'required',
                 'integer',
-                Rule::exists('users', 'id')->where(fn ($query) => $query->where('is_active', true)),
+                Rule::exists('users', 'id')->where(fn ($query) => $query
+                    ->where('is_active', true)
+                    ->whereNull('deleted_at')),
             ],
         ];
     }

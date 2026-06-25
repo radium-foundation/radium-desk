@@ -76,7 +76,9 @@ class QuickServiceRequestService
 
             $incident = $this->serviceCaseAssignmentService->assignOnCreate($incident, $user);
 
-            if ($highPriority && $incident->assignee !== null) {
+            if ($highPriority && $incident->assignee !== null
+                && $incident->assignee->is_active
+                && ! $incident->assignee->trashed()) {
                 $incident->assignee->notify(new HighPriorityServiceCaseNotification($incident, $user));
             }
 

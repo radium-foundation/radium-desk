@@ -20,6 +20,7 @@ class AuditLogController extends Controller
         'Remark' => \App\Models\Remark::class,
         'ApprovalNumber' => \App\Models\ApprovalNumber::class,
         'RefundRequest' => \App\Models\RefundRequest::class,
+        'User' => User::class,
     ];
 
     public function __construct()

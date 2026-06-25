@@ -2,23 +2,23 @@
 
 namespace App\Models;
 
-use App\Enums\OrderStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'is_active'])]
+#[Fillable(['first_name', 'last_name', 'name', 'email', 'password', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use HasFactory, HasRoles, Notifiable, SoftDeletes;
 
     protected function casts(): array
     {
@@ -27,6 +27,24 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if ($user->isDirty('first_name') || $user->isDirty('last_name')) {
+                $user->name = trim(trim((string) $user->first_name).' '.trim((string) $user->last_name));
+
+                return;
+            }
+
+            if ($user->isDirty('name')) {
+                $name = trim((string) $user->name);
+                $firstName = Str::before($name, ' ') ?: $name;
+                $user->first_name = $firstName;
+                $user->last_name = trim(Str::after($name, $firstName));
+            }
+        });
     }
 
     public function createdOrders(): HasMany
@@ -86,12 +104,49 @@ class User extends Authenticatable
 
     public function firstName(): string
     {
-        $name = trim($this->name);
+        $firstName = trim((string) $this->first_name);
+
+        if ($firstName !== '') {
+            return $firstName;
+        }
+
+        $name = trim((string) $this->name);
 
         if ($name === '') {
             return '';
         }
 
         return Str::before($name, ' ') ?: $name;
+    }
+
+    public function lastName(): string
+    {
+        $lastName = trim((string) $this->last_name);
+
+        if ($lastName !== '') {
+            return $lastName;
+        }
+
+        $name = trim((string) $this->name);
+
+        if ($name === '') {
+            return '';
+        }
+
+        $firstName = $this->firstName();
+
+        if ($firstName === $name) {
+            return '';
+        }
+
+        return trim(Str::after($name, $firstName));
+    }
+
+    public function initials(): string
+    {
+        $first = Str::substr($this->firstName(), 0, 1);
+        $last = Str::substr($this->lastName(), 0, 1);
+
+        return strtoupper($first.$last) ?: '?';
     }
 }

@@ -22,17 +22,20 @@ class DatabaseSeeder extends Seeder
 
         $users = [
             [
-                'name' => 'Super Admin',
+                'first_name' => 'Super',
+                'last_name' => 'Admin',
                 'email' => 'superadmin@radium.local',
                 'role' => RolePermissionSeeder::ROLE_SUPERADMIN,
             ],
             [
-                'name' => 'Admin User',
+                'first_name' => 'Admin',
+                'last_name' => 'User',
                 'email' => 'admin@radium.local',
                 'role' => RolePermissionSeeder::ROLE_ADMIN,
             ],
             [
-                'name' => 'Agent User',
+                'first_name' => 'Agent',
+                'last_name' => 'User',
                 'email' => 'agent@radium.local',
                 'role' => RolePermissionSeeder::ROLE_AGENT,
             ],
@@ -42,7 +45,9 @@ class DatabaseSeeder extends Seeder
             $user = User::query()->updateOrCreate(
                 ['email' => $userData['email']],
                 [
-                    'name' => $userData['name'],
+                    'first_name' => $userData['first_name'],
+                    'last_name' => $userData['last_name'],
+                    'name' => trim($userData['first_name'].' '.$userData['last_name']),
                     'password' => $defaultPassword,
                     'is_active' => true,
                 ],

@@ -17,7 +17,7 @@
                         @foreach($reassignableAdmins as $adminUser)
                             <option value="{{ $adminUser->id }}"
                                 @selected((int) old('assigned_to_user_id', $incident->assigned_to_user_id) === $adminUser->id)>
-                                {{ $adminUser->name }}
+                                {{ $adminUser->firstName() }}
                             </option>
                         @endforeach
                     </select>

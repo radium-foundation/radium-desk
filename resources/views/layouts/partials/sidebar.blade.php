@@ -64,10 +64,12 @@
                     @endcan
                 </li>
                 <li class="nav-item">
-                    <span class="nav-link disabled" title="Users">
-                        <i class="bi bi-people nav-icon me-2"></i>
-                        <span class="nav-label">Users</span>
-                    </span>
+                    @can('viewAny', App\Models\User::class)
+                        <a @class(['nav-link', 'active' => request()->routeIs('users.*')]) href="{{ route('users.index') }}" title="Users">
+                            <i class="bi bi-people nav-icon me-2"></i>
+                            <span class="nav-label">Users</span>
+                        </a>
+                    @endcan
                 </li>
             </ul>
         @endif

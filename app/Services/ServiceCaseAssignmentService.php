@@ -140,6 +140,10 @@ class ServiceCaseAssignmentService
         User $actor,
         string $event,
     ): void {
+        if (! $assignee->is_active || $assignee->trashed()) {
+            return;
+        }
+
         if ($event === 'service_case.assigned') {
             $assignee->notify(new ServiceCaseAssignedNotification($incident, $actor));
         }
@@ -151,7 +155,7 @@ class ServiceCaseAssignmentService
 
     private function ensureAdminAssignee(User $assignee): void
     {
-        if (! $assignee->is_active || ! $assignee->hasAnyRole([
+        if ($assignee->trashed() || ! $assignee->is_active || ! $assignee->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ])) {
@@ -167,7 +171,7 @@ class ServiceCaseAssignmentService
             ->where('email', $email)
             ->first();
 
-        if ($assignee === null || ! $assignee->is_active) {
+        if ($assignee === null || $assignee->trashed() || ! $assignee->is_active) {
             return null;
         }
 

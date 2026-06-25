@@ -71,7 +71,7 @@ class OrderTransactionService
             ->where('order_id', $order->id)
             ->get()
             ->flatMap(fn (Incident $incident) => collect([$incident->creator, $incident->assignee]))
-            ->filter(fn (?User $user): bool => $user !== null)
+            ->filter(fn (?User $user): bool => $user !== null && $user->is_active && ! $user->trashed())
             ->unique('id');
 
         foreach ($recipients as $recipient) {
