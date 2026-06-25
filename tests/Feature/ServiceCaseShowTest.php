@@ -202,6 +202,34 @@ class ServiceCaseShowTest extends TestCase
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
+    public function test_closed_service_case_cannot_be_reopened(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'ORD-REOPEN-1',
+            'serial_number' => 'SN-REOPEN-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = $this->createIncident($agent, $order, [
+            'reference_no' => 'SC-REOPEN-1',
+            'status' => IncidentStatus::Closed,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('incidents.status.update', $incident), ['status' => 'open'])
+            ->assertSessionHasErrors('status');
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
     public function test_user_without_update_permission_cannot_change_status(): void
     {
         $viewer = User::factory()->create();

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\IncidentStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -54,6 +55,149 @@ class OrderTransactionTest extends TestCase
         ]);
     }
 
+    public function test_assigning_transaction_id_closes_active_service_case(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TXN-CLOSE',
+            'serial_number' => 'SN-TXN-CLOSE',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-TXN-CLOSE',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Activation pending',
+            'description' => 'Awaiting transaction ID.',
+            'status' => IncidentStatus::InProgress->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('orders.transaction.store', $order), [
+                'transaction_id' => 'TXN-CLOSE-1',
+            ])
+            ->assertRedirect(route('orders.show', $order));
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.status_changed',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+        ]);
+    }
+
+    public function test_assigning_transaction_id_closes_all_active_service_cases_on_order(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TXN-MULTI',
+            'serial_number' => 'SN-TXN-MULTI',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $first = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-TXN-M1',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'First active case',
+            'description' => 'First.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $second = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-TXN-M2',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Email,
+            'title' => 'Second active case',
+            'description' => 'Second.',
+            'status' => IncidentStatus::InProgress->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $alreadyClosed = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-TXN-M3',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Prior closed case',
+            'description' => 'Already closed.',
+            'status' => IncidentStatus::Closed->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('orders.transaction.store', $order), [
+                'transaction_id' => 'TXN-MULTI-1',
+            ])
+            ->assertRedirect(route('orders.show', $order));
+
+        $this->assertSame(IncidentStatus::Closed, $first->fresh()->status);
+        $this->assertSame(IncidentStatus::Closed, $second->fresh()->status);
+        $this->assertSame(IncidentStatus::Closed, $alreadyClosed->fresh()->status);
+        $this->assertSame(2, AuditLog::query()
+            ->where('event', 'service_case.status_changed')
+            ->where('auditable_type', $first->getMorphClass())
+            ->whereIn('auditable_id', [$first->id, $second->id])
+            ->count());
+    }
+
+    public function test_assigning_transaction_id_closes_resolved_service_case(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TXN-RESOLVED',
+            'serial_number' => 'SN-TXN-RESOLVED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-TXN-RESOLVED',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Resolved before activation',
+            'description' => 'Agent resolved pending admin completion.',
+            'status' => IncidentStatus::Resolved->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('orders.transaction.store', $order), [
+                'transaction_id' => 'TXN-RESOLVED-1',
+            ])
+            ->assertRedirect(route('orders.show', $order));
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.status_changed',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+        ]);
+    }
+
     public function test_admin_can_assign_transaction_via_json_for_dashboard_inline_edit(): void
     {
         $admin = User::factory()->create();
@@ -92,6 +236,7 @@ class OrderTransactionTest extends TestCase
         $order->refresh();
         $this->assertSame('TX123456', $order->transaction_id);
         $this->assertNotNull($order->completed_at);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
     public function test_admin_can_bulk_assign_transaction_to_multiple_service_cases(): void

@@ -15,6 +15,7 @@ class OrderTransactionService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly ServiceCaseStatusService $serviceCaseStatusService,
     ) {}
 
     public function assignTransactionId(Order $order, string $transactionId, User $actor): Order
@@ -58,6 +59,8 @@ class OrderTransactionService
                     'completed_at' => $freshOrder->completed_at?->toIso8601String(),
                 ],
             );
+
+            $this->serviceCaseStatusService->closeActiveServiceCasesForOrder($freshOrder, $actor);
 
             $this->notifyTransactionCompleted($freshOrder, $transactionId, $actor);
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -199,6 +200,44 @@ class ServiceCaseAssignmentTest extends TestCase
             'auditable_type' => $incident->getMorphClass(),
             'auditable_id' => $incident->id,
         ]);
+    }
+
+    public function test_closed_service_case_cannot_be_reassigned(): void
+    {
+        $avinash = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $shipra = $this->createAdminUser('shipra@radiumbox.com', 'Shipra Kumari');
+
+        $admin = User::factory()->create(['name' => 'Other Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-REASSIGN-CLOSED',
+            'serial_number' => 'SN-REASSIGN-CLOSED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Closed case',
+            'description' => 'Closed case.',
+            'status' => IncidentStatus::Closed->value,
+            'assigned_to_user_id' => $avinash->id,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->patch(route('incidents.assignment.update', $incident), [
+                'assigned_to_user_id' => $shipra->id,
+            ])
+            ->assertForbidden();
+
+        $this->assertSame($avinash->id, $incident->fresh()->assigned_to_user_id);
     }
 
     public function test_dashboard_displays_owner_first_name(): void

@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ServiceCaseStatusService
 {
@@ -13,10 +15,38 @@ class ServiceCaseStatusService
         private readonly AuditLogService $auditLogService,
     ) {}
 
+    /**
+     * @return list<IncidentStatus>
+     */
+    public static function unfinishedWorkflowStatuses(): array
+    {
+        return [
+            IncidentStatus::Open,
+            IncidentStatus::InProgress,
+            IncidentStatus::Resolved,
+        ];
+    }
+
+    public function closeActiveServiceCasesForOrder(Order $order, User $actor): void
+    {
+        Incident::query()
+            ->where('order_id', $order->id)
+            ->whereIn('status', self::unfinishedWorkflowStatuses())
+            ->orderBy('id')
+            ->get()
+            ->each(fn (Incident $incident) => $this->updateStatus($incident, IncidentStatus::Closed, $actor));
+    }
+
     public function updateStatus(Incident $incident, IncidentStatus $status, User $actor): Incident
     {
         if ($incident->status === $status) {
             return $incident;
+        }
+
+        if ($incident->status === IncidentStatus::Closed) {
+            throw ValidationException::withMessages([
+                'status' => 'Closed service cases cannot be reopened.',
+            ]);
         }
 
         return DB::transaction(function () use ($incident, $status, $actor): Incident {

@@ -29,6 +29,23 @@ class UpdateIncidentRequest extends FormRequest
         ];
     }
 
+    public function withValidator($validator): void
+    {
+        $validator->after(function ($validator): void {
+            $incident = $this->route('incident');
+
+            if (! $incident instanceof \App\Models\Incident) {
+                return;
+            }
+
+            $newStatus = IncidentStatus::tryFrom((string) $this->input('status'));
+
+            if ($incident->status === IncidentStatus::Closed && $newStatus !== IncidentStatus::Closed) {
+                $validator->errors()->add('status', 'Closed service cases cannot be reopened.');
+            }
+        });
+    }
+
     /**
      * @return array<string, string>
      */

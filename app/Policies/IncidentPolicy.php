@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
 
@@ -34,6 +35,10 @@ class IncidentPolicy
 
     public function reassign(User $user, Incident $incident): bool
     {
+        if ($incident->status === IncidentStatus::Closed) {
+            return false;
+        }
+
         return $user->hasAnyRole([
             \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
             \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,

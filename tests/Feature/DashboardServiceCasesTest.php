@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -306,6 +307,51 @@ class DashboardServiceCasesTest extends TestCase
             ->assertOk()
             ->assertSee('SC-HP-ONLY')
             ->assertDontSee('SC-NORMAL');
+    }
+
+    public function test_dashboard_high_priority_filter_excludes_closed_cases(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-FILTER-HP-CLOSED',
+            'serial_number' => 'SN-FILTER-HP-CLOSED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-HP-ACTIVE',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Active high priority',
+            'description' => 'Active high priority.',
+            'status' => IncidentStatus::Open->value,
+            'high_priority' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-HP-CLOSED',
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Closed high priority',
+            'description' => 'Closed high priority.',
+            'status' => IncidentStatus::Closed->value,
+            'high_priority' => true,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'high_priority']))
+            ->assertOk()
+            ->assertSee('SC-HP-ACTIVE')
+            ->assertDontSee('SC-HP-CLOSED');
     }
 
     public function test_admin_dashboard_shows_bulk_selection_and_inline_transaction_controls(): void

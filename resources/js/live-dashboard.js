@@ -23,27 +23,10 @@ const replaceInnerHtml = (elementId, html) => {
     element.innerHTML = html;
 };
 
-const refreshDashboard = async (pageRoot) => {
-    const liveUrl = pageRoot.dataset.liveUrl;
-    const filter = pageRoot.dataset.liveFilter ?? 'pending_admin';
+let refreshInFlight = false;
 
-    if (!liveUrl || document.hidden) {
-        return;
-    }
-
-    try {
-        const response = await fetch(`${liveUrl}?filter=${encodeURIComponent(filter)}`, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
-
-        if (!response.ok) {
-            return;
-        }
-
-        const data = await response.json();
+const applyDashboardRefresh = (data) => new Promise((resolve) => {
+    requestAnimationFrame(() => {
         replaceInnerHtml('dashboard-action-stats', data.action_stats_html);
         replaceInnerHtml('dashboard-sla-cards', data.sla_cards_html);
 
@@ -58,8 +41,39 @@ const refreshDashboard = async (pageRoot) => {
                 initTooltips,
             );
         }
+
+        resolve();
+    });
+});
+
+const refreshDashboard = async (pageRoot) => {
+    const liveUrl = pageRoot.dataset.liveUrl;
+    const filter = pageRoot.dataset.liveFilter ?? 'pending_admin';
+
+    if (!liveUrl || document.hidden || refreshInFlight) {
+        return;
+    }
+
+    refreshInFlight = true;
+
+    try {
+        const response = await fetch(`${liveUrl}?filter=${encodeURIComponent(filter)}`, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+        await applyDashboardRefresh(data);
     } catch (error) {
         // Ignore transient network errors during background refresh.
+    } finally {
+        refreshInFlight = false;
     }
 };
 

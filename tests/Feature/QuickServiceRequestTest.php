@@ -55,7 +55,7 @@ class QuickServiceRequestTest extends TestCase
         $incident = Incident::query()->first();
         $this->assertNotNull($incident);
 
-        $response->assertRedirect(route('incidents.show', $incident));
+        $response->assertRedirect(route('dashboard'));
         $response->assertSessionHas('status', 'service-case-created');
         $response->assertSessionHas('service_case_reference', 'SC00001');
 

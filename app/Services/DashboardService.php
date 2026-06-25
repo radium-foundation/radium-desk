@@ -33,6 +33,28 @@ class DashboardService
             'closed_incidents' => Incident::query()
                 ->where('status', IncidentStatus::Closed)
                 ->count(),
+            'my_active_cases' => Incident::query()
+                ->where('assigned_to_user_id', $user->id)
+                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->count(),
+            'waiting_for_admin' => Incident::query()
+                ->where('assigned_to_user_id', $user->id)
+                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->whereHas('order', function ($orderQuery): void {
+                    $orderQuery->where(function ($pendingQuery): void {
+                        $pendingQuery->whereNull('transaction_id')
+                            ->orWhere('transaction_id', '');
+                    });
+                })
+                ->count(),
+            'high_priority_cases' => Incident::query()
+                ->where('assigned_to_user_id', $user->id)
+                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->where('high_priority', true)
+                ->count(),
+            'total_active_cases' => Incident::query()
+                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->count(),
         ];
 
         if ($user->can('refunds.view')) {
@@ -88,7 +110,8 @@ class DashboardService
                 $orderQuery->whereNotNull('transaction_id')
                     ->where('transaction_id', '!=', '');
             }),
-            'high_priority' => $query->where('high_priority', true),
+            'high_priority' => $query->where('high_priority', true)
+                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress]),
             'overdue' => $query->whereHas('order', function ($orderQuery): void {
                 $orderQuery->where(function ($pendingQuery): void {
                     $pendingQuery->whereNull('transaction_id')

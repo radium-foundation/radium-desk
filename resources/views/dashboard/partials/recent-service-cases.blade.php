@@ -60,10 +60,10 @@
                                 </th>
                             @endif
                             <th>{{ config('ui.service_case.reference_short') }}</th>
-                            <th>Order ID</th>
-                            <th>Serial Number</th>
+                            <th class="d-none d-md-table-cell">Order ID</th>
+                            <th class="d-none d-lg-table-cell">Serial Number</th>
                             <th class="d-none d-lg-table-cell">Product</th>
-                            <th>Source</th>
+                            <th class="d-none d-sm-table-cell">Source</th>
                             <th>Status</th>
                             <th class="sla-cell">SLA</th>
                             <th class="d-none d-md-table-cell">Transaction ID</th>

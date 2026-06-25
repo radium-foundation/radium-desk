@@ -127,25 +127,75 @@ html.sidebar-expanded .app-main {
 
 .stat-card {
     border: 0;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    background-color: #fff;
+    border-radius: 0.75rem;
+    box-shadow:
+        0 1px 2px rgba(16, 24, 40, 0.04),
+        0 4px 12px rgba(16, 24, 40, 0.06);
 }
 
-.stat-card .stat-icon {
-    width: 2.5rem;
-    height: 2.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.5rem;
-    font-size: 1.125rem;
+a:hover .stat-card {
+    box-shadow:
+        0 2px 4px rgba(16, 24, 40, 0.06),
+        0 8px 20px rgba(16, 24, 40, 0.08);
+}
+
+a:focus-visible .stat-card {
+    box-shadow:
+        0 2px 4px rgba(16, 24, 40, 0.06),
+        0 8px 20px rgba(16, 24, 40, 0.08);
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 2px;
 }
 
 .stat-card .card-body {
-    padding: 0.875rem 1rem;
+    padding: 0.625rem 1rem;
+    gap: 0.875rem;
 }
 
-.stat-card .fs-3 {
-    font-size: 1.5rem !important;
+.stat-card .stat-icon {
+    width: 2.125rem;
+    height: 2.125rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.625rem;
+    font-size: 0.9375rem;
+}
+
+.stat-card .stat-icon[class*='bg-'] {
+    background-color: color-mix(in srgb, currentColor 10%, #fff) !important;
+}
+
+.stat-card .stat-content {
+    min-width: 0;
+}
+
+.stat-card .stat-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6c757d;
+    line-height: 1.25;
+    margin-bottom: 0.125rem;
+}
+
+.stat-card .stat-value {
+    font-size: 1.625rem;
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.15;
+}
+
+@media (max-width: 575.98px) {
+    .stat-card .card-body {
+        padding: 0.625rem 0.875rem;
+        gap: 0.75rem;
+    }
+
+    .stat-card .stat-value {
+        font-size: 1.5rem;
+    }
 }
 
 .auth-card {
@@ -157,21 +207,136 @@ html.sidebar-expanded .app-main {
     display: none !important;
 }
 
+.dashboard-service-cases-card {
+    border-radius: 0.75rem;
+    box-shadow:
+        0 1px 2px rgba(16, 24, 40, 0.04),
+        0 4px 12px rgba(16, 24, 40, 0.06);
+}
+
+.dashboard-service-cases-card .card-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.dashboard-service-cases-card .card-header h2 {
+    font-weight: 600;
+    color: #212529;
+}
+
 .dashboard-cases-table > :not(caption) > * > * {
-    padding: 0.35rem 0.5rem;
-    font-size: 0.875rem;
+    padding: 0.5rem 0.625rem;
+    font-size: 0.8125rem;
+    border-color: #eef0f2;
+}
+
+.dashboard-cases-table thead th {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6c757d;
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+    border-bottom: 1px solid #e9ecef;
+    white-space: nowrap;
+}
+
+.dashboard-cases-table tbody tr {
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dashboard-cases-table tbody tr:nth-child(even):not(.dashboard-case-row--completed) {
+    background-color: #fafbfc;
+}
+
+.dashboard-cases-table.table-hover > tbody > tr:hover:not(.dashboard-case-row--completed) {
+    --bs-table-bg-state: rgba(13, 110, 253, 0.05);
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.dashboard-cases-table tbody tr:has(.sla-status--overdue):not(.dashboard-case-row--completed) {
+    box-shadow: inset 3px 0 0 rgba(220, 53, 69, 0.55);
+}
+
+.dashboard-cases-table tbody tr:has(.sla-status--warning):not(.dashboard-case-row--completed) {
+    box-shadow: inset 3px 0 0 rgba(255, 193, 7, 0.65);
+}
+
+.dashboard-cases-table .case-reference-link {
+    font-weight: 600;
+    color: #212529;
+}
+
+.dashboard-cases-table .case-reference-link:hover {
+    color: var(--brand-primary);
+}
+
+.dashboard-cases-table .case-reference-link:focus-visible {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 2px;
+    border-radius: 0.125rem;
+}
+
+.dashboard-cases-table .case-meta-cell {
+    color: #6c757d;
 }
 
 .dashboard-cases-table .status-cell {
     white-space: nowrap;
 }
 
+.dashboard-cases-table .status-cell .badge {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.35em 0.6em;
+    border-radius: 0.375rem;
+}
+
+.dashboard-cases-table .status-cell .bi-info-circle {
+    font-size: 0.75rem;
+    opacity: 0.55;
+    vertical-align: -0.05em;
+}
+
 .dashboard-cases-table tr.dashboard-case-row--completed {
-    background-color: rgba(25, 135, 84, 0.08);
+    background-color: rgba(25, 135, 84, 0.06);
 }
 
 .dashboard-cases-table tr.dashboard-case-row--completed:hover {
-    background-color: rgba(25, 135, 84, 0.12);
+    background-color: rgba(25, 135, 84, 0.1);
+}
+
+.dashboard-cases-table .source-cell i {
+    font-size: 0.9375rem;
+    opacity: 0.6;
+}
+
+@media (max-width: 575.98px) {
+    .dashboard-cases-table > :not(caption) > * > * {
+        padding: 0.4375rem 0.5rem;
+        font-size: 0.78125rem;
+    }
+
+    .dashboard-cases-table thead th {
+        font-size: 0.625rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+
+    .dashboard-cases-table .case-reference-link {
+        font-size: 0.8125rem;
+    }
+
+    .dashboard-cases-table .sla-status {
+        font-size: 0.6875rem;
+        padding: 0.15rem 0.45rem;
+    }
+
+    .dashboard-cases-table .status-cell .badge {
+        font-size: 0.625rem;
+        padding: 0.3em 0.5em;
+    }
 }
 
 .dashboard-select-cell {
@@ -218,24 +383,43 @@ html.sidebar-expanded .app-main {
 .sla-status {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    font-size: 0.8125rem;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    line-height: 1.2;
+    white-space: nowrap;
 }
 
 .sla-status-indicator {
     line-height: 1;
+    font-size: 0.5625rem;
 }
 
 .sla-status-label {
-    font-weight: 500;
+    font-weight: 600;
+}
+
+.sla-status--within {
+    background-color: rgba(25, 135, 84, 0.12);
 }
 
 .sla-status--within .sla-status-label {
     color: var(--bs-success);
 }
 
+.sla-status--warning {
+    background-color: rgba(255, 193, 7, 0.18);
+}
+
 .sla-status--warning .sla-status-label {
     color: var(--bs-warning-text-emphasis, #997404);
+}
+
+.sla-status--overdue {
+    background-color: rgba(220, 53, 69, 0.12);
+    box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.15);
 }
 
 .sla-status--overdue .sla-status-label {

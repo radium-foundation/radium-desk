@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
@@ -105,6 +106,12 @@ class ServiceCaseAssignmentService
         User $actor,
         string $event,
     ): Incident {
+        if ($incident->status === IncidentStatus::Closed) {
+            throw ValidationException::withMessages([
+                'assigned_to_user_id' => 'Closed service cases cannot be reassigned.',
+            ]);
+        }
+
         return DB::transaction(function () use ($incident, $assignee, $actor, $event): Incident {
             $oldValues = [
                 'assigned_to_user_id' => $incident->assigned_to_user_id,

@@ -21,9 +21,9 @@
             @endif
         </td>
     @endif
-    <td class="fw-semibold">
+    <td class="case-reference-cell">
         <div class="d-flex flex-wrap align-items-center gap-1">
-            <a href="{{ route('incidents.show', $serviceCase) }}" class="text-decoration-none">
+            <a href="{{ route('incidents.show', $serviceCase) }}" class="case-reference-link text-decoration-none">
                 {{ $serviceCase->display_reference }}
             </a>
             @if($serviceCase->high_priority)
@@ -31,10 +31,10 @@
             @endif
         </div>
     </td>
-    <td>{{ $order?->order_id ?: '—' }}</td>
-    <td>{{ $order?->serial_number ?: '—' }}</td>
-    <td class="d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
-    <td class="source-cell">
+    <td class="case-meta-cell d-none d-md-table-cell">{{ $order?->order_id ?: '—' }}</td>
+    <td class="case-meta-cell d-none d-lg-table-cell">{{ $order?->serial_number ?: '—' }}</td>
+    <td class="case-meta-cell d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
+    <td class="source-cell d-none d-sm-table-cell">
         @include('dashboard.partials.source-icon', ['source' => $serviceCase->source])
     </td>
     <td class="status-cell">
@@ -54,8 +54,8 @@
         'serviceCase' => $serviceCase,
         'canManageTransactions' => $canManageTransactions ?? false,
     ])
-    <td class="d-none d-sm-table-cell">{{ $serviceCase->assignee?->firstName() ?: '—' }}</td>
-    <td class="d-none d-sm-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
-    <td class="text-nowrap">{{ display_app_datetime($serviceCase->created_at) }}</td>
-    <td class="d-none d-md-table-cell text-nowrap">{{ display_app_datetime($serviceCase->updated_at) }}</td>
+    <td class="case-meta-cell d-none d-sm-table-cell">{{ $serviceCase->assignee?->firstName() ?: '—' }}</td>
+    <td class="case-meta-cell d-none d-sm-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
+    <td class="case-meta-cell text-nowrap">{{ display_app_datetime($serviceCase->created_at) }}</td>
+    <td class="case-meta-cell d-none d-md-table-cell text-nowrap">{{ display_app_datetime($serviceCase->updated_at) }}</td>
 </tr>
