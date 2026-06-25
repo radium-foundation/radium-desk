@@ -40,7 +40,7 @@ class RemarkController extends Controller
         return redirect()
             ->back()
             ->with('status', 'remark-created')
-            ->withFragment('remarks-timeline');
+            ->withFragment('activity-timeline');
     }
 
     public function destroy(Request $request, Remark $remark): RedirectResponse
@@ -64,6 +64,6 @@ class RemarkController extends Controller
         return redirect()
             ->back()
             ->with('status', 'remark-deleted')
-            ->withFragment('remarks-timeline');
+            ->withFragment('activity-timeline');
     }
 }

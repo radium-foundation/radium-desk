@@ -267,7 +267,7 @@ class ServiceCaseAssignmentTest extends TestCase
         $this->actingAs($agent)
             ->get(route('incidents.show', $incident))
             ->assertOk()
-            ->assertSee('Assigned To')
+            ->assertSee('Assigned:')
             ->assertSee('Shipra');
     }
 }

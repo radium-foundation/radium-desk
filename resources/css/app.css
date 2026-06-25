@@ -446,3 +446,110 @@ html.sidebar-expanded .app-main {
     color: #6c757d;
     margin-bottom: 0.375rem;
 }
+
+.service-case-description {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.service-case-timeline-body {
+    min-height: 16rem;
+    max-height: 32rem;
+    overflow-y: auto;
+}
+
+.service-case-activity-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.service-case-activity-item {
+    display: flex;
+    flex-direction: column;
+    max-width: 85%;
+}
+
+.service-case-activity-item--remark {
+    align-self: flex-start;
+}
+
+.service-case-activity-item--own {
+    align-self: flex-end;
+    align-items: flex-end;
+}
+
+.service-case-activity-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.8125rem;
+    color: #6c757d;
+}
+
+.service-case-activity-item--own .service-case-activity-meta {
+    flex-direction: row-reverse;
+}
+
+.service-case-activity-bubble {
+    position: relative;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    word-break: break-word;
+}
+
+.service-case-activity-bubble--system {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.service-case-activity-bubble--remark {
+    background: #fff;
+    border: 1px solid #dee2e6;
+}
+
+.service-case-activity-item--own .service-case-activity-bubble--remark {
+    background: rgba(13, 110, 253, 0.08);
+    border-color: rgba(13, 110, 253, 0.2);
+}
+
+.service-case-activity-title {
+    font-weight: 500;
+    color: #212529;
+}
+
+.service-case-activity-message {
+    white-space: pre-wrap;
+}
+
+.service-case-activity-delete {
+    position: absolute;
+    top: 0.375rem;
+    right: 0.5rem;
+}
+
+.service-case-quick-actions--sticky {
+    padding: 0.75rem 1rem;
+    background: #fff;
+    border-top: 1px solid #dee2e6;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.service-case-sticky-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 1020;
+    margin: 0 -0.5rem;
+}
+
+@media (max-width: 991.98px) {
+    .service-case-sticky-bar {
+        display: none !important;
+    }
+
+    .service-case-activity-item {
+        max-width: 100%;
+    }
+}

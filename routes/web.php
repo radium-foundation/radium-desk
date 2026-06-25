@@ -15,6 +15,7 @@ use App\Http\Controllers\RemarkController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\ServiceCaseAssignmentController;
+use App\Http\Controllers\ServiceCaseStatusController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
 use App\Http\Controllers\SettingProductController;
@@ -48,6 +49,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::resource('incidents', IncidentController::class);
     Route::patch('incidents/{incident}/assignment', [ServiceCaseAssignmentController::class, 'update'])
         ->name('incidents.assignment.update');
+    Route::patch('incidents/{incident}/status', [ServiceCaseStatusController::class, 'update'])
+        ->name('incidents.status.update');
 
     Route::post('remarks', [RemarkController::class, 'store'])->name('remarks.store');
     Route::delete('remarks/{remark}', [RemarkController::class, 'destroy'])->name('remarks.destroy');

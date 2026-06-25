@@ -2,6 +2,7 @@ import './bootstrap';
 import * as bootstrap from 'bootstrap';
 import { initLiveDashboard } from './live-dashboard';
 import { initLiveNotifications } from './live-notifications';
+import { initServiceCaseShow } from './service-case-show';
 
 window.bootstrap = bootstrap;
 
@@ -348,6 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initDashboardTransactions();
     initLiveDashboard();
     initLiveNotifications();
+    initServiceCaseShow();
 
     const quickCreateModalElement = document.getElementById('quickCreateModal');
 

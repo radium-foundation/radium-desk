@@ -11,6 +11,7 @@
             <input
                 type="search"
                 name="q"
+                id="global-search-input"
                 class="form-control border-start-0"
                 placeholder="Search order ID, serial number, transaction ID..."
                 value="{{ request('q') }}"

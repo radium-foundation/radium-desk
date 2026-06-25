@@ -35,5 +35,12 @@ return [
         'open_label' => 'Open Service Cases',
         'resolved_label' => 'Resolved Service Cases',
         'closed_label' => 'Closed Service Cases',
+        'activity_timeline_heading' => 'Activity Timeline',
+        'issue_summary_heading' => 'Issue Summary',
+        'problem_description_heading' => 'Problem Description',
+        'customer_order_heading' => 'Customer & Order Summary',
+        'related_information_heading' => 'Related Information',
+        'quick_actions_heading' => 'Quick Actions',
+        'shortcuts_hint' => 'Shortcuts: R remark · A assign · E edit · / search · Esc close dialog',
     ],
 ];
