@@ -23,6 +23,7 @@ use App\Http\Controllers\SettingSourceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingsSectionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WorkspaceComponentController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -51,6 +52,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.assignment.update');
     Route::patch('incidents/{incident}/status', [ServiceCaseStatusController::class, 'update'])
         ->name('incidents.status.update');
+    Route::get('incidents/{incident}/components/{component}', [WorkspaceComponentController::class, 'show'])
+        ->name('incidents.components.show');
 
     Route::post('remarks', [RemarkController::class, 'store'])->name('remarks.store');
     Route::delete('remarks/{remark}', [RemarkController::class, 'destroy'])->name('remarks.destroy');

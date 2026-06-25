@@ -38,6 +38,8 @@
         </div>
     </div>
 
+    @include('workspace.partials.workspace-modal-host')
+
     @stack('scripts')
 </body>
 </html>
