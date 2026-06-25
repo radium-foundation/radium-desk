@@ -128,7 +128,7 @@
                                     <td>{{ number_format($refund->amount, 2) }}</td>
                                     <td>@include('refunds.partials.status-badge', ['status' => $refund->status])</td>
                                     <td>{{ $refund->requester?->name ?? '—' }}</td>
-                                    <td>{{ $refund->created_at?->format('d M Y, H:i') ?: '—' }}</td>
+                                    <td>{{ display_app_datetime_24($refund->created_at) }}</td>
                                     <td class="text-end">
                                         <a href="{{ route('refunds.show', $refund) }}" class="btn btn-sm btn-outline-primary" title="View">
                                             <i class="bi bi-eye"></i>

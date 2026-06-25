@@ -67,7 +67,7 @@
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-5">Created</dt>
-                        <dd class="col-sm-7">{{ $user->created_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                        <dd class="col-sm-7">{{ display_app_datetime_24($user->created_at) }}</dd>
                         <dt class="col-sm-5">Assigned Cases</dt>
                         <dd class="col-sm-7">{{ $user->assignedIncidents()->count() }}</dd>
                     </dl>

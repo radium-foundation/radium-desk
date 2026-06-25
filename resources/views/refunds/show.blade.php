@@ -53,7 +53,7 @@
                         <dd class="col-sm-8">{{ $refund->requester?->name ?? '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Requested Date</dt>
-                        <dd class="col-sm-8">{{ $refund->created_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                        <dd class="col-sm-8">{{ display_app_datetime_24($refund->created_at) }}</dd>
                     </dl>
                 </div>
             </div>
@@ -125,7 +125,7 @@
                             <dd class="col-sm-8">{{ $refund->reviewer?->name ?? '—' }}</dd>
 
                             <dt class="col-sm-4 text-muted">Reviewed Date</dt>
-                            <dd class="col-sm-8">{{ $refund->reviewed_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                            <dd class="col-sm-8">{{ display_app_datetime_24($refund->reviewed_at) }}</dd>
 
                             @if($refund->refund_transaction_id)
                                 <dt class="col-sm-4 text-muted">Refund Transaction ID</dt>

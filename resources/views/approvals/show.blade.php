@@ -44,7 +44,7 @@
                         <dd class="col-sm-8">{{ $approval->creator?->name ?? '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Created Date</dt>
-                        <dd class="col-sm-8">{{ $approval->created_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                        <dd class="col-sm-8">{{ display_app_datetime_24($approval->created_at) }}</dd>
 
                         <dt class="col-sm-4 text-muted">Description</dt>
                         <dd class="col-sm-8">{{ $approval->description ?: '—' }}</dd>

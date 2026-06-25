@@ -56,6 +56,6 @@
     ])
     <td class="d-none d-sm-table-cell">{{ $serviceCase->assignee?->firstName() ?: '—' }}</td>
     <td class="d-none d-sm-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
-    <td class="text-nowrap">{{ $serviceCase->created_at?->format('d M Y, h:i A') ?: '—' }}</td>
-    <td class="d-none d-md-table-cell text-nowrap">{{ $serviceCase->updated_at?->format('d M Y, h:i A') ?: '—' }}</td>
+    <td class="text-nowrap">{{ display_app_datetime($serviceCase->created_at) }}</td>
+    <td class="d-none d-md-table-cell text-nowrap">{{ display_app_datetime($serviceCase->updated_at) }}</td>
 </tr>

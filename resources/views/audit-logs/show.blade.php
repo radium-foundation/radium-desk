@@ -32,7 +32,7 @@
                         <dd class="col-sm-8">@include('audit-logs.partials.event-badge', ['auditLog' => $auditLog])</dd>
 
                         <dt class="col-sm-4 text-muted">Timestamp</dt>
-                        <dd class="col-sm-8">{{ $auditLog->created_at?->format('d M Y, H:i:s') ?: '—' }}</dd>
+                        <dd class="col-sm-8">{{ display_app_datetime_seconds($auditLog->created_at) }}</dd>
 
                         <dt class="col-sm-4 text-muted">Module</dt>
                         <dd class="col-sm-8">{{ class_basename($auditLog->auditable_type) }}</dd>

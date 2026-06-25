@@ -25,6 +25,9 @@ class SystemSettingsService
             'general.company_email' => $data['company_email'],
             'general.timezone' => $data['timezone'],
         ]);
+
+        config(['app.timezone' => $data['timezone']]);
+        date_default_timezone_set($data['timezone']);
     }
 
     /**

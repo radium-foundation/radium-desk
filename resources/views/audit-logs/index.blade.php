@@ -115,7 +115,7 @@
                         <tbody>
                             @foreach($auditLogs as $auditLog)
                                 <tr>
-                                    <td class="text-nowrap">{{ $auditLog->created_at?->format('d M Y, H:i:s') ?: '—' }}</td>
+                                    <td class="text-nowrap">{{ display_app_datetime_seconds($auditLog->created_at) }}</td>
                                     <td>{{ $auditLog->user?->name ?? 'System' }}</td>
                                     <td>@include('audit-logs.partials.event-badge', ['auditLog' => $auditLog])</td>
                                     <td>{{ class_basename($auditLog->auditable_type) }}</td>

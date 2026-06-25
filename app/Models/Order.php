@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\OrderCompletionStatus;
 use App\Enums\OrderStatus;
+use App\Support\AppDateFormatter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -60,7 +61,7 @@ class Order extends Model
                 'Waiting for Transaction ID',
                 '',
                 'Created:',
-                $loggedAt->format('d M Y, h:i A'),
+                AppDateFormatter::datetime($loggedAt) ?? '—',
                 '',
                 'Pending for:',
                 self::formatDurationBetween($loggedAt) ?? '—',
@@ -70,7 +71,7 @@ class Order extends Model
                 'Transaction ID: '.($this->transaction_id ?: '—'),
                 '',
                 'Completed:',
-                $this->completed_at?->format('d M Y, h:i A') ?? '—',
+                AppDateFormatter::datetime($this->completed_at) ?? '—',
                 '',
                 'Total turnaround:',
                 self::formatDurationBetween($loggedAt, $this->completed_at) ?? '—',
@@ -122,7 +123,7 @@ class Order extends Model
     {
         $lines = [
             'Completed',
-            $this->completed_at?->format('d M Y, h:i A') ?? '—',
+            AppDateFormatter::datetime($this->completed_at) ?? '—',
             'Assigned by '.($this->transactionAssigner?->firstName() ?? '—'),
         ];
 

@@ -126,7 +126,7 @@
                                     <td>
                                         @include('incidents.partials.status-badge', ['status' => $incident->status])
                                     </td>
-                                    <td class="text-nowrap">{{ $incident->created_at?->format('d M Y') }}</td>
+                                    <td class="text-nowrap">{{ display_app_date($incident->created_at) }}</td>
                                     <td class="text-end">
                                         <div class="btn-group btn-group-sm">
                                             <a href="{{ route('incidents.show', $incident) }}" class="btn btn-outline-primary" title="View">

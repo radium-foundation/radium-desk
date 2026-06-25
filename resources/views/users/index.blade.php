@@ -103,7 +103,7 @@
                                         @endif
                                     </td>
                                     <td>{{ $user->assigned_incidents_count }}</td>
-                                    <td class="text-nowrap">{{ $user->created_at?->format('d M Y') ?: '—' }}</td>
+                                    <td class="text-nowrap">{{ display_app_date($user->created_at) }}</td>
                                     <td class="text-end">
                                         @can('update', $user)
                                             <a href="{{ route('users.edit', $user) }}" class="btn btn-sm btn-outline-primary" title="Edit">

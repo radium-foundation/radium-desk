@@ -71,7 +71,7 @@
                                         ])
                                     </td>
                                     <td>{{ $approval->creator?->name ?? '—' }}</td>
-                                    <td>{{ $approval->created_at?->format('d M Y, H:i') ?: '—' }}</td>
+                                    <td>{{ display_app_datetime_24($approval->created_at) }}</td>
                                     <td class="text-end">
                                         <a href="{{ route('approvals.show', $approval) }}" class="btn btn-sm btn-outline-primary" title="View">
                                             <i class="bi bi-eye"></i>

@@ -141,7 +141,7 @@
                             <tbody>
                                 @foreach($recentActivity as $log)
                                     <tr>
-                                        <td class="text-nowrap small">{{ $log->created_at?->format('d M Y, h:i A') ?: '—' }}</td>
+                                        <td class="text-nowrap small">{{ display_app_datetime($log->created_at) }}</td>
                                         <td class="small">{{ $log->user?->firstName() ?: 'System' }}</td>
                                         <td>
                                             <span class="badge text-bg-light text-dark border text-capitalize">

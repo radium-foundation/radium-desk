@@ -6,6 +6,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Services\SettingService;
+use App\Support\AppDateFormatter;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -131,7 +132,7 @@ class Incident extends Model
 
         $lines = [
             'Created:',
-            $this->created_at?->format('d M Y h:i A') ?? '—',
+            AppDateFormatter::datetime($this->created_at) ?? '—',
             '',
             'Pending:',
             Order::formatDurationBetween($this->created_at, $now) ?? '—',

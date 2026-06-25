@@ -38,7 +38,7 @@
         <div class="alert alert-success py-2 small mb-3">
             <i class="bi bi-lock-fill me-1"></i>
             This order is completed. Transaction ID <strong>{{ $order->transaction_id }}</strong>
-            was saved on {{ $order->completed_at?->format('d M Y, h:i A') ?: '—' }}.
+            was saved on {{ display_app_datetime($order->completed_at) }}.
         </div>
     @endif
 
@@ -123,10 +123,10 @@
                         <dd class="col-sm-8">{{ $order->customer_phone ?: '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Created</dt>
-                        <dd class="col-sm-8">{{ $order->created_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                        <dd class="col-sm-8">{{ display_app_datetime_24($order->created_at) }}</dd>
 
                         <dt class="col-sm-4 text-muted">Last Updated</dt>
-                        <dd class="col-sm-8">{{ $order->updated_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                        <dd class="col-sm-8">{{ display_app_datetime_24($order->updated_at) }}</dd>
                     </dl>
                 </div>
             </div>

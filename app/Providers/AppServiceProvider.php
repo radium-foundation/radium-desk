@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
 use App\Policies\SettingPolicy;
+use App\Services\SettingService;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
@@ -25,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->applyApplicationTimezone();
+
         Gate::policy(SettingProduct::class, SettingPolicy::class);
         Gate::policy(SettingSource::class, SettingPolicy::class);
 
@@ -48,6 +51,22 @@ class AppServiceProvider extends ServiceProvider
                 },
                 'latestNotifications' => $user->notifications()->latest()->limit(10)->get(),
             ]);
+        });
+    }
+
+    private function applyApplicationTimezone(): void
+    {
+        $this->app->booted(function (): void {
+            try {
+                $timezone = $this->app->make(SettingService::class)->get('general.timezone');
+
+                if (is_string($timezone) && $timezone !== '') {
+                    config(['app.timezone' => $timezone]);
+                    date_default_timezone_set($timezone);
+                }
+            } catch (\Throwable) {
+                //
+            }
         });
     }
 }

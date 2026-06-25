@@ -66,10 +66,10 @@
                         <dd class="col-sm-8">{{ $incident->assignee?->firstName() ?: '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Created</dt>
-                        <dd class="col-sm-8">{{ $incident->created_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                        <dd class="col-sm-8">{{ display_app_datetime_24($incident->created_at) }}</dd>
 
                         <dt class="col-sm-4 text-muted">Last Updated</dt>
-                        <dd class="col-sm-8">{{ $incident->updated_at?->format('d M Y, H:i') ?: '—' }}</dd>
+                        <dd class="col-sm-8">{{ display_app_datetime_24($incident->updated_at) }}</dd>
                     </dl>
                 </div>
             </div>

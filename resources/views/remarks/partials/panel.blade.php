@@ -39,7 +39,7 @@
                             <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-1">
                                 <div>
                                     <div class="remarks-timeline-datetime">
-                                        {{ $remark->created_at?->format('d-M-Y h:i A') }}
+                                        {{ display_app_remark_datetime($remark->created_at) }}
                                     </div>
                                     <div class="fw-semibold">{{ $remark->user?->name ?? 'Unknown User' }}</div>
                                 </div>

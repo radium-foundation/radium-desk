@@ -19,8 +19,8 @@
                         <div class="activity-timeline-marker"></div>
                         <div class="activity-timeline-content">
                             <div class="activity-timeline-datetime">
-                                {{ $entry->occurredAt->format('d M Y') }}<br>
-                                {{ $entry->occurredAt->format('h:i A') }}
+                                {{ display_app_timeline_date($entry->occurredAt) }}<br>
+                                {{ display_app_timeline_time($entry->occurredAt) }}
                             </div>
                             <div class="fw-semibold">{{ $entry->title }}</div>
                             @if($entry->detail)
