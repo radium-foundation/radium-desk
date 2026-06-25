@@ -46,12 +46,8 @@
             </div>
         @endif
 
-        @if($recentServiceCases->isEmpty())
-            <div class="p-3 text-center text-muted small">
-                No service cases match this filter.
-            </div>
-        @else
-            <div class="table-responsive">
+        <div id="dashboard-service-cases-content">
+            <div class="table-responsive" id="dashboard-service-cases-scroll">
                 <table class="table table-sm table-hover align-middle mb-0 dashboard-cases-table">
                     <thead class="table-light">
                         <tr>
@@ -78,16 +74,22 @@
                         </tr>
                     </thead>
                     <tbody id="dashboard-service-cases-body">
-                        @foreach($recentServiceCases as $serviceCase)
+                        @forelse($recentServiceCases as $serviceCase)
                             @include('dashboard.partials.service-case-row', [
                                 'serviceCase' => $serviceCase,
                                 'canManageTransactions' => $canManageTransactions,
                                 'canSelectRows' => $canManageTransactions,
                             ])
-                        @endforeach
+                        @empty
+                            <tr id="dashboard-service-cases-empty-row">
+                                <td colspan="{{ $canManageTransactions ? 13 : 12 }}" class="text-center text-muted small py-3">
+                                    No service cases match this filter.
+                                </td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
-        @endif
+        </div>
     </div>
 </div>

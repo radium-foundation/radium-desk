@@ -3,7 +3,11 @@
 @section('title', 'Dashboard')
 
 @section('content')
-    <div class="app-content-compact">
+    <div class="app-content-compact"
+         id="dashboard-page"
+         data-live-url="{{ route('dashboard.live') }}"
+         data-live-filter="{{ $serviceCaseFilter ?? 'pending_admin' }}"
+         data-live-interval="30000">
         <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2 mb-3">
             <div>
                 <h1 class="h4 mb-0">Dashboard</h1>
@@ -16,9 +20,13 @@
             @endif
         </div>
 
-        @include('dashboard.partials.action-stats', ['stats' => $stats])
+        <div id="dashboard-action-stats">
+            @include('dashboard.partials.action-stats', ['stats' => $stats])
+        </div>
 
-        @include('dashboard.partials.sla-alert-cards', ['stats' => $stats])
+        <div id="dashboard-sla-cards">
+            @include('dashboard.partials.sla-alert-cards', ['stats' => $stats])
+        </div>
 
         @if($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view'))
             <div class="mb-3">

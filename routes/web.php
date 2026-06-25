@@ -4,6 +4,7 @@ use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\OrderController;
@@ -15,6 +16,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\ServiceCaseAssignmentController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationPollController;
 use App\Http\Controllers\SettingProductController;
 use App\Http\Controllers\SettingSourceController;
 use App\Http\Controllers\SettingsController;
@@ -26,6 +28,7 @@ Route::redirect('/', '/dashboard');
 
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
     Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
         ->name('dashboard.service-cases.row');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
@@ -85,6 +88,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::put('/password', [PasswordController::class, 'update'])->name('password.update');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/poll', [NotificationPollController::class, 'poll'])->name('notifications.poll');
     Route::get('/notifications/{notification}', [NotificationController::class, 'show'])->name('notifications.show');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');

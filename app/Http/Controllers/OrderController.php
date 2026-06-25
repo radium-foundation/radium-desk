@@ -6,6 +6,7 @@ use App\Enums\OrderStatus;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Order;
+use App\Services\OrderActivityTimelineService;
 use App\Services\RemarkTimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,7 @@ class OrderController extends Controller
 {
     public function __construct(
         private readonly RemarkTimelineService $remarkTimelineService,
+        private readonly OrderActivityTimelineService $orderActivityTimelineService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -102,6 +104,7 @@ class OrderController extends Controller
         return view('orders.show', [
             'order' => $order,
             'timelineRemarks' => $this->remarkTimelineService->forOrder($order),
+            'activityTimeline' => $this->orderActivityTimelineService->forOrder($order),
         ]);
     }
 

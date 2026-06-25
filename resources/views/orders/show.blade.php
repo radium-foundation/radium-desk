@@ -79,6 +79,7 @@
 
     <div class="row g-3">
         <div class="col-lg-7">
+            @include('orders.partials.activity-timeline', ['activityTimeline' => $activityTimeline])
             @include('orders.partials.update-transaction-form', ['order' => $order])
             @include('orders.partials.service-cases-list', ['order' => $order])
 

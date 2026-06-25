@@ -1,5 +1,7 @@
 import './bootstrap';
 import * as bootstrap from 'bootstrap';
+import { initLiveDashboard } from './live-dashboard';
+import { initLiveNotifications } from './live-notifications';
 
 window.bootstrap = bootstrap;
 
@@ -344,6 +346,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initTooltips();
     initDashboardTransactions();
+    initLiveDashboard();
+    initLiveNotifications();
 
     const quickCreateModalElement = document.getElementById('quickCreateModal');
 

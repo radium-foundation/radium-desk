@@ -370,3 +370,79 @@ html.sidebar-expanded .app-main {
     border-radius: 0.25rem;
     padding: 0 0.2rem;
 }
+
+@keyframes notification-bell-shake {
+    0%, 100% { transform: rotate(0deg); }
+    20% { transform: rotate(-12deg); }
+    40% { transform: rotate(12deg); }
+    60% { transform: rotate(-8deg); }
+    80% { transform: rotate(8deg); }
+}
+
+.notification-bell-btn.notification-bell-animate {
+    animation: notification-bell-shake 0.65s ease-in-out;
+}
+
+@keyframes dashboard-row-fade-in {
+    from {
+        opacity: 0;
+        background-color: rgba(13, 110, 253, 0.12);
+    }
+    to {
+        opacity: 1;
+        background-color: transparent;
+    }
+}
+
+.dashboard-row-fade-in {
+    animation: dashboard-row-fade-in 0.75s ease-out;
+}
+
+.activity-timeline {
+    position: relative;
+    padding-left: 1.5rem;
+}
+
+.activity-timeline::before {
+    content: '';
+    position: absolute;
+    top: 0.25rem;
+    bottom: 0.25rem;
+    left: 0.4rem;
+    width: 2px;
+    background-color: #dee2e6;
+}
+
+.activity-timeline-item {
+    position: relative;
+    padding-bottom: 1.25rem;
+}
+
+.activity-timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.activity-timeline-marker {
+    position: absolute;
+    left: -1.25rem;
+    top: 0.35rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    background-color: var(--brand-primary);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #dee2e6;
+}
+
+.activity-timeline-content {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 0.875rem 1rem;
+}
+
+.activity-timeline-datetime {
+    font-size: 0.8125rem;
+    color: #6c757d;
+    margin-bottom: 0.375rem;
+}
