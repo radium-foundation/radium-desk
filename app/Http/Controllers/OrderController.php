@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\IncidentSource;
 use App\Enums\OrderStatus;
 use App\Http\Requests\StoreOrderRequest;
+use App\Http\Requests\StoreOrderServiceCaseRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Order;
 use App\Services\OrderActivityTimelineService;
+use App\Services\QuickServiceRequestService;
 use App\Services\RemarkTimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -18,6 +21,7 @@ class OrderController extends Controller
     public function __construct(
         private readonly RemarkTimelineService $remarkTimelineService,
         private readonly OrderActivityTimelineService $orderActivityTimelineService,
+        private readonly QuickServiceRequestService $quickServiceRequestService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -97,15 +101,62 @@ class OrderController extends Controller
     {
         $order->loadCount(['incidents', 'refundRequests']);
         $order->load([
-            'incidents' => fn ($query) => $query->with('creator')->latest(),
+            'incidents' => fn ($query) => $query->with(['creator', 'assignee'])->latest(),
             'transactionAssigner',
         ]);
 
+        $activeIncident = $order->activeIncident();
+        if ($activeIncident !== null && ! $activeIncident->relationLoaded('assignee')) {
+            $activeIncident->load('assignee');
+        }
+
         return view('orders.show', [
             'order' => $order,
+            'activeIncident' => $activeIncident,
             'timelineRemarks' => $this->remarkTimelineService->forOrder($order),
             'activityTimeline' => $this->orderActivityTimelineService->forOrder($order),
         ]);
+    }
+
+    public function createServiceCase(Order $order): View
+    {
+        $this->authorize('view', $order);
+        $this->authorize('create', \App\Models\Incident::class);
+
+        $order->load([
+            'incidents' => fn ($query) => $query->with('assignee')->latest(),
+        ]);
+
+        $activeIncident = $order->activeIncident();
+        if ($activeIncident !== null && ! $activeIncident->relationLoaded('assignee')) {
+            $activeIncident->load('assignee');
+        }
+
+        return view('orders.service-cases.create', [
+            'order' => $order,
+            'activeIncident' => $activeIncident,
+            'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
+        ]);
+    }
+
+    public function storeServiceCase(StoreOrderServiceCaseRequest $request, Order $order): RedirectResponse
+    {
+        $this->authorize('view', $order);
+
+        $notes = $request->string('notes')->trim()->toString();
+
+        $incident = $this->quickServiceRequestService->createForOrder(
+            user: $request->user(),
+            order: $order,
+            source: IncidentSource::from($request->string('source')->toString()),
+            notes: $notes,
+            highPriority: $request->boolean('high_priority'),
+        );
+
+        return redirect()
+            ->route('incidents.show', $incident)
+            ->with('status', 'service-case-created')
+            ->with('service_case_reference', $incident->display_reference);
     }
 
     public function edit(Order $order): View

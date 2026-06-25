@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\IncidentStatus;
 use App\Enums\OrderCompletionStatus;
 use App\Enums\OrderStatus;
 use App\Support\AppDateFormatter;
@@ -150,6 +151,42 @@ class Order extends Model
     public function incidents(): HasMany
     {
         return $this->hasMany(Incident::class);
+    }
+
+    public function activeIncident(): ?Incident
+    {
+        if ($this->relationLoaded('incidents')) {
+            return $this->incidents
+                ->first(fn (Incident $incident): bool => $incident->isActive());
+        }
+
+        return $this->incidents()
+            ->with('assignee')
+            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+            ->latest()
+            ->first();
+    }
+
+    public function latestIncident(): ?Incident
+    {
+        if ($this->relationLoaded('incidents')) {
+            return $this->incidents->first();
+        }
+
+        return $this->incidents()->latest()->first();
+    }
+
+    public function openIncidentsCount(): int
+    {
+        if ($this->relationLoaded('incidents')) {
+            return $this->incidents
+                ->filter(fn (Incident $incident): bool => $incident->isActive())
+                ->count();
+        }
+
+        return $this->incidents()
+            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+            ->count();
     }
 
     public function refundRequests(): HasMany

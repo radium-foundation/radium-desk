@@ -17,14 +17,14 @@
                        class="form-check-input service-case-select"
                        value="{{ $serviceCase->id }}"
                        data-order-id="{{ $order->id }}"
-                       aria-label="Select {{ $serviceCase->reference_no }}">
+                       aria-label="Select {{ $serviceCase->display_reference }}">
             @endif
         </td>
     @endif
     <td class="fw-semibold">
         <div class="d-flex flex-wrap align-items-center gap-1">
             <a href="{{ route('incidents.show', $serviceCase) }}" class="text-decoration-none">
-                {{ $serviceCase->reference_no }}
+                {{ $serviceCase->display_reference }}
             </a>
             @if($serviceCase->high_priority)
                 @include('dashboard.partials.high-priority-badge')

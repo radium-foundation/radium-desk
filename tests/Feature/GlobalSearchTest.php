@@ -82,7 +82,7 @@ class GlobalSearchTest extends TestCase
         $response->assertSee(config('ui.service_case.plural'));
         $response->assertSee('Refunds');
         $response->assertSee('RD3421021');
-        $response->assertSee('SC-00099');
+        $response->assertSee('SC00099');
         $response->assertSee('REF-2026-000011');
         $response->assertSee(route('orders.show', $order), false);
         $response->assertSee(route('incidents.show', $incident), false);
@@ -190,8 +190,68 @@ class GlobalSearchTest extends TestCase
             ->get(route('search.index', ['q' => 'SN-SC-001']))
             ->assertOk()
             ->assertSee(config('ui.service_case.plural'))
-            ->assertSee('SC-00055')
+            ->assertSee('SC00055')
             ->assertSee(route('incidents.show', $incident), false);
+    }
+
+    public function test_search_finds_service_case_by_normalized_reference_formats(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SC-FMT',
+            'serial_number' => 'SN-SC-FMT',
+            'product_name' => 'Radium Device',
+            'device_model' => 'Model X',
+            'status' => 'active',
+            'created_by' => $user->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-00099',
+            'category' => 'Hardware',
+            'source' => 'call',
+            'title' => 'Screen issue',
+            'description' => 'Customer reported a cracked screen.',
+            'status' => 'open',
+            'created_by' => $user->id,
+        ]);
+
+        foreach (['SC99', 'SC00099', 'SC-00099', '00099', '99'] as $query) {
+            $this->actingAs($user)
+                ->get(route('search.index', ['q' => $query]))
+                ->assertOk()
+                ->assertSee('SC00099')
+                ->assertSee(route('incidents.show', $incident), false);
+        }
+    }
+
+    public function test_search_finds_order_by_customer_name_email_and_mobile(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-CUST-SRCH',
+            'serial_number' => 'SN-CUST-SRCH',
+            'product_name' => 'Radium Device',
+            'device_model' => 'Model X',
+            'customer_name' => 'Priya Sharma',
+            'customer_email' => 'priya@example.com',
+            'customer_phone' => '9988776655',
+            'status' => 'active',
+            'created_by' => $user->id,
+        ]);
+
+        foreach (['Priya Sharma', 'priya@example.com', '9988776655'] as $query) {
+            $this->actingAs($user)
+                ->get(route('search.index', ['q' => $query]))
+                ->assertOk()
+                ->assertSee('RD-CUST-SRCH')
+                ->assertSee(route('orders.show', $order), false);
+        }
     }
 
     public function test_search_finds_refund_through_related_order_transaction_id(): void

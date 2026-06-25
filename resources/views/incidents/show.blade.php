@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $incident->reference_no)
+@section('title', $incident->display_reference)
 
 @section('content')
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-4">
@@ -8,10 +8,10 @@
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-2">
                     <li class="breadcrumb-item"><a href="{{ route('incidents.index') }}">{{ config('ui.service_case.plural') }}</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">{{ $incident->reference_no }}</li>
+                    <li class="breadcrumb-item active" aria-current="page">{{ $incident->display_reference }}</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-1">{{ $incident->reference_no }}</h1>
+            <h1 class="h3 mb-1">{{ $incident->display_reference }}</h1>
             <p class="text-muted mb-0">{{ $incident->title }}</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
@@ -42,7 +42,7 @@
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-4 text-muted">{{ config('ui.service_case.reference_label') }}</dt>
-                        <dd class="col-sm-8 fw-semibold">{{ $incident->reference_no }}</dd>
+                        <dd class="col-sm-8 fw-semibold">{{ $incident->display_reference }}</dd>
 
                         <dt class="col-sm-4 text-muted">Service Case Status</dt>
                         <dd class="col-sm-8">@include('incidents.partials.status-badge', ['status' => $incident->status])</dd>

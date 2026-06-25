@@ -56,7 +56,7 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Recent Service Cases')
-            ->assertSee('SC-00001')
+            ->assertSee('SC00001')
             ->assertSee('RD3421021')
             ->assertSee('SN001')
             ->assertSee('MFS 110')

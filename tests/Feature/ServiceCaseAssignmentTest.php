@@ -132,15 +132,18 @@ class ServiceCaseAssignmentTest extends TestCase
 
         Carbon::setTestNow(Carbon::parse('2026-06-24 10:30:00', 'Asia/Kolkata'));
 
-        $this->actingAs($agent)->post(route('service-requests.quick.store'), [
+        $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD-ASSIGN-1',
             'serial_number' => 'SN-ASSIGN-1',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
-        ])->assertRedirect(route('dashboard'));
+        ]);
 
         $incident = Incident::query()->first();
         $this->assertNotNull($incident);
+
+        $response->assertRedirect(route('incidents.show', $incident));
+
         $this->assertSame('avinash@radiumbox.com', $incident->assignee?->email);
 
         $this->assertDatabaseHas('audit_logs', [

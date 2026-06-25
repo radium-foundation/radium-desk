@@ -8,6 +8,7 @@
             'order-deleted' => 'Order deleted successfully.',
             'order-transaction-assigned' => 'Transaction ID saved. Order marked as completed.',
             'order-transaction-unlocked' => 'Order unlocked successfully.',
+            'order-found' => config('ui.service_case.order_found_message'),
             'service-case-created' => 'Service Case '.session('service_case_reference').' created successfully.',
             'service-case-reassigned' => 'Service case owner updated successfully.',
             'notification-read' => 'Notification marked as read.',

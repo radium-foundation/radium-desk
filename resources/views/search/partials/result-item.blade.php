@@ -3,7 +3,7 @@
 
     $label = match ($group) {
         'Orders' => $result->order_id,
-        $serviceCaseGroup => $result->reference_no,
+        $serviceCaseGroup => $result->display_reference,
         'Approvals' => $result->approval_number,
         'Refunds' => $result->reference_no,
         default => 'View',

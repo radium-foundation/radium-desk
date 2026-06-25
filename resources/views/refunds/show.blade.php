@@ -94,7 +94,7 @@
                         <dl class="row mb-0">
                             <dt class="col-sm-4 text-muted">Reference</dt>
                             <dd class="col-sm-8">
-                                <a href="{{ route('incidents.show', $refund->incident) }}">{{ $refund->incident->reference_no }}</a>
+                                <a href="{{ route('incidents.show', $refund->incident) }}">{{ $refund->incident->display_reference }}</a>
                             </dd>
 
                             <dt class="col-sm-4 text-muted">Title</dt>

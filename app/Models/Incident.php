@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Services\SettingService;
 use App\Support\AppDateFormatter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class Incident extends Model
 {
@@ -76,6 +78,86 @@ class Incident extends Model
     {
         return $this->belongsToMany(ApprovalNumber::class, 'approval_incident')
             ->withPivot(['linked_by', 'created_at']);
+    }
+
+    public function getDisplayReferenceAttribute(): string
+    {
+        if ($this->reference_no === null || $this->reference_no === '') {
+            return '';
+        }
+
+        if (preg_match('/^SC-?(\d+)$/i', $this->reference_no, $matches) === 1) {
+            return 'SC'.str_pad($matches[1], 5, '0', STR_PAD_LEFT);
+        }
+
+        return $this->reference_no;
+    }
+
+    public static function parseReferenceSequence(string $query): ?int
+    {
+        $query = trim($query);
+
+        if ($query === '') {
+            return null;
+        }
+
+        if (preg_match('/^SC[- ]?(\d+)$/i', $query, $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        if (preg_match('/^\d+$/', $query) === 1) {
+            return (int) $query;
+        }
+
+        return null;
+    }
+
+    public function scopeMatchingReference(Builder $query, string $term): void
+    {
+        $term = trim($term);
+
+        if ($term === '') {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $sequence = self::parseReferenceSequence($term);
+
+        if ($sequence !== null) {
+            $padded = str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+
+            $query->where(function (Builder $builder) use ($term, $sequence, $padded) {
+                $builder->where('reference_no', 'like', '%'.$term.'%')
+                    ->orWhere('reference_no', 'SC-'.$padded)
+                    ->orWhere('reference_no', 'SC'.$padded);
+
+                if ($sequence !== (int) $padded) {
+                    $builder->orWhere('reference_no', 'SC-'.$sequence)
+                        ->orWhere('reference_no', 'SC'.$sequence);
+                }
+            });
+
+            return;
+        }
+
+        $query->where('reference_no', 'like', '%'.$term.'%');
+    }
+
+    public function isActive(): bool
+    {
+        return in_array($this->status, [IncidentStatus::Open, IncidentStatus::InProgress], true);
+    }
+
+    public function issueSummary(): string
+    {
+        $title = trim((string) $this->title);
+
+        if ($title !== '') {
+            return Str::limit($title, 80);
+        }
+
+        return Str::limit(trim((string) $this->description), 80) ?: '—';
     }
 
     public function isPendingAdmin(): bool

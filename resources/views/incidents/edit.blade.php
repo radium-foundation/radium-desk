@@ -7,12 +7,12 @@
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-2">
                 <li class="breadcrumb-item"><a href="{{ route('incidents.index') }}">{{ config('ui.service_case.plural') }}</a></li>
-                <li class="breadcrumb-item"><a href="{{ route('incidents.show', $incident) }}">{{ $incident->reference_no }}</a></li>
+                <li class="breadcrumb-item"><a href="{{ route('incidents.show', $incident) }}">{{ $incident->display_reference }}</a></li>
                 <li class="breadcrumb-item active" aria-current="page">Edit</li>
             </ol>
         </nav>
         <h1 class="h3 mb-1">Edit {{ config('ui.service_case.singular') }}</h1>
-        <p class="text-muted mb-0">{{ $incident->reference_no }}</p>
+        <p class="text-muted mb-0">{{ $incident->display_reference }}</p>
     </div>
 
     <div class="card border-0 shadow-sm">

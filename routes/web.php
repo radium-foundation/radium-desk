@@ -38,6 +38,10 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/search', [SearchController::class, 'index'])->name('search.index');
 
     Route::get('orders/lookup', [OrderController::class, 'lookup'])->name('orders.lookup');
+    Route::get('orders/{order}/service-cases/create', [OrderController::class, 'createServiceCase'])
+        ->name('orders.service-cases.create');
+    Route::post('orders/{order}/service-cases', [OrderController::class, 'storeServiceCase'])
+        ->name('orders.service-cases.store');
     Route::post('orders/{order}/transaction', [OrderTransactionController::class, 'store'])->name('orders.transaction.store');
     Route::delete('orders/{order}/transaction', [OrderTransactionController::class, 'destroy'])->name('orders.transaction.destroy');
     Route::resource('orders', OrderController::class);

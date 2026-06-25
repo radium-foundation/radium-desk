@@ -1,17 +1,17 @@
 <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-labelledby="quickCreateModalLabel"
-     data-show-on-load="{{ ($errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority') || session('reopen_quick_create')) ? 'true' : 'false' }}"
-     data-reset-on-show="{{ session('reopen_quick_create') ? 'true' : 'false' }}">
+     data-show-on-load="{{ ($errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority')) ? 'true' : 'false' }}"
+     data-reset-on-show="false">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h2 class="modal-title h5 mb-0" id="quickCreateModalLabel">Quick Create — New Service Request</h2>
+                <h2 class="modal-title h5 mb-0" id="quickCreateModalLabel">Quick Create — Search Order</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ route('service-requests.quick.store') }}">
                 @csrf
                 <div class="modal-body py-3">
                     <p class="text-muted small mb-3">
-                        {{ config('ui.service_case.reference_label') }} is assigned automatically after submission.
+                        Search by order ID. Existing orders open the order hub. New orders create the first service case automatically.
                     </p>
 
                     <div class="row g-3">

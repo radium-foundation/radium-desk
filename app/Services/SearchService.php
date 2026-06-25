@@ -84,9 +84,10 @@ class SearchService
     {
         return Incident::query()
             ->with('order')
-            ->where(function (Builder $builder) use ($like) {
-                $builder->where('reference_no', 'like', $like)
-                    ->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like));
+            ->where(function (Builder $builder) use ($query, $like) {
+                $builder->where(function (Builder $referenceQuery) use ($query) {
+                    $referenceQuery->matchingReference($query);
+                })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like));
             })
             ->orderByRaw(
                 'CASE
@@ -199,6 +200,11 @@ class SearchService
 
             if ($this->settingService->getBool('search.mobile_enabled', true)) {
                 $applied ? $builder->orWhere('customer_phone', 'like', $like) : $builder->where('customer_phone', 'like', $like);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.customer_name_enabled', true)) {
+                $applied ? $builder->orWhere('customer_name', 'like', $like) : $builder->where('customer_name', 'like', $like);
                 $applied = true;
             }
 

@@ -10,19 +10,30 @@ class IncidentReferenceService
     public function generate(): string
     {
         return DB::transaction(function (): string {
-            $prefix = 'SC-';
+            $prefix = 'SC';
 
-            $latestReference = Incident::withTrashed()
-                ->where('reference_no', 'like', $prefix.'%')
+            $latestSequence = Incident::withTrashed()
+                ->where(function ($query) {
+                    $query->where('reference_no', 'like', 'SC-%')
+                        ->orWhere('reference_no', 'like', 'SC%');
+                })
                 ->lockForUpdate()
-                ->orderByDesc('reference_no')
-                ->value('reference_no');
+                ->pluck('reference_no')
+                ->map(fn (string $reference): int => $this->extractSequence($reference))
+                ->max();
 
-            $sequence = $latestReference
-                ? ((int) substr($latestReference, strlen($prefix))) + 1
-                : 1;
+            $sequence = ($latestSequence ?? 0) + 1;
 
             return $prefix.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
         });
+    }
+
+    private function extractSequence(string $reference): int
+    {
+        if (preg_match('/^SC-?(\d+)$/i', $reference, $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        return 0;
     }
 }

@@ -36,7 +36,7 @@ class IncidentController extends Controller
                 });
             })
             ->when($request->filled('reference_no'), function ($query) use ($request) {
-                $query->where('reference_no', 'like', '%'.$request->string('reference_no')->trim().'%');
+                $query->matchingReference($request->string('reference_no')->trim()->toString());
             })
             ->when($request->filled('category'), function ($query) use ($request) {
                 $query->where('category', $request->string('category')->trim());

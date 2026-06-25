@@ -3,7 +3,7 @@
 @section('title', $order->order_id)
 
 @section('content')
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-3">
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-2">
@@ -11,13 +11,11 @@
                     <li class="breadcrumb-item active" aria-current="page">{{ $order->order_id }}</li>
                 </ol>
             </nav>
-            <h1 class="h3 mb-1">{{ $order->order_id }}</h1>
-            <p class="text-muted mb-0">Order detail and related activity summary.</p>
+            <p class="text-muted mb-0">Order hub and service case history.</p>
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            @include('orders.partials.completion-status-badge', ['order' => $order])
             @can('update', $order)
-                <a href="{{ route('orders.edit', $order) }}" class="btn btn-outline-primary">
+                <a href="{{ route('orders.edit', $order) }}" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-pencil me-1"></i> Edit
                 </a>
             @endcan
@@ -26,13 +24,18 @@
                       onsubmit="return confirm('Are you sure you want to delete this order?');">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn btn-outline-danger">
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
                         <i class="bi bi-trash me-1"></i> Delete
                     </button>
                 </form>
             @endcan
         </div>
     </div>
+
+    @include('orders.partials.order-summary', [
+        'order' => $order,
+        'activeIncident' => $activeIncident ?? null,
+    ])
 
     @if($order->isTransactionLocked())
         <div class="alert alert-success py-2 small mb-3">
@@ -42,46 +45,17 @@
         </div>
     @endif
 
-    <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-muted small">{{ config('ui.service_case.plural') }}</div>
-                    <div class="fs-3 fw-semibold">{{ $order->incidents_count }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-muted small">Refund Requests</div>
-                    <div class="fs-3 fw-semibold">{{ $order->refund_requests_count }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="text-muted small">Order Status</div>
-                    <div class="mt-1">
-                        <span @class([
-                            'badge fs-6',
-                            'text-bg-success' => $order->status === \App\Enums\OrderStatus::Active,
-                            'text-bg-secondary' => $order->status === \App\Enums\OrderStatus::Closed,
-                        ])>
-                            {{ $order->status->label() }}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    @include('orders.partials.active-service-case-banner', [
+        'order' => $order,
+        'activeIncident' => $activeIncident ?? null,
+    ])
+
+    @include('orders.partials.service-cases-list', ['order' => $order])
 
     <div class="row g-3">
         <div class="col-lg-7">
             @include('orders.partials.activity-timeline', ['activityTimeline' => $activityTimeline])
             @include('orders.partials.update-transaction-form', ['order' => $order])
-            @include('orders.partials.service-cases-list', ['order' => $order])
 
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-3">

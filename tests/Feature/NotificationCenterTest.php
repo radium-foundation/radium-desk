@@ -63,13 +63,18 @@ class NotificationCenterTest extends TestCase
         $agent = User::factory()->create(['name' => 'Agent User']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $this->actingAs($agent)->post(route('service-requests.quick.store'), [
+        $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD-NOTIFY-HP',
             'serial_number' => 'SN-NOTIFY-HP',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
             'high_priority' => '1',
-        ])->assertRedirect(route('dashboard'));
+        ]);
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+
+        $response->assertRedirect(route('incidents.show', $incident));
 
         Notification::assertSentTo($assignee, ServiceCaseAssignedNotification::class);
         Notification::assertSentTo($assignee, HighPriorityServiceCaseNotification::class);

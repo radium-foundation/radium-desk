@@ -108,7 +108,7 @@
                                 <tr>
                                     <td class="fw-semibold">
                                         <a href="{{ route('incidents.show', $incident) }}" class="text-decoration-none">
-                                            {{ $incident->reference_no }}
+                                            {{ $incident->display_reference }}
                                         </a>
                                     </td>
                                     <td>

@@ -119,7 +119,7 @@
                                     <td>
                                         @if($refund->incident)
                                             <a href="{{ route('incidents.show', $refund->incident) }}" class="text-decoration-none">
-                                                {{ $refund->incident->reference_no }}
+                                                {{ $refund->incident->display_reference }}
                                             </a>
                                         @else
                                             —
