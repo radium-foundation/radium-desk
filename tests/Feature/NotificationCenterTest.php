@@ -12,6 +12,7 @@ use App\Notifications\ServiceCaseReassignedNotification;
 use App\Notifications\TransactionCompletedNotification;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -25,10 +26,19 @@ class NotificationCenterTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(SettingsSeeder::class);
+    }
 
-        config([
-            'service_case_assignment.day_shift.assignee_email' => 'admin-assignee@test.com',
-            'service_case_assignment.after_hours.assignee_email' => 'admin-assignee@test.com',
+    private function configureAssignee(User $admin): void
+    {
+        app(\App\Services\SettingService::class)->setMany([
+            'assignment.timezone' => config('app.timezone'),
+            'assignment.day_shift_start' => '09:00',
+            'assignment.day_shift_end' => '18:30',
+            'assignment.day_shift_admin_user_id' => (string) $admin->id,
+            'assignment.night_shift_admin_user_id' => (string) $admin->id,
+            'assignment.fallback_admin_1_user_id' => '',
+            'assignment.fallback_admin_2_user_id' => '',
         ]);
     }
 
@@ -39,6 +49,7 @@ class NotificationCenterTest extends TestCase
             'email' => 'admin-assignee@test.com',
         ]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $this->configureAssignee($admin);
 
         return $admin;
     }

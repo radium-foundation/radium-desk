@@ -71,6 +71,16 @@
                         </a>
                     @endcan
                 </li>
+                @if(auth()->user()?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN))
+                    <li class="nav-item">
+                        @can('viewAny', App\Models\SettingProduct::class)
+                            <a @class(['nav-link', 'active' => request()->routeIs('settings.*')]) href="{{ route('settings.index') }}" title="Settings">
+                                <i class="bi bi-gear nav-icon me-2"></i>
+                                <span class="nav-label">Settings</span>
+                            </a>
+                        @endcan
+                    </li>
+                @endif
             </ul>
         @endif
     </nav>

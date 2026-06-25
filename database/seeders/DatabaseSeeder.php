@@ -55,5 +55,7 @@ class DatabaseSeeder extends Seeder
 
             $user->syncRoles([$userData['role']]);
         }
+
+        $this->call(SettingsSeeder::class);
     }
 }

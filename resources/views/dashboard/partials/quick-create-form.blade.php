@@ -44,8 +44,8 @@
                             <select name="product" id="quick_product"
                                     class="form-select @error('product') is-invalid @enderror"
                                     required>
-                                @foreach(config('products') as $productOption)
-                                    <option value="{{ $productOption }}" @selected(old('product', 'MFS 110') === $productOption)>
+                                @foreach(($enabledProducts ?? []) as $productOption)
+                                    <option value="{{ $productOption }}" @selected(old('product', $enabledProducts[0] ?? '') === $productOption)>
                                         {{ $productOption }}
                                     </option>
                                 @endforeach
@@ -61,9 +61,9 @@
                                     class="form-select @error('source') is-invalid @enderror"
                                     required>
                                 <option value="" disabled @selected(old('source') === null)>Select source</option>
-                                @foreach(\App\Enums\IncidentSource::cases() as $sourceOption)
-                                    <option value="{{ $sourceOption->value }}" @selected(old('source', 'call') === $sourceOption->value)>
-                                        {{ $sourceOption->label() }}
+                                @foreach(($enabledSources ?? collect()) as $sourceOption)
+                                    <option value="{{ $sourceOption->key }}" @selected(old('source', $enabledSources->first()?->key) === $sourceOption->key)>
+                                        {{ $sourceOption->label }}
                                     </option>
                                 @endforeach
                             </select>

@@ -8,7 +8,9 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\ServiceCaseAssignmentService;
+use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -23,21 +25,23 @@ class ServiceCaseAssignmentTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
-        $this->configureAssignmentRules();
+        $this->seed(SettingsSeeder::class);
     }
 
-    private function configureAssignmentRules(): void
-    {
-        config([
-            'service_case_assignment.timezone' => 'Asia/Kolkata',
-            'service_case_assignment.day_shift.start' => '09:00',
-            'service_case_assignment.day_shift.end' => '18:30',
-            'service_case_assignment.day_shift.assignee_email' => 'avinash@radiumbox.com',
-            'service_case_assignment.after_hours.assignee_email' => 'shipra@radiumbox.com',
-            'service_case_assignment.fallback_admins' => [
-                'dileep@radiumbox.com',
-                'admin@radium.local',
-            ],
+    private function configureAssignmentSettings(
+        int $dayAdminId,
+        int $nightAdminId,
+        int $fallback1Id = 0,
+        int $fallback2Id = 0,
+    ): void {
+        app(SettingService::class)->setMany([
+            'assignment.timezone' => 'Asia/Kolkata',
+            'assignment.day_shift_start' => '09:00',
+            'assignment.day_shift_end' => '18:30',
+            'assignment.day_shift_admin_user_id' => (string) $dayAdminId,
+            'assignment.night_shift_admin_user_id' => (string) $nightAdminId,
+            'assignment.fallback_admin_1_user_id' => $fallback1Id > 0 ? (string) $fallback1Id : '',
+            'assignment.fallback_admin_2_user_id' => $fallback2Id > 0 ? (string) $fallback2Id : '',
         ]);
     }
 
@@ -56,6 +60,7 @@ class ServiceCaseAssignmentTest extends TestCase
     public function test_day_shift_assigns_configured_day_admin(): void
     {
         $avinash = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $this->configureAssignmentSettings($avinash->id, $avinash->id);
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 
         $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
@@ -68,6 +73,7 @@ class ServiceCaseAssignmentTest extends TestCase
     public function test_after_hours_assigns_configured_after_hours_admin(): void
     {
         $shipra = $this->createAdminUser('shipra@radiumbox.com', 'Shipra Kumari');
+        $this->configureAssignmentSettings(99999, $shipra->id);
         Carbon::setTestNow(Carbon::parse('2026-06-24 20:15:00', 'Asia/Kolkata'));
 
         $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
@@ -80,6 +86,7 @@ class ServiceCaseAssignmentTest extends TestCase
     public function test_falls_back_to_dileep_when_primary_admin_missing(): void
     {
         $dileep = $this->createAdminUser('dileep@radiumbox.com', 'Dileep Admin');
+        $this->configureAssignmentSettings(99999, 99998, $dileep->id);
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 
         $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
@@ -91,8 +98,9 @@ class ServiceCaseAssignmentTest extends TestCase
 
     public function test_falls_back_to_local_admin_when_dileep_unavailable(): void
     {
-        $this->createAdminUser('dileep@radiumbox.com', 'Dileep Admin', active: false);
+        $dileep = $this->createAdminUser('dileep@radiumbox.com', 'Dileep Admin', active: false);
         $localAdmin = $this->createAdminUser('admin@radium.local', 'Local Admin');
+        $this->configureAssignmentSettings(99999, 99998, $dileep->id, $localAdmin->id);
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 
         $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
@@ -104,6 +112,7 @@ class ServiceCaseAssignmentTest extends TestCase
 
     public function test_throws_when_no_valid_admin_exists(): void
     {
+        $this->configureAssignmentSettings(99999, 99998);
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 
         $this->expectException(ValidationException::class);
@@ -115,7 +124,8 @@ class ServiceCaseAssignmentTest extends TestCase
 
     public function test_quick_create_automatically_assigns_owner_by_time(): void
     {
-        $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $avinash = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $this->configureAssignmentSettings($avinash->id, $avinash->id);
 
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);

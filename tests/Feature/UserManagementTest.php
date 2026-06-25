@@ -8,7 +8,9 @@ use App\Models\Order;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
 use App\Services\ServiceCaseAssignmentService;
+use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -24,21 +26,19 @@ class UserManagementTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
-        $this->configureAssignmentRules();
+        $this->seed(SettingsSeeder::class);
     }
 
-    private function configureAssignmentRules(): void
+    private function configureAssignmentSettings(int $primaryId, int $fallbackId): void
     {
-        config([
-            'service_case_assignment.timezone' => 'Asia/Kolkata',
-            'service_case_assignment.day_shift.start' => '09:00',
-            'service_case_assignment.day_shift.end' => '18:30',
-            'service_case_assignment.day_shift.assignee_email' => 'primary@radiumbox.com',
-            'service_case_assignment.after_hours.assignee_email' => 'afterhours@radiumbox.com',
-            'service_case_assignment.fallback_admins' => [
-                'fallback@radiumbox.com',
-                'admin@radium.local',
-            ],
+        app(SettingService::class)->setMany([
+            'assignment.timezone' => 'Asia/Kolkata',
+            'assignment.day_shift_start' => '09:00',
+            'assignment.day_shift_end' => '18:30',
+            'assignment.day_shift_admin_user_id' => (string) $primaryId,
+            'assignment.night_shift_admin_user_id' => (string) $primaryId,
+            'assignment.fallback_admin_1_user_id' => (string) $fallbackId,
+            'assignment.fallback_admin_2_user_id' => '',
         ]);
     }
 
@@ -246,16 +246,19 @@ class UserManagementTest extends TestCase
 
     public function test_assignment_skips_inactive_admin(): void
     {
-        User::factory()->create([
+        $primary = User::factory()->create([
             'email' => 'primary@radiumbox.com',
             'is_active' => false,
-        ])->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        ]);
+        $primary->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $fallback = User::factory()->create([
             'email' => 'fallback@radiumbox.com',
             'is_active' => true,
         ]);
         $fallback->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->configureAssignmentSettings($primary->id, $fallback->id);
 
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 

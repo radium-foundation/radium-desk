@@ -14,6 +14,10 @@ class SearchService
 {
     private const PER_PAGE = 10;
 
+    public function __construct(
+        private readonly SettingService $settingService,
+    ) {}
+
     /**
      * @param  array<string, int>  $pages
      * @return array<string, LengthAwarePaginator|null>
@@ -54,12 +58,7 @@ class SearchService
     {
         return Order::query()
             ->where(function (Builder $builder) use ($like) {
-                $builder->where('order_id', 'like', $like)
-                    ->orWhere('serial_number', 'like', $like)
-                    ->orWhere('transaction_id', 'like', $like)
-                    ->orWhere('customer_name', 'like', $like)
-                    ->orWhere($this->futureContactField('customer_email'), 'like', $like)
-                    ->orWhere($this->futureContactField('customer_phone'), 'like', $like);
+                $this->applyOrderSearchFilters($builder, $like);
             })
             ->orderByRaw(
                 'CASE
@@ -175,20 +174,38 @@ class SearchService
 
     private function applyOrderSearchFilters(Builder $orderQuery, string $like): void
     {
-        $orderQuery->where('order_id', 'like', $like)
-            ->orWhere('serial_number', 'like', $like)
-            ->orWhere('transaction_id', 'like', $like)
-            ->orWhere('customer_name', 'like', $like)
-            ->orWhere($this->futureContactField('customer_email'), 'like', $like)
-            ->orWhere($this->futureContactField('customer_phone'), 'like', $like);
-    }
+        $orderQuery->where(function (Builder $builder) use ($like) {
+            $applied = false;
 
-    /**
-     * Reserved for future mobile/email search exposure in the UI.
-     */
-    private function futureContactField(string $column): string
-    {
-        return $column;
+            if ($this->settingService->getBool('search.order_id_enabled', true)) {
+                $builder->where('order_id', 'like', $like);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.serial_number_enabled', true)) {
+                $applied ? $builder->orWhere('serial_number', 'like', $like) : $builder->where('serial_number', 'like', $like);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.transaction_id_enabled', true)) {
+                $applied ? $builder->orWhere('transaction_id', 'like', $like) : $builder->where('transaction_id', 'like', $like);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.email_enabled', true)) {
+                $applied ? $builder->orWhere('customer_email', 'like', $like) : $builder->where('customer_email', 'like', $like);
+                $applied = true;
+            }
+
+            if ($this->settingService->getBool('search.mobile_enabled', true)) {
+                $applied ? $builder->orWhere('customer_phone', 'like', $like) : $builder->where('customer_phone', 'like', $like);
+                $applied = true;
+            }
+
+            if (! $applied) {
+                $builder->whereRaw('0 = 1');
+            }
+        });
     }
 
     /**

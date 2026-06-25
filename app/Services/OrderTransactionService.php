@@ -6,6 +6,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
+use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -66,6 +67,10 @@ class OrderTransactionService
 
     private function notifyTransactionCompleted(Order $order, string $transactionId, User $actor): void
     {
+        if (! app(SettingService::class)->getBool('notifications.transaction_enabled', true)) {
+            return;
+        }
+
         $recipients = Incident::query()
             ->with(['creator', 'assignee'])
             ->where('order_id', $order->id)

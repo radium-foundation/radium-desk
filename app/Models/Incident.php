@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
+use App\Services\SettingService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -89,18 +90,19 @@ class Incident extends Model
 
         $now ??= now();
         $hoursPending = (int) $this->created_at->diffInHours($now);
+        $settings = app(SettingService::class);
 
         if ($this->high_priority) {
             return match (true) {
-                $hoursPending >= 8 => ServiceCaseSlaStatus::Overdue,
-                $hoursPending >= 4 => ServiceCaseSlaStatus::Warning,
+                $hoursPending >= $settings->getInt('sla.priority_overdue_hours', 8) => ServiceCaseSlaStatus::Overdue,
+                $hoursPending >= $settings->getInt('sla.priority_warning_hours', 4) => ServiceCaseSlaStatus::Warning,
                 default => ServiceCaseSlaStatus::WithinSla,
             };
         }
 
         return match (true) {
-            $hoursPending >= 48 => ServiceCaseSlaStatus::Overdue,
-            $hoursPending >= 24 => ServiceCaseSlaStatus::Warning,
+            $hoursPending >= $settings->getInt('sla.normal_overdue_hours', 48) => ServiceCaseSlaStatus::Overdue,
+            $hoursPending >= $settings->getInt('sla.normal_warning_hours', 24) => ServiceCaseSlaStatus::Warning,
             default => ServiceCaseSlaStatus::WithinSla,
         };
     }

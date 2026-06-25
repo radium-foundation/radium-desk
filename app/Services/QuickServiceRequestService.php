@@ -78,7 +78,8 @@ class QuickServiceRequestService
 
             if ($highPriority && $incident->assignee !== null
                 && $incident->assignee->is_active
-                && ! $incident->assignee->trashed()) {
+                && ! $incident->assignee->trashed()
+                && app(SettingService::class)->getBool('notifications.high_priority_enabled', true)) {
                 $incident->assignee->notify(new HighPriorityServiceCaseNotification($incident, $user));
             }
 

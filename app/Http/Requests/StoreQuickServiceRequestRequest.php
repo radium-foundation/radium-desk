@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\IncidentSource;
+use App\Services\SettingService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,11 +22,13 @@ class StoreQuickServiceRequestRequest extends FormRequest
      */
     public function rules(): array
     {
+        $settingService = app(SettingService::class);
+
         return [
             'order_id' => ['required', 'string', 'max:50'],
             'serial_number' => ['required', 'string', 'max:100'],
-            'product' => ['required', 'string', Rule::in(config('products'))],
-            'source' => ['required', Rule::enum(IncidentSource::class)],
+            'product' => ['required', 'string', Rule::in($settingService->enabledProductNames())],
+            'source' => ['required', 'string', Rule::in($settingService->enabledSourceKeys())],
             'notes' => ['nullable', 'string', 'max:5000'],
             'high_priority' => ['sometimes', 'boolean'],
         ];

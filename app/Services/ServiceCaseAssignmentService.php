@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Incident;
 use App\Models\User;
-use App\Notifications\HighPriorityServiceCaseNotification;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
 use Database\Seeders\RolePermissionSeeder;
@@ -16,25 +15,13 @@ class ServiceCaseAssignmentService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly SettingService $settingService,
     ) {}
-
-    public function resolveAssigneeEmail(?Carbon $at = null): string
-    {
-        $at = $this->normalizeTime($at ?? now());
-        $dayShift = config('service_case_assignment.day_shift');
-        $time = $at->format('H:i');
-
-        if ($time >= $dayShift['start'] && $time <= $dayShift['end']) {
-            return (string) $dayShift['assignee_email'];
-        }
-
-        return (string) config('service_case_assignment.after_hours.assignee_email');
-    }
 
     public function resolveAssignee(?Carbon $at = null): User
     {
-        foreach ($this->assigneeCandidateEmails($at) as $email) {
-            $assignee = $this->findValidAdminAssignee($email);
+        foreach ($this->assigneeCandidateUserIds($at) as $userId) {
+            $assignee = $this->findValidAdminAssigneeById($userId);
 
             if ($assignee !== null) {
                 return $assignee;
@@ -47,14 +34,17 @@ class ServiceCaseAssignmentService
     }
 
     /**
-     * @return list<string>
+     * @return list<int>
      */
-    public function assigneeCandidateEmails(?Carbon $at = null): array
+    public function assigneeCandidateUserIds(?Carbon $at = null): array
     {
-        $primary = $this->resolveAssigneeEmail($at);
-        $fallbacks = config('service_case_assignment.fallback_admins', []);
+        $primary = $this->resolvePrimaryAssigneeUserId($at);
+        $fallbacks = array_filter([
+            $this->settingService->getInt('assignment.fallback_admin_1_user_id'),
+            $this->settingService->getInt('assignment.fallback_admin_2_user_id'),
+        ]);
 
-        return array_values(array_unique(array_merge([$primary], $fallbacks)));
+        return array_values(array_unique(array_filter(array_merge([$primary], $fallbacks))));
     }
 
     public function assignOnCreate(Incident $incident, User $actor, ?Carbon $at = null): Incident
@@ -93,6 +83,20 @@ class ServiceCaseAssignmentService
             ->orderBy('name')
             ->get()
             ->all();
+    }
+
+    private function resolvePrimaryAssigneeUserId(?Carbon $at = null): int
+    {
+        $at = $this->normalizeTime($at ?? now());
+        $time = $at->format('H:i');
+        $start = $this->settingService->get('assignment.day_shift_start', '09:00');
+        $end = $this->settingService->get('assignment.day_shift_end', '18:30');
+
+        if ($time >= $start && $time <= $end) {
+            return $this->settingService->getInt('assignment.day_shift_admin_user_id');
+        }
+
+        return $this->settingService->getInt('assignment.night_shift_admin_user_id');
     }
 
     private function applyAssignment(
@@ -140,6 +144,10 @@ class ServiceCaseAssignmentService
         User $actor,
         string $event,
     ): void {
+        if (! $this->settingService->getBool('notifications.assignment_enabled', true)) {
+            return;
+        }
+
         if (! $assignee->is_active || $assignee->trashed()) {
             return;
         }
@@ -165,11 +173,13 @@ class ServiceCaseAssignmentService
         }
     }
 
-    private function findValidAdminAssignee(string $email): ?User
+    private function findValidAdminAssigneeById(int $userId): ?User
     {
-        $assignee = User::query()
-            ->where('email', $email)
-            ->first();
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $assignee = User::query()->find($userId);
 
         if ($assignee === null || $assignee->trashed() || ! $assignee->is_active) {
             return null;
@@ -187,6 +197,6 @@ class ServiceCaseAssignmentService
 
     private function normalizeTime(Carbon $at): Carbon
     {
-        return $at->copy()->timezone(config('service_case_assignment.timezone'));
+        return $at->copy()->timezone($this->settingService->get('assignment.timezone', config('app.timezone')));
     }
 }

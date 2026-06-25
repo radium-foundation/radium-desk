@@ -15,6 +15,10 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\ServiceCaseAssignmentController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\SettingProductController;
+use App\Http\Controllers\SettingSourceController;
+use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\SettingsSectionController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -62,6 +66,19 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::resource('users', UserController::class)->except(['show']);
     Route::patch('users/{user}/status', [UserController::class, 'updateStatus'])->name('users.status.update');
     Route::patch('users/{user}/password-reset', [UserController::class, 'resetPassword'])->name('users.password-reset.update');
+
+    Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::put('/settings/general', [SettingsSectionController::class, 'updateGeneral'])->name('settings.general.update');
+    Route::put('/settings/assignment', [SettingsSectionController::class, 'updateAssignment'])->name('settings.assignment.update');
+    Route::put('/settings/notifications', [SettingsSectionController::class, 'updateNotifications'])->name('settings.notifications.update');
+    Route::put('/settings/sla', [SettingsSectionController::class, 'updateSla'])->name('settings.sla.update');
+    Route::put('/settings/search', [SettingsSectionController::class, 'updateSearch'])->name('settings.search.update');
+    Route::post('/settings/products', [SettingProductController::class, 'store'])->name('settings.products.store');
+    Route::put('/settings/products/{product}', [SettingProductController::class, 'update'])->name('settings.products.update');
+    Route::patch('/settings/products/{product}/toggle', [SettingProductController::class, 'toggle'])->name('settings.products.toggle');
+    Route::post('/settings/sources', [SettingSourceController::class, 'store'])->name('settings.sources.store');
+    Route::put('/settings/sources/{source}', [SettingSourceController::class, 'update'])->name('settings.sources.update');
+    Route::patch('/settings/sources/{source}/toggle', [SettingSourceController::class, 'toggle'])->name('settings.sources.toggle');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

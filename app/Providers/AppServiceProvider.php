@@ -2,7 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\SettingProduct;
+use App\Models\SettingSource;
+use App\Policies\SettingPolicy;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(SettingProduct::class, SettingPolicy::class);
+        Gate::policy(SettingSource::class, SettingPolicy::class);
+
         Paginator::useBootstrapFive();
 
         View::composer('layouts.partials.navbar', function ($view): void {

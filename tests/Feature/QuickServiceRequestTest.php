@@ -7,6 +7,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,17 +20,23 @@ class QuickServiceRequestTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
-
-        config([
-            'service_case_assignment.day_shift.assignee_email' => 'day-admin@test.com',
-            'service_case_assignment.after_hours.assignee_email' => 'night-admin@test.com',
-        ]);
+        $this->seed(SettingsSeeder::class);
 
         $dayAdmin = User::factory()->create(['email' => 'day-admin@test.com']);
         $dayAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        User::factory()->create(['email' => 'night-admin@test.com'])
-            ->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $nightAdmin = User::factory()->create(['email' => 'night-admin@test.com']);
+        $nightAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        app(\App\Services\SettingService::class)->setMany([
+            'assignment.timezone' => config('app.timezone'),
+            'assignment.day_shift_start' => '09:00',
+            'assignment.day_shift_end' => '18:30',
+            'assignment.day_shift_admin_user_id' => (string) $dayAdmin->id,
+            'assignment.night_shift_admin_user_id' => (string) $nightAdmin->id,
+            'assignment.fallback_admin_1_user_id' => '',
+            'assignment.fallback_admin_2_user_id' => '',
+        ]);
     }
 
     public function test_quick_create_creates_order_and_service_case_with_sc_reference(): void

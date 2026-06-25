@@ -37,6 +37,8 @@ class DashboardController extends Controller
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
             'serviceCaseFilter' => $filter,
             'canManageTransactions' => $canManageTransactions,
+            'enabledProducts' => app(\App\Services\SettingService::class)->enabledProductNames(),
+            'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
         ]);
     }
 }
