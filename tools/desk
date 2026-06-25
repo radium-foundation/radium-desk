@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+#
+# Desk CLI — deployment toolkit entry point.
+#
+# Usage:
+#   ./tools/desk <command>
+#
+# Or add tools/ to your PATH and run: desk <command>
+
+set -euo pipefail
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+case "${1:-help}" in
+    ssh)
+        exec "$TOOLS_DIR/commands/ssh.sh"
+        ;;
+    doctor)
+        exec "$TOOLS_DIR/commands/doctor.sh"
+        ;;
+    deploy)
+        shift
+        exec "$TOOLS_DIR/commands/deploy.sh" "$@"
+        ;;
+    logs)
+        exec "$TOOLS_DIR/commands/logs.sh" "$@"
+        ;;
+    cache)
+        exec "$TOOLS_DIR/commands/cache.sh" "$@"
+        ;;
+    rollback)
+        exec "$TOOLS_DIR/commands/rollback.sh" "$@"
+        ;;
+    help|-h|--help)
+        cat <<'MENU'
+Radium Desk Toolkit
+
+Usage:
+  desk ssh       Open an interactive SSH session on the server
+  desk doctor    Verify local and remote deployment prerequisites
+  desk deploy    Build assets and deploy to production
+  desk logs      Tail remote Laravel logs
+  desk cache     Clear and rebuild remote Laravel caches
+  desk rollback  Roll back the remote repository one commit
+
+Run from the project root:
+  ./tools/desk <command>
+
+See tools/README.md for full documentation.
+MENU
+        ;;
+    *)
+        printf 'Unknown command: %s\n\n' "$1" >&2
+        exec "$0" help
+        ;;
+esac
