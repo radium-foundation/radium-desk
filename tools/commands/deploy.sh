@@ -9,9 +9,10 @@
 #
 # Steps:
 #   1. Build frontend assets
-#   2. Upload public/build and sync public/ to remote
+#   2. Upload public/build and sync public/ to remote (excluding index.php)
 #   3. Pull latest code, install dependencies, migrate, optimize
-#   4. Run health check
+#   4. Generate shared-hosting index.php and validate bootstrap paths
+#   5. Run health check
 
 set -euo pipefail
 
@@ -76,6 +77,13 @@ print_success "Migrations completed"
 print_warning "Optimizing Laravel..."
 php_exec optimize
 print_success "Laravel optimize completed"
+
+# --- Shared-hosting index.php ---
+
+if ! generate_shared_hosting_index; then
+    print_error "Deployment aborted: index.php generation or validation failed"
+    exit 1
+fi
 
 # --- Post-deploy verification ---
 
