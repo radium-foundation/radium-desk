@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\IncidentStatus;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
@@ -52,12 +53,16 @@ class WorkspaceComponentService
     /**
      * @return array<string, mixed>
      */
-    public function viewData(WorkspaceComponent $component, Incident $incident): array
-    {
+    public function viewData(
+        WorkspaceComponent $component,
+        Incident $incident,
+        ?WorkspaceRequestContext $requestContext = null,
+    ): array {
         return match ($component) {
             WorkspaceComponent::Assign => [
                 'incident' => $incident,
                 'reassignableAdmins' => $this->assignmentService->reassignableAdmins(),
+                ...$this->assignWorkspaceFields($requestContext, $incident),
             ],
             WorkspaceComponent::Remark => [
                 'incident' => $incident,
@@ -74,5 +79,20 @@ class WorkspaceComponentService
                 'activityTimeline' => $this->activityTimelineService->forIncident($incident),
             ],
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function assignWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.assign', $incident),
+            'workspaceContext' => $requestContext->context->value,
+        ];
     }
 }

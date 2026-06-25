@@ -1,6 +1,11 @@
-<form method="POST" action="{{ route('incidents.assignment.update', $incident) }}">
+<form method="POST"
+      action="{{ $workspaceActionUrl ?? route('incidents.assignment.update', $incident) }}"
+      @if($workspaceActionUrl ?? null) data-workspace-action-form="assign" @endif>
     @csrf
     @method('PATCH')
+    @if($workspaceContext ?? null)
+        <input type="hidden" name="workspace_context" value="{{ $workspaceContext }}">
+    @endif
     <div class="modal-header">
         <h2 class="modal-title h5" id="assignModalLabel">Assign Service Case</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
