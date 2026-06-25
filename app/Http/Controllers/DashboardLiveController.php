@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Services\DashboardService;
-use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,25 +22,19 @@ class DashboardLiveController extends Controller
             $filter = 'pending_admin';
         }
 
-        $canManageTransactions = $user->hasAnyRole([
-            RolePermissionSeeder::ROLE_ADMIN,
-            RolePermissionSeeder::ROLE_SUPERADMIN,
-        ]);
-
-        return DB::transaction(function () use ($user, $filter, $canManageTransactions): JsonResponse {
+        return DB::transaction(function () use ($user, $filter): JsonResponse {
             $recentServiceCases = $user->can('incidents.view')
                 ? $this->dashboardService->recentServiceCases($filter)
                 : collect();
             $stats = $this->dashboardService->statsFor($user);
 
-            $rows = $recentServiceCases->map(function ($serviceCase) use ($canManageTransactions) {
+            $rows = $recentServiceCases->map(function ($serviceCase) use ($user) {
                 return [
                     'incident_id' => $serviceCase->id,
-                    'html' => view('dashboard.partials.service-case-row', [
-                        'serviceCase' => $serviceCase,
-                        'canManageTransactions' => $canManageTransactions,
-                        'canSelectRows' => $canManageTransactions,
-                    ])->render(),
+                    'html' => view(
+                        'dashboard.partials.service-case-row',
+                        $this->dashboardService->serviceCaseRowViewData($serviceCase, $user),
+                    )->render(),
                 ];
             })->values();
 

@@ -71,6 +71,9 @@
                             <th class="d-none d-sm-table-cell">Logged By</th>
                             <th>Created</th>
                             <th class="d-none d-md-table-cell">Last Updated</th>
+                            @if($canReassignServiceCases ?? false)
+                                <th class="dashboard-actions-cell text-end">Actions</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody id="dashboard-service-cases-body">
@@ -79,10 +82,16 @@
                                 'serviceCase' => $serviceCase,
                                 'canManageTransactions' => $canManageTransactions,
                                 'canSelectRows' => $canManageTransactions,
+                                'canReassignServiceCases' => $canReassignServiceCases ?? false,
                             ])
                         @empty
+                            @php
+                                $tableColumnCount = 12
+                                    + (($canManageTransactions ?? false) ? 1 : 0)
+                                    + (($canReassignServiceCases ?? false) ? 1 : 0);
+                            @endphp
                             <tr id="dashboard-service-cases-empty-row">
-                                <td colspan="{{ $canManageTransactions ? 13 : 12 }}" class="text-center text-muted small py-3">
+                                <td colspan="{{ $tableColumnCount }}" class="text-center text-muted small py-3">
                                     No service cases match this filter.
                                 </td>
                             </tr>

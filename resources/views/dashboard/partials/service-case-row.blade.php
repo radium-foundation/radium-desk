@@ -58,4 +58,19 @@
     <td class="case-meta-cell d-none d-sm-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
     <td class="case-meta-cell text-nowrap">{{ display_app_datetime($serviceCase->created_at) }}</td>
     <td class="case-meta-cell d-none d-md-table-cell text-nowrap">{{ display_app_datetime($serviceCase->updated_at) }}</td>
+    @if($canReassignServiceCases ?? false)
+        <td class="dashboard-actions-cell text-end text-nowrap">
+            @can('reassign', $serviceCase)
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-workspace-trigger="assign"
+                        data-workspace-incident-id="{{ $serviceCase->id }}"
+                        data-workspace-context="dashboard"
+                        aria-label="Assign {{ $serviceCase->display_reference }}">
+                    <i class="bi bi-person-check"></i>
+                    <span class="d-none d-xl-inline ms-1">Assign</span>
+                </button>
+            @endcan
+        </td>
+    @endif
 </tr>

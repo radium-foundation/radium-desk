@@ -7,7 +7,6 @@ use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
-use Database\Seeders\RolePermissionSeeder;
 
 class WorkspaceRefreshRenderer
 {
@@ -43,18 +42,12 @@ class WorkspaceRefreshRenderer
         }
 
         if ($effects->replaceRow) {
-            $canManageTransactions = $user->hasAnyRole([
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ]);
-
             $refresh['replace_row'] = [
                 'incident_id' => $incident->id,
-                'html' => view('dashboard.partials.service-case-row', [
-                    'serviceCase' => $incident,
-                    'canManageTransactions' => $canManageTransactions,
-                    'canSelectRows' => $canManageTransactions,
-                ])->render(),
+                'html' => view(
+                    'dashboard.partials.service-case-row',
+                    $this->dashboardService->serviceCaseRowViewData($incident, $user),
+                )->render(),
                 'strategy' => 'replace',
             ];
         }

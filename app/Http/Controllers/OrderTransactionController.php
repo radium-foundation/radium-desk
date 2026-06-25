@@ -7,8 +7,8 @@ use App\Http\Requests\UnlockOrderTransactionRequest;
 use App\Http\Requests\UpdateOrderTransactionRequest;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Services\DashboardService;
 use App\Services\OrderTransactionService;
-use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 
@@ -16,6 +16,7 @@ class OrderTransactionController extends Controller
 {
     public function __construct(
         private readonly OrderTransactionService $orderTransactionService,
+        private readonly DashboardService $dashboardService,
     ) {}
 
     public function store(UpdateOrderTransactionRequest $request, Order $order): RedirectResponse|JsonResponse
@@ -38,21 +39,17 @@ class OrderTransactionController extends Controller
                     ->find($request->integer('incident_id'));
             }
 
-            $canManageTransactions = $request->user()?->hasAnyRole([
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ]) ?? false;
+            $user = $request->user();
 
             return response()->json([
                 'message' => 'Transaction ID saved. Order marked as completed.',
                 'order_id' => $order->id,
                 'incident_id' => $incident?->id,
                 'row_html' => $incident
-                    ? view('dashboard.partials.service-case-row', [
-                        'serviceCase' => $incident,
-                        'canManageTransactions' => $canManageTransactions,
-                        'canSelectRows' => $canManageTransactions,
-                    ])->render()
+                    ? view(
+                        'dashboard.partials.service-case-row',
+                        $this->dashboardService->serviceCaseRowViewData($incident, $user),
+                    )->render()
                     : null,
             ]);
         }

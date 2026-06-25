@@ -37,6 +37,10 @@ class DashboardController extends Controller
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
             'serviceCaseFilter' => $filter,
             'canManageTransactions' => $canManageTransactions,
+            'canReassignServiceCases' => $user->hasAnyRole([
+                \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+                \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            ]),
             'enabledProducts' => app(\App\Services\SettingService::class)->enabledProductNames(),
             'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
         ]);

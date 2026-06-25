@@ -20,6 +20,7 @@
     </script>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <script type="application/json" id="workspace-context-slugs">@json(config('workspace.contexts'))</script>
 </head>
 <body>
     <div class="app-wrapper">

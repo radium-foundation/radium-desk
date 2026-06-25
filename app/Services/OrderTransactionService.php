@@ -16,6 +16,7 @@ class OrderTransactionService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly ServiceCaseStatusService $serviceCaseStatusService,
+        private readonly DashboardService $dashboardService,
     ) {}
 
     public function assignTransactionId(Order $order, string $transactionId, User $actor): Order
@@ -131,11 +132,6 @@ class OrderTransactionService
             ->get()
             ->keyBy('id');
 
-        $canManageBulk = $actor->hasAnyRole([
-            RolePermissionSeeder::ROLE_ADMIN,
-            RolePermissionSeeder::ROLE_SUPERADMIN,
-        ]);
-
         $rows = [];
 
         foreach ($incidentIds as $incidentId) {
@@ -147,11 +143,10 @@ class OrderTransactionService
 
             $rows[] = [
                 'incident_id' => $incident->id,
-                'html' => view('dashboard.partials.service-case-row', [
-                    'serviceCase' => $incident,
-                    'canManageTransactions' => $canManageBulk,
-                    'canSelectRows' => $canManageBulk,
-                ])->render(),
+                'html' => view(
+                    'dashboard.partials.service-case-row',
+                    $this->dashboardService->serviceCaseRowViewData($incident, $actor),
+                )->render(),
             ];
         }
 

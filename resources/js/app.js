@@ -3,8 +3,7 @@ import * as bootstrap from 'bootstrap';
 import { initLiveDashboard } from './live-dashboard';
 import { initLiveNotifications } from './live-notifications';
 import { initServiceCaseShow } from './service-case-show';
-import { initActionHost } from './workspace/action-host';
-import { initFragmentLoader } from './workspace/fragment-loader';
+import { initWorkspace } from './workspace';
 
 window.bootstrap = bootstrap;
 
@@ -352,8 +351,11 @@ document.addEventListener('DOMContentLoaded', () => {
     initLiveDashboard();
     initLiveNotifications();
     initServiceCaseShow();
-    initFragmentLoader();
-    initActionHost();
+    initWorkspace({
+        showToast: showAppToast,
+        replaceServiceCaseRow,
+        initTooltips,
+    });
 
     const quickCreateModalElement = document.getElementById('quickCreateModal');
 

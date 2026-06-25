@@ -3,30 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Models\Incident;
-use Database\Seeders\RolePermissionSeeder;
+use App\Services\DashboardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class DashboardServiceCaseController extends Controller
 {
+    public function __construct(
+        private readonly DashboardService $dashboardService,
+    ) {}
+
     public function row(Request $request, Incident $incident): JsonResponse
     {
         $this->authorize('view', $incident);
 
         $incident->load(['order.transactionAssigner', 'creator', 'assignee']);
-
-        $canManageTransactions = $request->user()?->hasAnyRole([
-            RolePermissionSeeder::ROLE_ADMIN,
-            RolePermissionSeeder::ROLE_SUPERADMIN,
-        ]) ?? false;
+        $user = $request->user();
 
         return response()->json([
             'incident_id' => $incident->id,
-            'html' => view('dashboard.partials.service-case-row', [
-                'serviceCase' => $incident,
-                'canManageTransactions' => $canManageTransactions,
-                'canSelectRows' => $canManageTransactions,
-            ])->render(),
+            'html' => view(
+                'dashboard.partials.service-case-row',
+                $this->dashboardService->serviceCaseRowViewData($incident, $user),
+            )->render(),
         ]);
     }
 }

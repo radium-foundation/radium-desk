@@ -94,6 +94,24 @@ class DashboardService
         return $stats;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function serviceCaseRowViewData(Incident $serviceCase, User $user): array
+    {
+        $canManageTransactions = $user->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ]);
+
+        return [
+            'serviceCase' => $serviceCase,
+            'canManageTransactions' => $canManageTransactions,
+            'canSelectRows' => $canManageTransactions,
+            'canReassignServiceCases' => $canManageTransactions,
+        ];
+    }
+
     public function recentServiceCases(string $filter = 'pending_admin', int $limit = 10): Collection
     {
         $query = Incident::query()

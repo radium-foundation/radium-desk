@@ -5,6 +5,7 @@
 @section('content')
     <div class="app-content-compact"
          id="dashboard-page"
+         data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
          data-live-filter="{{ $serviceCaseFilter ?? 'pending_admin' }}"
          data-live-interval="30000">
@@ -34,6 +35,7 @@
                     'recentServiceCases' => $recentServiceCases,
                     'serviceCaseFilter' => $serviceCaseFilter ?? 'pending_admin',
                     'canManageTransactions' => $canManageTransactions ?? false,
+                    'canReassignServiceCases' => $canReassignServiceCases ?? false,
                 ])
             </div>
         @endif
