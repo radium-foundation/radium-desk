@@ -70,9 +70,15 @@ class WorkspaceComponentService
                     ->where('is_active', true)
                     ->orderBy('name')
                     ->pluck('name'),
+                ...$this->remarkWorkspaceFields($requestContext, $incident),
             ],
-            WorkspaceComponent::Resolve, WorkspaceComponent::Close => [
+            WorkspaceComponent::Resolve => [
                 'incident' => $incident,
+                ...$this->statusWorkspaceFields(WorkspaceComponent::Resolve, $requestContext, $incident),
+            ],
+            WorkspaceComponent::Close => [
+                'incident' => $incident,
+                ...$this->statusWorkspaceFields(WorkspaceComponent::Close, $requestContext, $incident),
             ],
             WorkspaceComponent::Timeline => [
                 'incident' => $incident,
@@ -92,6 +98,49 @@ class WorkspaceComponentService
 
         return [
             'workspaceActionUrl' => route('incidents.workspace.assign', $incident),
+            'workspaceContext' => $requestContext->context->value,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function remarkWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.remark', $incident),
+            'workspaceContext' => $requestContext->context->value,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function statusWorkspaceFields(
+        WorkspaceComponent $component,
+        ?WorkspaceRequestContext $requestContext,
+        Incident $incident,
+    ): array {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $route = match ($component) {
+            WorkspaceComponent::Resolve => 'incidents.workspace.resolve',
+            WorkspaceComponent::Close => 'incidents.workspace.close',
+            default => null,
+        };
+
+        if ($route === null) {
+            return [];
+        }
+
+        return [
+            'workspaceActionUrl' => route($route, $incident),
             'workspaceContext' => $requestContext->context->value,
         ];
     }

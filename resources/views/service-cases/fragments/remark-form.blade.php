@@ -2,10 +2,15 @@
     $listId = 'mention-users-modal-'.md5($incident::class.$incident->getKey());
 @endphp
 
-<form method="POST" action="{{ route('remarks.store') }}">
+<form method="POST"
+      action="{{ $workspaceActionUrl ?? route('remarks.store') }}"
+      @if($workspaceActionUrl ?? null) data-workspace-action-form="remark" @endif>
     @csrf
     <input type="hidden" name="remarkable_type" value="{{ $incident::class }}">
     <input type="hidden" name="remarkable_id" value="{{ $incident->getKey() }}">
+    @if($workspaceContext ?? null)
+        <input type="hidden" name="workspace_context" value="{{ $workspaceContext }}">
+    @endif
     <div class="modal-header">
         <h2 class="modal-title h5" id="remarkModalLabel">Add Remark</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -21,7 +26,7 @@
             data-mention-textarea
             data-mention-list="{{ $listId }}"
             required
-        >{{ old('body') }}</textarea>
+        >{{ $remarkBody ?? old('body') }}</textarea>
         <datalist id="{{ $listId }}">
             @foreach($mentionUsers as $name)
                 <option value="{{ $name }}"></option>

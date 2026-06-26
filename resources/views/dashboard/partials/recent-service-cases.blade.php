@@ -1,5 +1,4 @@
-<div class="card border-0 shadow-sm dashboard-service-cases-card"
-     data-bulk-url="{{ $canManageTransactions ? route('dashboard.transactions.bulk') : '' }}">
+<div class="card border-0 shadow-sm dashboard-service-cases-card">
     <div class="card-header bg-white py-2">
         <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2">
             <div class="d-flex flex-wrap align-items-center gap-2">
@@ -32,15 +31,14 @@
             <div class="dashboard-bulk-bar d-none" data-bulk-bar>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <span class="small fw-semibold">Selected: <span data-bulk-count>0</span></span>
-                    <label class="visually-hidden" for="bulk_transaction_id">Transaction ID</label>
-                    <input type="text"
-                           id="bulk_transaction_id"
-                           class="form-control form-control-sm bulk-transaction-input"
-                           placeholder="Transaction ID"
-                           maxlength="100"
-                           data-bulk-transaction-input>
-                    <button type="button" class="btn btn-sm btn-primary" data-bulk-apply disabled>
-                        Apply
+                    <span class="small text-muted d-none" data-batch-progress>
+                        Completed <span data-batch-completed>0</span> of <span data-batch-total>0</span>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-batch-clear>
+                        Clear Selection
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" data-batch-submit disabled>
+                        Submit Transactions
                     </button>
                 </div>
             </div>
@@ -71,7 +69,7 @@
                             <th class="d-none d-sm-table-cell">Logged By</th>
                             <th>Created</th>
                             <th class="d-none d-md-table-cell">Last Updated</th>
-                            @if($canReassignServiceCases ?? false)
+                            @if($canShowServiceCaseActions ?? false)
                                 <th class="dashboard-actions-cell text-end">Actions</th>
                             @endif
                         </tr>
@@ -83,12 +81,13 @@
                                 'canManageTransactions' => $canManageTransactions,
                                 'canSelectRows' => $canManageTransactions,
                                 'canReassignServiceCases' => $canReassignServiceCases ?? false,
+                                'canCreateRemarks' => $canCreateRemarks ?? false,
                             ])
                         @empty
                             @php
                                 $tableColumnCount = 12
                                     + (($canManageTransactions ?? false) ? 1 : 0)
-                                    + (($canReassignServiceCases ?? false) ? 1 : 0);
+                                    + (($canShowServiceCaseActions ?? false) ? 1 : 0);
                             @endphp
                             <tr id="dashboard-service-cases-empty-row">
                                 <td colspan="{{ $tableColumnCount }}" class="text-center text-muted small py-3">

@@ -11,6 +11,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
+use App\Models\Remark;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
@@ -109,6 +110,7 @@ class DashboardService
             'canManageTransactions' => $canManageTransactions,
             'canSelectRows' => $canManageTransactions,
             'canReassignServiceCases' => $canManageTransactions,
+            'canCreateRemarks' => $user->can('create', Remark::class),
         ];
     }
 

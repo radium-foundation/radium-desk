@@ -5,35 +5,23 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreRemarkRequest;
 use App\Models\Remark;
 use App\Services\AuditLogService;
+use App\Services\RemarkService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class RemarkController extends Controller
 {
     public function __construct(
+        private readonly RemarkService $remarkService,
         private readonly AuditLogService $auditLogService,
     ) {}
 
     public function store(StoreRemarkRequest $request): RedirectResponse
     {
-        $remarkable = $request->resolveRemarkable();
-
-        $remark = Remark::query()->create([
-            'user_id' => $request->user()->id,
-            'remarkable_type' => $remarkable->getMorphClass(),
-            'remarkable_id' => $remarkable->getKey(),
-            'body' => $request->string('body')->trim()->toString(),
-        ]);
-
-        $this->auditLogService->log(
-            userId: $request->user()->id,
-            event: 'created',
-            auditable: $remark,
-            newValues: [
-                'body' => $remark->body,
-                'remarkable_type' => $remark->remarkable_type,
-                'remarkable_id' => $remark->remarkable_id,
-            ],
+        $this->remarkService->createForRemarkable(
+            remarkable: $request->resolveRemarkable(),
+            actor: $request->user(),
+            body: $request->string('body')->toString(),
             request: $request,
         );
 

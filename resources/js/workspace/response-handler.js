@@ -28,7 +28,7 @@ const applyDomPatch = (selector, html, strategy = 'innerHTML') => {
     element.innerHTML = html;
 };
 
-const applyFragments = (fragments, host) => {
+const applyFragments = (fragments, host, hooks = {}) => {
     (fragments ?? []).forEach((fragment) => {
         const target = fragment.target
             ? document.querySelector(fragment.target)
@@ -44,6 +44,10 @@ const applyFragments = (fragments, host) => {
         }
 
         target.innerHTML = fragment.html;
+
+        if (hooks.initMentionTextareas) {
+            hooks.initMentionTextareas(target);
+        }
     });
 };
 
@@ -57,16 +61,13 @@ const applyTargets = (targets, hooks) => {
     });
 };
 
-const applyKpis = (refresh, hooks) => {
-    if (refresh?.kpis_html) {
-        replaceInnerHtml('dashboard-action-stats', refresh.kpis_html.action_stats_html);
-        replaceInnerHtml('dashboard-sla-cards', refresh.kpis_html.sla_cards_html);
+const applyKpis = (refresh) => {
+    if (!refresh?.kpis_html) {
         return;
     }
 
-    if (refresh?.kpis && hooks.refreshDashboardKpis) {
-        hooks.refreshDashboardKpis();
-    }
+    replaceInnerHtml('dashboard-action-stats', refresh.kpis_html.action_stats_html);
+    replaceInnerHtml('dashboard-sla-cards', refresh.kpis_html.sla_cards_html);
 };
 
 export const createResponseHandler = (hooks = {}, lifecycle = null) => {
@@ -99,13 +100,13 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
         }
 
         if (!data.success) {
-            applyFragments(data.refresh?.fragments, host);
+            applyFragments(data.refresh?.fragments, host, hooks);
             applyTargets(data.refresh?.targets, hooks);
             showToast(data.toast, data.message);
             return;
         }
 
-        applyFragments(data.refresh?.fragments, host);
+        applyFragments(data.refresh?.fragments, host, hooks);
         applyTargets(data.refresh?.targets, hooks);
 
         if (data.refresh?.replace_row && hooks.replaceServiceCaseRow) {
@@ -115,7 +116,7 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
             );
         }
 
-        applyKpis(data.refresh, hooks);
+        applyKpis(data.refresh);
 
         if (data.ui?.close_workspace_host) {
             closeWorkspaceHost(host);

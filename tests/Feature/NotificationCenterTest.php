@@ -74,7 +74,7 @@ class NotificationCenterTest extends TestCase
         $incident = Incident::query()->first();
         $this->assertNotNull($incident);
 
-        $response->assertRedirect(route('incidents.show', $incident));
+        $response->assertRedirect(route('dashboard'));
 
         Notification::assertSentTo($assignee, ServiceCaseAssignedNotification::class);
         Notification::assertSentTo($assignee, HighPriorityServiceCaseNotification::class);

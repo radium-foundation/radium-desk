@@ -39,6 +39,15 @@
             </div>
             <div class="invalid-feedback d-block small transaction-inline-error"></div>
         </div>
+        <div class="batch-transaction-editor d-none" data-batch-transaction-editor>
+            <input type="text"
+                   class="form-control form-control-sm batch-transaction-input"
+                   placeholder="Transaction ID"
+                   maxlength="100"
+                   aria-label="Transaction ID"
+                   data-batch-transaction-input>
+            <div class="batch-transaction-status small" data-batch-status aria-live="polite"></div>
+        </div>
     @else
         {{ $order?->transaction_id ?: '—' }}
     @endif

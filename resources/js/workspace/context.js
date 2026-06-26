@@ -27,12 +27,10 @@ const buildConstants = (slugs) => Object.freeze({
     Ai: slugs.Ai,
 });
 
-export const configureWorkspaceContext = (slugs) => {
+const configureWorkspaceContext = (slugs) => {
     configuredSlugs = Object.freeze({ ...slugs });
     workspaceContextConstants = buildConstants(configuredSlugs);
 };
-
-export const isWorkspaceContextConfigured = () => workspaceContextConstants !== null;
 
 export const getWorkspaceContextConstants = () => workspaceContextConstants ?? Object.freeze({});
 
@@ -65,10 +63,6 @@ export const resolvePageWorkspaceContext = () => {
 
     return root?.dataset.workspaceContext ?? null;
 };
-
-export const getActiveWorkspaceContext = (host = document.querySelector('[data-workspace-modal-host]')) => (
-    host?.dataset.workspaceActiveContext ?? null
-);
 
 export const setActiveWorkspaceContext = (host, context) => {
     if (!host) {

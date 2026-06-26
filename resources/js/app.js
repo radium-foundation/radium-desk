@@ -3,7 +3,10 @@ import * as bootstrap from 'bootstrap';
 import { initLiveDashboard } from './live-dashboard';
 import { initLiveNotifications } from './live-notifications';
 import { initServiceCaseShow } from './service-case-show';
-import { initWorkspace } from './workspace';
+import { initTooltips } from './tooltips';
+import { createBatchTransactionSession } from './workspace/batch-session';
+import { csrfToken } from './workspace/http';
+import { initWorkspace, getWorkspaceSession } from './workspace';
 
 window.bootstrap = bootstrap;
 
@@ -15,17 +18,34 @@ const applySidebarState = (expanded) => {
     document.documentElement.classList.toggle('sidebar-expanded', expanded);
 };
 
-const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
-
-const initTooltips = (root = document) => {
-    root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((element) => {
-        const existing = bootstrap.Tooltip.getInstance(element);
-
-        if (existing) {
-            existing.dispose();
+const initMentionTextareas = (root = document) => {
+    root.querySelectorAll('[data-mention-textarea]').forEach((textarea) => {
+        if (textarea.dataset.mentionBound === 'true') {
+            return;
         }
 
-        bootstrap.Tooltip.getOrCreateInstance(element);
+        textarea.dataset.mentionBound = 'true';
+
+        const listId = textarea.dataset.mentionList;
+        const datalist = listId ? document.getElementById(listId) : null;
+
+        textarea.addEventListener('input', () => {
+            if (!datalist) {
+                return;
+            }
+
+            const value = textarea.value;
+            const match = value.match(/@([\p{L}\p{M}'.]*)$/u);
+
+            if (!match) {
+                return;
+            }
+
+            const term = match[1].toLowerCase();
+            Array.from(datalist.options).forEach((option) => {
+                option.hidden = term !== '' && !option.value.toLowerCase().startsWith(term);
+            });
+        });
     });
 };
 
@@ -84,34 +104,12 @@ const initDashboardTransactions = () => {
         return;
     }
 
-    const bulkBar = card.querySelector('[data-bulk-bar]');
-    const bulkCount = card.querySelector('[data-bulk-count]');
-    const bulkInput = card.querySelector('[data-bulk-transaction-input]');
-    const bulkApply = card.querySelector('[data-bulk-apply]');
-    const bulkUrl = card.dataset.bulkUrl;
-    const tbody = card.querySelector('#dashboard-service-cases-body');
-    const selectAll = card.querySelector('[data-select-all]');
-
-    const selectedCheckboxes = () => Array.from(card.querySelectorAll('.service-case-select:checked'));
-
-    const updateBulkBar = () => {
-        if (!bulkBar) {
-            return;
-        }
-
-        const selected = selectedCheckboxes();
-        const count = selected.length;
-
-        bulkBar.classList.toggle('d-none', count === 0);
-
-        if (bulkCount) {
-            bulkCount.textContent = String(count);
-        }
-
-        if (bulkApply && bulkInput) {
-            bulkApply.disabled = count === 0 || bulkInput.value.trim() === '';
-        }
-    };
+    const batchSession = createBatchTransactionSession({
+        card,
+        csrfToken,
+        replaceServiceCaseRow,
+        showToast: showAppToast,
+    });
 
     const openInlineEditor = (cell) => {
         const trigger = cell.querySelector('.transaction-cell-trigger');
@@ -133,6 +131,10 @@ const initDashboardTransactions = () => {
         input.classList.remove('is-invalid');
         input.value = '';
         input.focus();
+
+        getWorkspaceSession().acquire('inline-transaction', {
+            incidentId: Number(cell.dataset.incidentId),
+        });
     };
 
     const closeInlineEditor = (cell) => {
@@ -148,6 +150,8 @@ const initDashboardTransactions = () => {
         if (error) {
             error.textContent = '';
         }
+
+        getWorkspaceSession().release('inline-transaction');
     };
 
     const saveInlineTransaction = async (cell) => {
@@ -198,8 +202,9 @@ const initDashboardTransactions = () => {
             }
 
             if (data.row_html && data.incident_id) {
+                getWorkspaceSession().release('inline-transaction');
                 replaceServiceCaseRow(data.incident_id, data.row_html);
-                updateBulkBar();
+                batchSession.updateToolbar();
             }
 
             showAppToast(data.message ?? 'Transaction ID saved.');
@@ -253,75 +258,11 @@ const initDashboardTransactions = () => {
     card.addEventListener('change', (event) => {
         if (event.target.matches('.service-case-select, [data-select-all]')) {
             if (event.target.matches('[data-select-all]')) {
-                const checked = event.target.checked;
-                card.querySelectorAll('.service-case-select').forEach((checkbox) => {
-                    checkbox.checked = checked;
-                });
-            }
-
-            updateBulkBar();
-        }
-    });
-
-    bulkInput?.addEventListener('input', updateBulkBar);
-
-    bulkApply?.addEventListener('click', async () => {
-        if (!bulkUrl || !bulkInput) {
-            return;
-        }
-
-        const incidentIds = selectedCheckboxes().map((checkbox) => Number(checkbox.value));
-        const transactionId = bulkInput.value.trim();
-
-        if (incidentIds.length === 0 || transactionId === '') {
-            return;
-        }
-
-        bulkApply.disabled = true;
-
-        try {
-            const response = await fetch(bulkUrl, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({
-                    incident_ids: incidentIds,
-                    transaction_id: transactionId,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                const message = data.errors?.transaction_id?.[0]
-                    ?? data.errors?.incident_ids?.[0]
-                    ?? data.message
-                    ?? 'Unable to apply transaction ID.';
-                showAppToast(message, 'danger');
+                batchSession.handleSelectAll(event.target.checked);
                 return;
             }
 
-            data.rows?.forEach(({ incident_id: incidentId, html }) => {
-                replaceServiceCaseRow(incidentId, html);
-            });
-
-            bulkInput.value = '';
-
-            if (selectAll) {
-                selectAll.checked = false;
-            }
-
-            updateBulkBar();
-            showAppToast(data.message ?? 'Transaction applied.');
-        } catch (bulkError) {
-            showAppToast('Unable to apply transaction ID.', 'danger');
-        } finally {
-            bulkApply.disabled = false;
-            updateBulkBar();
+            batchSession.handleCheckboxChange(event.target);
         }
     });
 };
@@ -355,6 +296,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast: showAppToast,
         replaceServiceCaseRow,
         initTooltips,
+        initMentionTextareas,
+        afterOpen: (_incidentId, component, _context, opened) => {
+            if (opened && component === 'remark') {
+                initMentionTextareas(document.querySelector('[data-workspace-modal-content]'));
+            }
+        },
     });
 
     const quickCreateModalElement = document.getElementById('quickCreateModal');
@@ -386,6 +333,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         quickCreateModalElement.addEventListener('show.bs.modal', () => {
+            getWorkspaceSession().acquire('quick-create');
+
             if (quickCreateModalElement.dataset.resetOnShow === 'true') {
                 resetQuickCreateForm();
             }
@@ -396,6 +345,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         quickCreateModalElement.addEventListener('hidden.bs.modal', () => {
+            getWorkspaceSession().release('quick-create');
+
             quickCreateModalElement.querySelectorAll('.is-invalid').forEach((field) => {
                 field.classList.remove('is-invalid');
             });

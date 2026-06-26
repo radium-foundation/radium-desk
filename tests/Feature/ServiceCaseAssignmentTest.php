@@ -143,7 +143,7 @@ class ServiceCaseAssignmentTest extends TestCase
         $incident = Incident::query()->first();
         $this->assertNotNull($incident);
 
-        $response->assertRedirect(route('incidents.show', $incident));
+        $response->assertRedirect(route('dashboard'));
 
         $this->assertSame('avinash@radiumbox.com', $incident->assignee?->email);
 

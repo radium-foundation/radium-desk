@@ -1,3 +1,5 @@
+import { getWorkspaceSession } from './workspace/session';
+
 const animateNotificationBell = () => {
     const bellButton = document.querySelector('.notification-bell-btn');
 
@@ -46,6 +48,63 @@ const replaceNotificationBell = (html) => {
     }
 
     root.innerHTML = html;
+    bindNotificationDropdownSession(root);
+};
+
+const updateUnreadBadge = (root, unreadCount) => {
+    const bellButton = root.querySelector('.notification-bell-btn');
+
+    if (!bellButton) {
+        return;
+    }
+
+    let badge = bellButton.querySelector('.notification-count-badge');
+
+    if (unreadCount <= 0) {
+        badge?.remove();
+
+        return;
+    }
+
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger notification-count-badge';
+        bellButton.appendChild(badge);
+    }
+
+    badge.textContent = String(unreadCount);
+};
+
+let pendingBellHtml = null;
+
+const flushPendingBellHtml = () => {
+    if (!pendingBellHtml) {
+        return;
+    }
+
+    const html = pendingBellHtml;
+    pendingBellHtml = null;
+    replaceNotificationBell(html);
+};
+
+const bindNotificationDropdownSession = (root) => {
+    const dropdown = root.querySelector('.dropdown');
+
+    if (!dropdown || dropdown.dataset.sessionBound === 'true') {
+        return;
+    }
+
+    dropdown.dataset.sessionBound = 'true';
+    const session = getWorkspaceSession();
+
+    dropdown.addEventListener('show.bs.dropdown', () => {
+        session.acquire('notification-dropdown');
+    });
+
+    dropdown.addEventListener('hidden.bs.dropdown', () => {
+        session.release('notification-dropdown');
+        flushPendingBellHtml();
+    });
 };
 
 const pollNotifications = async (state) => {
@@ -81,7 +140,14 @@ const pollNotifications = async (state) => {
             animateNotificationBell();
         }
 
-        replaceNotificationBell(data.bell_html);
+        if (getWorkspaceSession().isActive('notification-dropdown')) {
+            pendingBellHtml = data.bell_html;
+            updateUnreadBadge(root, unreadCount);
+        } else {
+            pendingBellHtml = null;
+            replaceNotificationBell(data.bell_html);
+        }
+
         state.unreadCount = unreadCount;
         state.since = new Date().toISOString();
 
@@ -100,6 +166,8 @@ export const initLiveNotifications = () => {
         return;
     }
 
+    bindNotificationDropdownSession(root);
+
     const intervalMs = Number(root.dataset.pollInterval ?? 20000);
     const state = {
         unreadCount: null,
@@ -112,4 +180,12 @@ export const initLiveNotifications = () => {
 
     window.setInterval(tick, intervalMs);
     tick();
+};
+
+export {
+    bindNotificationDropdownSession,
+    flushPendingBellHtml,
+    pollNotifications,
+    replaceNotificationBell,
+    updateUnreadBadge,
 };

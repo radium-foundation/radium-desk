@@ -10,8 +10,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Used when a workspace request does not specify a context explicitly.
-    | Fragment loads default to the service case page profile for backward
-    | compatibility until page roots declare context in a later phase.
+    | Service case pages omit an explicit context; the dashboard declares
+    | data-workspace-context="dashboard" on its page root.
     |
     */
 

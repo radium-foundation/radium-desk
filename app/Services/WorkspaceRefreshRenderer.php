@@ -81,6 +81,48 @@ class WorkspaceRefreshRenderer
         )->render();
     }
 
+    public function renderRemarkFragment(
+        Incident $incident,
+        WorkspaceRequestContext $requestContext,
+        ?string $body = null,
+    ): string {
+        return view(
+            $this->componentService->view(WorkspaceComponent::Remark),
+            [
+                ...$this->componentService->viewData(
+                    WorkspaceComponent::Remark,
+                    $incident,
+                    $requestContext,
+                ),
+                'remarkBody' => $body ?? old('body'),
+            ],
+        )->render();
+    }
+
+    public function renderResolveFragment(Incident $incident, WorkspaceRequestContext $requestContext): string
+    {
+        return view(
+            $this->componentService->view(WorkspaceComponent::Resolve),
+            $this->componentService->viewData(
+                WorkspaceComponent::Resolve,
+                $incident,
+                $requestContext,
+            ),
+        )->render();
+    }
+
+    public function renderCloseFragment(Incident $incident, WorkspaceRequestContext $requestContext): string
+    {
+        return view(
+            $this->componentService->view(WorkspaceComponent::Close),
+            $this->componentService->viewData(
+                WorkspaceComponent::Close,
+                $incident,
+                $requestContext,
+            ),
+        )->render();
+    }
+
     private function renderTarget(string $selector, Incident $incident): ?string
     {
         return match ($selector) {

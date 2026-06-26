@@ -57,6 +57,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.components.show');
     Route::patch('incidents/{incident}/workspace/assign', [WorkspaceActionController::class, 'assign'])
         ->name('incidents.workspace.assign');
+    Route::post('incidents/{incident}/workspace/remark', [WorkspaceActionController::class, 'remark'])
+        ->name('incidents.workspace.remark');
+    Route::patch('incidents/{incident}/workspace/resolve', [WorkspaceActionController::class, 'resolve'])
+        ->name('incidents.workspace.resolve');
+    Route::patch('incidents/{incident}/workspace/close', [WorkspaceActionController::class, 'close'])
+        ->name('incidents.workspace.close');
 
     Route::post('remarks', [RemarkController::class, 'store'])->name('remarks.store');
     Route::delete('remarks/{remark}', [RemarkController::class, 'destroy'])->name('remarks.destroy');

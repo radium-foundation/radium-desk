@@ -5,9 +5,10 @@ import {
 } from './context';
 import { createActionHost, initActionHost } from './action-host';
 import { createBusyStateManager } from './busy-state';
-import { createFragmentLoader, initFragmentLoader } from './fragment-loader';
+import { createFragmentLoader } from './fragment-loader';
 import { createLifecycleRunner } from './lifecycle';
 import { createResponseHandler } from './response-handler';
+import { getWorkspaceSession } from './session';
 
 let workspaceApi = null;
 
@@ -32,7 +33,7 @@ const bindTriggers = (openComponent) => {
 export const initWorkspace = (hooks = {}) => {
     initWorkspaceContext();
 
-    const host = initActionHost() ?? initFragmentLoader();
+    const host = initActionHost();
 
     if (!host) {
         return null;
@@ -47,7 +48,12 @@ export const initWorkspace = (hooks = {}) => {
     actionHost.bind();
     bindTriggers(fragmentLoader.openComponent);
 
+    host.addEventListener('shown.bs.modal', () => {
+        getWorkspaceSession().acquire('workspace-modal');
+    });
+
     host.addEventListener('hidden.bs.modal', () => {
+        getWorkspaceSession().release('workspace-modal');
         lifecycle.run('afterClose', host);
     });
 
@@ -59,6 +65,7 @@ export const initWorkspace = (hooks = {}) => {
         setBusy: (reason, form) => busyState.setBusy(reason, form),
         clearBusy: (reason, form) => busyState.clearBusy(reason, form),
         isBusy: (reason) => busyState.isBusy(reason),
+        session: getWorkspaceSession(),
     };
 
     host.dataset.workspaceInitialized = 'true';
@@ -66,6 +73,5 @@ export const initWorkspace = (hooks = {}) => {
     return workspaceApi;
 };
 
-export const getWorkspace = () => workspaceApi;
-
 export { initWorkspaceContext, resolvePageWorkspaceContext, getWorkspaceContextConstants };
+export { getWorkspaceSession, resetWorkspaceSession } from './session';

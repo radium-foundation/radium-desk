@@ -85,7 +85,8 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('data-workspace-trigger="assign"', false)
-            ->assertDontSee('dashboard-actions-cell', false);
+            ->assertSee('data-workspace-trigger="remark"', false)
+            ->assertSee('dashboard-actions-cell', false);
     }
 
     public function test_dashboard_assign_action_returns_row_and_kpi_refresh_payload(): void

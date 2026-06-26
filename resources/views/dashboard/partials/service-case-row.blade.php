@@ -1,6 +1,16 @@
 @php
+    use App\Enums\IncidentStatus;
+
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
+    $canResolve = auth()->user()?->can('update', $serviceCase)
+        && ! in_array($serviceCase->status, [IncidentStatus::Resolved, IncidentStatus::Closed], true);
+    $canClose = auth()->user()?->can('update', $serviceCase)
+        && $serviceCase->status !== IncidentStatus::Closed;
+    $canShowRowActions = (auth()->user()?->can('create', \App\Models\Remark::class) && auth()->user()?->can('view', $serviceCase))
+        || auth()->user()?->can('reassign', $serviceCase)
+        || $canResolve
+        || $canClose;
 @endphp
 
 <tr id="service-case-row-{{ $serviceCase->id }}"
@@ -58,8 +68,21 @@
     <td class="case-meta-cell d-none d-sm-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
     <td class="case-meta-cell text-nowrap">{{ display_app_datetime($serviceCase->created_at) }}</td>
     <td class="case-meta-cell d-none d-md-table-cell text-nowrap">{{ display_app_datetime($serviceCase->updated_at) }}</td>
-    @if($canReassignServiceCases ?? false)
+    @if($canShowRowActions)
         <td class="dashboard-actions-cell text-end text-nowrap">
+            @can('create', App\Models\Remark::class)
+                @can('view', $serviceCase)
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            data-workspace-trigger="remark"
+                            data-workspace-incident-id="{{ $serviceCase->id }}"
+                            data-workspace-context="dashboard"
+                            aria-label="Add remark for {{ $serviceCase->display_reference }}">
+                        <i class="bi bi-chat-left-text"></i>
+                        <span class="d-none d-xl-inline ms-1">Remark</span>
+                    </button>
+                @endcan
+            @endcan
             @can('reassign', $serviceCase)
                 <button type="button"
                         class="btn btn-outline-primary btn-sm"
@@ -71,6 +94,28 @@
                     <span class="d-none d-xl-inline ms-1">Assign</span>
                 </button>
             @endcan
+            @if($canResolve)
+                <button type="button"
+                        class="btn btn-outline-success btn-sm"
+                        data-workspace-trigger="resolve"
+                        data-workspace-incident-id="{{ $serviceCase->id }}"
+                        data-workspace-context="dashboard"
+                        aria-label="Resolve {{ $serviceCase->display_reference }}">
+                    <i class="bi bi-check-circle"></i>
+                    <span class="d-none d-xl-inline ms-1">Resolve</span>
+                </button>
+            @endif
+            @if($canClose)
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm"
+                        data-workspace-trigger="close"
+                        data-workspace-incident-id="{{ $serviceCase->id }}"
+                        data-workspace-context="dashboard"
+                        aria-label="Close {{ $serviceCase->display_reference }}">
+                    <i class="bi bi-x-circle"></i>
+                    <span class="d-none d-xl-inline ms-1">Close</span>
+                </button>
+            @endif
         </td>
     @endif
 </tr>

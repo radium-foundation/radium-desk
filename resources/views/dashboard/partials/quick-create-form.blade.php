@@ -1,6 +1,6 @@
 <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-labelledby="quickCreateModalLabel"
-     data-show-on-load="{{ ($errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority')) ? 'true' : 'false' }}"
-     data-reset-on-show="false">
+     data-show-on-load="{{ ($errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority') || session('reopen_quick_create')) ? 'true' : 'false' }}"
+     data-reset-on-show="{{ session('reopen_quick_create') ? 'true' : 'false' }}">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header py-2">

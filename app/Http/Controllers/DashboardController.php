@@ -41,6 +41,11 @@ class DashboardController extends Controller
                 \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
                 \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
             ]),
+            'canCreateRemarks' => $user->can('create', \App\Models\Remark::class),
+            'canShowServiceCaseActions' => $user->hasAnyRole([
+                \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+                \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            ]) || $user->can('create', \App\Models\Remark::class) || $user->can('incidents.update'),
             'enabledProducts' => app(\App\Services\SettingService::class)->enabledProductNames(),
             'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
         ]);

@@ -43,6 +43,7 @@ class QuickServiceRequestController extends Controller
         return redirect()
             ->route('dashboard')
             ->with('status', 'service-case-created')
-            ->with('service_case_reference', $incident->display_reference);
+            ->with('service_case_reference', $incident->display_reference)
+            ->with('reopen_quick_create', true);
     }
 }

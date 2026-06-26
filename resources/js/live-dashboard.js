@@ -1,17 +1,6 @@
-import * as bootstrap from 'bootstrap';
 import { mergeServiceCaseRows } from './live-dashboard-merge';
-
-const initTooltips = (root = document) => {
-    root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((element) => {
-        const existing = bootstrap.Tooltip.getInstance(element);
-
-        if (existing) {
-            existing.dispose();
-        }
-
-        bootstrap.Tooltip.getOrCreateInstance(element);
-    });
-};
+import { initTooltips } from './tooltips';
+import { getWorkspaceSession } from './workspace/session';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -24,9 +13,12 @@ const replaceInnerHtml = (elementId, html) => {
 };
 
 let refreshInFlight = false;
+let pendingDashboardRefresh = null;
 
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
+        const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
+
         replaceInnerHtml('dashboard-action-stats', data.action_stats_html);
         replaceInnerHtml('dashboard-sla-cards', data.sla_cards_html);
 
@@ -39,12 +31,27 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
                 Boolean(data.service_cases_empty),
                 data.service_cases_empty_html ?? '',
                 initTooltips,
+                { lockedIncidentIds },
             );
         }
 
         resolve();
     });
 });
+
+const queueDashboardRefresh = (data) => {
+    pendingDashboardRefresh = data;
+};
+
+const flushPendingDashboardRefresh = async () => {
+    if (!pendingDashboardRefresh) {
+        return;
+    }
+
+    const data = pendingDashboardRefresh;
+    pendingDashboardRefresh = null;
+    await applyDashboardRefresh(data);
+};
 
 const refreshDashboard = async (pageRoot) => {
     const liveUrl = pageRoot.dataset.liveUrl;
@@ -69,6 +76,13 @@ const refreshDashboard = async (pageRoot) => {
         }
 
         const data = await response.json();
+
+        if (getWorkspaceSession().isActive()) {
+            queueDashboardRefresh(data);
+
+            return;
+        }
+
         await applyDashboardRefresh(data);
     } catch (error) {
         // Ignore transient network errors during background refresh.
@@ -84,9 +98,22 @@ export const initLiveDashboard = () => {
         return;
     }
 
+    const session = getWorkspaceSession();
+
+    session.onIdle(() => {
+        flushPendingDashboardRefresh();
+    });
+
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
 
     window.setInterval(() => {
         refreshDashboard(pageRoot);
     }, intervalMs);
+};
+
+export {
+    applyDashboardRefresh,
+    flushPendingDashboardRefresh,
+    queueDashboardRefresh,
+    refreshDashboard,
 };
