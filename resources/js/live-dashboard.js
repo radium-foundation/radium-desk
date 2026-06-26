@@ -17,6 +17,13 @@ let pendingDashboardRefresh = null;
 
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
+        if (getWorkspaceSession().isActive()) {
+            queueDashboardRefresh(data);
+            resolve();
+
+            return;
+        }
+
         const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
 
         replaceInnerHtml('dashboard-action-stats', data.action_stats_html);

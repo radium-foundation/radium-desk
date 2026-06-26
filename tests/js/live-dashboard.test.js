@@ -100,4 +100,82 @@ describe('live dashboard refresh session integration', () => {
         expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-new');
         expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-new');
     });
+
+    it('defers applyDashboardRefresh when session becomes active before requestAnimationFrame', async () => {
+        const session = getWorkspaceSession();
+
+        const applyPromise = applyDashboardRefresh({
+            action_stats_html: 'stats-new',
+            sla_cards_html: 'sla-new',
+            rows: [],
+            service_cases_empty: true,
+            service_cases_empty_html: '',
+        });
+
+        session.acquire('bulk-selection', { incidentIds: [10] });
+        await applyPromise;
+
+        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-old');
+        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-old');
+
+        session.release('bulk-selection');
+        await flushPendingDashboardRefresh();
+
+        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-new');
+        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-new');
+    });
+
+    it('queues bulk-selection refresh without DOM mutation and flushes the latest payload once on idle', async () => {
+        fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                action_stats_html: 'stats-polled',
+                sla_cards_html: 'sla-polled',
+                rows: [{
+                    incident_id: 99,
+                    html: '<tr id="service-case-row-99"><td>SC00099</td></tr>',
+                }],
+                service_cases_empty: false,
+                service_cases_empty_html: '',
+            }),
+        });
+
+        const session = getWorkspaceSession();
+        const onIdle = vi.fn();
+
+        session.onIdle(onIdle);
+        session.acquire('bulk-selection', { incidentIds: [10] });
+
+        await refreshDashboard(document.getElementById('dashboard-page'));
+
+        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-old');
+        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-old');
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+        expect(document.querySelector('#service-case-row-99')).toBeNull();
+
+        queueDashboardRefresh({
+            action_stats_html: 'stats-first',
+            sla_cards_html: 'sla-first',
+            rows: [],
+            service_cases_empty: true,
+            service_cases_empty_html: '',
+        });
+
+        queueDashboardRefresh({
+            action_stats_html: 'stats-latest',
+            sla_cards_html: 'sla-latest',
+            rows: [],
+            service_cases_empty: true,
+            service_cases_empty_html: '',
+        });
+
+        session.release('bulk-selection');
+        expect(onIdle).toHaveBeenCalledTimes(1);
+
+        await flushPendingDashboardRefresh();
+        await flushPendingDashboardRefresh();
+
+        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-latest');
+        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-latest');
+    });
 });
