@@ -1,3 +1,5 @@
+import { parseRowHtml } from './service-case-row';
+
 const getCurrentIncidentIds = (tbody) => Array.from(tbody.querySelectorAll('tr[id^="service-case-row-"]'))
     .map((row) => Number(row.id.replace('service-case-row-', '')));
 
@@ -5,6 +7,7 @@ const isLockedIncident = (incidentId, lockedIncidentIds) => lockedIncidentIds.in
 
 const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, options = {}) => {
     const lockedIncidentIds = options.lockedIncidentIds ?? [];
+    const onRowsUpdated = options.onRowsUpdated;
     const scrollContainer = card.querySelector('#dashboard-service-cases-scroll');
     const tbody = card.querySelector('#dashboard-service-cases-body');
 
@@ -18,6 +21,7 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     const nextIds = rows.map(({ incident_id: incidentId }) => incidentId);
     const newIncidentIds = nextIds.filter((incidentId) => !currentIds.includes(incidentId));
     const hasLockedRows = currentIds.some((incidentId) => isLockedIncident(incidentId, lockedIncidentIds));
+    const replacedIncidentIds = [];
 
     if (empty) {
         if (hasLockedRows) {
@@ -39,21 +43,30 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     document.getElementById('dashboard-service-cases-empty-row')?.remove();
 
     rows.forEach(({ incident_id: incidentId, html }) => {
-        if (isLockedIncident(incidentId, lockedIncidentIds)) {
-            return;
-        }
-
         const existingRow = document.getElementById(`service-case-row-${incidentId}`);
 
         if (existingRow) {
-            if (existingRow.outerHTML !== html) {
-                existingRow.outerHTML = html;
+            const newRow = parseRowHtml(html);
+
+            if (newRow && existingRow.outerHTML !== html) {
+                existingRow.replaceWith(newRow);
+                replacedIncidentIds.push(incidentId);
             }
 
             return;
         }
 
+        const newRow = parseRowHtml(html);
+
+        if (newRow) {
+            tbody.appendChild(newRow);
+            replacedIncidentIds.push(incidentId);
+
+            return;
+        }
+
         tbody.insertAdjacentHTML('beforeend', html);
+        replacedIncidentIds.push(incidentId);
     });
 
     currentIds.forEach((incidentId) => {
@@ -63,7 +76,6 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     });
 
     nextIds
-        .filter((incidentId) => !isLockedIncident(incidentId, lockedIncidentIds))
         .map((incidentId) => document.getElementById(`service-case-row-${incidentId}`))
         .filter(Boolean)
         .forEach((row) => {
@@ -71,22 +83,24 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
         });
 
     if (isAtTop) {
-        newIncidentIds
-            .filter((incidentId) => !isLockedIncident(incidentId, lockedIncidentIds))
-            .forEach((incidentId) => {
-                const row = document.getElementById(`service-case-row-${incidentId}`);
+        newIncidentIds.forEach((incidentId) => {
+            const row = document.getElementById(`service-case-row-${incidentId}`);
 
-                if (row) {
-                    row.classList.add('dashboard-row-fade-in');
-                    row.addEventListener('animationend', () => {
-                        row.classList.remove('dashboard-row-fade-in');
-                    }, { once: true });
-                }
-            });
+            if (row) {
+                row.classList.add('dashboard-row-fade-in');
+                row.addEventListener('animationend', () => {
+                    row.classList.remove('dashboard-row-fade-in');
+                }, { once: true });
+            }
+        });
     }
 
     scrollContainer.scrollTop = previousScrollTop;
     initTooltips(tbody);
+
+    if (replacedIncidentIds.length > 0) {
+        onRowsUpdated?.(replacedIncidentIds);
+    }
 };
 
 export { mergeServiceCaseRows };

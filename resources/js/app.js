@@ -2,6 +2,7 @@ import './bootstrap';
 import * as bootstrap from 'bootstrap';
 import { initLiveDashboard } from './live-dashboard';
 import { initLiveNotifications } from './live-notifications';
+import { createServiceCaseRowReplacer } from './service-case-row';
 import { initServiceCaseShow } from './service-case-show';
 import { initTooltips } from './tooltips';
 import { createBatchTransactionSession } from './workspace/batch-session';
@@ -86,25 +87,24 @@ const showAppToast = (message, variant = 'success') => {
     toast.show();
 };
 
-const replaceServiceCaseRow = (incidentId, rowHtml) => {
-    const existingRow = document.getElementById(`service-case-row-${incidentId}`);
-
-    if (!existingRow || !rowHtml) {
-        return;
-    }
-
-    existingRow.outerHTML = rowHtml;
-    initTooltips(document.getElementById(`service-case-row-${incidentId}`));
-};
-
 const initDashboardTransactions = () => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
-        return;
+        return null;
     }
 
-    const batchSession = createBatchTransactionSession({
+    let batchSession;
+
+    const replaceServiceCaseRow = createServiceCaseRowReplacer({
+        initTooltips,
+        onRowReplaced: (incidentId) => {
+            batchSession?.restoreRowState(incidentId);
+            batchSession?.updateToolbar();
+        },
+    });
+
+    batchSession = createBatchTransactionSession({
         card,
         csrfToken,
         replaceServiceCaseRow,
@@ -265,6 +265,11 @@ const initDashboardTransactions = () => {
             batchSession.handleCheckboxChange(event.target);
         }
     });
+
+    return {
+        batchSession,
+        replaceServiceCaseRow,
+    };
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -288,8 +293,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initTooltips();
-    initDashboardTransactions();
-    initLiveDashboard();
+    const dashboardTransactions = initDashboardTransactions();
+    const replaceServiceCaseRow = dashboardTransactions?.replaceServiceCaseRow ?? createServiceCaseRowReplacer({ initTooltips });
+
+    initLiveDashboard({
+        onRowsUpdated: () => {
+            dashboardTransactions?.batchSession.restoreAllRowStates();
+        },
+    });
     initLiveNotifications();
     initServiceCaseShow();
     initWorkspace({
@@ -297,6 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
         replaceServiceCaseRow,
         initTooltips,
         initMentionTextareas,
+        afterSuccess: async () => {
+            dashboardTransactions?.batchSession.restoreAllRowStates();
+        },
         afterOpen: (_incidentId, component, _context, opened) => {
             if (opened && component === 'remark') {
                 initMentionTextareas(document.querySelector('[data-workspace-modal-content]'));

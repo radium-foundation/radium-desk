@@ -114,7 +114,7 @@ class DashboardService
         ];
     }
 
-    public function recentServiceCases(string $filter = 'pending_admin', int $limit = 10): Collection
+    public function recentServiceCases(string $filter = 'pending_admin', ?int $limit = 10): Collection
     {
         $query = Incident::query()
             ->with(['order.transactionAssigner', 'creator', 'assignee']);
@@ -155,9 +155,18 @@ class DashboardService
             default => $incidents,
         };
 
-        return $this->sortIncidentsForDashboard($incidents)
-            ->take($limit)
-            ->values();
+        $sorted = $this->sortIncidentsForDashboard($incidents);
+
+        if ($limit !== null) {
+            $sorted = $sorted->take($limit);
+        }
+
+        return $sorted->values();
+    }
+
+    public function serviceCaseLimitForFilter(string $filter): ?int
+    {
+        return $filter === 'pending_admin' ? null : 10;
     }
 
     /**

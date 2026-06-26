@@ -24,7 +24,10 @@ class DashboardLiveController extends Controller
 
         return DB::transaction(function () use ($user, $filter): JsonResponse {
             $recentServiceCases = $user->can('incidents.view')
-                ? $this->dashboardService->recentServiceCases($filter)
+                ? $this->dashboardService->recentServiceCases(
+                    $filter,
+                    $this->dashboardService->serviceCaseLimitForFilter($filter),
+                )
                 : collect();
             $stats = $this->dashboardService->statsFor($user);
 

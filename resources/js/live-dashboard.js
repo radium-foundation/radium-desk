@@ -14,6 +14,7 @@ const replaceInnerHtml = (elementId, html) => {
 
 let refreshInFlight = false;
 let pendingDashboardRefresh = null;
+let dashboardRefreshHooks = {};
 
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
@@ -38,7 +39,10 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
                 Boolean(data.service_cases_empty),
                 data.service_cases_empty_html ?? '',
                 initTooltips,
-                { lockedIncidentIds },
+                {
+                    lockedIncidentIds,
+                    onRowsUpdated: dashboardRefreshHooks.onRowsUpdated,
+                },
             );
         }
 
@@ -98,13 +102,18 @@ const refreshDashboard = async (pageRoot) => {
     }
 };
 
-export const initLiveDashboard = () => {
+export const configureLiveDashboard = (hooks = {}) => {
+    dashboardRefreshHooks = hooks;
+};
+
+export const initLiveDashboard = (hooks = {}) => {
     const pageRoot = document.getElementById('dashboard-page');
 
     if (!pageRoot?.dataset.liveUrl) {
         return;
     }
 
+    configureLiveDashboard(hooks);
     const session = getWorkspaceSession();
 
     session.onIdle(() => {
@@ -120,6 +129,7 @@ export const initLiveDashboard = () => {
 
 export {
     applyDashboardRefresh,
+    configureLiveDashboard,
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,

@@ -46,12 +46,15 @@ export const createBatchTransactionSession = ({
     let totalCount = 0;
     const submittingIncidentIds = new Set();
     const activeSubmissionToken = { current: null };
+    const selectedIncidentIds = new Set();
+    const transactionValues = new Map();
+    const rowBatchStatuses = new Map();
 
     const getRow = (incidentId) => document.getElementById(`service-case-row-${incidentId}`);
 
-    const getSelectedCheckboxes = () => Array.from(card.querySelectorAll('.service-case-select:checked'));
+    const getCheckbox = (incidentId) => card.querySelector(`.service-case-select[value="${incidentId}"]`);
 
-    const getSelectedIncidentIds = () => getSelectedCheckboxes().map((checkbox) => Number(checkbox.value));
+    const getSelectedIncidentIds = () => Array.from(selectedIncidentIds);
 
     const getTransactionCell = (incidentId) => getRow(incidentId)?.querySelector('[data-inline-transaction="true"]');
 
@@ -61,14 +64,30 @@ export const createBatchTransactionSession = ({
 
     const getBatchStatus = (incidentId) => getTransactionCell(incidentId)?.querySelector('[data-batch-status]');
 
-    const hasVisibleBatchInputValue = () => Array.from(card.querySelectorAll('[data-batch-transaction-input]')).some((input) => {
-        const editor = input.closest('[data-batch-transaction-editor]');
+    const hasPersistedTransactionValues = () => Array.from(selectedIncidentIds).some((incidentId) => {
+        const value = transactionValues.get(incidentId) ?? getBatchInput(incidentId)?.value ?? '';
 
-        return editor && !editor.classList.contains('d-none') && input.value.trim() !== '';
+        return value.trim() !== '';
     });
 
-    const syncRowEditorVisibility = (checkbox) => {
-        const incidentId = Number(checkbox.value);
+    const persistSelectedTransactionValuesFromDom = () => {
+        selectedIncidentIds.forEach((incidentId) => {
+            const input = getBatchInput(incidentId);
+
+            if (input) {
+                transactionValues.set(incidentId, input.value);
+            }
+        });
+    };
+
+    const syncDomSelectionFromState = () => {
+        card.querySelectorAll('.service-case-select').forEach((checkbox) => {
+            checkbox.checked = selectedIncidentIds.has(Number(checkbox.value));
+        });
+    };
+
+    const syncRowEditorVisibility = (incidentId) => {
+        const checkbox = getCheckbox(incidentId);
         const cell = getTransactionCell(incidentId);
 
         if (!cell) {
@@ -79,12 +98,16 @@ export const createBatchTransactionSession = ({
         const inlineEditor = cell.querySelector('.transaction-inline-editor');
         const batchEditor = getBatchEditor(incidentId);
         const inlineOpen = inlineEditor && !inlineEditor.classList.contains('d-none');
+        const isSelected = selectedIncidentIds.has(incidentId);
 
-        if (checkbox.checked) {
+        if (checkbox) {
+            checkbox.checked = isSelected;
+        }
+
+        if (isSelected) {
             trigger?.classList.add('d-none');
             inlineEditor?.classList.add('d-none');
             batchEditor?.classList.remove('d-none');
-            getBatchInput(incidentId)?.focus();
 
             return;
         }
@@ -98,7 +121,7 @@ export const createBatchTransactionSession = ({
 
     const syncAllRowEditors = () => {
         card.querySelectorAll('.service-case-select').forEach((checkbox) => {
-            syncRowEditorVisibility(checkbox);
+            syncRowEditorVisibility(Number(checkbox.value));
         });
     };
 
@@ -107,7 +130,7 @@ export const createBatchTransactionSession = ({
         const submitting = Array.from(submittingIncidentIds);
         const lockedIds = [...new Set([...selected, ...submitting])];
 
-        if (lockedIds.length > 0 || hasVisibleBatchInputValue()) {
+        if (lockedIds.length > 0 || hasPersistedTransactionValues()) {
             session.acquire('bulk-selection', { incidentIds: lockedIds });
         } else {
             session.release('bulk-selection');
@@ -121,8 +144,9 @@ export const createBatchTransactionSession = ({
     };
 
     const updateToolbar = () => {
-        const selected = getSelectedCheckboxes();
-        const count = selected.length;
+        persistSelectedTransactionValuesFromDom();
+        syncDomSelectionFromState();
+        const count = selectedIncidentIds.size;
 
         bulkBar?.classList.toggle('d-none', count === 0 && !isSubmitting);
 
@@ -140,10 +164,10 @@ export const createBatchTransactionSession = ({
             batchTotal.textContent = String(totalCount);
         }
 
-        const hasSubmittable = selected.some((checkbox) => {
-            const input = getBatchInput(Number(checkbox.value));
+        const hasSubmittable = getSelectedIncidentIds().some((incidentId) => {
+            const value = transactionValues.get(incidentId) ?? getBatchInput(incidentId)?.value ?? '';
 
-            return input?.value.trim() !== '';
+            return value.trim() !== '';
         });
 
         if (submitButton) {
@@ -156,14 +180,20 @@ export const createBatchTransactionSession = ({
 
         if (selectAll) {
             const selectable = card.querySelectorAll('.service-case-select');
-            selectAll.checked = selectable.length > 0 && selected.length === selectable.length;
-            selectAll.indeterminate = selected.length > 0 && selected.length < selectable.length;
+            selectAll.checked = selectable.length > 0 && count === selectable.length;
+            selectAll.indeterminate = count > 0 && count < selectable.length;
         }
 
         syncSession();
     };
 
     const setRowStatus = (incidentId, state, message = '') => {
+        if (state === 'idle') {
+            rowBatchStatuses.delete(incidentId);
+        } else {
+            rowBatchStatuses.set(incidentId, { state, message });
+        }
+
         const statusEl = getBatchStatus(incidentId);
         const input = getBatchInput(incidentId);
 
@@ -200,6 +230,9 @@ export const createBatchTransactionSession = ({
     };
 
     const clearRowBatchState = (incidentId) => {
+        transactionValues.delete(incidentId);
+        rowBatchStatuses.delete(incidentId);
+
         const input = getBatchInput(incidentId);
 
         if (input) {
@@ -211,10 +244,40 @@ export const createBatchTransactionSession = ({
         setRowStatus(incidentId, 'idle');
     };
 
+    const restoreRowState = (incidentId) => {
+        const normalizedIncidentId = Number(incidentId);
+        const input = getBatchInput(normalizedIncidentId);
+        const storedValue = transactionValues.get(normalizedIncidentId);
+
+        if (input && storedValue !== undefined) {
+            input.value = storedValue;
+        }
+
+        syncRowEditorVisibility(normalizedIncidentId);
+
+        const storedStatus = rowBatchStatuses.get(normalizedIncidentId);
+
+        if (storedStatus) {
+            setRowStatus(normalizedIncidentId, storedStatus.state, storedStatus.message);
+        }
+    };
+
+    const restoreAllRowStates = () => {
+        card.querySelectorAll('.service-case-select').forEach((checkbox) => {
+            restoreRowState(Number(checkbox.value));
+        });
+
+        updateToolbar();
+    };
+
     const clearSelection = () => {
         if (isSubmitting) {
             return;
         }
+
+        selectedIncidentIds.clear();
+        transactionValues.clear();
+        rowBatchStatuses.clear();
 
         card.querySelectorAll('.service-case-select').forEach((checkbox) => {
             checkbox.checked = false;
@@ -238,7 +301,7 @@ export const createBatchTransactionSession = ({
         const cell = getTransactionCell(incidentId);
         const input = getBatchInput(incidentId);
         const storeUrl = cell?.dataset.storeUrl;
-        const transactionId = input?.value.trim() ?? '';
+        const transactionId = transactionValues.get(incidentId) ?? input?.value.trim() ?? '';
 
         if (!storeUrl || !input) {
             setRowStatus(incidentId, 'failed', 'Unable to save.');
@@ -300,18 +363,17 @@ export const createBatchTransactionSession = ({
 
             setRowStatus(incidentId, 'success');
 
+            selectedIncidentIds.delete(incidentId);
+            transactionValues.delete(incidentId);
+            rowBatchStatuses.delete(incidentId);
+
             if (data.row_html && data.incident_id) {
                 replaceServiceCaseRow(data.incident_id, data.row_html);
             }
 
-            const checkbox = card.querySelector(`.service-case-select[value="${incidentId}"]`);
-
-            if (checkbox) {
-                checkbox.checked = false;
-            }
-
             submittingIncidentIds.delete(incidentId);
             syncSession();
+            updateToolbar();
 
             return { incidentId, ok: true, message: data.message };
         } catch {
@@ -342,6 +404,8 @@ export const createBatchTransactionSession = ({
         if (incidentIds.length === 0) {
             return;
         }
+
+        persistSelectedTransactionValuesFromDom();
 
         const submissionToken = Symbol('batch-submit');
         activeSubmissionToken.current = submissionToken;
@@ -395,23 +459,43 @@ export const createBatchTransactionSession = ({
     };
 
     const handleCheckboxChange = (checkbox) => {
-        syncRowEditorVisibility(checkbox);
+        const incidentId = Number(checkbox.value);
 
-        if (!checkbox.checked) {
-            clearRowBatchState(Number(checkbox.value));
+        if (checkbox.checked) {
+            selectedIncidentIds.add(incidentId);
+        } else {
+            selectedIncidentIds.delete(incidentId);
+            clearRowBatchState(incidentId);
         }
 
+        syncRowEditorVisibility(incidentId);
         updateToolbar();
     };
 
     const handleSelectAll = (checked) => {
         card.querySelectorAll('.service-case-select').forEach((checkbox) => {
-            checkbox.checked = checked;
-            handleCheckboxChange(checkbox);
+            const incidentId = Number(checkbox.value);
+
+            if (checked) {
+                selectedIncidentIds.add(incidentId);
+            } else {
+                selectedIncidentIds.delete(incidentId);
+                clearRowBatchState(incidentId);
+            }
         });
+
+        syncAllRowEditors();
+        updateToolbar();
     };
 
-    const handleBatchInput = () => {
+    const handleBatchInput = (input) => {
+        const row = input.closest('tr[id^="service-case-row-"]');
+        const incidentId = Number(row?.id.replace('service-case-row-', ''));
+
+        if (!Number.isNaN(incidentId)) {
+            transactionValues.set(incidentId, input.value);
+        }
+
         updateToolbar();
     };
 
@@ -420,7 +504,7 @@ export const createBatchTransactionSession = ({
 
     card.addEventListener('input', (event) => {
         if (event.target.matches('[data-batch-transaction-input]')) {
-            handleBatchInput();
+            handleBatchInput(event.target);
         }
     });
 
@@ -432,6 +516,8 @@ export const createBatchTransactionSession = ({
         submitBatch,
         syncSession,
         updateToolbar,
+        restoreRowState,
+        restoreAllRowStates,
         getSelectedIncidentIds,
         getSubmittingIncidentIds: () => Array.from(submittingIncidentIds),
         isSubmitting: () => isSubmitting,

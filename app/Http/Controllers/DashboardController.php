@@ -29,7 +29,10 @@ class DashboardController extends Controller
         return view('dashboard.index', [
             'stats' => $this->dashboardService->statsFor($user),
             'recentServiceCases' => $user->can('incidents.view')
-                ? $this->dashboardService->recentServiceCases($filter)
+                ? $this->dashboardService->recentServiceCases(
+                    $filter,
+                    $this->dashboardService->serviceCaseLimitForFilter($filter),
+                )
                 : collect(),
             'recentActivity' => $user->can('audit-logs.view')
                 ? $this->dashboardService->recentActivity()

@@ -690,4 +690,65 @@ class DashboardServiceCasesTest extends TestCase
 
         Carbon::setTestNow();
     }
+
+    public function test_pending_admin_filter_renders_all_matching_cases_without_row_cap(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $references = [];
+
+        for ($index = 1; $index <= 16; $index++) {
+            $order = Order::query()->create([
+                'order_id' => "RD-PENDING-{$index}",
+                'serial_number' => "SN-PENDING-{$index}",
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+
+            $reference = sprintf('SC-PENDING-%02d', $index);
+            $references[] = $reference;
+
+            Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => $reference,
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => "Pending case {$index}",
+                'description' => "Pending case {$index}.",
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $dashboardResponse = $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'pending_admin']));
+
+        $dashboardResponse->assertOk();
+
+        foreach ($references as $reference) {
+            $dashboardResponse->assertSee($reference);
+        }
+
+        $liveResponse = $this->actingAs($admin)
+            ->getJson(route('dashboard.live', ['filter' => 'pending_admin']));
+
+        $liveResponse->assertOk()
+            ->assertJsonCount(16, 'rows')
+            ->assertJsonCount(16, 'incident_ids');
+
+        $liveHtml = collect($liveResponse->json('rows'))->pluck('html')->implode('');
+
+        foreach ($references as $reference) {
+            $this->assertStringContainsString($reference, $liveHtml);
+        }
+
+        $allFilterResponse = $this->actingAs($admin)
+            ->getJson(route('dashboard.live', ['filter' => 'all']));
+
+        $allFilterResponse->assertOk()
+            ->assertJsonCount(10, 'rows');
+    }
 }

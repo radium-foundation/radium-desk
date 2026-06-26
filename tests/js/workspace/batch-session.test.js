@@ -110,15 +110,10 @@ describe('createBatchTransactionSession', () => {
 
     it('preserves selection state via locked incident ids during polling', () => {
         const session = getWorkspaceSession();
-        const checkbox1 = document.querySelector('.service-case-select[value="1"]');
-        const checkbox2 = document.querySelector('.service-case-select[value="2"]');
 
-        checkbox1.checked = true;
-        checkbox2.checked = true;
-        batchSession.handleCheckboxChange(checkbox1);
-        batchSession.handleCheckboxChange(checkbox2);
+        batchSession.handleSelectAll(true);
 
-        expect(session.getLockedIncidentIds()).toEqual([1, 2]);
+        expect(session.getLockedIncidentIds()).toEqual([1, 2, 3]);
         expect(getBatchInput(1).closest('[data-batch-transaction-editor]').classList.contains('d-none')).toBe(false);
         expect(getBatchInput(2).closest('[data-batch-transaction-editor]').classList.contains('d-none')).toBe(false);
     });
@@ -215,8 +210,11 @@ describe('createBatchTransactionSession', () => {
         checkbox2.checked = true;
         getBatchInput(1).value = 'TX-1';
         getBatchInput(2).value = 'TX-2';
-        batchSession.handleCheckboxChange(checkbox1);
-        batchSession.handleCheckboxChange(checkbox2);
+        batchSession.handleSelectAll(true);
+
+        const checkbox3 = document.querySelector('.service-case-select[value="3"]');
+        checkbox3.checked = false;
+        batchSession.handleCheckboxChange(checkbox3);
 
         await batchSession.submitBatch();
 
