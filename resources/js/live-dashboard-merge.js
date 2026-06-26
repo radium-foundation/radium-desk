@@ -43,6 +43,10 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     document.getElementById('dashboard-service-cases-empty-row')?.remove();
 
     rows.forEach(({ incident_id: incidentId, html }) => {
+        if (isLockedIncident(incidentId, lockedIncidentIds)) {
+            return;
+        }
+
         const existingRow = document.getElementById(`service-case-row-${incidentId}`);
 
         if (existingRow) {

@@ -17,6 +17,7 @@ class ServiceCaseAssignmentService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly SettingService $settingService,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     public function resolveAssignee(?Carbon $at = null): User
@@ -140,6 +141,10 @@ class ServiceCaseAssignmentService
                 actor: $actor,
                 event: $event,
             );
+
+            if ($event === 'service_case.reassigned') {
+                $this->dashboardBroadcastService->serviceCaseAssigned($freshIncident, $actor);
+            }
 
             return $freshIncident;
         });

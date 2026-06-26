@@ -17,14 +17,16 @@ class DashboardServiceCaseController extends Controller
     {
         $this->authorize('view', $incident);
 
-        $incident->load(['order.transactionAssigner', 'creator', 'assignee']);
         $user = $request->user();
 
         return response()->json([
             'incident_id' => $incident->id,
             'html' => view(
                 'dashboard.partials.service-case-row',
-                $this->dashboardService->serviceCaseRowViewData($incident, $user),
+                $this->dashboardService->serviceCaseRowViewData(
+                    $incident->load(['order.transactionAssigner', 'creator', 'assignee']),
+                    $user,
+                ),
             )->render(),
         ]);
     }

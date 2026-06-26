@@ -16,6 +16,52 @@ let refreshInFlight = false;
 let pendingDashboardRefresh = null;
 let dashboardRefreshHooks = {};
 
+const applyKpis = (kpiStripHtml) => {
+    if (kpiStripHtml !== undefined) {
+        replaceInnerHtml('dashboard-kpi-strip', kpiStripHtml);
+    }
+};
+
+const applyRows = (rows, options = {}) => {
+    const card = document.querySelector('.dashboard-service-cases-card');
+
+    if (!card || rows === undefined) {
+        return [];
+    }
+
+    const lockedIncidentIds = options.lockedIncidentIds
+        ?? getWorkspaceSession().getLockedIncidentIds();
+
+    const replacedIncidentIds = [];
+
+    mergeServiceCaseRows(
+        card,
+        rows,
+        Boolean(options.serviceCasesEmpty),
+        options.serviceCasesEmptyHtml ?? '',
+        initTooltips,
+        {
+            lockedIncidentIds,
+            onRowsUpdated: (ids) => {
+                replacedIncidentIds.push(...ids);
+                dashboardRefreshHooks.onRowsUpdated?.(ids);
+            },
+        },
+    );
+
+    return replacedIncidentIds;
+};
+
+const removeRows = (incidentIds, lockedIncidentIds) => {
+    incidentIds.forEach((incidentId) => {
+        if (lockedIncidentIds.includes(Number(incidentId))) {
+            return;
+        }
+
+        document.getElementById(`service-case-row-${incidentId}`)?.remove();
+    });
+};
+
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
         if (getWorkspaceSession().isActive()) {
@@ -25,24 +71,40 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             return;
         }
 
+        applyKpis(data.kpi_strip_html);
+        applyRows(data.rows ?? [], {
+            serviceCasesEmpty: data.service_cases_empty,
+            serviceCasesEmptyHtml: data.service_cases_empty_html,
+        });
+
+        resolve();
+    });
+});
+
+const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
+    requestAnimationFrame(() => {
+        if (getWorkspaceSession().isActive()) {
+            queueDashboardRefresh({
+                kpi_strip_html: data.kpi_strip_html,
+                rows: data.rows ?? [],
+                service_cases_empty: data.service_cases_empty,
+                service_cases_empty_html: data.service_cases_empty_html,
+            });
+            resolve();
+
+            return;
+        }
+
         const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
 
-        replaceInnerHtml('dashboard-kpi-strip', data.kpi_strip_html);
+        applyKpis(data.kpi_strip_html);
 
-        const card = document.querySelector('.dashboard-service-cases-card');
+        if (data.remove_incident_ids?.length) {
+            removeRows(data.remove_incident_ids, lockedIncidentIds);
+        }
 
-        if (card) {
-            mergeServiceCaseRows(
-                card,
-                data.rows ?? [],
-                Boolean(data.service_cases_empty),
-                data.service_cases_empty_html ?? '',
-                initTooltips,
-                {
-                    lockedIncidentIds,
-                    onRowsUpdated: dashboardRefreshHooks.onRowsUpdated,
-                },
-            );
+        if (data.rows?.length) {
+            applyRows(data.rows, { lockedIncidentIds });
         }
 
         resolve();
@@ -105,11 +167,32 @@ export const configureLiveDashboard = (hooks = {}) => {
     dashboardRefreshHooks = hooks;
 };
 
+let pollIntervalId = null;
+
+const startPolling = (pageRoot, intervalMs) => {
+    if (pollIntervalId !== null) {
+        return;
+    }
+
+    pollIntervalId = window.setInterval(() => {
+        refreshDashboard(pageRoot);
+    }, intervalMs);
+};
+
+const stopPolling = () => {
+    if (pollIntervalId === null) {
+        return;
+    }
+
+    window.clearInterval(pollIntervalId);
+    pollIntervalId = null;
+};
+
 export const initLiveDashboard = (hooks = {}) => {
     const pageRoot = document.getElementById('dashboard-page');
 
     if (!pageRoot?.dataset.liveUrl) {
-        return;
+        return { startPolling, stopPolling, pageRoot: null };
     }
 
     configureLiveDashboard(hooks);
@@ -120,15 +203,23 @@ export const initLiveDashboard = (hooks = {}) => {
     });
 
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
+    const liveMode = pageRoot.dataset.liveMode ?? 'poll';
 
-    window.setInterval(() => {
-        refreshDashboard(pageRoot);
-    }, intervalMs);
+    if (liveMode === 'poll') {
+        startPolling(pageRoot, intervalMs);
+    }
+
+    return { startPolling: () => startPolling(pageRoot, intervalMs), stopPolling, pageRoot };
 };
 
 export {
     applyDashboardRefresh,
+    applyKpis,
+    applyPartialDashboardUpdate,
+    applyRows,
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,
+    startPolling,
+    stopPolling,
 };

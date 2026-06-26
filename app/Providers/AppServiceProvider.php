@@ -4,9 +4,12 @@ namespace App\Providers;
 
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
+use App\Listeners\BroadcastNotificationCreated;
 use App\Policies\SettingPolicy;
 use App\Services\SettingService;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -27,6 +30,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->applyApplicationTimezone();
+
+        Event::listen(NotificationSent::class, BroadcastNotificationCreated::class);
 
         Gate::policy(SettingProduct::class, SettingPolicy::class);
         Gate::policy(SettingSource::class, SettingPolicy::class);

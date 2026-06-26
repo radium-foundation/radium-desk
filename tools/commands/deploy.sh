@@ -77,6 +77,10 @@ php_exec optimize:clear
 php_exec optimize
 print_success "Laravel caches rebuilt"
 
+print_warning "Restarting background workers (queue + reverb) when Supervisor is configured..."
+ssh_exec "supervisorctl restart radium-reverb radium-queue 2>/dev/null || true"
+print_success "Background worker restart attempted"
+
 # --- Shared-hosting index.php ---
 
 if ! generate_shared_hosting_index; then

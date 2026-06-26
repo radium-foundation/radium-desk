@@ -11,6 +11,7 @@ class RemarkService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     public function createForRemarkable(
@@ -37,6 +38,10 @@ class RemarkService
             ],
             request: $request,
         );
+
+        if ($remarkable instanceof \App\Models\Incident) {
+            $this->dashboardBroadcastService->serviceCaseRemarked($remarkable, $actor);
+        }
 
         return $remark;
     }

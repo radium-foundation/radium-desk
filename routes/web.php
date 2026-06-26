@@ -5,6 +5,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLiveController;
+use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\DashboardWorkspaceActionController;
 use App\Http\Controllers\DashboardWorkspaceComponentController;
 use App\Http\Controllers\IncidentController;

@@ -1,6 +1,7 @@
 import './bootstrap';
 import * as bootstrap from 'bootstrap';
 import { initLiveDashboard } from './live-dashboard';
+import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
 import { initServiceCaseShow } from './service-case-show';
@@ -344,11 +345,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const dashboardTransactions = dashboardTransactionsRef.current;
 
-    initLiveDashboard({
+    const dashboardLiveHooks = {
         onRowsUpdated: () => {
             dashboardTransactions?.batchSession.restoreAllRowStates();
         },
-    });
+    };
+
+    const liveDashboard = initLiveDashboard(dashboardLiveHooks);
+    const liveMode = liveDashboard.pageRoot?.dataset.liveMode ?? 'poll';
+
+    if (liveMode === 'reverb' || liveMode === 'auto') {
+        initLiveDashboardReverb({
+            pageRoot: liveDashboard.pageRoot,
+            startPolling: liveDashboard.startPolling,
+            stopPolling: liveDashboard.stopPolling,
+            hooks: dashboardLiveHooks,
+            fallbackPoll: liveMode === 'auto',
+        });
+    }
+
     initLiveNotifications();
     initServiceCaseShow();
 

@@ -51,6 +51,10 @@ class DashboardController extends Controller
             ]) || $user->can('create', \App\Models\Remark::class) || $user->can('incidents.update'),
             'enabledProducts' => app(\App\Services\SettingService::class)->enabledProductNames(),
             'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
+            'dashboardLiveMode' => config('dashboard.live_mode', 'auto'),
+            'dashboardPollIntervalMs' => config('dashboard.poll_interval_ms', 30000),
+            'reverbConfigured' => config('broadcasting.default') === 'reverb'
+                && config('broadcasting.connections.reverb.key'),
         ]);
     }
 }

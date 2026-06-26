@@ -183,9 +183,11 @@ export const initLiveNotifications = () => {
 };
 
 export {
+    animateNotificationBell,
     bindNotificationDropdownSession,
     flushPendingBellHtml,
     pollNotifications,
     replaceNotificationBell,
+    showBrowserNotification,
     updateUnreadBadge,
 };

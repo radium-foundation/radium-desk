@@ -17,6 +17,7 @@ class OrderTransactionService
         private readonly AuditLogService $auditLogService,
         private readonly ServiceCaseStatusService $serviceCaseStatusService,
         private readonly DashboardService $dashboardService,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     public function assignTransactionId(Order $order, string $transactionId, User $actor): Order
@@ -64,6 +65,12 @@ class OrderTransactionService
             $this->serviceCaseStatusService->closeActiveServiceCasesForOrder($freshOrder, $actor);
 
             $this->notifyTransactionCompleted($freshOrder, $transactionId, $actor);
+
+            Incident::query()
+                ->with(['order.transactionAssigner', 'creator', 'assignee'])
+                ->where('order_id', $freshOrder->id)
+                ->get()
+                ->each(fn (Incident $incident) => $this->dashboardBroadcastService->transactionAssigned($incident, $actor));
 
             return $freshOrder;
         });

@@ -8,7 +8,15 @@
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
          data-live-filter="{{ $serviceCaseFilter ?? 'pending_admin' }}"
-         data-live-interval="30000">
+         data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
+         data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
+         data-user-id="{{ auth()->id() }}"
+         @if($reverbConfigured ?? false)
+         data-reverb-key="{{ config('broadcasting.connections.reverb.key') }}"
+         data-reverb-host="{{ config('broadcasting.connections.reverb.options.host') }}"
+         data-reverb-port="{{ config('broadcasting.connections.reverb.options.port') }}"
+         data-reverb-scheme="{{ config('broadcasting.connections.reverb.options.scheme') }}"
+         @endif>
         <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-1 mb-1">
             <div>
                 <h1 class="h4 mb-0">Dashboard</h1>

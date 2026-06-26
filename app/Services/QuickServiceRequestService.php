@@ -17,6 +17,7 @@ class QuickServiceRequestService
     public function __construct(
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     public function findByOrderId(string $orderId): ?Order
@@ -97,6 +98,8 @@ class QuickServiceRequestService
             && app(SettingService::class)->getBool('notifications.high_priority_enabled', true)) {
             $incident->assignee->notify(new HighPriorityServiceCaseNotification($incident, $user));
         }
+
+        $this->dashboardBroadcastService->serviceCaseCreated($incident, $user);
 
         return $incident;
     }

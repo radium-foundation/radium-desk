@@ -13,6 +13,7 @@ class ServiceCaseStatusService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     /**
@@ -66,6 +67,12 @@ class ServiceCaseStatusService
                 oldValues: ['status' => $oldStatus->value],
                 newValues: ['status' => $status->value],
             );
+
+            match ($status) {
+                IncidentStatus::Resolved => $this->dashboardBroadcastService->serviceCaseResolved($freshIncident, $actor),
+                IncidentStatus::Closed => $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor),
+                default => null,
+            };
 
             return $freshIncident;
         });
