@@ -32,6 +32,20 @@ export const createFragmentLoader = ({
         return appendWorkspaceContextQuery(baseUrl, context);
     };
 
+    const buildBatchComponentUrl = (component, incidentIds, context) => {
+        const parsedUrl = new URL(`/dashboard/components/${component}`, window.location.origin);
+
+        if (context) {
+            parsedUrl.searchParams.set('context', context);
+        }
+
+        incidentIds.forEach((incidentId) => {
+            parsedUrl.searchParams.append('incident_ids[]', String(incidentId));
+        });
+
+        return `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+    };
+
     const showModal = () => {
         if (!window.bootstrap?.Modal) {
             return;
@@ -100,7 +114,57 @@ export const createFragmentLoader = ({
         }
     };
 
+    const openBatchComponent = async (component, incidentIds, context = null) => {
+        const resolvedContext = resolveContext(context);
+
+        if (!component || incidentIds.length === 0 || !resolvedContext) {
+            return false;
+        }
+
+        const modalContent = getModalContent();
+
+        if (!modalContent) {
+            return false;
+        }
+
+        if (!(await lifecycle.run('beforeOpen', incidentIds[0], component, resolvedContext))) {
+            return false;
+        }
+
+        setActiveWorkspaceContext(host, resolvedContext);
+        host.dataset.workspaceIncidentId = String(incidentIds[0]);
+        showLoadingState(modalContent);
+
+        let opened = false;
+
+        try {
+            const response = await workspaceFetch(
+                buildBatchComponentUrl(component, incidentIds, resolvedContext),
+                {
+                    headers: workspaceFetchHeaders('text/html'),
+                },
+            );
+
+            if (!response.ok) {
+                showInlineError(modalContent, handleWorkspaceError(null, response));
+                return false;
+            }
+
+            modalContent.innerHTML = await response.text();
+            opened = true;
+
+            return true;
+        } catch (error) {
+            showInlineError(modalContent, handleWorkspaceError(error));
+            return false;
+        } finally {
+            busyState?.clearBusy('loading');
+            await lifecycle.run('afterOpen', incidentIds[0], component, resolvedContext, opened);
+        }
+    };
+
     return {
         openComponent,
+        openBatchComponent,
     };
 };

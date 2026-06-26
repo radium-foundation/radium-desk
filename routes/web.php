@@ -5,7 +5,8 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLiveController;
-use App\Http\Controllers\DashboardServiceCaseController;
+use App\Http\Controllers\DashboardWorkspaceActionController;
+use App\Http\Controllers\DashboardWorkspaceComponentController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProfileController;
@@ -36,6 +37,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.row');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
         ->name('dashboard.transactions.bulk');
+    Route::get('dashboard/components/batch-transaction', [DashboardWorkspaceComponentController::class, 'batchTransaction'])
+        ->name('dashboard.components.batch-transaction');
+    Route::post('dashboard/workspace/batch-transaction', [DashboardWorkspaceActionController::class, 'batchTransaction'])
+        ->name('dashboard.workspace.batch-transaction');
     Route::post('service-requests/quick', [QuickServiceRequestController::class, 'store'])
         ->name('service-requests.quick.store');
     Route::get('/search', [SearchController::class, 'index'])->name('search.index');

@@ -59,6 +59,7 @@ export const initWorkspace = (hooks = {}) => {
 
     workspaceApi = {
         openComponent: fragmentLoader.openComponent,
+        openBatchComponent: fragmentLoader.openBatchComponent,
         applyWorkspaceResponse: (data) => responseHandler.applyWorkspaceResponse(data, host),
         getContextConstants: getWorkspaceContextConstants,
         resolvePageContext: resolvePageWorkspaceContext,

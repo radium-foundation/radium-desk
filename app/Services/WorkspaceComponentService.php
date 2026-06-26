@@ -84,7 +84,32 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 'activityTimeline' => $this->activityTimelineService->forIncident($incident),
             ],
+            WorkspaceComponent::BatchTransaction => [],
         };
+    }
+
+    /**
+     * @param  list<int>  $incidentIds
+     * @return array<string, mixed>
+     */
+    public function batchTransactionViewData(
+        array $incidentIds,
+        WorkspaceRequestContext $requestContext,
+    ): array {
+        $incidents = Incident::query()
+            ->with('order')
+            ->whereIn('id', $incidentIds)
+            ->get()
+            ->sortBy(fn (Incident $incident): int => array_search($incident->id, $incidentIds, true) ?: PHP_INT_MAX)
+            ->values();
+
+        return [
+            'incidents' => $incidents,
+            'selectedCount' => count($incidentIds),
+            'workspaceActionUrl' => route('dashboard.workspace.batch-transaction'),
+            'workspaceContext' => $requestContext->context->value,
+            'incidentIds' => $incidentIds,
+        ];
     }
 
     /**

@@ -87,7 +87,7 @@ const showAppToast = (message, variant = 'success') => {
     toast.show();
 };
 
-const initDashboardTransactions = () => {
+const initDashboardTransactions = ({ openBatchModal } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
@@ -106,9 +106,7 @@ const initDashboardTransactions = () => {
 
     batchSession = createBatchTransactionSession({
         card,
-        csrfToken,
-        replaceServiceCaseRow,
-        showToast: showAppToast,
+        openBatchModal,
     });
 
     const openInlineEditor = (cell) => {
@@ -293,22 +291,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initTooltips();
-    const dashboardTransactions = initDashboardTransactions();
-    const replaceServiceCaseRow = dashboardTransactions?.replaceServiceCaseRow ?? createServiceCaseRowReplacer({ initTooltips });
 
-    initLiveDashboard({
-        onRowsUpdated: () => {
-            dashboardTransactions?.batchSession.restoreAllRowStates();
+    const workspaceApiRef = { current: null };
+    const dashboardTransactions = initDashboardTransactions({
+        openBatchModal: (incidentIds) => {
+            workspaceApiRef.current?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
         },
     });
-    initLiveNotifications();
-    initServiceCaseShow();
-    initWorkspace({
+
+    const workspaceApi = initWorkspace({
         showToast: showAppToast,
-        replaceServiceCaseRow,
+        replaceServiceCaseRow: dashboardTransactions?.replaceServiceCaseRow
+            ?? createServiceCaseRowReplacer({ initTooltips }),
         initTooltips,
         initMentionTextareas,
-        afterSuccess: async () => {
+        afterSuccess: async (data) => {
+            if (data.action !== 'batch-transaction') {
+                dashboardTransactions?.batchSession.restoreAllRowStates();
+                return;
+            }
+
+            dashboardTransactions?.batchSession.handleBatchResult(
+                data.extensions?.succeeded_incident_ids ?? [],
+                data.extensions?.failed_incidents ?? [],
+            );
             dashboardTransactions?.batchSession.restoreAllRowStates();
         },
         afterOpen: (_incidentId, component, _context, opened) => {
@@ -317,6 +323,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
     });
+    workspaceApiRef.current = workspaceApi;
+
+    initLiveDashboard({
+        onRowsUpdated: () => {
+            dashboardTransactions?.batchSession.restoreAllRowStates();
+        },
+    });
+    initLiveNotifications();
+    initServiceCaseShow();
 
     const quickCreateModalElement = document.getElementById('quickCreateModal');
 

@@ -90,7 +90,13 @@ class OrderTransactionService
 
     /**
      * @param  list<int>  $incidentIds
-     * @return array{count: int, transaction_id: string, rows: array<int, array{incident_id: int, html: string}>}
+     * @return array{
+     *     count: int,
+     *     transaction_id: string,
+     *     rows: array<int, array{incident_id: int, html: string}>,
+     *     succeeded_incident_ids: list<int>,
+     *     failed_incidents: list<array{incident_id: int, message: string}>
+     * }
      */
     public function assignTransactionIdToIncidents(array $incidentIds, string $transactionId, User $actor): array
     {
@@ -150,10 +156,68 @@ class OrderTransactionService
             ];
         }
 
+        $succeededIncidentIds = [];
+        $failedIncidents = [];
+
+        foreach ($incidentIds as $incidentId) {
+            $incident = $refreshedIncidents->get($incidentId);
+
+            if ($incident === null) {
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => 'Service case not found.',
+                ];
+
+                continue;
+            }
+
+            if ($incident->order !== null
+                && $incident->order->transaction_id === $transactionId
+                && $incident->order->isTransactionLocked()) {
+                $succeededIncidentIds[] = $incidentId;
+
+                continue;
+            }
+
+            if ($incident->order === null) {
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => 'This service case has no order.',
+                ];
+
+                continue;
+            }
+
+            if ($incident->order->isTransactionLocked()) {
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => 'This order is already completed and locked.',
+                ];
+
+                continue;
+            }
+
+            if (! $actor->can('assignTransaction', $incident->order)) {
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => 'This action is unauthorized.',
+                ];
+
+                continue;
+            }
+
+            $failedIncidents[] = [
+                'incident_id' => $incidentId,
+                'message' => 'Unable to assign transaction ID.',
+            ];
+        }
+
         return [
-            'count' => $pendingIncidents->count(),
+            'count' => count($succeededIncidentIds),
             'transaction_id' => $transactionId,
             'rows' => $rows,
+            'succeeded_incident_ids' => $succeededIncidentIds,
+            'failed_incidents' => $failedIncidents,
         ];
     }
 

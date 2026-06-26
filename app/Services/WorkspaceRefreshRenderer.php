@@ -123,6 +123,66 @@ class WorkspaceRefreshRenderer
         )->render();
     }
 
+    /**
+     * @param  list<int>  $incidentIds
+     */
+    public function renderBatchTransactionFragment(
+        array $incidentIds,
+        WorkspaceRequestContext $requestContext,
+    ): string {
+        return view(
+            $this->componentService->view(WorkspaceComponent::BatchTransaction),
+            $this->componentService->batchTransactionViewData($incidentIds, $requestContext),
+        )->render();
+    }
+
+    /**
+     * @param  array{
+     *     count: int,
+     *     transaction_id: string,
+     *     rows: array<int, array{incident_id: int, html: string}>,
+     *     succeeded_incident_ids: list<int>,
+     *     failed_incidents: list<array{incident_id: int, message: string}>
+     * }  $result
+     * @return array<string, mixed>
+     */
+    public function buildBatchRefreshPayload(
+        WorkspaceRefreshEffects $effects,
+        array $result,
+        User $user,
+    ): array {
+        $refresh = [
+            'kpis' => $effects->refreshKpis,
+            'targets' => [],
+            'fragments' => [],
+            'replace_rows' => [],
+        ];
+
+        if ($effects->refreshKpis) {
+            $stats = $this->dashboardService->statsFor($user);
+            $refresh['kpis_html'] = [
+                'action_stats_html' => view('dashboard.partials.action-stats', compact('stats'))->render(),
+                'sla_cards_html' => view('dashboard.partials.sla-alert-cards', compact('stats'))->render(),
+            ];
+        }
+
+        $succeededIds = array_flip($result['succeeded_incident_ids']);
+
+        foreach ($result['rows'] as $row) {
+            if (! isset($succeededIds[$row['incident_id']])) {
+                continue;
+            }
+
+            $refresh['replace_rows'][] = [
+                'incident_id' => $row['incident_id'],
+                'html' => $row['html'],
+                'strategy' => 'replace',
+            ];
+        }
+
+        return $refresh;
+    }
+
     private function renderTarget(string $selector, Incident $incident): ?string
     {
         return match ($selector) {

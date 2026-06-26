@@ -116,6 +116,12 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
             );
         }
 
+        if (data.refresh?.replace_rows && hooks.replaceServiceCaseRow) {
+            data.refresh.replace_rows.forEach((row) => {
+                hooks.replaceServiceCaseRow(row.incident_id, row.html);
+            });
+        }
+
         applyKpis(data.refresh);
 
         if (data.ui?.close_workspace_host) {

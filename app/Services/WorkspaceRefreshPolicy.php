@@ -29,6 +29,9 @@ class WorkspaceRefreshPolicy
     {
         return match ($component) {
             WorkspaceComponent::Timeline => new WorkspaceRefreshEffects,
+            WorkspaceComponent::BatchTransaction => new WorkspaceRefreshEffects(
+                refreshKpis: true,
+            ),
             default => new WorkspaceRefreshEffects(
                 refreshKpis: true,
                 replaceRow: true,

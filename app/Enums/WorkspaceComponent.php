@@ -9,6 +9,7 @@ enum WorkspaceComponent: string
     case Resolve = 'resolve';
     case Close = 'close';
     case Timeline = 'timeline';
+    case BatchTransaction = 'batch-transaction';
 
     public function view(): string
     {
@@ -18,6 +19,7 @@ enum WorkspaceComponent: string
             self::Resolve => 'service-cases.fragments.resolve-form',
             self::Close => 'service-cases.fragments.close-form',
             self::Timeline => 'incidents.partials.activity-timeline',
+            self::BatchTransaction => 'dashboard.fragments.batch-transaction-form',
         };
     }
 }

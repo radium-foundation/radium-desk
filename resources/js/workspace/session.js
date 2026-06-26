@@ -2,7 +2,6 @@ export const SESSION_REASONS = [
     'workspace-modal',
     'inline-transaction',
     'bulk-selection',
-    'batch-submit',
     'quick-create',
     'notification-dropdown',
 ];

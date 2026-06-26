@@ -31,14 +31,11 @@
             <div class="dashboard-bulk-bar d-none" data-bulk-bar>
                 <div class="d-flex flex-wrap align-items-center gap-2">
                     <span class="small fw-semibold">Selected: <span data-bulk-count>0</span></span>
-                    <span class="small text-muted d-none" data-batch-progress>
-                        Completed <span data-batch-completed>0</span> of <span data-batch-total>0</span>
-                    </span>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-batch-clear>
                         Clear Selection
                     </button>
-                    <button type="button" class="btn btn-sm btn-primary" data-batch-submit disabled>
-                        Submit Transactions
+                    <button type="button" class="btn btn-sm btn-primary" data-batch-assign disabled>
+                        Assign Transaction ID
                     </button>
                 </div>
             </div>

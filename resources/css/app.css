@@ -367,12 +367,9 @@ a:focus-visible .stat-card {
     color: var(--bs-primary) !important;
 }
 
-.batch-transaction-editor .batch-transaction-input {
-    min-width: 10rem;
-}
-
-.batch-transaction-status {
-    min-height: 1rem;
+.batch-transaction-order-list {
+    max-height: 12rem;
+    overflow-y: auto;
 }
 
 .transaction-inline-editor .input-group {

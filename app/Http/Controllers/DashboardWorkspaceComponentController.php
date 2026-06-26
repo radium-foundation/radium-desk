@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Requests\DashboardBatchTransactionComponentRequest;
+use App\Services\WorkspaceContextResolver;
+use App\Services\WorkspaceRefreshRenderer;
+use Illuminate\Http\Response;
+
+class DashboardWorkspaceComponentController extends Controller
+{
+    public function __construct(
+        private readonly WorkspaceContextResolver $contextResolver,
+        private readonly WorkspaceRefreshRenderer $refreshRenderer,
+    ) {}
+
+    public function batchTransaction(DashboardBatchTransactionComponentRequest $request): Response
+    {
+        $incidentIds = array_map('intval', $request->input('incident_ids'));
+        $requestContext = $this->contextResolver->resolve($request);
+
+        $html = $this->refreshRenderer->renderBatchTransactionFragment(
+            $incidentIds,
+            $requestContext,
+        );
+
+        return response($html, 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+        ]);
+    }
+}
