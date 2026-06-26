@@ -831,6 +831,66 @@ a:focus-visible .stat-card {
     text-align: center;
 }
 
+.dashboard-quick-filter {
+    width: 100%;
+}
+
+.dashboard-quick-filter__control {
+    display: flex;
+    align-items: center;
+    gap: var(--dashboard-space-1);
+    padding: var(--dashboard-space-half) var(--dashboard-space-1);
+    border: 1px solid var(--dashboard-border-subtle);
+    border-radius: var(--dashboard-radius-md, 0.375rem);
+    background-color: var(--dashboard-card-bg, #fff);
+}
+
+.dashboard-quick-filter__icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--dashboard-color-muted);
+    font-size: 0.8125rem;
+    line-height: 1;
+}
+
+.dashboard-quick-filter__input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--dashboard-color-text);
+}
+
+.dashboard-quick-filter__input::placeholder {
+    color: var(--dashboard-color-muted);
+}
+
+.dashboard-quick-filter__input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.dashboard-quick-filter__count {
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--dashboard-color-muted);
+    white-space: nowrap;
+}
+
+.dashboard-quick-filter__clear {
+    font-size: inherit;
+    vertical-align: baseline;
+}
+
+.dashboard-cases-table tbody tr.dashboard-case-row--filtered-out {
+    display: none;
+}
+
 .dashboard-case-filters .btn {
     font-size: 0.625rem;
     padding: 0.1rem 0.4rem;

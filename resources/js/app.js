@@ -2,6 +2,7 @@ import './bootstrap';
 import * as bootstrap from 'bootstrap';
 import { initLiveDashboard } from './live-dashboard';
 import { initLiveDashboardReverb } from './live-dashboard-reverb';
+import { initDashboardQuickFilter } from './dashboard-filter';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
 import { initServiceCaseShow } from './service-case-show';
@@ -240,7 +241,7 @@ const showAppToast = (message, variant = 'success') => {
     toast.show();
 };
 
-const initDashboardTransactions = ({ pageRoot, openBatchModal } = {}) => {
+const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
@@ -254,6 +255,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal } = {}) => {
         onRowReplaced: (incidentId) => {
             batchSession?.restoreRowState(incidentId);
             batchSession?.updateToolbar();
+            onRowUpdated?.();
         },
     });
 
@@ -449,6 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pageRoot = document.getElementById('dashboard-page') ?? document;
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
     const dashboardTransactionsRef = { current: null };
+    let dashboardQuickFilter = null;
 
     const workspaceApi = initWorkspace({
         showToast: showAppToast,
@@ -493,13 +496,24 @@ document.addEventListener('DOMContentLoaded', () => {
         openBatchModal: (incidentIds) => {
             workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
         },
+        onRowUpdated: () => {
+            dashboardQuickFilter?.reapply();
+        },
     });
 
     const dashboardTransactions = dashboardTransactionsRef.current;
 
+    dashboardQuickFilter = initDashboardQuickFilter({
+        pageRoot,
+        onFilterApplied: () => {
+            dashboardTransactions?.batchSession.updateToolbar();
+        },
+    });
+
     const dashboardLiveHooks = {
         onRowsUpdated: () => {
             dashboardTransactions?.batchSession.restoreAllRowStates();
+            dashboardQuickFilter?.reapply();
         },
     };
 

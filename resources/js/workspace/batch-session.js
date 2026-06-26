@@ -21,6 +21,11 @@ export const createBatchTransactionSession = ({
 
     const getRow = (incidentId) => document.getElementById(`service-case-row-${incidentId}`);
 
+    const isRowFilteredOut = (row) => row?.classList.contains('dashboard-case-row--filtered-out') ?? false;
+
+    const getVisibleCheckboxes = () => Array.from(card.querySelectorAll('.service-case-select'))
+        .filter((checkbox) => ! isRowFilteredOut(checkbox.closest('tr')));
+
     const syncRowVisualState = (incidentId) => {
         const row = getRow(incidentId);
         const isSelected = selectedIncidentIds.has(Number(incidentId));
@@ -81,9 +86,15 @@ export const createBatchTransactionSession = ({
         }
 
         if (selectAll) {
-            const selectable = card.querySelectorAll('.service-case-select');
-            selectAll.checked = selectable.length > 0 && count === selectable.length;
-            selectAll.indeterminate = count > 0 && count < selectable.length;
+            const visibleCheckboxes = getVisibleCheckboxes();
+            const selectedVisibleCount = visibleCheckboxes
+                .filter((checkbox) => selectedIncidentIds.has(Number(checkbox.value)))
+                .length;
+
+            selectAll.checked = visibleCheckboxes.length > 0
+                && selectedVisibleCount === visibleCheckboxes.length;
+            selectAll.indeterminate = selectedVisibleCount > 0
+                && selectedVisibleCount < visibleCheckboxes.length;
         }
 
         syncSession();
@@ -138,15 +149,13 @@ export const createBatchTransactionSession = ({
     };
 
     const handleSelectAll = (checked) => {
-        card.querySelectorAll('.service-case-select').forEach((checkbox) => {
-            const incidentId = Number(checkbox.value);
-
-            if (checked) {
-                selectedIncidentIds.add(incidentId);
-            } else {
-                selectedIncidentIds.delete(incidentId);
-            }
-        });
+        if (checked) {
+            getVisibleCheckboxes().forEach((checkbox) => {
+                selectedIncidentIds.add(Number(checkbox.value));
+            });
+        } else {
+            selectedIncidentIds.clear();
+        }
 
         updateToolbar();
     };

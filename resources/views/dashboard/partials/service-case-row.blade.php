@@ -11,11 +11,22 @@
         || auth()->user()?->can('reassign', $serviceCase)
         || $canResolve
         || $canClose;
+    $searchParts = array_filter([
+        $order?->order_id,
+        $serviceCase->display_reference,
+        $order?->customer_name,
+        $order?->customer_phone,
+        $order?->serial_number,
+        $order?->transaction_id,
+        $order?->product_name,
+    ], fn ($value) => filled($value));
+    $searchText = strtolower(implode(' ', $searchParts));
 @endphp
 
 <tr id="service-case-row-{{ $serviceCase->id }}"
     data-incident-id="{{ $serviceCase->id }}"
     data-order-id="{{ $order?->id }}"
+    data-search-text="{{ e($searchText) }}"
     @class([
         'dashboard-case-row--completed' => $isCompleted,
         'dashboard-case-row--pending' => $order && ! $isCompleted,

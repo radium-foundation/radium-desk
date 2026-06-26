@@ -38,6 +38,26 @@
                 </div>
             @endif
 
+            <div class="dashboard-quick-filter" data-dashboard-quick-filter>
+                <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
+                <div class="dashboard-quick-filter__control">
+                    <span class="dashboard-quick-filter__icon" aria-hidden="true">
+                        <i class="bi bi-funnel"></i>
+                    </span>
+                    <input type="search"
+                           id="dashboard-quick-filter-input"
+                           class="dashboard-quick-filter__input dashboard-u-focus-ring"
+                           placeholder="Filter current list..."
+                           autocomplete="off"
+                           data-dashboard-quick-filter-input
+                           aria-describedby="dashboard-quick-filter-count">
+                    <span id="dashboard-quick-filter-count"
+                          class="dashboard-quick-filter__count"
+                          data-dashboard-filter-count
+                          aria-live="polite">0 / 0</span>
+                </div>
+            </div>
+
             <div class="btn-group btn-group-sm dashboard-case-filters" role="group" aria-label="Service case filters">
                 @foreach([
                     'all' => 'All',
