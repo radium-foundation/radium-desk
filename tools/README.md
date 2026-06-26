@@ -109,14 +109,14 @@ Build frontend assets and deploy the application to production.
 **Deployment steps:**
 
 1. Run `npm run build` locally
-2. Upload `public/build/` to the remote public directory
-3. Synchronize the full local `public/` directory to `REMOTE_PUBLIC` (excluding `index.php`)
-4. `git pull origin main` on the remote Laravel project
-5. `composer install --no-dev --optimize-autoloader`
-6. `php artisan migrate --force`
-7. `php artisan optimize`
+2. `git pull origin main` on the remote Laravel project
+3. `composer install --no-dev --optimize-autoloader`
+4. `php artisan migrate --force`
+5. Sync `public/build/` to **both** `REMOTE_PUBLIC/build/` (web assets) and `REMOTE_PROJECT/public/build/` (Laravel manifest)
+6. Synchronize other `public/` assets to `REMOTE_PUBLIC` (excluding `build/` and `index.php`)
+7. `php artisan optimize:clear` then `php artisan optimize`
 8. Generate `public_html/index.php` from the shared-hosting template and validate bootstrap paths
-9. Health check against `{APP_URL}/` (HTTP 200/302) and verify `index.php` references configured paths
+9. Verify HTML asset URLs match `REMOTE_PROJECT/public/build/manifest.json`, then health check
 
 Exits `0` on success, `1` on failure (including a failed health check).
 
@@ -212,4 +212,5 @@ tools/
 | `Local Vite build manifest exists` fails | Run `npm run build` locally |
 | SSH connection fails | Verify `SSH_HOST`, `SSH_PORT`, and `SSH_USER` in `config.sh`; test with `desk ssh` |
 | Health check fails | Check remote `.env` (`APP_URL`), web server config, `INDEX_VENDOR_PATH` / `INDEX_BOOTSTRAP_PATH`, and `desk logs` |
+| Stale CSS/JS after deploy | Ensure `public/build/` is synced to both `REMOTE_PUBLIC/build/` and `REMOTE_PROJECT/public/build/`; run `desk cache` |
 | Permission errors on storage | Fix ownership/permissions on the server for `storage/` and `bootstrap/cache/` |

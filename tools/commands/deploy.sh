@@ -8,11 +8,12 @@
 #   - SSH access to the remote server
 #
 # Steps:
-#   1. Build frontend assets
-#   2. Upload public/build and sync public/ to remote (excluding index.php)
-#   3. Pull latest code, install dependencies, migrate, optimize
-#   4. Generate shared-hosting index.php and validate bootstrap paths
-#   5. Run health check
+#   1. Build frontend assets locally
+#   2. Pull latest code, install dependencies, migrate
+#   3. Sync Vite build to public_html and Laravel public/build, then other public assets
+#   4. Clear and rebuild Laravel caches (after manifest is in place)
+#   5. Generate shared-hosting index.php and validate bootstrap paths
+#   6. Verify HTML asset URLs match manifest.json, then run health check
 
 set -euo pipefail
 
@@ -47,19 +48,6 @@ print_warning "Building frontend assets (npm run build)..."
 npm run build
 print_success "Frontend build completed"
 
-# --- Upload assets ---
-
-print_warning "Uploading public/build to remote..."
-rsync -avz \
-    -e "ssh -p ${SSH_PORT} -o BatchMode=yes -o ConnectTimeout=15" \
-    "${PROJECT_ROOT}/public/build/" \
-    "${SSH_USER}@${SSH_HOST}:${REMOTE_PUBLIC}/build/"
-print_success "Uploaded public/build"
-
-print_warning "Synchronizing public/ to remote public_html..."
-copy_public "$PROJECT_ROOT"
-print_success "Synchronized public/ directory"
-
 # --- Remote deployment ---
 
 print_warning "Pulling latest code on remote..."
@@ -74,9 +62,20 @@ print_warning "Running database migrations..."
 php_exec migrate --force
 print_success "Migrations completed"
 
-print_warning "Optimizing Laravel..."
+# --- Upload assets (after code is current, before cache rebuild) ---
+
+print_warning "Syncing Vite build to public_html and Laravel public/build..."
+sync_vite_build "$PROJECT_ROOT"
+print_success "Vite build synced to both remote paths"
+
+print_warning "Synchronizing public/ to remote public_html..."
+copy_public "$PROJECT_ROOT"
+print_success "Synchronized public/ directory"
+
+print_warning "Clearing and rebuilding Laravel caches..."
+php_exec optimize:clear
 php_exec optimize
-print_success "Laravel optimize completed"
+print_success "Laravel caches rebuilt"
 
 # --- Shared-hosting index.php ---
 
@@ -86,6 +85,11 @@ if ! generate_shared_hosting_index; then
 fi
 
 # --- Post-deploy verification ---
+
+if ! verify_vite_assets; then
+    print_error "Deployment completed but Vite asset verification failed"
+    exit 1
+fi
 
 if health_check; then
     print_success "Deployment finished successfully"

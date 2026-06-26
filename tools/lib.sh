@@ -34,8 +34,26 @@ composer_exec() {
     ssh_exec "cd '$REMOTE_PROJECT' && $PHP_BIN $COMPOSER_BIN $*"
 }
 
-# Synchronize the entire local public/ directory to remote public_html.
-# index.php is excluded; use generate_shared_hosting_index() instead.
+# Synchronize the Vite build output to both web-facing and Laravel-readable paths.
+# On shared hosting, public_html (REMOTE_PUBLIC) serves static assets while Laravel
+# reads manifest.json from REMOTE_PROJECT/public/build at runtime.
+sync_vite_build() {
+    local project_root="$1"
+    local rsync_ssh=(ssh -p "$SSH_PORT" -o BatchMode=yes -o ConnectTimeout=15)
+
+    rsync -avz --delete \
+        -e "${rsync_ssh[*]}" \
+        "${project_root}/public/build/" \
+        "${SSH_USER}@${SSH_HOST}:${REMOTE_PUBLIC}/build/"
+
+    rsync -avz --delete \
+        -e "${rsync_ssh[*]}" \
+        "${project_root}/public/build/" \
+        "${SSH_USER}@${SSH_HOST}:${REMOTE_PROJECT}/public/build/"
+}
+
+# Synchronize static public/ assets to remote public_html.
+# build/ and index.php are excluded; use sync_vite_build() and generate_shared_hosting_index().
 copy_public() {
     local project_root="$1"
 
@@ -43,8 +61,51 @@ copy_public() {
         -e "ssh -p ${SSH_PORT} -o BatchMode=yes -o ConnectTimeout=15" \
         --exclude '.gitkeep' \
         --exclude 'index.php' \
+        --exclude 'build/' \
         "${project_root}/public/" \
         "${SSH_USER}@${SSH_HOST}:${REMOTE_PUBLIC}/"
+}
+
+# Verify deployed HTML references the same hashed assets as public/build/manifest.json.
+verify_vite_assets() {
+    local app_url manifest_remote html_assets manifest_assets
+
+    app_url="$(ssh_exec "grep '^APP_URL=' '$REMOTE_PROJECT/.env' 2>/dev/null | cut -d= -f2- | tr -d '\"'" || true)"
+    app_url="${app_url%/}"
+
+    if [[ -z "$app_url" ]]; then
+        print_error "Could not determine APP_URL from remote .env"
+        return 1
+    fi
+
+    manifest_remote="${REMOTE_PROJECT}/public/build/manifest.json"
+    if ! ssh_exec "test -f '$manifest_remote'"; then
+        print_error "Laravel manifest not found at ${manifest_remote}"
+        return 1
+    fi
+
+    html_assets="$(ssh_exec "curl -s --max-time 30 '${app_url}/login' | grep -oE 'build/assets/[^\"]+\\.(css|js)' | sed 's|^build/||' | sort -u" || true)"
+    manifest_assets="$(ssh_exec "grep -oE 'assets/[^\"]+\\.(css|js)' '$manifest_remote' | sort -u" || true)"
+
+    if [[ -z "$html_assets" ]]; then
+        print_error "Could not extract Vite asset URLs from ${app_url}/login"
+        return 1
+    fi
+
+    if [[ -z "$manifest_assets" ]]; then
+        print_error "Could not extract asset paths from ${manifest_remote}"
+        return 1
+    fi
+
+    if [[ "$html_assets" != "$manifest_assets" ]]; then
+        print_error "HTML asset URLs do not match Laravel manifest.json"
+        printf '  HTML:     %s\n' "$(echo "$html_assets" | tr '\n' ' ')" >&2
+        printf '  Manifest: %s\n' "$(echo "$manifest_assets" | tr '\n' ' ')" >&2
+        return 1
+    fi
+
+    print_success "Vite assets verified (HTML matches ${manifest_remote})"
+    return 0
 }
 
 # Generate public_html/index.php for shared-hosting layouts where the Laravel

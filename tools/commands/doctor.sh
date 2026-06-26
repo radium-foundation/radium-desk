@@ -61,6 +61,25 @@ check "bootstrap/cache/ is writable" \
 
 check "Local Vite build manifest exists" test -f "$PROJECT_ROOT/public/build/manifest.json"
 
+# --- Remote Vite manifests (shared hosting) ---
+
+remote_project_manifest="${REMOTE_PROJECT}/public/build/manifest.json"
+remote_public_manifest="${REMOTE_PUBLIC}/build/manifest.json"
+
+if ssh_exec "test -f '$remote_project_manifest' && test -f '$remote_public_manifest'"; then
+    project_hash="$(ssh_exec "md5sum '$remote_project_manifest' | awk '{print \$1}'")"
+    public_hash="$(ssh_exec "md5sum '$remote_public_manifest' | awk '{print \$1}'")"
+
+    if [[ "$project_hash" == "$public_hash" ]]; then
+        print_success "Remote Vite manifests match (Laravel and public_html)"
+    else
+        print_error "Remote Vite manifests differ between Laravel and public_html"
+        failures=$((failures + 1))
+    fi
+else
+    print_warning "Remote Vite manifests not found on server (run desk deploy)"
+fi
+
 # --- APP_ENV ---
 
 remote_app_env="$(ssh_exec "grep '^APP_ENV=' '$REMOTE_PROJECT/.env' 2>/dev/null | cut -d= -f2- | tr -d '\"'" || true)"
