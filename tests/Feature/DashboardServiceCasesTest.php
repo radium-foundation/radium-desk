@@ -78,7 +78,7 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dashboard_shows_first_name_only_for_logged_by(): void
+    public function test_dashboard_shows_user_avatar_with_tooltip_for_logged_by(): void
     {
         $agent = User::factory()->create(['name' => 'Ravi Kumar']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -106,7 +106,9 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('>Ravi</td>', false);
+            ->assertSee('dashboard-u-avatar', false)
+            ->assertSee('aria-label="Logged by: Ravi Kumar"', false)
+            ->assertSee('data-bs-title="Ravi Kumar"', false);
     }
 
     public function test_dashboard_sorts_high_priority_service_cases_first(): void
@@ -390,7 +392,8 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('Assign Transaction ID')
             ->assertDontSee('data-batch-transaction-input', false)
             ->assertSee('service-case-select', false)
-            ->assertSee('Click to add')
+            ->assertSee('transaction-cell-trigger', false)
+            ->assertSee('aria-label="Add transaction ID"', false)
             ->assertSee('data-inline-transaction="true"', false)
             ->assertSee('bi-whatsapp', false);
     }
@@ -424,7 +427,7 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertDontSee('service-case-select', false)
-            ->assertDontSee('Click to add')
+            ->assertDontSee('transaction-cell-trigger', false)
             ->assertDontSee('data-bulk-bar', false);
     }
 

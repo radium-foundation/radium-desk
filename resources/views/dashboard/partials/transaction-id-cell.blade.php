@@ -23,8 +23,12 @@
         </span>
     @elseif($canAssign)
         <button type="button"
-                class="btn btn-link btn-sm p-0 text-muted text-decoration-none transaction-cell-trigger">
-            Click to add
+                class="transaction-cell-trigger dashboard-u-transaction-add dashboard-u-transition dashboard-u-focus-ring"
+                aria-label="Add transaction ID"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                data-bs-title="Add transaction ID">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
         </button>
         <div class="transaction-inline-editor d-none">
             <div class="input-group input-group-sm">

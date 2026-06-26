@@ -65,10 +65,64 @@
     <td class="source-cell d-none d-md-table-cell">
         @include('dashboard.partials.source-icon', ['source' => $serviceCase->source])
     </td>
-    <td class="case-meta-cell d-none d-md-table-cell">{{ $serviceCase->assignee?->firstName() ?: '—' }}</td>
-    <td class="case-meta-cell d-none d-md-table-cell">{{ $serviceCase->creator?->firstName() ?: '—' }}</td>
-    <td class="case-meta-cell d-none d-lg-table-cell text-nowrap">{{ display_app_datetime($serviceCase->created_at) }}</td>
-    <td class="case-meta-cell d-none d-lg-table-cell text-nowrap">{{ display_app_datetime($serviceCase->updated_at) }}</td>
+    <td class="case-meta-cell dashboard-user-cell d-none d-md-table-cell">
+        @if($serviceCase->assignee)
+            @php
+                $ownerName = trim((string) $serviceCase->assignee->name) ?: $serviceCase->assignee->firstName();
+                $ownerInitial = $ownerName !== '' ? strtoupper(substr($ownerName, 0, 1)) : null;
+            @endphp
+            @if($ownerInitial)
+                <span class="dashboard-u-avatar"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      data-bs-title="{{ $ownerName }}"
+                      aria-label="Owner: {{ $ownerName }}">{{ $ownerInitial }}</span>
+            @else
+                —
+            @endif
+        @else
+            —
+        @endif
+    </td>
+    <td class="case-meta-cell dashboard-user-cell d-none d-md-table-cell">
+        @if($serviceCase->creator)
+            @php
+                $loggedByName = trim((string) $serviceCase->creator->name) ?: $serviceCase->creator->firstName();
+                $loggedByInitial = $loggedByName !== '' ? strtoupper(substr($loggedByName, 0, 1)) : null;
+            @endphp
+            @if($loggedByInitial)
+                <span class="dashboard-u-avatar"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      data-bs-title="{{ $loggedByName }}"
+                      aria-label="Logged by: {{ $loggedByName }}">{{ $loggedByInitial }}</span>
+            @else
+                —
+            @endif
+        @else
+            —
+        @endif
+    </td>
+    <td class="case-meta-cell d-none d-lg-table-cell">
+        @if($serviceCase->created_at)
+            <span class="dashboard-u-datetime-stack">
+                <span class="dashboard-u-datetime-stack__date">{{ display_app_timeline_date($serviceCase->created_at) }}</span>
+                <span class="dashboard-u-datetime-stack__time">{{ display_app_timeline_time($serviceCase->created_at) }}</span>
+            </span>
+        @else
+            —
+        @endif
+    </td>
+    <td class="case-meta-cell d-none d-lg-table-cell">
+        @if($serviceCase->updated_at)
+            <span class="dashboard-u-datetime-stack">
+                <span class="dashboard-u-datetime-stack__date">{{ display_app_timeline_date($serviceCase->updated_at) }}</span>
+                <span class="dashboard-u-datetime-stack__time">{{ display_app_timeline_time($serviceCase->updated_at) }}</span>
+            </span>
+        @else
+            —
+        @endif
+    </td>
     <td class="case-meta-cell d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
     <td class="case-reference-cell d-none d-md-table-cell">
         <div class="d-flex flex-wrap align-items-center gap-1">
@@ -81,53 +135,63 @@
         </div>
     </td>
     @if($canShowRowActions)
-        <td class="dashboard-actions-cell text-end text-nowrap">
-            @can('create', App\Models\Remark::class)
-                @can('view', $serviceCase)
+        <td class="dashboard-actions-cell text-end">
+            <div class="dashboard-row-actions">
+                @can('create', App\Models\Remark::class)
+                    @can('view', $serviceCase)
+                        <button type="button"
+                                class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top"
+                                data-bs-title="Remark"
+                                data-workspace-trigger="remark"
+                                data-workspace-incident-id="{{ $serviceCase->id }}"
+                                data-workspace-context="dashboard"
+                                aria-label="Add remark for {{ $serviceCase->display_reference }}">
+                            <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+                        </button>
+                    @endcan
+                @endcan
+                @can('reassign', $serviceCase)
                     <button type="button"
-                            class="btn btn-outline-secondary btn-sm dashboard-btn-compact"
-                            data-workspace-trigger="remark"
+                            class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="Assign"
+                            data-workspace-trigger="assign"
                             data-workspace-incident-id="{{ $serviceCase->id }}"
                             data-workspace-context="dashboard"
-                            aria-label="Add remark for {{ $serviceCase->display_reference }}">
-                        <i class="bi bi-chat-left-text"></i>
-                        <span class="d-none d-xl-inline ms-1">Remark</span>
+                            aria-label="Assign {{ $serviceCase->display_reference }}">
+                        <i class="bi bi-person-check" aria-hidden="true"></i>
                     </button>
                 @endcan
-            @endcan
-            @can('reassign', $serviceCase)
-                <button type="button"
-                        class="btn btn-outline-primary btn-sm dashboard-btn-compact"
-                        data-workspace-trigger="assign"
-                        data-workspace-incident-id="{{ $serviceCase->id }}"
-                        data-workspace-context="dashboard"
-                        aria-label="Assign {{ $serviceCase->display_reference }}">
-                    <i class="bi bi-person-check"></i>
-                    <span class="d-none d-xl-inline ms-1">Assign</span>
-                </button>
-            @endcan
-            @if($canResolve)
-                <button type="button"
-                        class="btn btn-outline-success btn-sm dashboard-btn-compact"
-                        data-workspace-trigger="resolve"
-                        data-workspace-incident-id="{{ $serviceCase->id }}"
-                        data-workspace-context="dashboard"
-                        aria-label="Resolve {{ $serviceCase->display_reference }}">
-                    <i class="bi bi-check-circle"></i>
-                    <span class="d-none d-xl-inline ms-1">Resolve</span>
-                </button>
-            @endif
-            @if($canClose)
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm dashboard-btn-compact"
-                        data-workspace-trigger="close"
-                        data-workspace-incident-id="{{ $serviceCase->id }}"
-                        data-workspace-context="dashboard"
-                        aria-label="Close {{ $serviceCase->display_reference }}">
-                    <i class="bi bi-x-circle"></i>
-                    <span class="d-none d-xl-inline ms-1">Close</span>
-                </button>
-            @endif
+                @if($canResolve)
+                    <button type="button"
+                            class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="Resolve"
+                            data-workspace-trigger="resolve"
+                            data-workspace-incident-id="{{ $serviceCase->id }}"
+                            data-workspace-context="dashboard"
+                            aria-label="Resolve {{ $serviceCase->display_reference }}">
+                        <i class="bi bi-check-circle" aria-hidden="true"></i>
+                    </button>
+                @endif
+                @if($canClose)
+                    <button type="button"
+                            class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-bs-title="Close"
+                            data-workspace-trigger="close"
+                            data-workspace-incident-id="{{ $serviceCase->id }}"
+                            data-workspace-context="dashboard"
+                            aria-label="Close {{ $serviceCase->display_reference }}">
+                        <i class="bi bi-x-circle" aria-hidden="true"></i>
+                    </button>
+                @endif
+            </div>
         </td>
     @endif
 </tr>
