@@ -30,3 +30,10 @@ Thumbs.db
 .env.*.backup
 .env.sqlite.backup
 .env.mysql.backup
+
+# Local environment files
+.env.local
+.env.mysql
+.env.sqlite
+.env.production
+.env.testing.local
