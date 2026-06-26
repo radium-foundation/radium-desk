@@ -31,8 +31,20 @@
             @endif
         </td>
     @endif
-    <td class="case-meta-cell">{{ $order?->order_id ?: '—' }}</td>
-    <td class="case-meta-cell">{{ $order?->serial_number ?: '—' }}</td>
+    <td class="case-meta-cell">
+        @if($order)
+            <a href="{{ route('orders.show', $order) }}" class="text-decoration-none">{{ $order->order_id }}</a>
+        @else
+            —
+        @endif
+    </td>
+    <td class="case-meta-cell">
+        @if($order)
+            <a href="{{ route('orders.show', $order) }}" class="text-decoration-none">{{ $order->serial_number ?: '—' }}</a>
+        @else
+            —
+        @endif
+    </td>
     <td class="status-cell">
         @if($order)
             @include('dashboard.partials.completion-status-tooltip', [

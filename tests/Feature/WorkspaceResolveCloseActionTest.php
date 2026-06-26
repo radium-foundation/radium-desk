@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\Remark;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
@@ -71,10 +72,23 @@ class WorkspaceResolveCloseActionTest extends TestCase
         ]);
     }
 
+    private function prepareAgentResolvableIncident(Incident $incident, User $agent): void
+    {
+        Remark::query()->create([
+            'user_id' => $agent->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => 'Agent remark before resolve.',
+        ]);
+
+        $incident->order?->update(['transaction_id' => 'TXN-AGENT-1']);
+    }
+
     public function test_resolve_action_returns_service_case_timeline_and_header_refresh_payload(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $incident = $this->createIncident($agent, ['status' => IncidentStatus::InProgress]);
+        $this->prepareAgentResolvableIncident($incident, $agent);
 
         $response = $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.resolve', $incident), [
@@ -104,6 +118,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $incident = $this->createIncident($agent, ['status' => IncidentStatus::Resolved]);
+        $this->prepareAgentResolvableIncident($incident, $agent);
 
         $response = $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.close', $incident), [
@@ -290,6 +305,132 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ->assertSee(route('incidents.workspace.close', $incident), false)
             ->assertSee('value="service_case"', false)
             ->assertSee('data-workspace-action-form="close"', false);
+    }
+
+    public function test_agent_resolve_action_requires_remark_and_transaction_id(): void
+    {
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $incident = $this->createIncident($agent);
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.resolve', $incident), [
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('ui.close_workspace_host', false)
+            ->assertJsonStructure([
+                'errors' => ['remarks', 'transaction_id'],
+            ]);
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
+    public function test_agent_close_action_requires_remark_and_transaction_id(): void
+    {
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $incident = $this->createIncident($agent);
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.close', $incident), [
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure([
+                'errors' => ['remarks', 'transaction_id'],
+            ]);
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
+    public function test_admin_can_resolve_without_remark_or_transaction_id(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.resolve', $incident), [
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Resolved, $incident->fresh()->status);
+    }
+
+    public function test_dashboard_excludes_closed_cases_from_pending_admin_filter(): void
+    {
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+
+        $closedOrder = Order::query()->create([
+            'order_id' => 'OID0001',
+            'serial_number' => 'SN-CLOSED-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $closedOrder->id,
+            'reference_no' => 'SC-CLOSED-1',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Closed pending admin case',
+            'description' => 'Closed without transaction ID.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->assertOk()
+            ->assertDontSee('OID0001')
+            ->assertDontSee('SC-CLOSED-1');
+    }
+
+    public function test_open_cases_kpi_excludes_closed_incidents(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+
+        $order = Order::query()->create([
+            'order_id' => 'OID-KPI-1',
+            'serial_number' => 'SN-KPI-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-OPEN-1',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Open case',
+            'description' => 'Open case for KPI test.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-CLOSED-KPI',
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Closed case',
+            'description' => 'Closed case for KPI test.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        $stats = app(\App\Services\DashboardService::class)->statsFor($admin);
+
+        $this->assertSame(1, $stats['open_incidents']);
     }
 
     public function test_dashboard_shows_resolve_and_close_triggers_for_updatable_cases(): void

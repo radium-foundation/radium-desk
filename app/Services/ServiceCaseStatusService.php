@@ -6,6 +6,7 @@ use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -50,6 +51,10 @@ class ServiceCaseStatusService
             ]);
         }
 
+        if (in_array($status, [IncidentStatus::Resolved, IncidentStatus::Closed], true)) {
+            $this->validateAgentResolutionRequirements($incident, $actor);
+        }
+
         return DB::transaction(function () use ($incident, $status, $actor): Incident {
             $oldStatus = $incident->status;
 
@@ -76,5 +81,32 @@ class ServiceCaseStatusService
 
             return $freshIncident;
         });
+    }
+
+    private function validateAgentResolutionRequirements(Incident $incident, User $actor): void
+    {
+        if (! $actor->hasRole(RolePermissionSeeder::ROLE_AGENT)
+            || $actor->hasAnyRole([
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_SUPERADMIN,
+            ])) {
+            return;
+        }
+
+        $messages = [];
+
+        if ($incident->remarks()->count() === 0) {
+            $messages['remarks'] = 'Add at least one remark before resolving or closing this service case.';
+        }
+
+        $order = $incident->order;
+
+        if ($order === null || $order->transaction_id === null || trim((string) $order->transaction_id) === '') {
+            $messages['transaction_id'] = 'Assign a transaction ID to the related order before resolving or closing this service case.';
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
+        }
     }
 }

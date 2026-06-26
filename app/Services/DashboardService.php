@@ -117,7 +117,8 @@ class DashboardService
     public function recentServiceCases(string $filter = 'pending_admin', ?int $limit = 10): Collection
     {
         $query = Incident::query()
-            ->with(['order.transactionAssigner', 'creator', 'assignee']);
+            ->with(['order.transactionAssigner', 'creator', 'assignee'])
+            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress]);
 
         match ($filter) {
             'pending_admin' => $query->whereHas('order', function ($orderQuery): void {
@@ -130,8 +131,7 @@ class DashboardService
                 $orderQuery->whereNotNull('transaction_id')
                     ->where('transaction_id', '!=', '');
             }),
-            'high_priority' => $query->where('high_priority', true)
-                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress]),
+            'high_priority' => $query->where('high_priority', true),
             'overdue' => $query->whereHas('order', function ($orderQuery): void {
                 $orderQuery->where(function ($pendingQuery): void {
                     $pendingQuery->whereNull('transaction_id')
@@ -176,6 +176,7 @@ class DashboardService
     {
         $pendingIncidents = Incident::query()
             ->with('order')
+            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
             ->whereHas('order', function ($orderQuery): void {
                 $orderQuery->where(function ($pendingQuery): void {
                     $pendingQuery->whereNull('transaction_id')

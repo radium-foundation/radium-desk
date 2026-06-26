@@ -16,7 +16,7 @@
                 id="modal_assigned_to_user_id"
                 class="form-select @error('assigned_to_user_id') is-invalid @enderror"
                 required>
-            <option value="" disabled @selected(old('assigned_to_user_id') === null && $incident->assigned_to_user_id === null)>Select admin</option>
+            <option value="" disabled @selected(old('assigned_to_user_id') === null && $incident->assigned_to_user_id === null)>Select assignee</option>
             @foreach($reassignableAdmins as $adminUser)
                 <option value="{{ $adminUser->id }}"
                     @selected((int) old('assigned_to_user_id', $incident->assigned_to_user_id) === $adminUser->id)>

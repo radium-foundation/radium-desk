@@ -11,6 +11,7 @@
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
          data-user-id="{{ auth()->id() }}"
+         data-reopen-quick-create="{{ ($reopenQuickCreate ?? false) ? 'true' : 'false' }}"
          @if($reverbConfigured ?? false)
          data-reverb-key="{{ config('broadcasting.connections.reverb.key') }}"
          data-reverb-host="{{ config('broadcasting.connections.reverb.options.host') }}"
@@ -54,6 +55,6 @@
     </div>
 
     @if($canQuickCreate)
-        @include('dashboard.partials.quick-create-form')
+        @include('dashboard.partials.quick-create-form', ['reopenQuickCreate' => $reopenQuickCreate ?? false])
     @endif
 @endsection

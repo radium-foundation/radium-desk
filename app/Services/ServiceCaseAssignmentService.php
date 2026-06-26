@@ -61,7 +61,7 @@ class ServiceCaseAssignmentService
 
     public function reassign(Incident $incident, User $assignee, User $actor): Incident
     {
-        $this->ensureAdminAssignee($assignee);
+        $this->ensureValidAssignee($assignee);
 
         return $this->applyAssignment(
             incident: $incident,
@@ -74,17 +74,26 @@ class ServiceCaseAssignmentService
     /**
      * @return list<User>
      */
-    public function reassignableAdmins(): array
+    public function reassignableUsers(): array
     {
         return User::query()
             ->where('is_active', true)
             ->role([
                 RolePermissionSeeder::ROLE_ADMIN,
                 RolePermissionSeeder::ROLE_SUPERADMIN,
+                RolePermissionSeeder::ROLE_AGENT,
             ])
             ->orderBy('name')
             ->get()
             ->all();
+    }
+
+    /**
+     * @return list<User>
+     */
+    public function reassignableAdmins(): array
+    {
+        return $this->reassignableUsers();
     }
 
     private function resolvePrimaryAssigneeUserId(?Carbon $at = null): int
@@ -173,14 +182,15 @@ class ServiceCaseAssignmentService
         }
     }
 
-    private function ensureAdminAssignee(User $assignee): void
+    private function ensureValidAssignee(User $assignee): void
     {
         if ($assignee->trashed() || ! $assignee->is_active || ! $assignee->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
+            RolePermissionSeeder::ROLE_AGENT,
         ])) {
             throw ValidationException::withMessages([
-                'assigned_to_user_id' => 'The selected user must be an admin.',
+                'assigned_to_user_id' => 'The selected user must be an active admin or agent.',
             ]);
         }
     }

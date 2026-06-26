@@ -16,6 +16,12 @@
         @error('status')
             <div class="text-danger small mt-2">{{ $message }}</div>
         @enderror
+        @error('remarks')
+            <div class="text-danger small mt-2">{{ $message }}</div>
+        @enderror
+        @error('transaction_id')
+            <div class="text-danger small mt-2">{{ $message }}</div>
+        @enderror
         @error('workspace_context')
             <div class="text-danger small mt-2">{{ $message }}</div>
         @enderror

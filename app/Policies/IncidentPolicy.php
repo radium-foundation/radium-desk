@@ -39,9 +39,6 @@ class IncidentPolicy
             return false;
         }
 
-        return $user->hasAnyRole([
-            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
-            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
-        ]);
+        return $user->can('update', $incident);
     }
 }

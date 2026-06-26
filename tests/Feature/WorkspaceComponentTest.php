@@ -96,7 +96,7 @@ class WorkspaceComponentTest extends TestCase
             ->assertSee('Add Remark', false);
     }
 
-    public function test_unauthorized_user_cannot_load_assign_component(): void
+    public function test_agent_can_load_assign_component(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -104,6 +104,23 @@ class WorkspaceComponentTest extends TestCase
         $incident = $this->createIncident($agent);
 
         $this->actingAs($agent)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'assign',
+            ]))
+            ->assertOk()
+            ->assertSee('Assign Service Case', false);
+    }
+
+    public function test_unauthorized_user_cannot_load_assign_component(): void
+    {
+        $unauthorized = User::factory()->create();
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createIncident($agent);
+
+        $this->actingAs($unauthorized)
             ->get(route('incidents.components.show', [
                 'incident' => $incident,
                 'component' => 'assign',

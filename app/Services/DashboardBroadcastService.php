@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\IncidentStatus;
 use App\Events\Dashboard\DashboardKpisUpdated;
 use App\Events\Dashboard\NotificationCreated;
 use App\Events\Dashboard\ServiceCaseClosed;
@@ -212,6 +213,10 @@ class DashboardBroadcastService
 
     private function shouldRemoveFromDefaultList(Incident $incident): bool
     {
+        if (in_array($incident->status, [IncidentStatus::Resolved, IncidentStatus::Closed], true)) {
+            return true;
+        }
+
         return ! $incident->isPendingAdmin();
     }
 }

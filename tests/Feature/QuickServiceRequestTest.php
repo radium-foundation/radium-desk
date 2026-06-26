@@ -105,7 +105,43 @@ class QuickServiceRequestTest extends TestCase
             ->assertOk()
             ->assertSee('data-show-on-load="true"', false)
             ->assertSee('data-reset-on-show="true"', false)
+            ->assertSee('data-reopen-quick-create="true"', false)
             ->assertSee('Service Case SC00001 created successfully.');
+    }
+
+    public function test_admin_dashboard_reopens_quick_create_modal_after_successful_create(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->withSession([
+            'status' => 'service-case-created',
+            'service_case_reference' => 'SC00001',
+            'reopen_quick_create' => true,
+        ])
+            ->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-show-on-load="true"', false)
+            ->assertSee('data-reset-on-show="true"', false)
+            ->assertSee('data-reopen-quick-create="true"', false);
+    }
+
+    public function test_superadmin_dashboard_reopens_quick_create_modal_after_successful_create(): void
+    {
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $this->withSession([
+            'status' => 'service-case-created',
+            'service_case_reference' => 'SC00001',
+            'reopen_quick_create' => true,
+        ])
+            ->actingAs($superadmin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-reopen-quick-create="true"', false)
+            ->assertSee('data-reset-on-show="true"', false);
     }
 
     public function test_quick_create_rejects_serial_mismatch_for_existing_order(): void

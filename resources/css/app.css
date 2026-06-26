@@ -854,6 +854,12 @@ a:focus-visible .stat-card {
     padding: 0 0.2rem;
 }
 
+.mention-suggestions {
+    z-index: 1080;
+    max-height: 12rem;
+    overflow-y: auto;
+}
+
 @keyframes notification-bell-shake {
     0%, 100% { transform: rotate(0deg); }
     20% { transform: rotate(-12deg); }

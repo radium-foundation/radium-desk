@@ -117,7 +117,7 @@ class WorkspaceAssignActionTest extends TestCase
             ->assertJsonPath('refresh.replace_row.incident_id', $incident->id);
     }
 
-    public function test_assign_action_is_forbidden_for_non_admin(): void
+    public function test_assign_action_allows_agent_to_assign_to_admin(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -126,6 +126,26 @@ class WorkspaceAssignActionTest extends TestCase
         $incident = $this->createIncident($agent);
 
         $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.assign', $incident), [
+                'assigned_to_user_id' => $admin->id,
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame($admin->id, $incident->fresh()->assigned_to_user_id);
+    }
+
+    public function test_assign_action_is_forbidden_for_unauthorized_user(): void
+    {
+        $unauthorized = User::factory()->create();
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($agent);
+
+        $this->actingAs($unauthorized)
             ->patchJson(route('incidents.workspace.assign', $incident), [
                 'assigned_to_user_id' => $admin->id,
                 'workspace_context' => WorkspaceContext::ServiceCase->value,

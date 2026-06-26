@@ -26,8 +26,11 @@ class DashboardController extends Controller
             \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
         ]);
 
+        $reopenQuickCreate = (bool) session('reopen_quick_create', false);
+
         return view('dashboard.index', [
             'stats' => $this->dashboardService->statsFor($user),
+            'reopenQuickCreate' => $reopenQuickCreate,
             'recentServiceCases' => $user->can('incidents.view')
                 ? $this->dashboardService->recentServiceCases(
                     $filter,
@@ -40,10 +43,7 @@ class DashboardController extends Controller
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
             'serviceCaseFilter' => $filter,
             'canManageTransactions' => $canManageTransactions,
-            'canReassignServiceCases' => $user->hasAnyRole([
-                \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
-                \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
-            ]),
+            'canReassignServiceCases' => $user->can('incidents.update'),
             'canCreateRemarks' => $user->can('create', \App\Models\Remark::class),
             'canShowServiceCaseActions' => $user->hasAnyRole([
                 \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,

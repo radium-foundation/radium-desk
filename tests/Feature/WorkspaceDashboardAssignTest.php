@@ -74,7 +74,7 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertSee('dashboard-actions-cell', false);
     }
 
-    public function test_dashboard_hides_assign_actions_for_agents(): void
+    public function test_dashboard_shows_assign_actions_for_agents(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -84,7 +84,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('data-workspace-trigger="assign"', false)
+            ->assertSee('data-workspace-trigger="assign"', false)
             ->assertSee('data-workspace-trigger="remark"', false)
             ->assertSee('dashboard-actions-cell', false);
     }

@@ -58,6 +58,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertOk()
             ->assertSee('Recent Service Cases')
             ->assertSee('SC00001')
+            ->assertSee(route('orders.show', $order), false)
             ->assertSee('RD3421021')
             ->assertSee('SN001')
             ->assertSee('MFS 110')
