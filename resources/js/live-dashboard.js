@@ -129,7 +129,6 @@ export const initLiveDashboard = (hooks = {}) => {
 
 export {
     applyDashboardRefresh,
-    configureLiveDashboard,
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,
