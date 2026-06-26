@@ -6,7 +6,7 @@ import { resetWorkspaceSession } from '../../resources/js/workspace/session';
 const buildDashboardDom = () => {
     document.body.innerHTML = `
         <div id="dashboard-page">
-            <div class="dashboard-bulk-bar d-none" data-bulk-bar>
+            <div class="dashboard-bulk-toolbar" data-bulk-bar>
                 <span data-bulk-count>0</span>
                 <button type="button" data-batch-clear>Clear</button>
                 <button type="button" data-batch-assign disabled>Assign</button>

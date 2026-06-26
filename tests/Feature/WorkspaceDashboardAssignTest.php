@@ -107,7 +107,7 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertJsonStructure([
                 'refresh' => [
                     'replace_row' => ['incident_id', 'html', 'strategy'],
-                    'kpis_html' => ['action_stats_html', 'sla_cards_html'],
+                    'kpis_html' => ['kpi_strip_html'],
                 ],
             ]);
 

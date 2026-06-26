@@ -6,7 +6,7 @@
     $canAssign = $canManageTransactions && $order && auth()->user()?->can('assignTransaction', $order);
 @endphp
 
-<td class="transaction-id-cell d-none d-md-table-cell"
+<td class="transaction-id-cell"
     @if($canAssign && ! $isCompleted)
         data-inline-transaction="true"
         data-order-id="{{ $order->id }}"

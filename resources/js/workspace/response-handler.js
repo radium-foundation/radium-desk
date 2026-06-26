@@ -66,6 +66,12 @@ const applyKpis = (refresh) => {
         return;
     }
 
+    if (refresh.kpis_html.kpi_strip_html !== undefined) {
+        replaceInnerHtml('dashboard-kpi-strip', refresh.kpis_html.kpi_strip_html);
+
+        return;
+    }
+
     replaceInnerHtml('dashboard-action-stats', refresh.kpis_html.action_stats_html);
     replaceInnerHtml('dashboard-sla-cards', refresh.kpis_html.sla_cards_html);
 };

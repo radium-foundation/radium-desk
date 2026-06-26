@@ -36,8 +36,7 @@ class WorkspaceRefreshRenderer
         if ($effects->refreshKpis) {
             $stats = $this->dashboardService->statsFor($user);
             $refresh['kpis_html'] = [
-                'action_stats_html' => view('dashboard.partials.action-stats', compact('stats'))->render(),
-                'sla_cards_html' => view('dashboard.partials.sla-alert-cards', compact('stats'))->render(),
+                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
             ];
         }
 
@@ -161,8 +160,7 @@ class WorkspaceRefreshRenderer
         if ($effects->refreshKpis) {
             $stats = $this->dashboardService->statsFor($user);
             $refresh['kpis_html'] = [
-                'action_stats_html' => view('dashboard.partials.action-stats', compact('stats'))->render(),
-                'sla_cards_html' => view('dashboard.partials.sla-alert-cards', compact('stats'))->render(),
+                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
             ];
         }
 

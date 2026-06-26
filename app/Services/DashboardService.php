@@ -238,4 +238,12 @@ class DashboardService
             ->limit($limit)
             ->get();
     }
+
+    /**
+     * @param  array<string, int>  $stats
+     */
+    public function renderKpiStrip(array $stats): string
+    {
+        return view('dashboard.partials.kpi-strip', compact('stats'))->render();
+    }
 }

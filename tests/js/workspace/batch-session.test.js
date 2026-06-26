@@ -5,7 +5,7 @@ import { getWorkspaceSession, resetWorkspaceSession } from '../../../resources/j
 const buildDashboardDom = () => {
     document.body.innerHTML = `
         <div id="dashboard-page">
-            <div class="dashboard-bulk-bar d-none" data-bulk-bar>
+            <div class="dashboard-bulk-toolbar" data-bulk-bar>
                 <span data-bulk-count>0</span>
                 <button type="button" data-batch-clear>Clear</button>
                 <button type="button" data-batch-assign disabled>Assign</button>
@@ -66,13 +66,13 @@ describe('createBatchTransactionSession', () => {
         resetWorkspaceSession();
     });
 
-    it('shows floating toolbar with selected count when rows are selected', () => {
+    it('activates inline toolbar with selected count when rows are selected', () => {
         const checkbox = document.querySelector('.service-case-select[value="1"]');
 
         checkbox.checked = true;
         batchSession.handleCheckboxChange(checkbox);
 
-        expect(document.querySelector('[data-bulk-bar]').classList.contains('d-none')).toBe(false);
+        expect(document.querySelector('[data-bulk-bar]').classList.contains('dashboard-bulk-toolbar--active')).toBe(true);
         expect(document.querySelector('[data-bulk-count]').textContent).toBe('1');
         expect(document.querySelector('[data-batch-assign]').disabled).toBe(false);
         expect(document.getElementById('service-case-row-1').classList.contains('dashboard-case-row--selected')).toBe(true);
@@ -131,7 +131,7 @@ describe('createBatchTransactionSession', () => {
         expect(document.querySelector('.service-case-select[value="2"]').checked).toBe(true);
     });
 
-    it('clears selection, visual state, and hides toolbar via delegated clear click', () => {
+    it('clears selection, visual state, and deactivates toolbar via delegated clear click', () => {
         const session = getWorkspaceSession();
         const checkbox = document.querySelector('.service-case-select[value="1"]');
 
@@ -142,6 +142,6 @@ describe('createBatchTransactionSession', () => {
         expect(checkbox.checked).toBe(false);
         expect(document.getElementById('service-case-row-1').classList.contains('dashboard-case-row--selected')).toBe(false);
         expect(session.isActive('bulk-selection')).toBe(false);
-        expect(document.querySelector('[data-bulk-bar]').classList.contains('d-none')).toBe(true);
+        expect(document.querySelector('[data-bulk-bar]').classList.contains('dashboard-bulk-toolbar--active')).toBe(false);
     });
 });

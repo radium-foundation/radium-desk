@@ -59,7 +59,7 @@ export const createBatchTransactionSession = ({
         const clearButton = getClearButton();
         const selectAll = getSelectAll();
 
-        bulkBar?.classList.toggle('d-none', count === 0);
+        bulkBar?.classList.toggle('dashboard-bulk-toolbar--active', count > 0);
 
         if (bulkCount) {
             bulkCount.textContent = String(count);

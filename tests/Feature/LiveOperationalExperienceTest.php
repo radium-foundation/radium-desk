@@ -56,8 +56,7 @@ class LiveOperationalExperienceTest extends TestCase
 
         $response->assertOk()
             ->assertJsonStructure([
-                'action_stats_html',
-                'sla_cards_html',
+                'kpi_strip_html',
                 'service_cases_empty',
                 'service_cases_empty_html',
                 'rows',

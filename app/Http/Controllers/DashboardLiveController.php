@@ -42,8 +42,7 @@ class DashboardLiveController extends Controller
             })->values();
 
             return response()->json([
-                'action_stats_html' => view('dashboard.partials.action-stats', compact('stats'))->render(),
-                'sla_cards_html' => view('dashboard.partials.sla-alert-cards', compact('stats'))->render(),
+                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
                 'service_cases_empty' => $recentServiceCases->isEmpty(),
                 'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
                 'rows' => $rows,

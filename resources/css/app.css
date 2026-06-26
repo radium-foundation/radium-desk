@@ -122,7 +122,83 @@ html.sidebar-expanded .app-main {
 }
 
 .app-content-compact .dashboard-header {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.dashboard-section-title {
+    font-weight: 600;
+    color: #495057;
+}
+
+.dashboard-kpi-strip {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.375rem;
+    overflow-x: auto;
+    padding: 0.375rem 0.5rem;
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    scrollbar-width: thin;
+}
+
+.dashboard-kpi-strip--secondary {
+    background: #fafbfc;
+}
+
+.dashboard-kpi-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 0 auto;
+    min-width: 6.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+    color: inherit;
+}
+
+a.dashboard-kpi-item:hover {
+    background: rgba(13, 110, 253, 0.04);
+}
+
+a.dashboard-kpi-item:focus-visible {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 1px;
+}
+
+.dashboard-kpi-icon {
+    width: 1.625rem;
+    height: 1.625rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.375rem;
+    font-size: 0.8125rem;
+}
+
+.dashboard-kpi-icon[class*='bg-'] {
+    background-color: color-mix(in srgb, currentColor 10%, #fff) !important;
+}
+
+.dashboard-kpi-content {
+    min-width: 0;
+}
+
+.dashboard-kpi-label {
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: #6c757d;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dashboard-kpi-value {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.15;
 }
 
 .stat-card {
@@ -208,10 +284,10 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-service-cases-card {
-    border-radius: 0.75rem;
+    border-radius: 0.5rem;
     box-shadow:
         0 1px 2px rgba(16, 24, 40, 0.04),
-        0 4px 12px rgba(16, 24, 40, 0.06);
+        0 2px 8px rgba(16, 24, 40, 0.05);
 }
 
 .dashboard-service-cases-card .card-header {
@@ -223,20 +299,60 @@ a:focus-visible .stat-card {
     color: #212529;
 }
 
+.dashboard-cases-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.dashboard-bulk-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    min-height: 1.75rem;
+    padding: 0.125rem 0;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+
+.dashboard-bulk-toolbar--active {
+    opacity: 1;
+}
+
+.dashboard-bulk-toolbar__count {
+    min-width: 5.5rem;
+    color: #6c757d;
+}
+
+.dashboard-bulk-toolbar--active .dashboard-bulk-toolbar__count {
+    color: #212529;
+}
+
+.dashboard-cases-table-wrap {
+    overflow-x: visible;
+}
+
+@media (max-width: 767.98px) {
+    .dashboard-cases-table-wrap {
+        overflow-x: auto;
+    }
+}
+
 .dashboard-cases-table > :not(caption) > * > * {
-    padding: 0.5rem 0.625rem;
-    font-size: 0.8125rem;
+    padding: 0.3125rem 0.4375rem;
+    font-size: 0.78125rem;
     border-color: #eef0f2;
 }
 
 .dashboard-cases-table thead th {
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     color: #6c757d;
-    padding-top: 0.625rem;
-    padding-bottom: 0.625rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
     border-bottom: 1px solid #e9ecef;
     white-space: nowrap;
 }
@@ -345,20 +461,34 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-case-filters .btn {
-    font-size: 0.75rem;
-    padding: 0.2rem 0.55rem;
+    font-size: 0.6875rem;
+    padding: 0.125rem 0.45rem;
 }
 
-.dashboard-bulk-bar {
-    position: fixed;
-    top: 4.5rem;
-    right: 1.25rem;
-    z-index: 1030;
-    padding: 0.625rem 0.875rem;
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 0.5rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+.dashboard-activity-list {
+    font-size: 0.75rem;
+}
+
+.dashboard-activity-item {
+    border-color: #eef0f2 !important;
+}
+
+.dashboard-activity-time {
+    font-size: 0.6875rem;
+    white-space: nowrap;
+}
+
+.dashboard-activity-event {
+    font-size: 0.625rem;
+    padding: 0.2em 0.45em;
+}
+
+.dashboard-activity-reference {
+    color: #495057;
+}
+
+.dashboard-activity-user {
+    font-size: 0.6875rem;
 }
 
 .dashboard-cases-table tbody tr.dashboard-case-row--selected {

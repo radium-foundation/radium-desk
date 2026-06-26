@@ -17,12 +17,12 @@
         </p>
 
         <div class="mb-3">
-            <label class="form-label">Selected Service Cases</label>
+            <label class="form-label">Selected Orders</label>
             <ul class="list-group list-group-flush border rounded batch-transaction-order-list">
                 @foreach($incidents as $incident)
                     <li class="list-group-item py-2 px-3 small d-flex justify-content-between gap-2">
-                        <span class="fw-semibold">{{ $incident->reference_no }}</span>
-                        <span class="text-muted">{{ $incident->order?->order_id ?: '—' }}</span>
+                        <span class="fw-semibold">{{ $incident->order?->order_id ?: '—' }}</span>
+                        <span class="text-muted">{{ $incident->order?->serial_number ?: '—' }}</span>
                     </li>
                 @endforeach
             </ul>

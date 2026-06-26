@@ -27,8 +27,7 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
 
         const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
 
-        replaceInnerHtml('dashboard-action-stats', data.action_stats_html);
-        replaceInnerHtml('dashboard-sla-cards', data.sla_cards_html);
+        replaceInnerHtml('dashboard-kpi-strip', data.kpi_strip_html);
 
         const card = document.querySelector('.dashboard-service-cases-card');
 

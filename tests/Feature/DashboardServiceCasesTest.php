@@ -71,7 +71,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('6 hours 12 minutes')
             ->assertSee('SLA')
             ->assertSee('Within SLA')
-            ->assertSee('Last Updated')
+            ->assertSee('Updated')
             ->assertSee('Ravi');
 
         Carbon::setTestNow();
@@ -628,8 +628,8 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Overdue Cases')
-            ->assertSee('Warning Cases')
+            ->assertSee('Overdue')
+            ->assertSee('Warning')
             ->assertSee('>1</div>', false);
 
         $this->actingAs($admin)

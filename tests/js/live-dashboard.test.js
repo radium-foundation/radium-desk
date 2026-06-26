@@ -12,8 +12,7 @@ describe('live dashboard refresh session integration', () => {
         resetWorkspaceSession();
         document.body.innerHTML = `
             <div id="dashboard-page" data-live-url="/dashboard/live" data-live-filter="pending_admin"></div>
-            <div id="dashboard-action-stats">stats-old</div>
-            <div id="dashboard-sla-cards">sla-old</div>
+            <div id="dashboard-kpi-strip">stats-old</div>
             <div class="dashboard-service-cases-card">
                 <div id="dashboard-service-cases-scroll">
                     <table>
@@ -38,8 +37,7 @@ describe('live dashboard refresh session integration', () => {
         fetch.mockResolvedValue({
             ok: true,
             json: async () => ({
-                action_stats_html: 'stats-new',
-                sla_cards_html: 'sla-new',
+                kpi_strip_html: 'stats-new',
                 rows: [],
                 service_cases_empty: true,
                 service_cases_empty_html: '',
@@ -51,8 +49,7 @@ describe('live dashboard refresh session integration', () => {
 
         await refreshDashboard(document.getElementById('dashboard-page'));
 
-        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-old');
-        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-old');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-old');
         expect(document.querySelector('#service-case-row-10')).not.toBeNull();
     });
 
@@ -64,16 +61,14 @@ describe('live dashboard refresh session integration', () => {
         session.acquire('quick-create');
 
         queueDashboardRefresh({
-            action_stats_html: 'stats-first',
-            sla_cards_html: 'sla-first',
+            kpi_strip_html: 'stats-first',
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
         });
 
         queueDashboardRefresh({
-            action_stats_html: 'stats-latest',
-            sla_cards_html: 'sla-latest',
+            kpi_strip_html: 'stats-latest',
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
@@ -84,29 +79,25 @@ describe('live dashboard refresh session integration', () => {
 
         await flushPendingDashboardRefresh();
 
-        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-latest');
-        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-latest');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-latest');
     });
 
     it('applies refresh immediately when no session is active', async () => {
         await applyDashboardRefresh({
-            action_stats_html: 'stats-new',
-            sla_cards_html: 'sla-new',
+            kpi_strip_html: 'stats-new',
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
         });
 
-        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-new');
-        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-new');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-new');
     });
 
     it('defers applyDashboardRefresh when session becomes active before requestAnimationFrame', async () => {
         const session = getWorkspaceSession();
 
         const applyPromise = applyDashboardRefresh({
-            action_stats_html: 'stats-new',
-            sla_cards_html: 'sla-new',
+            kpi_strip_html: 'stats-new',
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
@@ -115,22 +106,19 @@ describe('live dashboard refresh session integration', () => {
         session.acquire('bulk-selection', { incidentIds: [10] });
         await applyPromise;
 
-        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-old');
-        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-old');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-old');
 
         session.release('bulk-selection');
         await flushPendingDashboardRefresh();
 
-        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-new');
-        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-new');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-new');
     });
 
     it('queues bulk-selection refresh without DOM mutation and flushes the latest payload once on idle', async () => {
         fetch.mockResolvedValue({
             ok: true,
             json: async () => ({
-                action_stats_html: 'stats-polled',
-                sla_cards_html: 'sla-polled',
+                kpi_strip_html: 'stats-polled',
                 rows: [{
                     incident_id: 99,
                     html: '<tr id="service-case-row-99"><td>SC00099</td></tr>',
@@ -148,22 +136,19 @@ describe('live dashboard refresh session integration', () => {
 
         await refreshDashboard(document.getElementById('dashboard-page'));
 
-        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-old');
-        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-old');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-old');
         expect(document.querySelector('#service-case-row-10')).not.toBeNull();
         expect(document.querySelector('#service-case-row-99')).toBeNull();
 
         queueDashboardRefresh({
-            action_stats_html: 'stats-first',
-            sla_cards_html: 'sla-first',
+            kpi_strip_html: 'stats-first',
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
         });
 
         queueDashboardRefresh({
-            action_stats_html: 'stats-latest',
-            sla_cards_html: 'sla-latest',
+            kpi_strip_html: 'stats-latest',
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
@@ -175,7 +160,6 @@ describe('live dashboard refresh session integration', () => {
         await flushPendingDashboardRefresh();
         await flushPendingDashboardRefresh();
 
-        expect(document.getElementById('dashboard-action-stats')?.textContent).toBe('stats-latest');
-        expect(document.getElementById('dashboard-sla-cards')?.textContent).toBe('sla-latest');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-latest');
     });
 });

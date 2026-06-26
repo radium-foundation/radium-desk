@@ -72,8 +72,10 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             ]))
             ->assertOk()
             ->assertSee('Assign Transaction ID', false)
-            ->assertSee($first['incident']->reference_no, false)
-            ->assertSee($second['incident']->reference_no, false)
+            ->assertSee($first['order']->order_id, false)
+            ->assertSee($first['order']->serial_number, false)
+            ->assertSee($second['order']->order_id, false)
+            ->assertSee($second['order']->serial_number, false)
             ->assertSee('data-workspace-action-form="batch-transaction"', false);
     }
 
@@ -99,7 +101,7 @@ class WorkspaceBatchTransactionActionTest extends TestCase
                     'replace_rows' => [
                         ['incident_id', 'html', 'strategy'],
                     ],
-                    'kpis_html' => ['action_stats_html', 'sla_cards_html'],
+                    'kpis_html' => ['kpi_strip_html'],
                 ],
                 'extensions' => [
                     'succeeded_incident_ids',
