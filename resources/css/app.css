@@ -350,13 +350,23 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-bulk-bar {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    padding: 0.5rem 0.75rem;
+    position: fixed;
+    top: 4.5rem;
+    right: 1.25rem;
+    z-index: 1030;
+    padding: 0.625rem 0.875rem;
     background: #fff;
-    border-bottom: 1px solid #dee2e6;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.05);
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+}
+
+.dashboard-cases-table tbody tr.dashboard-case-row--selected {
+    background-color: rgba(13, 110, 253, 0.08);
+}
+
+.dashboard-cases-table tbody tr.dashboard-case-row--selected:hover {
+    background-color: rgba(13, 110, 253, 0.12);
 }
 
 .transaction-id-cell[data-inline-transaction="true"] {

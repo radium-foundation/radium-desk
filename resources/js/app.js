@@ -87,7 +87,7 @@ const showAppToast = (message, variant = 'success') => {
     toast.show();
 };
 
-const initDashboardTransactions = ({ openBatchModal } = {}) => {
+const initDashboardTransactions = ({ pageRoot, openBatchModal } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
@@ -106,6 +106,7 @@ const initDashboardTransactions = ({ openBatchModal } = {}) => {
 
     batchSession = createBatchTransactionSession({
         card,
+        pageRoot: pageRoot ?? document,
         openBatchModal,
     });
 
@@ -292,30 +293,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initTooltips();
 
-    const workspaceApiRef = { current: null };
-    const dashboardTransactions = initDashboardTransactions({
-        openBatchModal: (incidentIds) => {
-            workspaceApiRef.current?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
-        },
-    });
+    const pageRoot = document.getElementById('dashboard-page') ?? document;
+    const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
+    const dashboardTransactionsRef = { current: null };
 
     const workspaceApi = initWorkspace({
         showToast: showAppToast,
-        replaceServiceCaseRow: dashboardTransactions?.replaceServiceCaseRow
-            ?? createServiceCaseRowReplacer({ initTooltips }),
+        replaceServiceCaseRow: (...args) => (
+            dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
+        )(...args),
         initTooltips,
         initMentionTextareas,
         afterSuccess: async (data) => {
-            if (data.action !== 'batch-transaction') {
-                dashboardTransactions?.batchSession.restoreAllRowStates();
+            const batchSession = dashboardTransactionsRef.current?.batchSession;
+
+            if (!batchSession) {
                 return;
             }
 
-            dashboardTransactions?.batchSession.handleBatchResult(
-                data.extensions?.succeeded_incident_ids ?? [],
-                data.extensions?.failed_incidents ?? [],
-            );
-            dashboardTransactions?.batchSession.restoreAllRowStates();
+            if (data.action !== 'batch-transaction') {
+                batchSession.restoreAllRowStates();
+
+                return;
+            }
+
+            const failedIncidents = data.extensions?.failed_incidents ?? [];
+            const succeededIncidentIds = data.extensions?.succeeded_incident_ids ?? [];
+
+            if (failedIncidents.length === 0 && data.success) {
+                batchSession.clearSelection();
+            } else {
+                batchSession.handleBatchResult(succeededIncidentIds, failedIncidents);
+            }
+
+            batchSession.restoreAllRowStates();
         },
         afterOpen: (_incidentId, component, _context, opened) => {
             if (opened && component === 'remark') {
@@ -323,7 +334,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
     });
-    workspaceApiRef.current = workspaceApi;
+
+    dashboardTransactionsRef.current = initDashboardTransactions({
+        pageRoot,
+        openBatchModal: (incidentIds) => {
+            workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
+        },
+    });
+
+    const dashboardTransactions = dashboardTransactionsRef.current;
 
     initLiveDashboard({
         onRowsUpdated: () => {

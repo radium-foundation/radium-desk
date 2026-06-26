@@ -1,37 +1,42 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBatchTransactionSession } from '../../resources/js/workspace/batch-session';
 import { createServiceCaseRowReplacer } from '../../resources/js/service-case-row';
 import { resetWorkspaceSession } from '../../resources/js/workspace/session';
 
-const buildDashboardCard = () => {
+const buildDashboardDom = () => {
     document.body.innerHTML = `
-        <div class="dashboard-service-cases-card">
+        <div id="dashboard-page">
             <div class="dashboard-bulk-bar d-none" data-bulk-bar>
                 <span data-bulk-count>0</span>
                 <button type="button" data-batch-clear>Clear</button>
                 <button type="button" data-batch-assign disabled>Assign</button>
             </div>
-            <table>
-                <tbody id="dashboard-service-cases-body">
-                    <tr id="service-case-row-1" data-incident-id="1">
-                        <td><input type="checkbox" class="service-case-select" value="1"></td>
-                        <td class="case-ref">SC-1</td>
-                    </tr>
-                    <tr id="service-case-row-2" data-incident-id="2">
-                        <td><input type="checkbox" class="service-case-select" value="2"></td>
-                        <td class="case-ref">SC-2</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="dashboard-service-cases-card">
+                <table>
+                    <tbody id="dashboard-service-cases-body">
+                        <tr id="service-case-row-1" data-incident-id="1">
+                            <td><input type="checkbox" class="service-case-select" value="1"></td>
+                            <td class="case-ref">SC-1</td>
+                        </tr>
+                        <tr id="service-case-row-2" data-incident-id="2">
+                            <td><input type="checkbox" class="service-case-select" value="2"></td>
+                            <td class="case-ref">SC-2</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
 
-    return document.querySelector('.dashboard-service-cases-card');
+    return {
+        pageRoot: document.getElementById('dashboard-page'),
+        card: document.querySelector('.dashboard-service-cases-card'),
+    };
 };
 
 const buildRowHtml = (incidentId, reference) => `<tr id="service-case-row-${incidentId}" data-incident-id="${incidentId}"><td><input type="checkbox" class="service-case-select" value="${incidentId}"></td><td class="case-ref">${reference}</td></tr>`;
 
-const createDashboardBatchSession = (card) => {
+const createDashboardBatchSession = ({ pageRoot, card }) => {
     let batchSession;
 
     const replaceServiceCaseRow = createServiceCaseRowReplacer({
@@ -44,20 +49,27 @@ const createDashboardBatchSession = (card) => {
 
     batchSession = createBatchTransactionSession({
         card,
+        pageRoot,
         openBatchModal: vi.fn(),
     });
 
-    return { batchSession, replaceServiceCaseRow, card };
+    return { batchSession, replaceServiceCaseRow, card, destroy: () => batchSession.destroy?.() };
 };
 
 describe('dashboard batch stabilization', () => {
     let batchSession;
     let replaceServiceCaseRow;
-    let card;
+    let destroy;
 
     beforeEach(() => {
         resetWorkspaceSession();
-        ({ batchSession, replaceServiceCaseRow, card } = createDashboardBatchSession(buildDashboardCard()));
+        const dom = buildDashboardDom();
+        ({ batchSession, replaceServiceCaseRow, destroy } = createDashboardBatchSession(dom));
+    });
+
+    afterEach(() => {
+        destroy?.();
+        resetWorkspaceSession();
     });
 
     it('preserves selection state across row replacement', () => {

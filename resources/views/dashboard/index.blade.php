@@ -29,6 +29,20 @@
             @include('dashboard.partials.sla-alert-cards', ['stats' => $stats])
         </div>
 
+        @if($canManageTransactions ?? false)
+            <div class="dashboard-bulk-bar d-none" data-bulk-bar role="region" aria-label="Batch service case actions">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="small fw-semibold">Selected: <span data-bulk-count>0</span></span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-batch-clear>
+                        Clear Selection
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" data-batch-assign disabled>
+                        Assign Transaction ID
+                    </button>
+                </div>
+            </div>
+        @endif
+
         @if($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view'))
             <div class="mb-3">
                 @include('dashboard.partials.recent-service-cases', [

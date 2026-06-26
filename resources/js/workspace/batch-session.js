@@ -2,24 +2,42 @@ import { getWorkspaceSession } from './session';
 
 export const createBatchTransactionSession = ({
     card,
+    pageRoot = document,
     openBatchModal,
 }) => {
     const session = getWorkspaceSession();
 
-    const bulkBar = card.querySelector('[data-bulk-bar]');
-    const bulkCount = card.querySelector('[data-bulk-count]');
-    const clearButton = card.querySelector('[data-batch-clear]');
-    const assignButton = card.querySelector('[data-batch-assign]');
-    const selectAll = card.querySelector('[data-select-all]');
-
     const selectedIncidentIds = new Set();
 
+    const getBulkBar = () => pageRoot.querySelector('[data-bulk-bar]');
+    const getBulkCount = () => pageRoot.querySelector('[data-bulk-count]');
+    const getAssignButton = () => pageRoot.querySelector('[data-batch-assign]');
+    const getClearButton = () => pageRoot.querySelector('[data-batch-clear]');
+    const getSelectAll = () => card.querySelector('[data-select-all]');
+
     const getSelectedIncidentIds = () => Array.from(selectedIncidentIds);
+
+    const getRow = (incidentId) => document.getElementById(`service-case-row-${incidentId}`);
+
+    const syncRowVisualState = (incidentId) => {
+        const row = getRow(incidentId);
+        const isSelected = selectedIncidentIds.has(Number(incidentId));
+
+        row?.classList.toggle('dashboard-case-row--selected', isSelected);
+    };
+
+    const syncAllRowVisualStates = () => {
+        card.querySelectorAll('.service-case-select').forEach((checkbox) => {
+            syncRowVisualState(Number(checkbox.value));
+        });
+    };
 
     const syncDomSelectionFromState = () => {
         card.querySelectorAll('.service-case-select').forEach((checkbox) => {
             checkbox.checked = selectedIncidentIds.has(Number(checkbox.value));
         });
+
+        syncAllRowVisualStates();
     };
 
     const syncSession = () => {
@@ -35,6 +53,11 @@ export const createBatchTransactionSession = ({
     const updateToolbar = () => {
         syncDomSelectionFromState();
         const count = selectedIncidentIds.size;
+        const bulkBar = getBulkBar();
+        const bulkCount = getBulkCount();
+        const assignButton = getAssignButton();
+        const clearButton = getClearButton();
+        const selectAll = getSelectAll();
 
         bulkBar?.classList.toggle('d-none', count === 0);
 
@@ -65,6 +88,7 @@ export const createBatchTransactionSession = ({
 
         if (checkbox) {
             checkbox.checked = selectedIncidentIds.has(normalizedIncidentId);
+            syncRowVisualState(normalizedIncidentId);
         }
     };
 
@@ -81,7 +105,10 @@ export const createBatchTransactionSession = ({
 
         card.querySelectorAll('.service-case-select').forEach((checkbox) => {
             checkbox.checked = false;
+            syncRowVisualState(Number(checkbox.value));
         });
+
+        const selectAll = getSelectAll();
 
         if (selectAll) {
             selectAll.checked = false;
@@ -126,21 +153,46 @@ export const createBatchTransactionSession = ({
             selectedIncidentIds.add(Number(incidentId));
         });
 
+        if (selectedIncidentIds.size === 0) {
+            clearSelection();
+
+            return;
+        }
+
         updateToolbar();
     };
 
     const openAssignModal = () => {
         const incidentIds = getSelectedIncidentIds();
 
-        if (incidentIds.length === 0 || !openBatchModal) {
+        if (incidentIds.length === 0) {
+            return;
+        }
+
+        if (typeof openBatchModal !== 'function') {
+            console.error('Batch transaction modal is unavailable.');
+
             return;
         }
 
         openBatchModal(incidentIds);
     };
 
-    clearButton?.addEventListener('click', clearSelection);
-    assignButton?.addEventListener('click', openAssignModal);
+    const handleToolbarClick = (event) => {
+        if (event.target.closest('[data-batch-clear]')) {
+            event.preventDefault();
+            clearSelection();
+
+            return;
+        }
+
+        if (event.target.closest('[data-batch-assign]')) {
+            event.preventDefault();
+            openAssignModal();
+        }
+    };
+
+    pageRoot.addEventListener('click', handleToolbarClick);
 
     return {
         clearSelection,
@@ -152,5 +204,8 @@ export const createBatchTransactionSession = ({
         restoreRowState,
         restoreAllRowStates,
         getSelectedIncidentIds,
+        destroy: () => {
+            pageRoot.removeEventListener('click', handleToolbarClick);
+        },
     };
 };

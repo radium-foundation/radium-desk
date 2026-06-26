@@ -27,20 +27,6 @@
         </div>
     </div>
     <div class="card-body p-0 position-relative">
-        @if($canManageTransactions)
-            <div class="dashboard-bulk-bar d-none" data-bulk-bar>
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                    <span class="small fw-semibold">Selected: <span data-bulk-count>0</span></span>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-batch-clear>
-                        Clear Selection
-                    </button>
-                    <button type="button" class="btn btn-sm btn-primary" data-batch-assign disabled>
-                        Assign Transaction ID
-                    </button>
-                </div>
-            </div>
-        @endif
-
         <div id="dashboard-service-cases-content">
             <div class="table-responsive" id="dashboard-service-cases-scroll">
                 <table class="table table-sm table-hover align-middle mb-0 dashboard-cases-table">
