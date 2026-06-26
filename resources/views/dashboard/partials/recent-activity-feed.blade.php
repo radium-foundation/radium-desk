@@ -2,23 +2,24 @@
     'recentActivity',
 ])
 
-<div class="dashboard-activity-feed mb-2">
-    <h2 class="dashboard-section-title h6 mb-1">Recent Activity</h2>
-    <ul class="list-group list-group-flush dashboard-activity-list border rounded">
+<div class="dashboard-activity-feed">
+    <h2 class="dashboard-section-title dashboard-section-title--secondary mb-0">Recent Activity</h2>
+    <ul class="dashboard-activity-timeline list-unstyled mb-0">
         @foreach($recentActivity as $log)
-            <li class="list-group-item dashboard-activity-item py-1 px-2">
-                <div class="d-flex flex-wrap align-items-baseline gap-1">
-                    <span class="dashboard-activity-time text-muted">{{ display_app_datetime($log->created_at) }}</span>
-                    <span class="badge text-bg-light text-dark border text-capitalize dashboard-activity-event">
+            <li class="dashboard-activity-timeline-item">
+                <span class="dashboard-activity-timeline-marker" aria-hidden="true"></span>
+                <div class="dashboard-activity-timeline-body">
+                    <span class="dashboard-activity-time">{{ display_app_datetime($log->created_at) }}</span>
+                    <span class="badge dashboard-badge-compact text-bg-light text-dark border text-capitalize">
                         {{ str_replace('_', ' ', $log->event) }}
                     </span>
-                    <span class="dashboard-activity-reference small">
+                    <span class="dashboard-activity-reference">
                         {{ class_basename($log->auditable_type) }}
                         @if($log->auditable_id)
                             <span class="text-muted">#{{ $log->auditable_id }}</span>
                         @endif
                     </span>
-                    <span class="dashboard-activity-user text-muted small ms-auto">
+                    <span class="dashboard-activity-user text-muted">
                         {{ $log->user?->firstName() ?: 'System' }}
                     </span>
                 </div>

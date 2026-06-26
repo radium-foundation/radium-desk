@@ -9,7 +9,7 @@
          data-live-url="{{ route('dashboard.live') }}"
          data-live-filter="{{ $serviceCaseFilter ?? 'pending_admin' }}"
          data-live-interval="30000">
-        <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-1 mb-2">
+        <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-1 mb-1">
             <div>
                 <h1 class="h4 mb-0">Dashboard</h1>
                 <p class="text-muted small mb-0">Welcome back, {{ auth()->user()->firstName() }}.</p>
@@ -21,12 +21,12 @@
             @endif
         </div>
 
-        <div id="dashboard-kpi-strip" class="mb-2">
+        <div id="dashboard-kpi-strip" class="dashboard-kpi-strip-host mb-1">
             @include('dashboard.partials.kpi-strip', ['stats' => $stats])
         </div>
 
         @if($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view'))
-            <div class="mb-2">
+            <div class="dashboard-primary-panel mb-1">
                 @include('dashboard.partials.recent-service-cases', [
                     'recentServiceCases' => $recentServiceCases,
                     'serviceCaseFilter' => $serviceCaseFilter ?? 'pending_admin',

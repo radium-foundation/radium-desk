@@ -1,10 +1,10 @@
 <div class="card border-0 shadow-sm dashboard-service-cases-card">
-    <div class="card-header bg-white py-1 px-2">
+    <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
-            <div class="dashboard-cases-header__title-row d-flex justify-content-between align-items-center gap-2">
-                <h2 class="h6 mb-0">Recent Service Cases</h2>
+            <div class="dashboard-cases-header__title-row">
+                <h2 class="dashboard-cases-title mb-0">Recent Service Cases</h2>
                 @can('viewAny', App\Models\Incident::class)
-                    <a href="{{ route('incidents.index') }}" class="btn btn-sm btn-outline-primary py-0">{{ config('ui.service_case.view_all') }}</a>
+                    <a href="{{ route('incidents.index') }}" class="btn btn-sm btn-outline-primary dashboard-btn-compact">{{ config('ui.service_case.view_all') }}</a>
                 @endcan
             </div>
 
@@ -13,21 +13,28 @@
                      data-bulk-bar
                      role="region"
                      aria-label="Batch service case actions">
-                    <span class="dashboard-bulk-toolbar__count small fw-semibold">
-                        Selected: <span data-bulk-count>0</span>
+                    <span class="dashboard-bulk-toolbar__status">
+                        <span class="dashboard-bulk-toolbar__hint" data-bulk-idle-hint>
+                            Select one or more rows for batch actions.
+                        </span>
+                        <span class="dashboard-bulk-toolbar__count d-none" data-bulk-selected-label>
+                            Selected: <span data-bulk-count>0</span>
+                        </span>
                     </span>
-                    <button type="button"
-                            class="btn btn-sm btn-outline-secondary py-0"
-                            data-batch-clear
-                            disabled>
-                        Clear Selection
-                    </button>
-                    <button type="button"
-                            class="btn btn-sm btn-primary py-0"
-                            data-batch-assign
-                            disabled>
-                        Assign Transaction ID
-                    </button>
+                    <div class="dashboard-bulk-toolbar__actions">
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary dashboard-btn-compact"
+                                data-batch-clear
+                                disabled>
+                            Clear Selection
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm btn-primary dashboard-btn-compact"
+                                data-batch-assign
+                                disabled>
+                            Assign Transaction ID
+                        </button>
+                    </div>
                 </div>
             @endif
 

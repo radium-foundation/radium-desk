@@ -11,6 +11,8 @@ export const createBatchTransactionSession = ({
 
     const getBulkBar = () => pageRoot.querySelector('[data-bulk-bar]');
     const getBulkCount = () => pageRoot.querySelector('[data-bulk-count]');
+    const getIdleHint = () => pageRoot.querySelector('[data-bulk-idle-hint]');
+    const getSelectedLabel = () => pageRoot.querySelector('[data-bulk-selected-label]');
     const getAssignButton = () => pageRoot.querySelector('[data-batch-assign]');
     const getClearButton = () => pageRoot.querySelector('[data-batch-clear]');
     const getSelectAll = () => card.querySelector('[data-select-all]');
@@ -55,22 +57,27 @@ export const createBatchTransactionSession = ({
         const count = selectedIncidentIds.size;
         const bulkBar = getBulkBar();
         const bulkCount = getBulkCount();
+        const idleHint = getIdleHint();
+        const selectedLabel = getSelectedLabel();
         const assignButton = getAssignButton();
         const clearButton = getClearButton();
         const selectAll = getSelectAll();
+        const isActive = count > 0;
 
-        bulkBar?.classList.toggle('dashboard-bulk-toolbar--active', count > 0);
+        bulkBar?.classList.toggle('dashboard-bulk-toolbar--active', isActive);
+        idleHint?.classList.toggle('d-none', isActive);
+        selectedLabel?.classList.toggle('d-none', ! isActive);
 
         if (bulkCount) {
             bulkCount.textContent = String(count);
         }
 
         if (assignButton) {
-            assignButton.disabled = count === 0;
+            assignButton.disabled = ! isActive;
         }
 
         if (clearButton) {
-            clearButton.disabled = count === 0;
+            clearButton.disabled = ! isActive;
         }
 
         if (selectAll) {

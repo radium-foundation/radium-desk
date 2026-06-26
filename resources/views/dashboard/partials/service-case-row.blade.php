@@ -73,7 +73,7 @@
             @can('create', App\Models\Remark::class)
                 @can('view', $serviceCase)
                     <button type="button"
-                            class="btn btn-outline-secondary btn-sm py-0"
+                            class="btn btn-outline-secondary btn-sm dashboard-btn-compact"
                             data-workspace-trigger="remark"
                             data-workspace-incident-id="{{ $serviceCase->id }}"
                             data-workspace-context="dashboard"
@@ -85,7 +85,7 @@
             @endcan
             @can('reassign', $serviceCase)
                 <button type="button"
-                        class="btn btn-outline-primary btn-sm py-0"
+                        class="btn btn-outline-primary btn-sm dashboard-btn-compact"
                         data-workspace-trigger="assign"
                         data-workspace-incident-id="{{ $serviceCase->id }}"
                         data-workspace-context="dashboard"
@@ -96,7 +96,7 @@
             @endcan
             @if($canResolve)
                 <button type="button"
-                        class="btn btn-outline-success btn-sm py-0"
+                        class="btn btn-outline-success btn-sm dashboard-btn-compact"
                         data-workspace-trigger="resolve"
                         data-workspace-incident-id="{{ $serviceCase->id }}"
                         data-workspace-context="dashboard"
@@ -107,7 +107,7 @@
             @endif
             @if($canClose)
                 <button type="button"
-                        class="btn btn-outline-secondary btn-sm py-0"
+                        class="btn btn-outline-secondary btn-sm dashboard-btn-compact"
                         data-workspace-trigger="close"
                         data-workspace-incident-id="{{ $serviceCase->id }}"
                         data-workspace-context="dashboard"

@@ -70,9 +70,9 @@
     }
 @endphp
 
-<div class="dashboard-admin-metrics mb-2">
-    <h2 class="dashboard-section-title h6 mb-1">Admin Metrics</h2>
-    <div class="dashboard-kpi-strip dashboard-kpi-strip--secondary" role="region" aria-label="Admin metrics">
+<div class="dashboard-admin-metrics">
+    <h2 class="dashboard-section-title dashboard-section-title--muted mb-0">Admin Metrics</h2>
+    <div class="dashboard-kpi-strip dashboard-kpi-strip--admin" role="region" aria-label="Admin metrics">
         @foreach($items as $item)
             @include('dashboard.partials.kpi-strip-item', $item)
         @endforeach

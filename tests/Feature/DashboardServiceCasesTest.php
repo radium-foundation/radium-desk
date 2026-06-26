@@ -384,6 +384,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertOk()
             ->assertSee('data-bulk-bar', false)
             ->assertSee('data-batch-assign', false)
+            ->assertSee('Select one or more rows for batch actions.')
             ->assertSee('Clear Selection')
             ->assertSee('Assign Transaction ID')
             ->assertDontSee('data-batch-transaction-input', false)
