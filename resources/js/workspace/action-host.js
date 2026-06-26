@@ -1,6 +1,15 @@
-import { workspaceFetchHeaders } from './http';
+import { handleWorkspaceError, isWorkspaceResponse } from './error-handler';
+import { workspaceFetch, workspaceFetchHeaders } from './http';
 
-export const createActionHost = ({ host, responseHandler }) => {
+const parseJsonResponse = async (response) => {
+    try {
+        return await response.json();
+    } catch (error) {
+        return null;
+    }
+};
+
+export const createActionHost = ({ host, responseHandler, busyState, lifecycle }) => {
     const handleSubmit = async (event) => {
         const form = event.target;
 
@@ -10,37 +19,37 @@ export const createActionHost = ({ host, responseHandler }) => {
 
         event.preventDefault();
 
-        const submitButton = form.querySelector('[type="submit"]');
-
-        if (submitButton) {
-            submitButton.disabled = true;
+        if (busyState?.isBusy('submit')) {
+            return;
         }
 
+        if (!(await lifecycle.run('beforeSubmit', form, host))) {
+            return;
+        }
+
+        busyState?.setBusy('submit', form);
+
+        let responseData = null;
+
         try {
-            const response = await fetch(form.action, {
+            const response = await workspaceFetch(form.action, {
                 method: 'POST',
                 headers: workspaceFetchHeaders(),
                 body: new FormData(form),
             });
 
-            const data = await response.json();
-            await responseHandler.applyWorkspaceResponse(data, host);
+            const data = await parseJsonResponse(response);
+            responseData = response.ok && isWorkspaceResponse(data)
+                ? data
+                : handleWorkspaceError(null, response, data);
+
+            await responseHandler.applyWorkspaceResponse(responseData, host);
         } catch (error) {
-            if (responseHandler.applyWorkspaceResponse) {
-                await responseHandler.applyWorkspaceResponse({
-                    success: false,
-                    message: 'Unable to complete this action.',
-                    toast: {
-                        show: true,
-                        message: 'Unable to complete this action.',
-                        variant: 'danger',
-                    },
-                }, host);
-            }
+            responseData = handleWorkspaceError(error);
+            await responseHandler.applyWorkspaceResponse(responseData, host);
         } finally {
-            if (submitButton) {
-                submitButton.disabled = false;
-            }
+            busyState?.clearBusy('submit', form);
+            await lifecycle.run('afterSubmit', form, host, responseData);
         }
     };
 

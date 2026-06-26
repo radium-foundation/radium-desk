@@ -69,7 +69,7 @@ const applyKpis = (refresh, hooks) => {
     }
 };
 
-export const createResponseHandler = (hooks = {}) => {
+export const createResponseHandler = (hooks = {}, lifecycle = null) => {
     const showToast = (toast, fallbackMessage) => {
         if (toast?.show === false) {
             return;
@@ -122,6 +122,10 @@ export const createResponseHandler = (hooks = {}) => {
         }
 
         showToast(data.toast, data.message);
+
+        if (lifecycle) {
+            await lifecycle.run('afterSuccess', data, host);
+        }
 
         if (data.ui?.redirect?.url) {
             const navigate = data.ui.redirect.replace ? location.replace : location.assign;

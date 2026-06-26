@@ -4,9 +4,16 @@ import {
     resolvePageWorkspaceContext,
     setActiveWorkspaceContext,
 } from './context';
-import { workspaceFetchHeaders } from './http';
+import { WORKSPACE_LOADING_HTML } from './busy-state';
+import { handleWorkspaceError } from './error-handler';
+import { workspaceFetch, workspaceFetchHeaders } from './http';
 
-export const createFragmentLoader = ({ host, modalContentSelector = '[data-workspace-modal-content]' }) => {
+export const createFragmentLoader = ({
+    host,
+    busyState,
+    lifecycle,
+    modalContentSelector = '[data-workspace-modal-content]',
+}) => {
     const getModalContent = () => host.querySelector(modalContentSelector);
 
     const resolveContext = (context) => {
@@ -33,6 +40,17 @@ export const createFragmentLoader = ({ host, modalContentSelector = '[data-works
         window.bootstrap.Modal.getOrCreateInstance(host).show();
     };
 
+    const showLoadingState = (modalContent) => {
+        modalContent.innerHTML = WORKSPACE_LOADING_HTML;
+        busyState?.setBusy('loading');
+        showModal();
+    };
+
+    const showInlineError = (modalContent, payload) => {
+        modalContent.innerHTML = payload.inline?.html
+            ?? '<div class="p-4 text-danger small" data-workspace-error role="alert">Unable to load this action.</div>';
+    };
+
     const openComponent = async (incidentId, component, context = null) => {
         const resolvedContext = resolveContext(context);
 
@@ -46,30 +64,39 @@ export const createFragmentLoader = ({ host, modalContentSelector = '[data-works
             return false;
         }
 
-        modalContent.innerHTML = '<div class="p-4 text-center text-muted small">Loading…</div>';
+        if (!(await lifecycle.run('beforeOpen', incidentId, component, resolvedContext))) {
+            return false;
+        }
 
         setActiveWorkspaceContext(host, resolvedContext);
         host.dataset.workspaceIncidentId = String(incidentId);
+        showLoadingState(modalContent);
+
+        let opened = false;
 
         try {
-            const response = await fetch(buildComponentUrl(incidentId, component, resolvedContext), {
-                headers: workspaceFetchHeaders('text/html'),
-            });
+            const response = await workspaceFetch(
+                buildComponentUrl(incidentId, component, resolvedContext),
+                {
+                    headers: workspaceFetchHeaders('text/html'),
+                },
+            );
 
             if (!response.ok) {
-                modalContent.innerHTML = '<div class="p-4 text-danger small">Unable to load this action.</div>';
-                showModal();
+                showInlineError(modalContent, handleWorkspaceError(null, response));
                 return false;
             }
 
             modalContent.innerHTML = await response.text();
-            showModal();
+            opened = true;
 
             return true;
         } catch (error) {
-            modalContent.innerHTML = '<div class="p-4 text-danger small">Unable to load this action.</div>';
-            showModal();
+            showInlineError(modalContent, handleWorkspaceError(error));
             return false;
+        } finally {
+            busyState?.clearBusy('loading');
+            await lifecycle.run('afterOpen', incidentId, component, resolvedContext, opened);
         }
     };
 
