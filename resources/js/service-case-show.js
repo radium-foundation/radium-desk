@@ -1,15 +1,4 @@
-const isTypingTarget = (target) => {
-    if (!target || !(target instanceof HTMLElement)) {
-        return false;
-    }
-
-    const tagName = target.tagName;
-
-    return tagName === 'INPUT'
-        || tagName === 'TEXTAREA'
-        || tagName === 'SELECT'
-        || target.isContentEditable;
-};
+import { isTypingTarget } from './keyboard/guards';
 
 export const initServiceCaseShow = () => {
     const root = document.querySelector('[data-service-case-show]');

@@ -10,6 +10,7 @@ import { initTooltips } from './tooltips';
 import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
 import { initWorkspace, getWorkspaceSession } from './workspace';
+import { initKeyboardShortcuts } from './keyboard';
 
 window.bootstrap = bootstrap;
 
@@ -420,9 +421,31 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = 
         }
     });
 
+    const closeOpenInlineEditor = () => {
+        const openEditor = card.querySelector('.transaction-inline-editor:not(.d-none)');
+
+        if (!openEditor) {
+            return false;
+        }
+
+        const cell = openEditor.closest('[data-inline-transaction="true"]');
+
+        if (!cell) {
+            return false;
+        }
+
+        const trigger = cell.querySelector('.transaction-cell-trigger');
+
+        closeInlineEditor(cell);
+        trigger?.focus();
+
+        return true;
+    };
+
     return {
         batchSession,
         replaceServiceCaseRow,
+        closeOpenInlineEditor,
     };
 };
 
@@ -586,4 +609,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    initKeyboardShortcuts({
+        closeOpenInlineEditor: () => dashboardTransactions?.closeOpenInlineEditor?.() ?? false,
+        isWorkspaceSubmitBusy: () => workspaceApi?.isBusy?.('submit') ?? false,
+    });
 });

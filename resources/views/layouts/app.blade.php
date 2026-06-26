@@ -40,6 +40,7 @@
     </div>
 
     @include('workspace.partials.workspace-modal-host')
+    @include('layouts.partials.keyboard-shortcuts-modal')
 
     @stack('scripts')
 </body>
