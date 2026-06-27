@@ -91,6 +91,7 @@
                                            aria-label="Select all pending service cases">
                                 </th>
                             @endif
+                            <th>{{ config('ui.service_case.reference_short') }}</th>
                             <th>Order ID</th>
                             <th>Serial</th>
                             <th>Status</th>
@@ -102,7 +103,6 @@
                             <th class="d-none d-lg-table-cell">Created</th>
                             <th class="d-none d-lg-table-cell">Updated</th>
                             <th class="d-none d-lg-table-cell">Product</th>
-                            <th class="d-none d-md-table-cell">{{ config('ui.service_case.reference_short') }}</th>
                             @if($canShowServiceCaseActions ?? false)
                                 <th class="dashboard-actions-cell text-end">Actions</th>
                             @endif

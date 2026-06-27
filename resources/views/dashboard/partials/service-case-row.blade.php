@@ -42,7 +42,17 @@
             @endif
         </td>
     @endif
-    <td class="case-meta-cell">
+    <td class="case-reference-cell">
+        <div class="d-flex flex-wrap align-items-center gap-1">
+            <a href="{{ route('incidents.show', $serviceCase) }}" class="case-reference-link text-decoration-none">
+                {{ $serviceCase->display_reference }}
+            </a>
+            @if($serviceCase->high_priority)
+                @include('dashboard.partials.high-priority-badge')
+            @endif
+        </div>
+    </td>
+    <td class="case-order-cell case-meta-cell">
         @if($order)
             <a href="{{ route('orders.show', $order) }}" class="text-decoration-none">{{ $order->order_id }}</a>
         @else
@@ -135,16 +145,6 @@
         @endif
     </td>
     <td class="case-meta-cell d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
-    <td class="case-reference-cell d-none d-md-table-cell">
-        <div class="d-flex flex-wrap align-items-center gap-1">
-            <a href="{{ route('incidents.show', $serviceCase) }}" class="case-reference-link text-decoration-none">
-                {{ $serviceCase->display_reference }}
-            </a>
-            @if($serviceCase->high_priority)
-                @include('dashboard.partials.high-priority-badge')
-            @endif
-        </div>
-    </td>
     @if($canShowRowActions)
         <td class="dashboard-actions-cell text-end">
             <div class="dashboard-row-actions">
