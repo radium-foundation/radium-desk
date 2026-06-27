@@ -31,6 +31,39 @@ class OrderCompletionTooltipTest extends TestCase
         );
     }
 
+    public function test_format_compact_duration_between_hours_and_minutes(): void
+    {
+        $from = Carbon::parse('2026-06-26 06:46:00');
+        $to = Carbon::parse('2026-06-26 22:15:00');
+
+        $this->assertSame(
+            '15h 29m',
+            Order::formatCompactDurationBetween($from, $to),
+        );
+    }
+
+    public function test_format_compact_duration_between_days_and_hours(): void
+    {
+        $from = Carbon::parse('2026-06-24 10:45:00');
+        $to = Carbon::parse('2026-06-26 14:45:00');
+
+        $this->assertSame(
+            '2d 4h',
+            Order::formatCompactDurationBetween($from, $to),
+        );
+    }
+
+    public function test_format_compact_duration_between_minutes_only(): void
+    {
+        $from = Carbon::parse('2026-06-26 12:00:00');
+        $to = Carbon::parse('2026-06-26 12:18:00');
+
+        $this->assertSame(
+            '18m',
+            Order::formatCompactDurationBetween($from, $to),
+        );
+    }
+
     public function test_pending_admin_tooltip_includes_created_and_pending_duration(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-24 20:47:00'));

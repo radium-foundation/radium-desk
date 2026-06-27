@@ -34,4 +34,13 @@ enum ServiceCaseSlaStatus: string
             self::Overdue => 'sla-status--overdue',
         };
     }
+
+    public function tooltipDurationClass(): string
+    {
+        return match ($this) {
+            self::WithinSla => 'dashboard-sla-tooltip-duration--within',
+            self::Warning => 'dashboard-sla-tooltip-duration--warning',
+            self::Overdue => 'dashboard-sla-tooltip-duration--overdue',
+        };
+    }
 }

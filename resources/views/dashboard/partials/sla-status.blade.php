@@ -4,19 +4,10 @@
 
     $slaStatus = $serviceCase->slaStatus();
     $tooltipHtml = view('dashboard.partials.premium-tooltip', [
-        'sections' => [
-            [
-                'label' => 'Created',
-                'value' => AppDateFormatter::datetime($serviceCase->created_at) ?? '—',
-            ],
-            [
-                'label' => 'Pending',
-                'value' => Order::formatDurationBetween($serviceCase->created_at) ?? '—',
-            ],
-            [
-                'label' => 'SLA',
-                'value' => $slaStatus->label(),
-            ],
+        'compact' => [
+            'datetime' => AppDateFormatter::datetime($serviceCase->created_at) ?? '—',
+            'pendingDuration' => Order::formatCompactDurationBetween($serviceCase->created_at) ?? '—',
+            'durationClass' => $slaStatus->tooltipDurationClass(),
         ],
     ])->render();
 @endphp

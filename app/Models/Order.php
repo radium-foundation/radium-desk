@@ -120,6 +120,42 @@ class Order extends Model
         return implode(' ', $parts);
     }
 
+    public static function formatCompactDurationBetween(?Carbon $from, ?Carbon $to = null): ?string
+    {
+        if ($from === null) {
+            return null;
+        }
+
+        $to ??= now();
+
+        if ($to->lessThan($from)) {
+            return null;
+        }
+
+        $diff = $from->diff($to);
+        $parts = [];
+
+        if ($diff->d > 0) {
+            $parts[] = $diff->d.'d';
+
+            if ($diff->h > 0) {
+                $parts[] = $diff->h.'h';
+            }
+        } elseif ($diff->h > 0) {
+            $parts[] = $diff->h.'h';
+
+            if ($diff->i > 0) {
+                $parts[] = $diff->i.'m';
+            }
+        } elseif ($diff->i > 0) {
+            $parts[] = $diff->i.'m';
+        } else {
+            $parts[] = '<1m';
+        }
+
+        return implode(' ', $parts);
+    }
+
     public function transactionAssignTooltipHtml(): string
     {
         $lines = [

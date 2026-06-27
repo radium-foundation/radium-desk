@@ -49,7 +49,8 @@
     data-bs-custom-class="dashboard-premium-tooltip-wrapper"
     data-bs-title="{{ e($tooltipHtml) }}"
 >
-    <div class="dashboard-kpi-content dashboard-kpi-content--online-users">
+    <div class="dashboard-kpi-icon dashboard-kpi-icon--spacer" aria-hidden="true"></div>
+    <div class="dashboard-kpi-content">
         <div class="dashboard-kpi-label">Online Users</div>
         <div class="dashboard-kpi-value dashboard-kpi-value--with-status">
             <span class="dashboard-online-status-dot" aria-hidden="true"></span>
