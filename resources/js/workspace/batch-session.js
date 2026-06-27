@@ -83,6 +83,7 @@ export const createBatchTransactionSession = ({
 
         if (clearButton) {
             clearButton.disabled = ! isActive;
+            clearButton.classList.toggle('d-none', ! isActive);
         }
 
         if (selectAll) {

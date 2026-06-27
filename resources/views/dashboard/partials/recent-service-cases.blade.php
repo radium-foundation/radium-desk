@@ -1,79 +1,108 @@
+@php
+    $activeFilter = $serviceCaseFilter ?? 'pending_admin';
+    $dashboardService = app(\App\Services\DashboardService::class);
+    $serviceCaseFilterCounts = collect(['all', 'pending_admin', 'completed', 'high_priority'])
+        ->mapWithKeys(fn (string $key): array => [$key => $dashboardService->recentServiceCases($key, null)->count()])
+        ->all();
+    $serviceCaseFilterMeta = [
+        'all' => ['label' => 'All', 'icon' => 'bi-grid-3x3-gap-fill', 'tone' => 'primary'],
+        'pending_admin' => ['label' => 'Pending Admin', 'icon' => 'bi-clock', 'tone' => 'warning'],
+        'completed' => ['label' => 'Completed', 'icon' => 'bi-check-circle-fill', 'tone' => 'success'],
+        'high_priority' => ['label' => 'High Priority', 'icon' => 'bi-flag-fill', 'tone' => 'danger'],
+    ];
+@endphp
+
 <div class="card border-0 shadow-sm dashboard-service-cases-card">
     <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
             <div class="dashboard-cases-header__title-row">
-                <h2 class="dashboard-cases-title mb-0">Recent Service Cases</h2>
+                <div class="dashboard-cases-header__brand">
+                    <span class="dashboard-cases-header__icon" aria-hidden="true">
+                        <i class="bi bi-clipboard-data"></i>
+                    </span>
+                    <h2 class="dashboard-cases-title mb-0">Recent Service Cases</h2>
+                    <span class="dashboard-cases-header__count-badge"
+                          aria-label="{{ $serviceCaseFilterCounts[$activeFilter] ?? $recentServiceCases->count() }} service cases in current filter">
+                        {{ $serviceCaseFilterCounts[$activeFilter] ?? $recentServiceCases->count() }}
+                    </span>
+                </div>
                 @can('viewAny', App\Models\Incident::class)
-                    <a href="{{ route('incidents.index') }}" class="btn btn-sm btn-outline-primary dashboard-btn-compact">{{ config('ui.service_case.view_all') }}</a>
+                    <a href="{{ route('incidents.index') }}"
+                       class="dashboard-cases-view-all dashboard-u-focus-ring">
+                        {{ config('ui.service_case.view_all') }}
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </a>
                 @endcan
             </div>
 
-            @if($canManageTransactions ?? false)
-                <div class="dashboard-bulk-toolbar"
-                     data-bulk-bar
-                     role="region"
-                     aria-label="Batch service case actions">
-                    <span class="dashboard-bulk-toolbar__status">
-                        <span class="dashboard-bulk-toolbar__hint" data-bulk-idle-hint>
+            <div class="dashboard-cases-toolbar">
+                @if($canManageTransactions ?? false)
+                    <div class="dashboard-bulk-toolbar"
+                         data-bulk-bar
+                         role="region"
+                         aria-label="Batch service case actions">
+                        <div class="dashboard-bulk-toolbar__actions">
+                            <button type="button"
+                                    class="btn btn-sm btn-primary dashboard-btn-compact dashboard-bulk-toolbar__assign"
+                                    data-batch-assign
+                                    disabled>
+                                <i class="bi bi-link-45deg" aria-hidden="true"></i>
+                                Assign Transaction ID
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-secondary dashboard-btn-compact dashboard-bulk-toolbar__clear d-none"
+                                    data-batch-clear
+                                    disabled>
+                                <i class="bi bi-x-lg" aria-hidden="true"></i>
+                                Clear Selection
+                            </button>
+                        </div>
+                        <span class="visually-hidden" data-bulk-idle-hint>
                             Select one or more rows for batch actions.
                         </span>
-                        <span class="dashboard-bulk-toolbar__count d-none" data-bulk-selected-label>
+                        <span class="visually-hidden" data-bulk-selected-label>
                             Selected: <span data-bulk-count>0</span>
                         </span>
-                    </span>
-                    <div class="dashboard-bulk-toolbar__actions">
-                        <button type="button"
-                                class="btn btn-sm btn-outline-secondary dashboard-btn-compact"
-                                data-batch-clear
-                                disabled>
-                            Clear Selection
-                        </button>
-                        <button type="button"
-                                class="btn btn-sm btn-primary dashboard-btn-compact"
-                                data-batch-assign
-                                disabled>
-                            Assign Transaction ID
-                        </button>
+                    </div>
+                @endif
+
+                <div class="dashboard-case-filters"
+                     role="group"
+                     aria-label="Service case filters">
+                    @foreach($serviceCaseFilterMeta as $filterKey => $filterMeta)
+                        <a href="{{ route('dashboard', ['filter' => $filterKey]) }}"
+                           @class([
+                               'dashboard-case-filter-chip',
+                               'dashboard-case-filter-chip--' . $filterMeta['tone'],
+                               'is-active' => $activeFilter === $filterKey,
+                           ])
+                           @if($activeFilter === $filterKey) aria-current="page" @endif>
+                            <i class="bi {{ $filterMeta['icon'] }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
+                            <span class="dashboard-case-filter-chip__label">{{ $filterMeta['label'] }}</span>
+                            <span class="dashboard-case-filter-chip__count">({{ $serviceCaseFilterCounts[$filterKey] }})</span>
+                        </a>
+                    @endforeach
+                </div>
+
+                <div class="dashboard-quick-filter" data-dashboard-quick-filter>
+                    <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
+                    <div class="dashboard-quick-filter__control">
+                        <span class="dashboard-quick-filter__icon" aria-hidden="true">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="search"
+                               id="dashboard-quick-filter-input"
+                               class="dashboard-quick-filter__input dashboard-u-focus-ring"
+                               placeholder="Filter current list..."
+                               autocomplete="off"
+                               data-dashboard-quick-filter-input
+                               aria-describedby="dashboard-quick-filter-count">
+                        <span id="dashboard-quick-filter-count"
+                              class="dashboard-quick-filter__count"
+                              data-dashboard-filter-count
+                              aria-live="polite">0 / 0</span>
                     </div>
                 </div>
-            @endif
-
-            <div class="dashboard-quick-filter" data-dashboard-quick-filter>
-                <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
-                <div class="dashboard-quick-filter__control">
-                    <span class="dashboard-quick-filter__icon" aria-hidden="true">
-                        <i class="bi bi-funnel"></i>
-                    </span>
-                    <input type="search"
-                           id="dashboard-quick-filter-input"
-                           class="dashboard-quick-filter__input dashboard-u-focus-ring"
-                           placeholder="Filter current list..."
-                           autocomplete="off"
-                           data-dashboard-quick-filter-input
-                           aria-describedby="dashboard-quick-filter-count">
-                    <span id="dashboard-quick-filter-count"
-                          class="dashboard-quick-filter__count"
-                          data-dashboard-filter-count
-                          aria-live="polite">0 / 0</span>
-                </div>
-            </div>
-
-            <div class="btn-group btn-group-sm dashboard-case-filters" role="group" aria-label="Service case filters">
-                @foreach([
-                    'all' => 'All',
-                    'pending_admin' => 'Pending Admin',
-                    'completed' => 'Completed',
-                    'high_priority' => 'High Priority',
-                ] as $filterKey => $filterLabel)
-                    <a href="{{ route('dashboard', ['filter' => $filterKey]) }}"
-                       @class([
-                           'btn',
-                           'btn-outline-secondary' => ($serviceCaseFilter ?? 'pending_admin') !== $filterKey,
-                           'btn-secondary' => ($serviceCaseFilter ?? 'pending_admin') === $filterKey,
-                       ])>
-                        {{ $filterLabel }}
-                    </a>
-                @endforeach
             </div>
         </div>
     </div>
