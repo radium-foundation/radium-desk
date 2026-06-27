@@ -4,6 +4,7 @@
     'icon',
     'color' => 'secondary',
     'href' => null,
+    'itemClass' => null,
 ])
 
 @php
@@ -13,6 +14,10 @@
         'dashboard-u-surface-card',
         'dashboard-u-transition',
     ];
+
+    if ($itemClass) {
+        $itemClasses[] = $itemClass;
+    }
 
     if ($href) {
         $itemClasses[] = 'text-decoration-none';

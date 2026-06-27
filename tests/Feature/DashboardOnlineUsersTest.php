@@ -36,7 +36,7 @@ class DashboardOnlineUsersTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Online Users')
-            ->assertSee('1 Online');
+            ->assertSee('<span class="dashboard-kpi-value-number">1</span>', false);
     }
 
     public function test_online_users_counts_distinct_users_with_recent_sessions(): void
@@ -115,7 +115,10 @@ class DashboardOnlineUsersTest extends TestCase
 
         $this->assertSame($sortedNames, $names);
         $this->assertStringContainsString('Online Users', $response->json('kpi_strip_html'));
-        $this->assertStringContainsString('2 Online', $response->json('kpi_strip_html'));
+        $this->assertStringContainsString(
+            '<span class="dashboard-kpi-value-number">2</span>',
+            $response->json('kpi_strip_html'),
+        );
     }
 
     public function test_dashboard_live_shows_zero_online_when_no_recent_sessions(): void
@@ -129,7 +132,10 @@ class DashboardOnlineUsersTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('online_count', 0);
         $response->assertJsonPath('online_users', []);
-        $this->assertStringContainsString('0 Online', $response->json('kpi_strip_html'));
+        $this->assertStringContainsString(
+            '<span class="dashboard-kpi-value-number">0</span>',
+            $response->json('kpi_strip_html'),
+        );
         $this->assertStringContainsString('No active users', $response->json('kpi_strip_html'));
     }
 

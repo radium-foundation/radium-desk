@@ -12,15 +12,76 @@ const replaceInnerHtml = (elementId, html) => {
     element.innerHTML = html;
 };
 
+const splitOperationalKpiStripHtml = (kpiStripHtml) => {
+    if (!kpiStripHtml) {
+        return { operationalHtml: kpiStripHtml, adminKpis: null };
+    }
+
+    const template = document.createElement('template');
+    template.innerHTML = kpiStripHtml.trim();
+
+    const strip = template.content.querySelector('.dashboard-kpi-strip');
+
+    if (!strip) {
+        return { operationalHtml: kpiStripHtml, adminKpis: null };
+    }
+
+    const totalUsersItem = strip.querySelector('.dashboard-kpi-item--total-users');
+    const onlineUsersItem = strip.querySelector('.dashboard-kpi-item--online-users');
+
+    if (!totalUsersItem && !onlineUsersItem) {
+        return { operationalHtml: kpiStripHtml, adminKpis: null };
+    }
+
+    const adminKpis = {
+        totalUsers: totalUsersItem?.outerHTML ?? null,
+        onlineUsers: onlineUsersItem?.outerHTML ?? null,
+    };
+
+    totalUsersItem?.remove();
+    onlineUsersItem?.remove();
+
+    return {
+        operationalHtml: strip.outerHTML,
+        adminKpis,
+    };
+};
+
+const applyAdminUserKpis = (adminKpis) => {
+    if (!adminKpis) {
+        return;
+    }
+
+    const totalUsersSlot = document.querySelector('[data-admin-kpi-slot="total-users"]');
+    const onlineUsersSlot = document.querySelector('[data-admin-kpi-slot="online-users"]');
+
+    if (adminKpis.totalUsers && totalUsersSlot) {
+        totalUsersSlot.innerHTML = adminKpis.totalUsers;
+    }
+
+    if (adminKpis.onlineUsers && onlineUsersSlot) {
+        onlineUsersSlot.innerHTML = adminKpis.onlineUsers;
+    }
+
+    if (adminKpis.totalUsers || adminKpis.onlineUsers) {
+        initTooltips(document.querySelector('.dashboard-admin-metrics') ?? document);
+    }
+};
+
 let refreshInFlight = false;
 let pendingDashboardRefresh = null;
 let dashboardRefreshHooks = {};
 
 const applyKpis = (kpiStripHtml) => {
-    if (kpiStripHtml !== undefined) {
-        replaceInnerHtml('dashboard-kpi-strip', kpiStripHtml);
-        initTooltips(document.getElementById('dashboard-kpi-strip') ?? document);
+    if (kpiStripHtml === undefined) {
+        return;
     }
+
+    const { operationalHtml, adminKpis } = splitOperationalKpiStripHtml(kpiStripHtml);
+
+    replaceInnerHtml('dashboard-kpi-strip', operationalHtml);
+    initTooltips(document.getElementById('dashboard-kpi-strip') ?? document);
+    applyAdminUserKpis(adminKpis);
 };
 
 const applyRows = (rows, options = {}) => {

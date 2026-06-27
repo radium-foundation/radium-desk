@@ -3,6 +3,9 @@
 ])
 
 @php
+    $onlineCount = $stats['online_count'] ?? 0;
+    $onlineUsers = $stats['online_users'] ?? collect();
+
     $items = [
         [
             'label' => 'Total Orders',
@@ -64,6 +67,26 @@
 <div class="dashboard-admin-metrics">
     <h2 class="dashboard-section-title dashboard-section-title--muted mb-0">Admin Metrics</h2>
     <div class="dashboard-kpi-strip dashboard-kpi-strip--admin" role="region" aria-label="Admin metrics">
+        @if(isset($stats['total_users']))
+            <div data-admin-kpi-slot="total-users">
+                @include('dashboard.partials.kpi-strip-item', [
+                    'label' => 'Total Users',
+                    'value' => $stats['total_users'],
+                    'icon' => 'bi-people',
+                    'color' => 'info',
+                    'itemClass' => 'dashboard-kpi-item--total-users',
+                ])
+            </div>
+        @endif
+
+        <div data-admin-kpi-slot="online-users">
+            @include('dashboard.partials.kpi-strip-online-users', [
+                'onlineCount' => $onlineCount,
+                'onlineUsers' => $onlineUsers,
+                'totalUsers' => $stats['total_users'] ?? null,
+            ])
+        </div>
+
         @foreach($items as $item)
             @include('dashboard.partials.kpi-strip-item', $item)
         @endforeach

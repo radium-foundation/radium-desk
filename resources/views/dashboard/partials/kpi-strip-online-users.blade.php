@@ -44,14 +44,16 @@
     data-bs-toggle="tooltip"
     data-bs-placement="top"
     data-bs-html="true"
+    data-bs-container="body"
+    data-bs-boundary="viewport"
     data-bs-custom-class="dashboard-premium-tooltip-wrapper"
     data-bs-title="{{ e($tooltipHtml) }}"
 >
-    <div class="dashboard-kpi-icon text-success">
-        <i class="bi bi-circle-fill" aria-hidden="true"></i>
-    </div>
-    <div class="dashboard-kpi-content">
+    <div class="dashboard-kpi-content dashboard-kpi-content--online-users">
         <div class="dashboard-kpi-label">Online Users</div>
-        <div class="dashboard-kpi-value">{{ $onlineCount }} Online</div>
+        <div class="dashboard-kpi-value dashboard-kpi-value--with-status">
+            <span class="dashboard-online-status-dot" aria-hidden="true"></span>
+            <span class="dashboard-kpi-value-number">{{ number_format($onlineCount) }}</span>
+        </div>
     </div>
 </div>
