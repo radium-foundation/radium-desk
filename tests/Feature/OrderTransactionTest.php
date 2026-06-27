@@ -406,19 +406,19 @@ class OrderTransactionTest extends TestCase
 
     public function test_superadmin_can_edit_completed_order_without_unlocking(): void
     {
-        $superadmin = User::factory()->create();
+        $superadmin = User::factory()->create(['name' => 'Ravi S', 'first_name' => 'Ravi', 'last_name' => 'S']);
         $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
         $completedAt = now()->subDay();
 
         $order = Order::query()->create([
             'order_id' => 'RD-TXN-004',
-            'serial_number' => 'SN-TXN-004',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'serial_number' => '9393471',
+            'product_name' => 'MFS 100',
+            'device_model' => 'MFS 100',
             'customer_name' => 'Jane Doe',
             'customer_email' => 'jane@example.com',
-            'customer_phone' => '555-0100',
+            'customer_phone' => '9876543210',
             'transaction_id' => 'TXN-COMPLETE',
             'completed_at' => $completedAt,
             'transaction_assigned_by' => $superadmin->id,
@@ -431,26 +431,29 @@ class OrderTransactionTest extends TestCase
             ->assertOk()
             ->assertSee('Completed Order')
             ->assertSee('This order has already been completed.')
-            ->assertSee('Any changes made by a Super Admin will be permanently recorded in the Audit Log.');
+            ->assertSee('Any changes made by a Super Admin will be permanently recorded in the Audit Log.')
+            ->assertSee('Reason for correction');
 
         $this->actingAs($superadmin)
             ->put(route('orders.update', $order), [
                 'order_id' => 'RD-TXN-004',
-                'serial_number' => 'SN-TXN-004-CORRECTED',
-                'product_name' => 'MFS 110 Pro',
-                'device_model' => 'MFS 110 Pro',
+                'serial_number' => '9393478',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
                 'customer_name' => 'Jane Smith',
                 'customer_email' => 'jane.smith@example.com',
-                'customer_phone' => '555-0199',
+                'customer_phone' => '9988776655',
                 'status' => 'active',
+                'correction_reason' => 'Customer submitted corrected label.',
             ])
             ->assertRedirect(route('orders.show', $order))
             ->assertSessionHas('status', 'order-updated');
 
         $order->refresh();
-        $this->assertSame('SN-TXN-004-CORRECTED', $order->serial_number);
-        $this->assertSame('MFS 110 Pro', $order->product_name);
+        $this->assertSame('9393478', $order->serial_number);
+        $this->assertSame('MFS 110', $order->product_name);
         $this->assertSame('Jane Smith', $order->customer_name);
+        $this->assertSame('9988776655', $order->customer_phone);
         $this->assertSame('TXN-COMPLETE', $order->transaction_id);
         $this->assertNotNull($order->completed_at);
         $this->assertSame(
@@ -464,6 +467,58 @@ class OrderTransactionTest extends TestCase
             'auditable_id' => $order->id,
             'user_id' => $superadmin->id,
         ]);
+
+        $auditLog = \App\Models\AuditLog::query()
+            ->where('event', 'order.updated')
+            ->where('auditable_id', $order->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('9393471', $auditLog->old_values['serial_number']);
+        $this->assertSame('9393478', $auditLog->new_values['serial_number']);
+        $this->assertSame('9876543210', $auditLog->old_values['customer_phone']);
+        $this->assertSame('9988776655', $auditLog->new_values['customer_phone']);
+        $this->assertSame('MFS 100', $auditLog->old_values['product_name']);
+        $this->assertSame('MFS 110', $auditLog->new_values['product_name']);
+        $this->assertSame('Customer submitted corrected label.', $auditLog->new_values['correction_reason']);
+
+        $this->actingAs($superadmin)
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('Updated Order Information')
+            ->assertSee('Super Admin Ravi')
+            ->assertSee('9393471 → 9393478')
+            ->assertSee('9876543210 → 9988776655')
+            ->assertSee('MFS 100 → MFS 110')
+            ->assertSee('Customer submitted corrected label.');
+    }
+
+    public function test_completed_order_edit_requires_correction_reason(): void
+    {
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TXN-REASON',
+            'serial_number' => 'SN-TXN-REASON',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-REASON',
+            'completed_at' => now(),
+            'transaction_assigned_by' => $superadmin->id,
+            'status' => 'active',
+            'created_by' => $superadmin->id,
+        ]);
+
+        $this->actingAs($superadmin)
+            ->put(route('orders.update', $order), [
+                'order_id' => 'RD-TXN-REASON',
+                'serial_number' => 'SN-TXN-REASON-NEW',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('correction_reason');
     }
 
     public function test_superadmin_can_unlock_completed_order(): void

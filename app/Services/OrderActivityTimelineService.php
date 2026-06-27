@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Data\OrderCorrectionChange;
 use App\Data\OrderTimelineEntry;
 use App\Models\ApprovalNumber;
 use App\Models\AuditLog;
@@ -14,6 +15,36 @@ use Illuminate\Support\Collection;
 
 class OrderActivityTimelineService
 {
+    private const CORRECTION_METADATA_KEY = 'correction_reason';
+
+    /**
+     * @var array<string, string>
+     */
+    private const FIELD_LABELS = [
+        'order_id' => 'Order ID',
+        'serial_number' => 'Serial Number',
+        'product_name' => 'Product',
+        'device_model' => 'Model',
+        'customer_name' => 'Customer Name',
+        'customer_email' => 'Customer Email',
+        'customer_phone' => 'Customer Phone',
+        'status' => 'Status',
+    ];
+
+    /**
+     * @var list<string>
+     */
+    private const FIELD_ORDER = [
+        'order_id',
+        'serial_number',
+        'product_name',
+        'device_model',
+        'customer_name',
+        'customer_email',
+        'customer_phone',
+        'status',
+    ];
+
     public function forOrder(Order $order): Collection
     {
         $order->loadMissing([
@@ -46,7 +77,7 @@ class OrderActivityTimelineService
         }
 
         $auditLogs = AuditLog::query()
-            ->with('user')
+            ->with(['user.roles'])
             ->where(function ($query) use ($order, $incidentIds, $refundIds, $remarkIds, $approvalIds) {
                 $query->where(function ($orderQuery) use ($order) {
                     $orderQuery->where('auditable_type', $order->getMorphClass())
@@ -92,9 +123,7 @@ class OrderActivityTimelineService
             ->keyBy('id');
 
         foreach ($auditLogs as $auditLog) {
-            $entry = $this->mapAuditLogEntry($auditLog, $incidentsById, $approvalNumbers, $incidentIds);
-
-            if ($entry !== null) {
+            foreach ($this->mapAuditLogEntries($auditLog, $incidentsById, $approvalNumbers, $incidentIds) as $entry) {
                 $entries->push($entry);
             }
         }
@@ -108,31 +137,123 @@ class OrderActivityTimelineService
     /**
      * @param  Collection<int, Incident>  $incidentsById
      * @param  Collection<int, ApprovalNumber>  $approvalNumbers
-     */
-    /**
      * @param  Collection<int, int|string>  $orderIncidentIds
+     * @return Collection<int, OrderTimelineEntry>
      */
-    private function mapAuditLogEntry(
+    private function mapAuditLogEntries(
         AuditLog $auditLog,
         Collection $incidentsById,
         Collection $approvalNumbers,
         Collection $orderIncidentIds,
-    ): ?OrderTimelineEntry {
-        $actorName = $auditLog->user?->firstName();
+    ): Collection {
         $occurredAt = $auditLog->created_at ?? now();
 
         if ($auditLog->auditable_type === (new Order)->getMorphClass()) {
             return match ($auditLog->event) {
-                'transaction.assigned' => new OrderTimelineEntry(
-                    occurredAt: $occurredAt,
-                    title: 'Transaction ID added',
-                    detail: (string) ($auditLog->new_values['transaction_id'] ?? ''),
-                    actorName: $actorName,
-                    dedupeKey: "audit:{$auditLog->id}",
+                'transaction.assigned' => collect([
+                    new OrderTimelineEntry(
+                        occurredAt: $occurredAt,
+                        title: 'Transaction ID added',
+                        detail: (string) ($auditLog->new_values['transaction_id'] ?? ''),
+                        actorName: $auditLog->user?->firstName(),
+                        dedupeKey: "audit:{$auditLog->id}",
+                    ),
+                ]),
+                'order.updated' => $this->mapOrderCorrectionEntries(
+                    $auditLog,
+                    $auditLog->user?->roleActorLabel() ?: $auditLog->user?->firstName(),
+                    $occurredAt,
                 ),
-                default => null,
+                default => collect(),
             };
         }
+
+        $entry = $this->mapNonOrderAuditLogEntry(
+            $auditLog,
+            $incidentsById,
+            $approvalNumbers,
+            $orderIncidentIds,
+            $occurredAt,
+        );
+
+        return $entry !== null ? collect([$entry]) : collect();
+    }
+
+    /**
+     * @return Collection<int, OrderTimelineEntry>
+     */
+    private function mapOrderCorrectionEntries(
+        AuditLog $auditLog,
+        ?string $actorName,
+        $occurredAt,
+    ): Collection {
+        $oldValues = $auditLog->old_values ?? [];
+        $newValues = $auditLog->new_values ?? [];
+        $reason = (string) ($newValues[self::CORRECTION_METADATA_KEY] ?? '');
+
+        $changedFields = collect($newValues)
+            ->except([self::CORRECTION_METADATA_KEY])
+            ->keys()
+            ->sortBy(fn (string $field): int => array_search($field, self::FIELD_ORDER, true) !== false
+                ? array_search($field, self::FIELD_ORDER, true)
+                : 999)
+            ->values();
+
+        $changes = $changedFields
+            ->map(function (string $field) use ($oldValues, $newValues): OrderCorrectionChange {
+                $label = self::FIELD_LABELS[$field] ?? str_replace('_', ' ', ucfirst($field));
+
+                return new OrderCorrectionChange(
+                    label: $label,
+                    previous: $this->formatCorrectionValue($oldValues[$field] ?? null),
+                    next: $this->formatCorrectionValue($newValues[$field] ?? null),
+                );
+            })
+            ->all();
+
+        if ($changes === []) {
+            return collect();
+        }
+
+        return collect([
+            new OrderTimelineEntry(
+                occurredAt: $occurredAt,
+                title: 'Updated Order Information',
+                detail: null,
+                actorName: $actorName,
+                dedupeKey: "audit:{$auditLog->id}",
+                correctionChanges: $changes,
+                correctionReason: $reason !== '' ? $reason : null,
+            ),
+        ]);
+    }
+
+    private function formatCorrectionValue(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        if ($value === 'active' || $value === 'archived') {
+            return ucfirst((string) $value);
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidentsById
+     * @param  Collection<int, ApprovalNumber>  $approvalNumbers
+     * @param  Collection<int, int|string>  $orderIncidentIds
+     */
+    private function mapNonOrderAuditLogEntry(
+        AuditLog $auditLog,
+        Collection $incidentsById,
+        Collection $approvalNumbers,
+        Collection $orderIncidentIds,
+        $occurredAt,
+    ): ?OrderTimelineEntry {
+        $displayActor = $auditLog->user?->firstName();
 
         if ($auditLog->auditable_type === (new Incident)->getMorphClass()) {
             $incident = $incidentsById->get($auditLog->auditable_id);
@@ -142,14 +263,14 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     detail: $incident?->reference_no,
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'service_case.reassigned' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     detail: $incident?->reference_no,
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 default => null,
@@ -162,7 +283,7 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Remark added',
                     detail: null,
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 )
                 : null;
@@ -174,21 +295,21 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Refund request created',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'approved' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Refund request approved',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? $auditLog->old_values['reference_no'] ?? ''),
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'rejected' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Refund request rejected',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? $auditLog->old_values['reference_no'] ?? ''),
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 default => null,
@@ -210,14 +331,14 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Approval linked',
                     detail: $approval?->approval_number,
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'deleted' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Approval closed',
                     detail: (string) ($auditLog->old_values['approval_number'] ?? $approval?->approval_number ?? ''),
-                    actorName: $actorName,
+                    actorName: $displayActor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 default => null,

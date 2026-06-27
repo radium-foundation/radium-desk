@@ -59,4 +59,16 @@ class AppDateFormatter
     {
         return self::format($date, 'h:i A');
     }
+
+    public static function timelineDatetime(?CarbonInterface $date): ?string
+    {
+        $formattedDate = self::timelineDate($date);
+        $formattedTime = self::timelineTime($date);
+
+        if ($formattedDate === null || $formattedTime === null) {
+            return null;
+        }
+
+        return "{$formattedDate} • {$formattedTime}";
+    }
 }

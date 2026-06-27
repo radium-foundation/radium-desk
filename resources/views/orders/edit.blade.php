@@ -34,6 +34,19 @@
 
                 @include('orders.partials.form', ['order' => $order, 'showStatus' => true])
 
+                @if($order->isTransactionLocked())
+                    <div class="mt-4">
+                        <label for="correction_reason" class="form-label">Reason for correction <span class="text-danger">*</span></label>
+                        <textarea name="correction_reason" id="correction_reason" rows="3"
+                                  class="form-control @error('correction_reason') is-invalid @enderror"
+                                  required>{{ old('correction_reason') }}</textarea>
+                        @error('correction_reason')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="form-text">Required for all changes to completed orders.</div>
+                    </div>
+                @endif
+
                 <div class="d-flex flex-wrap gap-2 mt-4">
                     <button type="submit" class="btn btn-primary">Save Changes</button>
                     <a href="{{ route('orders.show', $order) }}" class="btn btn-outline-secondary">Cancel</a>

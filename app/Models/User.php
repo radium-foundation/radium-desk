@@ -149,4 +149,32 @@ class User extends Authenticatable
 
         return strtoupper($first.$last) ?: '?';
     }
+
+    public function primaryRoleLabel(): string
+    {
+        $roleName = $this->roles->first()?->name;
+
+        return match ($roleName) {
+            'superadmin' => 'Super Admin',
+            'admin' => 'Admin',
+            'agent' => 'Agent',
+            default => $roleName !== null ? ucfirst($roleName) : '',
+        };
+    }
+
+    public function roleActorLabel(): string
+    {
+        $roleLabel = $this->primaryRoleLabel();
+        $firstName = $this->firstName();
+
+        if ($roleLabel === '') {
+            return $firstName;
+        }
+
+        if ($firstName === '') {
+            return $roleLabel;
+        }
+
+        return "{$roleLabel} {$firstName}";
+    }
 }

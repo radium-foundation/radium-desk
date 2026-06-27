@@ -42,3 +42,8 @@ function display_app_timeline_time(?CarbonInterface $date, string $fallback = 'â
 {
     return AppDateFormatter::timelineTime($date) ?? $fallback;
 }
+
+function display_app_timeline_datetime(?CarbonInterface $date, string $fallback = 'â€”'): string
+{
+    return AppDateFormatter::timelineDatetime($date) ?? $fallback;
+}

@@ -171,14 +171,15 @@ class OrderController extends Controller
     public function update(UpdateOrderRequest $request, Order $order): RedirectResponse
     {
         $wasCompleted = $order->isTransactionLocked();
+        $attributesBeforeUpdate = $order->getAttributes();
 
         $order->update([
-            ...$request->validated(),
+            ...collect($request->validated())->except('correction_reason')->all(),
             'updated_by' => $request->user()->id,
         ]);
 
         if ($wasCompleted) {
-            $ignoredFields = ['updated_at', 'created_at', 'deleted_at'];
+            $ignoredFields = ['updated_at', 'created_at', 'deleted_at', 'updated_by'];
             $changedNew = collect($order->getChanges())
                 ->except($ignoredFields)
                 ->map(fn (mixed $value): mixed => $this->normalizeAuditValue($value))
@@ -187,7 +188,7 @@ class OrderController extends Controller
             if ($changedNew !== []) {
                 $changedOld = collect(array_keys($changedNew))
                     ->mapWithKeys(fn (string $field): array => [
-                        $field => $this->normalizeAuditValue($order->getOriginal($field)),
+                        $field => $this->normalizeAuditValue($attributesBeforeUpdate[$field] ?? null),
                     ])
                     ->all();
 
@@ -196,7 +197,10 @@ class OrderController extends Controller
                     event: 'order.updated',
                     auditable: $order,
                     oldValues: $changedOld,
-                    newValues: $changedNew,
+                    newValues: [
+                        ...$changedNew,
+                        'correction_reason' => $request->string('correction_reason')->trim()->toString(),
+                    ],
                     request: $request,
                 );
             }

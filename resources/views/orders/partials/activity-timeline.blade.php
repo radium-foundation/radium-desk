@@ -19,15 +19,29 @@
                         <div class="activity-timeline-marker"></div>
                         <div class="activity-timeline-content">
                             <div class="activity-timeline-datetime">
-                                {{ display_app_timeline_date($entry->occurredAt) }}<br>
-                                {{ display_app_timeline_time($entry->occurredAt) }}
+                                {{ display_app_timeline_datetime($entry->occurredAt) }}
                             </div>
-                            <div class="fw-semibold">{{ $entry->title }}</div>
-                            @if($entry->detail)
-                                <div class="text-muted small">{{ $entry->detail }}</div>
-                            @endif
                             @if($entry->actorName)
-                                <div class="text-muted small">by {{ $entry->actorName }}</div>
+                                <div class="activity-timeline-actor fw-semibold">{{ $entry->actorName }}</div>
+                            @endif
+                            <div class="fw-semibold">{{ $entry->title }}</div>
+                            @if($entry->correctionChanges !== [])
+                                <div class="activity-timeline-correction">
+                                    @foreach($entry->correctionChanges as $change)
+                                        <div class="activity-timeline-correction-field">
+                                            <div class="activity-timeline-correction-field-label">{{ $change->label }}</div>
+                                            <div class="activity-timeline-correction-field-value">{{ $change->previous }} → {{ $change->next }}</div>
+                                        </div>
+                                    @endforeach
+                                    @if($entry->correctionReason)
+                                        <div class="activity-timeline-correction-reason">
+                                            <div class="activity-timeline-correction-field-label">Reason</div>
+                                            <div class="activity-timeline-correction-field-value">{{ $entry->correctionReason }}</div>
+                                        </div>
+                                    @endif
+                                </div>
+                            @elseif($entry->detail)
+                                <div class="text-muted small">{{ $entry->detail }}</div>
                             @endif
                         </div>
                     </div>

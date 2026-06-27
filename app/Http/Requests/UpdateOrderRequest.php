@@ -44,6 +44,13 @@ class UpdateOrderRequest extends FormRequest
             'customer_email' => ['nullable', 'email', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:50'],
             'status' => ['required', Rule::enum(OrderStatus::class)],
+            'correction_reason' => [
+                Rule::requiredIf(fn (): bool => $order->isTransactionLocked()),
+                'nullable',
+                'string',
+                'min:3',
+                'max:1000',
+            ],
         ];
     }
 
@@ -61,6 +68,7 @@ class UpdateOrderRequest extends FormRequest
             'customer_name' => 'customer name',
             'customer_email' => 'customer email',
             'customer_phone' => 'customer phone',
+            'correction_reason' => 'reason',
         ];
     }
 }
