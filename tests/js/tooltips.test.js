@@ -20,17 +20,28 @@ describe('initTooltips', () => {
 
         initTooltips();
 
-        expect(bootstrap.Tooltip.getInstance(document.querySelector('span'))).toBeTruthy();
+        const instance = bootstrap.Tooltip.getInstance(document.querySelector('span'));
+
+        expect(instance).toBeTruthy();
+        expect(instance._config.title).toBe('Plain text');
+        expect(instance._config.html).toBeFalsy();
     });
 
-    it('initializes premium html tooltips with custom class', () => {
+    it('initializes premium tooltips from adjacent template content', () => {
         document.body.innerHTML = `
             <span
                 data-bs-toggle="tooltip"
-                data-bs-html="true"
+                data-dashboard-tooltip
                 data-bs-custom-class="dashboard-premium-tooltip-wrapper"
-                data-bs-title="&lt;div class=&quot;dashboard-premium-tooltip&quot;&gt;Line&lt;/div&gt;"
             >SLA</span>
+            <template class="dashboard-tooltip-template">
+                <div class="dashboard-premium-tooltip dashboard-premium-tooltip--compact">
+                    <div class="dashboard-premium-tooltip__compact-line">26 Jun 2026, 06:46 PM</div>
+                    <div class="dashboard-premium-tooltip__compact-line">
+                        <span class="dashboard-sla-tooltip-duration--overdue">15h 29m</span>
+                    </div>
+                </div>
+            </template>
         `;
 
         initTooltips();
@@ -40,18 +51,25 @@ describe('initTooltips', () => {
         expect(instance).toBeTruthy();
         expect(instance._config.html).toBe(true);
         expect(instance._config.customClass).toBe('dashboard-premium-tooltip-wrapper');
+        expect(instance._config.title).toContain('dashboard-premium-tooltip--compact');
+        expect(instance._config.title).toContain('15h 29m');
+        expect(instance._config.title).not.toContain('&lt;');
     });
 
     it('initializes body container tooltips used by online users kpi', () => {
         document.body.innerHTML = `
             <div
                 data-bs-toggle="tooltip"
-                data-bs-html="true"
+                data-dashboard-tooltip
                 data-bs-container="body"
                 data-bs-boundary="viewport"
                 data-bs-custom-class="dashboard-premium-tooltip-wrapper"
-                data-bs-title="&lt;div&gt;Online&lt;/div&gt;"
             >Online Users</div>
+            <template class="dashboard-tooltip-template">
+                <div class="dashboard-premium-tooltip">
+                    <div class="dashboard-premium-tooltip__title">Currently Online</div>
+                </div>
+            </template>
         `;
 
         expect(() => initTooltips()).not.toThrow();
@@ -60,6 +78,8 @@ describe('initTooltips', () => {
 
         expect(instance).toBeTruthy();
         expect(instance._config.container).toBe(document.body);
+        expect(instance._config.html).toBe(true);
+        expect(instance._config.title).toContain('Currently Online');
     });
 
     it('only reinitializes tooltips within the provided root', () => {

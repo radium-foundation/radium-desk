@@ -7,39 +7,6 @@
 
     $referenceCreatedAt = $loggedAt ?? $order->created_at ?? now();
     $status = $order->completionStatus();
-
-    if ($status === OrderCompletionStatus::PendingAdmin) {
-        $tooltipHtml = view('dashboard.partials.premium-tooltip', [
-            'title' => 'Waiting for Transaction ID',
-            'sections' => [
-                [
-                    'label' => 'Created',
-                    'value' => AppDateFormatter::datetime($referenceCreatedAt) ?? '—',
-                ],
-                [
-                    'label' => 'Pending',
-                    'value' => Order::formatDurationBetween($referenceCreatedAt) ?? '—',
-                ],
-            ],
-        ])->render();
-    } else {
-        $tooltipHtml = view('dashboard.partials.premium-tooltip', [
-            'sections' => [
-                [
-                    'label' => 'Transaction ID',
-                    'value' => $order->transaction_id ?: '—',
-                ],
-                [
-                    'label' => 'Completed',
-                    'value' => AppDateFormatter::datetime($order->completed_at) ?? '—',
-                ],
-                [
-                    'label' => 'Total turnaround',
-                    'value' => Order::formatDurationBetween($referenceCreatedAt, $order->completed_at) ?? '—',
-                ],
-            ],
-        ])->render();
-    }
 @endphp
 
 <span class="d-inline-flex align-items-center gap-1">
@@ -49,8 +16,41 @@
        role="img"
        aria-label="Completion status details"
        data-bs-toggle="tooltip"
+       data-dashboard-tooltip
        data-bs-placement="top"
-       data-bs-html="true"
-       data-bs-custom-class="dashboard-premium-tooltip-wrapper"
-       data-bs-title="{{ $tooltipHtml }}"></i>
+       data-bs-custom-class="dashboard-premium-tooltip-wrapper"></i>
+    <template class="dashboard-tooltip-template">
+        @if($status === OrderCompletionStatus::PendingAdmin)
+            @include('dashboard.partials.premium-tooltip', [
+                'title' => 'Waiting for Transaction ID',
+                'sections' => [
+                    [
+                        'label' => 'Created',
+                        'value' => AppDateFormatter::datetime($referenceCreatedAt) ?? '—',
+                    ],
+                    [
+                        'label' => 'Pending',
+                        'value' => Order::formatDurationBetween($referenceCreatedAt) ?? '—',
+                    ],
+                ],
+            ])
+        @else
+            @include('dashboard.partials.premium-tooltip', [
+                'sections' => [
+                    [
+                        'label' => 'Transaction ID',
+                        'value' => $order->transaction_id ?: '—',
+                    ],
+                    [
+                        'label' => 'Completed',
+                        'value' => AppDateFormatter::datetime($order->completed_at) ?? '—',
+                    ],
+                    [
+                        'label' => 'Total turnaround',
+                        'value' => Order::formatDurationBetween($referenceCreatedAt, $order->completed_at) ?? '—',
+                    ],
+                ],
+            ])
+        @endif
+    </template>
 </span>

@@ -19,19 +19,6 @@
     $tooltipFooter = $totalUsers !== null
         ? "{$onlineCount} of {$totalUsers} users"
         : null;
-
-    $tooltipHtml = $onlineCount === 0
-        ? view('dashboard.partials.premium-tooltip', [
-            'title' => 'No active users',
-            'footer' => $tooltipFooter,
-        ])->render()
-        : view('dashboard.partials.premium-tooltip', [
-            'title' => 'Currently Online',
-            'lines' => $sortedUsers
-                ->map(fn ($user) => '🟢 '.$dashboardService->onlineUserDisplayName($user))
-                ->all(),
-            'footer' => $tooltipFooter,
-        ])->render();
 @endphp
 
 <div
@@ -42,12 +29,11 @@
         'dashboard-u-transition',
     ])
     data-bs-toggle="tooltip"
+    data-dashboard-tooltip
     data-bs-placement="top"
-    data-bs-html="true"
     data-bs-container="body"
     data-bs-boundary="viewport"
     data-bs-custom-class="dashboard-premium-tooltip-wrapper"
-    data-bs-title="{{ $tooltipHtml }}"
 >
     <div class="dashboard-kpi-icon dashboard-kpi-icon--spacer" aria-hidden="true"></div>
     <div class="dashboard-kpi-content">
@@ -58,3 +44,19 @@
         </div>
     </div>
 </div>
+<template class="dashboard-tooltip-template">
+    @if($onlineCount === 0)
+        @include('dashboard.partials.premium-tooltip', [
+            'title' => 'No active users',
+            'footer' => $tooltipFooter,
+        ])
+    @else
+        @include('dashboard.partials.premium-tooltip', [
+            'title' => 'Currently Online',
+            'lines' => $sortedUsers
+                ->map(fn ($user) => '🟢 '.$dashboardService->onlineUserDisplayName($user))
+                ->all(),
+            'footer' => $tooltipFooter,
+        ])
+    @endif
+</template>

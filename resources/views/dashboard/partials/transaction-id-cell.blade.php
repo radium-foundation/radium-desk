@@ -16,11 +16,13 @@
     @if($isCompleted && $order?->transaction_id)
         <span class="transaction-completed-display text-nowrap"
               data-bs-toggle="tooltip"
-              data-bs-placement="top"
-              data-bs-html="true"
-              data-bs-title="{!! $order->transactionAssignTooltipHtml() !!}">
+              data-dashboard-tooltip
+              data-bs-placement="top">
             <i class="bi bi-check-circle-fill text-success me-1" aria-hidden="true"></i>{{ $order->transaction_id }}
         </span>
+        <template class="dashboard-tooltip-template">
+            {!! $order->transactionAssignTooltipHtml() !!}
+        </template>
     @elseif($canAssign)
         <button type="button"
                 class="transaction-cell-trigger dashboard-u-transaction-add dashboard-u-transition dashboard-u-focus-ring"

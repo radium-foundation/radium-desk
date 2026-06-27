@@ -3,10 +3,6 @@ import * as bootstrap from 'bootstrap';
 const tooltipOptionsFor = (element) => {
     const options = {};
 
-    if (element.getAttribute('data-bs-html') === 'true') {
-        options.html = true;
-    }
-
     if (element.getAttribute('data-bs-container') === 'body') {
         options.container = document.body;
     }
@@ -32,6 +28,22 @@ const tooltipOptionsFor = (element) => {
     return options;
 };
 
+const premiumTooltipTitleFor = (element) => {
+    if (! element.hasAttribute('data-dashboard-tooltip')) {
+        return null;
+    }
+
+    const template = element.nextElementSibling?.matches('.dashboard-tooltip-template')
+        ? element.nextElementSibling
+        : null;
+
+    if (! template) {
+        return null;
+    }
+
+    return template.innerHTML.trim();
+};
+
 export const initTooltips = (root = document) => {
     root.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((element) => {
         const existing = bootstrap.Tooltip.getInstance(element);
@@ -40,6 +52,16 @@ export const initTooltips = (root = document) => {
             existing.dispose();
         }
 
-        bootstrap.Tooltip.getOrCreateInstance(element, tooltipOptionsFor(element));
+        const options = tooltipOptionsFor(element);
+        const premiumTitle = premiumTooltipTitleFor(element);
+
+        if (premiumTitle !== null) {
+            options.html = true;
+            options.title = premiumTitle;
+        } else if (element.getAttribute('data-bs-html') === 'true') {
+            options.html = true;
+        }
+
+        bootstrap.Tooltip.getOrCreateInstance(element, options);
     });
 };

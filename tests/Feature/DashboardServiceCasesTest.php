@@ -470,7 +470,7 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dashboard_sla_tooltip_uses_single_encoded_html_in_data_attribute(): void
+    public function test_dashboard_sla_tooltip_renders_premium_content_in_template(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-26 18:46:00'));
 
@@ -506,15 +506,12 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard', ['filter' => 'all']))
             ->assertOk();
 
+        $response->assertSee('data-dashboard-tooltip', false);
+        $response->assertSee('class="dashboard-tooltip-template"', false);
         $response->assertSee('dashboard-premium-tooltip--compact', false);
-        $response->assertSee(
-            '&lt;span class=&quot;dashboard-sla-tooltip-duration--within&quot;&gt;15h 29m&lt;/span&gt;',
-            false,
-        );
-        $response->assertDontSee(
-            '&amp;lt;span class=&amp;quot;dashboard-sla-tooltip-duration--within&amp;quot;&amp;gt;15h 29m&amp;lt;/span&amp;gt;',
-            false,
-        );
+        $response->assertSee('dashboard-sla-tooltip-duration--within', false);
+        $response->assertSee('15h 29m', false);
+        $response->assertDontSee('data-bs-title="&lt;div class=&quot;dashboard-premium-tooltip', false);
 
         Carbon::setTestNow();
     }
