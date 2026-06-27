@@ -52,5 +52,5 @@
        data-bs-placement="top"
        data-bs-html="true"
        data-bs-custom-class="dashboard-premium-tooltip-wrapper"
-       data-bs-title="{{ e($tooltipHtml) }}"></i>
+       data-bs-title="{{ $tooltipHtml }}"></i>
 </span>

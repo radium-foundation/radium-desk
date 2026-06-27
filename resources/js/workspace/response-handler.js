@@ -1,3 +1,5 @@
+import { applyKpis as applyDashboardKpis } from '../live-dashboard';
+
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
 
@@ -67,7 +69,7 @@ const applyKpis = (refresh) => {
     }
 
     if (refresh.kpis_html.kpi_strip_html !== undefined) {
-        replaceInnerHtml('dashboard-kpi-strip', refresh.kpis_html.kpi_strip_html);
+        applyDashboardKpis(refresh.kpis_html.kpi_strip_html);
 
         return;
     }

@@ -18,7 +18,7 @@
       data-bs-placement="top"
       data-bs-html="true"
       data-bs-custom-class="dashboard-premium-tooltip-wrapper"
-      data-bs-title="{{ e($tooltipHtml) }}">
+      data-bs-title="{{ $tooltipHtml }}">
     <span class="sla-status-indicator" aria-hidden="true">{{ $slaStatus->indicator() }}</span>
     <span class="sla-status-label">{{ $slaStatus->label() }}</span>
 </span>

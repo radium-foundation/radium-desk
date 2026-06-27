@@ -7,6 +7,7 @@ use App\Http\Requests\UnlockOrderTransactionRequest;
 use App\Http\Requests\UpdateOrderTransactionRequest;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\DashboardService;
 use App\Services\OrderTransactionService;
 use Illuminate\Http\JsonResponse;
@@ -51,6 +52,7 @@ class OrderTransactionController extends Controller
                         $this->dashboardService->serviceCaseRowViewData($incident, $user),
                     )->render()
                     : null,
+                'kpi_strip_html' => $this->kpiStripHtmlFor($user),
             ]);
         }
 
@@ -75,7 +77,15 @@ class OrderTransactionController extends Controller
             'count' => $count,
             'transaction_id' => $transactionId,
             'rows' => $result['rows'],
+            'kpi_strip_html' => $this->kpiStripHtmlFor($request->user()),
         ]);
+    }
+
+    private function kpiStripHtmlFor(User $user): string
+    {
+        return $this->dashboardService->renderKpiStrip(
+            $this->dashboardService->statsFor($user),
+        );
     }
 
     public function destroy(UnlockOrderTransactionRequest $request, Order $order): RedirectResponse

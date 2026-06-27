@@ -231,7 +231,7 @@ class OrderTransactionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('order_id', $order->id)
             ->assertJsonPath('incident_id', $incident->id)
-            ->assertJsonStructure(['row_html']);
+            ->assertJsonStructure(['row_html', 'kpi_strip_html']);
 
         $order->refresh();
         $this->assertSame('TX123456', $order->transaction_id);
@@ -297,7 +297,8 @@ class OrderTransactionTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('count', 3)
-            ->assertJsonPath('transaction_id', 'TX123456');
+            ->assertJsonPath('transaction_id', 'TX123456')
+            ->assertJsonStructure(['rows', 'kpi_strip_html']);
 
         $this->assertStringContainsString(
             'Transaction TX123456 applied to 3 service cases.',

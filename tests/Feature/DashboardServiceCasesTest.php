@@ -470,6 +470,55 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_dashboard_sla_tooltip_uses_single_encoded_html_in_data_attribute(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-06-26 18:46:00'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SLA-HTML',
+            'serial_number' => 'SN-SLA-HTML',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $createdAt = now()->subHours(15)->subMinutes(29);
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-SLA-HTML',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'SLA tooltip html test',
+            'description' => 'SLA tooltip html test.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+        ]);
+        $incident->forceFill([
+            'created_at' => $createdAt,
+            'updated_at' => $createdAt,
+        ])->saveQuietly();
+
+        $response = $this->actingAs($agent)
+            ->get(route('dashboard', ['filter' => 'all']))
+            ->assertOk();
+
+        $response->assertSee('dashboard-premium-tooltip--compact', false);
+        $response->assertSee(
+            '&lt;span class=&quot;dashboard-sla-tooltip-duration--within&quot;&gt;15h 29m&lt;/span&gt;',
+            false,
+        );
+        $response->assertDontSee(
+            '&amp;lt;span class=&amp;quot;dashboard-sla-tooltip-duration--within&amp;quot;&amp;gt;15h 29m&amp;lt;/span&amp;gt;',
+            false,
+        );
+
+        Carbon::setTestNow();
+    }
+
     public function test_dashboard_shows_sla_warning_and_overdue_for_pending_cases(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-26 12:00:00'));

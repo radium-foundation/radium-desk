@@ -47,7 +47,7 @@
     data-bs-container="body"
     data-bs-boundary="viewport"
     data-bs-custom-class="dashboard-premium-tooltip-wrapper"
-    data-bs-title="{{ e($tooltipHtml) }}"
+    data-bs-title="{{ $tooltipHtml }}"
 >
     <div class="dashboard-kpi-icon dashboard-kpi-icon--spacer" aria-hidden="true"></div>
     <div class="dashboard-kpi-content">

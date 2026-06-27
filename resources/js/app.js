@@ -1,6 +1,6 @@
 import './bootstrap';
 import * as bootstrap from 'bootstrap';
-import { initLiveDashboard } from './live-dashboard';
+import { initLiveDashboard, applyKpis } from './live-dashboard';
 import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initDashboardQuickFilter } from './dashboard-filter';
 import { initLiveNotifications } from './live-notifications';
@@ -360,6 +360,10 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = 
                 getWorkspaceSession().release('inline-transaction');
                 replaceServiceCaseRow(data.incident_id, data.row_html);
                 batchSession.updateToolbar();
+            }
+
+            if (data.kpi_strip_html !== undefined) {
+                applyKpis(data.kpi_strip_html);
             }
 
             showAppToast(data.message ?? 'Transaction ID saved.');
