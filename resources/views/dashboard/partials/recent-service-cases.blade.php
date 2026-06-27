@@ -1,9 +1,7 @@
 @php
     $activeFilter = $serviceCaseFilter ?? 'pending_admin';
     $dashboardService = app(\App\Services\DashboardService::class);
-    $serviceCaseFilterCounts = collect(['all', 'pending_admin', 'completed', 'high_priority'])
-        ->mapWithKeys(fn (string $key): array => [$key => $dashboardService->recentServiceCases($key, null)->count()])
-        ->all();
+    $serviceCaseFilterCounts = $dashboardService->serviceCaseFilterCounts();
     $serviceCaseFilterMeta = [
         'all' => ['label' => 'All', 'icon' => 'bi-grid-3x3-gap-fill', 'tone' => 'primary'],
         'pending_admin' => ['label' => 'Pending Admin', 'icon' => 'bi-clock', 'tone' => 'warning'],
@@ -21,10 +19,6 @@
                         <i class="bi bi-clipboard-data"></i>
                     </span>
                     <h2 class="dashboard-cases-title mb-0">Recent Service Cases</h2>
-                    <span class="dashboard-cases-header__count-badge"
-                          aria-label="{{ $serviceCaseFilterCounts[$activeFilter] ?? $recentServiceCases->count() }} service cases in current filter">
-                        {{ $serviceCaseFilterCounts[$activeFilter] ?? $recentServiceCases->count() }}
-                    </span>
                 </div>
                 @can('viewAny', App\Models\Incident::class)
                     <a href="{{ route('incidents.index') }}"
@@ -79,7 +73,8 @@
                            @if($activeFilter === $filterKey) aria-current="page" @endif>
                             <i class="bi {{ $filterMeta['icon'] }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
                             <span class="dashboard-case-filter-chip__label">{{ $filterMeta['label'] }}</span>
-                            <span class="dashboard-case-filter-chip__count">({{ $serviceCaseFilterCounts[$filterKey] }})</span>
+                            <span class="dashboard-case-filter-chip__count"
+                                  data-dashboard-case-filter-count="{{ $filterKey }}">({{ $serviceCaseFilterCounts[$filterKey] }})</span>
                         </a>
                     @endforeach
                 </div>

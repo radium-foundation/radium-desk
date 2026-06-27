@@ -72,6 +72,22 @@ let refreshInFlight = false;
 let pendingDashboardRefresh = null;
 let dashboardRefreshHooks = {};
 
+const applyFilterCounts = (counts) => {
+    if (!counts || typeof counts !== 'object') {
+        return;
+    }
+
+    Object.entries(counts).forEach(([filterKey, count]) => {
+        const countElement = document.querySelector(
+            `[data-dashboard-case-filter-count="${filterKey}"]`,
+        );
+
+        if (countElement) {
+            countElement.textContent = `(${count})`;
+        }
+    });
+};
+
 const applyKpis = (kpiStripHtml) => {
     if (kpiStripHtml === undefined) {
         return;
@@ -134,6 +150,7 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
         }
 
         applyKpis(data.kpi_strip_html);
+        applyFilterCounts(data.service_case_filter_counts);
         applyRows(data.rows ?? [], {
             serviceCasesEmpty: data.service_cases_empty,
             serviceCasesEmptyHtml: data.service_cases_empty_html,
@@ -148,6 +165,7 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
         if (getWorkspaceSession().isActive()) {
             queueDashboardRefresh({
                 kpi_strip_html: data.kpi_strip_html,
+                service_case_filter_counts: data.service_case_filter_counts,
                 rows: data.rows ?? [],
                 service_cases_empty: data.service_cases_empty,
                 service_cases_empty_html: data.service_cases_empty_html,
@@ -276,6 +294,7 @@ export const initLiveDashboard = (hooks = {}) => {
 
 export {
     applyDashboardRefresh,
+    applyFilterCounts,
     applyKpis,
     applyPartialDashboardUpdate,
     applyRows,

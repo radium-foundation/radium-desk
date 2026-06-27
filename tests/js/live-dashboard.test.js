@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     applyDashboardRefresh,
+    applyFilterCounts,
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,
@@ -14,6 +15,8 @@ describe('live dashboard refresh session integration', () => {
             <div id="dashboard-page" data-live-url="/dashboard/live" data-live-filter="pending_admin"></div>
             <div id="dashboard-kpi-strip">stats-old</div>
             <div class="dashboard-service-cases-card">
+                <span data-dashboard-case-filter-count="all">(0)</span>
+                <span data-dashboard-case-filter-count="pending_admin">(0)</span>
                 <div id="dashboard-service-cases-scroll">
                     <table>
                         <thead><tr><th>Ref</th></tr></thead>
@@ -85,12 +88,30 @@ describe('live dashboard refresh session integration', () => {
     it('applies refresh immediately when no session is active', async () => {
         await applyDashboardRefresh({
             kpi_strip_html: 'stats-new',
+            service_case_filter_counts: {
+                all: 12,
+                pending_admin: 8,
+            },
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
         });
 
         expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-new');
+        expect(document.querySelector('[data-dashboard-case-filter-count="all"]')?.textContent).toBe('(12)');
+        expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(8)');
+    });
+
+    it('updates filter chip counts from the refresh payload', () => {
+        applyFilterCounts({
+            all: 38,
+            pending_admin: 12,
+            completed: 0,
+            high_priority: 0,
+        });
+
+        expect(document.querySelector('[data-dashboard-case-filter-count="all"]')?.textContent).toBe('(38)');
+        expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(12)');
     });
 
     it('defers applyDashboardRefresh when session becomes active before requestAnimationFrame', async () => {

@@ -614,23 +614,6 @@ a:focus-visible .stat-card {
     line-height: 1;
 }
 
-.dashboard-cases-header__count-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.25rem;
-    height: 1.125rem;
-    margin-left: -0.1875rem;
-    padding: 0 0.3125rem;
-    border-radius: var(--dashboard-radius-pill);
-    background-color: rgba(13, 110, 253, 0.1);
-    color: var(--dashboard-accent-primary);
-    font-size: 0.625rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-}
-
 .dashboard-cases-view-all {
     display: inline-flex;
     align-items: center;

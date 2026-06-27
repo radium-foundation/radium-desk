@@ -57,12 +57,14 @@ class LiveOperationalExperienceTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure([
                 'kpi_strip_html',
+                'service_case_filter_counts',
                 'service_cases_empty',
                 'service_cases_empty_html',
                 'rows',
                 'incident_ids',
             ])
-            ->assertJsonPath('service_cases_empty', false);
+            ->assertJsonPath('service_cases_empty', false)
+            ->assertJsonPath('service_case_filter_counts.all', 1);
 
         $this->assertNotEmpty($response->json('rows'));
         $this->assertStringContainsString('SC-LIVE-001', $response->json('rows.0.html'));

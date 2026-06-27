@@ -45,6 +45,7 @@ class DashboardLiveController extends Controller
                 'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
                 'online_count' => $stats['online_count'],
                 'online_users' => $this->dashboardService->onlineUsersPayload($stats),
+                'service_case_filter_counts' => $this->dashboardService->serviceCaseFilterCounts(),
                 'service_cases_empty' => $recentServiceCases->isEmpty(),
                 'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
                 'rows' => $rows,

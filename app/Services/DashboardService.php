@@ -232,6 +232,16 @@ class DashboardService
     }
 
     /**
+     * @return array<string, int>
+     */
+    public function serviceCaseFilterCounts(): array
+    {
+        return collect(['all', 'pending_admin', 'completed', 'high_priority'])
+            ->mapWithKeys(fn (string $key): array => [$key => $this->recentServiceCases($key, null)->count()])
+            ->all();
+    }
+
+    /**
      * @return array{overdue_cases: int, warning_cases: int}
      */
     public function slaCounts(): array
