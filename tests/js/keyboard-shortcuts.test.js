@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isTypingTarget, isMentionDropdownOpen, isSubmitModifier } from '../../resources/js/keyboard/guards';
+import { isTypingTarget, isMentionDropdownOpen, isSubmitModifier, isHelpShortcut, isQuickFilterShortcut, shouldBlockShortcutForTyping } from '../../resources/js/keyboard/guards';
 import { initKeyboardShortcuts, resetKeyboardShortcuts } from '../../resources/js/keyboard';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
 
@@ -64,11 +64,29 @@ describe('keyboard guards', () => {
     });
 
     it('detects an open mention dropdown', () => {
-        document.body.innerHTML = '<div class="mention-suggestions show"></div>';
+        document.body.innerHTML = '<div class="mention-suggestions show" style="display: block;"></div>';
         expect(isMentionDropdownOpen()).toBe(true);
+
+        document.body.innerHTML = '<div class="mention-suggestions show" style="display: none;"></div>';
+        expect(isMentionDropdownOpen()).toBe(false);
 
         document.body.innerHTML = '<div class="mention-suggestions"></div>';
         expect(isMentionDropdownOpen()).toBe(false);
+    });
+
+    it('detects help and quick-filter shortcut keys', () => {
+        expect(isHelpShortcut(new KeyboardEvent('keydown', { key: '?' }))).toBe(true);
+        expect(isHelpShortcut(new KeyboardEvent('keydown', { key: '/', code: 'Slash', shiftKey: true }))).toBe(true);
+        expect(isQuickFilterShortcut(new KeyboardEvent('keydown', { key: '/', code: 'Slash' }))).toBe(true);
+        expect(isQuickFilterShortcut(new KeyboardEvent('keydown', { key: '/', code: 'Slash', shiftKey: true }))).toBe(false);
+    });
+
+    it('allows global search focus to pass the typing guard', () => {
+        document.body.innerHTML = '<input id="global-search-input" type="search">';
+        const searchInput = document.getElementById('global-search-input');
+
+        expect(shouldBlockShortcutForTyping(searchInput)).toBe(false);
+        expect(shouldBlockShortcutForTyping(document.createElement('textarea'))).toBe(true);
     });
 });
 
@@ -104,7 +122,7 @@ describe('initKeyboardShortcuts', () => {
         expect(selectSpy).toHaveBeenCalled();
     });
 
-    it('does not focus the dashboard quick filter on / while typing', () => {
+    it('does not focus the dashboard quick filter on / while typing in quick filter', () => {
         buildDashboardWithFilter();
         mockBootstrapModal();
         bindKeyboardShortcuts();
@@ -112,7 +130,7 @@ describe('initKeyboardShortcuts', () => {
         const input = document.querySelector('[data-dashboard-quick-filter-input]');
         const focusSpy = vi.spyOn(input, 'focus');
 
-        input.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: '/', code: 'Slash', bubbles: true }));
 
         expect(focusSpy).not.toHaveBeenCalled();
     });
@@ -136,24 +154,87 @@ describe('initKeyboardShortcuts', () => {
     it('opens the keyboard shortcuts help modal on ?', () => {
         document.body.innerHTML = HELP_MODAL_HTML;
         const { helpModalShow } = mockBootstrapModal();
-        initKeyboardShortcuts();
+        bindKeyboardShortcuts();
 
         document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true }));
 
         expect(helpModalShow).toHaveBeenCalled();
     });
 
-    it('does not open the help modal on ? while typing', () => {
+    it('does not focus the dashboard quick filter on / while typing in a textarea', () => {
+        buildDashboardWithFilter();
+        mockBootstrapModal();
+        bindKeyboardShortcuts();
+
+        const textarea = document.createElement('textarea');
+        document.body.appendChild(textarea);
+        const filterInput = document.querySelector('[data-dashboard-quick-filter-input]');
+        const focusSpy = vi.spyOn(filterInput, 'focus');
+
+        textarea.dispatchEvent(new KeyboardEvent('keydown', { key: '/', code: 'Slash', bubbles: true }));
+
+        expect(focusSpy).not.toHaveBeenCalled();
+    });
+
+    it('focuses the dashboard quick filter on / while global search is focused', () => {
+        buildDashboardWithFilter();
+        document.body.insertAdjacentHTML('afterbegin', '<input id="global-search-input" type="search">');
+        mockBootstrapModal();
+        bindKeyboardShortcuts();
+
+        const searchInput = document.getElementById('global-search-input');
+        const filterInput = document.querySelector('[data-dashboard-quick-filter-input]');
+        const focusSpy = vi.spyOn(filterInput, 'focus');
+        const selectSpy = vi.spyOn(filterInput, 'select');
+
+        searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: '/', code: 'Slash', bubbles: true }));
+
+        expect(focusSpy).toHaveBeenCalled();
+        expect(selectSpy).toHaveBeenCalled();
+    });
+
+    it('opens the help modal on Shift+/ when key is slash', () => {
+        document.body.innerHTML = HELP_MODAL_HTML;
+        const { helpModalShow } = mockBootstrapModal();
+        bindKeyboardShortcuts();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', {
+            key: '/',
+            code: 'Slash',
+            shiftKey: true,
+            bubbles: true,
+        }));
+
+        expect(helpModalShow).toHaveBeenCalled();
+    });
+
+    it('does not open the help modal on ? while typing in a textarea', () => {
         document.body.innerHTML = `
             ${HELP_MODAL_HTML}
             <textarea id="notes"></textarea>
         `;
         const { helpModalShow } = mockBootstrapModal();
-        initKeyboardShortcuts();
+        bindKeyboardShortcuts();
 
         document.getElementById('notes').dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true }));
 
         expect(helpModalShow).not.toHaveBeenCalled();
+    });
+
+    it('opens the help modal when global search is focused', () => {
+        document.body.innerHTML = `
+            ${HELP_MODAL_HTML}
+            <input id="global-search-input" type="search">
+        `;
+        const { helpModalShow } = mockBootstrapModal();
+        bindKeyboardShortcuts();
+
+        document.getElementById('global-search-input').dispatchEvent(new KeyboardEvent('keydown', {
+            key: '?',
+            bubbles: true,
+        }));
+
+        expect(helpModalShow).toHaveBeenCalled();
     });
 
     it('closes an open inline transaction editor on Esc', () => {
@@ -281,7 +362,7 @@ describe('initKeyboardShortcuts', () => {
     it('does not submit on Ctrl+Enter when mention dropdown is open', () => {
         document.body.innerHTML = `
             ${HELP_MODAL_HTML}
-            <div class="mention-suggestions show"></div>
+            <div class="mention-suggestions show" style="display: block;"></div>
             <div class="modal show">
                 <form id="mention-form">
                     <button type="submit">Save</button>

@@ -1,4 +1,49 @@
-import { isMentionDropdownOpen, isSubmitModifier, isTypingTarget } from './guards';
+import {
+    isHelpShortcut,
+    isMentionDropdownOpen,
+    isQuickFilterShortcut,
+    isSubmitModifier,
+    shouldBlockShortcutForTyping,
+} from './guards';
+
+const isKeyboardDebugEnabled = () => {
+    try {
+        return localStorage.getItem('radium.keyboardDebug') === 'true';
+    } catch (error) {
+        return false;
+    }
+};
+
+const logKeyboardDebug = (event, details = {}) => {
+    if (!isKeyboardDebugEnabled()) {
+        return;
+    }
+
+    console.log('[keyboard-debug]', {
+        key: event.key,
+        code: event.code,
+        shiftKey: event.shiftKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        target: event.target instanceof HTMLElement ? event.target.id || event.target.tagName : event.target,
+        activeElement: document.activeElement instanceof HTMLElement
+            ? document.activeElement.id || document.activeElement.tagName
+            : document.activeElement,
+        ...details,
+    });
+};
+
+const showHelpModal = () => {
+    const helpModalElement = document.getElementById('keyboardShortcutsModal');
+
+    if (!helpModalElement || !window.bootstrap?.Modal) {
+        return false;
+    }
+
+    window.bootstrap.Modal.getOrCreateInstance(helpModalElement).show();
+
+    return true;
+};
 
 const getActiveModalForm = () => {
     const modals = Array.from(document.querySelectorAll('.modal.show'));
@@ -22,14 +67,19 @@ export const initKeyboardShortcuts = ({
 } = {}) => {
     activeKeyboardController?.abort();
 
-    const helpModalElement = document.getElementById('keyboardShortcutsModal');
-    const helpModal = helpModalElement && window.bootstrap?.Modal
-        ? window.bootstrap.Modal.getOrCreateInstance(helpModalElement)
-        : null;
-
     const handleKeydown = (event) => {
         if (event.defaultPrevented) {
             return;
+        }
+
+        if (isKeyboardDebugEnabled() && (isHelpShortcut(event) || isQuickFilterShortcut(event))) {
+            logKeyboardDebug(event, {
+                mentionOpen: isMentionDropdownOpen(),
+                typingBlocked: shouldBlockShortcutForTyping(event.target),
+                dashboardPage: Boolean(document.getElementById('dashboard-page')),
+                quickFilter: Boolean(document.querySelector('[data-dashboard-quick-filter-input]')),
+                helpModal: Boolean(document.getElementById('keyboardShortcutsModal')),
+            });
         }
 
         if (event.key === 'Escape') {
@@ -59,7 +109,7 @@ export const initKeyboardShortcuts = ({
             return;
         }
 
-        if (isTypingTarget(event.target)) {
+        if (shouldBlockShortcutForTyping(event.target)) {
             return;
         }
 
@@ -67,15 +117,17 @@ export const initKeyboardShortcuts = ({
             return;
         }
 
-        if (event.key === '?' && helpModal) {
-            event.preventDefault();
-            helpModal.show();
+        if (isHelpShortcut(event)) {
+            if (showHelpModal()) {
+                event.preventDefault();
+            }
 
             return;
         }
 
-        if (event.key === '/' && document.getElementById('dashboard-page')) {
-            const filterInput = document.querySelector('[data-dashboard-quick-filter-input]');
+        if (isQuickFilterShortcut(event) && document.getElementById('dashboard-page')) {
+            const filterInput = document.getElementById('dashboard-page')
+                ?.querySelector('[data-dashboard-quick-filter-input]');
 
             if (filterInput instanceof HTMLInputElement) {
                 event.preventDefault();
