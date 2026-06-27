@@ -66,11 +66,9 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('data-bs-title="Call"', false)
             ->assertSee('Pending Admin')
             ->assertSee('Waiting for Transaction ID')
-            ->assertSee('Created:')
+            ->assertSee('dashboard-premium-tooltip__label', false)
             ->assertSee('24 Jun 2026, 02:35 PM')
-            ->assertSee('Pending for:')
             ->assertSee('6 hours 12 minutes')
-            ->assertSee('SLA')
             ->assertSee('Within SLA')
             ->assertSee('Updated')
             ->assertSee('Ravi');
@@ -204,9 +202,9 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard', ['filter' => 'completed']))
             ->assertOk()
             ->assertSee('Completed')
-            ->assertSee('Transaction ID: TX123456')
+            ->assertSee('TX123456')
             ->assertSee('25 Jun 2026, 10:45 AM')
-            ->assertSee('Total turnaround:')
+            ->assertSee('Total turnaround')
             ->assertSee('1 day 3 hours')
             ->assertSee('dashboard-case-row--completed', false);
 

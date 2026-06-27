@@ -59,7 +59,7 @@
             —
         @endif
     </td>
-    <td class="case-meta-cell">
+    <td class="case-serial-cell case-meta-cell">
         @if($order)
             <a href="{{ route('orders.show', $order) }}" class="text-decoration-none">{{ $order->serial_number ?: '—' }}</a>
         @else
@@ -86,7 +86,7 @@
     <td class="source-cell d-none d-md-table-cell">
         @include('dashboard.partials.source-icon', ['source' => $serviceCase->source])
     </td>
-    <td class="case-meta-cell dashboard-user-cell d-none d-md-table-cell">
+    <td class="case-meta-cell dashboard-owner-cell dashboard-user-cell d-none d-md-table-cell">
         @if($serviceCase->assignee)
             @php
                 $ownerName = trim((string) $serviceCase->assignee->name) ?: $serviceCase->assignee->firstName();
@@ -124,7 +124,7 @@
             —
         @endif
     </td>
-    <td class="case-meta-cell d-none d-lg-table-cell">
+    <td class="case-meta-cell dashboard-date-cell d-none d-lg-table-cell">
         @if($serviceCase->created_at)
             <span class="dashboard-u-datetime-stack">
                 <span class="dashboard-u-datetime-stack__date">{{ display_app_timeline_date($serviceCase->created_at) }}</span>
@@ -134,7 +134,7 @@
             —
         @endif
     </td>
-    <td class="case-meta-cell d-none d-lg-table-cell">
+    <td class="case-meta-cell dashboard-date-cell d-none d-lg-table-cell">
         @if($serviceCase->updated_at)
             <span class="dashboard-u-datetime-stack">
                 <span class="dashboard-u-datetime-stack__date">{{ display_app_timeline_date($serviceCase->updated_at) }}</span>
@@ -144,7 +144,7 @@
             —
         @endif
     </td>
-    <td class="case-meta-cell d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
+    <td class="case-meta-cell dashboard-product-cell d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
     @if($canShowRowActions)
         <td class="dashboard-actions-cell text-end">
             <div class="dashboard-row-actions">

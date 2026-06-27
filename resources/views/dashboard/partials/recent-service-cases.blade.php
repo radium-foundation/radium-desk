@@ -124,7 +124,7 @@
                                     + (($canShowServiceCaseActions ?? false) ? 1 : 0);
                             @endphp
                             <tr id="dashboard-service-cases-empty-row">
-                                <td colspan="{{ $tableColumnCount }}" class="text-center text-muted small py-2">
+                                <td colspan="{{ $tableColumnCount }}" class="dashboard-cases-empty">
                                     No service cases match this filter.
                                 </td>
                             </tr>
