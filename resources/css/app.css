@@ -675,17 +675,12 @@ a:focus-visible .stat-card {
         box-shadow var(--dashboard-transition-fast);
 }
 
-.dashboard-cases-table tbody tr:nth-child(odd):not(.dashboard-case-row--completed):not(.dashboard-case-row--selected) {
-    background-color: #ffffff;
+.dashboard-cases-table tbody > tr:nth-child(even):not(.dashboard-case-row--completed):not(.dashboard-case-row--selected) > * {
+    --bs-table-bg-type: #f3f5f7;
 }
 
-.dashboard-cases-table tbody tr:nth-child(even):not(.dashboard-case-row--completed):not(.dashboard-case-row--selected) {
-    background-color: #fafbfc;
-}
-
-.dashboard-cases-table.table-hover > tbody > tr:hover:not(.dashboard-case-row--completed):not(.dashboard-case-row--selected) {
+.dashboard-cases-table.table-hover > tbody > tr:hover:not(.dashboard-case-row--completed):not(.dashboard-case-row--selected) > * {
     --bs-table-bg-state: #f3f4f6;
-    background-color: #f3f4f6;
 }
 
 .dashboard-cases-table tbody tr:has(.sla-status--overdue):not(.dashboard-case-row--completed) {
@@ -759,12 +754,12 @@ a:focus-visible .stat-card {
     vertical-align: -0.05em;
 }
 
-.dashboard-cases-table tr.dashboard-case-row--completed {
-    background-color: rgba(25, 135, 84, 0.06);
+.dashboard-cases-table tbody > tr.dashboard-case-row--completed > * {
+    --bs-table-bg-type: rgba(25, 135, 84, 0.06);
 }
 
-.dashboard-cases-table tr.dashboard-case-row--completed:hover {
-    background-color: rgba(25, 135, 84, 0.1);
+.dashboard-cases-table tbody > tr.dashboard-case-row--completed:hover > * {
+    --bs-table-bg-state: rgba(25, 135, 84, 0.1);
 }
 
 .dashboard-cases-table .source-cell {
@@ -994,12 +989,12 @@ a:focus-visible .stat-card {
     }
 }
 
-.dashboard-cases-table tbody tr.dashboard-case-row--selected {
-    background-color: rgba(13, 110, 253, 0.08);
+.dashboard-cases-table tbody > tr.dashboard-case-row--selected > * {
+    --bs-table-bg-type: rgba(13, 110, 253, 0.08);
 }
 
-.dashboard-cases-table tbody tr.dashboard-case-row--selected:hover {
-    background-color: rgba(13, 110, 253, 0.12);
+.dashboard-cases-table tbody > tr.dashboard-case-row--selected:hover > * {
+    --bs-table-bg-state: rgba(13, 110, 253, 0.12);
 }
 
 .dashboard-actions-cell {
