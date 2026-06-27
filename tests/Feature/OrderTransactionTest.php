@@ -376,6 +376,95 @@ class OrderTransactionTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_locked_order_cannot_be_edited_by_agent(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TXN-AGENT',
+            'serial_number' => 'SN-TXN-AGENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-AGENT-LOCK',
+            'completed_at' => now(),
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->put(route('orders.update', $order), [
+                'order_id' => 'RD-TXN-AGENT',
+                'serial_number' => 'SN-TXN-AGENT',
+                'product_name' => 'MFS110',
+                'device_model' => 'MFS110',
+                'status' => 'active',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_superadmin_can_edit_completed_order_without_unlocking(): void
+    {
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $completedAt = now()->subDay();
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TXN-004',
+            'serial_number' => 'SN-TXN-004',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Jane Doe',
+            'customer_email' => 'jane@example.com',
+            'customer_phone' => '555-0100',
+            'transaction_id' => 'TXN-COMPLETE',
+            'completed_at' => $completedAt,
+            'transaction_assigned_by' => $superadmin->id,
+            'status' => 'active',
+            'created_by' => $superadmin->id,
+        ]);
+
+        $this->actingAs($superadmin)
+            ->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertSee('Completed Order')
+            ->assertSee('This order has already been completed.')
+            ->assertSee('Any changes made by a Super Admin will be permanently recorded in the Audit Log.');
+
+        $this->actingAs($superadmin)
+            ->put(route('orders.update', $order), [
+                'order_id' => 'RD-TXN-004',
+                'serial_number' => 'SN-TXN-004-CORRECTED',
+                'product_name' => 'MFS 110 Pro',
+                'device_model' => 'MFS 110 Pro',
+                'customer_name' => 'Jane Smith',
+                'customer_email' => 'jane.smith@example.com',
+                'customer_phone' => '555-0199',
+                'status' => 'active',
+            ])
+            ->assertRedirect(route('orders.show', $order))
+            ->assertSessionHas('status', 'order-updated');
+
+        $order->refresh();
+        $this->assertSame('SN-TXN-004-CORRECTED', $order->serial_number);
+        $this->assertSame('MFS 110 Pro', $order->product_name);
+        $this->assertSame('Jane Smith', $order->customer_name);
+        $this->assertSame('TXN-COMPLETE', $order->transaction_id);
+        $this->assertNotNull($order->completed_at);
+        $this->assertSame(
+            $completedAt->toDateTimeString(),
+            $order->completed_at->toDateTimeString(),
+        );
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'order.updated',
+            'auditable_type' => $order->getMorphClass(),
+            'auditable_id' => $order->id,
+            'user_id' => $superadmin->id,
+        ]);
+    }
+
     public function test_superadmin_can_unlock_completed_order(): void
     {
         $superadmin = User::factory()->create();

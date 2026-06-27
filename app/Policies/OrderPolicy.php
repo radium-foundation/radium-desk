@@ -26,7 +26,8 @@ class OrderPolicy
     public function update(User $user, Order $order): bool
     {
         if ($order->isTransactionLocked()) {
-            return false;
+            return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)
+                && $user->can('orders.update');
         }
 
         return $user->can('orders.update');

@@ -8,6 +8,7 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\StoreOrderServiceCaseRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Order;
+use App\Services\AuditLogService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\QuickServiceRequestService;
 use App\Services\RemarkTimelineService;
@@ -22,6 +23,7 @@ class OrderController extends Controller
         private readonly RemarkTimelineService $remarkTimelineService,
         private readonly OrderActivityTimelineService $orderActivityTimelineService,
         private readonly QuickServiceRequestService $quickServiceRequestService,
+        private readonly AuditLogService $auditLogService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -168,14 +170,50 @@ class OrderController extends Controller
 
     public function update(UpdateOrderRequest $request, Order $order): RedirectResponse
     {
+        $wasCompleted = $order->isTransactionLocked();
+
         $order->update([
             ...$request->validated(),
             'updated_by' => $request->user()->id,
         ]);
 
+        if ($wasCompleted) {
+            $ignoredFields = ['updated_at', 'created_at', 'deleted_at'];
+            $changedNew = collect($order->getChanges())
+                ->except($ignoredFields)
+                ->map(fn (mixed $value): mixed => $this->normalizeAuditValue($value))
+                ->all();
+
+            if ($changedNew !== []) {
+                $changedOld = collect(array_keys($changedNew))
+                    ->mapWithKeys(fn (string $field): array => [
+                        $field => $this->normalizeAuditValue($order->getOriginal($field)),
+                    ])
+                    ->all();
+
+                $this->auditLogService->log(
+                    userId: $request->user()->id,
+                    event: 'order.updated',
+                    auditable: $order,
+                    oldValues: $changedOld,
+                    newValues: $changedNew,
+                    request: $request,
+                );
+            }
+        }
+
         return redirect()
             ->route('orders.show', $order)
             ->with('status', 'order-updated');
+    }
+
+    private function normalizeAuditValue(mixed $value): mixed
+    {
+        return match (true) {
+            $value instanceof \BackedEnum => $value->value,
+            $value instanceof \DateTimeInterface => $value->format(\DateTimeInterface::ATOM),
+            default => $value,
+        };
     }
 
     public function destroy(Order $order): RedirectResponse

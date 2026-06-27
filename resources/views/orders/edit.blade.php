@@ -15,6 +15,17 @@
         <p class="text-muted mb-0">Update order details for {{ $order->order_id }}.</p>
     </div>
 
+    @if($order->isTransactionLocked())
+        <div class="alert alert-warning py-2 small mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            <span class="fw-semibold">Completed Order</span>
+            <span class="d-block">
+                This order has already been completed.
+                Any changes made by a Super Admin will be permanently recorded in the Audit Log.
+            </span>
+        </div>
+    @endif
+
     <div class="card border-0 shadow-sm">
         <div class="card-body">
             <form method="POST" action="{{ route('orders.update', $order) }}">
