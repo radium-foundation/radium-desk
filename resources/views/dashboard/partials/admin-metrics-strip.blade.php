@@ -51,15 +51,6 @@
         ];
     }
 
-    if (isset($stats['total_users'])) {
-        $items[] = [
-            'label' => 'Total Users',
-            'value' => $stats['total_users'],
-            'icon' => 'bi-people',
-            'color' => 'info',
-        ];
-    }
-
     if (isset($stats['audit_log_count'])) {
         $items[] = [
             'label' => 'Audit Log Entries',

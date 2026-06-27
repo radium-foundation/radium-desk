@@ -19,6 +19,7 @@ let dashboardRefreshHooks = {};
 const applyKpis = (kpiStripHtml) => {
     if (kpiStripHtml !== undefined) {
         replaceInnerHtml('dashboard-kpi-strip', kpiStripHtml);
+        initTooltips(document.getElementById('dashboard-kpi-strip') ?? document);
     }
 };
 

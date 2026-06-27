@@ -15,15 +15,22 @@ use App\Models\Remark;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class DashboardService
 {
+    private const ONLINE_SESSION_MINUTES = 5;
+
     /**
-     * @return array<string, int>
+     * @return array<string, mixed>
      */
     public function statsFor(User $user): array
     {
+        $onlineUsers = $this->onlineUsers();
+
         $stats = [
+            'online_count' => $onlineUsers->count(),
+            'online_users' => $onlineUsers,
             'total_orders' => Order::query()->count(),
             'open_incidents' => Incident::query()
                 ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
@@ -93,6 +100,61 @@ class DashboardService
         }
 
         return $stats;
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    public function onlineUsers(): Collection
+    {
+        $threshold = now()->subMinutes(self::ONLINE_SESSION_MINUTES)->getTimestamp();
+
+        return User::query()
+            ->select(['users.id', 'users.first_name', 'users.last_name', 'users.name'])
+            ->where('users.is_active', true)
+            ->whereIn('users.id', function ($query) use ($threshold): void {
+                $query->select('user_id')
+                    ->from('sessions')
+                    ->where('last_activity', '>=', $threshold)
+                    ->whereNotNull('user_id');
+            })
+            ->orderBy('users.first_name')
+            ->orderBy('users.last_name')
+            ->get();
+    }
+
+    public function onlineUserDisplayName(User $user): string
+    {
+        $firstName = $user->firstName();
+        $lastName = $user->lastName();
+
+        if ($lastName === '') {
+            return $firstName;
+        }
+
+        return trim($firstName.' '.Str::substr($lastName, 0, 1));
+    }
+
+    /**
+     * @param  array<string, mixed>  $stats
+     * @return list<array{id: int, name: string}>
+     */
+    public function onlineUsersPayload(array $stats): array
+    {
+        /** @var Collection<int, User> $onlineUsers */
+        $onlineUsers = $stats['online_users'] ?? collect();
+
+        return $onlineUsers
+            ->sortBy(
+                fn (User $user): string => Str::lower($this->onlineUserDisplayName($user)),
+                SORT_NATURAL,
+            )
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $this->onlineUserDisplayName($user),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

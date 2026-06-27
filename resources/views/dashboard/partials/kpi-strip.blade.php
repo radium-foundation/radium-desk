@@ -4,7 +4,27 @@
 
 @php
     $items = [];
+    $onlineCount = $stats['online_count'] ?? 0;
+    $onlineUsers = $stats['online_users'] ?? collect();
+@endphp
 
+<div class="dashboard-kpi-strip" role="region" aria-label="Dashboard metrics">
+@if(isset($stats['total_users']))
+    @include('dashboard.partials.kpi-strip-item', [
+        'label' => 'Total Users',
+        'value' => $stats['total_users'],
+        'icon' => 'bi-people',
+        'color' => 'info',
+    ])
+@endif
+
+    @include('dashboard.partials.kpi-strip-online-users', [
+        'onlineCount' => $onlineCount,
+        'onlineUsers' => $onlineUsers,
+        'totalUsers' => $stats['total_users'] ?? null,
+    ])
+
+@php
     if (auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_AGENT)) {
         $items[] = [
             'label' => 'My Active Work',
@@ -85,7 +105,6 @@
     }
 @endphp
 
-<div class="dashboard-kpi-strip" role="region" aria-label="Dashboard metrics">
     @foreach($items as $item)
         @include('dashboard.partials.kpi-strip-item', $item)
     @endforeach
