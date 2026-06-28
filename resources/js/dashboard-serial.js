@@ -7,70 +7,43 @@ export const initDashboardSerialNumbers = ({
     showToast,
 } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
-    const entryModalElement = document.getElementById('serialNumberModal');
     const confirmModalElement = document.getElementById('serialNumberConfirmModal');
 
-    if (!card || !entryModalElement || !confirmModalElement) {
+    if (!card || !confirmModalElement) {
         return null;
     }
 
-    const entryModal = bootstrap.Modal.getOrCreateInstance(entryModalElement);
     const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalElement);
-    const input = entryModalElement.querySelector('#dashboard_serial_number');
-    const error = entryModalElement.querySelector('#dashboard_serial_number_error');
-    const saveButton = entryModalElement.querySelector('[data-serial-modal-save]');
     const backButton = confirmModalElement.querySelector('[data-serial-confirm-back]');
     const confirmButton = confirmModalElement.querySelector('[data-serial-confirm-lock]');
     const confirmValue = confirmModalElement.querySelector('#serial_number_confirm_value');
 
-    let activeContext = null;
-    let suppressEntryReset = false;
+    let activeCell = null;
     let confirmCloseReason = null;
     let pendingSerialNumber = '';
-    let pendingEntryError = null;
+    let pendingInlineError = null;
 
-    const resetForm = () => {
-        if (input) {
-            input.value = '';
-            input.classList.remove('is-invalid');
-        }
+    const getInlineElements = (cell) => ({
+        trigger: cell.querySelector('.serial-cell-trigger'),
+        editor: cell.querySelector('.serial-inline-editor'),
+        input: cell.querySelector('.serial-inline-input'),
+        error: cell.querySelector('.serial-inline-error'),
+    });
 
-        if (error) {
-            error.textContent = '';
-        }
+    const resetConfirmState = () => {
+        activeCell = null;
+        pendingSerialNumber = '';
+        pendingInlineError = null;
+        confirmCloseReason = null;
 
         if (confirmValue) {
             confirmValue.textContent = '';
         }
-
-        activeContext = null;
-        pendingSerialNumber = '';
-        pendingEntryError = null;
-        suppressEntryReset = false;
-        confirmCloseReason = null;
     };
 
-    const openEntryModal = (trigger) => {
-        activeContext = {
-            storeUrl: trigger.dataset.storeUrl,
-            incidentId: trigger.dataset.incidentId,
-            orderId: trigger.dataset.orderId,
-        };
+    const showInlineValidationError = (cell, message) => {
+        const { input, error } = getInlineElements(cell);
 
-        if (input) {
-            input.value = '';
-            input.classList.remove('is-invalid');
-        }
-
-        if (error) {
-            error.textContent = '';
-        }
-
-        pendingEntryError = null;
-        entryModal.show();
-    };
-
-    const showValidationError = (message) => {
         input?.classList.add('is-invalid');
 
         if (error) {
@@ -78,42 +51,80 @@ export const initDashboardSerialNumbers = ({
         }
     };
 
-    const proceedToConfirmation = () => {
-        if (!input) {
+    const openInlineEditor = (cell) => {
+        const { trigger, editor, input, error } = getInlineElements(cell);
+
+        if (!editor || !input) {
             return;
         }
 
-        const serialNumber = input.value.trim().toUpperCase();
+        trigger?.classList.add('d-none');
+        editor.classList.remove('d-none');
 
-        if (serialNumber === '') {
-            showValidationError('Serial number is required.');
+        if (error) {
+            error.textContent = '';
+        }
+
+        input.classList.remove('is-invalid');
+        input.value = pendingSerialNumber;
+
+        if (pendingInlineError) {
+            showInlineValidationError(cell, pendingInlineError);
+            pendingInlineError = null;
+        }
+
+        input.focus();
+
+        getWorkspaceSession().acquire('inline-serial', {
+            incidentId: Number(cell.dataset.incidentId),
+        });
+    };
+
+    const closeInlineEditor = (cell, { focusTrigger = true } = {}) => {
+        const { trigger, editor, input, error } = getInlineElements(cell);
+
+        editor?.classList.add('d-none');
+        trigger?.classList.remove('d-none');
+        input?.classList.remove('is-invalid');
+
+        if (error) {
+            error.textContent = '';
+        }
+
+        getWorkspaceSession().release('inline-serial');
+
+        if (focusTrigger) {
+            trigger?.focus();
+        }
+    };
+
+    const proceedToConfirmation = (cell) => {
+        const { input } = getInlineElements(cell);
+        const serialNumber = input?.value.trim().toUpperCase() ?? '';
+
+        if (!input || serialNumber === '') {
+            showInlineValidationError(cell, 'Serial number is required.');
 
             return;
         }
 
+        activeCell = cell;
         pendingSerialNumber = serialNumber;
-        pendingEntryError = null;
 
         if (confirmValue) {
             confirmValue.textContent = serialNumber;
         }
 
-        suppressEntryReset = true;
-        entryModal.hide();
+        confirmModal.show();
     };
 
-    const returnToEntryModal = () => {
+    const returnToInlineEditor = () => {
         confirmCloseReason = 'back';
         confirmModal.hide();
     };
 
-    const resumeEntryModal = () => {
-        suppressEntryReset = true;
-        entryModal.show();
-    };
-
     const saveSerialNumber = async () => {
-        if (!activeContext?.storeUrl || pendingSerialNumber === '') {
+        if (!activeCell?.dataset.storeUrl || pendingSerialNumber === '') {
             return;
         }
 
@@ -121,7 +132,7 @@ export const initDashboardSerialNumbers = ({
         backButton?.setAttribute('disabled', 'disabled');
 
         try {
-            const response = await fetch(activeContext.storeUrl, {
+            const response = await fetch(activeCell.dataset.storeUrl, {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json',
@@ -131,14 +142,14 @@ export const initDashboardSerialNumbers = ({
                 },
                 body: JSON.stringify({
                     serial_number: pendingSerialNumber,
-                    incident_id: Number(activeContext.incidentId),
+                    incident_id: Number(activeCell.dataset.incidentId),
                 }),
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                pendingEntryError = data.errors?.serial_number?.[0]
+                pendingInlineError = data.errors?.serial_number?.[0]
                     ?? data.message
                     ?? 'Unable to save serial number.';
                 confirmCloseReason = 'validation_error';
@@ -148,6 +159,7 @@ export const initDashboardSerialNumbers = ({
             }
 
             if (data.row_html && data.incident_id && replaceServiceCaseRow) {
+                getWorkspaceSession().release('inline-serial');
                 replaceServiceCaseRow(data.incident_id, data.row_html);
             }
 
@@ -155,7 +167,7 @@ export const initDashboardSerialNumbers = ({
             confirmModal.hide();
             showToast?.(data.message ?? 'Serial number saved.');
         } catch (saveError) {
-            pendingEntryError = 'Unable to save serial number.';
+            pendingInlineError = 'Unable to save serial number.';
             confirmCloseReason = 'validation_error';
             confirmModal.hide();
         } finally {
@@ -165,31 +177,66 @@ export const initDashboardSerialNumbers = ({
     };
 
     card.addEventListener('click', (event) => {
-        const trigger = event.target.closest('[data-serial-modal-trigger="true"]');
+        const cell = event.target.closest('[data-inline-serial="true"]');
 
-        if (trigger) {
-            event.preventDefault();
-            openEntryModal(trigger);
+        if (cell && event.target.closest('.serial-cell-trigger')) {
+            pendingSerialNumber = '';
+            pendingInlineError = null;
+            openInlineEditor(cell);
+
+            return;
+        }
+
+        const saveButton = event.target.closest('.serial-inline-save');
+
+        if (saveButton) {
+            const editorCell = saveButton.closest('[data-inline-serial="true"]');
+
+            if (editorCell) {
+                proceedToConfirmation(editorCell);
+            }
         }
     });
 
-    saveButton?.addEventListener('click', () => {
-        proceedToConfirmation();
+    card.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        const input = event.target.closest('.serial-inline-input');
+
+        if (input) {
+            event.preventDefault();
+            const editorCell = input.closest('[data-inline-serial="true"]');
+
+            if (editorCell) {
+                proceedToConfirmation(editorCell);
+            }
+        }
+    });
+
+    card.addEventListener('input', (event) => {
+        const input = event.target.closest('.serial-inline-input');
+
+        if (!input) {
+            return;
+        }
+
+        input.classList.remove('is-invalid');
+        const cell = input.closest('[data-inline-serial="true"]');
+        const { error } = getInlineElements(cell);
+
+        if (error) {
+            error.textContent = '';
+        }
     });
 
     backButton?.addEventListener('click', () => {
-        returnToEntryModal();
+        returnToInlineEditor();
     });
 
     confirmButton?.addEventListener('click', () => {
         saveSerialNumber();
-    });
-
-    input?.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            proceedToConfirmation();
-        }
     });
 
     confirmModalElement.addEventListener('keydown', (event) => {
@@ -198,72 +245,50 @@ export const initDashboardSerialNumbers = ({
         }
     });
 
-    input?.addEventListener('input', () => {
-        input.classList.remove('is-invalid');
-
-        if (error) {
-            error.textContent = '';
-        }
-    });
-
-    entryModalElement.addEventListener('show.bs.modal', () => {
-        getWorkspaceSession().acquire('serial-modal', {
-            incidentId: activeContext?.incidentId ? Number(activeContext.incidentId) : undefined,
-        });
-    });
-
-    entryModalElement.addEventListener('shown.bs.modal', () => {
-        if (pendingEntryError) {
-            if (input && pendingSerialNumber !== '') {
-                input.value = pendingSerialNumber;
-            }
-
-            showValidationError(pendingEntryError);
-            pendingEntryError = null;
-        }
-
-        input?.focus();
-    });
-
-    entryModalElement.addEventListener('hidden.bs.modal', () => {
-        if (suppressEntryReset) {
-            suppressEntryReset = false;
-            confirmModal.show();
-
-            return;
-        }
-
-        getWorkspaceSession().release('serial-modal');
-        resetForm();
-    });
-
     confirmModalElement.addEventListener('shown.bs.modal', () => {
         confirmButton?.focus();
     });
 
     confirmModalElement.addEventListener('hidden.bs.modal', () => {
         const reason = confirmCloseReason;
+        const cell = activeCell;
         confirmCloseReason = null;
 
         if (reason === 'success') {
-            getWorkspaceSession().release('serial-modal');
-            resetForm();
+            resetConfirmState();
 
             return;
         }
 
-        if (reason === 'back' || reason === 'validation_error') {
-            resumeEntryModal();
-
-            return;
-        }
-
-        if (activeContext) {
-            resumeEntryModal();
+        if (cell) {
+            openInlineEditor(cell);
         }
     });
 
+    const closeOpenInlineEditor = () => {
+        if (confirmModalElement.classList.contains('show')) {
+            return false;
+        }
+
+        const openEditor = card.querySelector('.serial-inline-editor:not(.d-none)');
+
+        if (!openEditor) {
+            return false;
+        }
+
+        const cell = openEditor.closest('[data-inline-serial="true"]');
+
+        if (!cell) {
+            return false;
+        }
+
+        resetConfirmState();
+        closeInlineEditor(cell);
+
+        return true;
+    };
+
     return {
-        openEntryModal,
+        closeOpenInlineEditor,
     };
 };

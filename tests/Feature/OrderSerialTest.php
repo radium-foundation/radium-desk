@@ -126,7 +126,8 @@ class OrderSerialTest extends TestCase
 
         $response->assertOk();
         $html = $response->json('html');
-        $this->assertStringContainsString('data-serial-modal-trigger="true"', $html);
+        $this->assertStringContainsString('data-inline-serial="true"', $html);
+        $this->assertStringContainsString('serial-inline-editor', $html);
         $this->assertStringContainsString('Enter serial number', $html);
     }
 
@@ -163,7 +164,7 @@ class OrderSerialTest extends TestCase
         $response->assertOk();
         $html = $response->json('html');
         $this->assertStringContainsString('252601401258', $html);
-        $this->assertStringNotContainsString('data-serial-modal-trigger="true"', $html);
+        $this->assertStringNotContainsString('data-inline-serial="true"', $html);
     }
 
     public function test_admin_cannot_change_locked_serial_via_order_update(): void

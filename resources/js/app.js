@@ -479,6 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const pageRoot = document.getElementById('dashboard-page') ?? document;
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
     const dashboardTransactionsRef = { current: null };
+    const dashboardSerialRef = { current: null };
     let dashboardQuickFilter = null;
 
     const workspaceApi = initWorkspace({
@@ -530,13 +531,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const dashboardTransactions = dashboardTransactionsRef.current;
-
-    initDashboardSerialNumbers({
-        replaceServiceCaseRow: (...args) => (
-            dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
-        )(...args),
-        showToast: showAppToast,
-    });
 
     dashboardQuickFilter = initDashboardQuickFilter({
         pageRoot,
@@ -622,8 +616,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    dashboardSerialRef.current = initDashboardSerialNumbers({
+        replaceServiceCaseRow: (...args) => (
+            dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
+        )(...args),
+        showToast: showAppToast,
+    });
+
     initKeyboardShortcuts({
-        closeOpenInlineEditor: () => dashboardTransactions?.closeOpenInlineEditor?.() ?? false,
+        closeOpenInlineEditor: () => (
+            dashboardTransactionsRef.current?.closeOpenInlineEditor?.()
+            || dashboardSerialRef.current?.closeOpenInlineEditor?.()
+            || false
+        ),
         isWorkspaceSubmitBusy: () => workspaceApi?.isBusy?.('submit') ?? false,
     });
 });

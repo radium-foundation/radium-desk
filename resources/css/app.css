@@ -1325,27 +1325,20 @@ a:focus-visible .stat-card {
     color: var(--dashboard-color-muted);
 }
 
-.transaction-id-cell[data-inline-transaction="true"] {
+.transaction-id-cell[data-inline-transaction="true"],
+.serial-number-cell[data-inline-serial="true"] {
     cursor: pointer;
 }
 
-.transaction-id-cell .transaction-cell-trigger.dashboard-u-transaction-add {
-    vertical-align: middle;
-}
-
-.transaction-id-cell[data-inline-transaction="true"]:hover .transaction-cell-trigger,
-.transaction-id-cell[data-inline-transaction="true"]:focus-within .transaction-cell-trigger {
-    color: var(--dashboard-accent-primary);
-    border-color: rgba(13, 110, 253, 0.35);
-    background-color: var(--dashboard-row-hover-bg);
-}
-
+.transaction-id-cell .transaction-cell-trigger.dashboard-u-transaction-add,
 .serial-number-cell .serial-cell-trigger.dashboard-u-transaction-add {
     vertical-align: middle;
 }
 
-.serial-number-cell:hover .serial-cell-trigger,
-.serial-number-cell:focus-within .serial-cell-trigger {
+.transaction-id-cell[data-inline-transaction="true"]:hover .transaction-cell-trigger,
+.transaction-id-cell[data-inline-transaction="true"]:focus-within .transaction-cell-trigger,
+.serial-number-cell[data-inline-serial="true"]:hover .serial-cell-trigger,
+.serial-number-cell[data-inline-serial="true"]:focus-within .serial-cell-trigger {
     color: var(--dashboard-accent-primary);
     border-color: rgba(13, 110, 253, 0.35);
     background-color: var(--dashboard-row-hover-bg);
