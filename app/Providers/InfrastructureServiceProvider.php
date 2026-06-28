@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Infrastructure\IntegrationHealth\IntegrationHealthService;
 use App\Infrastructure\IntegrationHealth\IntegrationHealthRegistry;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Infrastructure\IntegrationHealth\Probes\PlaceholderIntegrationHealthProbe;
@@ -24,5 +25,7 @@ class InfrastructureServiceProvider extends ServiceProvider
 
             return $registry;
         });
+
+        $this->app->singleton(IntegrationHealthService::class);
     }
 }

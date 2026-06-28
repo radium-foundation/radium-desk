@@ -19,6 +19,7 @@ readonly class QueueMetricsSnapshot
         public ?float $averageProcessingTimeMs,
         public array $queues,
         public CarbonInterface $capturedAt,
+        public ?CarbonInterface $oldestPendingJobAt = null,
     ) {}
 
     /**
@@ -33,6 +34,7 @@ readonly class QueueMetricsSnapshot
             'average_processing_time_ms' => $this->averageProcessingTimeMs,
             'queues' => $this->queues,
             'captured_at' => $this->capturedAt->toIso8601String(),
+            'oldest_pending_job_at' => $this->oldestPendingJobAt?->toIso8601String(),
         ];
     }
 }

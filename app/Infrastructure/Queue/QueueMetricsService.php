@@ -26,6 +26,7 @@ class QueueMetricsService
             averageProcessingTimeMs: $this->averageProcessingTimeMs(),
             queues: $this->distinctQueues(),
             capturedAt: now(),
+            oldestPendingJobAt: $this->oldestPendingJobAt(),
         );
 
         Cache::put(self::CACHE_KEY, $snapshot->toArray(), now()->addDay());
@@ -52,6 +53,9 @@ class QueueMetricsService
                 : null,
             queues: is_array($cached['queues'] ?? null) ? $cached['queues'] : [],
             capturedAt: Carbon::parse($cached['captured_at'] ?? now()->toIso8601String()),
+            oldestPendingJobAt: isset($cached['oldest_pending_job_at'])
+                ? Carbon::parse($cached['oldest_pending_job_at'])
+                : null,
         );
     }
 
@@ -127,5 +131,22 @@ class QueueMetricsService
         }
 
         return round(array_sum($samples) / count($samples), 2);
+    }
+
+    private function oldestPendingJobAt(): ?Carbon
+    {
+        if (! Schema::hasTable('jobs')) {
+            return null;
+        }
+
+        $createdAt = DB::table('jobs')
+            ->orderBy('created_at')
+            ->value('created_at');
+
+        if ($createdAt === null) {
+            return null;
+        }
+
+        return Carbon::parse($createdAt);
     }
 }

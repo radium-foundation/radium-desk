@@ -88,6 +88,19 @@ class RadiumBoxOrderEnrichmentSyncStore
         Cache::forget($this->cacheKey($orderId));
     }
 
+    public function updatedAt(int $orderId): ?string
+    {
+        $record = $this->read($orderId);
+
+        if ($record === null) {
+            return null;
+        }
+
+        $updatedAt = $record['updated_at'] ?? null;
+
+        return is_string($updatedAt) && $updatedAt !== '' ? $updatedAt : null;
+    }
+
     /**
      * @param  array<string, mixed>  $record
      */
