@@ -43,6 +43,15 @@
                                 <i class="bi bi-link-45deg" aria-hidden="true"></i>
                                 Assign Transaction ID
                             </button>
+                            @if($canAssignDeviceModel ?? false)
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary dashboard-btn-compact dashboard-bulk-toolbar__device-model"
+                                        data-batch-device-model-assign
+                                        disabled>
+                                    <i class="bi bi-box-seam" aria-hidden="true"></i>
+                                    Assign Device Model
+                                </button>
+                            @endif
                             <button type="button"
                                     class="btn btn-sm btn-outline-secondary dashboard-btn-compact dashboard-bulk-toolbar__clear d-none"
                                     data-batch-clear

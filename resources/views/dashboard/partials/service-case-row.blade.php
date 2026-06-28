@@ -18,7 +18,7 @@
         $order?->customer_phone,
         $order?->serial_number,
         $order?->transaction_id,
-        $order?->product_name,
+        $order?->displayDeviceModelName(),
     ], fn ($value) => filled($value));
     $searchText = strtolower(implode(' ', $searchParts));
 @endphp
@@ -138,7 +138,7 @@
             —
         @endif
     </td>
-    <td class="case-meta-cell dashboard-product-cell d-none d-lg-table-cell">{{ $order?->product_name ?: '—' }}</td>
+    @include('dashboard.partials.device-model-cell', ['serviceCase' => $serviceCase])
     @if($canShowRowActions)
         <td class="dashboard-actions-cell text-end">
             <div class="dashboard-row-actions">

@@ -43,6 +43,7 @@ class DashboardController extends Controller
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
             'serviceCaseFilter' => $filter,
             'canManageTransactions' => $canManageTransactions,
+            'canAssignDeviceModel' => $user->can('incidents.update'),
             'canReassignServiceCases' => $user->can('incidents.update'),
             'canCreateRemarks' => $user->can('create', \App\Models\Remark::class),
             'canShowServiceCaseActions' => $user->hasAnyRole([

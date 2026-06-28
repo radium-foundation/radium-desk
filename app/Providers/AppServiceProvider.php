@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\DeviceModel;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
 use App\Listeners\BroadcastNotificationCreated;
@@ -35,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(SettingProduct::class, SettingPolicy::class);
         Gate::policy(SettingSource::class, SettingPolicy::class);
+        Gate::policy(DeviceModel::class, SettingPolicy::class);
 
         Paginator::useBootstrapFive();
 

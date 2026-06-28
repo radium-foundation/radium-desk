@@ -4,6 +4,7 @@ import { initLiveDashboard, applyKpis } from './live-dashboard';
 import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initDashboardQuickFilter } from './dashboard-filter';
 import { initDashboardSerialNumbers } from './dashboard-serial';
+import { initDashboardDeviceModels } from './dashboard-device-model';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
 import { initServiceCaseShow } from './service-case-show';
@@ -243,7 +244,7 @@ const showAppToast = (message, variant = 'success') => {
     toast.show();
 };
 
-const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = {}) => {
+const initDashboardTransactions = ({ pageRoot, openBatchModal, openBatchDeviceModelModal, onRowUpdated } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
@@ -265,6 +266,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = 
         card,
         pageRoot: pageRoot ?? document,
         openBatchModal,
+        openBatchDeviceModelModal,
     });
 
     const openInlineEditor = (cell) => {
@@ -480,6 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
     const dashboardTransactionsRef = { current: null };
     const dashboardSerialRef = { current: null };
+    const dashboardDeviceModelRef = { current: null };
     let dashboardQuickFilter = null;
 
     const workspaceApi = initWorkspace({
@@ -496,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (data.action !== 'batch-transaction') {
+            if (data.action !== 'batch-transaction' && data.action !== 'batch-device-model') {
                 batchSession.restoreAllRowStates();
 
                 return;
@@ -517,6 +520,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (opened && component === 'remark') {
                 initMentionTextareas(document.querySelector('[data-workspace-modal-content]'));
             }
+
+            if (opened && component === 'batch-device-model') {
+                dashboardDeviceModelRef.current?.bindBatchSearch?.(
+                    document.querySelector('[data-workspace-modal-content]'),
+                );
+            }
         },
     });
 
@@ -524,6 +533,9 @@ document.addEventListener('DOMContentLoaded', () => {
         pageRoot,
         openBatchModal: (incidentIds) => {
             workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
+        },
+        openBatchDeviceModelModal: (incidentIds) => {
+            workspaceApi?.openBatchComponent('batch-device-model', incidentIds, 'dashboard');
         },
         onRowUpdated: () => {
             dashboardQuickFilter?.reapply();
@@ -617,6 +629,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     dashboardSerialRef.current = initDashboardSerialNumbers({
+        replaceServiceCaseRow: (...args) => (
+            dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
+        )(...args),
+        showToast: showAppToast,
+    });
+
+    dashboardDeviceModelRef.current = initDashboardDeviceModels({
         replaceServiceCaseRow: (...args) => (
             dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
         )(...args),

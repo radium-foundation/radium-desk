@@ -53,6 +53,11 @@ class OrderPolicy
         return $user->can('incidents.update') && ! $order->isSerialLocked();
     }
 
+    public function assignDeviceModel(User $user, Order $order): bool
+    {
+        return $user->can('incidents.update') && ! $order->hasDeviceModelAssigned();
+    }
+
     public function unlockSerial(User $user, Order $order): bool
     {
         return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) && $order->isSerialLocked();

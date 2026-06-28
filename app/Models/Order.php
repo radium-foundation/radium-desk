@@ -26,6 +26,9 @@ class Order extends Model
         'serial_entered_by_user_id',
         'product_name',
         'device_model',
+        'device_model_id',
+        'device_model_assigned_at',
+        'device_model_assigned_by_user_id',
         'transaction_id',
         'cashfree_payment_id',
         'payment_amount',
@@ -50,6 +53,7 @@ class Order extends Model
             'status' => OrderStatus::class,
             'completed_at' => 'datetime',
             'serial_entered_at' => 'datetime',
+            'device_model_assigned_at' => 'datetime',
             'payment_date' => 'datetime',
             'payment_amount' => 'decimal:2',
         ];
@@ -70,6 +74,24 @@ class Order extends Model
     public function isSerialLocked(): bool
     {
         return filled($this->serial_number);
+    }
+
+    public function hasDeviceModelAssigned(): bool
+    {
+        return $this->device_model_id !== null;
+    }
+
+    public function displayDeviceModelName(): ?string
+    {
+        if ($this->relationLoaded('deviceModel') && $this->deviceModel !== null) {
+            return $this->deviceModel->name;
+        }
+
+        if ($this->device_model_id !== null) {
+            return $this->deviceModel?->name;
+        }
+
+        return filled($this->product_name) ? $this->product_name : null;
     }
 
     public function completionTooltipHtml(Carbon $loggedAt): string
@@ -204,6 +226,16 @@ class Order extends Model
     public function serialEnterer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'serial_entered_by_user_id');
+    }
+
+    public function deviceModel(): BelongsTo
+    {
+        return $this->belongsTo(DeviceModel::class);
+    }
+
+    public function deviceModelAssigner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'device_model_assigned_by_user_id');
     }
 
     public function incidents(): HasMany

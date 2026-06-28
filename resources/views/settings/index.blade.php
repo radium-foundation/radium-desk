@@ -17,6 +17,7 @@
                     @foreach([
                         'general' => 'General',
                         'products' => 'Service Cases',
+                        'device-models' => 'Device Models',
                         'sources' => 'Sources',
                         'assignment' => 'Assignment',
                         'notifications' => 'Notifications',
@@ -37,6 +38,8 @@
                 @include('settings.partials.general')
             @elseif($activeTab === 'products')
                 @include('settings.partials.products')
+            @elseif($activeTab === 'device-models')
+                @include('settings.partials.device-models')
             @elseif($activeTab === 'sources')
                 @include('settings.partials.sources')
             @elseif($activeTab === 'assignment')

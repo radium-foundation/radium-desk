@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
+use App\Services\DeviceModelSettingsService;
 use App\Services\SettingService;
 use App\Services\SystemSettingsService;
 use Illuminate\View\View;
@@ -13,6 +14,7 @@ class SettingsController extends Controller
     public function __construct(
         private readonly SettingService $settingService,
         private readonly SystemSettingsService $systemSettingsService,
+        private readonly DeviceModelSettingsService $deviceModelSettingsService,
     ) {
         $this->middleware(function ($request, $next) {
             $this->authorize('viewAny', SettingProduct::class);
@@ -58,6 +60,9 @@ class SettingsController extends Controller
             ],
             'products' => $this->settingService->allProducts(),
             'sources' => $this->settingService->allSources(),
+            'deviceModels' => $this->deviceModelSettingsService->paginated(
+                search: request('search'),
+            ),
             'adminUsers' => $this->systemSettingsService->assignableAdminUsers(),
             'timezones' => timezone_identifiers_list(),
         ]);

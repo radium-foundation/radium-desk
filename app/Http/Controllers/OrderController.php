@@ -106,6 +106,8 @@ class OrderController extends Controller
             'incidents' => fn ($query) => $query->with(['creator', 'assignee'])->latest(),
             'transactionAssigner',
             'serialEnterer',
+            'deviceModel',
+            'deviceModelAssigner',
         ]);
 
         $activeIncident = $order->activeIncident();

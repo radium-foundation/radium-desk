@@ -32,6 +32,9 @@ class WorkspaceRefreshPolicy
             WorkspaceComponent::BatchTransaction => new WorkspaceRefreshEffects(
                 refreshKpis: true,
             ),
+            WorkspaceComponent::BatchDeviceModel => new WorkspaceRefreshEffects(
+                refreshKpis: true,
+            ),
             default => new WorkspaceRefreshEffects(
                 refreshKpis: true,
                 replaceRow: true,

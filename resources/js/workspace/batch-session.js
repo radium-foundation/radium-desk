@@ -4,6 +4,7 @@ export const createBatchTransactionSession = ({
     card,
     pageRoot = document,
     openBatchModal,
+    openBatchDeviceModelModal,
 }) => {
     const session = getWorkspaceSession();
 
@@ -14,6 +15,7 @@ export const createBatchTransactionSession = ({
     const getIdleHint = () => pageRoot.querySelector('[data-bulk-idle-hint]');
     const getSelectedLabel = () => pageRoot.querySelector('[data-bulk-selected-label]');
     const getAssignButton = () => pageRoot.querySelector('[data-batch-assign]');
+    const getDeviceModelAssignButton = () => pageRoot.querySelector('[data-batch-device-model-assign]');
     const getClearButton = () => pageRoot.querySelector('[data-batch-clear]');
     const getSelectAll = () => card.querySelector('[data-select-all]');
 
@@ -65,6 +67,7 @@ export const createBatchTransactionSession = ({
         const idleHint = getIdleHint();
         const selectedLabel = getSelectedLabel();
         const assignButton = getAssignButton();
+        const deviceModelAssignButton = getDeviceModelAssignButton();
         const clearButton = getClearButton();
         const selectAll = getSelectAll();
         const isActive = count > 0;
@@ -79,6 +82,10 @@ export const createBatchTransactionSession = ({
 
         if (assignButton) {
             assignButton.disabled = ! isActive;
+        }
+
+        if (deviceModelAssignButton) {
+            deviceModelAssignButton.disabled = ! isActive;
         }
 
         if (clearButton) {
@@ -195,10 +202,33 @@ export const createBatchTransactionSession = ({
         openBatchModal(incidentIds);
     };
 
+    const openDeviceModelModal = () => {
+        const incidentIds = getSelectedIncidentIds();
+
+        if (incidentIds.length === 0) {
+            return;
+        }
+
+        if (typeof openBatchDeviceModelModal !== 'function') {
+            console.error('Batch device model modal is unavailable.');
+
+            return;
+        }
+
+        openBatchDeviceModelModal(incidentIds);
+    };
+
     const handleToolbarClick = (event) => {
         if (event.target.closest('[data-batch-clear]')) {
             event.preventDefault();
             clearSelection();
+
+            return;
+        }
+
+        if (event.target.closest('[data-batch-device-model-assign]')) {
+            event.preventDefault();
+            openDeviceModelModal();
 
             return;
         }

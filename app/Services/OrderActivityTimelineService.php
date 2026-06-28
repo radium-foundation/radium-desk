@@ -168,6 +168,15 @@ class OrderActivityTimelineService
                         dedupeKey: "audit:{$auditLog->id}",
                     ),
                 ]),
+                'device-model.assigned', 'device-model.bulk-assigned' => collect([
+                    new OrderTimelineEntry(
+                        occurredAt: $occurredAt,
+                        title: 'Device Model Assigned',
+                        detail: (string) ($auditLog->new_values['device_model'] ?? ''),
+                        actorName: $auditLog->user?->firstName(),
+                        dedupeKey: "audit:{$auditLog->id}",
+                    ),
+                ]),
                 'order.updated' => $this->mapOrderCorrectionEntries(
                     $auditLog,
                     $auditLog->user?->roleActorLabel() ?: $auditLog->user?->firstName(),

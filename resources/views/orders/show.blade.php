@@ -82,10 +82,16 @@
                         <dd class="col-sm-8">{{ $order->serial_entered_at ? display_app_datetime($order->serial_entered_at) : '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Product Name</dt>
-                        <dd class="col-sm-8">{{ $order->product_name }}</dd>
+                        <dd class="col-sm-8">{{ $order->product_name ?: '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Device Model</dt>
-                        <dd class="col-sm-8">{{ $order->device_model }}</dd>
+                        <dd class="col-sm-8">{{ $order->deviceModel?->name ?? $order->device_model ?: '—' }}</dd>
+
+                        <dt class="col-sm-4 text-muted">Assigned By</dt>
+                        <dd class="col-sm-8">{{ $order->deviceModelAssigner?->name ?: '—' }}</dd>
+
+                        <dt class="col-sm-4 text-muted">Assigned At</dt>
+                        <dd class="col-sm-8">{{ $order->device_model_assigned_at ? display_app_datetime($order->device_model_assigned_at) : '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Transaction ID</dt>
                         <dd class="col-sm-8">{{ $order->transaction_id ?: '—' }}</dd>

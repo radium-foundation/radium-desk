@@ -8,6 +8,7 @@ use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\Remark;
 use App\Models\User;
+use App\Services\DeviceModelSettingsService;
 use Illuminate\Auth\Access\AuthorizationException;
 
 class WorkspaceComponentService
@@ -85,6 +86,7 @@ class WorkspaceComponentService
                 'activityTimeline' => $this->activityTimelineService->forIncident($incident),
             ],
             WorkspaceComponent::BatchTransaction => [],
+            WorkspaceComponent::BatchDeviceModel => [],
         };
     }
 
@@ -107,6 +109,31 @@ class WorkspaceComponentService
             'incidents' => $incidents,
             'selectedCount' => count($incidentIds),
             'workspaceActionUrl' => route('dashboard.workspace.batch-transaction'),
+            'workspaceContext' => $requestContext->context->value,
+            'incidentIds' => $incidentIds,
+        ];
+    }
+
+    /**
+     * @param  list<int>  $incidentIds
+     * @return array<string, mixed>
+     */
+    public function batchDeviceModelViewData(
+        array $incidentIds,
+        WorkspaceRequestContext $requestContext,
+    ): array {
+        $incidents = Incident::query()
+            ->with('order')
+            ->whereIn('id', $incidentIds)
+            ->get()
+            ->sortBy(fn (Incident $incident): int => array_search($incident->id, $incidentIds, true) ?: PHP_INT_MAX)
+            ->values();
+
+        return [
+            'incidents' => $incidents,
+            'selectedCount' => count($incidentIds),
+            'deviceModels' => app(DeviceModelSettingsService::class)->activeOptions(),
+            'workspaceActionUrl' => route('dashboard.workspace.batch-device-model'),
             'workspaceContext' => $requestContext->context->value,
             'incidentIds' => $incidentIds,
         ];

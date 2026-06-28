@@ -167,10 +167,13 @@ class DashboardService
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ]);
 
+        $canAssignDeviceModel = $user->can('incidents.update');
+
         return [
             'serviceCase' => $serviceCase,
             'canManageTransactions' => $canManageTransactions,
             'canSelectRows' => $canManageTransactions,
+            'canAssignDeviceModel' => $canAssignDeviceModel,
             'canReassignServiceCases' => $canManageTransactions,
             'canCreateRemarks' => $user->can('create', Remark::class),
         ];
@@ -179,7 +182,7 @@ class DashboardService
     public function recentServiceCases(string $filter = 'pending_admin', ?int $limit = 10): Collection
     {
         $query = Incident::query()
-            ->with(['order.transactionAssigner', 'creator', 'assignee'])
+            ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee'])
             ->whereIn('status', IncidentStatus::operationallyActive());
 
         match ($filter) {

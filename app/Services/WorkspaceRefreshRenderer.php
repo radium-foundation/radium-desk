@@ -136,6 +136,19 @@ class WorkspaceRefreshRenderer
     }
 
     /**
+     * @param  list<int>  $incidentIds
+     */
+    public function renderBatchDeviceModelFragment(
+        array $incidentIds,
+        WorkspaceRequestContext $requestContext,
+    ): string {
+        return view(
+            $this->componentService->view(WorkspaceComponent::BatchDeviceModel),
+            $this->componentService->batchDeviceModelViewData($incidentIds, $requestContext),
+        )->render();
+    }
+
+    /**
      * @param  array{
      *     count: int,
      *     transaction_id: string,

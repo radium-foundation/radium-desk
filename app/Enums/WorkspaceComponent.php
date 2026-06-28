@@ -10,6 +10,7 @@ enum WorkspaceComponent: string
     case Close = 'close';
     case Timeline = 'timeline';
     case BatchTransaction = 'batch-transaction';
+    case BatchDeviceModel = 'batch-device-model';
 
     public function view(): string
     {
@@ -20,6 +21,7 @@ enum WorkspaceComponent: string
             self::Close => 'service-cases.fragments.close-form',
             self::Timeline => 'incidents.partials.activity-timeline',
             self::BatchTransaction => 'dashboard.fragments.batch-transaction-form',
+            self::BatchDeviceModel => 'dashboard.fragments.batch-device-model-form',
         };
     }
 }

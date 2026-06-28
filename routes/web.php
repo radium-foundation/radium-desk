@@ -13,6 +13,10 @@ use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\DashboardDeviceModelComponentController;
+use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
+use App\Http\Controllers\DeviceModelController;
+use App\Http\Controllers\OrderDeviceModelController;
 use App\Http\Controllers\OrderSerialController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\ProfileController;
@@ -44,6 +48,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.components.batch-transaction');
     Route::post('dashboard/workspace/batch-transaction', [DashboardWorkspaceActionController::class, 'batchTransaction'])
         ->name('dashboard.workspace.batch-transaction');
+    Route::get('dashboard/components/batch-device-model', [DashboardDeviceModelComponentController::class, 'batchAssign'])
+        ->name('dashboard.components.batch-device-model');
+    Route::post('dashboard/workspace/batch-device-model', [DashboardWorkspaceDeviceModelController::class, 'batchAssign'])
+        ->name('dashboard.workspace.batch-device-model');
     Route::post('service-requests/quick', [QuickServiceRequestController::class, 'store'])
         ->name('service-requests.quick.store');
     Route::get('/search', [SearchController::class, 'index'])->name('search.index');
@@ -56,6 +64,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('orders/{order}/transaction', [OrderTransactionController::class, 'store'])->name('orders.transaction.store');
     Route::delete('orders/{order}/transaction', [OrderTransactionController::class, 'destroy'])->name('orders.transaction.destroy');
     Route::post('orders/{order}/serial', [OrderSerialController::class, 'store'])->name('orders.serial.store');
+    Route::post('orders/{order}/device-model', [OrderDeviceModelController::class, 'store'])->name('orders.device-model.store');
     Route::resource('orders', OrderController::class);
     Route::resource('incidents', IncidentController::class);
     Route::patch('incidents/{incident}/assignment', [ServiceCaseAssignmentController::class, 'update'])
@@ -117,6 +126,9 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/settings/sources', [SettingSourceController::class, 'store'])->name('settings.sources.store');
     Route::put('/settings/sources/{source}', [SettingSourceController::class, 'update'])->name('settings.sources.update');
     Route::patch('/settings/sources/{source}/toggle', [SettingSourceController::class, 'toggle'])->name('settings.sources.toggle');
+    Route::post('/settings/device-models', [DeviceModelController::class, 'store'])->name('settings.device-models.store');
+    Route::put('/settings/device-models/{deviceModel}', [DeviceModelController::class, 'update'])->name('settings.device-models.update');
+    Route::patch('/settings/device-models/{deviceModel}/toggle', [DeviceModelController::class, 'toggle'])->name('settings.device-models.toggle');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

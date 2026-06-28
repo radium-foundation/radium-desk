@@ -49,6 +49,10 @@
             'settings-source-updated' => 'Source updated successfully.',
             'settings-source-enabled' => 'Source enabled successfully.',
             'settings-source-disabled' => 'Source disabled successfully.',
+            'device-model-created' => 'Device model added successfully.',
+            'device-model-updated' => 'Device model updated successfully.',
+            'device-model-activated' => 'Device model activated successfully.',
+            'device-model-deactivated' => 'Device model deactivated successfully.',
             default => session('status'),
         };
     @endphp
