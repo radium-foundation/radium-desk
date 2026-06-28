@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Models\CashfreeWebhookLog;
+use App\Services\Cashfree\CashfreeWebhookPayloadParser;
+use App\Services\Cashfree\CashfreeWebhookProcessorService;
+use App\Services\Cashfree\CashfreeWebhookSignatureVerifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -11,11 +14,31 @@ use Throwable;
 
 class CashfreeWebhookController extends Controller
 {
+    public function __construct(
+        private readonly CashfreeWebhookPayloadParser $payloadParser,
+        private readonly CashfreeWebhookProcessorService $webhookProcessorService,
+        private readonly CashfreeWebhookSignatureVerifier $signatureVerifier,
+    ) {}
+
     public function handle(Request $request): JsonResponse
     {
         try {
             $this->logWebhook($request);
-            $this->storeWebhook($request);
+            $webhookLog = $this->storeWebhook($request);
+
+            if (! $this->signatureVerifier->hasRequiredHeaders($request)) {
+                $this->markSignatureVerificationFailed($webhookLog);
+
+                return response()->json(['status' => 'error'], 400);
+            }
+
+            if (! $this->signatureVerifier->verify($request)) {
+                $this->markSignatureVerificationFailed($webhookLog);
+
+                return response()->json(['status' => 'error'], 401);
+            }
+
+            $this->webhookProcessorService->process($webhookLog);
 
             return response()->json(['status' => 'ok'], 200);
         } catch (Throwable $exception) {
@@ -45,12 +68,24 @@ class CashfreeWebhookController extends Controller
         ]);
     }
 
-    private function storeWebhook(Request $request): void
+    private function markSignatureVerificationFailed(CashfreeWebhookLog $webhookLog): void
     {
-        CashfreeWebhookLog::query()->create([
+        $webhookLog->update([
+            'processing_status' => CashfreeWebhookLog::STATUS_FAILED,
+            'processing_error' => CashfreeWebhookSignatureVerifier::ERROR_INVALID_SIGNATURE,
+            'processed_at' => now(),
+        ]);
+    }
+
+    private function storeWebhook(Request $request): CashfreeWebhookLog
+    {
+        $payload = $this->resolvePayload($request);
+
+        return CashfreeWebhookLog::query()->create([
             'webhook_version' => $this->resolveWebhookVersion($request),
+            'cf_payment_id' => $this->payloadParser->cfPaymentId($payload),
             'request_headers' => $request->headers->all(),
-            'request_payload' => $this->resolvePayload($request),
+            'request_payload' => $payload,
             'raw_body' => $request->getContent(),
             'received_at' => now(),
             'source_ip' => $request->ip(),

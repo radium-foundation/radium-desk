@@ -49,6 +49,7 @@
                                 <th>Source IP</th>
                                 <th>User Agent</th>
                                 <th>Event Type</th>
+                                <th>Service Request</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -67,6 +68,15 @@
                                     <td>
                                         @if($webhookLog->eventType())
                                             <span class="badge text-bg-light text-dark border">{{ $webhookLog->eventType() }}</span>
+                                        @else
+                                            —
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($webhookLog->incident_id)
+                                            <a href="{{ route('incidents.show', $webhookLog->incident_id) }}" class="font-monospace">
+                                                #{{ $webhookLog->incident_id }}
+                                            </a>
                                         @else
                                             —
                                         @endif

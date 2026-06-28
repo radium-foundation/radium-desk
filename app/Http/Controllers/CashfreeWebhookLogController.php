@@ -40,6 +40,8 @@ class CashfreeWebhookLogController extends Controller
 
     public function show(CashfreeWebhookLog $cashfreeWebhookLog): View
     {
+        $cashfreeWebhookLog->load('incident');
+
         return view('cashfree.webhook-explorer.show', [
             'webhookLog' => $cashfreeWebhookLog,
         ]);

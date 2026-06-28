@@ -58,6 +58,7 @@ class SettingsSeeder extends Seeder
             ['key' => 'email', 'label' => 'Email', 'icon' => 'bi-envelope-fill', 'sort_order' => 3],
             ['key' => 'telegram', 'label' => 'Telegram', 'icon' => 'bi-telegram', 'sort_order' => 4],
             ['key' => 'internal', 'label' => 'Internal', 'icon' => 'bi-building', 'sort_order' => 5],
+            ['key' => 'cashfree', 'label' => 'Cashfree', 'icon' => 'bi-credit-card', 'sort_order' => 6],
         ];
 
         foreach ($sources as $source) {

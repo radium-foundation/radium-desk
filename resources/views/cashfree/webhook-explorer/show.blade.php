@@ -54,6 +54,20 @@
                                 —
                             @endif
                         </dd>
+
+                        <dt class="col-sm-5 text-muted">Cashfree Payment ID</dt>
+                        <dd class="col-sm-7 font-monospace">{{ $webhookLog->cf_payment_id ?: '—' }}</dd>
+
+                        <dt class="col-sm-5 text-muted">Service Request</dt>
+                        <dd class="col-sm-7">
+                            @if($webhookLog->incident)
+                                <a href="{{ route('incidents.show', $webhookLog->incident) }}">
+                                    {{ $webhookLog->incident->display_reference }}
+                                </a>
+                            @else
+                                —
+                            @endif
+                        </dd>
                     </dl>
                 </div>
             </div>

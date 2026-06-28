@@ -9,6 +9,7 @@ enum IncidentSource: string
     case Email = 'email';
     case Telegram = 'telegram';
     case Internal = 'internal';
+    case Cashfree = 'cashfree';
 
     public function label(): string
     {
@@ -18,6 +19,7 @@ enum IncidentSource: string
             self::Email => 'Email',
             self::Telegram => 'Telegram',
             self::Internal => 'Internal',
+            self::Cashfree => 'Cashfree',
         };
     }
 
@@ -29,6 +31,7 @@ enum IncidentSource: string
             self::Email => 'bi-envelope-fill',
             self::Telegram => 'bi-telegram',
             self::Internal => 'bi-building',
+            self::Cashfree => 'bi-credit-card',
         };
     }
 }

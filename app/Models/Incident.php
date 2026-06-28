@@ -146,7 +146,11 @@ class Incident extends Model
 
     public function isActive(): bool
     {
-        return in_array($this->status, [IncidentStatus::Open, IncidentStatus::InProgress], true);
+        return in_array($this->status, [
+            IncidentStatus::Open,
+            IncidentStatus::InProgress,
+            IncidentStatus::AwaitingProductDetails,
+        ], true);
     }
 
     public function issueSummary(): string

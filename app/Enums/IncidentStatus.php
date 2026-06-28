@@ -8,6 +8,7 @@ enum IncidentStatus: string
     case InProgress = 'in_progress';
     case Resolved = 'resolved';
     case Closed = 'closed';
+    case AwaitingProductDetails = 'awaiting_product_details';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum IncidentStatus: string
             self::InProgress => 'In Progress',
             self::Resolved => 'Resolved',
             self::Closed => 'Closed',
+            self::AwaitingProductDetails => 'Awaiting Product Details',
         };
     }
 }

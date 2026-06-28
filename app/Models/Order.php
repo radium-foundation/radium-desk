@@ -25,6 +25,13 @@ class Order extends Model
         'product_name',
         'device_model',
         'transaction_id',
+        'cashfree_payment_id',
+        'payment_amount',
+        'payment_method',
+        'payment_date',
+        'bank_reference',
+        'gateway_order_id',
+        'gateway_payment_id',
         'completed_at',
         'transaction_assigned_by',
         'customer_name',
@@ -40,6 +47,8 @@ class Order extends Model
         return [
             'status' => OrderStatus::class,
             'completed_at' => 'datetime',
+            'payment_date' => 'datetime',
+            'payment_amount' => 'decimal:2',
         ];
     }
 
@@ -198,7 +207,11 @@ class Order extends Model
 
         return $this->incidents()
             ->with('assignee')
-            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+            ->whereIn('status', [
+                IncidentStatus::Open,
+                IncidentStatus::InProgress,
+                IncidentStatus::AwaitingProductDetails,
+            ])
             ->latest()
             ->first();
     }
@@ -221,7 +234,11 @@ class Order extends Model
         }
 
         return $this->incidents()
-            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+            ->whereIn('status', [
+                IncidentStatus::Open,
+                IncidentStatus::InProgress,
+                IncidentStatus::AwaitingProductDetails,
+            ])
             ->count();
     }
 

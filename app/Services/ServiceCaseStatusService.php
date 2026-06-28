@@ -25,6 +25,7 @@ class ServiceCaseStatusService
         return [
             IncidentStatus::Open,
             IncidentStatus::InProgress,
+            IncidentStatus::AwaitingProductDetails,
             IncidentStatus::Resolved,
         ];
     }
