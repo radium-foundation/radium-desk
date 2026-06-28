@@ -25,7 +25,7 @@ export const initDashboardSerialNumbers = ({
 
     const getInlineElements = (cell) => ({
         trigger: cell.querySelector('.serial-cell-trigger'),
-        editor: cell.querySelector('.serial-inline-editor'),
+        editor: cell.querySelector('.transaction-inline-editor'),
         input: cell.querySelector('.serial-inline-input'),
         error: cell.querySelector('.serial-inline-error'),
     });
@@ -270,7 +270,7 @@ export const initDashboardSerialNumbers = ({
             return false;
         }
 
-        const openEditor = card.querySelector('.serial-inline-editor:not(.d-none)');
+        const openEditor = card.querySelector('[data-inline-serial="true"] .transaction-inline-editor:not(.d-none)');
 
         if (!openEditor) {
             return false;

@@ -24,7 +24,7 @@
                 data-bs-title="Enter serial number">
             <i class="bi bi-plus-lg" aria-hidden="true"></i>
         </button>
-        <div class="transaction-inline-editor serial-inline-editor d-none">
+        <div class="transaction-inline-editor d-none">
             <div class="input-group input-group-sm">
                 <input type="text"
                        class="form-control transaction-inline-input serial-inline-input"
@@ -35,7 +35,7 @@
                     <i class="bi bi-check-lg"></i>
                 </button>
             </div>
-            <div class="invalid-feedback d-block small transaction-inline-error serial-inline-error"></div>
+            <div class="invalid-feedback small transaction-inline-error serial-inline-error"></div>
         </div>
     @else
         —

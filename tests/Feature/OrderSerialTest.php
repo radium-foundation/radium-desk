@@ -127,7 +127,7 @@ class OrderSerialTest extends TestCase
         $response->assertOk();
         $html = $response->json('html');
         $this->assertStringContainsString('data-inline-serial="true"', $html);
-        $this->assertStringContainsString('serial-inline-editor', $html);
+        $this->assertStringContainsString('transaction-inline-editor', $html);
         $this->assertStringContainsString('Enter serial number', $html);
     }
 
