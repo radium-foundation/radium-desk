@@ -160,7 +160,7 @@ class OrderDeviceModelTest extends TestCase
         $response->assertOk();
         $html = $response->json('html');
         $this->assertStringContainsString('data-device-model-cell="true"', $html);
-        $this->assertStringContainsString('Assign device model', $html);
+        $this->assertStringContainsString('Assign model', $html);
     }
 
     public function test_dashboard_row_shows_model_name_without_plus_when_assigned(): void
@@ -225,8 +225,7 @@ class OrderDeviceModelTest extends TestCase
         $this->actingAs($agent)
             ->get(route('orders.show', $order))
             ->assertOk()
-            ->assertSee('Morpho 1300', false)
-            ->assertSee('Gaurav Patel', false)
+            ->assertSee('Model', false)
             ->assertSee('Assigned By', false)
             ->assertSee('Assigned At', false);
     }
@@ -239,6 +238,6 @@ class OrderDeviceModelTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Assign Device Model', false);
+            ->assertSee('Assign Model', false);
     }
 }

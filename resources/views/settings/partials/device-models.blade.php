@@ -1,6 +1,6 @@
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-white py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-        <h2 class="h6 mb-0">Device Models</h2>
+        <h2 class="h6 mb-0">Models</h2>
         <form method="GET" action="{{ route('settings.index') }}" class="d-flex gap-2">
             <input type="hidden" name="tab" value="device-models">
             <input type="search"
@@ -8,7 +8,7 @@
                    class="form-control form-control-sm"
                    placeholder="Search name, code, brand..."
                    value="{{ request('search') }}"
-                   aria-label="Search device models">
+                   aria-label="Search models">
             <button type="submit" class="btn btn-sm btn-outline-primary">Search</button>
             @if(request('search'))
                 <a href="{{ route('settings.index', ['tab' => 'device-models']) }}"
@@ -71,7 +71,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-4">No device models found.</td>
+                            <td colspan="6" class="text-center text-muted py-4">No models found.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -87,7 +87,7 @@
 
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white py-3">
-        <h2 class="h6 mb-0">Add Device Model</h2>
+        <h2 class="h6 mb-0">Add Model</h2>
     </div>
     <div class="card-body">
         <form method="POST" action="{{ route('settings.device-models.store') }}" class="row g-3 align-items-end">
@@ -117,6 +117,6 @@
                 <button type="submit" class="btn btn-primary w-100">Add</button>
             </div>
         </form>
-        <p class="small text-muted mt-3 mb-0">Deactivating a device model hides it from assignment. Existing order assignments are preserved.</p>
+        <p class="small text-muted mt-3 mb-0">Deactivating a model hides it from assignment. Existing order assignments are preserved.</p>
     </div>
 </div>

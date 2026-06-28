@@ -18,10 +18,10 @@
     @elseif($canAssign)
         <button type="button"
                 class="device-model-cell-trigger transaction-cell-trigger dashboard-u-transaction-add dashboard-u-transition dashboard-u-focus-ring"
-                aria-label="Assign device model"
+                aria-label="Assign model"
                 data-bs-toggle="tooltip"
                 data-bs-placement="top"
-                data-bs-title="Assign device model">
+                data-bs-title="Assign model">
             <i class="bi bi-plus-lg" aria-hidden="true"></i>
         </button>
     @else

@@ -81,10 +81,7 @@
                         <dt class="col-sm-4 text-muted">Entered At</dt>
                         <dd class="col-sm-8">{{ $order->serial_entered_at ? display_app_datetime($order->serial_entered_at) : '—' }}</dd>
 
-                        <dt class="col-sm-4 text-muted">Product Name</dt>
-                        <dd class="col-sm-8">{{ $order->product_name ?: '—' }}</dd>
-
-                        <dt class="col-sm-4 text-muted">Device Model</dt>
+                        <dt class="col-sm-4 text-muted">Model</dt>
                         <dd class="col-sm-8">{{ $order->deviceModel?->name ?? $order->device_model ?: '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Assigned By</dt>

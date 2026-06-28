@@ -499,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (data.action !== 'batch-transaction' && data.action !== 'batch-device-model') {
+            if (data.action !== 'batch-transaction') {
                 batchSession.restoreAllRowStates();
 
                 return;
@@ -520,12 +520,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (opened && component === 'remark') {
                 initMentionTextareas(document.querySelector('[data-workspace-modal-content]'));
             }
-
-            if (opened && component === 'batch-device-model') {
-                dashboardDeviceModelRef.current?.bindBatchSearch?.(
-                    document.querySelector('[data-workspace-modal-content]'),
-                );
-            }
         },
     });
 
@@ -535,7 +529,7 @@ document.addEventListener('DOMContentLoaded', () => {
             workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
         },
         openBatchDeviceModelModal: (incidentIds) => {
-            workspaceApi?.openBatchComponent('batch-device-model', incidentIds, 'dashboard');
+            dashboardDeviceModelRef.current?.openBulkModal?.(incidentIds);
         },
         onRowUpdated: () => {
             dashboardQuickFilter?.reapply();
@@ -640,6 +634,7 @@ document.addEventListener('DOMContentLoaded', () => {
             dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
         )(...args),
         showToast: showAppToast,
+        getBatchSession: () => dashboardTransactionsRef.current?.batchSession,
     });
 
     initKeyboardShortcuts({

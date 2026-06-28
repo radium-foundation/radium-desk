@@ -19,8 +19,8 @@
                         <div class="fw-semibold">{{ $order->customer_name ?: '—' }}</div>
                     </div>
                     <div class="col-sm-6 col-xl-4">
-                        <span class="text-muted">Product</span>
-                        <div class="fw-semibold">{{ $order->product_name ?: '—' }}</div>
+                        <span class="text-muted">Model</span>
+                        <div class="fw-semibold">{{ $order->displayDeviceModelName() ?: '—' }}</div>
                     </div>
                     <div class="col-sm-6 col-xl-4">
                         <span class="text-muted">Serial Number</span>

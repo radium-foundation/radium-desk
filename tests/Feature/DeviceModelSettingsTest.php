@@ -36,7 +36,7 @@ class DeviceModelSettingsTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('settings.index', ['tab' => 'device-models']))
             ->assertOk()
-            ->assertSee('Device Models')
+            ->assertSee('Models')
             ->assertSee('MFS110');
     }
 

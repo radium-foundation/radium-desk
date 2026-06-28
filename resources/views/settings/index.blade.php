@@ -17,7 +17,7 @@
                     @foreach([
                         'general' => 'General',
                         'products' => 'Service Cases',
-                        'device-models' => 'Device Models',
+                        'device-models' => 'Models',
                         'sources' => 'Sources',
                         'assignment' => 'Assignment',
                         'notifications' => 'Notifications',

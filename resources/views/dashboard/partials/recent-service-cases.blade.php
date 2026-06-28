@@ -49,7 +49,7 @@
                                         data-batch-device-model-assign
                                         disabled>
                                     <i class="bi bi-box-seam" aria-hidden="true"></i>
-                                    Assign Device Model
+                                    Assign Model
                                 </button>
                             @endif
                             <button type="button"
@@ -135,7 +135,7 @@
                             <th class="d-none d-md-table-cell">Logged By</th>
                             <th class="d-none d-lg-table-cell">Created</th>
                             <th class="d-none d-lg-table-cell">Updated</th>
-                            <th class="d-none d-lg-table-cell">Product</th>
+                            <th class="d-none d-lg-table-cell">Model</th>
                             @if($canShowServiceCaseActions ?? false)
                                 <th class="dashboard-actions-cell text-end">Actions</th>
                             @endif
