@@ -52,7 +52,7 @@ class OrderSerialController extends Controller
             $user = $request->user();
 
             return response()->json([
-                'message' => 'Serial number saved.',
+                'message' => 'Serial Number saved and locked successfully.',
                 'order_id' => $order->id,
                 'incident_id' => $incident?->id,
                 'row_html' => $incident

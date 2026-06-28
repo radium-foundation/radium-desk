@@ -67,7 +67,19 @@
                         <dd class="col-sm-8 fw-semibold">{{ $order->order_id }}</dd>
 
                         <dt class="col-sm-4 text-muted">Serial Number</dt>
-                        <dd class="col-sm-8">{{ $order->serial_number }}</dd>
+                        <dd class="col-sm-8">
+                            @if($order->serial_number)
+                                <span class="font-monospace">{{ $order->serial_number }}</span>
+                            @else
+                                —
+                            @endif
+                        </dd>
+
+                        <dt class="col-sm-4 text-muted">Entered By</dt>
+                        <dd class="col-sm-8">{{ $order->serialEnterer?->name ?: '—' }}</dd>
+
+                        <dt class="col-sm-4 text-muted">Entered At</dt>
+                        <dd class="col-sm-8">{{ $order->serial_entered_at ? display_app_datetime($order->serial_entered_at) : '—' }}</dd>
 
                         <dt class="col-sm-4 text-muted">Product Name</dt>
                         <dd class="col-sm-8">{{ $order->product_name }}</dd>

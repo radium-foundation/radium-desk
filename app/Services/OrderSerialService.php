@@ -30,6 +30,17 @@ class OrderSerialService
             ]);
         }
 
+        $serialOwner = Order::query()
+            ->where('serial_number', $serialNumber)
+            ->whereKeyNot($order->id)
+            ->first();
+
+        if ($serialOwner !== null) {
+            throw ValidationException::withMessages([
+                'serial_number' => 'This serial number belongs to a different order.',
+            ]);
+        }
+
         return DB::transaction(function () use ($order, $serialNumber, $actor): Order {
             $oldValues = [
                 'serial_number' => $order->serial_number,

@@ -28,9 +28,9 @@
             <div class="input-group input-group-sm">
                 <input type="text"
                        class="form-control transaction-inline-input serial-inline-input"
-                       placeholder="Serial Number"
+                       placeholder="Enter Serial Number"
                        maxlength="100"
-                       aria-label="Serial Number">
+                       aria-label="Enter Serial Number">
                 <button type="button" class="btn btn-outline-success serial-inline-save" aria-label="Save">
                     <i class="bi bi-check-lg"></i>
                 </button>

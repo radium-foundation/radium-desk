@@ -10,21 +10,17 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="small mb-3">
+                <p class="small mb-3 mb-lg-4">
                     You are about to permanently assign this Serial Number.
                 </p>
                 <p class="small mb-3">
-                    After confirmation it cannot be edited by:
+                    After confirmation, it cannot be changed by Agents, Supervisors, or Admins.
                 </p>
-                <ul class="small mb-3 ps-3">
-                    <li>Agent</li>
-                    <li>Supervisor</li>
-                    <li>Admin</li>
-                </ul>
-                <p class="small text-muted mb-2">Only Super Admin can unlock it later.</p>
-                <div class="border rounded bg-light px-3 py-2">
-                    <div class="small text-muted mb-1">Serial Number:</div>
-                    <div class="fw-semibold font-monospace text-break" id="serial_number_confirm_value" aria-live="polite"></div>
+                <p class="small text-muted mb-3">Only Super Admin can unlock it.</p>
+                <div class="serial-number-confirm-display">
+                    <span class="badge rounded-pill text-bg-light border font-monospace serial-number-confirm-badge"
+                          id="serial_number_confirm_value"
+                          aria-live="polite"></span>
                 </div>
             </div>
             <div class="modal-footer">

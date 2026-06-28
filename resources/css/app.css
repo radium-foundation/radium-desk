@@ -1344,6 +1344,22 @@ a:focus-visible .stat-card {
     background-color: var(--dashboard-row-hover-bg);
 }
 
+.serial-number-confirm-display {
+    display: flex;
+    justify-content: center;
+}
+
+.serial-number-confirm-badge {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.5rem 0.75rem;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-all;
+    text-align: center;
+}
+
 .batch-transaction-order-list {
     max-height: 12rem;
     overflow-y: auto;

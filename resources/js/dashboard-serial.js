@@ -165,7 +165,7 @@ export const initDashboardSerialNumbers = ({
 
             confirmCloseReason = 'success';
             confirmModal.hide();
-            showToast?.(data.message ?? 'Serial number saved.');
+            showToast?.(data.message);
         } catch (saveError) {
             pendingInlineError = 'Unable to save serial number.';
             confirmCloseReason = 'validation_error';

@@ -53,7 +53,7 @@ class OrderSerialTest extends TestCase
                 'incident_id' => $incident->id,
             ])
             ->assertOk()
-            ->assertJsonPath('message', 'Serial number saved.')
+            ->assertJsonPath('message', 'Serial Number saved and locked successfully.')
             ->assertJsonPath('incident_id', $incident->id);
 
         $order->refresh();
@@ -218,5 +218,68 @@ class OrderSerialTest extends TestCase
 
         $this->assertFalse($admin->can('unlockSerial', $order));
         $this->assertTrue($superadmin->can('unlockSerial', $order));
+    }
+
+    public function test_cannot_assign_serial_number_already_used_by_another_order(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD-SERIAL-OWNER',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'serial_entered_by_user_id' => $agent->id,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-DUP',
+            'serial_number' => null,
+            'product_name' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->postJson(route('orders.serial.store', $order), [
+                'serial_number' => '252601401258',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['serial_number']);
+
+        $order->refresh();
+        $this->assertNull($order->serial_number);
+    }
+
+    public function test_order_show_displays_serial_entry_metadata(): void
+    {
+        $agent = User::factory()->create(['name' => 'Gaurav Patel']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $enteredAt = now()->subHour();
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-SHOW',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => $enteredAt,
+            'serial_entered_by_user_id' => $agent->id,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('252601401258', false)
+            ->assertSee('Gaurav Patel', false)
+            ->assertSee('Entered By', false)
+            ->assertSee('Entered At', false);
     }
 }
