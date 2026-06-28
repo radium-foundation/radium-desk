@@ -82,6 +82,18 @@
                     </li>
                 @endif
             </ul>
+
+            <div class="nav-section"><span class="nav-label">Cashfree</span></div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    @can('viewAny', App\Models\CashfreeWebhookLog::class)
+                        <a @class(['nav-link', 'active' => request()->routeIs('cashfree.webhook-explorer.*')]) href="{{ route('cashfree.webhook-explorer.index') }}" title="Webhook Explorer">
+                            <i class="bi bi-broadcast nav-icon me-2"></i>
+                            <span class="nav-label">Webhook Explorer</span>
+                        </a>
+                    @endcan
+                </li>
+            </ul>
         @endif
     </nav>
 </aside>
