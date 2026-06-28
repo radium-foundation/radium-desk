@@ -22,6 +22,75 @@ class RadiumBoxService
             return $order;
         }
 
+        return $this->applyEnrichment($order, $enrichment);
+    }
+
+    public function needsEnrichment(Order $order): bool
+    {
+        return ! $order->isSerialLocked()
+            || (! $order->hasDeviceModelAssigned() && ! filled($order->device_model));
+    }
+
+    /**
+     * @return array{
+     *     applied: bool,
+     *     enrichment: ?RadiumBoxOrderEnrichment,
+     *     fetch_result: RadiumBoxOrderEnrichmentFetchResult,
+     * }
+     */
+    public function enrichOrderFromBackgroundSync(Order $order): array
+    {
+        if (! $this->needsEnrichment($order)) {
+            return [
+                'applied' => false,
+                'enrichment' => null,
+                'fetch_result' => new RadiumBoxOrderEnrichmentFetchResult(retriable: false),
+            ];
+        }
+
+        $fetchResult = $this->client->fetchOrderEnrichmentForBackgroundSync($order->order_id);
+
+        if ($fetchResult->errorType === 'disabled') {
+            return [
+                'applied' => false,
+                'enrichment' => null,
+                'fetch_result' => $fetchResult,
+            ];
+        }
+
+        if ($fetchResult->retriable) {
+            return [
+                'applied' => false,
+                'enrichment' => null,
+                'fetch_result' => $fetchResult,
+            ];
+        }
+
+        $enrichment = $fetchResult->enrichment;
+
+        if ($enrichment === null || ! $enrichment->hasData()) {
+            return [
+                'applied' => false,
+                'enrichment' => $enrichment,
+                'fetch_result' => $fetchResult,
+            ];
+        }
+
+        $updates = $this->buildUpdates($order, $enrichment);
+
+        if ($updates !== []) {
+            $order->update($updates);
+        }
+
+        return [
+            'applied' => $updates !== [],
+            'enrichment' => $enrichment,
+            'fetch_result' => $fetchResult,
+        ];
+    }
+
+    private function applyEnrichment(Order $order, RadiumBoxOrderEnrichment $enrichment): Order
+    {
         $updates = $this->buildUpdates($order, $enrichment);
 
         if ($updates === []) {
@@ -31,11 +100,6 @@ class RadiumBoxService
         $order->update($updates);
 
         return $order->fresh();
-    }
-
-    private function needsEnrichment(Order $order): bool
-    {
-        return ! $order->isSerialLocked() || ! filled($order->device_model);
     }
 
     /**
@@ -49,7 +113,7 @@ class RadiumBoxService
             $updates['serial_number'] = $enrichment->serialNumber;
         }
 
-        if (! filled($order->device_model) && filled($enrichment->deviceModel)) {
+        if (! $order->hasDeviceModelAssigned() && ! filled($order->device_model) && filled($enrichment->deviceModel)) {
             $updates['device_model'] = $enrichment->deviceModel;
         }
 

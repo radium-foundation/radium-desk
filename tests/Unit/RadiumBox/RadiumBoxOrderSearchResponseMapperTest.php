@@ -26,12 +26,18 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
                 'rd_order' => [
                     'serial_no' => ' m250546898 ',
                     'product_name' => 'Access FM220U L1',
+                    'activation_year' => '2024',
+                    'warranty' => 'Active',
+                    'amc' => 'Expired',
                 ],
             ],
         ]);
 
         $this->assertSame('M250546898', $enrichment->serialNumber);
         $this->assertSame('Access FM220U L1', $enrichment->deviceModel);
+        $this->assertSame('2024', $enrichment->activationYear);
+        $this->assertSame('Active', $enrichment->warranty);
+        $this->assertSame('Expired', $enrichment->amc);
     }
 
     public function test_it_throws_when_order_is_not_found(): void

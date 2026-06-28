@@ -36,6 +36,20 @@ class RadiumBoxOrderSearchResponseMapper
         return new RadiumBoxOrderEnrichment(
             serialNumber: $this->normalizeSerialNumber(data_get($rdOrder, 'serial_no')),
             deviceModel: $this->normalizeDeviceModel(data_get($rdOrder, 'product_name')),
+            activationYear: $this->normalizeOptionalString(
+                data_get($rdOrder, 'activation_year')
+                    ?? data_get($rdOrder, 'activationYear')
+                    ?? data_get($rdOrder, 'year'),
+            ),
+            warranty: $this->normalizeOptionalString(
+                data_get($rdOrder, 'warranty')
+                    ?? data_get($rdOrder, 'warranty_status')
+                    ?? data_get($rdOrder, 'warranty_expiry'),
+            ),
+            amc: $this->normalizeOptionalString(
+                data_get($rdOrder, 'amc')
+                    ?? data_get($rdOrder, 'amc_status'),
+            ),
         );
     }
 
@@ -52,12 +66,21 @@ class RadiumBoxOrderSearchResponseMapper
 
     private function normalizeDeviceModel(mixed $value): ?string
     {
+        return $this->normalizeOptionalString($value);
+    }
+
+    private function normalizeOptionalString(mixed $value): ?string
+    {
+        if (is_int($value) || is_float($value)) {
+            $value = (string) $value;
+        }
+
         if (! is_string($value)) {
             return null;
         }
 
-        $deviceModel = trim($value);
+        $normalized = trim($value);
 
-        return $deviceModel !== '' ? $deviceModel : null;
+        return $normalized !== '' ? $normalized : null;
     }
 }

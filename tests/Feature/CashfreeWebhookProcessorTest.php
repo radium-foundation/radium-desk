@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -11,6 +12,7 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class CashfreeWebhookProcessorTest extends TestCase
@@ -32,6 +34,8 @@ class CashfreeWebhookProcessorTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
         $this->seed(SettingsSeeder::class);
+
+        config(['radiumbox.enabled' => false]);
     }
 
     /**
@@ -170,5 +174,33 @@ class CashfreeWebhookProcessorTest extends TestCase
         $log = CashfreeWebhookLog::query()->first();
         $this->assertSame('failed', $log->processing_status);
         $this->assertSame(0, Incident::query()->count());
+    }
+
+    public function test_successful_payment_webhook_dispatches_radiumbox_enrichment_job(): void
+    {
+        Queue::fake();
+
+        $response = $this->postJson('/api/webhooks/cashfree', $this->successfulPayload());
+
+        $response->assertOk()->assertExactJson(['status' => 'ok']);
+
+        $order = Order::query()->where('cashfree_payment_id', '1453002795')->first();
+        $this->assertNotNull($order);
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, function (RadiumBoxOrderEnrichmentJob $job) use ($order): bool {
+            return $job->orderId === $order->id;
+        });
+    }
+
+    public function test_duplicate_webhook_does_not_dispatch_second_enrichment_job(): void
+    {
+        Queue::fake();
+
+        $payload = $this->successfulPayload();
+
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, 1);
     }
 }

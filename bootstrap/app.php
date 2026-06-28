@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsureUserIsActive;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,11 +20,25 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'active' => \App\Http\Middleware\EnsureUserIsActive::class,
+            'active' => EnsureUserIsActive::class,
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
+    })
+    ->withSchedule(function (Schedule $schedule): void {
+        if (filter_var(env('QUEUE_CRON_WORKER_ENABLED', false), FILTER_VALIDATE_BOOLEAN)) {
+            $schedule->command('queue:work --stop-when-empty --max-time=55')
+                ->everyMinute()
+                ->withoutOverlapping()
+                ->appendOutputTo(storage_path('logs/queue-worker.log'));
+        }
+
+        if (filter_var(env('INFRASTRUCTURE_METRICS_ENABLED', false), FILTER_VALIDATE_BOOLEAN)) {
+            $schedule->command('infrastructure:metrics:collect')
+                ->everyFiveMinutes()
+                ->withoutOverlapping();
+        }
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

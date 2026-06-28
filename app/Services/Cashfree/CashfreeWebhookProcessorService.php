@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\DashboardBroadcastService;
 use App\Services\IncidentReferenceService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class CashfreeWebhookProcessorService
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -57,6 +59,8 @@ class CashfreeWebhookProcessorService
 
                 $order = $this->createOrder($payload, $cfPaymentId);
                 $incident = $this->createServiceRequest($order, $payload);
+
+                $this->radiumBoxOrderEnrichmentService->dispatch($order);
 
                 return $this->markProcessed($webhookLog, $incident);
             });
