@@ -1,0 +1,221 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\IncidentStatus;
+use App\Models\AuditLog;
+use App\Models\Incident;
+use App\Models\Order;
+use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class OrderSerialTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    public function test_agent_can_assign_serial_number_from_dashboard(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-001',
+            'serial_number' => null,
+            'product_name' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-SERIAL-001',
+            'category' => 'General',
+            'source' => 'cashfree',
+            'title' => 'Cashfree activation',
+            'description' => 'Awaiting serial number.',
+            'status' => IncidentStatus::InProgress->value,
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->postJson(route('orders.serial.store', $order), [
+                'serial_number' => ' 252601401258 ',
+                'incident_id' => $incident->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Serial number saved.')
+            ->assertJsonPath('incident_id', $incident->id);
+
+        $order->refresh();
+        $this->assertSame('252601401258', $order->serial_number);
+        $this->assertNotNull($order->serial_entered_at);
+        $this->assertSame($agent->id, $order->serial_entered_by_user_id);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'serial.assigned',
+            'auditable_type' => $order->getMorphClass(),
+            'auditable_id' => $order->id,
+            'user_id' => $agent->id,
+        ]);
+    }
+
+    public function test_cannot_overwrite_locked_serial_number(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-LOCK',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'serial_entered_by_user_id' => $admin->id,
+            'product_name' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('orders.serial.store', $order), [
+                'serial_number' => '999999999999',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['serial_number']);
+
+        $order->refresh();
+        $this->assertSame('252601401258', $order->serial_number);
+    }
+
+    public function test_dashboard_row_shows_plus_when_serial_missing_and_agent_can_enter(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-UI',
+            'serial_number' => null,
+            'product_name' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-SERIAL-UI',
+            'category' => 'General',
+            'source' => 'cashfree',
+            'title' => 'Cashfree activation',
+            'description' => 'Awaiting serial number.',
+            'status' => IncidentStatus::InProgress->value,
+            'created_by' => $agent->id,
+        ]);
+
+        $response = $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.row', $incident));
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('data-serial-modal-trigger="true"', $html);
+        $this->assertStringContainsString('Enter serial number', $html);
+    }
+
+    public function test_dashboard_row_shows_serial_without_plus_when_locked(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-DONE',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'serial_entered_by_user_id' => $agent->id,
+            'product_name' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-SERIAL-DONE',
+            'category' => 'General',
+            'source' => 'cashfree',
+            'title' => 'Cashfree activation',
+            'description' => 'Serial entered.',
+            'status' => IncidentStatus::InProgress->value,
+            'created_by' => $agent->id,
+        ]);
+
+        $response = $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.row', $incident));
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('252601401258', $html);
+        $this->assertStringNotContainsString('data-serial-modal-trigger="true"', $html);
+    }
+
+    public function test_admin_cannot_change_locked_serial_via_order_update(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-EDIT',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'serial_entered_by_user_id' => $admin->id,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('orders.update', $order), [
+                'order_id' => $order->order_id,
+                'serial_number' => '999999999999',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+            ])
+            ->assertSessionHasErrors('serial_number');
+
+        $order->refresh();
+        $this->assertSame('252601401258', $order->serial_number);
+    }
+
+    public function test_unlock_serial_policy_is_superadmin_only(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-UNLOCK',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'serial_entered_by_user_id' => $admin->id,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->assertFalse($admin->can('unlockSerial', $order));
+        $this->assertTrue($superadmin->can('unlockSerial', $order));
+    }
+}

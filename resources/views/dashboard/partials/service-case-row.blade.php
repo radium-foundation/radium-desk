@@ -59,13 +59,7 @@
             —
         @endif
     </td>
-    <td class="case-serial-cell case-meta-cell">
-        @if($order)
-            <a href="{{ route('orders.show', $order) }}" class="text-decoration-none">{{ $order->serial_number ?: '—' }}</a>
-        @else
-            —
-        @endif
-    </td>
+    @include('dashboard.partials.serial-number-cell', ['serviceCase' => $serviceCase])
     <td class="status-cell">
         @if($order)
             @include('dashboard.partials.completion-status-tooltip', [

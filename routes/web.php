@@ -13,6 +13,7 @@ use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderSerialController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuickServiceRequestController;
@@ -54,6 +55,7 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('orders.service-cases.store');
     Route::post('orders/{order}/transaction', [OrderTransactionController::class, 'store'])->name('orders.transaction.store');
     Route::delete('orders/{order}/transaction', [OrderTransactionController::class, 'destroy'])->name('orders.transaction.destroy');
+    Route::post('orders/{order}/serial', [OrderSerialController::class, 'store'])->name('orders.serial.store');
     Route::resource('orders', OrderController::class);
     Route::resource('incidents', IncidentController::class);
     Route::patch('incidents/{incident}/assignment', [ServiceCaseAssignmentController::class, 'update'])

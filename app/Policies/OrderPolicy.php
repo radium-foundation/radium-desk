@@ -47,4 +47,14 @@ class OrderPolicy
     {
         return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) && $order->isTransactionLocked();
     }
+
+    public function assignSerial(User $user, Order $order): bool
+    {
+        return $user->can('incidents.update') && ! $order->isSerialLocked();
+    }
+
+    public function unlockSerial(User $user, Order $order): bool
+    {
+        return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) && $order->isSerialLocked();
+    }
 }

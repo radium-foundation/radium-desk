@@ -22,6 +22,8 @@ class Order extends Model
         'order_id',
         'customer_id',
         'serial_number',
+        'serial_entered_at',
+        'serial_entered_by_user_id',
         'product_name',
         'device_model',
         'transaction_id',
@@ -47,6 +49,7 @@ class Order extends Model
         return [
             'status' => OrderStatus::class,
             'completed_at' => 'datetime',
+            'serial_entered_at' => 'datetime',
             'payment_date' => 'datetime',
             'payment_amount' => 'decimal:2',
         ];
@@ -62,6 +65,11 @@ class Order extends Model
     public function isTransactionLocked(): bool
     {
         return filled($this->transaction_id);
+    }
+
+    public function isSerialLocked(): bool
+    {
+        return filled($this->serial_number);
     }
 
     public function completionTooltipHtml(Carbon $loggedAt): string
@@ -191,6 +199,11 @@ class Order extends Model
     public function transactionAssigner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'transaction_assigned_by');
+    }
+
+    public function serialEnterer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'serial_entered_by_user_id');
     }
 
     public function incidents(): HasMany

@@ -25,6 +25,14 @@ class UpdateOrderRequest extends FormRequest
         /** @var Order $order */
         $order = $this->route('order');
 
+        $serialRules = ['required', 'string', 'max:100'];
+
+        if ($order->isSerialLocked() && ! $this->user()?->can('unlockSerial', $order)) {
+            $serialRules[] = Rule::in([$order->serial_number]);
+        } else {
+            $serialRules[] = Rule::unique('orders', 'serial_number')->ignore($order->id);
+        }
+
         return [
             'order_id' => [
                 'required',
@@ -32,12 +40,7 @@ class UpdateOrderRequest extends FormRequest
                 'max:50',
                 Rule::unique('orders', 'order_id')->ignore($order->id),
             ],
-            'serial_number' => [
-                'required',
-                'string',
-                'max:100',
-                Rule::unique('orders', 'serial_number')->ignore($order->id),
-            ],
+            'serial_number' => $serialRules,
             'product_name' => ['required', 'string', 'max:255'],
             'device_model' => ['required', 'string', 'max:255'],
             'customer_name' => ['nullable', 'string', 'max:255'],

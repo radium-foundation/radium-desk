@@ -1340,6 +1340,17 @@ a:focus-visible .stat-card {
     background-color: var(--dashboard-row-hover-bg);
 }
 
+.serial-number-cell .serial-cell-trigger.dashboard-u-transaction-add {
+    vertical-align: middle;
+}
+
+.serial-number-cell:hover .serial-cell-trigger,
+.serial-number-cell:focus-within .serial-cell-trigger {
+    color: var(--dashboard-accent-primary);
+    border-color: rgba(13, 110, 253, 0.35);
+    background-color: var(--dashboard-row-hover-bg);
+}
+
 .batch-transaction-order-list {
     max-height: 12rem;
     overflow-y: auto;

@@ -159,6 +159,15 @@ class OrderActivityTimelineService
                         dedupeKey: "audit:{$auditLog->id}",
                     ),
                 ]),
+                'serial.assigned' => collect([
+                    new OrderTimelineEntry(
+                        occurredAt: $occurredAt,
+                        title: 'Serial Number Added',
+                        detail: (string) ($auditLog->new_values['serial_number'] ?? ''),
+                        actorName: $auditLog->user?->firstName(),
+                        dedupeKey: "audit:{$auditLog->id}",
+                    ),
+                ]),
                 'order.updated' => $this->mapOrderCorrectionEntries(
                     $auditLog,
                     $auditLog->user?->roleActorLabel() ?: $auditLog->user?->firstName(),

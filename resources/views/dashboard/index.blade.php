@@ -57,4 +57,6 @@
     @if($canQuickCreate)
         @include('dashboard.partials.quick-create-form', ['reopenQuickCreate' => $reopenQuickCreate ?? false])
     @endif
+
+    @include('dashboard.partials.serial-number-modal')
 @endsection
