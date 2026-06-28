@@ -35,6 +35,7 @@ class CashfreeWebhookLogController extends Controller
         return view('cashfree.webhook-explorer.index', [
             'webhookLogs' => $webhookLogs,
             'filters' => $request->only(['q']),
+            'signatureVerificationEnabled' => (bool) config('cashfree.verify_signature'),
         ]);
     }
 

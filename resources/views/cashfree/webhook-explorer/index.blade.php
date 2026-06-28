@@ -10,6 +10,24 @@
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">
+            <h2 class="h6 mb-0">Security</h2>
+        </div>
+        <div class="card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-4 col-md-3 text-muted">Signature Verification</dt>
+                <dd class="col-sm-8 col-md-9 mb-0">
+                    @if($signatureVerificationEnabled)
+                        <span class="badge text-bg-success">Enabled</span>
+                    @else
+                        <span class="badge text-bg-warning text-dark">Disabled</span>
+                    @endif
+                </dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
             <h2 class="h6 mb-0">Search</h2>
         </div>
         <div class="card-body">

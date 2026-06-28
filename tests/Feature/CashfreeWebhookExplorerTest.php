@@ -59,6 +59,9 @@ class CashfreeWebhookExplorerTest extends TestCase
             ->get(route('cashfree.webhook-explorer.index'))
             ->assertOk()
             ->assertSee('Webhook Explorer')
+            ->assertSee('Security')
+            ->assertSee('Signature Verification')
+            ->assertSee('Disabled')
             ->assertSee('#'.$log->id)
             ->assertSee('PAYMENT_FAILED')
             ->assertSee('103.12.34.56')
@@ -92,5 +95,21 @@ class CashfreeWebhookExplorerTest extends TestCase
             ->assertOk()
             ->assertSee('#'.$second->id)
             ->assertDontSee('#'.$first->id);
+    }
+
+    public function test_webhook_explorer_shows_enabled_signature_verification_status(): void
+    {
+        config(['cashfree.verify_signature' => true]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createWebhookLog();
+
+        $this->actingAs($admin)
+            ->get(route('cashfree.webhook-explorer.index'))
+            ->assertOk()
+            ->assertSee('Signature Verification')
+            ->assertSee('Enabled');
     }
 }

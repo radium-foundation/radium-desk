@@ -7,17 +7,15 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\Support\InteractsWithCashfreeWebhooks;
 use Tests\TestCase;
 
 class CashfreeWebhookTest extends TestCase
 {
-    use InteractsWithCashfreeWebhooks;
     use RefreshDatabase;
 
     public function test_webhook_is_publicly_accessible_and_returns_200(): void
     {
-        config(['cashfree.client_secret' => 'test-client-secret']);
+        config(['cashfree.verify_signature' => false]);
 
         $this->seed(RolePermissionSeeder::class);
 
@@ -40,7 +38,7 @@ class CashfreeWebhookTest extends TestCase
             ],
         ];
 
-        $response = $this->postSignedCashfreeWebhook($payload, [
+        $response = $this->postJson('/api/webhooks/cashfree', $payload, [
             'User-Agent' => 'Cashfree-Webhook/1.0',
             'X-Webhook-Version' => '2023-08-01',
         ]);

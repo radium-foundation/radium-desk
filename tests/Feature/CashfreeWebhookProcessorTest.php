@@ -11,19 +11,17 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\Support\InteractsWithCashfreeWebhooks;
 use Tests\TestCase;
 
 class CashfreeWebhookProcessorTest extends TestCase
 {
-    use InteractsWithCashfreeWebhooks;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        config(['cashfree.client_secret' => 'test-client-secret']);
+        config(['cashfree.verify_signature' => false]);
 
         $this->seed(RolePermissionSeeder::class);
 
@@ -75,7 +73,7 @@ class CashfreeWebhookProcessorTest extends TestCase
 
     public function test_successful_payment_webhook_creates_service_request(): void
     {
-        $response = $this->postSignedCashfreeWebhook($this->successfulPayload());
+        $response = $this->postJson('/api/webhooks/cashfree', $this->successfulPayload());
 
         $response->assertOk()->assertExactJson(['status' => 'ok']);
 
@@ -112,8 +110,8 @@ class CashfreeWebhookProcessorTest extends TestCase
     {
         $payload = $this->successfulPayload();
 
-        $this->postSignedCashfreeWebhook($payload)->assertOk();
-        $this->postSignedCashfreeWebhook($payload)->assertOk();
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
 
         $this->assertSame(1, Order::query()->count());
         $this->assertSame(1, Incident::query()->count());
@@ -127,7 +125,7 @@ class CashfreeWebhookProcessorTest extends TestCase
 
     public function test_non_success_webhook_is_logged_without_processing(): void
     {
-        $response = $this->postSignedCashfreeWebhook([
+        $response = $this->postJson('/api/webhooks/cashfree', [
             'type' => 'PAYMENT_FAILED_WEBHOOK',
             'data' => [
                 'payment' => [
@@ -151,7 +149,7 @@ class CashfreeWebhookProcessorTest extends TestCase
         $payload = $this->successfulPayload();
         unset($payload['data']['payment']['cf_payment_id']);
 
-        $response = $this->postSignedCashfreeWebhook($payload);
+        $response = $this->postJson('/api/webhooks/cashfree', $payload);
 
         $response->assertOk();
 
@@ -165,7 +163,7 @@ class CashfreeWebhookProcessorTest extends TestCase
     {
         User::query()->where('email', 'superadmin@radium.local')->delete();
 
-        $response = $this->postSignedCashfreeWebhook($this->successfulPayload());
+        $response = $this->postJson('/api/webhooks/cashfree', $this->successfulPayload());
 
         $response->assertOk();
 

@@ -26,16 +26,18 @@ class CashfreeWebhookController extends Controller
             $this->logWebhook($request);
             $webhookLog = $this->storeWebhook($request);
 
-            if (! $this->signatureVerifier->hasRequiredHeaders($request)) {
-                $this->markSignatureVerificationFailed($webhookLog);
+            if (config('cashfree.verify_signature')) {
+                if (! $this->signatureVerifier->hasRequiredHeaders($request)) {
+                    $this->markSignatureVerificationFailed($webhookLog);
 
-                return response()->json(['status' => 'error'], 400);
-            }
+                    return response()->json(['status' => 'error'], 400);
+                }
 
-            if (! $this->signatureVerifier->verify($request)) {
-                $this->markSignatureVerificationFailed($webhookLog);
+                if (! $this->signatureVerifier->verify($request)) {
+                    $this->markSignatureVerificationFailed($webhookLog);
 
-                return response()->json(['status' => 'error'], 401);
+                    return response()->json(['status' => 'error'], 401);
+                }
             }
 
             $this->webhookProcessorService->process($webhookLog);

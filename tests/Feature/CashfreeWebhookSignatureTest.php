@@ -24,7 +24,10 @@ class CashfreeWebhookSignatureTest extends TestCase
     {
         parent::setUp();
 
-        config(['cashfree.client_secret' => 'test-client-secret']);
+        config([
+            'cashfree.client_secret' => 'test-client-secret',
+            'cashfree.verify_signature' => true,
+        ]);
 
         $this->seed(RolePermissionSeeder::class);
 
@@ -151,8 +154,37 @@ class CashfreeWebhookSignatureTest extends TestCase
         $this->assertSame($logs[0]->incident_id, $logs[1]->incident_id);
     }
 
+    public function test_signature_verification_disabled_allows_unsigned_webhooks(): void
+    {
+        config(['cashfree.verify_signature' => false]);
+
+        $response = $this->postJson('/api/webhooks/cashfree', $this->successfulPayload());
+
+        $response->assertOk()->assertExactJson(['status' => 'ok']);
+
+        $log = CashfreeWebhookLog::query()->first();
+        $this->assertNotNull($log);
+        $this->assertSame('processed', $log->processing_status);
+        $this->assertSame(1, Order::query()->count());
+        $this->assertSame(1, Incident::query()->count());
+    }
+
+    public function test_signature_verification_disabled_does_not_require_client_secret(): void
+    {
+        config([
+            'cashfree.verify_signature' => false,
+            'cashfree.client_secret' => null,
+        ]);
+
+        $this->postJson('/api/webhooks/cashfree', $this->successfulPayload())->assertOk();
+
+        $this->assertSame(1, Order::query()->count());
+    }
+
     public function test_missing_signature_headers_return_bad_request(): void
     {
+        config(['cashfree.verify_signature' => true]);
+
         $response = $this->postJson('/api/webhooks/cashfree', $this->successfulPayload());
 
         $response->assertBadRequest();
