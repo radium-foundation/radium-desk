@@ -60,6 +60,7 @@ export const initDashboardSerialNumbers = ({
 
         trigger?.classList.add('d-none');
         editor.classList.remove('d-none');
+        cell.classList.add('is-serial-inline-open');
 
         if (error) {
             error.textContent = '';
@@ -80,18 +81,21 @@ export const initDashboardSerialNumbers = ({
         });
     };
 
-    const closeInlineEditor = (cell, { focusTrigger = true } = {}) => {
+    const closeInlineEditor = (cell, { focusTrigger = true, keepSession = false } = {}) => {
         const { trigger, editor, input, error } = getInlineElements(cell);
 
         editor?.classList.add('d-none');
         trigger?.classList.remove('d-none');
+        cell.classList.remove('is-serial-inline-open');
         input?.classList.remove('is-invalid');
 
         if (error) {
             error.textContent = '';
         }
 
-        getWorkspaceSession().release('inline-serial');
+        if (! keepSession) {
+            getWorkspaceSession().release('inline-serial');
+        }
 
         if (focusTrigger) {
             trigger?.focus();
@@ -115,6 +119,7 @@ export const initDashboardSerialNumbers = ({
             confirmValue.textContent = serialNumber;
         }
 
+        closeInlineEditor(cell, { focusTrigger: false, keepSession: true });
         confirmModal.show();
     };
 
@@ -255,6 +260,7 @@ export const initDashboardSerialNumbers = ({
         confirmCloseReason = null;
 
         if (reason === 'success') {
+            getWorkspaceSession().release('inline-serial');
             resetConfirmState();
 
             return;
