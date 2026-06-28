@@ -7,6 +7,7 @@ use App\Models\SettingProduct;
 use App\Models\SettingSource;
 use App\Listeners\BroadcastNotificationCreated;
 use App\Policies\SettingPolicy;
+use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
@@ -22,7 +23,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(RadiumBoxRequestCache::class);
     }
 
     /**

@@ -92,7 +92,9 @@ class Order extends Model
             return $this->deviceModel?->name;
         }
 
-        return filled($this->product_name) ? $this->product_name : null;
+        return filled($this->product_name)
+            ? $this->product_name
+            : (filled($this->device_model) ? $this->device_model : null);
     }
 
     public static function supportsDeviceModelMaster(): bool

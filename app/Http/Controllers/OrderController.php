@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Services\AuditLogService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\QuickServiceRequestService;
+use App\Services\RadiumBox\RadiumBoxService;
 use App\Services\RemarkTimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -25,6 +26,7 @@ class OrderController extends Controller
         private readonly OrderActivityTimelineService $orderActivityTimelineService,
         private readonly QuickServiceRequestService $quickServiceRequestService,
         private readonly AuditLogService $auditLogService,
+        private readonly RadiumBoxService $radiumBoxService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -104,6 +106,9 @@ class OrderController extends Controller
     {
         $order->loadCount(['incidents', 'refundRequests']);
         $order->load($this->orderWorkspaceRelationships());
+
+        $order = $this->radiumBoxService->enrichOrderForWorkspace($order);
+        $order->loadMissing($this->orderWorkspaceRelationships());
 
         $activeIncident = $order->activeIncident();
         if ($activeIncident !== null && ! $activeIncident->relationLoaded('assignee')) {
