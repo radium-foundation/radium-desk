@@ -30,5 +30,8 @@
 
         <dt>Product Name</dt>
         <dd>{{ $order->product_name ?: '—' }}</dd>
+
+        <dt>Warranty</dt>
+        <dd>Unknown — warranty rules are not yet connected to this workspace.</dd>
     </dl>
 @endcomponent

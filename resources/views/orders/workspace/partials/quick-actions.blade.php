@@ -3,18 +3,12 @@
 ])
 
 <div class="order-workspace-quick-actions">
-    <button type="button" class="order-workspace-action-btn" disabled title="Coming soon">
-        <i class="bi bi-telephone-fill" aria-hidden="true"></i>
-        <span>Call</span>
-    </button>
-    <button type="button" class="order-workspace-action-btn" disabled title="Coming soon">
-        <i class="bi bi-whatsapp" aria-hidden="true"></i>
-        <span>WhatsApp</span>
-    </button>
-    <button type="button" class="order-workspace-action-btn" disabled title="Coming soon">
-        <i class="bi bi-envelope-fill" aria-hidden="true"></i>
-        <span>Email</span>
-    </button>
+    @if($order->customer_phone)
+        <a href="tel:{{ $order->customer_phone }}" class="order-workspace-action-btn">
+            <i class="bi bi-telephone-fill" aria-hidden="true"></i>
+            <span>Call</span>
+        </a>
+    @endif
     @can('create', App\Models\Incident::class)
         <a href="{{ route('orders.service-cases.create', $order) }}"
            class="order-workspace-action-btn order-workspace-action-btn--primary">
@@ -27,10 +21,6 @@
             <span>Create Ticket</span>
         </button>
     @endcan
-    <button type="button" class="order-workspace-action-btn" disabled title="Coming soon">
-        <i class="bi bi-receipt" aria-hidden="true"></i>
-        <span>Invoice</span>
-    </button>
     <div class="dropdown">
         <button type="button"
                 class="order-workspace-action-btn dropdown-toggle"
@@ -59,8 +49,6 @@
                     </form>
                 </li>
             @endcan
-            <li><hr class="dropdown-divider"></li>
-            <li><span class="dropdown-item-text text-muted small">More integrations coming soon</span></li>
         </ul>
     </div>
 </div>

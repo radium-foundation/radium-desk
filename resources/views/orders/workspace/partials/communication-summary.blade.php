@@ -1,37 +1,24 @@
 @props([
-    'compact' => false,
+    'variant' => 'tab',
 ])
 
-@php
-    $channels = [
-        ['key' => 'call', 'label' => 'Last Call', 'icon' => 'bi-telephone', 'empty' => 'No calls logged yet'],
-        ['key' => 'whatsapp', 'label' => 'Last WhatsApp', 'icon' => 'bi-whatsapp', 'empty' => 'No WhatsApp messages yet'],
-        ['key' => 'email', 'label' => 'Last Email', 'icon' => 'bi-envelope', 'empty' => 'No emails sent yet'],
-    ];
-@endphp
-
-<div @class([
-    'order-workspace-comm-summary',
-    'order-workspace-comm-summary--compact' => $compact,
-])>
-    @foreach($channels as $channel)
-        <div class="order-workspace-comm-summary-item">
-            <div class="order-workspace-comm-summary-label">
-                <i class="bi {{ $channel['icon'] }}" aria-hidden="true"></i>
-                {{ $channel['label'] }}
-            </div>
-            <div class="order-workspace-comm-summary-value text-muted">
-                {{ $channel['empty'] }}
-            </div>
-        </div>
-    @endforeach
-
-    <div class="order-workspace-comm-summary-cta">
+@if($variant === 'sidebar')
+    <div class="order-workspace-comm-summary order-workspace-comm-summary--sidebar">
+        <p class="order-workspace-comm-summary-empty mb-0">
+            No customer communication has been logged.
+        </p>
         <button type="button"
-                class="btn btn-sm btn-outline-primary w-100"
-                disabled
-                title="Coming soon">
-            <i class="bi bi-telephone-outbound me-1"></i> Log first contact
+                class="btn btn-link btn-sm p-0 order-workspace-summary-link-btn mt-1"
+                data-workspace-tab-trigger="communication">
+            View communication
         </button>
     </div>
-</div>
+@else
+    <div class="order-workspace-comm-summary order-workspace-comm-summary--tab">
+        <div class="order-workspace-empty">
+            <i class="bi bi-chat-dots" aria-hidden="true"></i>
+            <p class="mb-0">No customer communication has been logged.</p>
+            <p class="text-muted small mb-0 mt-1">Communication integration is planned for a future release.</p>
+        </div>
+    </div>
+@endif

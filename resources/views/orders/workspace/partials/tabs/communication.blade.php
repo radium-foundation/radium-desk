@@ -1,1 +1,1 @@
-@include('orders.workspace.partials.communication-summary')
+@include('orders.workspace.partials.communication-summary', ['variant' => 'tab'])

@@ -2122,6 +2122,63 @@ a:focus-visible .stat-card {
     color: var(--dashboard-accent-primary);
 }
 
+.order-workspace-customer-story {
+    padding-bottom: var(--dashboard-space-1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    margin-bottom: var(--dashboard-space-1);
+}
+
+.order-workspace-customer-story-heading {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--dashboard-color-muted);
+    margin: 0 0 var(--dashboard-space-1);
+}
+
+.order-workspace-customer-story-name {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem;
+    line-height: 1.35;
+}
+
+.order-workspace-customer-story-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--dashboard-color-muted);
+    margin: var(--dashboard-space-1) 0 0.25rem;
+}
+
+.order-workspace-customer-story-value {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1.35;
+}
+
+.order-workspace-customer-story-detail {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    margin: 0.125rem 0 0;
+}
+
+.order-workspace-customer-story-placeholder {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    margin: var(--dashboard-space-1) 0 0;
+    line-height: 1.45;
+}
+
+.order-workspace-comm-summary--sidebar .order-workspace-comm-summary-empty {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    line-height: 1.45;
+}
+
 .order-workspace-assistant {
     position: sticky;
     top: calc(var(--topbar-height) + var(--dashboard-space-1));
@@ -3032,15 +3089,14 @@ a:focus-visible .stat-card {
     text-align: right;
 }
 
-.order-workspace-assistant-future {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+.order-workspace-assistant-empty {
+    margin: 0;
     padding: 0.75rem;
     border: 1px dashed var(--dashboard-border-subtle);
     border-radius: var(--dashboard-radius-sm);
-    color: var(--dashboard-color-muted-light);
+    color: var(--dashboard-color-muted);
     font-size: 0.8125rem;
+    line-height: 1.45;
 }
 
 .order-workspace-alert {
