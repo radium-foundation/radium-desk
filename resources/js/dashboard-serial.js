@@ -7,18 +7,27 @@ export const initDashboardSerialNumbers = ({
     showToast,
 } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
-    const modalElement = document.getElementById('serialNumberModal');
+    const entryModalElement = document.getElementById('serialNumberModal');
+    const confirmModalElement = document.getElementById('serialNumberConfirmModal');
 
-    if (!card || !modalElement) {
+    if (!card || !entryModalElement || !confirmModalElement) {
         return null;
     }
 
-    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-    const input = modalElement.querySelector('#dashboard_serial_number');
-    const error = modalElement.querySelector('#dashboard_serial_number_error');
-    const saveButton = modalElement.querySelector('[data-serial-modal-save]');
+    const entryModal = bootstrap.Modal.getOrCreateInstance(entryModalElement);
+    const confirmModal = bootstrap.Modal.getOrCreateInstance(confirmModalElement);
+    const input = entryModalElement.querySelector('#dashboard_serial_number');
+    const error = entryModalElement.querySelector('#dashboard_serial_number_error');
+    const saveButton = entryModalElement.querySelector('[data-serial-modal-save]');
+    const backButton = confirmModalElement.querySelector('[data-serial-confirm-back]');
+    const confirmButton = confirmModalElement.querySelector('[data-serial-confirm-lock]');
+    const confirmValue = confirmModalElement.querySelector('#serial_number_confirm_value');
 
     let activeContext = null;
+    let suppressEntryReset = false;
+    let confirmCloseReason = null;
+    let pendingSerialNumber = '';
+    let pendingEntryError = null;
 
     const resetForm = () => {
         if (input) {
@@ -30,10 +39,18 @@ export const initDashboardSerialNumbers = ({
             error.textContent = '';
         }
 
+        if (confirmValue) {
+            confirmValue.textContent = '';
+        }
+
         activeContext = null;
+        pendingSerialNumber = '';
+        pendingEntryError = null;
+        suppressEntryReset = false;
+        confirmCloseReason = null;
     };
 
-    const openModal = (trigger) => {
+    const openEntryModal = (trigger) => {
         activeContext = {
             storeUrl: trigger.dataset.storeUrl,
             incidentId: trigger.dataset.incidentId,
@@ -49,28 +66,59 @@ export const initDashboardSerialNumbers = ({
             error.textContent = '';
         }
 
-        modal.show();
+        pendingEntryError = null;
+        entryModal.show();
     };
 
-    const saveSerialNumber = async () => {
-        if (!activeContext?.storeUrl || !input) {
+    const showValidationError = (message) => {
+        input?.classList.add('is-invalid');
+
+        if (error) {
+            error.textContent = message;
+        }
+    };
+
+    const proceedToConfirmation = () => {
+        if (!input) {
             return;
         }
 
         const serialNumber = input.value.trim().toUpperCase();
 
         if (serialNumber === '') {
-            input.classList.add('is-invalid');
-
-            if (error) {
-                error.textContent = 'Serial number is required.';
-            }
+            showValidationError('Serial number is required.');
 
             return;
         }
 
-        input.disabled = true;
-        saveButton?.setAttribute('disabled', 'disabled');
+        pendingSerialNumber = serialNumber;
+        pendingEntryError = null;
+
+        if (confirmValue) {
+            confirmValue.textContent = serialNumber;
+        }
+
+        suppressEntryReset = true;
+        entryModal.hide();
+    };
+
+    const returnToEntryModal = () => {
+        confirmCloseReason = 'back';
+        confirmModal.hide();
+    };
+
+    const resumeEntryModal = () => {
+        suppressEntryReset = true;
+        entryModal.show();
+    };
+
+    const saveSerialNumber = async () => {
+        if (!activeContext?.storeUrl || pendingSerialNumber === '') {
+            return;
+        }
+
+        confirmButton?.setAttribute('disabled', 'disabled');
+        backButton?.setAttribute('disabled', 'disabled');
 
         try {
             const response = await fetch(activeContext.storeUrl, {
@@ -82,7 +130,7 @@ export const initDashboardSerialNumbers = ({
                     'X-Requested-With': 'XMLHttpRequest',
                 },
                 body: JSON.stringify({
-                    serial_number: serialNumber,
+                    serial_number: pendingSerialNumber,
                     incident_id: Number(activeContext.incidentId),
                 }),
             });
@@ -90,12 +138,11 @@ export const initDashboardSerialNumbers = ({
             const data = await response.json();
 
             if (!response.ok) {
-                const message = data.errors?.serial_number?.[0] ?? data.message ?? 'Unable to save serial number.';
-                input.classList.add('is-invalid');
-
-                if (error) {
-                    error.textContent = message;
-                }
+                pendingEntryError = data.errors?.serial_number?.[0]
+                    ?? data.message
+                    ?? 'Unable to save serial number.';
+                confirmCloseReason = 'validation_error';
+                confirmModal.hide();
 
                 return;
             }
@@ -104,17 +151,16 @@ export const initDashboardSerialNumbers = ({
                 replaceServiceCaseRow(data.incident_id, data.row_html);
             }
 
-            modal.hide();
+            confirmCloseReason = 'success';
+            confirmModal.hide();
             showToast?.(data.message ?? 'Serial number saved.');
         } catch (saveError) {
-            input.classList.add('is-invalid');
-
-            if (error) {
-                error.textContent = 'Unable to save serial number.';
-            }
+            pendingEntryError = 'Unable to save serial number.';
+            confirmCloseReason = 'validation_error';
+            confirmModal.hide();
         } finally {
-            input.disabled = false;
-            saveButton?.removeAttribute('disabled');
+            confirmButton?.removeAttribute('disabled');
+            backButton?.removeAttribute('disabled');
         }
     };
 
@@ -123,18 +169,32 @@ export const initDashboardSerialNumbers = ({
 
         if (trigger) {
             event.preventDefault();
-            openModal(trigger);
+            openEntryModal(trigger);
         }
     });
 
     saveButton?.addEventListener('click', () => {
+        proceedToConfirmation();
+    });
+
+    backButton?.addEventListener('click', () => {
+        returnToEntryModal();
+    });
+
+    confirmButton?.addEventListener('click', () => {
         saveSerialNumber();
     });
 
     input?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            saveSerialNumber();
+            proceedToConfirmation();
+        }
+    });
+
+    confirmModalElement.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
         }
     });
 
@@ -146,22 +206,64 @@ export const initDashboardSerialNumbers = ({
         }
     });
 
-    modalElement.addEventListener('show.bs.modal', () => {
+    entryModalElement.addEventListener('show.bs.modal', () => {
         getWorkspaceSession().acquire('serial-modal', {
             incidentId: activeContext?.incidentId ? Number(activeContext.incidentId) : undefined,
         });
     });
 
-    modalElement.addEventListener('shown.bs.modal', () => {
+    entryModalElement.addEventListener('shown.bs.modal', () => {
+        if (pendingEntryError) {
+            if (input && pendingSerialNumber !== '') {
+                input.value = pendingSerialNumber;
+            }
+
+            showValidationError(pendingEntryError);
+            pendingEntryError = null;
+        }
+
         input?.focus();
     });
 
-    modalElement.addEventListener('hidden.bs.modal', () => {
+    entryModalElement.addEventListener('hidden.bs.modal', () => {
+        if (suppressEntryReset) {
+            suppressEntryReset = false;
+            confirmModal.show();
+
+            return;
+        }
+
         getWorkspaceSession().release('serial-modal');
         resetForm();
     });
 
+    confirmModalElement.addEventListener('shown.bs.modal', () => {
+        confirmButton?.focus();
+    });
+
+    confirmModalElement.addEventListener('hidden.bs.modal', () => {
+        const reason = confirmCloseReason;
+        confirmCloseReason = null;
+
+        if (reason === 'success') {
+            getWorkspaceSession().release('serial-modal');
+            resetForm();
+
+            return;
+        }
+
+        if (reason === 'back' || reason === 'validation_error') {
+            resumeEntryModal();
+
+            return;
+        }
+
+        if (activeContext) {
+            resumeEntryModal();
+        }
+    });
+
     return {
-        openModal,
+        openEntryModal,
     };
 };
