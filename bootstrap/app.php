@@ -27,18 +27,16 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {
-        if (filter_var(env('QUEUE_CRON_WORKER_ENABLED', false), FILTER_VALIDATE_BOOLEAN)) {
-            $schedule->command('queue:work --stop-when-empty --max-time=55')
-                ->everyMinute()
-                ->withoutOverlapping()
-                ->appendOutputTo(storage_path('logs/queue-worker.log'));
-        }
+        $schedule->command('queue:work --stop-when-empty --max-time=55')
+            ->everyMinute()
+            ->when(fn (): bool => (bool) config('infrastructure.queue_cron_worker_enabled'))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/queue-worker.log'));
 
-        if (filter_var(env('INFRASTRUCTURE_METRICS_ENABLED', false), FILTER_VALIDATE_BOOLEAN)) {
-            $schedule->command('infrastructure:metrics:collect')
-                ->everyFiveMinutes()
-                ->withoutOverlapping();
-        }
+        $schedule->command('infrastructure:metrics:collect')
+            ->everyFiveMinutes()
+            ->when(fn (): bool => (bool) config('infrastructure.metrics_enabled'))
+            ->withoutOverlapping();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
