@@ -8,6 +8,7 @@ import { initDashboardDeviceModels } from './dashboard-device-model';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
 import { initServiceCaseShow } from './service-case-show';
+import { initOrderWorkspace } from './order-workspace';
 import { initTooltips } from './tooltips';
 import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
@@ -567,6 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initLiveNotifications();
     initServiceCaseShow();
+    initOrderWorkspace();
 
     const quickCreateModalElement = document.getElementById('quickCreateModal');
 

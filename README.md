@@ -1,3 +1,17 @@
+## Radium Desk
+
+Radium Desk is an operations workspace for support agents — not a traditional service desk. The dashboard is the inbox; the **Order Workspace** is where work happens.
+
+### Master Architecture
+
+Start here: [Radium Desk Master Architecture v2.0](docs/radium-desk-v2-master-architecture.md) — the single reference for how the entire ecosystem works, with links to all product and technical documents.
+
+All product and engineering decisions should align with the [Product Constitution](docs/product-constitution.md). Before implementing features, use its decision filter: customer service impact, handling time, clicks, collaboration, accountability, compliance, and fit within the Order Workspace.
+
+Additional design references live in [`docs/`](docs/), including [Product Foundations](docs/product-foundations.md) and [Workspace Architecture](docs/workspace-architecture.md).
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

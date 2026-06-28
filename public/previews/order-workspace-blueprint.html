@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Workspace Blueprint — Phase 5.2 Mockup</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --ow-gap: 0.75rem;
+            --ow-left: 17.5rem;
+            --ow-assistant: 20rem;
+            --ow-border: #e2e8f0;
+            --ow-bg: #f8fafc;
+            --ow-card: #fff;
+            --ow-primary: #2563eb;
+            --ow-success: #16a34a;
+            --ow-warning: #d97706;
+            --ow-danger: #dc2626;
+        }
+        body { background: var(--ow-bg); font-size: 0.875rem; }
+        .mockup-banner {
+            background: linear-gradient(135deg, #1e3a5f, #2563eb);
+            color: #fff;
+            padding: 0.75rem 1.25rem;
+            font-size: 0.8rem;
+        }
+        .order-workspace-layout {
+            display: grid;
+            grid-template-columns: var(--ow-left) 1fr var(--ow-assistant);
+            gap: var(--ow-gap);
+            padding: var(--ow-gap);
+            min-height: calc(100vh - 48px);
+        }
+        @media (max-width: 1200px) {
+            .order-workspace-layout { grid-template-columns: 1fr; }
+            .order-workspace-assistant { order: -1; }
+        }
+        .panel {
+            background: var(--ow-card);
+            border: 1px solid var(--ow-border);
+            border-radius: 0.5rem;
+        }
+        .customer-story {
+            padding: 1rem;
+            border-left: 3px solid var(--ow-primary);
+        }
+        .customer-story h3 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.5rem; }
+        .customer-story .name { font-weight: 600; font-size: 1rem; }
+        .customer-story .device { color: #64748b; font-size: 0.8rem; margin-bottom: 0.5rem; }
+        .customer-story ul { margin: 0; padding-left: 1.1rem; font-size: 0.8rem; color: #334155; }
+        .customer-story ul li { margin-bottom: 0.2rem; }
+        .last-event { padding: 0.75rem 1rem; font-size: 0.75rem; color: #64748b; border-top: 1px solid var(--ow-border); }
+        .chip {
+            display: inline-flex; align-items: center; gap: 0.25rem;
+            padding: 0.2rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 500;
+        }
+        .chip-success { background: #dcfce7; color: #166534; }
+        .chip-warning { background: #fef3c7; color: #92400e; }
+        .chip-info { background: #dbeafe; color: #1e40af; }
+        .chip-neutral { background: #f1f5f9; color: #475569; }
+        .chip-danger { background: #fee2e2; color: #991b1b; }
+        .header-meta { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.75rem; color: #64748b; margin-top: 0.5rem; }
+        .header-meta strong { color: #1e293b; }
+        .quick-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem; border-bottom: 1px solid var(--ow-border); }
+        .action-btn {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            padding: 0.35rem 0.75rem; border: 1px solid var(--ow-border);
+            border-radius: 0.375rem; background: #fff; font-size: 0.75rem; cursor: default;
+        }
+        .action-btn-primary { background: var(--ow-primary); color: #fff; border-color: var(--ow-primary); }
+        .action-btn-nba { background: #fef3c7; border-color: #f59e0b; color: #92400e; font-weight: 600; }
+        .tabs { display: flex; gap: 0.25rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--ow-border); overflow-x: auto; }
+        .tab {
+            padding: 0.35rem 0.75rem; border-radius: 999px; font-size: 0.75rem;
+            border: none; background: transparent; color: #64748b; white-space: nowrap;
+        }
+        .tab.active { background: var(--ow-primary); color: #fff; }
+        .tab-content { padding: 1rem; }
+        .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+        @media (max-width: 768px) { .summary-cards { grid-template-columns: repeat(2, 1fr); } }
+        .summary-card { padding: 0.75rem; border: 1px solid var(--ow-border); border-radius: 0.375rem; text-align: center; }
+        .summary-card .label { font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; }
+        .summary-card .value { font-weight: 600; font-size: 0.85rem; }
+        .assistant-section { padding: 0.75rem 1rem; border-bottom: 1px solid var(--ow-border); }
+        .assistant-section h4 { font-size: 0.65rem; text-transform: uppercase; color: #94a3b8; margin-bottom: 0.35rem; }
+        .nba-box {
+            background: #fffbeb; border: 1px solid #fcd34d; border-radius: 0.375rem;
+            padding: 0.75rem; font-size: 0.8rem;
+        }
+        .comm-timeline { font-size: 0.75rem; }
+        .comm-item { padding: 0.5rem 0; border-bottom: 1px solid #f1f5f9; }
+        .comm-item:last-child { border-bottom: none; }
+        .placeholder-tag { font-size: 0.65rem; background: #f1f5f9; color: #64748b; padding: 0.1rem 0.4rem; border-radius: 0.25rem; }
+    </style>
+</head>
+<body>
+    <div class="mockup-banner">
+        <strong>Phase 5.2 Blueprint Mockup</strong> — Target Order Workspace layout (static preview, not connected to backend).
+        See <code>docs/order-workspace-blueprint.md</code> and <code>docs/customer-journeys.md</code>.
+    </div>
+
+    <div class="order-workspace-layout">
+        <!-- LEFT: Customer Story -->
+        <aside>
+            <div class="panel customer-story">
+                <h3>Customer Story</h3>
+                <div class="name">Rajesh Kumar · <a href="tel:+919876543210">+91 98765 43210</a></div>
+                <div class="device">iPhone 14 Pro · <span class="font-monospace">SN: ABC123XYZ</span></div>
+                <ul>
+                    <li>Customer since Mar 2023</li>
+                    <li>Warranty active until Dec 2026</li>
+                    <li>2 previous repairs (last: Jan 2026)</li>
+                    <li>Prefers WhatsApp · Hindi</li>
+                    <li>Waiting for pickup — Fri 10am</li>
+                </ul>
+            </div>
+            <div class="panel last-event mt-2">
+                <i class="bi bi-clock-history"></i>
+                <strong>Last event:</strong> Payment received via Cashfree — ₹2,499 · 2h ago
+            </div>
+        </aside>
+
+        <!-- CENTER -->
+        <main class="panel d-flex flex-column">
+            <div class="p-3 border-bottom">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-1" style="font-size:0.75rem">
+                        <li class="breadcrumb-item"><a href="#">Orders</a></li>
+                        <li class="breadcrumb-item active">ORD-2026-0042</li>
+                    </ol>
+                </nav>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <h1 class="h4 mb-0">ORD-2026-0042</h1>
+                    <span class="chip chip-success"><i class="bi bi-check-circle-fill"></i> Payment Received</span>
+                    <span class="chip chip-warning"><i class="bi bi-hourglass-split"></i> Activation Pending</span>
+                    <span class="chip chip-info"><i class="bi bi-shield-check"></i> Warranty Active</span>
+                    <span class="chip chip-neutral"><i class="bi bi-truck"></i> Pickup Fri 10am</span>
+                </div>
+                <div class="header-meta">
+                    <span>Repair: <strong>SC-2026-0187</strong></span>
+                    <span>Engineer: <strong>Priya</strong></span>
+                    <span>SLA: <strong>On track</strong></span>
+                    <span>Owner: <strong>Rahul</strong></span>
+                </div>
+            </div>
+
+            <div class="quick-actions">
+                <button class="action-btn action-btn-nba"><i class="bi bi-arrow-right-circle"></i> Collect Device Details</button>
+                <button class="action-btn"><i class="bi bi-telephone-fill"></i> Call</button>
+                <button class="action-btn"><i class="bi bi-whatsapp"></i> WhatsApp</button>
+                <button class="action-btn"><i class="bi bi-envelope-fill"></i> Email</button>
+                <button class="action-btn action-btn-primary"><i class="bi bi-ticket-detailed-fill"></i> Create Ticket</button>
+                <button class="action-btn"><i class="bi bi-three-dots"></i> More</button>
+            </div>
+
+            <div class="alert alert-warning py-2 px-3 mb-0 rounded-0 small">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                Active service case <strong>SC-2026-0187</strong> — Awaiting Product Details · Assigned to Rahul
+            </div>
+
+            <div class="tabs">
+                <button class="tab active">Overview</button>
+                <button class="tab">Timeline</button>
+                <button class="tab">Payments</button>
+                <button class="tab">Communication</button>
+                <button class="tab">Device</button>
+                <button class="tab">Notes</button>
+                <button class="tab">Files</button>
+            </div>
+
+            <div class="tab-content flex-grow-1">
+                <div class="summary-cards">
+                    <div class="summary-card"><div class="label">SLA</div><div class="value">On track</div></div>
+                    <div class="summary-card"><div class="label">Priority</div><div class="value">Normal</div></div>
+                    <div class="summary-card"><div class="label">Payment</div><div class="value">Received</div></div>
+                    <div class="summary-card"><div class="label">Warranty</div><div class="value">Active</div></div>
+                </div>
+                <p class="text-muted small">
+                    Overview tab content — deduplicated cards, service case history, and recent timeline preview.
+                    <span class="placeholder-tag">Blueprint target</span>
+                </p>
+            </div>
+        </main>
+
+        <!-- RIGHT: Agent Assistant -->
+        <aside class="panel order-workspace-assistant">
+            <div class="p-3 border-bottom d-flex align-items-center gap-2">
+                <i class="bi bi-stars text-primary"></i>
+                <strong>Agent Assistant</strong>
+            </div>
+            <div class="assistant-section">
+                <h4>Next Best Action</h4>
+                <div class="nba-box">
+                    <i class="bi bi-phone"></i>
+                    <strong>Collect Device Details</strong>
+                    <p class="mb-0 mt-1 small">Payment received. Serial number and product details still missing.</p>
+                </div>
+            </div>
+            <div class="assistant-section">
+                <h4>Customer Asking About</h4>
+                <p class="mb-0 small">"When will my device be ready?"</p>
+            </div>
+            <div class="assistant-section">
+                <h4>Suggested Response</h4>
+                <p class="mb-0 small text-muted">Thank you for checking in. We received your payment and are collecting your device details. Our team will contact you shortly.</p>
+            </div>
+            <div class="assistant-section">
+                <h4>Communication Preview</h4>
+                <div class="comm-timeline">
+                    <div class="comm-item"><i class="bi bi-whatsapp text-success"></i> No messages yet <span class="placeholder-tag">Future</span></div>
+                    <div class="comm-item"><i class="bi bi-telephone"></i> No calls logged <span class="placeholder-tag">Future</span></div>
+                </div>
+            </div>
+            <div class="p-3 text-center text-muted small">
+                <i class="bi bi-cpu"></i> AI widgets will appear here
+            </div>
+        </aside>
+    </div>
+</body>
+</html>

@@ -104,6 +104,7 @@ class OrderController extends Controller
         $order->loadCount(['incidents', 'refundRequests']);
         $order->load([
             'incidents' => fn ($query) => $query->with(['creator', 'assignee'])->latest(),
+            'creator',
             'transactionAssigner',
             'serialEnterer',
             'deviceModel',
