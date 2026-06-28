@@ -20,4 +20,18 @@ enum IncidentStatus: string
             self::AwaitingProductDetails => 'Awaiting Product Details',
         };
     }
+
+    /**
+     * Service cases that should appear on the operational dashboard.
+     *
+     * @return list<self>
+     */
+    public static function operationallyActive(): array
+    {
+        return [
+            self::Open,
+            self::InProgress,
+            self::AwaitingProductDetails,
+        ];
+    }
 }

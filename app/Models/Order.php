@@ -207,11 +207,7 @@ class Order extends Model
 
         return $this->incidents()
             ->with('assignee')
-            ->whereIn('status', [
-                IncidentStatus::Open,
-                IncidentStatus::InProgress,
-                IncidentStatus::AwaitingProductDetails,
-            ])
+            ->whereIn('status', IncidentStatus::operationallyActive())
             ->latest()
             ->first();
     }
@@ -234,11 +230,7 @@ class Order extends Model
         }
 
         return $this->incidents()
-            ->whereIn('status', [
-                IncidentStatus::Open,
-                IncidentStatus::InProgress,
-                IncidentStatus::AwaitingProductDetails,
-            ])
+            ->whereIn('status', IncidentStatus::operationallyActive())
             ->count();
     }
 

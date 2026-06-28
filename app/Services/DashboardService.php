@@ -33,7 +33,7 @@ class DashboardService
             'online_users' => $onlineUsers,
             'total_orders' => Order::query()->count(),
             'open_incidents' => Incident::query()
-                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->whereIn('status', IncidentStatus::operationallyActive())
                 ->count(),
             'resolved_incidents' => Incident::query()
                 ->where('status', IncidentStatus::Resolved)
@@ -43,11 +43,11 @@ class DashboardService
                 ->count(),
             'my_active_cases' => Incident::query()
                 ->where('assigned_to_user_id', $user->id)
-                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->whereIn('status', IncidentStatus::operationallyActive())
                 ->count(),
             'waiting_for_admin' => Incident::query()
                 ->where('assigned_to_user_id', $user->id)
-                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->whereIn('status', IncidentStatus::operationallyActive())
                 ->whereHas('order', function ($orderQuery): void {
                     $orderQuery->where(function ($pendingQuery): void {
                         $pendingQuery->whereNull('transaction_id')
@@ -57,11 +57,11 @@ class DashboardService
                 ->count(),
             'high_priority_cases' => Incident::query()
                 ->where('assigned_to_user_id', $user->id)
-                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->whereIn('status', IncidentStatus::operationallyActive())
                 ->where('high_priority', true)
                 ->count(),
             'total_active_cases' => Incident::query()
-                ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+                ->whereIn('status', IncidentStatus::operationallyActive())
                 ->count(),
         ];
 
@@ -180,7 +180,7 @@ class DashboardService
     {
         $query = Incident::query()
             ->with(['order.transactionAssigner', 'creator', 'assignee'])
-            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress]);
+            ->whereIn('status', IncidentStatus::operationallyActive());
 
         match ($filter) {
             'pending_admin' => $query->whereHas('order', function ($orderQuery): void {
@@ -248,7 +248,7 @@ class DashboardService
     {
         $pendingIncidents = Incident::query()
             ->with('order')
-            ->whereIn('status', [IncidentStatus::Open, IncidentStatus::InProgress])
+            ->whereIn('status', IncidentStatus::operationallyActive())
             ->whereHas('order', function ($orderQuery): void {
                 $orderQuery->where(function ($pendingQuery): void {
                     $pendingQuery->whereNull('transaction_id')

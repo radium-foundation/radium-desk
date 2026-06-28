@@ -800,4 +800,42 @@ class DashboardServiceCasesTest extends TestCase
         $allFilterResponse->assertOk()
             ->assertJsonCount(10, 'rows');
     }
+
+    public function test_dashboard_shows_cashfree_awaiting_product_details_service_case(): void
+    {
+        $admin = User::factory()->create(['name' => 'Admin User']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'CF-ORDER-1392',
+            'cashfree_payment_id' => '1453002795',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-01392',
+            'category' => 'General',
+            'source' => IncidentSource::Cashfree,
+            'title' => 'Cashfree payment — CF-ORDER-1392',
+            'description' => 'Automatically created from Cashfree payment webhook. Awaiting product details.',
+            'status' => IncidentStatus::AwaitingProductDetails,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->assertOk()
+            ->assertSee('SC01392')
+            ->assertSee('CF-ORDER-1392')
+            ->assertSee('bi-credit-card', false)
+            ->assertSee('Pending Admin');
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.live', ['filter' => 'pending_admin']))
+            ->assertOk()
+            ->assertJsonCount(1, 'rows')
+            ->assertJsonPath('incident_ids.0', Incident::query()->first()->id);
+    }
 }
