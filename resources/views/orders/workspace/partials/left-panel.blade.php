@@ -6,94 +6,82 @@
 
 @php
     $repairIncident = $activeIncident ?? $order->latestIncident();
+    $today = now()->startOfDay();
+    $todayTimeline = $activityTimeline->filter(
+        fn ($entry) => $entry->occurredAt->greaterThanOrEqualTo($today)
+    );
 @endphp
 
-<aside class="order-workspace-left" aria-label="Order summary">
-    @component('orders.workspace.partials.info-card', [
-        'title' => 'Customer',
-        'icon' => 'bi-person-circle',
-        'compact' => true,
-    ])
-        <dl class="order-workspace-dl">
-            <dt>Name</dt>
-            <dd>{{ $order->customer_name ?: '—' }}</dd>
-            <dt>Phone</dt>
-            <dd>{{ $order->customer_phone ?: '—' }}</dd>
-            <dt>Email</dt>
-            <dd>
-                @if($order->customer_email)
-                    <a href="mailto:{{ $order->customer_email }}">{{ $order->customer_email }}</a>
+<aside class="order-workspace-left" aria-label="Quick summary">
+    <div class="order-workspace-summary">
+        <h2 class="order-workspace-summary-heading">Quick Summary</h2>
+
+        <section class="order-workspace-summary-section">
+            <h3 class="order-workspace-summary-label">Customer</h3>
+            <p class="order-workspace-summary-value">
+                @if($order->customer_phone)
+                    <a href="tel:{{ $order->customer_phone }}" class="order-workspace-summary-link">
+                        {{ $order->customer_name ?: '—' }}
+                    </a>
                 @else
-                    —
+                    {{ $order->customer_name ?: '—' }}
                 @endif
-            </dd>
-        </dl>
-    @endcomponent
+            </p>
+            @if($order->customer_phone)
+                <p class="order-workspace-summary-detail">
+                    <a href="tel:{{ $order->customer_phone }}">{{ $order->customer_phone }}</a>
+                </p>
+            @endif
+        </section>
 
-    @component('orders.workspace.partials.info-card', [
-        'title' => 'Device',
-        'icon' => 'bi-phone',
-        'compact' => true,
-    ])
-        <dl class="order-workspace-dl">
-            <dt>Model</dt>
-            <dd>{{ $order->displayDeviceModelName() ?: '—' }}</dd>
-            <dt>Serial</dt>
-            <dd>{{ $order->serial_number ?: '—' }}</dd>
-        </dl>
-    @endcomponent
+        <section class="order-workspace-summary-section">
+            <h3 class="order-workspace-summary-label">Device</h3>
+            <p class="order-workspace-summary-value">{{ $order->displayDeviceModelName() ?: '—' }}</p>
+            @if($order->serial_number)
+                <p class="order-workspace-summary-detail font-monospace">{{ $order->serial_number }}</p>
+            @endif
+        </section>
 
-    @component('orders.workspace.partials.info-card', [
-        'title' => 'Repair Status',
-        'icon' => 'bi-wrench-adjustable',
-        'compact' => true,
-    ])
-        @if($repairIncident)
-            <div class="order-workspace-repair-status">
-                <div class="fw-semibold">{{ $repairIncident->display_reference }}</div>
-                <div class="small text-muted mt-1">
+        <section class="order-workspace-summary-section">
+            <h3 class="order-workspace-summary-label">Repair Status</h3>
+            @if($repairIncident)
+                <p class="order-workspace-summary-value">{{ $repairIncident->display_reference }}</p>
+                <div class="order-workspace-summary-detail">
                     @include('incidents.partials.status-badge', ['status' => $repairIncident->status])
                 </div>
-                <div class="small mt-2">
-                    Engineer: {{ $repairIncident->assignee?->firstName() ?: 'Unassigned' }}
-                </div>
+            @else
+                <p class="order-workspace-summary-value text-muted">No active repair</p>
+            @endif
+        </section>
+
+        <section class="order-workspace-summary-section">
+            <h3 class="order-workspace-summary-label">Engineer</h3>
+            <p class="order-workspace-summary-value">
+                {{ $repairIncident?->assignee?->firstName() ?: 'Unassigned' }}
+            </p>
+        </section>
+
+        <section class="order-workspace-summary-section">
+            <div class="order-workspace-summary-section-header">
+                <h3 class="order-workspace-summary-label mb-0">Today's Timeline</h3>
+                <button type="button"
+                        class="btn btn-link btn-sm p-0 order-workspace-summary-link-btn"
+                        data-workspace-tab-trigger="timeline">
+                    View all
+                </button>
             </div>
-        @else
-            <p class="text-muted small mb-0">No active repair.</p>
-        @endif
-    @endcomponent
+            @include('orders.workspace.partials.timeline', [
+                'activityTimeline' => $todayTimeline,
+                'limit' => 3,
+                'compact' => true,
+                'showHeading' => false,
+                'emptyMessage' => 'No activity recorded today.',
+            ])
+        </section>
 
-    @component('orders.workspace.partials.info-card', [
-        'title' => 'Timeline',
-        'icon' => 'bi-clock-history',
-        'compact' => true,
-    ])
-        @include('orders.workspace.partials.timeline', [
-            'activityTimeline' => $activityTimeline,
-            'limit' => 3,
-            'compact' => true,
-            'showHeading' => false,
-        ])
-    @endcomponent
-
-    @component('orders.workspace.partials.info-card', [
-        'title' => 'Recent Communications',
-        'icon' => 'bi-chat-dots',
-        'compact' => true,
-    ])
-        <ul class="order-workspace-comm-list list-unstyled mb-0">
-            <li>
-                <span class="order-workspace-comm-type"><i class="bi bi-telephone"></i> Call</span>
-                <span class="text-muted small">No recent calls</span>
-            </li>
-            <li>
-                <span class="order-workspace-comm-type"><i class="bi bi-whatsapp"></i> WhatsApp</span>
-                <span class="text-muted small">No recent messages</span>
-            </li>
-            <li>
-                <span class="order-workspace-comm-type"><i class="bi bi-envelope"></i> Email</span>
-                <span class="text-muted small">No recent emails</span>
-            </li>
-        </ul>
-    @endcomponent
+        <section class="order-workspace-summary-section">
+            <h3 class="order-workspace-summary-label">Communications</h3>
+            @include('orders.workspace.partials.communication-summary', ['compact' => true])
+        </section>
+    </div>
 </aside>

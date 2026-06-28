@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -83,15 +84,25 @@ class Order extends Model
 
     public function displayDeviceModelName(): ?string
     {
-        if ($this->relationLoaded('deviceModel') && $this->deviceModel !== null) {
-            return $this->deviceModel->name;
-        }
+        if ($this->device_model_id !== null && self::supportsDeviceModelMaster()) {
+            if ($this->relationLoaded('deviceModel') && $this->deviceModel !== null) {
+                return $this->deviceModel->name;
+            }
 
-        if ($this->device_model_id !== null) {
             return $this->deviceModel?->name;
         }
 
         return filled($this->product_name) ? $this->product_name : null;
+    }
+
+    public static function supportsDeviceModelMaster(): bool
+    {
+        static $supported = null;
+
+        $supported ??= Schema::hasTable('device_models')
+            && Schema::hasColumn('orders', 'device_model_id');
+
+        return $supported;
     }
 
     public function completionTooltipHtml(Carbon $loggedAt): string

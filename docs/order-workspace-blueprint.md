@@ -1,50 +1,123 @@
 # Order Workspace Blueprint — Phase 5.2
 
-**Status:** Design blueprint (documentation only — no production changes in this phase)  
+**Status:** Implemented (P28-06-006 information hierarchy refactor)  
 **Audience:** Product, UX, engineering, operations  
 **Last updated:** 2026-06-28
 
-**Related:** [Customer Journeys](./customer-journeys.md) · [Product Foundations](./product-foundations.md) · [Workspace Architecture](./workspace-architecture.md)
+**Related:** [Customer Journeys](./customer-journeys.md) · [Product Foundations](./product-foundations.md) · [Workspace Architecture](./workspace-architecture.md) · [Product Constitution](./product-constitution.md)
 
 ---
 
 ## Table of Contents
 
 1. [Current Layout](#current-layout)
-2. [Component Review](#component-review)
-3. [Agent Experience Audit](#agent-experience-audit)
-4. [Communication Center (Future)](#communication-center-future)
-5. [Customer Story Component](#customer-story-component)
-6. [Next Best Action Framework](#next-best-action-framework)
-7. [Information Hierarchy](#information-hierarchy)
-8. [UX Improvement Backlog](#ux-improvement-backlog)
-9. [Target Layout Mockup](#target-layout-mockup)
+2. [Information Hierarchy Refactor (P28-06-006)](#information-hierarchy-refactor-p28-06-006)
+3. [Component Review](#component-review)
+4. [Agent Experience Audit](#agent-experience-audit)
+5. [Communication Center (Future)](#communication-center-future)
+6. [Customer Story Component](#customer-story-component)
+7. [Next Best Action Framework](#next-best-action-framework)
+8. [Information Hierarchy](#information-hierarchy)
+9. [UX Improvement Backlog](#ux-improvement-backlog)
+10. [Target Layout Mockup](#target-layout-mockup)
 
 ---
 
 ## Current Layout
 
-The Order Workspace uses a **three-column layout**:
+The Order Workspace uses a **three-column layout** at **18% / 57% / 25%** proportions:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  LEFT PANEL (17.5rem)  │  CENTER PANEL (flex)          │  AGENT ASSISTANT   │
-│  ─────────────────     │  ─────────────────────        │  (20rem)           │
-│  Customer card         │  Breadcrumb + Order ID          │  Customer asking   │
-│  Device card           │  Status chips                   │  Suggested response│
-│  Repair Status card    │  Header meta (8 fields)         │  Next action       │
-│  Timeline (3 items)    │  Quick actions bar              │  Quick info        │
-│  Recent Comms (stub)   │  Active case banner             │  AI placeholder    │
-│                        │  Tabs: Overview | Timeline |    │                    │
-│                        │        Payments | Device |      │                    │
-│                        │        Communication | Files |  │                    │
-│                        │        Notes                    │                    │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  QUICK SUMMARY (18%)   │  MAIN WORKSPACE (57%)              │  ASSISTANT (25%)│
+│  ─────────────────     │  ─────────────────────             │  ────────────── │
+│  Customer + phone      │  Order ID + Customer name (large)   │  Customer Q     │
+│  Device                │  Status chips (payment, repair…)   │  Summary        │
+│  Repair status         │  Quick actions (Call, WA, Email…)    │  Suggested resp │
+│  Engineer              │  Owner · Engineer · SLA · Priority   │  Quick send     │
+│  Today's timeline      │  [Order details ▼] expandable      │  Next best act  │
+│  Communications        │  Repair workflow progress strip      │  Quick info     │
+│                        │  Active service case card            │  AI placeholder │
+│                        │  Tabs: Overview | Timeline | …       │                 │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Entry point:** `GET /orders/{order}` → `orders.show` → three partials: `left-panel`, `center-panel`, `agent-assistant`.
 
-**Client behavior:** Tab switching via `order-workspace.js`; no lazy-load fetch yet (all tab HTML rendered server-side).
+**Client behavior:** Tab switching and sticky header via `order-workspace.js`; tab triggers from left panel and service case card; all tab HTML rendered server-side.
+
+**Sticky header (on scroll):** Order ID, customer, primary status, Call, WhatsApp, Email, Create Ticket.
+
+---
+
+## Information Hierarchy Refactor (P28-06-006)
+
+**Task:** P28-06-006 — 10-Second Rule  
+**Scope:** Information hierarchy only — no business logic, schema, Cashfree, or RadiumBox changes.
+
+### What Was Removed
+
+| Element | Former location | Why removed |
+|---------|-----------------|-------------|
+| Header meta grid (8 fields) | Header always visible | Created / Last Updated / Repair ID moved to expandable **Order details**; customer removed (left summary) |
+| Summary KPI strip (SLA, Priority, Payment, Warranty) | Overview tab top | Duplicated header essentials and status chips |
+| Customer card | Overview tab | Canonical home: left Quick Summary |
+| Device card | Overview tab | Canonical home: left Quick Summary; audit fields remain on Device tab |
+| Current Repair Status card | Overview tab | Canonical home: left summary + service case card + status chips |
+| Recent Timeline card | Overview tab | Canonical home: left “Today’s Timeline”; full history on Timeline tab |
+| Recent Communication stub card | Overview tab | Replaced by communication summary pattern |
+| Three empty comm cards | Communication tab | Replaced by unified communication summary with CTA |
+| Five separate left-panel cards | Left sidebar | Consolidated into single Quick Summary panel |
+| Large warning banner | Center panel | Replaced by compact active service case card |
+| Hardcoded “Warranty Active” chip | Status chips | Replaced with honest “Warranty Unknown” placeholder |
+| Hardcoded “Pickup Pending” chip | Status chips | Removed until real pickup state exists |
+| Card borders and form-like headers | All info cards | Reduced visual noise; grouped information feel |
+
+### What Was Consolidated
+
+| Component | New canonical location | Level |
+|-----------|------------------------|-------|
+| Customer name + phone | Left Quick Summary + header hero | 1 |
+| Device model + serial | Left Quick Summary | 1 |
+| Repair status | Status chips + left summary + service case card | 1 |
+| Engineer | Header essentials + left summary + service case card | 1 |
+| Owner, SLA, Priority | Header essentials | 1 |
+| Payment / completion | Status chips + Payments tab | 1 / 2 |
+| Order metadata (dates, repair ID) | Expandable header details + Overview Order Details | 2 |
+| Issue summary | Overview Issue Details card only | 2 |
+| Timeline | Today’s preview (left) → full Timeline tab | 1 preview / 2 full |
+| Communications | Communication summary (left + Communication tab) | 1 snippet / 2 full |
+| Next action | Agent Assistant “Next Best Action” | 1 |
+
+### New Reusable Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Repair workflow progress | `repair-workflow.blade.php` | Horizontal stage strip (placeholder stage logic) |
+| Active service case card | `active-service-case-card.blade.php` | Compact case alert replacing banner |
+| Communication summary | `communication-summary.blade.php` | Last Call / WhatsApp / Email + empty-state CTA |
+| Sticky header bar | `center-panel.blade.php` + CSS + JS | Context preservation on scroll |
+
+### Cognitive Load Reduction Rationale
+
+1. **10-second questions answered at Level 1:** Customer, repair status, payment, warranty (honest unknown), and next action are visible without tab switching.
+2. **One home per fact:** Eliminates conflicting duplicate values across left panel, header, and Overview.
+3. **Progressive disclosure:** Secondary metadata (Created, Last Updated, Repair ID) hidden behind “Order details”.
+4. **Scannable timeline:** Time → Action → Actor → Description hierarchy with increased spacing.
+5. **No empty card chrome:** Communication surfaces show meaningful empty states with a single CTA.
+6. **Center column emphasis:** 57% width gives agents a primary work surface; supporting panels stay narrower.
+
+### 10-Second Rule UX Review
+
+| Question | Target | After refactor |
+|----------|--------|----------------|
+| Who is the customer? | ≤2s | **Pass** — large name under Order ID + left summary |
+| Current repair status? | ≤3s | **Pass** — status chip + left summary + workflow strip |
+| Payment completed? | ≤3s | **Pass** — Payment Complete/Pending chip |
+| Warranty active? | ≤3s | **Pass (honest)** — “Warranty Unknown” chip; no false confidence |
+| Next action? | ≤5s | **Pass** — Agent Assistant NBA section + service case card CTA |
+
+**Visual scan test (5s):** A new agent can identify customer, status, payment, warranty state, and next action from the above-the-fold header zone and left summary without scrolling on a 1440×900 viewport.
 
 ---
 

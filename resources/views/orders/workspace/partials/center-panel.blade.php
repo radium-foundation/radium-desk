@@ -10,6 +10,9 @@
     $ownerName = $order->creator?->name ?: '—';
     $engineerName = $repairIncident?->assignee?->firstName() ?: '—';
     $repairId = $repairIncident?->display_reference ?? '—';
+    $slaLabel = $repairIncident ? $repairIncident->slaStatus()->label() : '—';
+    $priorityLabel = $repairIncident?->high_priority ? 'High' : ($repairIncident ? 'Normal' : '—');
+    $primaryStatus = $repairIncident?->status->label() ?? ($order->isTransactionLocked() ? 'Complete' : 'Awaiting payment');
 
     $tabs = [
         'overview' => ['label' => 'Overview', 'icon' => 'bi-grid'],
@@ -23,7 +26,39 @@
 @endphp
 
 <div class="order-workspace-center">
-    <header class="order-workspace-header">
+    <div class="order-workspace-sticky-bar" data-workspace-sticky-bar hidden aria-hidden="true">
+        <div class="order-workspace-sticky-bar-inner">
+            <div class="order-workspace-sticky-identity">
+                <span class="order-workspace-sticky-order-id">{{ $order->order_id }}</span>
+                <span class="order-workspace-sticky-customer">{{ $order->customer_name ?: '—' }}</span>
+                <span class="order-workspace-sticky-status">{{ $primaryStatus }}</span>
+            </div>
+            <div class="order-workspace-sticky-actions">
+                <button type="button" class="order-workspace-sticky-btn" disabled title="Coming soon">
+                    <i class="bi bi-telephone-fill" aria-hidden="true"></i>
+                    <span class="visually-hidden">Call</span>
+                </button>
+                <button type="button" class="order-workspace-sticky-btn" disabled title="Coming soon">
+                    <i class="bi bi-whatsapp" aria-hidden="true"></i>
+                    <span class="visually-hidden">WhatsApp</span>
+                </button>
+                <button type="button" class="order-workspace-sticky-btn" disabled title="Coming soon">
+                    <i class="bi bi-envelope-fill" aria-hidden="true"></i>
+                    <span class="visually-hidden">Email</span>
+                </button>
+                @can('create', App\Models\Incident::class)
+                    <a href="{{ route('orders.service-cases.create', $order) }}"
+                       class="order-workspace-sticky-btn order-workspace-sticky-btn--primary"
+                       title="Create Ticket">
+                        <i class="bi bi-ticket-detailed-fill" aria-hidden="true"></i>
+                        <span class="visually-hidden">Create Ticket</span>
+                    </a>
+                @endcan
+            </div>
+        </div>
+    </div>
+
+    <header class="order-workspace-header" data-workspace-header>
         <nav aria-label="breadcrumb" class="order-workspace-breadcrumb">
             <ol class="breadcrumb mb-2">
                 <li class="breadcrumb-item"><a href="{{ route('orders.index') }}">Orders</a></li>
@@ -31,23 +66,31 @@
             </ol>
         </nav>
 
-        <div class="order-workspace-header-main">
-            <h1 class="order-workspace-order-id">{{ $order->order_id }}</h1>
+        <div class="order-workspace-header-hero">
+            <div class="order-workspace-header-identity">
+                <h1 class="order-workspace-order-id">{{ $order->order_id }}</h1>
+                <p class="order-workspace-customer-name">
+                    @if($order->customer_phone)
+                        <a href="tel:{{ $order->customer_phone }}" class="order-workspace-customer-link">
+                            {{ $order->customer_name ?: '—' }}
+                        </a>
+                    @else
+                        {{ $order->customer_name ?: '—' }}
+                    @endif
+                </p>
+            </div>
+
             @include('orders.workspace.partials.status-chips', [
                 'order' => $order,
                 'activeIncident' => $activeIncident,
             ])
         </div>
 
-        <dl class="order-workspace-header-meta">
-            <div>
-                <dt>Repair ID</dt>
-                <dd>{{ $repairId }}</dd>
-            </div>
-            <div>
-                <dt>Customer</dt>
-                <dd>{{ $order->customer_name ?: '—' }}</dd>
-            </div>
+        <div class="order-workspace-header-actions">
+            @include('orders.workspace.partials.quick-actions', ['order' => $order])
+        </div>
+
+        <dl class="order-workspace-header-essentials">
             <div>
                 <dt>Owner</dt>
                 <dd>{{ $ownerName }}</dd>
@@ -57,25 +100,38 @@
                 <dd>{{ $engineerName }}</dd>
             </div>
             <div>
-                <dt>Created</dt>
-                <dd>{{ display_app_datetime_24($order->created_at) }}</dd>
-            </div>
-            <div>
-                <dt>Last Updated</dt>
-                <dd>{{ display_app_datetime_24($order->updated_at) }}</dd>
-            </div>
-            <div>
                 <dt>SLA</dt>
-                <dd>{{ $repairIncident ? $repairIncident->slaStatus()->label() : '—' }}</dd>
+                <dd>{{ $slaLabel }}</dd>
             </div>
             <div>
                 <dt>Priority</dt>
-                <dd>{{ $repairIncident?->high_priority ? 'High' : ($repairIncident ? 'Normal' : '—') }}</dd>
+                <dd>{{ $priorityLabel }}</dd>
             </div>
         </dl>
+
+        <details class="order-workspace-header-details">
+            <summary class="order-workspace-header-details-toggle">
+                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+                Order details
+            </summary>
+            <dl class="order-workspace-header-meta">
+                <div>
+                    <dt>Repair ID</dt>
+                    <dd>{{ $repairId }}</dd>
+                </div>
+                <div>
+                    <dt>Created</dt>
+                    <dd>{{ display_app_datetime_24($order->created_at) }}</dd>
+                </div>
+                <div>
+                    <dt>Last Updated</dt>
+                    <dd>{{ display_app_datetime_24($order->updated_at) }}</dd>
+                </div>
+            </dl>
+        </details>
     </header>
 
-    @include('orders.workspace.partials.quick-actions', ['order' => $order])
+    <div class="order-workspace-sticky-sentinel" data-workspace-sticky-sentinel aria-hidden="true"></div>
 
     @if($order->isTransactionLocked())
         <div class="alert alert-success order-workspace-alert py-2 small mb-0">
@@ -85,7 +141,12 @@
         </div>
     @endif
 
-    @include('orders.partials.active-service-case-banner', [
+    @include('orders.workspace.partials.repair-workflow', [
+        'order' => $order,
+        'activeIncident' => $activeIncident,
+    ])
+
+    @include('orders.workspace.partials.active-service-case-card', [
         'order' => $order,
         'activeIncident' => $activeIncident,
     ])

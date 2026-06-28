@@ -4,6 +4,7 @@
     'compact' => false,
     'showHeading' => true,
     'heading' => 'Activity Timeline',
+    'emptyMessage' => 'No activity recorded yet.',
 ])
 
 @php
@@ -34,41 +35,40 @@
     @endif
 
     @if($entries->isEmpty())
-        <div class="order-workspace-empty">
+        <div class="order-workspace-empty order-workspace-empty--inline">
             <i class="bi bi-clock-history" aria-hidden="true"></i>
-            <p class="mb-0">No activity recorded yet.</p>
+            <p class="mb-0">{{ $emptyMessage }}</p>
         </div>
     @else
-        <div class="order-workspace-timeline">
+        <div class="order-workspace-timeline" role="list">
             @foreach($entries as $entry)
-                <div class="order-workspace-timeline-item">
+                <article class="order-workspace-timeline-item" role="listitem">
                     <div class="order-workspace-timeline-icon" aria-hidden="true">
                         <i class="bi {{ $iconForTitle($entry->title) }}"></i>
                     </div>
                     <div class="order-workspace-timeline-content">
-                        <div class="order-workspace-timeline-meta">
-                            <time datetime="{{ $entry->occurredAt->toIso8601String() }}">
-                                {{ display_app_timeline_datetime($entry->occurredAt) }}
-                            </time>
-                            @if($entry->actorName)
-                                <span class="order-workspace-timeline-actor">{{ $entry->actorName }}</span>
-                            @endif
-                        </div>
-                        <div class="order-workspace-timeline-title">{{ $entry->title }}</div>
+                        <time class="order-workspace-timeline-time"
+                              datetime="{{ $entry->occurredAt->toIso8601String() }}">
+                            {{ display_app_timeline_datetime($entry->occurredAt) }}
+                        </time>
+                        <div class="order-workspace-timeline-action">{{ $entry->title }}</div>
+                        @if($entry->actorName)
+                            <div class="order-workspace-timeline-actor">{{ $entry->actorName }}</div>
+                        @endif
                         @if($entry->correctionChanges !== [])
                             <div class="order-workspace-timeline-detail">
                                 @foreach($entry->correctionChanges as $change)
                                     <div>{{ $change->label }}: {{ $change->previous }} → {{ $change->next }}</div>
                                 @endforeach
                                 @if($entry->correctionReason)
-                                    <div class="mt-1">Reason: {{ $entry->correctionReason }}</div>
+                                    <div class="mt-1">{{ $entry->correctionReason }}</div>
                                 @endif
                             </div>
                         @elseif($entry->detail)
                             <div class="order-workspace-timeline-detail">{{ $entry->detail }}</div>
                         @endif
                     </div>
-                </div>
+                </article>
             @endforeach
         </div>
     @endif

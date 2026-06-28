@@ -5,7 +5,7 @@
 @component('orders.workspace.partials.info-card', ['title' => 'Device Information', 'icon' => 'bi-phone'])
     <dl class="order-workspace-dl order-workspace-dl--wide">
         <dt>Model</dt>
-        <dd>{{ $order->deviceModel?->name ?? $order->device_model ?: '—' }}</dd>
+        <dd>{{ $order->displayDeviceModelName() ?: '—' }}</dd>
 
         <dt>Assigned By</dt>
         <dd>{{ $order->deviceModelAssigner?->name ?: '—' }}</dd>

@@ -7,6 +7,9 @@ export function initOrderWorkspace() {
 
     const tabs = Array.from(root.querySelectorAll('[data-workspace-tab]'));
     const panes = Array.from(root.querySelectorAll('[data-workspace-tab-pane]'));
+    const tabTriggers = Array.from(root.querySelectorAll('[data-workspace-tab-trigger]'));
+    const stickyBar = root.querySelector('[data-workspace-sticky-bar]');
+    const stickySentinel = root.querySelector('[data-workspace-sticky-sentinel]');
 
     if (tabs.length === 0 || panes.length === 0) {
         return;
@@ -35,6 +38,30 @@ export function initOrderWorkspace() {
         });
     });
 
+    tabTriggers.forEach((trigger) => {
+        trigger.addEventListener('click', () => {
+            const tabKey = trigger.dataset.workspaceTabTrigger;
+
+            if (tabKey) {
+                activateTab(tabKey);
+            }
+        });
+    });
+
     const initialTab = tabs.find((tab) => tab.classList.contains('active'))?.dataset.workspaceTab ?? 'overview';
     activateTab(initialTab);
+
+    if (stickyBar && stickySentinel && 'IntersectionObserver' in window) {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                const isPinned = !entry.isIntersecting;
+                stickyBar.hidden = !isPinned;
+                stickyBar.setAttribute('aria-hidden', isPinned ? 'false' : 'true');
+                stickyBar.classList.toggle('is-visible', isPinned);
+            },
+            { root: null, threshold: 0, rootMargin: '-56px 0px 0px 0px' },
+        );
+
+        observer.observe(stickySentinel);
+    }
 }

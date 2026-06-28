@@ -15,6 +15,7 @@ use App\Services\RemarkTimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class OrderController extends Controller
@@ -102,14 +103,7 @@ class OrderController extends Controller
     public function show(Order $order): View
     {
         $order->loadCount(['incidents', 'refundRequests']);
-        $order->load([
-            'incidents' => fn ($query) => $query->with(['creator', 'assignee'])->latest(),
-            'creator',
-            'transactionAssigner',
-            'serialEnterer',
-            'deviceModel',
-            'deviceModelAssigner',
-        ]);
+        $order->load($this->orderWorkspaceRelationships());
 
         $activeIncident = $order->activeIncident();
         if ($activeIncident !== null && ! $activeIncident->relationLoaded('assignee')) {
@@ -222,6 +216,29 @@ class OrderController extends Controller
             $value instanceof \DateTimeInterface => $value->format(\DateTimeInterface::ATOM),
             default => $value,
         };
+    }
+
+    /**
+     * @return array<int|string, mixed>
+     */
+    private function orderWorkspaceRelationships(): array
+    {
+        $relationships = [
+            'incidents' => fn ($query) => $query->with(['creator', 'assignee'])->latest(),
+            'creator',
+            'transactionAssigner',
+        ];
+
+        if (Schema::hasColumn('orders', 'serial_entered_by_user_id')) {
+            $relationships[] = 'serialEnterer';
+        }
+
+        if (Order::supportsDeviceModelMaster()) {
+            $relationships[] = 'deviceModel';
+            $relationships[] = 'deviceModelAssigner';
+        }
+
+        return $relationships;
     }
 
     public function destroy(Order $order): RedirectResponse
