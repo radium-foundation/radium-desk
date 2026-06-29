@@ -47,6 +47,8 @@ class RadiumBoxOrderEnrichmentService
         }
 
         try {
+            $this->syncStore->recordProcessingAttempt($order->id);
+
             $outcome = $this->radiumBoxService->enrichOrderFromBackgroundSync($order);
             $fetchResult = $outcome['fetch_result'];
 

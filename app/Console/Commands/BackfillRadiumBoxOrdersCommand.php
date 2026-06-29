@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Order;
+use App\Services\RadiumBox\RadiumBoxEnrichmentRetryPolicy;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxService;
@@ -31,12 +32,15 @@ class BackfillRadiumBoxOrdersCommand extends Command
 
     private int $ordersAlreadyComplete = 0;
 
+    private int $ordersExpired = 0;
+
     private int $failedDispatches = 0;
 
     public function __construct(
         private readonly RadiumBoxOrderEnrichmentService $enrichmentService,
         private readonly RadiumBoxService $radiumBoxService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
+        private readonly RadiumBoxEnrichmentRetryPolicy $retryPolicy,
     ) {
         parent::__construct();
     }
@@ -58,7 +62,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
                 return self::FAILURE;
             }
 
-            $this->processOrder($order, $dryRun, $limit);
+            $this->processOrder($order, $dryRun, $limit, manualOverride: true);
             $this->renderSummary($dryRun);
 
             return self::SUCCESS;
@@ -78,7 +82,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
                     return false;
                 }
 
-                $this->processOrder($order, $dryRun, $limit);
+                $this->processOrder($order, $dryRun, $limit, manualOverride: false);
             }
 
             $this->renderProgress($dryRun);
@@ -95,11 +99,11 @@ class BackfillRadiumBoxOrdersCommand extends Command
         return self::SUCCESS;
     }
 
-    private function processOrder(Order $order, bool $dryRun, ?int $limit): void
+    private function processOrder(Order $order, bool $dryRun, ?int $limit, bool $manualOverride): void
     {
         $this->ordersScanned++;
 
-        $skipReason = $this->resolveSkipReason($order);
+        $skipReason = $this->resolveSkipReason($order, $manualOverride);
 
         if ($skipReason === 'already_complete') {
             $this->ordersAlreadyComplete++;
@@ -108,9 +112,17 @@ class BackfillRadiumBoxOrdersCommand extends Command
             return;
         }
 
+        if ($skipReason === 'automatic_retry_window_expired') {
+            $this->ordersExpired++;
+            $this->ordersSkipped++;
+            $this->logRetryExpired($order);
+
+            return;
+        }
+
         if ($skipReason !== null) {
             $this->ordersSkipped++;
-            $this->logRetrySkipped($order, $skipReason);
+            $this->logRetrySkipped($order, $skipReason, $manualOverride);
 
             return;
         }
@@ -121,7 +133,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
 
         if ($dryRun) {
             $this->ordersQueued++;
-            $this->logRetryStarted($order, dryRun: true);
+            $this->logRetryStarted($order, dryRun: true, manualOverride: $manualOverride);
 
             return;
         }
@@ -129,7 +141,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
         try {
             $this->enrichmentService->dispatch($order);
             $this->ordersQueued++;
-            $this->logRetryStarted($order, dryRun: false);
+            $this->logRetryStarted($order, dryRun: false, manualOverride: $manualOverride);
         } catch (Throwable $exception) {
             $this->failedDispatches++;
             $this->ordersSkipped++;
@@ -144,7 +156,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
         }
     }
 
-    private function resolveSkipReason(Order $order): ?string
+    private function resolveSkipReason(Order $order, bool $manualOverride): ?string
     {
         if (! filled($order->order_id)) {
             return 'missing_order_id';
@@ -160,6 +172,18 @@ class BackfillRadiumBoxOrdersCommand extends Command
 
         if ($this->syncStore->status($order->id) === RadiumBoxEnrichmentSyncStatus::Pending) {
             return 'enrichment_already_pending';
+        }
+
+        if ($manualOverride) {
+            return null;
+        }
+
+        if (! $this->retryPolicy->isWithinAutomaticWindow($order)) {
+            return 'automatic_retry_window_expired';
+        }
+
+        if (! $this->retryPolicy->hasRetryIntervalElapsed($order, $this->syncStore->lastAttemptAt($order->id))) {
+            return 'retry_interval_not_elapsed';
         }
 
         return null;
@@ -206,11 +230,12 @@ class BackfillRadiumBoxOrdersCommand extends Command
     private function renderProgress(bool $dryRun): void
     {
         $this->line(sprintf(
-            'Progress — scanned: %d, %s: %d, skipped: %d, already complete: %d, failed dispatches: %d, estimated completion: %s',
+            'Progress — scanned: %d, %s: %d, skipped: %d, expired: %d, already complete: %d, failed dispatches: %d, estimated completion: %s',
             $this->ordersScanned,
             $dryRun ? 'would queue' : 'queued',
             $this->ordersQueued,
             $this->ordersSkipped,
+            $this->ordersExpired,
             $this->ordersAlreadyComplete,
             $this->failedDispatches,
             $this->estimatedCompletion($dryRun),
@@ -225,6 +250,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
         $this->line('Orders queued: '.($dryRun ? 0 : $this->ordersQueued));
         $this->line('Orders would queue: '.($dryRun ? $this->ordersQueued : 0));
         $this->line("Orders skipped: {$this->ordersSkipped}");
+        $this->line("Orders expired: {$this->ordersExpired}");
         $this->line("Orders already complete: {$this->ordersAlreadyComplete}");
         $this->line("Failed dispatches: {$this->failedDispatches}");
         $this->line('Estimated completion: '.$this->estimatedCompletion($dryRun));
@@ -239,9 +265,11 @@ class BackfillRadiumBoxOrdersCommand extends Command
             'orders_queued' => $dryRun ? 0 : $this->ordersQueued,
             'orders_would_queue' => $dryRun ? $this->ordersQueued : 0,
             'orders_skipped' => $this->ordersSkipped,
+            'orders_expired' => $this->ordersExpired,
             'orders_already_complete' => $this->ordersAlreadyComplete,
             'failed_dispatches' => $this->failedDispatches,
             'estimated_completion' => $this->estimatedCompletion($dryRun),
+            'automatic_window_days' => RadiumBoxEnrichmentRetryPolicy::AUTOMATIC_WINDOW_DAYS,
             'job_class' => RadiumBoxOrderEnrichmentJob::class,
         ]);
     }
@@ -261,21 +289,41 @@ class BackfillRadiumBoxOrdersCommand extends Command
         return sprintf('~%d minute(s) at ~1 job/min via cron queue worker', $jobs);
     }
 
-    private function logRetryStarted(Order $order, bool $dryRun): void
+    private function logRetryStarted(Order $order, bool $dryRun, bool $manualOverride): void
     {
         Log::info('RadiumBox enrichment retry started.', [
             'order_id' => $order->order_id,
             'order_db_id' => $order->id,
             'dry_run' => $dryRun,
+            'manual_override' => $manualOverride,
+            'attempt_count' => $this->syncStore->attemptCount($order->id),
+            'order_age_days' => $this->retryPolicy->orderAgeDays($order),
+            'required_interval_hours' => $manualOverride ? null : $this->retryPolicy->requiredIntervalHours($order),
         ]);
     }
 
-    private function logRetrySkipped(Order $order, string $reason): void
+    private function logRetrySkipped(Order $order, string $reason, bool $manualOverride = false): void
     {
         Log::info('RadiumBox enrichment retry skipped.', [
             'order_id' => $order->order_id,
             'order_db_id' => $order->id,
             'reason' => $reason,
+            'manual_override' => $manualOverride,
+            'attempt_count' => $this->syncStore->attemptCount($order->id),
+            'last_attempt_at' => $this->syncStore->lastAttemptAt($order->id),
+            'order_age_days' => $this->retryPolicy->orderAgeDays($order),
+            'required_interval_hours' => $this->retryPolicy->requiredIntervalHours($order),
+        ]);
+    }
+
+    private function logRetryExpired(Order $order): void
+    {
+        Log::info('RadiumBox enrichment retry expired.', [
+            'order_id' => $order->order_id,
+            'order_db_id' => $order->id,
+            'created_at' => $order->created_at?->toIso8601String(),
+            'order_age_days' => $this->retryPolicy->orderAgeDays($order),
+            'attempt_count' => $this->syncStore->attemptCount($order->id),
         ]);
     }
 
@@ -286,6 +334,8 @@ class BackfillRadiumBoxOrdersCommand extends Command
             'order_db_id' => $order->id,
             'phase' => $phase,
             'reason' => $reason,
+            'attempt_count' => $this->syncStore->attemptCount($order->id),
+            'order_age_days' => $this->retryPolicy->orderAgeDays($order),
         ]);
     }
 }

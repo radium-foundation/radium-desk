@@ -12,6 +12,7 @@ use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -27,6 +28,8 @@ class BackfillRadiumBoxOrdersCommandTest extends TestCase
     {
         parent::setUp();
 
+        Carbon::setTestNow('2026-06-30 12:00:00');
+
         $this->seed(RolePermissionSeeder::class);
 
         config([
@@ -35,6 +38,13 @@ class BackfillRadiumBoxOrdersCommandTest extends TestCase
             'radiumbox.timeout_seconds' => 5,
             'radiumbox.connect_timeout_seconds' => 3,
         ]);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_command_is_registered(): void
@@ -382,6 +392,171 @@ class BackfillRadiumBoxOrdersCommandTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_new_paid_order_waits_for_hourly_retry_interval_in_automatic_scan(): void
+    {
+        Log::spy();
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $order = $this->createOrder($agent, 'RD-HOURLY-WAIT', null, null, createdAt: '2026-06-30 10:00:00');
+        $this->markLastAttempt($order, '2026-06-30 11:30:00');
+
+        $this->artisan('radiumbox:backfill-orders')
+            ->expectsOutputToContain('Orders skipped: 1')
+            ->expectsOutputToContain('Orders queued: 0')
+            ->assertSuccessful();
+
+        Queue::assertNothingPushed();
+
+        Log::shouldHaveReceived('info')
+            ->with('RadiumBox enrichment retry skipped.', \Mockery::on(function (array $context): bool {
+                return ($context['order_id'] ?? null) === 'RD-HOURLY-WAIT'
+                    && ($context['reason'] ?? null) === 'retry_interval_not_elapsed';
+            }));
+    }
+
+    public function test_new_paid_order_retries_after_hourly_interval_elapses(): void
+    {
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $order = $this->createOrder($agent, 'RD-HOURLY-READY', null, null, createdAt: '2026-06-30 10:00:00');
+        $this->markLastAttempt($order, '2026-06-30 10:30:00');
+
+        $this->artisan('radiumbox:backfill-orders')
+            ->expectsOutputToContain('Orders queued: 1')
+            ->assertSuccessful();
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, 1);
+    }
+
+    public function test_retry_interval_increases_as_order_ages(): void
+    {
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $order = $this->createOrder($agent, 'RD-DAY2-WAIT', null, null, createdAt: '2026-06-28 12:00:00');
+        $this->markLastAttempt($order, '2026-06-30 03:00:00');
+
+        $this->artisan('radiumbox:backfill-orders')
+            ->expectsOutputToContain('Orders skipped: 1')
+            ->assertSuccessful();
+
+        Queue::assertNothingPushed();
+
+        $this->markLastAttempt($order, '2026-06-29 23:00:00');
+
+        Queue::fake();
+
+        $this->artisan('radiumbox:backfill-orders')
+            ->expectsOutputToContain('Orders queued: 1')
+            ->assertSuccessful();
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, 1);
+    }
+
+    public function test_order_older_than_seven_days_is_skipped_in_automatic_scan(): void
+    {
+        Log::spy();
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $this->createOrder($agent, 'RD-EXPIRED', null, null, createdAt: '2026-06-20 12:00:00');
+
+        $this->artisan('radiumbox:backfill-orders')
+            ->expectsOutputToContain('Orders scanned: 1')
+            ->expectsOutputToContain('Orders expired: 1')
+            ->expectsOutputToContain('Orders queued: 0')
+            ->assertSuccessful();
+
+        Queue::assertNothingPushed();
+
+        Log::shouldHaveReceived('info')
+            ->with('RadiumBox enrichment retry expired.', \Mockery::on(function (array $context): bool {
+                return ($context['order_id'] ?? null) === 'RD-EXPIRED'
+                    && ($context['order_age_days'] ?? 0) > 7;
+            }));
+
+        Queue::fake();
+
+        $this->artisan('radiumbox:backfill-orders --order=RD-EXPIRED')
+            ->expectsOutputToContain('Orders queued: 1')
+            ->assertSuccessful();
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, 1);
+    }
+
+    public function test_retry_expired_is_logged_when_automatic_window_passed(): void
+    {
+        Log::spy();
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $this->createOrder($agent, 'RD-EXPIRED-LOG', null, null, createdAt: '2026-06-20 12:00:00');
+
+        $this->artisan('radiumbox:backfill-orders')
+            ->expectsOutputToContain('Orders expired: 1')
+            ->assertSuccessful();
+
+        Queue::assertNothingPushed();
+
+        Log::shouldHaveReceived('info')
+            ->with('RadiumBox enrichment retry expired.', \Mockery::on(function (array $context): bool {
+                return ($context['order_id'] ?? null) === 'RD-EXPIRED-LOG'
+                    && filled($context['created_at'] ?? null);
+            }));
+    }
+
+    public function test_dry_run_applies_same_retry_eligibility_as_automatic_scan(): void
+    {
+        Log::spy();
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $waiting = $this->createOrder($agent, 'RD-DRY-WAIT', null, null, createdAt: '2026-06-30 10:00:00');
+        $ready = $this->createOrder($agent, 'RD-DRY-READY', null, null, createdAt: '2026-06-30 10:00:00');
+        $this->markLastAttempt($waiting, '2026-06-30 11:30:00');
+        $this->markLastAttempt($ready, '2026-06-30 10:00:00');
+
+        $this->artisan('radiumbox:backfill-orders --dry-run')
+            ->expectsOutputToContain('Orders scanned: 2')
+            ->expectsOutputToContain('Orders would queue: 1')
+            ->expectsOutputToContain('Orders skipped: 1')
+            ->assertSuccessful();
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_automatic_scan_skips_recent_attempt_and_manual_order_option_bypasses_interval(): void
+    {
+        Queue::fake();
+
+        $agent = User::factory()->create();
+        $order = $this->createOrder($agent, 'RD-MANUAL-BYPASS', null, null, createdAt: '2026-06-30 10:00:00');
+        $this->markLastAttempt($order, '2026-06-30 11:45:00');
+
+        $this->artisan('radiumbox:backfill-orders')
+            ->expectsOutputToContain('Orders skipped: 1')
+            ->assertSuccessful();
+
+        Queue::assertNothingPushed();
+
+        $this->artisan('radiumbox:backfill-orders --order=RD-MANUAL-BYPASS')
+            ->expectsOutputToContain('Orders queued: 1')
+            ->assertSuccessful();
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, 1);
+    }
+
+    private function markLastAttempt(Order $order, string $lastAttemptAt): void
+    {
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id, [
+            'attempt_count' => 1,
+            'last_attempt_at' => $lastAttemptAt,
+            'lookup_result' => 'no_data',
+        ]);
+    }
+
     private function createOrder(
         User $agent,
         string $orderId,
@@ -389,20 +564,32 @@ class BackfillRadiumBoxOrdersCommandTest extends TestCase
         ?string $deviceModel,
         ?int $deviceModelId = null,
         string|null|false $cashfreePaymentId = false,
+        ?string $createdAt = null,
     ): Order {
         if ($cashfreePaymentId === false) {
             $cashfreePaymentId = (string) ($this->nextCashfreePaymentId++);
         }
 
-        return Order::query()->create([
+        $timestamp = $createdAt !== null ? Carbon::parse($createdAt) : now();
+
+        $order = Order::query()->create([
             'order_id' => $orderId,
             'serial_number' => $serialNumber,
             'device_model' => $deviceModel,
             'device_model_id' => $deviceModelId,
             'cashfree_payment_id' => $cashfreePaymentId,
-            'payment_date' => $cashfreePaymentId !== null ? now() : null,
+            'payment_date' => $cashfreePaymentId !== null ? $timestamp : null,
             'status' => 'active',
             'created_by' => $agent->id,
         ]);
+
+        if ($createdAt !== null) {
+            $order->forceFill([
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ])->saveQuietly();
+        }
+
+        return $order->fresh();
     }
 }

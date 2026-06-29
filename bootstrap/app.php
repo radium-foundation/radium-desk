@@ -39,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping();
 
         // Phase 2: enable when ready to recover delayed RadiumBox product details automatically.
+        // Uses progressive backoff (1h → 4h → 12h → 24h) within a 7-day automatic window.
         // $schedule->command('radiumbox:backfill-orders --limit=50')
         //     ->hourly()
         //     ->withoutOverlapping()

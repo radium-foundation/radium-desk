@@ -101,6 +101,43 @@ class RadiumBoxOrderEnrichmentSyncStore
         return is_string($updatedAt) && $updatedAt !== '' ? $updatedAt : null;
     }
 
+    public function lastAttemptAt(int $orderId): ?string
+    {
+        $metadata = $this->metadata($orderId);
+        $lastAttemptAt = is_array($metadata) ? ($metadata['last_attempt_at'] ?? null) : null;
+
+        if (is_string($lastAttemptAt) && $lastAttemptAt !== '') {
+            return $lastAttemptAt;
+        }
+
+        return $this->updatedAt($orderId);
+    }
+
+    public function attemptCount(int $orderId): int
+    {
+        $metadata = $this->metadata($orderId);
+
+        if (! is_array($metadata)) {
+            return 0;
+        }
+
+        return (int) ($metadata['attempt_count'] ?? 0);
+    }
+
+    public function recordProcessingAttempt(int $orderId): void
+    {
+        $record = $this->read($orderId);
+        $metadata = $this->metadata($orderId) ?? [];
+        $metadata['attempt_count'] = $this->attemptCount($orderId) + 1;
+        $metadata['last_attempt_at'] = now()->toIso8601String();
+
+        $this->write($orderId, [
+            'status' => is_array($record) ? ($record['status'] ?? RadiumBoxEnrichmentSyncStatus::Pending->value) : RadiumBoxEnrichmentSyncStatus::Pending->value,
+            'metadata' => $metadata,
+            'updated_at' => now()->toIso8601String(),
+        ]);
+    }
+
     /**
      * @param  array<string, mixed>  $record
      */
