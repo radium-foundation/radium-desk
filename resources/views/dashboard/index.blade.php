@@ -3,6 +3,19 @@
 @section('title', 'Dashboard')
 
 @section('content')
+    @php
+        $dashboardModules = config('ui.dashboard.modules', []);
+        $requestedView = request()->query('view', 'all');
+        $legacyHardwareViews = ['warehouse', 'dispatch'];
+        $dashboardView = match (true) {
+            in_array($requestedView, $legacyHardwareViews, true) => 'hardware_orders',
+            array_key_exists($requestedView, $dashboardModules) => $requestedView,
+            default => 'all',
+        };
+        $showServiceCasesPanel = in_array($dashboardView, ['all', 'service_cases'], true);
+        $showHardwareOrdersPanel = $dashboardView === 'hardware_orders';
+    @endphp
+
     <div class="app-content-compact"
          id="dashboard-page"
          data-workspace-context="dashboard"
@@ -34,7 +47,9 @@
             @include('dashboard.partials.kpi-strip', ['stats' => $stats])
         </div>
 
-        @if($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view'))
+        @include('dashboard.partials.module-nav')
+
+        @if($showServiceCasesPanel && ($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view')))
             <div class="dashboard-primary-panel mb-1">
                 @include('dashboard.partials.recent-service-cases', [
                     'recentServiceCases' => $recentServiceCases,
@@ -42,6 +57,12 @@
                     'canManageTransactions' => $canManageTransactions ?? false,
                     'canReassignServiceCases' => $canReassignServiceCases ?? false,
                 ])
+            </div>
+        @endif
+
+        @if($showHardwareOrdersPanel)
+            <div class="dashboard-primary-panel mb-1">
+                @include('dashboard.partials.hardware-orders-placeholder')
             </div>
         @endif
 

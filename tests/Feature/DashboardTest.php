@@ -47,6 +47,52 @@ class DashboardTest extends TestCase
             ->assertSee('Quick Create')
             ->assertSee('Pending Refunds')
             ->assertSee('Pending Approvals')
-            ->assertSee('Recent Service Cases');
+            ->assertSee('Recent Service Cases')
+            ->assertSee('Hardware Orders', false)
+            ->assertSee('Service Cases', false)
+            ->assertDontSee('>Warehouse<', false)
+            ->assertDontSee('>Dispatch<', false);
+    }
+
+    public function test_dashboard_module_navigation_shows_three_modules_only(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('dashboard-module-nav', false)
+            ->assertSee('>All<', false)
+            ->assertSee('>Service Cases<', false)
+            ->assertSee('>Hardware Orders<', false)
+            ->assertDontSee('>Warehouse<', false)
+            ->assertDontSee('>Dispatch<', false);
+    }
+
+    public function test_dashboard_hardware_orders_view_shows_placeholder_without_service_cases(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['view' => 'hardware_orders']))
+            ->assertOk()
+            ->assertSee('Order fulfillment stages such as warehouse and dispatch will be managed here.')
+            ->assertDontSee('Recent Service Cases');
+    }
+
+    public function test_dashboard_legacy_warehouse_view_maps_to_hardware_orders_module(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['view' => 'warehouse']))
+            ->assertOk()
+            ->assertSee('Order fulfillment stages such as warehouse and dispatch will be managed here.')
+            ->assertDontSee('Recent Service Cases')
+            ->assertSee('aria-selected="true"', false)
+            ->assertSee('>Hardware Orders<', false);
     }
 }

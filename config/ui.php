@@ -1,6 +1,22 @@
 <?php
 
 return [
+    'dashboard' => [
+        'modules' => [
+            'all' => [
+                'label' => 'All',
+                'icon' => 'bi-grid-3x3-gap-fill',
+            ],
+            'service_cases' => [
+                'label' => 'Service Cases',
+                'icon' => 'bi-clipboard-data',
+            ],
+            'hardware_orders' => [
+                'label' => 'Hardware Orders',
+                'icon' => 'bi-box-seam',
+            ],
+        ],
+    ],
     'service_case' => [
         'singular' => 'Service Case',
         'plural' => 'Service Cases',
