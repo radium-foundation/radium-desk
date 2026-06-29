@@ -22,7 +22,7 @@
     <template class="dashboard-tooltip-template">
         @if($status === OrderCompletionStatus::PendingAdmin)
             @include('dashboard.partials.premium-tooltip', [
-                'title' => 'Waiting for Transaction ID',
+                'title' => 'Waiting for Service Reference',
                 'sections' => [
                     [
                         'label' => 'Created',
@@ -38,7 +38,7 @@
             @include('dashboard.partials.premium-tooltip', [
                 'sections' => [
                     [
-                        'label' => 'Transaction ID',
+                        'label' => 'Service Reference',
                         'value' => $order->transaction_id ?: '—',
                     ],
                     [

@@ -37,9 +37,9 @@
                            value="{{ $filters['customer_name'] ?? '' }}" placeholder="Search customer name">
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <label for="filter_transaction_id" class="form-label">Transaction ID</label>
+                    <label for="filter_transaction_id" class="form-label">Service Reference</label>
                     <input type="text" name="transaction_id" id="filter_transaction_id" class="form-control"
-                           value="{{ $filters['transaction_id'] ?? '' }}" placeholder="Search transaction ID">
+                           value="{{ $filters['transaction_id'] ?? '' }}" placeholder="Search service reference">
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2">
                     <button type="submit" class="btn btn-primary">

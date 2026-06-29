@@ -16,7 +16,7 @@
         <dl class="order-workspace-dl order-workspace-dl--wide">
             <dt>Order ID</dt><dd class="order-workspace-dl-value">{{ $order->order_id }}</dd>
             <dt>Owner</dt><dd class="order-workspace-dl-value">{{ $ownerName }}</dd>
-            <dt>Transaction ID</dt><dd class="order-workspace-dl-value">{{ $order->transaction_id ?: '—' }}</dd>
+            <dt>Service Reference</dt><dd class="order-workspace-dl-value">{{ $order->transaction_id ?: '—' }}</dd>
             <dt>Completion Status</dt>
             <dd>@include('orders.partials.completion-status-badge', ['order' => $order])</dd>
             @if($repairIncident)

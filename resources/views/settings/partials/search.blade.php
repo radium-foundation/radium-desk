@@ -21,7 +21,7 @@
                 <div class="form-check form-switch">
                     <input type="checkbox" name="transaction_id_enabled" value="1" id="transaction_id_enabled" class="form-check-input"
                            @checked(old('transaction_id_enabled', $search['transaction_id_enabled']))>
-                    <label class="form-check-label" for="transaction_id_enabled">Transaction ID</label>
+                    <label class="form-check-label" for="transaction_id_enabled">Service Reference</label>
                 </div>
                 <div class="form-check form-switch">
                     <input type="checkbox" name="email_enabled" value="1" id="email_enabled" class="form-check-input"

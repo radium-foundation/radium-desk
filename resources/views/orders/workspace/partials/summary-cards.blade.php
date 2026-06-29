@@ -8,7 +8,7 @@
     $slaLabel = $repairIncident ? $repairIncident->slaStatus()->label() : 'No active repair';
     $priorityLabel = $repairIncident?->high_priority ? 'High' : ($repairIncident ? 'Normal' : '—');
     $paymentLabel = $order->isTransactionLocked() ? 'Paid' : 'Pending';
-    $paymentDetail = $order->transaction_id ?: 'Awaiting transaction ID';
+    $paymentDetail = $order->transaction_id ?: 'Awaiting service reference';
     $warrantyLabel = 'Active';
     $warrantyDetail = 'Standard coverage';
 @endphp

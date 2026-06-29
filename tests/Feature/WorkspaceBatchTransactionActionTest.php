@@ -71,11 +71,13 @@ class WorkspaceBatchTransactionActionTest extends TestCase
                 'context' => WorkspaceContext::Dashboard->value,
             ]))
             ->assertOk()
-            ->assertSee('Assign Transaction ID', false)
-            ->assertSee($first['order']->order_id, false)
+            ->assertSee('Assign Service Reference', false)
+            ->assertSee('Selected Orders:', false)
+            ->assertSee('Serial Numbers', false)
+            ->assertSee('data-copy-all-serials', false)
             ->assertSee($first['order']->serial_number, false)
-            ->assertSee($second['order']->order_id, false)
             ->assertSee($second['order']->serial_number, false)
+            ->assertSee('data-batch-serial-copy', false)
             ->assertSee('data-workspace-action-form="batch-transaction"', false);
     }
 

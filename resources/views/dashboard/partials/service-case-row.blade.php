@@ -82,38 +82,14 @@
     </td>
     <td class="case-meta-cell dashboard-owner-cell dashboard-user-cell d-none d-md-table-cell">
         @if($serviceCase->assignee)
-            @php
-                $ownerName = trim((string) $serviceCase->assignee->name) ?: $serviceCase->assignee->firstName();
-                $ownerInitial = $ownerName !== '' ? strtoupper(substr($ownerName, 0, 1)) : null;
-            @endphp
-            @if($ownerInitial)
-                <span class="dashboard-u-avatar"
-                      data-bs-toggle="tooltip"
-                      data-bs-placement="top"
-                      data-bs-title="{{ $ownerName }}"
-                      aria-label="Owner: {{ $ownerName }}">{{ $ownerInitial }}</span>
-            @else
-                —
-            @endif
+            <x-dashboard-user-avatar :user="$serviceCase->assignee" aria-prefix="Owner" />
         @else
             —
         @endif
     </td>
     <td class="case-meta-cell dashboard-user-cell d-none d-md-table-cell">
         @if($serviceCase->creator)
-            @php
-                $loggedByName = trim((string) $serviceCase->creator->name) ?: $serviceCase->creator->firstName();
-                $loggedByInitial = $loggedByName !== '' ? strtoupper(substr($loggedByName, 0, 1)) : null;
-            @endphp
-            @if($loggedByInitial)
-                <span class="dashboard-u-avatar"
-                      data-bs-toggle="tooltip"
-                      data-bs-placement="top"
-                      data-bs-title="{{ $loggedByName }}"
-                      aria-label="Logged by: {{ $loggedByName }}">{{ $loggedByInitial }}</span>
-            @else
-                —
-            @endif
+            <x-dashboard-user-avatar :user="$serviceCase->creator" aria-prefix="Logged by" />
         @else
             —
         @endif

@@ -26,19 +26,19 @@
     @elseif($canAssign)
         <button type="button"
                 class="transaction-cell-trigger dashboard-u-transaction-add dashboard-u-transition dashboard-u-focus-ring"
-                aria-label="Add transaction ID"
+                aria-label="Add service reference"
                 data-bs-toggle="tooltip"
                 data-bs-placement="top"
-                data-bs-title="Add transaction ID">
+                data-bs-title="Add service reference">
             <i class="bi bi-plus-lg" aria-hidden="true"></i>
         </button>
         <div class="transaction-inline-editor d-none">
             <div class="input-group input-group-sm">
                 <input type="text"
                        class="form-control transaction-inline-input"
-                       placeholder="Transaction ID"
+                       placeholder="Service Reference"
                        maxlength="100"
-                       aria-label="Transaction ID">
+                       aria-label="Service Reference">
                 <button type="button" class="btn btn-outline-success transaction-inline-save" aria-label="Save">
                     <i class="bi bi-check-lg"></i>
                 </button>

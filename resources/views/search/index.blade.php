@@ -6,7 +6,7 @@
     <div class="mb-4">
         <h1 class="h3 mb-1">Global Search</h1>
         <p class="text-muted mb-0">
-            Search by order ID, serial number, transaction ID, or {{ strtolower(config('ui.service_case.reference_label')) }}.
+            Search by order ID, serial number, service reference, or {{ strtolower(config('ui.service_case.reference_label')) }}.
         </p>
     </div>
 
@@ -32,7 +32,7 @@
 
     @if($query === '')
         <div class="alert alert-info mb-0">
-            Enter an order ID, serial number, or transaction ID to begin searching.
+            Enter an order ID, serial number, or service reference to begin searching.
         </div>
     @elseif($totalResults === 0)
         <div class="alert alert-warning mb-0">

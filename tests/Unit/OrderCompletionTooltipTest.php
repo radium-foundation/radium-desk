@@ -75,7 +75,7 @@ class OrderCompletionTooltipTest extends TestCase
         $loggedAt = Carbon::parse('2026-06-24 14:35:00');
         $html = $order->completionTooltipHtml($loggedAt);
 
-        $this->assertStringContainsString('Waiting for Transaction ID', $html);
+        $this->assertStringContainsString('Waiting for Service Reference', $html);
         $this->assertStringContainsString('Created:', $html);
         $this->assertStringContainsString('24 Jun 2026, 02:35 PM', $html);
         $this->assertStringContainsString('Pending for:', $html);
@@ -95,7 +95,7 @@ class OrderCompletionTooltipTest extends TestCase
         $loggedAt = Carbon::parse('2026-06-24 07:45:00');
         $html = $order->completionTooltipHtml($loggedAt);
 
-        $this->assertStringContainsString('Transaction ID: TX123456', $html);
+        $this->assertStringContainsString('Service Reference: TX123456', $html);
         $this->assertStringContainsString('Completed:', $html);
         $this->assertStringContainsString('25 Jun 2026, 10:45 AM', $html);
         $this->assertStringContainsString('Total turnaround:', $html);

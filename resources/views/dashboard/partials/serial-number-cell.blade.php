@@ -14,7 +14,13 @@
         data-store-url="{{ route('orders.serial.store', $order) }}"
     @endif>
     @if($isLocked && $order?->serial_number)
-        <a href="{{ route('orders.show', $order) }}" class="text-decoration-none">{{ $order->serial_number }}</a>
+        <button type="button"
+                class="serial-copy-value dashboard-u-serial-copy"
+                data-serial-copy="{{ $order->serial_number }}"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                data-bs-title="{{ $order->serial_number }}"
+                aria-label="Copy serial number {{ $order->serial_number }}">{{ $order->serial_number }}</button>
     @elseif($canAssign)
         <button type="button"
                 class="serial-cell-trigger transaction-cell-trigger dashboard-u-transaction-add dashboard-u-transition dashboard-u-focus-ring"

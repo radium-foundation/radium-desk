@@ -111,7 +111,7 @@ class Order extends Model
     {
         if ($this->completionStatus() === OrderCompletionStatus::PendingAdmin) {
             $lines = [
-                'Waiting for Transaction ID',
+                'Waiting for Service Reference',
                 '',
                 'Created:',
                 AppDateFormatter::datetime($loggedAt) ?? '—',
@@ -121,7 +121,7 @@ class Order extends Model
             ];
         } else {
             $lines = [
-                'Transaction ID: '.($this->transaction_id ?: '—'),
+                'Service Reference: '.($this->transaction_id ?: '—'),
                 '',
                 'Completed:',
                 AppDateFormatter::datetime($this->completed_at) ?? '—',

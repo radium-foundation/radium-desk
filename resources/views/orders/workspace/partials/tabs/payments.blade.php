@@ -6,7 +6,7 @@
 
 @component('orders.workspace.partials.info-card', ['title' => 'Payment Details', 'icon' => 'bi-credit-card'])
     <dl class="order-workspace-dl order-workspace-dl--wide">
-        <dt>Transaction ID</dt>
+        <dt>Service Reference</dt>
         <dd>{{ $order->transaction_id ?: '—' }}</dd>
 
         <dt>Payment Amount</dt>

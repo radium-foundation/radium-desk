@@ -41,7 +41,7 @@
                                     data-batch-assign
                                     disabled>
                                 <i class="bi bi-link-45deg" aria-hidden="true"></i>
-                                Assign Transaction ID
+                                Assign Service Reference
                             </button>
                             @if($canAssignDeviceModel ?? false)
                                 <button type="button"
@@ -129,7 +129,7 @@
                             <th class="case-serial-cell">Serial</th>
                             <th>Status</th>
                             <th class="sla-cell">SLA</th>
-                            <th>Txn ID</th>
+                            <th>Ref.</th>
                             <th class="d-none d-md-table-cell">Source</th>
                             <th class="d-none d-md-table-cell">Owner</th>
                             <th class="d-none d-md-table-cell">Logged By</th>

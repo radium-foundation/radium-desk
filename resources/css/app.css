@@ -910,11 +910,104 @@ a:focus-visible .stat-card {
 
 .dashboard-cases-table .case-serial-cell {
     color: #868e96;
-    width: 1%;
+    width: 7rem;
+    max-width: 7rem;
     white-space: nowrap;
     vertical-align: middle;
     position: relative;
-    overflow: visible;
+    overflow: hidden;
+}
+
+.dashboard-u-serial-copy {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #868e96;
+    font-weight: 400;
+    font-size: inherit;
+    line-height: inherit;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.dashboard-u-serial-copy:hover,
+.dashboard-u-serial-copy:focus-visible {
+    color: #495057;
+    background-color: var(--dashboard-row-hover-bg, rgba(0, 0, 0, 0.04));
+    border-radius: var(--dashboard-radius-sm, 0.25rem);
+}
+
+.dashboard-u-serial-copy:focus-visible {
+    outline: 2px solid var(--dashboard-accent-primary);
+    outline-offset: 1px;
+}
+
+.batch-serial-section__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.batch-serial-section__copy-all {
+    font-size: 0.8125rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.batch-serial-section__copy-all:hover,
+.batch-serial-section__copy-all:focus-visible {
+    text-decoration: underline;
+}
+
+.batch-serial-list {
+    max-height: 9rem;
+    overflow-y: auto;
+    border: 1px solid var(--dashboard-border-subtle, #dee2e6);
+    border-radius: var(--dashboard-radius-sm, 0.25rem);
+    padding: 0.375rem 0.5rem;
+}
+
+.batch-serial-item {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    width: 100%;
+    padding: 0.125rem 0.25rem;
+    border: 0;
+    border-radius: var(--dashboard-radius-sm, 0.25rem);
+    background: transparent;
+    color: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+}
+
+.batch-serial-item:hover,
+.batch-serial-item:focus-visible {
+    background-color: var(--dashboard-row-hover-bg, rgba(0, 0, 0, 0.04));
+}
+
+.batch-serial-item:focus-visible {
+    outline: 2px solid var(--dashboard-accent-primary);
+    outline-offset: 1px;
+}
+
+.batch-serial-item__bullet {
+    flex-shrink: 0;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.batch-serial-item__value {
+    word-break: break-all;
 }
 
 .dashboard-cases-table .case-serial-cell a {

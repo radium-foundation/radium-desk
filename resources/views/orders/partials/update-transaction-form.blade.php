@@ -1,19 +1,19 @@
 @can('assignTransaction', $order)
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-header bg-white py-3">
-            <h2 class="h6 mb-0">Update Transaction ID</h2>
+            <h2 class="h6 mb-0">Update Service Reference</h2>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ route('orders.transaction.store', $order) }}" class="row g-3">
                 @csrf
                 <div class="col-md-8">
-                    <label for="transaction_id" class="form-label">Transaction ID</label>
+                    <label for="transaction_id" class="form-label">Service Reference</label>
                     <input type="text"
                            name="transaction_id"
                            id="transaction_id"
                            class="form-control @error('transaction_id') is-invalid @enderror"
                            value="{{ old('transaction_id') }}"
-                           placeholder="Enter transaction ID"
+                           placeholder="Enter service reference"
                            required>
                     @error('transaction_id')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -21,7 +21,7 @@
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-check2-circle me-1"></i> Save Transaction ID
+                        <i class="bi bi-check2-circle me-1"></i> Save Service Reference
                     </button>
                 </div>
             </form>
@@ -36,11 +36,11 @@
         </div>
         <div class="card-body">
             <p class="text-muted small mb-3">
-                SuperAdmin only. This clears the transaction ID and reopens the order for editing.
+                SuperAdmin only. This clears the service reference and reopens the order for editing.
             </p>
             <form method="POST"
                   action="{{ route('orders.transaction.destroy', $order) }}"
-                  onsubmit="return confirm('Unlock this order and clear the transaction ID?');">
+                  onsubmit="return confirm('Unlock this order and clear the service reference?');">
                 @csrf
                 @method('DELETE')
                 <div class="mb-3">

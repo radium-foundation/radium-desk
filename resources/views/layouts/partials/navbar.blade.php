@@ -13,7 +13,7 @@
                 name="q"
                 id="global-search-input"
                 class="form-control border-start-0"
-                placeholder="Search order ID, serial number, transaction ID..."
+                placeholder="Search order ID, serial number, service reference..."
                 value="{{ request('q') }}"
                 aria-label="Global search"
             >

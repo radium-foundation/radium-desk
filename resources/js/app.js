@@ -4,6 +4,7 @@ import { initLiveDashboard, applyKpis } from './live-dashboard';
 import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initDashboardQuickFilter } from './dashboard-filter';
 import { initDashboardSerialNumbers } from './dashboard-serial';
+import { initBatchTransactionForm } from './dashboard-batch-transaction';
 import { initDashboardDeviceModels } from './dashboard-device-model';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
@@ -324,7 +325,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, openBatchDeviceMo
             input?.classList.add('is-invalid');
 
             if (error) {
-                error.textContent = 'Transaction ID is required.';
+                error.textContent = 'Service reference is required.';
             }
 
             return;
@@ -350,7 +351,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, openBatchDeviceMo
             const data = await response.json();
 
             if (!response.ok) {
-                const message = data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save transaction ID.';
+                const message = data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save service reference.';
                 input.classList.add('is-invalid');
 
                 if (error) {
@@ -370,12 +371,12 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, openBatchDeviceMo
                 applyKpis(data.kpi_strip_html);
             }
 
-            showAppToast(data.message ?? 'Transaction ID saved.');
+            showAppToast(data.message ?? 'Service reference saved.');
         } catch (saveError) {
             input.classList.add('is-invalid');
 
             if (error) {
-                error.textContent = 'Unable to save transaction ID.';
+                error.textContent = 'Unable to save service reference.';
             }
         } finally {
             input.disabled = false;
@@ -518,8 +519,19 @@ document.addEventListener('DOMContentLoaded', () => {
             batchSession.restoreAllRowStates();
         },
         afterOpen: (_incidentId, component, _context, opened) => {
-            if (opened && component === 'remark') {
-                initMentionTextareas(document.querySelector('[data-workspace-modal-content]'));
+            if (!opened) {
+                return;
+            }
+
+            const modalContent = document.querySelector('[data-workspace-modal-content]');
+
+            if (component === 'remark') {
+                initMentionTextareas(modalContent);
+            }
+
+            if (component === 'batch-transaction') {
+                initBatchTransactionForm(modalContent, showAppToast);
+                initTooltips(modalContent);
             }
         },
     });

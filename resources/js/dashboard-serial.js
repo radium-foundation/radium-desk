@@ -182,6 +182,22 @@ export const initDashboardSerialNumbers = ({
     };
 
     card.addEventListener('click', (event) => {
+        const copyTarget = event.target.closest('[data-serial-copy]');
+
+        if (copyTarget) {
+            event.preventDefault();
+
+            const serial = copyTarget.dataset.serialCopy?.trim() ?? '';
+
+            if (serial !== '') {
+                navigator.clipboard.writeText(serial).then(() => {
+                    showToast?.('Serial copied');
+                });
+            }
+
+            return;
+        }
+
         const cell = event.target.closest('[data-inline-serial="true"]');
 
         if (cell && event.target.closest('.serial-cell-trigger')) {

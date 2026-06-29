@@ -4,10 +4,14 @@
     $status = $order->completionStatus();
 @endphp
 
-<span @class([
-    'badge',
-    'text-bg-warning' => $status === \App\Enums\OrderCompletionStatus::PendingAdmin,
-    'text-bg-success' => $status === \App\Enums\OrderCompletionStatus::Completed,
-])>
-    {{ $status->label() }}
-</span>
+@if($status === \App\Enums\OrderCompletionStatus::PendingAdmin)
+    <span class="badge text-bg-warning"
+          data-bs-toggle="tooltip"
+          data-bs-placement="top"
+          data-bs-title="Pending Admin"
+          aria-label="Pending Admin">P</span>
+@else
+    <span class="badge text-bg-success">
+        {{ $status->label() }}
+    </span>
+@endif
