@@ -79,7 +79,8 @@ class WorkspaceDashboardAssignTest extends TestCase
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $this->createOpenIncident($agent);
+        $incident = $this->createOpenIncident($agent);
+        $incident->update(['assigned_to_user_id' => $agent->id]);
 
         $this->actingAs($agent)
             ->get(route('dashboard'))

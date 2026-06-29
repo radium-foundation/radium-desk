@@ -1,13 +1,34 @@
 @php
+    use App\Services\DashboardPersonalizationService;
+
     $activeFilter = $serviceCaseFilter ?? 'pending_admin';
     $dashboardService = app(\App\Services\DashboardService::class);
-    $serviceCaseFilterCounts = $dashboardService->serviceCaseFilterCounts();
+    $assignedToScope = $assignedToScope ?? null;
+    $serviceCaseFilterCounts = $dashboardService->serviceCaseFilterCounts($assignedToScope);
+    $availableServiceCaseFilters = $availableServiceCaseFilters ?? ['all', 'pending_admin', 'completed', 'high_priority'];
+    $dashboardView = $dashboardView ?? DashboardPersonalizationService::VIEW_ALL;
+    $personalization = app(DashboardPersonalizationService::class);
+    $defaultView = $personalization->defaultViewFor(auth()->user());
     $serviceCaseFilterMeta = [
         'all' => ['label' => 'All', 'icon' => 'bi-grid-3x3-gap-fill', 'tone' => 'primary'],
         'pending_admin' => ['label' => 'Pending Admin', 'icon' => 'bi-clock', 'tone' => 'warning'],
         'completed' => ['label' => 'Completed', 'icon' => 'bi-check-circle-fill', 'tone' => 'success'],
         'high_priority' => ['label' => 'High Priority', 'icon' => 'bi-flag-fill', 'tone' => 'danger'],
     ];
+
+    $filterUrl = function (string $filterKey) use ($dashboardView, $defaultView): string {
+        $params = [];
+
+        if ($dashboardView !== $defaultView) {
+            $params['view'] = $dashboardView;
+        }
+
+        if ($filterKey !== app(DashboardPersonalizationService::class)->defaultFilterFor(auth()->user(), $dashboardView)) {
+            $params['filter'] = $filterKey;
+        }
+
+        return route('dashboard', $params);
+    };
 @endphp
 
 <div class="card border-0 shadow-sm dashboard-service-cases-card">
@@ -18,7 +39,7 @@
                     <span class="dashboard-cases-header__icon" aria-hidden="true">
                         <i class="bi bi-clipboard-data"></i>
                     </span>
-                    <h2 class="dashboard-cases-title mb-0">Recent Service Cases</h2>
+                    <h2 class="dashboard-cases-title mb-0">{{ $serviceCasePanelTitle ?? 'Recent Service Cases' }}</h2>
                 </div>
                 @can('viewAny', App\Models\Incident::class)
                     <a href="{{ route('incidents.index') }}"
@@ -57,7 +78,8 @@
                      role="group"
                      aria-label="Service case filters">
                     @foreach($serviceCaseFilterMeta as $filterKey => $filterMeta)
-                        <a href="{{ route('dashboard', ['filter' => $filterKey]) }}"
+                        @continue(! in_array($filterKey, $availableServiceCaseFilters, true))
+                        <a href="{{ $filterUrl($filterKey) }}"
                            @class([
                                'dashboard-case-filter-chip',
                                'dashboard-case-filter-chip--' . $filterMeta['tone'],

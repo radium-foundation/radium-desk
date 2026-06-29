@@ -24,6 +24,36 @@ class DashboardServiceCasesTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function createAssignedIncident(User $agent, array $attributes = []): Incident
+    {
+        $order = Order::query()->create([
+            'order_id' => $attributes['order_id'] ?? 'RD-AGENT-'.uniqid(),
+            'serial_number' => $attributes['serial_number'] ?? 'SN-AGENT-'.uniqid(),
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        return Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => $attributes['reference_no'] ?? app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => $attributes['source'] ?? IncidentSource::Call,
+            'title' => $attributes['title'] ?? 'Agent dashboard case',
+            'description' => $attributes['description'] ?? 'Agent dashboard case.',
+            'status' => $attributes['status'] ?? 'open',
+            'high_priority' => $attributes['high_priority'] ?? false,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+            ...$attributes,
+        ]);
+    }
+
     public function test_dashboard_shows_service_case_grid_columns(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:35:00'));
@@ -49,6 +79,7 @@ class DashboardServiceCasesTest extends TestCase
             'description' => 'Initial service case logged from dashboard.',
             'status' => 'open',
             'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
         ]);
 
         Carbon::setTestNow(Carbon::parse('2026-06-24 20:47:00'));
@@ -56,7 +87,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Recent Service Cases')
+            ->assertSee('My Work')
             ->assertSee('SC00001')
             ->assertSee(route('orders.show', $order), false)
             ->assertSee('RD3421021')
@@ -100,6 +131,7 @@ class DashboardServiceCasesTest extends TestCase
             'description' => 'Testing first name display.',
             'status' => 'open',
             'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
         ]);
 
         $this->actingAs($agent)
@@ -169,8 +201,8 @@ class DashboardServiceCasesTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-06-24 07:45:00'));
 
-        $agent = User::factory()->create(['name' => 'Ravi']);
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $admin = User::factory()->create(['name' => 'Ravi']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $order = Order::query()->create([
             'order_id' => 'RD-COMPLETE-1',
@@ -178,7 +210,7 @@ class DashboardServiceCasesTest extends TestCase
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'status' => 'active',
-            'created_by' => $agent->id,
+            'created_by' => $admin->id,
         ]);
 
         Incident::query()->create([
@@ -189,7 +221,7 @@ class DashboardServiceCasesTest extends TestCase
             'title' => 'Completed service case',
             'description' => 'Completed service case for tooltip test.',
             'status' => 'open',
-            'created_by' => $agent->id,
+            'created_by' => $admin->id,
         ]);
 
         Carbon::setTestNow(Carbon::parse('2026-06-25 10:45:00'));
@@ -199,7 +231,7 @@ class DashboardServiceCasesTest extends TestCase
             'completed_at' => now(),
         ]);
 
-        $this->actingAs($agent)
+        $this->actingAs($admin)
             ->get(route('dashboard', ['filter' => 'completed']))
             ->assertOk()
             ->assertSee('Completed')
@@ -421,6 +453,7 @@ class DashboardServiceCasesTest extends TestCase
             'description' => 'Agent view.',
             'status' => 'open',
             'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
         ]);
 
         $this->actingAs($agent)
@@ -498,6 +531,7 @@ class DashboardServiceCasesTest extends TestCase
             'description' => 'SLA tooltip html test.',
             'status' => 'open',
             'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
         ]);
         $incident->forceFill([
             'created_at' => $createdAt,
@@ -545,6 +579,7 @@ class DashboardServiceCasesTest extends TestCase
             'status' => 'open',
             'high_priority' => false,
             'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
         ]);
         $warningIncident->forceFill([
             'created_at' => $warningCreatedAt,
@@ -562,6 +597,7 @@ class DashboardServiceCasesTest extends TestCase
             'status' => 'open',
             'high_priority' => true,
             'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
         ]);
         $overdueIncident->forceFill([
             'created_at' => $overdueCreatedAt,
@@ -704,8 +740,8 @@ class DashboardServiceCasesTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-06-26 20:00:00'));
 
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $order = Order::query()->create([
             'order_id' => 'RD-SLA-DONE',
@@ -715,7 +751,7 @@ class DashboardServiceCasesTest extends TestCase
             'transaction_id' => 'TX-DONE',
             'completed_at' => now()->subHour(),
             'status' => 'active',
-            'created_by' => $agent->id,
+            'created_by' => $admin->id,
         ]);
 
         $incident = Incident::query()->create([
@@ -726,14 +762,14 @@ class DashboardServiceCasesTest extends TestCase
             'title' => 'Completed SLA',
             'description' => 'Completed SLA case.',
             'status' => 'open',
-            'created_by' => $agent->id,
+            'created_by' => $admin->id,
         ]);
         $incident->forceFill([
             'created_at' => now()->subDays(5),
             'updated_at' => now()->subDays(5),
         ])->saveQuietly();
 
-        $this->actingAs($agent)
+        $this->actingAs($admin)
             ->get(route('dashboard', ['filter' => 'completed']))
             ->assertOk()
             ->assertSee('Within SLA')

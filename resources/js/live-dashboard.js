@@ -208,6 +208,7 @@ const flushPendingDashboardRefresh = async () => {
 const refreshDashboard = async (pageRoot) => {
     const liveUrl = pageRoot.dataset.liveUrl;
     const filter = pageRoot.dataset.liveFilter ?? 'pending_admin';
+    const view = pageRoot.dataset.liveView ?? 'all';
 
     if (!liveUrl || document.hidden || refreshInFlight) {
         return;
@@ -216,7 +217,13 @@ const refreshDashboard = async (pageRoot) => {
     refreshInFlight = true;
 
     try {
-        const response = await fetch(`${liveUrl}?filter=${encodeURIComponent(filter)}`, {
+        const query = new URLSearchParams({ filter });
+
+        if (view && view !== 'all') {
+            query.set('view', view);
+        }
+
+        const response = await fetch(`${liveUrl}?${query.toString()}`, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',

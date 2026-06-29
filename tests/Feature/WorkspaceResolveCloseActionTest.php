@@ -525,7 +525,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
     public function test_dashboard_shows_resolve_and_close_triggers_for_updatable_cases(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
-        $this->createIncident($agent);
+        $this->createIncident($agent, ['assigned_to_user_id' => $agent->id]);
 
         $this->actingAs($agent)
             ->get(route('dashboard'))
@@ -537,7 +537,10 @@ class WorkspaceResolveCloseActionTest extends TestCase
     public function test_dashboard_hides_resolve_and_close_for_closed_cases(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
-        $this->createIncident($agent, ['status' => IncidentStatus::Closed]);
+        $this->createIncident($agent, [
+            'status' => IncidentStatus::Closed,
+            'assigned_to_user_id' => $agent->id,
+        ]);
 
         $this->actingAs($agent)
             ->get(route('dashboard'))

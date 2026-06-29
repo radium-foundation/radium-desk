@@ -7,9 +7,13 @@ return [
                 'label' => 'All',
                 'icon' => 'bi-grid-3x3-gap-fill',
             ],
-            'service_cases' => [
-                'label' => 'Service Cases',
-                'icon' => 'bi-clipboard-data',
+            'team' => [
+                'label' => 'Team',
+                'icon' => 'bi-people-fill',
+            ],
+            'my_work' => [
+                'label' => 'My Work',
+                'icon' => 'bi-person-check-fill',
             ],
             'hardware_orders' => [
                 'label' => 'Hardware Orders',

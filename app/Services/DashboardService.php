@@ -176,11 +176,19 @@ class DashboardService
         ];
     }
 
-    public function recentServiceCases(string $filter = 'pending_admin', ?int $limit = 10): Collection
-    {
+    public function recentServiceCases(
+        string $filter = 'pending_admin',
+        ?int $limit = 10,
+        ?User $assignedTo = null,
+        bool $prioritizeRecentAssignments = false,
+    ): Collection {
         $query = Incident::query()
             ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee'])
             ->whereIn('status', IncidentStatus::operationallyActive());
+
+        if ($assignedTo !== null) {
+            $query->where('assigned_to_user_id', $assignedTo->id);
+        }
 
         match ($filter) {
             'pending_admin' => $query->whereHas('order', function ($orderQuery): void {
@@ -217,7 +225,7 @@ class DashboardService
             default => $incidents,
         };
 
-        $sorted = $this->sortIncidentsForDashboard($incidents);
+        $sorted = $this->sortIncidentsForDashboard($incidents, $prioritizeRecentAssignments);
 
         if ($limit !== null) {
             $sorted = $sorted->take($limit);
@@ -234,10 +242,12 @@ class DashboardService
     /**
      * @return array<string, int>
      */
-    public function serviceCaseFilterCounts(): array
+    public function serviceCaseFilterCounts(?User $assignedTo = null): array
     {
         return collect(['all', 'pending_admin', 'completed', 'high_priority'])
-            ->mapWithKeys(fn (string $key): array => [$key => $this->recentServiceCases($key, null)->count()])
+            ->mapWithKeys(fn (string $key): array => [
+                $key => $this->recentServiceCases($key, null, $assignedTo)->count(),
+            ])
             ->all();
     }
 
@@ -273,12 +283,20 @@ class DashboardService
      * @param  Collection<int, Incident>  $incidents
      * @return Collection<int, Incident>
      */
-    private function sortIncidentsForDashboard(Collection $incidents): Collection
+    private function sortIncidentsForDashboard(Collection $incidents, bool $prioritizeRecentAssignments = false): Collection
     {
         $now = now();
 
         return $incidents
-            ->sort(function (Incident $left, Incident $right) use ($now): int {
+            ->sort(function (Incident $left, Incident $right) use ($now, $prioritizeRecentAssignments): int {
+                if ($prioritizeRecentAssignments) {
+                    $updatedComparison = ($right->updated_at?->timestamp ?? 0) <=> ($left->updated_at?->timestamp ?? 0);
+
+                    if ($updatedComparison !== 0) {
+                        return $updatedComparison;
+                    }
+                }
+
                 $rankComparison = $left->slaSortRank($now) <=> $right->slaSortRank($now);
 
                 if ($rankComparison !== 0) {

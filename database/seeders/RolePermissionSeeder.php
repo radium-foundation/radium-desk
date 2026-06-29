@@ -31,6 +31,7 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
         ],
         self::ROLE_ADMIN => [
+            'dashboard.hardware.view',
             'orders.view',
             'orders.create',
             'orders.update',
@@ -51,6 +52,7 @@ class RolePermissionSeeder extends Seeder
             'users.manage',
         ],
         self::ROLE_SUPERADMIN => [
+            'dashboard.hardware.view',
             'orders.view',
             'orders.create',
             'orders.update',

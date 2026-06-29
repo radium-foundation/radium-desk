@@ -268,7 +268,7 @@ class ServiceCaseAssignmentTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $this->actingAs($agent)
+        $this->actingAs($avinash)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Owner', false)

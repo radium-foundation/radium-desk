@@ -4,16 +4,8 @@
 
 @section('content')
     @php
-        $dashboardModules = config('ui.dashboard.modules', []);
-        $requestedView = request()->query('view', 'all');
-        $legacyHardwareViews = ['warehouse', 'dispatch'];
-        $dashboardView = match (true) {
-            in_array($requestedView, $legacyHardwareViews, true) => 'hardware_orders',
-            array_key_exists($requestedView, $dashboardModules) => $requestedView,
-            default => 'all',
-        };
-        $showServiceCasesPanel = in_array($dashboardView, ['all', 'service_cases'], true);
-        $showHardwareOrdersPanel = $dashboardView === 'hardware_orders';
+        $showServiceCasesPanel = ($dashboardView ?? 'all') !== 'hardware_orders';
+        $showHardwareOrdersPanel = ($dashboardView ?? 'all') === 'hardware_orders';
     @endphp
 
     <div class="app-content-compact"
@@ -21,6 +13,7 @@
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
          data-live-filter="{{ $serviceCaseFilter ?? 'pending_admin' }}"
+         data-live-view="{{ $dashboardView ?? 'all' }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
          data-user-id="{{ auth()->id() }}"
@@ -47,24 +40,35 @@
             @include('dashboard.partials.kpi-strip', ['stats' => $stats])
         </div>
 
-        @include('dashboard.partials.module-nav')
+        @if($showsModuleNavigation ?? false)
+            @include('dashboard.partials.module-nav', [
+                'dashboardModules' => $dashboardModules ?? [],
+                'dashboardView' => $dashboardView ?? 'all',
+            ])
+        @endif
 
         @if($showServiceCasesPanel && ($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view')))
             <div class="dashboard-primary-panel mb-1">
                 @include('dashboard.partials.recent-service-cases', [
                     'recentServiceCases' => $recentServiceCases,
                     'serviceCaseFilter' => $serviceCaseFilter ?? 'pending_admin',
+                    'dashboardView' => $dashboardView ?? 'all',
+                    'serviceCasePanelTitle' => $serviceCasePanelTitle ?? 'Recent Service Cases',
+                    'availableServiceCaseFilters' => $availableServiceCaseFilters ?? ['all', 'pending_admin', 'completed', 'high_priority'],
+                    'assignedToScope' => $assignedToScope ?? null,
                     'canManageTransactions' => $canManageTransactions ?? false,
                     'canReassignServiceCases' => $canReassignServiceCases ?? false,
                 ])
             </div>
         @endif
 
-        @if($showHardwareOrdersPanel)
-            <div class="dashboard-primary-panel mb-1">
-                @include('dashboard.partials.hardware-orders-placeholder')
-            </div>
-        @endif
+        @can('viewDashboardHardware')
+            @if($showHardwareOrdersPanel)
+                <div class="dashboard-primary-panel mb-1">
+                    @include('dashboard.partials.hardware-orders-placeholder')
+                </div>
+            @endif
+        @endcan
 
         @if($recentActivity->isNotEmpty())
             @include('dashboard.partials.recent-activity-feed', ['recentActivity' => $recentActivity])

@@ -6,6 +6,8 @@ use App\Models\DeviceModel;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
 use App\Listeners\BroadcastNotificationCreated;
+use App\Models\User;
+use App\Policies\DashboardPolicy;
 use App\Policies\SettingPolicy;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
@@ -34,6 +36,8 @@ class AppServiceProvider extends ServiceProvider
         $this->applyApplicationTimezone();
 
         Event::listen(NotificationSent::class, BroadcastNotificationCreated::class);
+
+        Gate::define('viewDashboardHardware', fn (User $user): bool => app(DashboardPolicy::class)->viewHardware($user));
 
         Gate::policy(SettingProduct::class, SettingPolicy::class);
         Gate::policy(SettingSource::class, SettingPolicy::class);
