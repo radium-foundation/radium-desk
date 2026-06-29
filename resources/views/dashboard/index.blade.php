@@ -40,7 +40,6 @@
                     'recentServiceCases' => $recentServiceCases,
                     'serviceCaseFilter' => $serviceCaseFilter ?? 'pending_admin',
                     'canManageTransactions' => $canManageTransactions ?? false,
-                    'canAssignDeviceModel' => $canAssignDeviceModel ?? false,
                     'canReassignServiceCases' => $canReassignServiceCases ?? false,
                 ])
             </div>
@@ -60,10 +59,4 @@
     @endif
 
     @include('dashboard.partials.serial-number-modal')
-
-    @if(auth()->user()?->can('incidents.update'))
-        @include('dashboard.partials.device-model-modal', [
-            'activeDeviceModels' => app(\App\Services\DeviceModelSettingsService::class)->activeOptions(),
-        ])
-    @endif
 @endsection

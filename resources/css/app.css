@@ -668,8 +668,7 @@ a:focus-visible .stat-card {
     flex-shrink: 0;
 }
 
-.dashboard-bulk-toolbar__assign,
-.dashboard-bulk-toolbar__clear {
+.dashboard-bulk-toolbar__assign {
     display: inline-flex;
     align-items: center;
     gap: 0.3125rem;
@@ -683,8 +682,7 @@ a:focus-visible .stat-card {
     align-items: center;
 }
 
-.dashboard-bulk-toolbar__assign .bi,
-.dashboard-bulk-toolbar__clear .bi {
+.dashboard-bulk-toolbar__assign .bi {
     font-size: 0.75rem;
     line-height: 1;
 }

@@ -5,7 +5,6 @@ import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initDashboardQuickFilter } from './dashboard-filter';
 import { initDashboardSerialNumbers } from './dashboard-serial';
 import { initBatchTransactionForm } from './dashboard-batch-transaction';
-import { initDashboardDeviceModels } from './dashboard-device-model';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
 import { initServiceCaseShow } from './service-case-show';
@@ -246,7 +245,7 @@ const showAppToast = (message, variant = 'success') => {
     toast.show();
 };
 
-const initDashboardTransactions = ({ pageRoot, openBatchModal, openBatchDeviceModelModal, onRowUpdated } = {}) => {
+const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
@@ -268,7 +267,6 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, openBatchDeviceMo
         card,
         pageRoot: pageRoot ?? document,
         openBatchModal,
-        openBatchDeviceModelModal,
     });
 
     const openInlineEditor = (cell) => {
@@ -484,7 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
     const dashboardTransactionsRef = { current: null };
     const dashboardSerialRef = { current: null };
-    const dashboardDeviceModelRef = { current: null };
     let dashboardQuickFilter = null;
 
     const workspaceApi = initWorkspace({
@@ -540,9 +537,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pageRoot,
         openBatchModal: (incidentIds) => {
             workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
-        },
-        openBatchDeviceModelModal: (incidentIds) => {
-            dashboardDeviceModelRef.current?.openBulkModal?.(incidentIds);
         },
         onRowUpdated: () => {
             dashboardQuickFilter?.reapply();
@@ -641,14 +635,6 @@ document.addEventListener('DOMContentLoaded', () => {
             dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
         )(...args),
         showToast: showAppToast,
-    });
-
-    dashboardDeviceModelRef.current = initDashboardDeviceModels({
-        replaceServiceCaseRow: (...args) => (
-            dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
-        )(...args),
-        showToast: showAppToast,
-        getBatchSession: () => dashboardTransactionsRef.current?.batchSession,
     });
 
     initKeyboardShortcuts({

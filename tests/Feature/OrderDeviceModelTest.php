@@ -129,7 +129,7 @@ class OrderDeviceModelTest extends TestCase
         }
     }
 
-    public function test_dashboard_row_shows_plus_when_device_model_missing(): void
+    public function test_dashboard_row_shows_dash_when_device_model_missing(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -159,8 +159,9 @@ class OrderDeviceModelTest extends TestCase
 
         $response->assertOk();
         $html = $response->json('html');
-        $this->assertStringContainsString('data-device-model-cell="true"', $html);
-        $this->assertStringContainsString('Assign model', $html);
+        $this->assertStringNotContainsString('data-device-model-cell="true"', $html);
+        $this->assertStringNotContainsString('Assign model', $html);
+        $this->assertStringContainsString('—', $html);
     }
 
     public function test_dashboard_row_shows_model_name_without_plus_when_assigned(): void
@@ -268,7 +269,7 @@ class OrderDeviceModelTest extends TestCase
             ->assertSee('Assigned At', false);
     }
 
-    public function test_dashboard_shows_bulk_device_model_action_for_admin(): void
+    public function test_dashboard_does_not_show_bulk_device_model_action_for_admin(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -276,6 +277,7 @@ class OrderDeviceModelTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Assign Model', false);
+            ->assertDontSee('Assign Model', false)
+            ->assertDontSee('data-batch-device-model-assign', false);
     }
 }

@@ -167,13 +167,10 @@ class DashboardService
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ]);
 
-        $canAssignDeviceModel = $user->can('incidents.update');
-
         return [
             'serviceCase' => $serviceCase,
             'canManageTransactions' => $canManageTransactions,
             'canSelectRows' => $canManageTransactions,
-            'canAssignDeviceModel' => $canAssignDeviceModel,
             'canReassignServiceCases' => $canManageTransactions,
             'canCreateRemarks' => $user->can('create', Remark::class),
         ];

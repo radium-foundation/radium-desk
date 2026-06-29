@@ -43,22 +43,6 @@
                                 <i class="bi bi-link-45deg" aria-hidden="true"></i>
                                 Assign Service Reference
                             </button>
-                            @if($canAssignDeviceModel ?? false)
-                                <button type="button"
-                                        class="btn btn-sm btn-outline-primary dashboard-btn-compact dashboard-bulk-toolbar__device-model"
-                                        data-batch-device-model-assign
-                                        disabled>
-                                    <i class="bi bi-box-seam" aria-hidden="true"></i>
-                                    Assign Model
-                                </button>
-                            @endif
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary dashboard-btn-compact dashboard-bulk-toolbar__clear d-none"
-                                    data-batch-clear
-                                    disabled>
-                                <i class="bi bi-x-lg" aria-hidden="true"></i>
-                                Clear Selection
-                            </button>
                         </div>
                         <span class="visually-hidden" data-bulk-idle-hint>
                             Select one or more rows for batch actions.

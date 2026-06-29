@@ -11,7 +11,6 @@ const buildDashboardDom = () => {
                     <span class="d-none" data-bulk-selected-label>Selected: <span data-bulk-count>0</span></span>
                 </span>
                 <div class="dashboard-bulk-toolbar__actions">
-                    <button type="button" class="d-none" data-batch-clear disabled>Clear</button>
                     <button type="button" data-batch-assign disabled>Assign</button>
                 </div>
             </div>
@@ -75,7 +74,6 @@ describe('createBatchTransactionSession', () => {
         expect(document.querySelector('[data-bulk-idle-hint]').classList.contains('d-none')).toBe(false);
         expect(document.querySelector('[data-bulk-selected-label]').classList.contains('d-none')).toBe(true);
         expect(document.querySelector('[data-batch-assign]').disabled).toBe(true);
-        expect(document.querySelector('[data-batch-clear]').classList.contains('d-none')).toBe(true);
     });
 
     it('activates inline toolbar with selected count when rows are selected', () => {
@@ -89,7 +87,6 @@ describe('createBatchTransactionSession', () => {
         expect(document.querySelector('[data-bulk-selected-label]').classList.contains('d-none')).toBe(false);
         expect(document.querySelector('[data-bulk-count]').textContent).toBe('1');
         expect(document.querySelector('[data-batch-assign]').disabled).toBe(false);
-        expect(document.querySelector('[data-batch-clear]').classList.contains('d-none')).toBe(false);
         expect(document.getElementById('service-case-row-1').classList.contains('dashboard-case-row--selected')).toBe(true);
     });
 
@@ -146,13 +143,13 @@ describe('createBatchTransactionSession', () => {
         expect(document.querySelector('.service-case-select[value="2"]').checked).toBe(true);
     });
 
-    it('clears selection, visual state, and deactivates toolbar via delegated clear click', () => {
+    it('clears selection programmatically after batch result handling empties selection', () => {
         const session = getWorkspaceSession();
         const checkbox = document.querySelector('.service-case-select[value="1"]');
 
         checkbox.checked = true;
         batchSession.handleCheckboxChange(checkbox);
-        document.querySelector('[data-batch-clear]').click();
+        batchSession.handleBatchResult([1], []);
 
         expect(checkbox.checked).toBe(false);
         expect(document.getElementById('service-case-row-1').classList.contains('dashboard-case-row--selected')).toBe(false);
@@ -160,6 +157,5 @@ describe('createBatchTransactionSession', () => {
         expect(document.querySelector('[data-bulk-bar]').classList.contains('dashboard-bulk-toolbar--active')).toBe(false);
         expect(document.querySelector('[data-bulk-idle-hint]').classList.contains('d-none')).toBe(false);
         expect(document.querySelector('[data-bulk-selected-label]').classList.contains('d-none')).toBe(true);
-        expect(document.querySelector('[data-batch-clear]').classList.contains('d-none')).toBe(true);
     });
 });
