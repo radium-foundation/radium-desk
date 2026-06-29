@@ -212,4 +212,193 @@ class RadiumBoxOrderEnrichmentTest extends TestCase
 
         Http::assertSentCount(1);
     }
+
+    public function test_background_enrichment_assigns_unique_serial(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'rd_order' => [
+                        'serial_no' => 'M250546898',
+                        'product_name' => 'Access FM220U L1',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $agent = User::factory()->create();
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3434846',
+            'serial_number' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $service = app(\App\Services\RadiumBox\RadiumBoxService::class);
+        $result = $service->enrichOrderFromBackgroundSync($order);
+
+        $order->refresh();
+
+        $this->assertTrue($result['applied']);
+        $this->assertTrue($result['persistence']->serialApplied);
+        $this->assertSame('M250546898', $order->serial_number);
+        $this->assertSame('Access FM220U L1', $order->device_model);
+    }
+
+    public function test_background_enrichment_skips_duplicate_serial_and_logs_warning(): void
+    {
+        Log::spy();
+
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'rd_order' => [
+                        'serial_no' => '7881953',
+                        'product_name' => 'MFS110',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $agent = User::factory()->create();
+
+        Order::query()->create([
+            'order_id' => 'RD3432834',
+            'serial_number' => '7881953',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incomingOrder = Order::query()->create([
+            'order_id' => 'RD3434846',
+            'serial_number' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $service = app(\App\Services\RadiumBox\RadiumBoxService::class);
+        $result = $service->enrichOrderFromBackgroundSync($incomingOrder);
+
+        $incomingOrder->refresh();
+
+        $this->assertTrue($result['applied']);
+        $this->assertFalse($result['persistence']->serialApplied);
+        $this->assertNull($incomingOrder->serial_number);
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Duplicate serial prevented.'
+                    && ($context['incoming_order_id'] ?? null) === 'RD3434846'
+                    && ($context['existing_owner_order_id'] ?? null) === 'RD3432834'
+                    && ($context['serial_number'] ?? null) === '7881953';
+            });
+    }
+
+    public function test_background_enrichment_still_updates_device_model_when_serial_is_duplicate(): void
+    {
+        Log::spy();
+
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'rd_order' => [
+                        'serial_no' => '7881953',
+                        'product_name' => 'MFS110',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $agent = User::factory()->create();
+
+        Order::query()->create([
+            'order_id' => 'RD3432834',
+            'serial_number' => '7881953',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incomingOrder = Order::query()->create([
+            'order_id' => 'RD3434846',
+            'serial_number' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $service = app(\App\Services\RadiumBox\RadiumBoxService::class);
+        $result = $service->enrichOrderFromBackgroundSync($incomingOrder);
+
+        $incomingOrder->refresh();
+
+        $this->assertTrue($result['applied']);
+        $this->assertFalse($result['persistence']->serialApplied);
+        $this->assertTrue($result['persistence']->deviceModelApplied);
+        $this->assertNull($incomingOrder->serial_number);
+        $this->assertSame('MFS110', $incomingOrder->device_model);
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->with('Duplicate serial prevented.', \Mockery::type('array'));
+    }
+
+    public function test_workspace_enrichment_skips_duplicate_serial_without_blocking_other_fields(): void
+    {
+        Log::spy();
+
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'rd_order' => [
+                        'serial_no' => '7881953',
+                        'product_name' => 'MFS110',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD3432834',
+            'serial_number' => '7881953',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incomingOrder = Order::query()->create([
+            'order_id' => 'RD3434846',
+            'serial_number' => null,
+            'device_model' => null,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('orders.show', $incomingOrder))
+            ->assertOk()
+            ->assertSee('MFS110')
+            ->assertDontSee('7881953');
+
+        $incomingOrder->refresh();
+
+        $this->assertNull($incomingOrder->serial_number);
+        $this->assertSame('MFS110', $incomingOrder->device_model);
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(fn (string $message): bool => $message === 'Duplicate serial prevented.');
+    }
 }

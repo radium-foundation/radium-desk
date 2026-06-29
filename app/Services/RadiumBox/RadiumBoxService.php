@@ -4,6 +4,7 @@ namespace App\Services\RadiumBox;
 
 use App\Data\EnrichmentPersistenceResult;
 use App\Models\Order;
+use Illuminate\Support\Facades\Log;
 
 class RadiumBoxService
 {
@@ -136,7 +137,23 @@ class RadiumBoxService
         $updates = [];
 
         if (! $order->isSerialLocked() && filled($enrichment->serialNumber)) {
-            $updates['serial_number'] = $enrichment->serialNumber;
+            $serialNumber = strtoupper(trim($enrichment->serialNumber));
+
+            if ($serialNumber !== '') {
+                $existingOwner = $this->findSerialOwner($order, $serialNumber);
+
+                if ($existingOwner !== null) {
+                    Log::warning('Duplicate serial prevented.', [
+                        'incoming_order_id' => $order->order_id,
+                        'incoming_order_db_id' => $order->id,
+                        'existing_owner_order_id' => $existingOwner->order_id,
+                        'existing_owner_db_id' => $existingOwner->id,
+                        'serial_number' => $serialNumber,
+                    ]);
+                } else {
+                    $updates['serial_number'] = $serialNumber;
+                }
+            }
         }
 
         if (! $order->hasDeviceModelAssigned() && ! filled($order->device_model) && filled($enrichment->deviceModel)) {
@@ -144,6 +161,14 @@ class RadiumBoxService
         }
 
         return $updates;
+    }
+
+    private function findSerialOwner(Order $order, string $serialNumber): ?Order
+    {
+        return Order::query()
+            ->where('serial_number', $serialNumber)
+            ->whereKeyNot($order->id)
+            ->first(['id', 'order_id', 'serial_number']);
     }
 
     private function emptyPersistenceResult(): EnrichmentPersistenceResult
