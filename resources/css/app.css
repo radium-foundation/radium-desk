@@ -906,7 +906,12 @@ a:focus-visible .stat-card {
     color: #6c757d;
 }
 
-.dashboard-cases-table .case-serial-cell {
+.dashboard-cases-table thead th.case-serial-cell {
+    width: 7rem;
+    max-width: 7rem;
+}
+
+.dashboard-cases-table td.case-serial-cell {
     color: #868e96;
     width: 7rem;
     max-width: 7rem;
@@ -987,12 +992,12 @@ a:focus-visible .stat-card {
     word-break: break-all;
 }
 
-.dashboard-cases-table .case-serial-cell a {
+.dashboard-cases-table td.case-serial-cell a {
     font-weight: 400;
     color: #868e96;
 }
 
-.dashboard-cases-table .case-serial-cell a:hover {
+.dashboard-cases-table td.case-serial-cell a:hover {
     color: #495057;
 }
 
@@ -1475,11 +1480,11 @@ a:focus-visible .stat-card {
     min-width: 0;
 }
 
-.dashboard-cases-table .case-serial-cell.is-serial-inline-open {
+.dashboard-cases-table td.case-serial-cell.is-serial-inline-open {
     z-index: 6;
 }
 
-.dashboard-cases-table .case-serial-cell.is-serial-inline-open .transaction-inline-editor {
+.dashboard-cases-table td.case-serial-cell.is-serial-inline-open .transaction-inline-editor {
     position: absolute;
     top: 50%;
     left: var(--dashboard-space-2);
@@ -1490,7 +1495,7 @@ a:focus-visible .stat-card {
     z-index: 1;
 }
 
-.dashboard-cases-table .case-serial-cell.is-serial-inline-open .transaction-inline-editor .input-group {
+.dashboard-cases-table td.case-serial-cell.is-serial-inline-open .transaction-inline-editor .input-group {
     min-width: 11rem;
     width: 100%;
     background-color: var(--bs-body-bg, #fff);
@@ -1498,13 +1503,13 @@ a:focus-visible .stat-card {
     border-radius: var(--dashboard-radius-sm);
 }
 
-.dashboard-cases-table .case-serial-cell .serial-inline-error:empty {
+.dashboard-cases-table td.case-serial-cell .serial-inline-error:empty {
     display: none;
     margin: 0;
     padding: 0;
 }
 
-.dashboard-cases-table .case-serial-cell .serial-inline-error:not(:empty) {
+.dashboard-cases-table td.case-serial-cell .serial-inline-error:not(:empty) {
     position: absolute;
     top: calc(100% + 0.125rem);
     left: 0;
