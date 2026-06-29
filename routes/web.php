@@ -6,7 +6,6 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLiveController;
-use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\DashboardWorkspaceActionController;
 use App\Http\Controllers\DashboardWorkspaceComponentController;
@@ -41,7 +40,8 @@ Route::redirect('/', '/dashboard');
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
-    Route::get('/dashboard/search', [DashboardSearchController::class, 'search'])->name('dashboard.search');
+    Route::get('/search', [SearchController::class, 'search'])->name('search.index');
+    Route::get('/dashboard/search', [SearchController::class, 'search'])->name('dashboard.search');
     Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
         ->name('dashboard.service-cases.row');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
@@ -56,8 +56,6 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.workspace.batch-device-model');
     Route::post('service-requests/quick', [QuickServiceRequestController::class, 'store'])
         ->name('service-requests.quick.store');
-    Route::get('/search', [SearchController::class, 'index'])->name('search.index');
-
     Route::get('orders/lookup', [OrderController::class, 'lookup'])->name('orders.lookup');
     Route::get('orders/{order}/service-cases/create', [OrderController::class, 'createServiceCase'])
         ->name('orders.service-cases.create');

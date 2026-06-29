@@ -3,7 +3,11 @@
         <i class="bi bi-list fs-4"></i>
     </button>
 
-    <form action="{{ route('search.index') }}" method="GET" class="flex-grow-1 mx-lg-3" role="search">
+    <form action="{{ route('dashboard') }}"
+          method="GET"
+          class="flex-grow-1 mx-lg-3"
+          role="search"
+          data-universal-search-form>
         <div class="input-group">
             <span class="input-group-text bg-white border-end-0">
                 <i class="bi bi-search text-muted"></i>
@@ -13,9 +17,10 @@
                 name="q"
                 id="global-search-input"
                 class="form-control border-start-0"
-                placeholder="Search order ID, serial number, service reference..."
-                value="{{ request('q') }}"
-                aria-label="Global search"
+                placeholder="Search phone, order ID, serial, case ID, customer..."
+                value="{{ request()->routeIs('dashboard') ? request('q') : '' }}"
+                aria-label="Universal search"
+                autocomplete="off"
             >
         </div>
     </form>

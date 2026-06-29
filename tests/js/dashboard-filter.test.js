@@ -333,4 +333,46 @@ describe('initDashboardQuickFilter', () => {
         expect(input.value).toBe('');
         expect(document.querySelectorAll('.dashboard-case-row--filtered-out')).toHaveLength(0);
     });
+
+    it('bootstraps universal search from dashboard URL q param on init', async () => {
+        vi.useFakeTimers();
+
+        Object.defineProperty(window, 'location', {
+            configurable: true,
+            writable: true,
+            value: new URL('http://localhost/dashboard?q=9883534'),
+        });
+
+        buildDashboardCard('/dashboard/search');
+        document.body.insertAdjacentHTML(
+            'beforeend',
+            '<input id="global-search-input" type="search" value="">',
+        );
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                match_count: 1,
+                rows: [{
+                    incident_id: 1,
+                    html: '<tr id="service-case-row-1" data-incident-id="1" data-search-text="9883534"><td>Row 1</td></tr>',
+                }],
+            }),
+        });
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardQuickFilter({ pageRoot });
+
+        await vi.runAllTimersAsync();
+
+        expect(pageRoot.querySelector('[data-dashboard-quick-filter-input]').value).toBe('9883534');
+        expect(document.getElementById('global-search-input').value).toBe('9883534');
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining('/dashboard/search?q=9883534'),
+            expect.any(Object),
+        );
+        expect(applyRows).toHaveBeenCalledTimes(1);
+
+        vi.useRealTimers();
+    });
 });

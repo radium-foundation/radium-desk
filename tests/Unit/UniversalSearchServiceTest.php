@@ -7,13 +7,13 @@ use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\DashboardUniversalSearchService;
 use App\Services\IncidentReferenceService;
+use App\Services\UniversalSearchService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class DashboardUniversalSearchServiceTest extends TestCase
+class UniversalSearchServiceTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -72,7 +72,7 @@ class DashboardUniversalSearchServiceTest extends TestCase
             'customer_name' => '9876543210 Person',
         ]);
 
-        $results = app(DashboardUniversalSearchService::class)->search($user, '9876543210');
+        $results = app(UniversalSearchService::class)->search($user, '9876543210');
 
         $this->assertSame(
             [$phoneMatch->id, $nameMatch->id],
@@ -95,7 +95,7 @@ class DashboardUniversalSearchServiceTest extends TestCase
             'serial_number' => 'RD3434509',
         ]);
 
-        $results = app(DashboardUniversalSearchService::class)->search($user, 'RD3434509');
+        $results = app(UniversalSearchService::class)->search($user, 'RD3434509');
 
         $this->assertSame(
             [$orderMatch->id, $serialMatch->id],
@@ -108,7 +108,7 @@ class DashboardUniversalSearchServiceTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $results = app(DashboardUniversalSearchService::class)->search($user, '   ');
+        $results = app(UniversalSearchService::class)->search($user, '   ');
 
         $this->assertTrue($results->isEmpty());
     }

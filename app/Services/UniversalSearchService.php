@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
-class DashboardUniversalSearchService
+class UniversalSearchService
 {
     private const RESULT_LIMIT = 50;
 
@@ -160,7 +160,7 @@ class DashboardUniversalSearchService
         ];
     }
 
-    private function applyOrderSearchFilters(Builder $orderQuery, string $like): void
+    public function applyOrderSearchFilters(Builder $orderQuery, string $like): void
     {
         $orderQuery->where(function (Builder $builder) use ($like): void {
             $applied = false;

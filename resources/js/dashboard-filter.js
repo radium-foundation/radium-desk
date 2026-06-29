@@ -1,5 +1,6 @@
 import { applyRows } from './live-dashboard';
 import { getWorkspaceSession } from './workspace/session';
+import { syncGlobalSearchInput } from './universal-search';
 
 const FILTERED_OUT_CLASS = 'dashboard-case-row--filtered-out';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
@@ -372,6 +373,8 @@ export const initDashboardQuickFilter = ({
     };
 
     const scheduleSearch = () => {
+        syncGlobalSearchInput(input.value);
+
         clearTimeout(localDebounceTimer);
         clearTimeout(universalDebounceTimer);
 
@@ -432,13 +435,38 @@ export const initDashboardQuickFilter = ({
         }
     });
 
-    reapply();
+    const bootstrapFromUrl = () => {
+        const urlQuery = new URLSearchParams(window.location.search).get('q') ?? '';
+
+        if (urlQuery === '') {
+            return false;
+        }
+
+        input.value = urlQuery;
+        syncGlobalSearchInput(urlQuery);
+
+        return true;
+    };
+
+    if (bootstrapFromUrl() && shouldRunUniversalSearch(input.value)) {
+        scheduleSearch();
+    } else {
+        reapply();
+    }
 
     return {
         reapply,
         clearFilter,
         getQuery: () => input.value,
         isUniversalSearchActive,
+        setQuery: (query, { runSearch = false } = {}) => {
+            input.value = query;
+            syncGlobalSearchInput(query);
+
+            if (runSearch) {
+                scheduleSearch();
+            }
+        },
         setRestoreHandler: (handler) => {
             restoreDashboardRows = handler;
         },

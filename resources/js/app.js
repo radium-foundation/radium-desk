@@ -14,6 +14,7 @@ import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
 import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
+import { initUniversalSearch } from './universal-search';
 
 window.bootstrap = bootstrap;
 
@@ -550,6 +551,10 @@ document.addEventListener('DOMContentLoaded', () => {
         onFilterApplied: () => {
             dashboardTransactions?.batchSession.updateToolbar();
         },
+    });
+
+    initUniversalSearch({
+        getDashboardQuickFilter: () => dashboardQuickFilter,
     });
 
     dashboardQuickFilter?.setRestoreHandler(() => refreshDashboard(pageRoot));
