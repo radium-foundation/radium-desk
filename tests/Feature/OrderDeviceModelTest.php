@@ -202,6 +202,44 @@ class OrderDeviceModelTest extends TestCase
         $this->assertStringNotContainsString('data-device-model-cell="true"', $html);
     }
 
+    public function test_dashboard_row_shows_short_model_with_full_name_tooltip(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-MODEL-LONG',
+            'serial_number' => null,
+            'product_name' => 'MFS 110 Refrigerator Cold Storage Unit',
+            'device_model' => 'MFS 110 Refrigerator Cold Storage Unit',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-MODEL-LONG',
+            'category' => 'General',
+            'source' => 'cashfree',
+            'title' => 'Long model name',
+            'description' => 'Testing short model display.',
+            'status' => IncidentStatus::InProgress->value,
+            'created_by' => $agent->id,
+        ]);
+
+        $response = $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.row', $incident));
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('>MFS 110<', $html);
+        $this->assertStringContainsString(
+            'data-bs-title="MFS 110 Refrigerator Cold Storage Unit"',
+            $html,
+        );
+        $this->assertStringNotContainsString('>MFS 110 Refrigerator', $html);
+    }
+
     public function test_order_show_displays_device_model_assignment_metadata(): void
     {
         $agent = User::factory()->create(['name' => 'Gaurav Patel']);

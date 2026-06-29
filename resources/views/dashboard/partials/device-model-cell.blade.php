@@ -1,8 +1,11 @@
 @props(['serviceCase'])
 
 @php
+    use App\Support\DeviceModelFormatter;
+
     $order = $serviceCase->order;
-    $displayName = $order?->displayDeviceModelName();
+    $fullModelName = $order?->displayDeviceModelName();
+    $shortModelName = DeviceModelFormatter::shortDisplay($fullModelName);
     $canAssign = $order && auth()->user()?->can('assignDeviceModel', $order);
 @endphp
 
@@ -13,8 +16,10 @@
         data-incident-id="{{ $serviceCase->id }}"
         data-store-url="{{ route('orders.device-model.store', $order) }}"
     @endif>
-    @if($displayName)
-        {{ $displayName }}
+    @if($shortModelName)
+        <span data-bs-toggle="tooltip"
+              data-bs-placement="top"
+              data-bs-title="{{ $fullModelName }}">{{ $shortModelName }}</span>
     @elseif($canAssign)
         <button type="button"
                 class="device-model-cell-trigger transaction-cell-trigger dashboard-u-transaction-add dashboard-u-transition dashboard-u-focus-ring"

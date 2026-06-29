@@ -918,34 +918,13 @@ a:focus-visible .stat-card {
     overflow: hidden;
 }
 
-.dashboard-u-serial-copy {
+.dashboard-u-serial-value {
     display: block;
     width: 100%;
     max-width: 100%;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: #868e96;
-    font-weight: 400;
-    font-size: inherit;
-    line-height: inherit;
-    text-align: left;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    cursor: pointer;
-}
-
-.dashboard-u-serial-copy:hover,
-.dashboard-u-serial-copy:focus-visible {
-    color: #495057;
-    background-color: var(--dashboard-row-hover-bg, rgba(0, 0, 0, 0.04));
-    border-radius: var(--dashboard-radius-sm, 0.25rem);
-}
-
-.dashboard-u-serial-copy:focus-visible {
-    outline: 2px solid var(--dashboard-accent-primary);
-    outline-offset: 1px;
 }
 
 .batch-serial-section__header {

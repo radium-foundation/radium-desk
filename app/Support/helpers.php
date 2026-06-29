@@ -1,6 +1,7 @@
 <?php
 
 use App\Support\AppDateFormatter;
+use App\Support\DeviceModelFormatter;
 use Carbon\CarbonInterface;
 
 function app_timezone(): string
@@ -46,4 +47,9 @@ function display_app_timeline_time(?CarbonInterface $date, string $fallback = '�
 function display_app_timeline_datetime(?CarbonInterface $date, string $fallback = '—'): string
 {
     return AppDateFormatter::timelineDatetime($date) ?? $fallback;
+}
+
+function display_device_model_short(?string $fullModel, string $fallback = '—'): string
+{
+    return DeviceModelFormatter::shortDisplay($fullModel) ?? $fallback;
 }

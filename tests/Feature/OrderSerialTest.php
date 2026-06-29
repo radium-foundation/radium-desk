@@ -164,7 +164,9 @@ class OrderSerialTest extends TestCase
         $response->assertOk();
         $html = $response->json('html');
         $this->assertStringContainsString('252601401258', $html);
-        $this->assertStringContainsString('data-serial-copy="252601401258"', $html);
+        $this->assertStringContainsString('dashboard-u-serial-value', $html);
+        $this->assertStringContainsString('data-bs-title="252601401258"', $html);
+        $this->assertStringNotContainsString('data-serial-copy', $html);
         $this->assertStringNotContainsString('data-inline-serial="true"', $html);
     }
 
