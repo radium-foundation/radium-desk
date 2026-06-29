@@ -103,7 +103,7 @@
                         <input type="search"
                                id="dashboard-quick-filter-input"
                                class="dashboard-quick-filter__input dashboard-u-focus-ring"
-                               placeholder="Filter current list..."
+                               placeholder="Search by phone, order, serial, case ID..."
                                autocomplete="off"
                                data-dashboard-quick-filter-input
                                aria-describedby="dashboard-quick-filter-count">

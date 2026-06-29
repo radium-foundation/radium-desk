@@ -151,10 +151,15 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
 
         applyKpis(data.kpi_strip_html);
         applyFilterCounts(data.service_case_filter_counts);
-        applyRows(data.rows ?? [], {
-            serviceCasesEmpty: data.service_cases_empty,
-            serviceCasesEmptyHtml: data.service_cases_empty_html,
-        });
+
+        const dashboardPage = document.getElementById('dashboard-page');
+
+        if (dashboardPage?.dataset.universalSearchActive !== 'true') {
+            applyRows(data.rows ?? [], {
+                serviceCasesEmpty: data.service_cases_empty,
+                serviceCasesEmptyHtml: data.service_cases_empty_html,
+            });
+        }
 
         resolve();
     });

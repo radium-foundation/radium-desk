@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLiveController;
+use App\Http\Controllers\DashboardSearchController;
 use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\DashboardWorkspaceActionController;
 use App\Http\Controllers\DashboardWorkspaceComponentController;
@@ -40,6 +41,7 @@ Route::redirect('/', '/dashboard');
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
+    Route::get('/dashboard/search', [DashboardSearchController::class, 'search'])->name('dashboard.search');
     Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
         ->name('dashboard.service-cases.row');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])

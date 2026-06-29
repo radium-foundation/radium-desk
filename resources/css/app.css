@@ -1312,6 +1312,12 @@ a:focus-visible .stat-card {
     display: none;
 }
 
+.dashboard-cases-table tbody tr.dashboard-case-row--search-match {
+    background-color: rgba(var(--bs-warning-rgb), 0.14);
+    outline: 2px solid rgba(var(--bs-warning-rgb), 0.45);
+    outline-offset: -2px;
+}
+
 @media (max-width: 991.98px) {
     .dashboard-cases-toolbar {
         gap: 0.625rem;

@@ -1,6 +1,6 @@
 import './bootstrap';
 import * as bootstrap from 'bootstrap';
-import { initLiveDashboard, applyKpis } from './live-dashboard';
+import { initLiveDashboard, applyKpis, refreshDashboard } from './live-dashboard';
 import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initDashboardQuickFilter } from './dashboard-filter';
 import { initDashboardSerialNumbers } from './dashboard-serial';
@@ -551,6 +551,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dashboardTransactions?.batchSession.updateToolbar();
         },
     });
+
+    dashboardQuickFilter?.setRestoreHandler(() => refreshDashboard(pageRoot));
 
     const dashboardLiveHooks = {
         onRowsUpdated: () => {
