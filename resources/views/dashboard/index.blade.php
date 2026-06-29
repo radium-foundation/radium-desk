@@ -19,6 +19,7 @@
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
          data-user-id="{{ auth()->id() }}"
          data-reopen-quick-create="{{ ($reopenQuickCreate ?? false) ? 'true' : 'false' }}"
+         data-customer-360-url="{{ url('dashboard/service-cases') }}"
          @if($reverbConfigured ?? false)
          data-reverb-key="{{ config('broadcasting.connections.reverb.key') }}"
          data-reverb-host="{{ config('broadcasting.connections.reverb.options.host') }}"
@@ -85,4 +86,5 @@
     @endif
 
     @include('dashboard.partials.serial-number-modal')
+    @include('dashboard.partials.customer-360-drawer-host')
 @endsection

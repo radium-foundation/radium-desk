@@ -15,6 +15,7 @@ import { csrfToken } from './workspace/http';
 import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
+import { initCustomer360Drawer } from './customer-360-drawer';
 
 window.bootstrap = bootstrap;
 
@@ -555,6 +556,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initUniversalSearch({
         getDashboardQuickFilter: () => dashboardQuickFilter,
+    });
+
+    initCustomer360Drawer({
+        pageRoot,
+        showToast: showAppToast,
+        initTooltips,
     });
 
     dashboardQuickFilter?.setRestoreHandler(() => refreshDashboard(pageRoot));

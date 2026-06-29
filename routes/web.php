@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApprovalNumberController;
+use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\CashfreeWebhookLogController;
@@ -44,6 +45,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard/search', [SearchController::class, 'search'])->name('dashboard.search');
     Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
         ->name('dashboard.service-cases.row');
+    Route::get('dashboard/service-cases/{incident}/customer-360', [Customer360Controller::class, 'show'])
+        ->name('dashboard.service-cases.customer-360');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
         ->name('dashboard.transactions.bulk');
     Route::get('dashboard/components/batch-transaction', [DashboardWorkspaceComponentController::class, 'batchTransaction'])

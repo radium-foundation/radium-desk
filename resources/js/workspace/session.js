@@ -4,6 +4,7 @@ export const SESSION_REASONS = [
     'bulk-selection',
     'quick-create',
     'notification-dropdown',
+    'customer-360-drawer',
 ];
 
 const recomputeLockedIncidentIds = (reasons) => {

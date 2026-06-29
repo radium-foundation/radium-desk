@@ -29,6 +29,7 @@
     data-order-id="{{ $order?->id }}"
     data-search-text="{{ e($searchText) }}"
     @class([
+        'dashboard-case-row--clickable' => true,
         'dashboard-case-row--completed' => $isCompleted,
         'dashboard-case-row--pending' => $order && ! $isCompleted,
     ])>
