@@ -1,5 +1,13 @@
 @props(['order', 'showStatus' => false])
 
+@php
+    use App\Support\DeviceModelFormatter;
+
+    $formattedDeviceModel = DeviceModelFormatter::shortDisplay(
+        $order->displayDeviceModelName() ?? $order->device_model,
+    );
+@endphp
+
 <div class="row g-3">
     <div class="col-md-6">
         <label for="order_id" class="form-label">Order ID <span class="text-danger">*</span></label>
@@ -29,6 +37,7 @@
         @error('product_name')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
+        <div class="form-text">Canonical value stored on the order.</div>
     </div>
 
     <div class="col-md-6">
@@ -39,6 +48,9 @@
         @error('device_model')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
+        @if($formattedDeviceModel)
+            <div class="form-text">Dashboard display: {{ $formattedDeviceModel }}</div>
+        @endif
     </div>
 
     @if($showStatus)

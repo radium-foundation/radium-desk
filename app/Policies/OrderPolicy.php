@@ -62,4 +62,16 @@ class OrderPolicy
     {
         return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) && $order->isSerialLocked();
     }
+
+    public function correctIdentity(User $user, Order $order): bool
+    {
+        if (! $user->can('orders.update')) {
+            return false;
+        }
+
+        return $user->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ]);
+    }
 }

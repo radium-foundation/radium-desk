@@ -17,6 +17,15 @@ class UpdateOrderRequest extends FormRequest
         return $this->user()?->can('update', $order) ?? false;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('serial_number')) {
+            $this->merge([
+                'serial_number' => strtoupper(trim($this->string('serial_number')->toString())),
+            ]);
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -27,7 +36,7 @@ class UpdateOrderRequest extends FormRequest
 
         $serialRules = ['required', 'string', 'max:100'];
 
-        if ($order->isSerialLocked() && ! $this->user()?->can('unlockSerial', $order)) {
+        if ($order->isSerialLocked() && ! $this->user()?->can('correctIdentity', $order)) {
             $serialRules[] = Rule::in([$order->serial_number]);
         } else {
             $serialRules[] = Rule::unique('orders', 'serial_number')->ignore($order->id);

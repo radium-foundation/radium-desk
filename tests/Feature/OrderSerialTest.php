@@ -170,7 +170,7 @@ class OrderSerialTest extends TestCase
         $this->assertStringNotContainsString('data-inline-serial="true"', $html);
     }
 
-    public function test_admin_cannot_change_locked_serial_via_order_update(): void
+    public function test_admin_can_correct_locked_serial_via_order_update(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -194,10 +194,117 @@ class OrderSerialTest extends TestCase
                 'device_model' => 'MFS 110',
                 'status' => 'active',
             ])
+            ->assertRedirect(route('orders.show', $order))
+            ->assertSessionHas('status', 'order-updated');
+
+        $order->refresh();
+        $this->assertSame('999999999999', $order->serial_number);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'order.identity.corrected',
+            'auditable_type' => $order->getMorphClass(),
+            'auditable_id' => $order->id,
+            'user_id' => $admin->id,
+        ]);
+
+        $auditLog = AuditLog::query()
+            ->where('event', 'order.identity.corrected')
+            ->where('auditable_id', $order->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('252601401258', $auditLog->old_values['serial_number']);
+        $this->assertSame('999999999999', $auditLog->new_values['serial_number']);
+        $this->assertNotNull($auditLog->created_at);
+    }
+
+    public function test_admin_serial_correction_rejects_duplicate_serial(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        Order::query()->create([
+            'order_id' => 'RD-SERIAL-OWNER-2',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'serial_entered_by_user_id' => $admin->id,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-EDIT-DUP',
+            'serial_number' => '111111111111',
+            'serial_entered_at' => now(),
+            'serial_entered_by_user_id' => $admin->id,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('orders.update', $order), [
+                'order_id' => $order->order_id,
+                'serial_number' => '252601401258',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+            ])
             ->assertSessionHasErrors('serial_number');
 
         $order->refresh();
-        $this->assertSame('252601401258', $order->serial_number);
+        $this->assertSame('111111111111', $order->serial_number);
+    }
+
+    public function test_edit_order_form_shows_canonical_and_formatted_device_model(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-FORM-DISPLAY',
+            'serial_number' => '252601401258',
+            'product_name' => 'MFS 110 Refrigerator Cold Storage Unit',
+            'device_model' => 'MFS 110 Refrigerator Cold Storage Unit',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertSee('Canonical value stored on the order', false)
+            ->assertSee('MFS 110 Refrigerator Cold Storage Unit', false)
+            ->assertSee('Dashboard display: MFS 110', false);
+    }
+
+    public function test_correct_identity_policy_is_admin_and_superadmin_only(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-POLICY',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->assertTrue($admin->can('correctIdentity', $order));
+        $this->assertTrue($superadmin->can('correctIdentity', $order));
+        $this->assertFalse($agent->can('correctIdentity', $order));
     }
 
     public function test_unlock_serial_policy_is_superadmin_only(): void

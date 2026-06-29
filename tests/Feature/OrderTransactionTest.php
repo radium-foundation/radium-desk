@@ -468,6 +468,23 @@ class OrderTransactionTest extends TestCase
             'user_id' => $superadmin->id,
         ]);
 
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'order.identity.corrected',
+            'auditable_type' => $order->getMorphClass(),
+            'auditable_id' => $order->id,
+            'user_id' => $superadmin->id,
+        ]);
+
+        $identityAuditLog = \App\Models\AuditLog::query()
+            ->where('event', 'order.identity.corrected')
+            ->where('auditable_id', $order->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('9393471', $identityAuditLog->old_values['serial_number']);
+        $this->assertSame('9393478', $identityAuditLog->new_values['serial_number']);
+        $this->assertNotNull($identityAuditLog->created_at);
+
         $auditLog = \App\Models\AuditLog::query()
             ->where('event', 'order.updated')
             ->where('auditable_id', $order->id)

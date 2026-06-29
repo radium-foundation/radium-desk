@@ -175,11 +175,31 @@ class OrderController extends Controller
     {
         $wasCompleted = $order->isTransactionLocked();
         $attributesBeforeUpdate = $order->getAttributes();
+        $previousSerial = $order->serial_number;
 
         $order->update([
             ...collect($request->validated())->except('correction_reason')->all(),
             'updated_by' => $request->user()->id,
         ]);
+
+        $correctedSerial = $previousSerial !== null
+            && $previousSerial !== $order->serial_number
+            && $request->user()->can('correctIdentity', $order);
+
+        if ($correctedSerial) {
+            $this->auditLogService->log(
+                userId: $request->user()->id,
+                event: 'order.identity.corrected',
+                auditable: $order,
+                oldValues: [
+                    'serial_number' => $previousSerial,
+                ],
+                newValues: [
+                    'serial_number' => $order->serial_number,
+                ],
+                request: $request,
+            );
+        }
 
         if ($wasCompleted) {
             $ignoredFields = ['updated_at', 'created_at', 'deleted_at', 'updated_by'];

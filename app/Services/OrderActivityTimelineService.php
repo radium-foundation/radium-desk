@@ -173,6 +173,19 @@ class OrderActivityTimelineService
                         dedupeKey: "audit:{$auditLog->id}",
                     ),
                 ]),
+                'order.identity.corrected' => collect([
+                    new OrderTimelineEntry(
+                        occurredAt: $occurredAt,
+                        title: 'Serial Number Corrected',
+                        detail: sprintf(
+                            '%s → %s',
+                            (string) ($auditLog->old_values['serial_number'] ?? '—'),
+                            (string) ($auditLog->new_values['serial_number'] ?? '—'),
+                        ),
+                        actor: $this->automationIdentity->resolveWithRoleLabel($auditLog->user),
+                        dedupeKey: "audit:{$auditLog->id}",
+                    ),
+                ]),
                 'device-model.assigned', 'device-model.bulk-assigned' => collect([
                     new OrderTimelineEntry(
                         occurredAt: $occurredAt,
