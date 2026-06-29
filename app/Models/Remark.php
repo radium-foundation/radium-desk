@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Remark extends Model
@@ -23,5 +24,10 @@ class Remark extends Model
     public function remarkable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function mentions(): HasMany
+    {
+        return $this->hasMany(RemarkMention::class);
     }
 }

@@ -8,12 +8,13 @@ use App\Enums\IncidentStatus;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class WorkspaceCloseActionService
 {
     public function __construct(
-        private readonly ServiceCaseStatusService $statusService,
+        private readonly ServiceCaseActionRemarkService $actionRemarkService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly WorkspaceRefreshRenderer $refreshRenderer,
     ) {}
@@ -21,13 +22,26 @@ class WorkspaceCloseActionService
     public function close(
         Incident $incident,
         User $actor,
+        string $body,
         WorkspaceRequestContext $requestContext,
+        ?Request $request = null,
     ): WorkspaceActionResponse {
-        $freshIncident = $this->statusService->updateStatus(
-            incident: $incident,
-            status: IncidentStatus::Closed,
-            actor: $actor,
-        );
+        try {
+            $freshIncident = $this->actionRemarkService->execute(
+                incident: $incident,
+                actor: $actor,
+                status: IncidentStatus::Closed,
+                body: $body,
+                request: $request,
+            );
+        } catch (ValidationException $exception) {
+            return $this->validationFailure(
+                $incident,
+                $requestContext,
+                $exception,
+                $body,
+            );
+        }
 
         return $this->buildSuccessResponse($freshIncident, $requestContext, $actor);
     }
@@ -36,8 +50,13 @@ class WorkspaceCloseActionService
         Incident $incident,
         WorkspaceRequestContext $requestContext,
         ValidationException $exception,
+        ?string $body = null,
     ): WorkspaceActionResponse {
-        $fragmentHtml = $this->refreshRenderer->renderCloseFragment($incident, $requestContext);
+        $fragmentHtml = $this->refreshRenderer->renderCloseFragment(
+            $incident,
+            $requestContext,
+            $body,
+        );
 
         return WorkspaceActionResponseBuilder::make('close', $incident->id)
             ->forContext($requestContext->context)

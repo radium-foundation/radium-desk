@@ -12,6 +12,7 @@ class RemarkService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly RemarkMentionParser $mentionParser,
     ) {}
 
     public function createForRemarkable(
@@ -26,6 +27,8 @@ class RemarkService
             'remarkable_id' => $remarkable->getKey(),
             'body' => trim($body),
         ]);
+
+        $this->syncMentions($remark, $remark->body);
 
         $this->auditLogService->log(
             userId: $actor->id,
@@ -44,5 +47,16 @@ class RemarkService
         }
 
         return $remark;
+    }
+
+    private function syncMentions(Remark $remark, string $body): void
+    {
+        $mentionedUserIds = $this->mentionParser->mentionedUserIds($body);
+
+        foreach ($mentionedUserIds as $userId) {
+            $remark->mentions()->firstOrCreate([
+                'user_id' => $userId,
+            ]);
+        }
     }
 }

@@ -8,12 +8,13 @@ use App\Enums\IncidentStatus;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class WorkspaceResolveActionService
 {
     public function __construct(
-        private readonly ServiceCaseStatusService $statusService,
+        private readonly ServiceCaseActionRemarkService $actionRemarkService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly WorkspaceRefreshRenderer $refreshRenderer,
     ) {}
@@ -21,13 +22,26 @@ class WorkspaceResolveActionService
     public function resolve(
         Incident $incident,
         User $actor,
+        string $body,
         WorkspaceRequestContext $requestContext,
+        ?Request $request = null,
     ): WorkspaceActionResponse {
-        $freshIncident = $this->statusService->updateStatus(
-            incident: $incident,
-            status: IncidentStatus::Resolved,
-            actor: $actor,
-        );
+        try {
+            $freshIncident = $this->actionRemarkService->execute(
+                incident: $incident,
+                actor: $actor,
+                status: IncidentStatus::Resolved,
+                body: $body,
+                request: $request,
+            );
+        } catch (ValidationException $exception) {
+            return $this->validationFailure(
+                $incident,
+                $requestContext,
+                $exception,
+                $body,
+            );
+        }
 
         return $this->buildSuccessResponse($freshIncident, $requestContext, $actor);
     }
@@ -36,8 +50,13 @@ class WorkspaceResolveActionService
         Incident $incident,
         WorkspaceRequestContext $requestContext,
         ValidationException $exception,
+        ?string $body = null,
     ): WorkspaceActionResponse {
-        $fragmentHtml = $this->refreshRenderer->renderResolveFragment($incident, $requestContext);
+        $fragmentHtml = $this->refreshRenderer->renderResolveFragment(
+            $incident,
+            $requestContext,
+            $body,
+        );
 
         return WorkspaceActionResponseBuilder::make('resolve', $incident->id)
             ->forContext($requestContext->context)

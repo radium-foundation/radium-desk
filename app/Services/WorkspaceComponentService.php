@@ -76,10 +76,12 @@ class WorkspaceComponentService
             WorkspaceComponent::Resolve => [
                 'incident' => $incident,
                 ...$this->statusWorkspaceFields(WorkspaceComponent::Resolve, $requestContext, $incident),
+                ...$this->actionRemarkUsers(),
             ],
             WorkspaceComponent::Close => [
                 'incident' => $incident,
                 ...$this->statusWorkspaceFields(WorkspaceComponent::Close, $requestContext, $incident),
+                ...$this->actionRemarkUsers(),
             ],
             WorkspaceComponent::Timeline => [
                 'incident' => $incident,
@@ -194,6 +196,19 @@ class WorkspaceComponentService
         return [
             'workspaceActionUrl' => route($route, $incident),
             'workspaceContext' => $requestContext->context->value,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function actionRemarkUsers(): array
+    {
+        return [
+            'mentionUsers' => User::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->pluck('name'),
         ];
     }
 }

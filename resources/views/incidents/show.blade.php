@@ -51,6 +51,9 @@
             'mentionUsers' => $mentionUsers,
         ])
 
-        @include('incidents.partials.status-modals', ['incident' => $incident])
+        @include('incidents.partials.status-modals', [
+            'incident' => $incident,
+            'mentionUsers' => $mentionUsers,
+        ])
     </div>
 @endsection

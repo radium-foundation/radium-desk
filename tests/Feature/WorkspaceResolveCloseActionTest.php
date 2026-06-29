@@ -93,6 +93,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $response = $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.resolve', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Resolved after confirming replacement shipment.',
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
@@ -123,6 +124,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $response = $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.close', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Closed after customer confirmation.',
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
@@ -145,6 +147,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $response = $this->actingAs($admin)
             ->patchJson(route('incidents.workspace.resolve', $incident), [
                 'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Admin resolved from dashboard.',
             ])
             ->assertOk()
             ->assertJsonPath('meta.context', WorkspaceContext::Dashboard->value)
@@ -174,6 +177,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $response = $this->actingAs($admin)
             ->patchJson(route('incidents.workspace.close', $incident), [
                 'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Admin closed from dashboard.',
             ])
             ->assertOk()
             ->assertJsonPath('refresh.kpis', true);
@@ -192,6 +196,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($unauthorized)
             ->patchJson(route('incidents.workspace.resolve', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Should not apply.',
             ])
             ->assertForbidden();
 
@@ -206,6 +211,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($admin)
             ->patchJson(route('incidents.workspace.close', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Should not apply.',
             ])
             ->assertForbidden();
 
@@ -220,6 +226,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($admin)
             ->patchJson(route('incidents.workspace.resolve', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Should not apply.',
             ])
             ->assertForbidden();
     }
@@ -232,6 +239,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.resolve', $incident), [
                 'workspace_context' => 'invalid-context',
+                'body' => 'Attempted resolve.',
             ])
             ->assertUnprocessable()
             ->assertJsonPath('success', false)
@@ -248,6 +256,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.close', $incident), [
                 'workspace_context' => 'invalid-context',
+                'body' => 'Attempted close.',
             ])
             ->assertUnprocessable()
             ->assertJsonPath('action', 'close')
@@ -261,12 +270,18 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $incident = $this->createIncident($admin, ['status' => IncidentStatus::InProgress]);
 
         $this->actingAs($admin)
-            ->patch(route('incidents.status.update', $incident), ['status' => 'resolved'])
+            ->patch(route('incidents.status.update', $incident), [
+                'status' => 'resolved',
+                'body' => 'Resolved via legacy route.',
+            ])
             ->assertRedirect(route('incidents.show', $incident).'#activity-timeline')
             ->assertSessionHas('status', 'service-case-resolved');
 
         $this->actingAs($admin)
-            ->patch(route('incidents.status.update', $incident), ['status' => 'closed'])
+            ->patch(route('incidents.status.update', $incident), [
+                'status' => 'closed',
+                'body' => 'Closed via legacy route.',
+            ])
             ->assertSessionHas('status', 'service-case-closed');
 
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
@@ -287,7 +302,9 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ->assertSee(route('incidents.workspace.resolve', $incident), false)
             ->assertSee('name="workspace_context"', false)
             ->assertSee('value="dashboard"', false)
-            ->assertSee('data-workspace-action-form="resolve"', false);
+            ->assertSee('data-workspace-action-form="resolve"', false)
+            ->assertSee('name="body"', false)
+            ->assertSee('data-mention-textarea', false);
     }
 
     public function test_close_component_fragment_includes_workspace_fields_for_context(): void
@@ -304,10 +321,11 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ->assertOk()
             ->assertSee(route('incidents.workspace.close', $incident), false)
             ->assertSee('value="service_case"', false)
-            ->assertSee('data-workspace-action-form="close"', false);
+            ->assertSee('data-workspace-action-form="close"', false)
+            ->assertSee('name="body"', false);
     }
 
-    public function test_agent_resolve_action_requires_remark_and_transaction_id(): void
+    public function test_agent_resolve_action_requires_remark_body_and_transaction_id(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $incident = $this->createIncident($agent);
@@ -320,13 +338,24 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ->assertJsonPath('success', false)
             ->assertJsonPath('ui.close_workspace_host', false)
             ->assertJsonStructure([
-                'errors' => ['remarks', 'transaction_id'],
+                'errors' => ['body'],
+            ]);
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.resolve', $incident), [
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Ready to resolve once transaction ID is assigned.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure([
+                'errors' => ['transaction_id'],
             ]);
 
         $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
     }
 
-    public function test_agent_close_action_requires_remark_and_transaction_id(): void
+    public function test_agent_close_action_requires_remark_body_and_transaction_id(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $incident = $this->createIncident($agent);
@@ -338,13 +367,23 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath('success', false)
             ->assertJsonStructure([
-                'errors' => ['remarks', 'transaction_id'],
+                'errors' => ['body'],
+            ]);
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.close', $incident), [
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Ready to close once transaction ID is assigned.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonStructure([
+                'errors' => ['transaction_id'],
             ]);
 
         $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
     }
 
-    public function test_admin_can_resolve_without_remark_or_transaction_id(): void
+    public function test_admin_can_resolve_with_required_remark(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createIncident($admin);
@@ -352,11 +391,61 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($admin)
             ->patchJson(route('incidents.workspace.resolve', $incident), [
                 'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Admin resolved with operational context.',
             ])
             ->assertOk()
             ->assertJsonPath('success', true);
 
         $this->assertSame(IncidentStatus::Resolved, $incident->fresh()->status);
+        $this->assertDatabaseHas('remarks', [
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => 'Admin resolved with operational context.',
+        ]);
+    }
+
+    public function test_resolve_action_persists_mention_relationship_without_notification(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $mentioned = User::factory()->create(['name' => 'Damini Patel', 'is_active' => true]);
+        $incident = $this->createIncident($admin);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.resolve', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Replacement shipped. @Damini Patel please confirm receipt.',
+            ])
+            ->assertOk();
+
+        $remark = Remark::query()->where('remarkable_id', $incident->id)->latest('id')->first();
+        $this->assertNotNull($remark);
+        $this->assertDatabaseHas('remark_mentions', [
+            'remark_id' => $remark->id,
+            'user_id' => $mentioned->id,
+        ]);
+    }
+
+    public function test_resolve_timeline_shows_remark_before_status_change(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, ['status' => IncidentStatus::InProgress]);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.resolve', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Device reboot resolved the issue.',
+            ])
+            ->assertOk();
+
+        $timelineHtml = collect($response->json('refresh.targets'))
+            ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
+
+        $remarkPos = strpos($timelineHtml, 'Device reboot resolved the issue.');
+        $resolvedPos = strpos($timelineHtml, 'Resolved');
+
+        $this->assertNotFalse($remarkPos);
+        $this->assertNotFalse($resolvedPos);
+        $this->assertLessThan($resolvedPos, $remarkPos);
     }
 
     public function test_dashboard_excludes_closed_cases_from_pending_admin_filter(): void

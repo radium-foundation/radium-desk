@@ -522,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const modalContent = document.querySelector('[data-workspace-modal-content]');
 
-            if (component === 'remark') {
+            if (component === 'remark' || component === 'resolve' || component === 'close') {
                 initMentionTextareas(modalContent);
             }
 
@@ -574,6 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initLiveNotifications();
     initServiceCaseShow();
+    initMentionTextareas(document.querySelector('[data-service-case-show]') ?? document);
     initOrderWorkspace();
 
     const quickCreateModalElement = document.getElementById('quickCreateModal');

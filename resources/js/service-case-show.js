@@ -82,4 +82,12 @@ export const initServiceCaseShow = () => {
     if (document.querySelector('#remarkModal') && document.querySelector('.is-invalid#modal_remark_body, .is-invalid[name="body"]')) {
         openModal('#remarkModal');
     }
+
+    if (document.querySelector('#resolveModal') && document.querySelector('.is-invalid#resolve_remark_body')) {
+        openModal('#resolveModal');
+    }
+
+    if (document.querySelector('#closeModal') && document.querySelector('.is-invalid#close_remark_body')) {
+        openModal('#closeModal');
+    }
 };

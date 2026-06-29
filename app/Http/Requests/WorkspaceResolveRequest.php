@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\IncidentStatus;
 use App\Enums\WorkspaceContext;
+use App\Http\Requests\Concerns\RequiresActionRemarkBody;
 use App\Models\Incident;
 use App\Services\WorkspaceResolveActionService;
 use Illuminate\Contracts\Validation\Validator;
@@ -15,6 +16,8 @@ use Illuminate\Validation\ValidationException;
 
 class WorkspaceResolveRequest extends FormRequest
 {
+    use RequiresActionRemarkBody;
+
     public function authorize(): bool
     {
         /** @var Incident $incident */
@@ -30,6 +33,7 @@ class WorkspaceResolveRequest extends FormRequest
     public function rules(): array
     {
         return [
+            ...$this->actionRemarkBodyRules(),
             'workspace_context' => [
                 'required',
                 'string',
@@ -44,6 +48,7 @@ class WorkspaceResolveRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            ...$this->actionRemarkBodyAttributes(),
             'workspace_context' => 'workspace context',
         ];
     }
@@ -70,6 +75,7 @@ class WorkspaceResolveRequest extends FormRequest
                 $incident,
                 $requestContext,
                 ValidationException::withMessages($validator->errors()->messages()),
+                $this->input('body'),
             )->toJsonResponse(422),
         );
     }

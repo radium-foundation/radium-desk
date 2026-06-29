@@ -182,7 +182,10 @@ class ServiceCaseShowTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->patch(route('incidents.status.update', $incident), ['status' => 'resolved'])
+            ->patch(route('incidents.status.update', $incident), [
+                'status' => 'resolved',
+                'body' => 'Resolved during status workflow test.',
+            ])
             ->assertRedirect(route('incidents.show', $incident).'#activity-timeline')
             ->assertSessionHas('status', 'service-case-resolved');
 
@@ -196,7 +199,10 @@ class ServiceCaseShowTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->patch(route('incidents.status.update', $incident), ['status' => 'closed'])
+            ->patch(route('incidents.status.update', $incident), [
+                'status' => 'closed',
+                'body' => 'Closed during status workflow test.',
+            ])
             ->assertSessionHas('status', 'service-case-closed');
 
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);

@@ -70,45 +70,29 @@ class WorkspaceActionController extends Controller
     {
         $requestContext = $this->contextResolver->resolve($request, $incident);
 
-        try {
-            $response = $this->resolveActionService->resolve(
-                incident: $incident,
-                actor: $request->user(),
-                requestContext: $requestContext,
-            );
-        } catch (ValidationException $exception) {
-            $response = $this->resolveActionService->validationFailure(
-                $incident,
-                $requestContext,
-                $exception,
-            );
+        $response = $this->resolveActionService->resolve(
+            incident: $incident,
+            actor: $request->user(),
+            body: $request->string('body')->toString(),
+            requestContext: $requestContext,
+            request: $request,
+        );
 
-            return $response->toJsonResponse(422);
-        }
-
-        return $response->toJsonResponse();
+        return $response->toJsonResponse($response->success ? 200 : 422);
     }
 
     public function close(WorkspaceCloseRequest $request, Incident $incident): JsonResponse
     {
         $requestContext = $this->contextResolver->resolve($request, $incident);
 
-        try {
-            $response = $this->closeActionService->close(
-                incident: $incident,
-                actor: $request->user(),
-                requestContext: $requestContext,
-            );
-        } catch (ValidationException $exception) {
-            $response = $this->closeActionService->validationFailure(
-                $incident,
-                $requestContext,
-                $exception,
-            );
+        $response = $this->closeActionService->close(
+            incident: $incident,
+            actor: $request->user(),
+            body: $request->string('body')->toString(),
+            requestContext: $requestContext,
+            request: $request,
+        );
 
-            return $response->toJsonResponse(422);
-        }
-
-        return $response->toJsonResponse();
+        return $response->toJsonResponse($response->success ? 200 : 422);
     }
 }
