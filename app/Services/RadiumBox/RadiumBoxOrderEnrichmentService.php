@@ -59,8 +59,8 @@ class RadiumBoxOrderEnrichmentService
             $enrichment = $outcome['enrichment'];
             $metadata = $enrichment?->supplementalMetadata() ?? [];
 
-            if ($outcome['applied']) {
-                $metadata['fields_applied'] = ['serial_number', 'device_model'];
+            if ($outcome['persistence']->updated) {
+                $metadata['fields_applied'] = $outcome['persistence']->fieldsApplied;
             }
 
             if ($fetchResult->isNotFound()) {

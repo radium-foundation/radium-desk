@@ -35,8 +35,10 @@
                     ])>
                         <div class="service-case-activity-meta">
                             <span class="service-case-activity-time">{{ display_app_timeline_time($entry->occurredAt) }}</span>
-                            @if($entry->actorName)
-                                <span class="service-case-activity-actor fw-semibold">{{ $entry->actorName }}</span>
+                            @if($entry->actor->isVisible())
+                                <span class="service-case-activity-actor fw-semibold">
+                                    <x-timeline-actor :actor="$entry->actor" />
+                                </span>
                             @endif
                         </div>
                         <div @class([

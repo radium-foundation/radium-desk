@@ -52,8 +52,10 @@
                             {{ display_app_timeline_datetime($entry->occurredAt) }}
                         </time>
                         <div class="order-workspace-timeline-action">{{ $entry->title }}</div>
-                        @if($entry->actorName)
-                            <div class="order-workspace-timeline-actor">{{ $entry->actorName }}</div>
+                        @if($entry->actor->isVisible())
+                            <div class="order-workspace-timeline-actor">
+                                <x-timeline-actor :actor="$entry->actor" />
+                            </div>
                         @endif
                         @if($entry->correctionChanges !== [])
                             <div class="order-workspace-timeline-detail">

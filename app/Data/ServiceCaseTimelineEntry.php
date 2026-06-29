@@ -20,7 +20,7 @@ readonly class ServiceCaseTimelineEntry
     public function __construct(
         public Carbon $occurredAt,
         public string $type,
-        public ?string $actorName,
+        public TimelineActor $actor,
         public string $title,
         public ?string $body,
         public ?Remark $remark,

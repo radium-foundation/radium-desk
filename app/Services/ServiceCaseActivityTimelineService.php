@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Data\ServiceCaseTimelineEntry;
+use App\Data\TimelineActor;
 use App\Enums\IncidentStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -12,6 +13,10 @@ use Illuminate\Support\Collection;
 
 class ServiceCaseActivityTimelineService
 {
+    public function __construct(
+        private readonly AutomationIdentityService $automationIdentity,
+    ) {}
+
     public function forIncident(Incident $incident): Collection
     {
         $incident->loadMissing(['creator', 'assignee']);
@@ -22,7 +27,7 @@ class ServiceCaseActivityTimelineService
             $entries->push(new ServiceCaseTimelineEntry(
                 occurredAt: $incident->created_at,
                 type: ServiceCaseTimelineEntry::TYPE_CREATED,
-                actorName: $incident->creator?->firstName(),
+                actor: $this->automationIdentity->resolve($incident->creator),
                 title: 'Created Service Case',
                 body: null,
                 remark: null,
@@ -45,7 +50,7 @@ class ServiceCaseActivityTimelineService
             $entries->push(new ServiceCaseTimelineEntry(
                 occurredAt: $remark->created_at,
                 type: ServiceCaseTimelineEntry::TYPE_REMARK,
-                actorName: $remark->user?->firstName(),
+                actor: $this->automationIdentity->resolve($remark->user),
                 title: '',
                 body: $remark->body,
                 remark: $remark,
@@ -85,7 +90,7 @@ class ServiceCaseActivityTimelineService
 
     private function mapAuditLogEntry(AuditLog $auditLog, Incident $incident): ?ServiceCaseTimelineEntry
     {
-        $actorName = $auditLog->user?->firstName();
+        $actor = $this->automationIdentity->resolve($auditLog->user);
         $occurredAt = $auditLog->created_at ?? now();
 
         if ($auditLog->auditable_type === $incident->getMorphClass()) {
@@ -93,7 +98,7 @@ class ServiceCaseActivityTimelineService
                 'service_case.assigned' => new ServiceCaseTimelineEntry(
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
-                    actorName: $actorName,
+                    actor: $actor,
                     title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     body: null,
                     remark: null,
@@ -102,13 +107,13 @@ class ServiceCaseActivityTimelineService
                 'service_case.reassigned' => new ServiceCaseTimelineEntry(
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
-                    actorName: $actorName,
+                    actor: $actor,
                     title: 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     body: null,
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
-                'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $actorName, $occurredAt),
+                'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $actor, $occurredAt),
                 default => null,
             };
         }
@@ -117,7 +122,7 @@ class ServiceCaseActivityTimelineService
             return new ServiceCaseTimelineEntry(
                 occurredAt: $occurredAt,
                 type: ServiceCaseTimelineEntry::TYPE_REMARK_DELETED,
-                actorName: $actorName,
+                actor: $actor,
                 title: 'Remark deleted',
                 body: null,
                 remark: null,
@@ -128,7 +133,7 @@ class ServiceCaseActivityTimelineService
         return null;
     }
 
-    private function mapStatusChangeEntry(AuditLog $auditLog, ?string $actorName, $occurredAt): ServiceCaseTimelineEntry
+    private function mapStatusChangeEntry(AuditLog $auditLog, TimelineActor $actor, $occurredAt): ServiceCaseTimelineEntry
     {
         $oldStatus = $this->statusLabel($auditLog->old_values['status'] ?? null);
         $newStatus = $this->statusLabel($auditLog->new_values['status'] ?? null);
@@ -147,7 +152,7 @@ class ServiceCaseActivityTimelineService
         return new ServiceCaseTimelineEntry(
             occurredAt: $occurredAt,
             type: ServiceCaseTimelineEntry::TYPE_STATUS,
-            actorName: $actorName,
+            actor: $actor,
             title: $title,
             body: null,
             remark: null,

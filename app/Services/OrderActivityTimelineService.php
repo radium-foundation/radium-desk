@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\OrderCorrectionChange;
 use App\Data\OrderTimelineEntry;
+use App\Data\TimelineActor;
 use App\Models\ApprovalNumber;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -45,6 +46,10 @@ class OrderActivityTimelineService
         'status',
     ];
 
+    public function __construct(
+        private readonly AutomationIdentityService $automationIdentity,
+    ) {}
+
     public function forOrder(Order $order): Collection
     {
         $order->loadMissing([
@@ -71,7 +76,7 @@ class OrderActivityTimelineService
                 occurredAt: $incident->created_at,
                 title: "Service Case {$incident->reference_no} created",
                 detail: null,
-                actorName: $incident->creator?->firstName(),
+                actor: $this->automationIdentity->resolve($incident->creator),
                 dedupeKey: "incident-created:{$incident->id}",
             ));
         }
@@ -155,7 +160,7 @@ class OrderActivityTimelineService
                         occurredAt: $occurredAt,
                         title: 'Transaction ID added',
                         detail: (string) ($auditLog->new_values['transaction_id'] ?? ''),
-                        actorName: $auditLog->user?->firstName(),
+                        actor: $this->automationIdentity->resolve($auditLog->user),
                         dedupeKey: "audit:{$auditLog->id}",
                     ),
                 ]),
@@ -164,7 +169,7 @@ class OrderActivityTimelineService
                         occurredAt: $occurredAt,
                         title: 'Serial Number Added',
                         detail: (string) ($auditLog->new_values['serial_number'] ?? ''),
-                        actorName: $auditLog->user?->firstName(),
+                        actor: $this->automationIdentity->resolve($auditLog->user),
                         dedupeKey: "audit:{$auditLog->id}",
                     ),
                 ]),
@@ -173,13 +178,13 @@ class OrderActivityTimelineService
                         occurredAt: $occurredAt,
                         title: 'Device Model Assigned',
                         detail: (string) ($auditLog->new_values['device_model'] ?? ''),
-                        actorName: $auditLog->user?->firstName(),
+                        actor: $this->automationIdentity->resolve($auditLog->user),
                         dedupeKey: "audit:{$auditLog->id}",
                     ),
                 ]),
                 'order.updated' => $this->mapOrderCorrectionEntries(
                     $auditLog,
-                    $auditLog->user?->roleActorLabel() ?: $auditLog->user?->firstName(),
+                    $this->automationIdentity->resolveWithRoleLabel($auditLog->user),
                     $occurredAt,
                 ),
                 default => collect(),
@@ -202,7 +207,7 @@ class OrderActivityTimelineService
      */
     private function mapOrderCorrectionEntries(
         AuditLog $auditLog,
-        ?string $actorName,
+        TimelineActor $actor,
         $occurredAt,
     ): Collection {
         $oldValues = $auditLog->old_values ?? [];
@@ -238,7 +243,7 @@ class OrderActivityTimelineService
                 occurredAt: $occurredAt,
                 title: 'Updated Order Information',
                 detail: null,
-                actorName: $actorName,
+                actor: $actor,
                 dedupeKey: "audit:{$auditLog->id}",
                 correctionChanges: $changes,
                 correctionReason: $reason !== '' ? $reason : null,
@@ -271,7 +276,7 @@ class OrderActivityTimelineService
         Collection $orderIncidentIds,
         $occurredAt,
     ): ?OrderTimelineEntry {
-        $displayActor = $auditLog->user?->firstName();
+        $actor = $this->automationIdentity->resolve($auditLog->user);
 
         if ($auditLog->auditable_type === (new Incident)->getMorphClass()) {
             $incident = $incidentsById->get($auditLog->auditable_id);
@@ -281,14 +286,14 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     detail: $incident?->reference_no,
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'service_case.reassigned' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     detail: $incident?->reference_no,
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 default => null,
@@ -301,7 +306,7 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Remark added',
                     detail: null,
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 )
                 : null;
@@ -313,21 +318,21 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Refund request created',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'approved' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Refund request approved',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? $auditLog->old_values['reference_no'] ?? ''),
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'rejected' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Refund request rejected',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? $auditLog->old_values['reference_no'] ?? ''),
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 default => null,
@@ -349,14 +354,14 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: 'Approval linked',
                     detail: $approval?->approval_number,
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'deleted' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Approval closed',
                     detail: (string) ($auditLog->old_values['approval_number'] ?? $approval?->approval_number ?? ''),
-                    actorName: $displayActor,
+                    actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 default => null,

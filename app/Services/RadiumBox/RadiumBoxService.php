@@ -2,6 +2,7 @@
 
 namespace App\Services\RadiumBox;
 
+use App\Data\EnrichmentPersistenceResult;
 use App\Models\Order;
 
 class RadiumBoxService
@@ -36,6 +37,7 @@ class RadiumBoxService
      *     applied: bool,
      *     enrichment: ?RadiumBoxOrderEnrichment,
      *     fetch_result: RadiumBoxOrderEnrichmentFetchResult,
+     *     persistence: EnrichmentPersistenceResult,
      * }
      */
     public function enrichOrderFromBackgroundSync(Order $order): array
@@ -45,6 +47,7 @@ class RadiumBoxService
                 'applied' => false,
                 'enrichment' => null,
                 'fetch_result' => new RadiumBoxOrderEnrichmentFetchResult(retriable: false),
+                'persistence' => $this->emptyPersistenceResult(),
             ];
         }
 
@@ -55,6 +58,7 @@ class RadiumBoxService
                 'applied' => false,
                 'enrichment' => null,
                 'fetch_result' => $fetchResult,
+                'persistence' => $this->emptyPersistenceResult(),
             ];
         }
 
@@ -63,6 +67,7 @@ class RadiumBoxService
                 'applied' => false,
                 'enrichment' => null,
                 'fetch_result' => $fetchResult,
+                'persistence' => $this->emptyPersistenceResult(),
             ];
         }
 
@@ -73,33 +78,54 @@ class RadiumBoxService
                 'applied' => false,
                 'enrichment' => $enrichment,
                 'fetch_result' => $fetchResult,
+                'persistence' => $this->emptyPersistenceResult(),
             ];
         }
 
-        $updates = $this->buildUpdates($order, $enrichment);
-
-        if ($updates !== []) {
-            $order->update($updates);
-        }
+        $persistence = $this->persistEnrichment($order, $enrichment);
 
         return [
-            'applied' => $updates !== [],
+            'applied' => $persistence->updated,
             'enrichment' => $enrichment,
             'fetch_result' => $fetchResult,
+            'persistence' => $persistence,
         ];
     }
 
     private function applyEnrichment(Order $order, RadiumBoxOrderEnrichment $enrichment): Order
     {
+        $persistence = $this->persistEnrichment($order, $enrichment);
+
+        if (! $persistence->updated) {
+            return $order;
+        }
+
+        return $order->fresh();
+    }
+
+    private function persistEnrichment(Order $order, RadiumBoxOrderEnrichment $enrichment): EnrichmentPersistenceResult
+    {
         $updates = $this->buildUpdates($order, $enrichment);
 
+        $serialApplied = array_key_exists('serial_number', $updates);
+        $deviceModelApplied = array_key_exists('device_model', $updates);
+        $fieldsApplied = array_keys($updates);
+
         if ($updates === []) {
-            return $order;
+            return $this->emptyPersistenceResult();
         }
 
         $order->update($updates);
 
-        return $order->fresh();
+        return new EnrichmentPersistenceResult(
+            updated: true,
+            fieldsApplied: $fieldsApplied,
+            serialApplied: $serialApplied,
+            deviceModelApplied: $deviceModelApplied,
+            warrantyApplied: false,
+            activationYearApplied: false,
+            amcApplied: false,
+        );
     }
 
     /**
@@ -118,5 +144,18 @@ class RadiumBoxService
         }
 
         return $updates;
+    }
+
+    private function emptyPersistenceResult(): EnrichmentPersistenceResult
+    {
+        return new EnrichmentPersistenceResult(
+            updated: false,
+            fieldsApplied: [],
+            serialApplied: false,
+            deviceModelApplied: false,
+            warrantyApplied: false,
+            activationYearApplied: false,
+            amcApplied: false,
+        );
     }
 }

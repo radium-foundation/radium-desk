@@ -1890,6 +1890,14 @@ a:focus-visible .stat-card {
     margin-bottom: 0.375rem;
 }
 
+.timeline-actor-subtitle {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #6c757d;
+    margin-top: 0.0625rem;
+}
+
 .activity-timeline-correction {
     margin-top: 0.625rem;
 }
@@ -2752,6 +2760,11 @@ a:focus-visible .stat-card {
     font-weight: 600;
     color: var(--dashboard-color-muted);
     margin-top: 0.125rem;
+}
+
+.order-workspace-timeline-actor .timeline-actor-subtitle {
+    font-weight: 500;
+    color: var(--dashboard-color-muted);
 }
 
 .order-workspace-timeline-detail {

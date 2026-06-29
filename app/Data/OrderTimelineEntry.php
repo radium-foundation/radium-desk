@@ -13,7 +13,7 @@ readonly class OrderTimelineEntry
         public Carbon $occurredAt,
         public string $title,
         public ?string $detail,
-        public ?string $actorName,
+        public TimelineActor $actor,
         public string $dedupeKey,
         public array $correctionChanges = [],
         public ?string $correctionReason = null,

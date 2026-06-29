@@ -21,8 +21,10 @@
                             <div class="activity-timeline-datetime">
                                 {{ display_app_timeline_datetime($entry->occurredAt) }}
                             </div>
-                            @if($entry->actorName)
-                                <div class="activity-timeline-actor fw-semibold">{{ $entry->actorName }}</div>
+                            @if($entry->actor->isVisible())
+                                <div class="activity-timeline-actor fw-semibold">
+                                    <x-timeline-actor :actor="$entry->actor" />
+                                </div>
                             @endif
                             <div class="fw-semibold">{{ $entry->title }}</div>
                             @if($entry->correctionChanges !== [])
