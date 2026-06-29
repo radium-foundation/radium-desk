@@ -83,6 +83,14 @@ class RadiumBoxOrderEnrichmentService
                 errorMessage: $fetchResult->errorMessage,
                 metadata: $metadata,
             );
+
+            if ($outcome['applied']) {
+                Log::info('RadiumBox enrichment retry succeeded.', [
+                    'order_id' => $order->order_id,
+                    'order_db_id' => $order->id,
+                    'fields_applied' => $outcome['persistence']->fieldsApplied,
+                ]);
+            }
         } catch (RadiumBoxEnrichmentRetryException $exception) {
             $this->logAttempt(
                 orderId: $order->id,
@@ -105,6 +113,15 @@ class RadiumBoxOrderEnrichmentService
         );
 
         $this->syncStore->markFailed($orderId, $errorMessage);
+
+        $order = Order::query()->find($orderId);
+
+        Log::warning('RadiumBox enrichment retry failed.', [
+            'order_id' => $order?->order_id,
+            'order_db_id' => $orderId,
+            'phase' => 'processing',
+            'reason' => $errorMessage,
+        ]);
     }
 
     /**

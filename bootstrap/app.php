@@ -37,6 +37,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyFiveMinutes()
             ->when(fn (): bool => (bool) config('infrastructure.metrics_enabled'))
             ->withoutOverlapping();
+
+        // Phase 2: enable when ready to recover delayed RadiumBox product details automatically.
+        // $schedule->command('radiumbox:backfill-orders --limit=50')
+        //     ->hourly()
+        //     ->withoutOverlapping()
+        //     ->appendOutputTo(storage_path('logs/radiumbox-backfill.log'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

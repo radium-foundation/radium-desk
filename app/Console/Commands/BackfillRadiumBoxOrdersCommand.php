@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -18,7 +20,7 @@ use Throwable;
     {--chunk=50 : Number of orders to load per chunk}
     {--dry-run : Show what would be queued without dispatching jobs}
     {--order= : Process a single order by order_id}')]
-#[Description('Queue RadiumBox enrichment jobs for historical orders missing serial number or device model')]
+#[Description('Queue RadiumBox enrichment retries for paid Cashfree orders missing serial number or device model')]
 class BackfillRadiumBoxOrdersCommand extends Command
 {
     private int $ordersScanned = 0;
@@ -34,6 +36,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
     public function __construct(
         private readonly RadiumBoxOrderEnrichmentService $enrichmentService,
         private readonly RadiumBoxService $radiumBoxService,
+        private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
     ) {
         parent::__construct();
     }
@@ -56,7 +59,6 @@ class BackfillRadiumBoxOrdersCommand extends Command
             }
 
             $this->processOrder($order, $dryRun, $limit);
-
             $this->renderSummary($dryRun);
 
             return self::SUCCESS;
@@ -65,7 +67,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
         $query = $this->qualifyingOrdersQuery();
 
         $this->info(sprintf(
-            'Scanning qualifying orders in chunks of %d%s.',
+            'Scanning paid Cashfree orders missing product details in chunks of %d%s.',
             $chunkSize,
             $dryRun ? ' (dry run)' : '',
         ));
@@ -97,14 +99,18 @@ class BackfillRadiumBoxOrdersCommand extends Command
     {
         $this->ordersScanned++;
 
-        if (! filled($order->order_id)) {
-            $this->ordersSkipped++;
+        $skipReason = $this->resolveSkipReason($order);
+
+        if ($skipReason === 'already_complete') {
+            $this->ordersAlreadyComplete++;
+            $this->logRetrySkipped($order, $skipReason);
 
             return;
         }
 
-        if (! $this->radiumBoxService->needsEnrichment($order)) {
-            $this->ordersAlreadyComplete++;
+        if ($skipReason !== null) {
+            $this->ordersSkipped++;
+            $this->logRetrySkipped($order, $skipReason);
 
             return;
         }
@@ -115,6 +121,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
 
         if ($dryRun) {
             $this->ordersQueued++;
+            $this->logRetryStarted($order, dryRun: true);
 
             return;
         }
@@ -122,9 +129,11 @@ class BackfillRadiumBoxOrdersCommand extends Command
         try {
             $this->enrichmentService->dispatch($order);
             $this->ordersQueued++;
+            $this->logRetryStarted($order, dryRun: false);
         } catch (Throwable $exception) {
             $this->failedDispatches++;
             $this->ordersSkipped++;
+            $this->logRetryFailed($order, $exception->getMessage(), phase: 'dispatch');
 
             $this->error(sprintf(
                 'Failed to queue order %s (ID %d): %s',
@@ -135,12 +144,35 @@ class BackfillRadiumBoxOrdersCommand extends Command
         }
     }
 
+    private function resolveSkipReason(Order $order): ?string
+    {
+        if (! filled($order->order_id)) {
+            return 'missing_order_id';
+        }
+
+        if (! filled($order->cashfree_payment_id)) {
+            return 'not_cashfree_paid_order';
+        }
+
+        if (! $this->radiumBoxService->needsEnrichment($order)) {
+            return 'already_complete';
+        }
+
+        if ($this->syncStore->status($order->id) === RadiumBoxEnrichmentSyncStatus::Pending) {
+            return 'enrichment_already_pending';
+        }
+
+        return null;
+    }
+
     /**
      * @return Builder<Order>
      */
     private function qualifyingOrdersQuery(): Builder
     {
         return Order::query()
+            ->whereNotNull('cashfree_payment_id')
+            ->where('cashfree_payment_id', '!=', '')
             ->whereNotNull('order_id')
             ->where('order_id', '!=', '')
             ->where(function (Builder $query): void {
@@ -227,5 +259,33 @@ class BackfillRadiumBoxOrdersCommand extends Command
         }
 
         return sprintf('~%d minute(s) at ~1 job/min via cron queue worker', $jobs);
+    }
+
+    private function logRetryStarted(Order $order, bool $dryRun): void
+    {
+        Log::info('RadiumBox enrichment retry started.', [
+            'order_id' => $order->order_id,
+            'order_db_id' => $order->id,
+            'dry_run' => $dryRun,
+        ]);
+    }
+
+    private function logRetrySkipped(Order $order, string $reason): void
+    {
+        Log::info('RadiumBox enrichment retry skipped.', [
+            'order_id' => $order->order_id,
+            'order_db_id' => $order->id,
+            'reason' => $reason,
+        ]);
+    }
+
+    private function logRetryFailed(Order $order, string $reason, string $phase): void
+    {
+        Log::warning('RadiumBox enrichment retry failed.', [
+            'order_id' => $order->order_id,
+            'order_db_id' => $order->id,
+            'phase' => $phase,
+            'reason' => $reason,
+        ]);
     }
 }
