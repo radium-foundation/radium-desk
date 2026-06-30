@@ -13,7 +13,6 @@ use App\Services\SerialValidation\Validators\Mfs110SerialValidator;
 use App\Services\SerialValidation\Validators\Mis100SerialValidator;
 use App\Services\SerialValidation\Validators\MsoE3SerialValidator;
 use App\Services\SerialValidation\Validators\Pb1000SerialValidator;
-use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 
@@ -24,6 +23,8 @@ class SerialValidationService
 
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly SerialPlaceholderService $placeholderService,
+        private readonly CanonicalProductResolver $canonicalProductResolver,
         Mfs110SerialValidator $mfs110SerialValidator,
         Mis100SerialValidator $mis100SerialValidator,
         MsoE3SerialValidator $msoE3SerialValidator,
@@ -47,6 +48,12 @@ class SerialValidationService
 
     public function validate(string $serial, ?string $product): SerialValidationResult
     {
+        if ($this->placeholderService->isPlaceholder($serial)) {
+            return SerialValidationResult::pending(
+                $this->resolveProductName($product),
+            );
+        }
+
         $normalizedInput = strtoupper(trim($serial));
         $resolvedProduct = $this->resolveProductName($product);
 
@@ -89,29 +96,7 @@ class SerialValidationService
 
     public function resolveProductName(?string $product): ?string
     {
-        if (! filled($product)) {
-            return null;
-        }
-
-        $shortDisplay = DeviceModelFormatter::shortDisplay($product);
-
-        if ($shortDisplay !== null && isset($this->validatorsByProduct[$shortDisplay])) {
-            return $shortDisplay;
-        }
-
-        $normalized = strtoupper(trim($product));
-
-        if (isset($this->validatorsByProduct[$normalized])) {
-            return $normalized;
-        }
-
-        foreach (array_keys($this->validatorsByProduct) as $supportedProduct) {
-            if (str_starts_with($normalized, str_replace(' ', '', $supportedProduct))) {
-                return $supportedProduct;
-            }
-        }
-
-        return $shortDisplay ?? trim($product);
+        return $this->canonicalProductResolver->resolve($product);
     }
 
     /**
@@ -121,7 +106,7 @@ class SerialValidationService
     {
         $result = $this->validateForOrder($serial, $order);
 
-        if ($result->isInvalid()) {
+        if ($result->isInvalid() || $result->isPending()) {
             throw ValidationException::withMessages([
                 'serial_number' => $result->reason ?? 'The serial number is invalid for this product.',
             ]);
@@ -137,7 +122,7 @@ class SerialValidationService
     {
         $result = $this->validate($serial, $product);
 
-        if ($result->isInvalid()) {
+        if ($result->isInvalid() || $result->isPending()) {
             throw ValidationException::withMessages([
                 'serial_number' => $result->reason ?? 'The serial number is invalid for this product.',
             ]);

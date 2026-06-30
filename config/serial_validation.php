@@ -19,4 +19,28 @@ return [
         'PB 1000',   // exactly 12 alphanumeric; starts LN or LU
         'MARC 11',   // 7 or 10 digits; starts with 7 or 8, numeric only
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Placeholder Serial Detection
+    |--------------------------------------------------------------------------
+    |
+    | Serial numbers matching these patterns are treated as temporary placeholders
+    | and skip IRA product validators. Checked case-insensitively after trimming.
+    |
+    */
+    'placeholder_prefixes' => [
+        'FPSPL',
+    ],
+
+    'placeholder_values' => [
+        'UNKNOWN',
+        'NULL',
+        'N/A',
+        'NA',
+        '-',
+        '+',
+    ],
+
+    'placeholder_reason' => 'Waiting for customer serial',
 ];

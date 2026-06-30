@@ -18,6 +18,7 @@ use App\Services\RadiumBox\RadiumBoxClient;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentFetchResult;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,27 +44,11 @@ class OrderIdentityRepairService
 
     private const PROGRESS_INTERVAL = 25;
 
-    /** @var list<string> */
-    private const PLACEHOLDER_VALUES = [
-        '+',
-        '-',
-        '.',
-        '..',
-        '...',
-        'UNKNOWN',
-        'NULL',
-        'N/A',
-        'NA',
-        'TBD',
-        'TBC',
-        'NONE',
-        'NIL',
-    ];
-
     public function __construct(
         private readonly RadiumBoxClient $radiumBoxClient,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
         private readonly SerialValidationService $serialValidationService,
+        private readonly SerialPlaceholderService $placeholderService,
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
         private readonly ServiceCaseAutomationStatusService $automationStatusService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
@@ -488,11 +473,17 @@ class OrderIdentityRepairService
 
             $failure = $passesValidation
                 ? null
-                : new OrderIdentityRepairFailure(
-                    orderId: (string) $freshOrder->order_id,
-                    message: 'Identity still fails validation after repair.',
-                    category: OrderIdentityRepairFailureCategory::ValidationFailed,
-                );
+                : ($this->isWaitingForCustomerSerial($freshOrder)
+                    ? new OrderIdentityRepairFailure(
+                        orderId: (string) $freshOrder->order_id,
+                        message: (string) config('serial_validation.placeholder_reason', 'Waiting for customer serial'),
+                        category: OrderIdentityRepairFailureCategory::WaitingForCustomerSerial,
+                    )
+                    : new OrderIdentityRepairFailure(
+                        orderId: (string) $freshOrder->order_id,
+                        message: 'Identity still fails validation after repair.',
+                        category: OrderIdentityRepairFailureCategory::ValidationFailed,
+                    ));
 
             return [
                 'outcome' => 'repaired',
@@ -604,6 +595,7 @@ class OrderIdentityRepairService
             OrderIdentityRepairFailureCategory::DuplicateSerial => $summary['duplicateSerials']++,
             OrderIdentityRepairFailureCategory::RadiumBoxNotFound => $summary['notFound']++,
             OrderIdentityRepairFailureCategory::ValidationFailed => $summary['validationFailed']++,
+            OrderIdentityRepairFailureCategory::WaitingForCustomerSerial => null,
             OrderIdentityRepairFailureCategory::ApiTimeout,
             OrderIdentityRepairFailureCategory::UnexpectedException => $summary['unexpectedFailures']++,
         };
@@ -809,17 +801,12 @@ class OrderIdentityRepairService
 
     public function isPlaceholderValue(?string $value): bool
     {
-        if ($this->isValueMissing($value)) {
-            return false;
-        }
+        return $this->placeholderService->isPlaceholder($value);
+    }
 
-        $normalized = strtoupper(trim((string) $value));
-
-        if (in_array($normalized, self::PLACEHOLDER_VALUES, true)) {
-            return true;
-        }
-
-        return str_starts_with($normalized, 'FPSPL');
+    private function isWaitingForCustomerSerial(Order $order): bool
+    {
+        return $this->placeholderService->isPlaceholder((string) $order->serial_number);
     }
 
     private function isValueMissing(?string $value): bool
@@ -912,7 +899,7 @@ class OrderIdentityRepairService
 
     private function applyValidationNormalization(Order $order, User $actor): void
     {
-        if ($this->isValueMissing($order->serial_number)) {
+        if ($this->isValueMissing($order->serial_number) || $this->isPlaceholderValue($order->serial_number)) {
             return;
         }
 

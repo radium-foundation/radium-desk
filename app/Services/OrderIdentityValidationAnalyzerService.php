@@ -13,6 +13,7 @@ use App\Enums\SerialValidationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,6 +22,7 @@ class OrderIdentityValidationAnalyzerService
 {
     public function __construct(
         private readonly SerialValidationService $serialValidationService,
+        private readonly SerialPlaceholderService $placeholderService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
         private readonly ServiceCaseAutomationStatusService $automationStatusService,
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
@@ -139,14 +141,6 @@ class OrderIdentityValidationAnalyzerService
 
     private function resolveValidation(Order $order): SerialValidationResult
     {
-        if (! filled(trim((string) $order->serial_number))) {
-            return SerialValidationResult::invalid(
-                normalizedSerial: '',
-                product: $this->serialValidationService->resolveProductFromOrder($order),
-                reason: 'Serial number is missing.',
-            );
-        }
-
         return $this->serialValidationService->validateForOrder(
             (string) $order->serial_number,
             $order,
@@ -155,7 +149,7 @@ class OrderIdentityValidationAnalyzerService
 
     private function hasExplicitValidationFailure(Order $order): bool
     {
-        if (! filled(trim((string) $order->serial_number))) {
+        if ($this->placeholderService->isPlaceholder((string) $order->serial_number)) {
             return false;
         }
 
@@ -213,6 +207,10 @@ class OrderIdentityValidationAnalyzerService
             return OrderIdentityValidationFailureGroup::ProductMappingMismatch;
         }
 
+        if ($validation->status === SerialValidationStatus::Pending) {
+            return OrderIdentityValidationFailureGroup::WaitingForCustomerSerial;
+        }
+
         if ($validation->status === SerialValidationStatus::Invalid) {
             return OrderIdentityValidationFailureGroup::ValidatorRule;
         }
@@ -265,6 +263,10 @@ class OrderIdentityValidationAnalyzerService
             return OrderIdentityValidationRecommendation::ProductMappingMismatch;
         }
 
+        if ($validation->status === SerialValidationStatus::Pending) {
+            return OrderIdentityValidationRecommendation::WaitingForCustomerSerial;
+        }
+
         $syncStatus = $this->syncStore->status($order->id);
 
         if ($validation->status === SerialValidationStatus::Invalid
@@ -302,7 +304,9 @@ class OrderIdentityValidationAnalyzerService
 
     private function formatRuleFailed(SerialValidationResult $validation): ?string
     {
-        if ($validation->reason === null || $validation->status === SerialValidationStatus::Valid) {
+        if ($validation->reason === null
+            || $validation->status === SerialValidationStatus::Valid
+            || $validation->status === SerialValidationStatus::Pending) {
             return null;
         }
 
@@ -432,7 +436,7 @@ class OrderIdentityValidationAnalyzerService
 
             $serial = strtoupper(trim((string) $failure->serialNumber));
 
-            if ($serial === '') {
+            if ($serial === '' || $this->placeholderService->isPlaceholder($failure->serialNumber)) {
                 continue;
             }
 

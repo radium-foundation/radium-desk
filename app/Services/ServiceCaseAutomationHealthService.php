@@ -34,6 +34,7 @@ class ServiceCaseAutomationHealthService
         $graceExpired = 0;
         $radiumBoxPending = 0;
         $validationFailed = 0;
+        $waitingForCustomerSerial = 0;
         $assignedToAgent = 0;
         $assignedToAdmin = 0;
 
@@ -50,6 +51,10 @@ class ServiceCaseAutomationHealthService
 
             if ($status === ServiceCaseAutomationStatus::ValidationFailed) {
                 $validationFailed++;
+            }
+
+            if ($status === ServiceCaseAutomationStatus::WaitingForCustomerSerial) {
+                $waitingForCustomerSerial++;
             }
 
             if ($status === ServiceCaseAutomationStatus::AssignedToAgent) {
@@ -85,6 +90,7 @@ class ServiceCaseAutomationHealthService
             'grace_expired' => $graceExpired,
             'radiumbox_pending' => $radiumBoxPending,
             'validation_failed' => $validationFailed,
+            'waiting_for_customer_serial' => $waitingForCustomerSerial,
             'assigned_to_agent' => $assignedToAgent,
             'assigned_to_admin' => $assignedToAdmin,
             'repair_needed' => $this->ordersNeedingRepair()->count(),

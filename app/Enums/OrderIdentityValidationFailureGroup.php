@@ -8,6 +8,7 @@ enum OrderIdentityValidationFailureGroup: string
     case DuplicateSerial = 'duplicate_serial';
     case RadiumBoxNotFound = 'radiumbox_not_found';
     case ProductMappingMismatch = 'product_mapping_mismatch';
+    case WaitingForCustomerSerial = 'waiting_for_customer_serial';
     case Unknown = 'unknown';
 
     public function label(): string
@@ -17,6 +18,7 @@ enum OrderIdentityValidationFailureGroup: string
             self::DuplicateSerial => 'Duplicate serial',
             self::RadiumBoxNotFound => 'RadiumBox not found',
             self::ProductMappingMismatch => 'Product mapping mismatch',
+            self::WaitingForCustomerSerial => 'Waiting for customer serial',
             self::Unknown => 'Unknown',
         };
     }

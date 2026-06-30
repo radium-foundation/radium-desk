@@ -28,6 +28,7 @@ class AutomationHealthCommand extends Command
         $this->line('Grace Expired: '.$counts['grace_expired']);
         $this->line('RadiumBox Pending: '.$counts['radiumbox_pending']);
         $this->line('Validation Failed: '.$counts['validation_failed']);
+        $this->line('Waiting for Customer Serial: '.$counts['waiting_for_customer_serial']);
         $this->line('Assigned To Agent: '.$counts['assigned_to_agent']);
         $this->line('Assigned To Admin: '.$counts['assigned_to_admin']);
 

@@ -9,6 +9,7 @@ enum OrderIdentityRepairFailureCategory: string
     case RateLimited = 'rate_limited';
     case DuplicateSerial = 'duplicate_serial';
     case ValidationFailed = 'validation_failed';
+    case WaitingForCustomerSerial = 'waiting_for_customer_serial';
     case UnexpectedException = 'unexpected_exception';
 
     public function label(): string
@@ -19,6 +20,7 @@ enum OrderIdentityRepairFailureCategory: string
             self::RateLimited => 'Rate limited',
             self::DuplicateSerial => 'Duplicate serial',
             self::ValidationFailed => 'Validation failed',
+            self::WaitingForCustomerSerial => 'Waiting for customer serial',
             self::UnexpectedException => 'Unexpected exception',
         };
     }

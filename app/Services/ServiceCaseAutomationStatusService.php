@@ -6,13 +6,16 @@ use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\ServiceCaseAutomationStatus;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\SerialValidation\SerialPlaceholderService;
 use Database\Seeders\RolePermissionSeeder;
 
 class ServiceCaseAutomationStatusService
 {
     public function __construct(
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
+        private readonly SerialPlaceholderService $placeholderService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
     ) {}
 
@@ -45,6 +48,10 @@ class ServiceCaseAutomationStatusService
         $passesValidation = $incident->order !== null
             && $this->eligibilityService->passesValidationForOrder($incident->order);
 
+        if ($incident->order !== null && $this->isWaitingForCustomerSerial($incident->order)) {
+            return ServiceCaseAutomationStatus::WaitingForCustomerSerial;
+        }
+
         if ($assignee !== null && $this->isAgentUser($assignee)) {
             return $passesValidation
                 ? ServiceCaseAutomationStatus::AssignedToAgent
@@ -60,6 +67,12 @@ class ServiceCaseAutomationStatusService
         }
 
         return ServiceCaseAutomationStatus::AutomationPending;
+    }
+
+    private function isWaitingForCustomerSerial(Order $order): bool
+    {
+        return ! filled(trim((string) $order->serial_number))
+            || $this->placeholderService->isPlaceholder((string) $order->serial_number);
     }
 
     private function isWaitingRadiumBox(Incident $incident): bool

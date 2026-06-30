@@ -9,6 +9,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class ServiceCaseAssignmentEligibilityService
     public function __construct(
         private readonly ServiceCaseAssignmentService $assignmentService,
         private readonly SerialValidationService $serialValidationService,
+        private readonly SerialPlaceholderService $placeholderService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
     ) {}
 
@@ -42,6 +44,10 @@ class ServiceCaseAssignmentEligibilityService
             return false;
         }
 
+        if ($this->placeholderService->isPlaceholder((string) $order->serial_number)) {
+            return false;
+        }
+
         if (! $this->hasModelIdentity($order)) {
             return false;
         }
@@ -52,6 +58,10 @@ class ServiceCaseAssignmentEligibilityService
         );
 
         if ($validation->status === SerialValidationStatus::Invalid) {
+            return false;
+        }
+
+        if ($validation->status === SerialValidationStatus::Pending) {
             return false;
         }
 

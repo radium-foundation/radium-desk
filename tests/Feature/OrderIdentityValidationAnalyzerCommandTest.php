@@ -214,8 +214,50 @@ class OrderIdentityValidationAnalyzerCommandTest extends TestCase
             ->expectsOutputToContain('Validation analysis summary')
             ->expectsOutputToContain('Failures found: 3')
             ->expectsOutputToContain('MFS 110 (3 orders)')
-            ->expectsOutputToContain('FPSPL1141XX (2 orders)')
+            ->doesntExpectOutputToContain('FPSPL1141XX (2 orders)')
             ->expectsOutputToContain('SN123456 (1 orders)');
+    }
+
+    public function test_command_reports_waiting_for_customer_serial_for_placeholder_serial(): void
+    {
+        $actor = User::factory()->create();
+
+        $this->createActiveIncident($actor, [
+            'order_id' => 'RD-PLACEHOLDER-ANALYZE',
+            'serial_number' => 'FPSPL1141XX',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+        ]);
+
+        $this->artisan('orders:analyze-validation --order=RD-PLACEHOLDER-ANALYZE')
+            ->assertSuccessful()
+            ->expectsOutputToContain('Waiting for customer serial')
+            ->expectsOutputToContain('Waiting for Customer Serial')
+            ->doesntExpectOutputToContain('Validator probably too strict');
+    }
+
+    public function test_failed_only_excludes_placeholder_serial_orders(): void
+    {
+        $actor = User::factory()->create();
+
+        $this->createActiveIncident($actor, [
+            'order_id' => 'RD-PLACEHOLDER-ONLY',
+            'serial_number' => 'UNKNOWN',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+        ]);
+
+        $this->createActiveIncident($actor, [
+            'order_id' => 'RD-INVALID-ONLY',
+            'serial_number' => 'ABC123',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+        ]);
+
+        $this->artisan('orders:analyze-validation --failed-only')
+            ->assertSuccessful()
+            ->expectsOutputToContain('RD-INVALID-ONLY')
+            ->doesntExpectOutputToContain('RD-PLACEHOLDER-ONLY');
     }
 
     public function test_command_reports_radiumbox_not_found_category(): void

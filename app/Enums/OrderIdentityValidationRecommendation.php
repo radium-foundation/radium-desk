@@ -8,6 +8,7 @@ enum OrderIdentityValidationRecommendation: string
     case RadiumBoxInvalidIdentity = 'radiumbox_invalid_identity';
     case ProductMappingMismatch = 'product_mapping_mismatch';
     case DuplicateSerialConflict = 'duplicate_serial_conflict';
+    case WaitingForCustomerSerial = 'waiting_for_customer_serial';
     case ManualReviewRequired = 'manual_review_required';
 
     public function label(): string
@@ -17,6 +18,7 @@ enum OrderIdentityValidationRecommendation: string
             self::RadiumBoxInvalidIdentity => 'RadiumBox returned invalid identity',
             self::ProductMappingMismatch => 'Product mapping mismatch',
             self::DuplicateSerialConflict => 'Duplicate serial conflict',
+            self::WaitingForCustomerSerial => 'Waiting for customer serial',
             self::ManualReviewRequired => 'Manual review required',
         };
     }

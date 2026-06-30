@@ -25,6 +25,11 @@ readonly class SerialValidationResult
         return $this->status->isInvalid();
     }
 
+    public function isPending(): bool
+    {
+        return $this->status->isPending();
+    }
+
     public static function valid(
         string $normalizedSerial,
         string $product,
@@ -62,6 +67,18 @@ readonly class SerialValidationResult
             corrected: false,
             requiresRadiumBoxVerification: true,
             reason: 'No IRA validation rules are configured for this product.',
+            product: $product,
+        );
+    }
+
+    public static function pending(?string $product): self
+    {
+        return new self(
+            status: SerialValidationStatus::Pending,
+            normalizedSerial: '',
+            corrected: false,
+            requiresRadiumBoxVerification: false,
+            reason: (string) config('serial_validation.placeholder_reason', 'Waiting for customer serial'),
             product: $product,
         );
     }
