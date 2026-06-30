@@ -113,7 +113,9 @@ export const initUniversalSearch = ({
 } = {}) => {
     const form = document.querySelector('[data-universal-search-form]');
     const globalInput = document.getElementById('global-search-input');
-    const dashboardPage = pageRoot ?? document.getElementById('dashboard-page');
+    const dashboardPage = pageRoot?.id === 'dashboard-page'
+        ? pageRoot
+        : document.getElementById('dashboard-page');
     const searchUrl = dashboardPage?.dataset.searchUrl ?? '';
     const searchControl = document.querySelector('[data-universal-search-control]');
     const searchIcon = document.querySelector('[data-universal-search-icon]');
