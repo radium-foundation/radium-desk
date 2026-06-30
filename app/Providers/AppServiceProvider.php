@@ -2,13 +2,15 @@
 
 namespace App\Providers;
 
+use App\Listeners\BroadcastNotificationCreated;
 use App\Models\DeviceModel;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
-use App\Listeners\BroadcastNotificationCreated;
 use App\Models\User;
 use App\Policies\DashboardPolicy;
 use App\Policies\SettingPolicy;
+use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
+use App\Services\GlobalSearchService;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -26,6 +28,12 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(RadiumBoxRequestCache::class);
+
+        $this->app->singleton(GlobalSearchService::class, function ($app): GlobalSearchService {
+            return new GlobalSearchService([
+                $app->make(ServiceCaseGlobalSearchProvider::class),
+            ]);
+        });
     }
 
     /**

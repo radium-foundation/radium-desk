@@ -147,6 +147,63 @@ html.sidebar-expanded .app-main {
     z-index: 1030;
 }
 
+.global-search-results {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    z-index: 1040;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+    max-height: min(70vh, 28rem);
+    overflow: auto;
+}
+
+.global-search-results__summary {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: #6c757d;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.global-search-results__empty {
+    padding: 0.875rem 0.75rem;
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+.global-search-result {
+    padding: 0.625rem 0.75rem;
+    border: 0;
+    border-bottom: 1px solid #f1f3f5;
+    text-decoration: none;
+    color: inherit;
+}
+
+.global-search-result:last-child {
+    border-bottom: 0;
+}
+
+.global-search-result__primary {
+    font-weight: 600;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+.global-search-result__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+.global-search-result__meta-label {
+    color: #868e96;
+}
+
 .app-content {
     flex: 1;
     padding: 1rem 1.25rem;

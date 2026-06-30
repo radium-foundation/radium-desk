@@ -1,105 +1,55 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-    detectSearchIntent,
-    initUniversalSearch,
-    isUniversalSearchActive,
-    resetUniversalSearchState,
-    SEARCH_INTENT,
-    shouldRunUniversalSearch,
-} from '../../resources/js/universal-search';
-
-vi.mock('../../resources/js/live-dashboard', () => ({
-    applyRows: vi.fn(),
-}));
-
-import { applyRows } from '../../resources/js/live-dashboard';
-
-describe('detectSearchIntent', () => {
-    it.each([
-        ['9876543210', SEARCH_INTENT.STRUCTURED],
-        ['RD3434509', SEARCH_INTENT.STRUCTURED],
-        ['Danzo', SEARCH_INTENT.TEXT],
-    ])('classifies %s', (query, expectedIntent) => {
-        expect(detectSearchIntent(query)).toBe(expectedIntent);
-    });
-});
-
-describe('shouldRunUniversalSearch', () => {
-    it.each([
-        ['9', true],
-        ['D', false],
-        ['Da', true],
-    ])('returns %s -> %s', (query, expected) => {
-        expect(shouldRunUniversalSearch(query)).toBe(expected);
-    });
-});
+import { initUniversalSearch } from '../../resources/js/universal-search';
 
 describe('initUniversalSearch', () => {
     beforeEach(() => {
-        resetUniversalSearchState();
         vi.useFakeTimers();
-        applyRows.mockReset();
         global.fetch = vi.fn();
     });
 
     afterEach(() => {
-        resetUniversalSearchState();
         document.body.innerHTML = '';
         vi.useRealTimers();
         vi.restoreAllMocks();
     });
 
-    it('redirects to dashboard with query when not on dashboard page', () => {
+    const mountSearch = () => {
         document.body.innerHTML = `
-            <form data-universal-search-form>
-                <input id="global-search-input" type="search" value="9876543210">
-            </form>
-        `;
-
-        Object.defineProperty(window, 'location', {
-            configurable: true,
-            writable: true,
-            value: new URL('http://localhost/orders'),
-        });
-
-        initUniversalSearch();
-
-        document.querySelector('[data-universal-search-form]')?.dispatchEvent(
-            new Event('submit', { bubbles: true, cancelable: true }),
-        );
-
-        expect(window.location.href).toBe('http://localhost/dashboard?q=9876543210');
-    });
-
-    it('runs server search on dashboard submit', async () => {
-        Object.defineProperty(window, 'location', {
-            configurable: true,
-            writable: true,
-            value: new URL('http://localhost/dashboard'),
-        });
-
-        document.body.innerHTML = `
-            <div id="dashboard-page" data-search-url="/dashboard/search" data-live-filter="all"></div>
-            <form data-universal-search-form>
+            <form data-universal-search-form data-search-url="/search">
                 <span data-universal-search-control>
                     <span data-universal-search-icon><i class="bi bi-search"></i></span>
                 </span>
-                <input id="global-search-input" type="search" value="RD3434509">
+                <input id="global-search-input" type="search" value="">
+                <div id="global-search-results" class="global-search-results d-none"></div>
             </form>
         `;
+
+        initUniversalSearch();
+    };
+
+    it('runs search on form submit', async () => {
+        mountSearch();
+
+        document.getElementById('global-search-input').value = 'RD3434509';
 
         global.fetch.mockResolvedValue({
             ok: true,
             json: async () => ({
                 match_count: 1,
-                rows: [{
+                results: [{
                     incident_id: 99,
-                    html: '<tr id="service-case-row-99" data-incident-id="99"><td>ORD-100</td></tr>',
+                    url: '/incidents/99',
+                    service_case: 'SC00099',
+                    reference_number: 'SC-00099',
+                    order_id: 'RD3434509',
+                    customer: 'Customer',
+                    phone: '9876543210',
+                    assigned_to: 'Agent',
+                    status: 'Open',
+                    age: '1d',
                 }],
             }),
         });
-
-        initUniversalSearch({ pageRoot: document.getElementById('dashboard-page') });
 
         document.querySelector('[data-universal-search-form]')?.dispatchEvent(
             new Event('submit', { bubbles: true, cancelable: true }),
@@ -108,37 +58,33 @@ describe('initUniversalSearch', () => {
         await Promise.resolve();
         await Promise.resolve();
 
+        expect(global.fetch).toHaveBeenCalledTimes(1);
         expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringContaining('/dashboard/search?q=RD3434509'),
-            expect.any(Object),
+            '/search?q=RD3434509',
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Accept: 'application/json',
+                }),
+            }),
         );
-        expect(applyRows).toHaveBeenCalledTimes(1);
-        expect(isUniversalSearchActive()).toBe(true);
+
+        const resultsPanel = document.getElementById('global-search-results');
+        expect(resultsPanel.classList.contains('d-none')).toBe(false);
+        expect(resultsPanel.innerHTML).toContain('RD3434509');
     });
 
-    it('runs server search on Enter even for a single-character query', async () => {
-        Object.defineProperty(window, 'location', {
-            configurable: true,
-            writable: true,
-            value: new URL('http://localhost/dashboard'),
-        });
+    it('runs search on Enter', async () => {
+        mountSearch();
 
-        document.body.innerHTML = `
-            <div id="dashboard-page" data-search-url="/dashboard/search" data-live-filter="all"></div>
-            <form data-universal-search-form>
-                <input id="global-search-input" type="search" value="D">
-            </form>
-        `;
+        document.getElementById('global-search-input').value = 'D';
 
         global.fetch.mockResolvedValue({
             ok: true,
             json: async () => ({
                 match_count: 0,
-                rows: [],
+                results: [],
             }),
         });
-
-        initUniversalSearch({ pageRoot: document.getElementById('dashboard-page') });
 
         document.getElementById('global-search-input')?.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
@@ -146,44 +92,47 @@ describe('initUniversalSearch', () => {
 
         await Promise.resolve();
 
+        expect(global.fetch).toHaveBeenCalledTimes(1);
         expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringContaining('/dashboard/search?q=D'),
+            '/search?q=D',
             expect.any(Object),
         );
     });
 
-    it('bootstraps server search from dashboard URL q param on init', async () => {
-        Object.defineProperty(window, 'location', {
-            configurable: true,
-            writable: true,
-            value: new URL('http://localhost/dashboard?q=9883534'),
-        });
+    it('does not search while typing', async () => {
+        mountSearch();
 
-        document.body.innerHTML = `
-            <div id="dashboard-page" data-search-url="/dashboard/search" data-live-filter="all"></div>
-            <input id="global-search-input" type="search" value="">
-        `;
+        const input = document.getElementById('global-search-input');
+        input.value = 'Da';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+
+        await vi.runAllTimersAsync();
+
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('does not send view or filter parameters', async () => {
+        mountSearch();
+
+        document.getElementById('global-search-input').value = '9876543210';
 
         global.fetch.mockResolvedValue({
             ok: true,
             json: async () => ({
-                match_count: 1,
-                rows: [{
-                    incident_id: 1,
-                    html: '<tr id="service-case-row-1" data-incident-id="1"><td>Row 1</td></tr>',
-                }],
+                match_count: 0,
+                results: [],
             }),
         });
 
-        initUniversalSearch({ pageRoot: document.getElementById('dashboard-page') });
-
-        await vi.runAllTimersAsync();
-
-        expect(document.getElementById('global-search-input').value).toBe('9883534');
-        expect(global.fetch).toHaveBeenCalledWith(
-            expect.stringContaining('/dashboard/search?q=9883534'),
-            expect.any(Object),
+        document.querySelector('[data-universal-search-form]')?.dispatchEvent(
+            new Event('submit', { bubbles: true, cancelable: true }),
         );
-        expect(applyRows).toHaveBeenCalledTimes(1);
+
+        await Promise.resolve();
+
+        const requestUrl = global.fetch.mock.calls[0][0];
+        expect(requestUrl).toBe('/search?q=9876543210');
+        expect(requestUrl).not.toContain('view=');
+        expect(requestUrl).not.toContain('filter=');
     });
 });

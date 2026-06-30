@@ -2,9 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\DashboardPersonalizationService;
-use App\Services\DashboardService;
-use App\Services\UniversalSearchService;
+use App\Services\GlobalSearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,9 +10,7 @@ use Illuminate\Http\Request;
 class SearchController extends Controller
 {
     public function __construct(
-        private readonly UniversalSearchService $universalSearchService,
-        private readonly DashboardService $dashboardService,
-        private readonly DashboardPersonalizationService $dashboardPersonalization,
+        private readonly GlobalSearchService $globalSearchService,
     ) {}
 
     public function search(Request $request): JsonResponse|RedirectResponse
@@ -25,10 +21,7 @@ class SearchController extends Controller
             return $this->jsonResponse($request, $query);
         }
 
-        return redirect()->route('dashboard', array_filter([
-            'q' => $query !== '' ? $query : null,
-            'view' => $request->query('view'),
-        ]));
+        return redirect()->route('dashboard');
     }
 
     private function jsonResponse(Request $request, string $query): JsonResponse
@@ -38,7 +31,7 @@ class SearchController extends Controller
         if ($query === '') {
             return response()->json([
                 'match_count' => 0,
-                'rows' => [],
+                'results' => [],
                 'incident_ids' => [],
             ]);
         }
@@ -46,42 +39,21 @@ class SearchController extends Controller
         if (! $user->can('incidents.view')) {
             return response()->json([
                 'match_count' => 0,
-                'rows' => [],
+                'results' => [],
                 'incident_ids' => [],
             ]);
         }
 
-        $viewResolution = $this->dashboardPersonalization->resolveView(
-            $user,
-            $request->query('view'),
-        );
-        $dashboardView = $viewResolution['view'];
-        $defaultFilter = $this->dashboardPersonalization->defaultFilterFor($user, $dashboardView);
-        $filter = $request->string('filter')->toString() ?: $defaultFilter;
-        $availableFilters = $this->dashboardPersonalization->availableFiltersFor($user);
-
-        if (! in_array($filter, $availableFilters, true)) {
-            $filter = $defaultFilter;
-        }
-
-        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
-
-        $matches = $this->universalSearchService->search($user, $query, $assignedTo, $filter);
-
-        $rows = $matches->map(function ($serviceCase) use ($user) {
-            return [
-                'incident_id' => $serviceCase->id,
-                'html' => view(
-                    'dashboard.partials.service-case-row',
-                    $this->dashboardService->serviceCaseRowViewData($serviceCase, $user),
-                )->render(),
-            ];
-        })->values();
+        $results = $this->globalSearchService->search($user, $query);
+        $payload = $results->map(fn ($result) => $result->toArray())->values();
 
         return response()->json([
-            'match_count' => $matches->count(),
-            'rows' => $rows,
-            'incident_ids' => $matches->pluck('id')->values(),
+            'match_count' => $payload->count(),
+            'results' => $payload,
+            'incident_ids' => $payload
+                ->where('type', 'service_case')
+                ->pluck('incident_id')
+                ->values(),
         ]);
     }
 }

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\IncidentStatus;
-use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,7 +10,7 @@ use Illuminate\Support\Collection;
 
 class UniversalSearchService
 {
-    private const RESULT_LIMIT = 50;
+    public const RESULT_LIMIT = 20;
 
     public function __construct(
         private readonly SettingService $settingService,
@@ -20,7 +19,7 @@ class UniversalSearchService
     /**
      * @return Collection<int, Incident>
      */
-    public function search(User $user, string $query, ?User $assignedTo = null, string $filter = 'all'): Collection
+    public function search(User $user, string $query): Collection
     {
         $query = trim($query);
 
@@ -40,148 +39,67 @@ class UniversalSearchService
                 })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like));
             });
 
-        if ($assignedTo !== null) {
-            $builder->where('assigned_to_user_id', $assignedTo->id);
-        }
-
-        $this->applyServiceCaseFilter($builder, $filter);
-
         $paddedReference = $this->paddedReferenceForQuery($query);
 
-        $results = $builder
+        return $builder
             ->orderByRaw(
                 'CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.customer_phone = ?
-                    ) THEN 0
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.customer_phone LIKE ?
-                    ) THEN 1
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.order_id = ?
-                    ) THEN 2
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.order_id LIKE ?
-                    ) THEN 3
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.serial_number = ?
-                    ) THEN 4
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.serial_number LIKE ?
-                    ) THEN 5
                     WHEN incidents.reference_no = ?
                       OR incidents.reference_no = ?
                       OR incidents.reference_no = ?
                       OR incidents.reference_no = ?
-                    THEN 6
+                      OR EXISTS (
+                        SELECT 1 FROM orders
+                        WHERE orders.id = incidents.order_id
+                          AND (
+                            orders.customer_phone = ?
+                            OR orders.order_id = ?
+                            OR orders.serial_number = ?
+                            OR orders.transaction_id = ?
+                            OR orders.customer_email = ?
+                            OR orders.customer_name = ?
+                          )
+                      )
+                    THEN 0
                     WHEN incidents.reference_no LIKE ?
-                    THEN 7
-                    WHEN EXISTS (
+                      OR EXISTS (
                         SELECT 1 FROM orders
                         WHERE orders.id = incidents.order_id
-                          AND orders.transaction_id = ?
-                    ) THEN 8
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.transaction_id LIKE ?
-                    ) THEN 9
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.customer_name LIKE ?
-                    ) THEN 10
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.customer_email = ?
-                    ) THEN 11
-                    WHEN EXISTS (
-                        SELECT 1 FROM orders
-                        WHERE orders.id = incidents.order_id
-                          AND orders.customer_email LIKE ?
-                    ) THEN 12
-                    ELSE 13
+                          AND (
+                            orders.customer_phone LIKE ?
+                            OR orders.order_id LIKE ?
+                            OR orders.serial_number LIKE ?
+                            OR orders.transaction_id LIKE ?
+                            OR orders.customer_email LIKE ?
+                            OR orders.customer_name LIKE ?
+                          )
+                      )
+                    THEN 1
+                    ELSE 2
                 END',
                 [
-                    $query,
-                    $prefix,
-                    $query,
-                    $prefix,
-                    $query,
-                    $prefix,
                     $paddedReference['sc_dash'],
                     $paddedReference['sc_plain'],
                     $paddedReference['sc_dash_unpadded'],
                     $paddedReference['sc_plain_unpadded'],
-                    $prefix,
+                    $query,
+                    $query,
+                    $query,
+                    $query,
+                    $query,
                     $query,
                     $prefix,
-                    $like,
-                    $query,
+                    $prefix,
+                    $prefix,
+                    $prefix,
+                    $prefix,
+                    $prefix,
                     $prefix,
                 ]
             )
             ->orderByDesc('incidents.updated_at')
             ->limit(self::RESULT_LIMIT)
             ->get();
-
-        return match ($filter) {
-            'overdue' => $this->filterIncidentsBySlaStatus($results, ServiceCaseSlaStatus::Overdue),
-            'warning' => $this->filterIncidentsBySlaStatus($results, ServiceCaseSlaStatus::Warning),
-            default => $results,
-        };
-    }
-
-    private function applyServiceCaseFilter(Builder $query, string $filter): void
-    {
-        match ($filter) {
-            'pending_admin' => $query->whereHas('order', function ($orderQuery): void {
-                $orderQuery->where(function ($pendingQuery): void {
-                    $pendingQuery->whereNull('transaction_id')
-                        ->orWhere('transaction_id', '');
-                });
-            }),
-            'completed' => $query->whereHas('order', function ($orderQuery): void {
-                $orderQuery->whereNotNull('transaction_id')
-                    ->where('transaction_id', '!=', '');
-            }),
-            'high_priority' => $query->where('high_priority', true),
-            'needs_attention' => $query->whereHas('order', fn ($orderQuery) => $orderQuery->whereSerialMissing()),
-            'pending_support' => $query->whereNull('assigned_to_user_id'),
-            'overdue', 'warning' => $query->whereHas('order', function ($orderQuery): void {
-                $orderQuery->where(function ($pendingQuery): void {
-                    $pendingQuery->whereNull('transaction_id')
-                        ->orWhere('transaction_id', '');
-                });
-            }),
-            default => null,
-        };
-    }
-
-    /**
-     * @param  Collection<int, Incident>  $incidents
-     * @return Collection<int, Incident>
-     */
-    private function filterIncidentsBySlaStatus(Collection $incidents, ServiceCaseSlaStatus $status): Collection
-    {
-        $now = now();
-
-        return $incidents
-            ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin() && $incident->slaStatus($now) === $status)
-            ->values();
     }
 
     /**

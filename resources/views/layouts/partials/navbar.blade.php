@@ -3,11 +3,12 @@
         <i class="bi bi-list fs-4"></i>
     </button>
 
-    <form action="{{ route('dashboard') }}"
+    <form action="{{ route('search.index') }}"
           method="GET"
-          class="flex-grow-1 mx-lg-3"
+          class="flex-grow-1 mx-lg-3 position-relative"
           role="search"
-          data-universal-search-form>
+          data-universal-search-form
+          data-search-url="{{ route('search.index') }}">
         <div class="input-group">
             <span class="input-group-text bg-white border-end-0" data-universal-search-control>
                 <span data-universal-search-icon aria-hidden="true">
@@ -20,11 +21,19 @@
                 id="global-search-input"
                 class="form-control border-start-0"
                 placeholder="Search phone, order ID, serial, case ID, customer..."
-                value="{{ request()->routeIs('dashboard') ? request('q') : '' }}"
+                value=""
                 aria-label="Universal search"
+                aria-controls="global-search-results"
                 autocomplete="off"
             >
+            <button type="submit" class="btn btn-outline-secondary d-none d-md-inline-flex">
+                Search
+            </button>
         </div>
+        <div id="global-search-results"
+             class="global-search-results d-none"
+             role="region"
+             aria-label="Search results"></div>
     </form>
 
     <div id="notification-bell-root"

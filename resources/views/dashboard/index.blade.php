@@ -12,7 +12,6 @@
          id="dashboard-page"
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
-         data-search-url="{{ route('dashboard.search') }}"
          data-live-filter="{{ $serviceCaseFilter ?? 'pending_admin' }}"
          data-live-view="{{ $dashboardView ?? 'all' }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"

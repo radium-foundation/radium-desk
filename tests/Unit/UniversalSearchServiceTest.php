@@ -56,49 +56,45 @@ class UniversalSearchServiceTest extends TestCase
         ]);
     }
 
-    public function test_mobile_match_ranks_before_customer_name_match(): void
+    public function test_exact_match_ranks_before_prefix_match(): void
     {
         $user = User::factory()->create();
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $phoneMatch = $this->createServiceCase($user, [
-            'order_id' => 'RD-PHONE-001',
-            'customer_phone' => '9876543210',
-            'customer_name' => 'Other Person',
+        $prefixMatch = $this->createServiceCase($user, [
+            'order_id' => 'RD3434509-ALT',
         ]);
 
-        $nameMatch = $this->createServiceCase($user, [
-            'order_id' => 'RD-NAME-001',
-            'customer_name' => '9876543210 Person',
-        ]);
-
-        $results = app(UniversalSearchService::class)->search($user, '9876543210');
-
-        $this->assertSame(
-            [$phoneMatch->id, $nameMatch->id],
-            $results->pluck('id')->all(),
-        );
-    }
-
-    public function test_order_id_match_ranks_before_serial_number_match(): void
-    {
-        $user = User::factory()->create();
-        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
-
-        $orderMatch = $this->createServiceCase($user, [
+        $exactMatch = $this->createServiceCase($user, [
             'order_id' => 'RD3434509',
-            'serial_number' => 'SN-001',
-        ]);
-
-        $serialMatch = $this->createServiceCase($user, [
-            'order_id' => 'RD-OTHER-001',
-            'serial_number' => 'RD3434509',
         ]);
 
         $results = app(UniversalSearchService::class)->search($user, 'RD3434509');
 
         $this->assertSame(
-            [$orderMatch->id, $serialMatch->id],
+            [$exactMatch->id, $prefixMatch->id],
+            $results->pluck('id')->all(),
+        );
+    }
+
+    public function test_prefix_match_ranks_before_contains_match(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $containsMatch = $this->createServiceCase($user, [
+            'order_id' => 'RD-OTHER-001',
+            'serial_number' => 'ZZ-RD3434509-ZZ',
+        ]);
+
+        $prefixMatch = $this->createServiceCase($user, [
+            'order_id' => 'RD3434509-ALT',
+        ]);
+
+        $results = app(UniversalSearchService::class)->search($user, 'RD3434509');
+
+        $this->assertSame(
+            [$prefixMatch->id, $containsMatch->id],
             $results->pluck('id')->all(),
         );
     }
@@ -111,5 +107,22 @@ class UniversalSearchServiceTest extends TestCase
         $results = app(UniversalSearchService::class)->search($user, '   ');
 
         $this->assertTrue($results->isEmpty());
+    }
+
+    public function test_search_returns_at_most_twenty_results(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        for ($index = 1; $index <= 25; $index++) {
+            $this->createServiceCase($user, [
+                'order_id' => 'RD-LIMIT-'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                'customer_phone' => '7700000'.str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+            ]);
+        }
+
+        $results = app(UniversalSearchService::class)->search($user, '7700000');
+
+        $this->assertCount(UniversalSearchService::RESULT_LIMIT, $results);
     }
 }

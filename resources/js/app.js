@@ -554,12 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     });
 
-    const universalSearch = initUniversalSearch({
-        pageRoot,
-        refreshDashboard: () => refreshDashboard(pageRoot),
-    });
-
-    universalSearch.setRestoreHandler(() => refreshDashboard(pageRoot));
+    initUniversalSearch();
 
     initCustomer360Drawer({
         pageRoot,

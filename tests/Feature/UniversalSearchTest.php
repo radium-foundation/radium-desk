@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\UniversalSearchService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -61,23 +62,13 @@ class UniversalSearchTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_legacy_search_route_redirects_to_dashboard_with_query(): void
+    public function test_legacy_search_route_redirects_to_dashboard(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->actingAs($agent)
             ->get(route('search.index', ['q' => '9876543210']))
-            ->assertRedirect(route('dashboard', ['q' => '9876543210']));
-    }
-
-    public function test_legacy_search_route_redirects_to_dashboard_without_query(): void
-    {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
-
-        $this->actingAs($agent)
-            ->get(route('search.index'))
             ->assertRedirect(route('dashboard'));
     }
 
@@ -94,7 +85,9 @@ class UniversalSearchTest extends TestCase
             ->getJson(route('search.index', ['q' => 'RD3434509']))
             ->assertOk()
             ->assertJsonPath('match_count', 1)
-            ->assertJsonPath('incident_ids.0', $incident->id);
+            ->assertJsonPath('incident_ids.0', $incident->id)
+            ->assertJsonPath('results.0.service_case', $incident->display_reference)
+            ->assertJsonPath('results.0.order_id', 'RD3434509');
 
         $this->actingAs($agent)
             ->getJson(route('dashboard.search', ['q' => 'RD3434509']))
@@ -119,7 +112,7 @@ class UniversalSearchTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('match_count', 1);
         $response->assertJsonPath('incident_ids.0', $incident->id);
-        $response->assertSee('RD3434509', false);
+        $response->assertJsonPath('results.0.phone', '9876543210');
     }
 
     public function test_search_finds_service_case_by_order_id(): void
@@ -154,7 +147,7 @@ class UniversalSearchTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('match_count', 1);
         $response->assertJsonPath('incident_ids.0', $incident->id);
-        $response->assertSee('SC01427', false);
+        $response->assertJsonPath('results.0.service_case', 'SC01427');
     }
 
     public function test_search_finds_service_cases_by_customer_name(): void
@@ -191,7 +184,7 @@ class UniversalSearchTest extends TestCase
         $response->assertJsonPath('incident_ids.0', $incident->id);
     }
 
-    public function test_search_finds_service_case_by_transaction_id_only_on_matching_tab(): void
+    public function test_search_finds_service_case_by_transaction_id(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -204,103 +197,8 @@ class UniversalSearchTest extends TestCase
         $this->actingAs($agent)
             ->getJson(route('search.index', ['q' => 'TXN-SEARCH-001']))
             ->assertOk()
-            ->assertJsonPath('match_count', 0);
-
-        $response = $this->actingAs($agent)
-            ->getJson(route('search.index', [
-                'q' => 'TXN-SEARCH-001',
-                'filter' => 'all',
-            ]));
-
-        $response->assertOk();
-        $response->assertJsonPath('match_count', 1);
-        $response->assertJsonPath('incident_ids.0', $incident->id);
-
-        $admin = User::factory()->create();
-        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
-
-        $this->actingAs($admin)
-            ->getJson(route('search.index', [
-                'q' => 'TXN-SEARCH-001',
-                'filter' => 'completed',
-            ]))
-            ->assertOk()
             ->assertJsonPath('match_count', 1)
             ->assertJsonPath('incident_ids.0', $incident->id);
-    }
-
-    public function test_search_respects_needs_attention_filter(): void
-    {
-        $admin = User::factory()->create();
-        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
-
-        $missingSerialOrder = Order::query()->create([
-            'order_id' => 'RD-NA-SRCH-MISSING',
-            'serial_number' => null,
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
-            'status' => 'active',
-            'created_by' => $admin->id,
-        ]);
-
-        $presentSerialOrder = Order::query()->create([
-            'order_id' => 'RD-NA-SRCH-PRESENT',
-            'serial_number' => 'SN-NA-SRCH-PRESENT',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
-            'status' => 'active',
-            'created_by' => $admin->id,
-        ]);
-
-        $missingIncident = Incident::query()->create([
-            'order_id' => $missingSerialOrder->id,
-            'reference_no' => 'SC-NA-SRCH-MISSING',
-            'category' => 'General',
-            'source' => IncidentSource::Call,
-            'title' => 'Missing serial search',
-            'description' => 'Missing serial search.',
-            'status' => IncidentStatus::Open->value,
-            'created_by' => $admin->id,
-            'assigned_to_user_id' => $admin->id,
-        ]);
-
-        $presentIncident = Incident::query()->create([
-            'order_id' => $presentSerialOrder->id,
-            'reference_no' => 'SC-NA-SRCH-PRESENT',
-            'category' => 'General',
-            'source' => IncidentSource::Call,
-            'title' => 'Present serial search',
-            'description' => 'Present serial search.',
-            'status' => IncidentStatus::Open->value,
-            'created_by' => $admin->id,
-            'assigned_to_user_id' => $admin->id,
-        ]);
-
-        $this->actingAs($admin)
-            ->getJson(route('search.index', [
-                'q' => 'RD-NA-SRCH',
-                'filter' => 'needs_attention',
-            ]))
-            ->assertOk()
-            ->assertJsonPath('match_count', 1)
-            ->assertJsonPath('incident_ids.0', $missingIncident->id);
-
-        $this->actingAs($admin)
-            ->getJson(route('search.index', [
-                'q' => 'RD-NA-SRCH-PRESENT',
-                'filter' => 'needs_attention',
-            ]))
-            ->assertOk()
-            ->assertJsonPath('match_count', 0);
-
-        $this->actingAs($admin)
-            ->getJson(route('search.index', [
-                'q' => 'RD-NA-SRCH-PRESENT',
-                'filter' => 'all',
-            ]))
-            ->assertOk()
-            ->assertJsonPath('match_count', 1)
-            ->assertJsonPath('incident_ids.0', $presentIncident->id);
     }
 
     public function test_search_finds_service_case_by_normalized_reference_formats(): void
@@ -338,7 +236,7 @@ class UniversalSearchTest extends TestCase
             ->assertJsonPath('incident_ids.0', $incident->id);
     }
 
-    public function test_search_does_not_find_closed_service_cases_in_dashboard_tabs(): void
+    public function test_search_does_not_find_closed_service_cases(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -349,18 +247,13 @@ class UniversalSearchTest extends TestCase
             'status' => IncidentStatus::Closed,
         ]);
 
-        foreach (['pending_admin', 'all'] as $filter) {
-            $this->actingAs($agent)
-                ->getJson(route('search.index', [
-                    'q' => 'RD-CLOSED-001',
-                    'filter' => $filter,
-                ]))
-                ->assertOk()
-                ->assertJsonPath('match_count', 0);
-        }
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD-CLOSED-001']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0);
     }
 
-    public function test_search_scopes_to_assignee_in_my_work_view(): void
+    public function test_agent_can_find_another_agents_active_case(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -368,27 +261,91 @@ class UniversalSearchTest extends TestCase
         $otherAgent = User::factory()->create();
         $otherAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $mine = $this->createServiceCase($agent, [
-            'customer_phone' => '9000000001',
-        ], [
-            'assigned_to_user_id' => $agent->id,
-        ]);
-
-        $this->createServiceCase($otherAgent, [
+        $otherCase = $this->createServiceCase($otherAgent, [
+            'order_id' => 'RD-OTHER-AGENT-001',
             'customer_phone' => '9000000002',
         ], [
             'assigned_to_user_id' => $otherAgent->id,
         ]);
 
-        $response = $this->actingAs($agent)
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => '9000000002']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $otherCase->id)
+            ->assertJsonPath('results.0.assigned_to', $otherAgent->name);
+    }
+
+    public function test_search_ignores_dashboard_view_and_filter_parameters(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $otherAgent = User::factory()->create();
+        $otherAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $otherCase = $this->createServiceCase($otherAgent, [
+            'order_id' => 'RD-VIEW-IGNORE-001',
+        ], [
+            'assigned_to_user_id' => $otherAgent->id,
+        ]);
+
+        $this->actingAs($agent)
             ->getJson(route('search.index', [
-                'q' => '9000000001',
+                'q' => 'RD-VIEW-IGNORE-001',
                 'view' => 'my_work',
-            ]));
+                'filter' => 'pending_support',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $otherCase->id);
+    }
+
+    public function test_search_returns_maximum_twenty_rows(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        for ($index = 1; $index <= 25; $index++) {
+            $this->createServiceCase($agent, [
+                'order_id' => 'RD-GLOBAL-BULK-'.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
+                'customer_phone' => '8800000'.str_pad((string) $index, 3, '0', STR_PAD_LEFT),
+            ]);
+        }
+
+        $response = $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => '8800000']));
 
         $response->assertOk();
-        $response->assertJsonPath('match_count', 1);
-        $response->assertJsonPath('incident_ids.0', $mine->id);
+        $response->assertJsonCount(UniversalSearchService::RESULT_LIMIT, 'results');
+        $response->assertJsonPath('match_count', UniversalSearchService::RESULT_LIMIT);
+    }
+
+    public function test_search_ranks_exact_matches_before_prefix_and_contains(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $containsMatch = $this->createServiceCase($agent, [
+            'order_id' => 'RD-PREFIX-001',
+            'serial_number' => 'ZZ-RD3434509-ZZ',
+        ]);
+
+        $prefixMatch = $this->createServiceCase($agent, [
+            'order_id' => 'RD3434509-ALT',
+        ]);
+
+        $exactMatch = $this->createServiceCase($agent, [
+            'order_id' => 'RD3434509',
+        ]);
+
+        $response = $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD3434509']));
+
+        $response->assertOk();
+        $response->assertJsonPath('incident_ids.0', $exactMatch->id);
+        $response->assertJsonPath('incident_ids.1', $prefixMatch->id);
+        $response->assertJsonPath('incident_ids.2', $containsMatch->id);
     }
 
     public function test_search_returns_empty_payload_for_blank_query(): void
@@ -400,7 +357,7 @@ class UniversalSearchTest extends TestCase
             ->getJson(route('search.index', ['q' => '']))
             ->assertOk()
             ->assertJsonPath('match_count', 0)
-            ->assertJsonPath('rows', []);
+            ->assertJsonPath('results', []);
     }
 
     public function test_search_returns_empty_payload_without_incident_permission(): void
@@ -415,10 +372,10 @@ class UniversalSearchTest extends TestCase
             ->getJson(route('search.index', ['q' => 'RD3421021']))
             ->assertOk()
             ->assertJsonPath('match_count', 0)
-            ->assertJsonPath('rows', []);
+            ->assertJsonPath('results', []);
     }
 
-    public function test_dashboard_page_includes_search_url_data_attribute(): void
+    public function test_navbar_includes_global_search_url_data_attribute(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -426,6 +383,34 @@ class UniversalSearchTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee(route('dashboard.search'), false);
+            ->assertSee(route('search.index'), false)
+            ->assertSee('data-search-url', false);
+    }
+
+    public function test_search_result_includes_required_display_fields(): void
+    {
+        $agent = User::factory()->create(['name' => 'Search Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createServiceCase($agent, [
+            'order_id' => 'RD-FIELDS-001',
+            'customer_name' => 'Field Customer',
+            'customer_phone' => '9111222333',
+        ], [
+            'reference_no' => 'SC-01234',
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD-FIELDS-001']))
+            ->assertOk()
+            ->assertJsonPath('results.0.service_case', $incident->display_reference)
+            ->assertJsonPath('results.0.reference_number', 'SC-01234')
+            ->assertJsonPath('results.0.order_id', 'RD-FIELDS-001')
+            ->assertJsonPath('results.0.customer', 'Field Customer')
+            ->assertJsonPath('results.0.phone', '9111222333')
+            ->assertJsonPath('results.0.assigned_to', 'Search Agent')
+            ->assertJsonPath('results.0.status', IncidentStatus::Open->label())
+            ->assertJsonStructure(['results' => [['age', 'url']]]);
     }
 }
