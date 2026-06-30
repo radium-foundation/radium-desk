@@ -28,6 +28,8 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+
+        config(['service_case_assignment.automation_grace_period_enabled' => false]);
     }
 
     private function configureAssignmentSettings(
@@ -273,10 +275,15 @@ class ServiceCaseAssignmentTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_quick_create_automatically_assigns_via_round_robin(): void
+    public function test_quick_create_with_serial_assigns_shift_admin_when_grace_period_enabled(): void
     {
-        $agentA = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
-        $this->createAgentUser('agent-b@test.com', 'Agent Beta');
+        config(['service_case_assignment.automation_grace_period_enabled' => true]);
+
+        $admin = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $this->configureAssignmentSettings($admin->id, $admin->id);
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+
+        Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 
         $creator = User::factory()->create();
         $creator->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -293,13 +300,15 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $response->assertRedirect(route('dashboard'));
 
-        $this->assertSame($agentA->id, $incident->assignee?->id);
+        $this->assertSame($admin->id, $incident->assignee?->id);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.assigned',
             'auditable_type' => $incident->getMorphClass(),
             'auditable_id' => $incident->id,
         ]);
+
+        Carbon::setTestNow();
     }
 
     public function test_admin_can_manually_reassign_service_case(): void

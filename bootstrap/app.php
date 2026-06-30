@@ -38,6 +38,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->when(fn (): bool => (bool) config('infrastructure.metrics_enabled'))
             ->withoutOverlapping();
 
+        $schedule->command('service-cases:process-automation-pending')
+            ->everyMinute()
+            ->when(fn (): bool => (bool) config('service_case_assignment.automation_grace_period_enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/automation-pending-assignments.log'));
+
         // Phase 2: enable when ready to recover delayed RadiumBox product details automatically.
         // Uses progressive backoff (1h → 4h → 12h → 24h) within a 7-day automatic window.
         // $schedule->command('radiumbox:backfill-orders --limit=50')

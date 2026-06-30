@@ -31,6 +31,7 @@ class Incident extends Model
         'status',
         'high_priority',
         'assigned_to_user_id',
+        'automation_pending_until',
         'created_by',
         'updated_by',
     ];
@@ -41,7 +42,22 @@ class Incident extends Model
             'status' => IncidentStatus::class,
             'source' => IncidentSource::class,
             'high_priority' => 'boolean',
+            'automation_pending_until' => 'datetime',
         ];
+    }
+
+    public function isAutomationPending(): bool
+    {
+        return $this->assigned_to_user_id === null
+            && $this->automation_pending_until !== null
+            && $this->automation_pending_until->isFuture();
+    }
+
+    public function scopeAutomationGraceExpired(Builder $query): void
+    {
+        $query->whereNull('assigned_to_user_id')
+            ->whereNotNull('automation_pending_until')
+            ->where('automation_pending_until', '<=', now());
     }
 
     public function order(): BelongsTo

@@ -113,6 +113,15 @@ class ServiceCaseActivityTimelineService
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
+                'service_case.automation_pending' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
+                    actor: $actor,
+                    title: 'Automation Pending',
+                    body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $actor, $occurredAt),
                 default => null,
             };

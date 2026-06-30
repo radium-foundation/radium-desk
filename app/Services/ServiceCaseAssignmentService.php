@@ -58,6 +58,67 @@ class ServiceCaseAssignmentService
             return $incident->fresh(['assignee']);
         }
 
+        if (config('service_case_assignment.automation_grace_period_enabled', true)) {
+            return app(ServiceCaseAutomationGraceService::class)->beginGracePeriod($incident, $actor, $at);
+        }
+
+        return $this->assignImmediatelyOnCreate($incident, $actor, $at);
+    }
+
+    public function assignToShiftAdminAfterValidation(
+        Incident $incident,
+        User $actor,
+        ?Carbon $at = null,
+    ): Incident {
+        $incident = $incident->fresh(['assignee']);
+
+        if ($incident->assigned_to_user_id !== null) {
+            return $incident;
+        }
+
+        return $this->applyAssignment(
+            incident: $this->clearAutomationPending($incident, $actor),
+            assignee: $this->resolveAssignee($at),
+            actor: $actor,
+            event: 'service_case.assigned',
+        );
+    }
+
+    public function assignViaRoundRobinAfterGracePeriod(Incident $incident, User $actor): Incident
+    {
+        $incident = $incident->fresh(['assignee']);
+
+        if ($incident->assigned_to_user_id !== null) {
+            return $incident;
+        }
+
+        $incident = $this->clearAutomationPending($incident, $actor);
+
+        if (! config('service_case_assignment.round_robin_enabled', true)) {
+            return $this->applyAssignment(
+                incident: $incident,
+                assignee: $this->resolveAssignee(),
+                actor: $actor,
+                event: 'service_case.assigned',
+            );
+        }
+
+        $assignee = $this->resolveAgentRoundRobin();
+
+        if ($assignee === null) {
+            return $this->logUnassignedAfterGracePeriod($incident, $actor);
+        }
+
+        return $this->applyAssignment(
+            incident: $incident,
+            assignee: $assignee,
+            actor: $actor,
+            event: 'service_case.assigned',
+        );
+    }
+
+    private function assignImmediatelyOnCreate(Incident $incident, User $actor, ?Carbon $at = null): Incident
+    {
         if (! config('service_case_assignment.round_robin_enabled', true)) {
             return $this->applyAssignment(
                 incident: $incident,
@@ -79,6 +140,40 @@ class ServiceCaseAssignmentService
             actor: $actor,
             event: 'service_case.assigned',
         );
+    }
+
+    private function clearAutomationPending(Incident $incident, User $actor): Incident
+    {
+        if ($incident->automation_pending_until === null) {
+            return $incident;
+        }
+
+        $incident->update([
+            'automation_pending_until' => null,
+            'updated_by' => $actor->id,
+        ]);
+
+        return $incident->fresh(['assignee', 'order']);
+    }
+
+    private function logUnassignedAfterGracePeriod(Incident $incident, User $actor): Incident
+    {
+        $incident = $this->clearAutomationPending($incident, $actor);
+
+        $this->auditLogService->log(
+            userId: $actor->id,
+            event: 'service_case.unassigned',
+            auditable: $incident,
+            oldValues: [
+                'assigned_to_user_id' => null,
+            ],
+            newValues: [
+                'assigned_to_user_id' => null,
+                'reason' => 'no_active_support_agents',
+            ],
+        );
+
+        return $incident->fresh(['assignee']);
     }
 
     public function reassign(Incident $incident, User $assignee, User $actor): Incident

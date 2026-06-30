@@ -6,6 +6,7 @@ use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Order;
 use App\Services\RadiumBox\Exceptions\RadiumBoxEnrichmentRetryException;
+use App\Services\ServiceCaseAutomationGraceService;
 use Illuminate\Support\Facades\Log;
 
 class RadiumBoxOrderEnrichmentService
@@ -76,6 +77,8 @@ class RadiumBoxOrderEnrichmentService
             }
 
             $this->syncStore->markSynced($order->id, $metadata);
+
+            app(ServiceCaseAutomationGraceService::class)->processOrderEnrichmentCompleted($order->fresh());
 
             $this->logAttempt(
                 orderId: $order->id,

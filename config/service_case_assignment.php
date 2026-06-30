@@ -69,4 +69,16 @@ return [
 
     'round_robin_enabled' => env('SERVICE_CASE_ROUND_ROBIN_ENABLED', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Automation Pending Grace Period (Phase 1.1)
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, new service cases enter an automation-pending grace period
+    | before assignment. Set to false to restore immediate Phase 1 assignment.
+    |
+    */
+
+    'automation_grace_period_enabled' => env('SERVICE_CASE_AUTOMATION_GRACE_PERIOD_ENABLED', true),
+
 ];

@@ -30,6 +30,7 @@ class TimelineAutomationIdentityTest extends TestCase
             'automation.display_name' => 'Ira',
             'automation.subtitle' => 'AI Assistant',
             'cashfree.system_user_email' => 'superadmin@radium.local',
+            'service_case_assignment.automation_grace_period_enabled' => true,
         ]);
     }
 
@@ -90,6 +91,13 @@ class TimelineAutomationIdentityTest extends TestCase
             $this->assertSame('Ira', $entry->actor->displayName);
             $this->assertSame('AI Assistant', $entry->actor->subtitle);
         }
+
+        $this->assertNull($incident->assigned_to_user_id);
+        $this->assertNotNull($incident->automation_pending_until);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.automation_pending',
+            'auditable_id' => $incident->id,
+        ]);
     }
 
     public function test_manual_service_case_timeline_preserves_user_names(): void
@@ -133,6 +141,10 @@ class TimelineAutomationIdentityTest extends TestCase
         $timeline = app(ServiceCaseActivityTimelineService::class)->forIncident($incident->fresh());
 
         foreach ($timeline as $entry) {
+            if ($entry->title === 'Automation Pending') {
+                continue;
+            }
+
             $this->assertFalse($entry->actor->isAutomation);
             $this->assertSame('Ravi', $entry->actor->displayName);
         }
