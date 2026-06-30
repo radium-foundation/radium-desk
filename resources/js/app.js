@@ -680,5 +680,6 @@ document.addEventListener('DOMContentLoaded', () => {
             || false
         ),
         isWorkspaceSubmitBusy: () => workspaceApi?.isBusy?.('submit') ?? false,
+        openDashboardQuickFilter: () => dashboardQuickFilter?.open?.(),
     });
 });

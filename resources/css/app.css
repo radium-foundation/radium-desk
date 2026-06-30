@@ -810,10 +810,16 @@ a:focus-visible .stat-card {
 .dashboard-bulk-toolbar__selection {
     display: inline-flex;
     align-items: center;
+    gap: 0.25rem;
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--bs-primary);
     white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.dashboard-bulk-toolbar__selection-count {
+    font-variant-numeric: tabular-nums;
 }
 
 .dashboard-bulk-toolbar:not(.dashboard-bulk-toolbar--active) .dashboard-bulk-toolbar__assign {
@@ -1348,6 +1354,31 @@ a:focus-visible .stat-card {
     margin-left: auto;
 }
 
+.dashboard-quick-filter__summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--dashboard-toolbar-control-height);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.45;
+    color: var(--dashboard-color-muted);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.dashboard-quick-filter__summary:hover,
+.dashboard-quick-filter__summary:focus-visible {
+    color: var(--dashboard-color-text);
+}
+
+.dashboard-quick-filter--expanded .dashboard-quick-filter__summary {
+    display: none;
+}
+
 .dashboard-quick-filter__control {
     display: flex;
     align-items: center;
@@ -1360,6 +1391,20 @@ a:focus-visible .stat-card {
     background-color: var(--dashboard-card-bg);
     box-shadow: var(--dashboard-shadow-sm);
     box-sizing: border-box;
+    animation: dashboard-quick-filter-expand 0.18s ease;
+}
+
+@keyframes dashboard-quick-filter-expand {
+    from {
+        opacity: 0;
+        transform: scaleX(0.96);
+        transform-origin: right center;
+    }
+
+    to {
+        opacity: 1;
+        transform: scaleX(1);
+    }
 }
 
 .dashboard-quick-filter__icon {
@@ -1388,15 +1433,6 @@ a:focus-visible .stat-card {
 .dashboard-quick-filter__input:focus {
     outline: none;
     box-shadow: none;
-}
-
-.dashboard-quick-filter__count {
-    flex-shrink: 0;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--dashboard-color-muted);
-    white-space: nowrap;
 }
 
 .dashboard-quick-filter__clear {

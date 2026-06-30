@@ -10,7 +10,12 @@ const buildDashboardWithFilter = () => {
         ${HELP_MODAL_HTML}
         <div id="dashboard-page">
             <div class="dashboard-service-cases-card">
-                <input type="search" id="dashboard-quick-filter-input" data-dashboard-quick-filter-input>
+                <div data-dashboard-quick-filter>
+                    <button type="button" data-dashboard-quick-filter-trigger></button>
+                    <div class="d-none" data-dashboard-quick-filter-control>
+                        <input type="search" id="dashboard-quick-filter-input" data-dashboard-quick-filter-input>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -107,10 +112,26 @@ describe('initKeyboardShortcuts', () => {
         cleanupKeyboardShortcuts = initKeyboardShortcuts(options);
     };
 
-    it('focuses the dashboard quick filter on / when not typing', () => {
+    it('opens the dashboard quick filter on / when not typing', () => {
+        buildDashboardWithFilter();
+        mockBootstrapModal();
+
+        const openDashboardQuickFilter = vi.fn();
+        bindKeyboardShortcuts({ openDashboardQuickFilter });
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true }));
+
+        expect(openDashboardQuickFilter).toHaveBeenCalled();
+    });
+
+    it('focuses the dashboard quick filter on / when no open handler is provided', () => {
         buildDashboardWithFilter();
         mockBootstrapModal();
         bindKeyboardShortcuts();
+
+        const container = document.querySelector('[data-dashboard-quick-filter]');
+        container.classList.add('dashboard-quick-filter--expanded');
+        document.querySelector('[data-dashboard-quick-filter-control]')?.classList.remove('d-none');
 
         const input = document.querySelector('[data-dashboard-quick-filter-input]');
         const focusSpy = vi.spyOn(input, 'focus');
@@ -125,14 +146,19 @@ describe('initKeyboardShortcuts', () => {
     it('does not focus the dashboard quick filter on / while typing in quick filter', () => {
         buildDashboardWithFilter();
         mockBootstrapModal();
-        bindKeyboardShortcuts();
+
+        const openDashboardQuickFilter = vi.fn();
+        bindKeyboardShortcuts({ openDashboardQuickFilter });
+
+        const container = document.querySelector('[data-dashboard-quick-filter]');
+        container.classList.add('dashboard-quick-filter--expanded');
+        document.querySelector('[data-dashboard-quick-filter-control]')?.classList.remove('d-none');
 
         const input = document.querySelector('[data-dashboard-quick-filter-input]');
-        const focusSpy = vi.spyOn(input, 'focus');
 
         input.dispatchEvent(new KeyboardEvent('keydown', { key: '/', code: 'Slash', bubbles: true }));
 
-        expect(focusSpy).not.toHaveBeenCalled();
+        expect(openDashboardQuickFilter).not.toHaveBeenCalled();
     });
 
     it('does not focus the dashboard quick filter on / outside the dashboard', () => {
@@ -180,17 +206,15 @@ describe('initKeyboardShortcuts', () => {
         buildDashboardWithFilter();
         document.body.insertAdjacentHTML('afterbegin', '<input id="global-search-input" type="search">');
         mockBootstrapModal();
-        bindKeyboardShortcuts();
+
+        const openDashboardQuickFilter = vi.fn();
+        bindKeyboardShortcuts({ openDashboardQuickFilter });
 
         const searchInput = document.getElementById('global-search-input');
-        const filterInput = document.querySelector('[data-dashboard-quick-filter-input]');
-        const focusSpy = vi.spyOn(filterInput, 'focus');
-        const selectSpy = vi.spyOn(filterInput, 'select');
 
         searchInput.dispatchEvent(new KeyboardEvent('keydown', { key: '/', code: 'Slash', bubbles: true }));
 
-        expect(focusSpy).toHaveBeenCalled();
-        expect(selectSpy).toHaveBeenCalled();
+        expect(openDashboardQuickFilter).toHaveBeenCalled();
     });
 
     it('opens the help modal on Shift+/ when key is slash', () => {

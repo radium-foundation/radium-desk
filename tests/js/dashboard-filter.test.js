@@ -12,8 +12,16 @@ const buildDashboardCard = ({ loaded = 2, total = 2 } = {}) => {
             <div class="dashboard-service-cases-card"
                  data-service-cases-loaded="${loaded}"
                  data-service-case-filter-total="${total}">
-                <input type="search" data-dashboard-quick-filter-input value="">
-                <span data-dashboard-filter-count>Showing ${loaded} of ${total} service cases</span>
+                <div class="dashboard-quick-filter" data-dashboard-quick-filter>
+                    <button type="button"
+                            data-dashboard-quick-filter-trigger
+                            aria-expanded="false">
+                        <span data-dashboard-filter-count>${loaded} of ${total} Showing</span>
+                    </button>
+                    <div class="dashboard-quick-filter__control d-none" data-dashboard-quick-filter-control>
+                        <input type="search" data-dashboard-quick-filter-input value="">
+                    </div>
+                </div>
                 <div id="dashboard-service-cases-scroll">
                     <table>
                         <thead><tr><th>A</th><th>B</th></tr></thead>
@@ -56,7 +64,7 @@ describe('applyDashboardQuickFilter', () => {
         const result = applyDashboardQuickFilter({ card, query: '', countElement });
 
         expect(result).toEqual({ visibleCount: 2, totalCount: 2 });
-        expect(countElement?.textContent).toBe('Showing 2 of 2 service cases');
+        expect(countElement?.textContent).toBe('2 of 2 Showing');
         expect(document.querySelectorAll('.dashboard-case-row--filtered-out')).toHaveLength(0);
     });
 
@@ -70,7 +78,7 @@ describe('applyDashboardQuickFilter', () => {
 
         applyDashboardQuickFilter({ card, query: '', countElement });
 
-        expect(countElement?.textContent).toBe('Showing 2 of 8 service cases');
+        expect(countElement?.textContent).toBe('2 of 8 Showing');
     });
 
     it('hides non-matching rows without removing them from the DOM', () => {
@@ -184,7 +192,12 @@ describe('initDashboardQuickFilter', () => {
         initDashboardQuickFilter({ pageRoot, onFilterApplied });
         onFilterApplied.mockClear();
 
+        const filter = pageRoot.querySelector('[data-dashboard-quick-filter]');
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
+
+        filter.classList.add('dashboard-quick-filter--expanded');
+        pageRoot.querySelector('[data-dashboard-quick-filter-control]')?.classList.remove('d-none');
+
         input.value = 'o';
         input.dispatchEvent(new Event('input', { bubbles: true }));
 
@@ -198,10 +211,11 @@ describe('initDashboardQuickFilter', () => {
 
     it('applies the local filter immediately when Enter is pressed', () => {
         const pageRoot = document.getElementById('dashboard-page');
-
-        initDashboardQuickFilter({ pageRoot });
-
+        const filter = initDashboardQuickFilter({ pageRoot });
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
+
+        filter.open();
+
         input.value = 'ord-100';
         input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
@@ -215,6 +229,7 @@ describe('initDashboardQuickFilter', () => {
         const filter = initDashboardQuickFilter({ pageRoot });
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
 
+        filter.open();
         input.value = 'missing-value';
         filter.reapply();
 
@@ -224,5 +239,61 @@ describe('initDashboardQuickFilter', () => {
 
         expect(input.value).toBe('');
         expect(document.querySelectorAll('.dashboard-case-row--filtered-out')).toHaveLength(0);
+    });
+
+    it('expands the quick filter when the summary is clicked', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const filter = initDashboardQuickFilter({ pageRoot });
+        const container = pageRoot.querySelector('[data-dashboard-quick-filter]');
+        const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
+
+        pageRoot.querySelector('[data-dashboard-quick-filter-trigger]')?.click();
+        vi.runAllTimers();
+
+        expect(filter.isExpanded()).toBe(true);
+        expect(container.classList.contains('dashboard-quick-filter--expanded')).toBe(true);
+        expect(document.activeElement).toBe(input);
+    });
+
+    it('collapses on Esc without clearing an active filter', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const filter = initDashboardQuickFilter({ pageRoot });
+        const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
+
+        filter.open();
+        input.value = 'ord-100';
+        filter.reapply();
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        expect(filter.isExpanded()).toBe(false);
+        expect(input.value).toBe('ord-100');
+        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(true);
+    });
+
+    it('collapses on empty blur and click outside', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const filter = initDashboardQuickFilter({ pageRoot });
+        const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
+        const outsideTarget = document.createElement('button');
+        document.body.appendChild(outsideTarget);
+
+        filter.open();
+        vi.runAllTimers();
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        expect(filter.isExpanded()).toBe(false);
+
+        filter.open();
+        vi.runAllTimers();
+        outsideTarget.focus();
+        input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
+        vi.runAllTimers();
+        expect(filter.isExpanded()).toBe(false);
+
+        filter.open();
+        vi.runAllTimers();
+        input.value = 'ord-100';
+        document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+        expect(filter.isExpanded()).toBe(false);
+        expect(input.value).toBe('ord-100');
     });
 });

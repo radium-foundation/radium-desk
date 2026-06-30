@@ -181,14 +181,50 @@ export const initDashboardQuickFilter = ({
     onFilterApplied = null,
 } = {}) => {
     const card = pageRoot.querySelector('.dashboard-service-cases-card');
+    const container = pageRoot.querySelector('[data-dashboard-quick-filter]');
     const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
     const countElement = pageRoot.querySelector('[data-dashboard-filter-count]');
+    const trigger = pageRoot.querySelector('[data-dashboard-quick-filter-trigger]');
+    const control = pageRoot.querySelector('[data-dashboard-quick-filter-control]');
 
-    if (!card || !input) {
+    if (!card || !input || !container) {
         return null;
     }
 
     let debounceTimer = null;
+
+    const isExpanded = () => container.classList.contains('dashboard-quick-filter--expanded');
+
+    const openQuickFilter = () => {
+        if (isExpanded()) {
+            input.focus();
+            input.select();
+
+            return;
+        }
+
+        container.classList.add('dashboard-quick-filter--expanded');
+        trigger?.setAttribute('aria-expanded', 'true');
+        control?.classList.remove('d-none');
+
+        requestAnimationFrame(() => {
+            input.focus();
+
+            if (input.value !== '') {
+                input.select();
+            }
+        });
+    };
+
+    const closeQuickFilter = () => {
+        if (!isExpanded()) {
+            return;
+        }
+
+        container.classList.remove('dashboard-quick-filter--expanded');
+        trigger?.setAttribute('aria-expanded', 'false');
+        control?.classList.add('d-none');
+    };
 
     const reapply = ({ immediate = false } = {}) => {
         const run = () => {
@@ -215,7 +251,7 @@ export const initDashboardQuickFilter = ({
     const clearFilter = () => {
         input.value = '';
         reapply({ immediate: true });
-        input.focus();
+        openQuickFilter();
     };
 
     input.addEventListener('input', () => {
@@ -223,12 +259,44 @@ export const initDashboardQuickFilter = ({
     });
 
     input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeQuickFilter();
+
+            return;
+        }
+
         if (event.key !== 'Enter') {
             return;
         }
 
         event.preventDefault();
         reapply({ immediate: true });
+    });
+
+    input.addEventListener('blur', () => {
+        window.setTimeout(() => {
+            if (!isExpanded() || container.contains(document.activeElement)) {
+                return;
+            }
+
+            if (input.value.trim() === '') {
+                closeQuickFilter();
+            }
+        }, 0);
+    });
+
+    trigger?.addEventListener('click', (event) => {
+        event.preventDefault();
+        openQuickFilter();
+    });
+
+    document.addEventListener('mousedown', (event) => {
+        if (!isExpanded() || container.contains(event.target)) {
+            return;
+        }
+
+        closeQuickFilter();
     });
 
     card.addEventListener('click', (event) => {
@@ -244,5 +312,8 @@ export const initDashboardQuickFilter = ({
         reapply: () => reapply({ immediate: true }),
         clearFilter,
         getQuery: () => input.value,
+        open: openQuickFilter,
+        close: closeQuickFilter,
+        isExpanded,
     };
 };

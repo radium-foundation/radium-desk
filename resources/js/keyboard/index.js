@@ -64,6 +64,7 @@ let activeKeyboardController = null;
 export const initKeyboardShortcuts = ({
     closeOpenInlineEditor = null,
     isWorkspaceSubmitBusy = () => false,
+    openDashboardQuickFilter = null,
 } = {}) => {
     activeKeyboardController?.abort();
 
@@ -126,6 +127,13 @@ export const initKeyboardShortcuts = ({
         }
 
         if (isQuickFilterShortcut(event) && document.getElementById('dashboard-page')) {
+            if (typeof openDashboardQuickFilter === 'function') {
+                event.preventDefault();
+                openDashboardQuickFilter();
+
+                return;
+            }
+
             const filterInput = document.getElementById('dashboard-page')
                 ?.querySelector('[data-dashboard-quick-filter-input]');
 

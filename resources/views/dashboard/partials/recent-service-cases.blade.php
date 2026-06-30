@@ -70,12 +70,14 @@
                                     data-batch-assign
                                     disabled>
                                 <i class="bi bi-link-45deg" aria-hidden="true"></i>
-                                Assign Service Reference
+                                Assign Ref. No.
                             </button>
                             <span class="dashboard-bulk-toolbar__selection d-none"
                                   data-bulk-selected-label
                                   aria-live="polite">
-                                ☑ <span data-bulk-count>0</span> selected
+                                <span class="dashboard-bulk-toolbar__selection-check" aria-hidden="true">☑</span>
+                                <span class="dashboard-bulk-toolbar__selection-count" data-bulk-count>0</span>
+                                <span class="dashboard-bulk-toolbar__selection-label">selected</span>
                             </span>
                         </div>
                         <span class="visually-hidden" data-bulk-idle-hint>
@@ -106,21 +108,28 @@
 
                 <div class="dashboard-quick-filter" data-dashboard-quick-filter>
                     <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
-                    <div class="dashboard-quick-filter__control">
+                    <button type="button"
+                            class="dashboard-quick-filter__summary dashboard-u-focus-ring"
+                            data-dashboard-quick-filter-trigger
+                            aria-expanded="false"
+                            aria-controls="dashboard-quick-filter-control">
+                        <span id="dashboard-quick-filter-count"
+                              data-dashboard-filter-count
+                              aria-live="polite">{{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} Showing</span>
+                    </button>
+                    <div class="dashboard-quick-filter__control d-none"
+                         id="dashboard-quick-filter-control"
+                         data-dashboard-quick-filter-control>
                         <span class="dashboard-quick-filter__icon" aria-hidden="true">
                             <i class="bi bi-search"></i>
                         </span>
                         <input type="search"
                                id="dashboard-quick-filter-input"
                                class="dashboard-quick-filter__input dashboard-u-focus-ring"
-                               placeholder="Search by phone, order, serial, case ID..."
+                               placeholder="Search service cases..."
                                autocomplete="off"
                                data-dashboard-quick-filter-input
                                aria-describedby="dashboard-quick-filter-count">
-                        <span id="dashboard-quick-filter-count"
-                              class="dashboard-quick-filter__count"
-                              data-dashboard-filter-count
-                              aria-live="polite">Showing {{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} service {{ $totalServiceCaseCount === 1 ? 'case' : 'cases' }}</span>
                     </div>
                 </div>
             </div>

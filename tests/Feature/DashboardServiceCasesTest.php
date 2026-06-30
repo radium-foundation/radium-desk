@@ -565,7 +565,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('Select one or more rows for batch actions.')
             ->assertDontSee('Clear Selection', false)
             ->assertDontSee('Assign Model', false)
-            ->assertSee('Assign Service Reference')
+            ->assertSee('Assign Ref. No.')
             ->assertSee('data-bulk-selected-label', false)
             ->assertDontSee('aria-label="Add transaction ID"', false)
             ->assertSee('aria-label="Add service reference"', false)
@@ -964,7 +964,7 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard', ['filter' => 'pending_admin']));
 
         $dashboardResponse->assertOk()
-            ->assertSee('Showing 10 of 15 service cases')
+            ->assertSee('10 of 15 Showing')
             ->assertSee('Load More');
 
         foreach (array_slice($references, 0, 10) as $reference) {
@@ -1043,7 +1043,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['filter' => 'pending_admin']))
             ->assertOk()
-            ->assertSee('Showing 35 of 90 service cases');
+            ->assertSee('35 of 90 Showing');
 
         $firstLoadMore = $this->actingAs($admin)
             ->getJson(route('dashboard.service-cases.load-more', [

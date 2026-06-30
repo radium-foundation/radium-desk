@@ -1,8 +1,4 @@
-const formatServiceCaseCount = (visibleCount, totalCount) => {
-    const label = totalCount === 1 ? 'service case' : 'service cases';
-
-    return `Showing ${visibleCount} of ${totalCount} ${label}`;
-};
+const formatServiceCaseCount = (visibleCount, totalCount) => `${visibleCount} of ${totalCount} Showing`;
 
 let loadedCount = 0;
 let filterTotal = 0;
