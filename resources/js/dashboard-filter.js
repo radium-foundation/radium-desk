@@ -1,20 +1,16 @@
 import { applyRows } from './live-dashboard';
-import { getWorkspaceSession } from './workspace/session';
 import { syncGlobalSearchInput } from './universal-search';
 
-const FILTERED_OUT_CLASS = 'dashboard-case-row--filtered-out';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
-const EMPTY_ROW_ID = 'dashboard-quick-filter-empty-row';
-const LOCAL_DEBOUNCE_MS = 150;
-const UNIVERSAL_SEARCH_DEBOUNCE_MS = 300;
+const UNIVERSAL_SEARCH_DEBOUNCE_MS = 400;
 const MIN_TEXT_SEARCH_LENGTH = 2;
+const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
+const SEARCH_LOADING_HTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
 
 export const SEARCH_INTENT = {
     STRUCTURED: 'structured',
     TEXT: 'text',
 };
-
-const normalizeQuery = (value) => value.trim().toLowerCase();
 
 export const detectSearchIntent = (query) => {
     const trimmed = query.trim();
@@ -76,6 +72,13 @@ export const shouldRunUniversalSearch = (query) => {
 
 export const isUniversalSearchActive = () => universalSearchActive;
 
+export const resetDashboardQuickFilterState = () => {
+    universalSearchActive = false;
+    universalSearchAbortController = null;
+    lastUniversalSearchQuery = '';
+    restoreDashboardRows = null;
+};
+
 let universalSearchActive = false;
 let universalSearchAbortController = null;
 let lastUniversalSearchQuery = '';
@@ -85,75 +88,10 @@ const getDataRows = (tbody) => Array.from(
     tbody.querySelectorAll('tr[id^="service-case-row-"]'),
 );
 
-const rowShouldStayVisible = (row, normalizedQuery, lockedIncidentIds) => {
-    if (!normalizedQuery) {
-        return true;
-    }
-
-    const incidentId = Number(row.dataset.incidentId);
-
-    if (lockedIncidentIds.includes(incidentId)) {
-        return true;
-    }
-
-    if (row.querySelector('.transaction-inline-editor:not(.d-none)')) {
-        return true;
-    }
-
-    const searchText = row.dataset.searchText ?? '';
-
-    return searchText.includes(normalizedQuery);
-};
-
 const getTableColumnCount = (tbody) => {
     const table = tbody.closest('table');
 
     return table?.querySelectorAll('thead th').length ?? 1;
-};
-
-const ensureEmptyRow = (tbody) => {
-    let emptyRow = document.getElementById(EMPTY_ROW_ID);
-
-    if (emptyRow) {
-        return emptyRow;
-    }
-
-    emptyRow = document.createElement('tr');
-    emptyRow.id = EMPTY_ROW_ID;
-    emptyRow.className = 'dashboard-quick-filter-empty-row d-none';
-
-    const cell = document.createElement('td');
-    cell.colSpan = getTableColumnCount(tbody);
-    cell.className = 'text-center text-muted small py-2';
-    cell.innerHTML = `
-        No matching rows.
-        <button type="button" class="btn btn-link btn-sm p-0 align-baseline dashboard-quick-filter__clear" data-dashboard-quick-filter-clear>
-            Clear filter
-        </button>
-        to view all service cases.
-    `;
-
-    emptyRow.appendChild(cell);
-    tbody.appendChild(emptyRow);
-
-    return emptyRow;
-};
-
-const updateEmptyRow = (tbody, show) => {
-    if (getDataRows(tbody).length === 0) {
-        document.getElementById(EMPTY_ROW_ID)?.classList.add('d-none');
-
-        return;
-    }
-
-    const emptyRow = ensureEmptyRow(tbody);
-    const cell = emptyRow.querySelector('td');
-
-    if (cell) {
-        cell.colSpan = getTableColumnCount(tbody);
-    }
-
-    emptyRow.classList.toggle('d-none', ! show);
 };
 
 const updateCounter = (countElement, visibleCount, totalCount) => {
@@ -179,9 +117,7 @@ const highlightSingleMatch = (card) => {
 
     clearSearchMatchHighlight(card);
 
-    const visibleRows = getDataRows(tbody).filter(
-        (row) => ! row.classList.contains(FILTERED_OUT_CLASS),
-    );
+    const visibleRows = getDataRows(tbody);
 
     if (visibleRows.length !== 1) {
         return;
@@ -206,7 +142,6 @@ const highlightSingleMatch = (card) => {
 
 export const applyDashboardQuickFilter = ({
     card,
-    query = '',
     countElement = null,
     skipHighlight = false,
 } = {}) => {
@@ -216,33 +151,16 @@ export const applyDashboardQuickFilter = ({
         return { visibleCount: 0, totalCount: 0 };
     }
 
-    const normalizedQuery = normalizeQuery(query);
-    const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
     const rows = getDataRows(tbody);
-    let visibleCount = 0;
+    const rowCount = rows.length;
 
-    rows.forEach((row) => {
-        const isVisible = rowShouldStayVisible(row, normalizedQuery, lockedIncidentIds);
-
-        row.classList.toggle(FILTERED_OUT_CLASS, ! isVisible);
-
-        if (isVisible) {
-            visibleCount += 1;
-        }
-    });
-
-    updateCounter(countElement, visibleCount, rows.length);
-    updateEmptyRow(tbody, normalizedQuery !== '' && rows.length > 0 && visibleCount === 0);
+    updateCounter(countElement, rowCount, rowCount);
 
     if (! skipHighlight) {
-        if (normalizedQuery === '') {
-            clearSearchMatchHighlight(card);
-        } else {
-            highlightSingleMatch(card);
-        }
+        clearSearchMatchHighlight(card);
     }
 
-    return { visibleCount, totalCount: rows.length };
+    return { visibleCount: rowCount, totalCount: rowCount };
 };
 
 export const initDashboardQuickFilter = ({
@@ -253,15 +171,25 @@ export const initDashboardQuickFilter = ({
     const card = pageRoot.querySelector('.dashboard-service-cases-card');
     const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
     const countElement = pageRoot.querySelector('[data-dashboard-filter-count]');
+    const searchControl = pageRoot.querySelector('.dashboard-quick-filter__control');
+    const searchIcon = pageRoot.querySelector('.dashboard-quick-filter__icon');
     const searchUrl = pageRoot?.dataset.searchUrl ?? '';
 
     if (!card || !input) {
         return null;
     }
 
-    let localDebounceTimer = null;
     let universalDebounceTimer = null;
     let searchRequestId = 0;
+
+    const setSearchLoading = (loading) => {
+        if (!searchIcon) {
+            return;
+        }
+
+        searchControl?.toggleAttribute('aria-busy', loading);
+        searchIcon.innerHTML = loading ? SEARCH_LOADING_HTML : SEARCH_ICON_HTML;
+    };
 
     const setUniversalSearchActive = (active) => {
         if (universalSearchActive === active) {
@@ -274,9 +202,12 @@ export const initDashboardQuickFilter = ({
     };
 
     const reapply = () => {
+        if (universalSearchActive) {
+            return { visibleCount: 0, totalCount: 0 };
+        }
+
         const result = applyDashboardQuickFilter({
             card,
-            query: input.value,
             countElement,
         });
 
@@ -291,10 +222,26 @@ export const initDashboardQuickFilter = ({
         }
     };
 
-    const runUniversalSearch = async (query) => {
+    const runUniversalSearch = async (query, { force = false } = {}) => {
         const trimmedQuery = query.trim();
 
-        if (! searchUrl || ! shouldRunUniversalSearch(trimmedQuery)) {
+        if (! searchUrl || trimmedQuery === '') {
+            setSearchLoading(false);
+
+            if (universalSearchActive) {
+                setUniversalSearchActive(false);
+                lastUniversalSearchQuery = '';
+                await restoreFilterView();
+            }
+
+            reapply();
+
+            return;
+        }
+
+        if (! force && ! shouldRunUniversalSearch(trimmedQuery)) {
+            setSearchLoading(false);
+
             if (universalSearchActive) {
                 setUniversalSearchActive(false);
                 lastUniversalSearchQuery = '';
@@ -307,12 +254,16 @@ export const initDashboardQuickFilter = ({
         }
 
         if (trimmedQuery === lastUniversalSearchQuery) {
+            setSearchLoading(false);
+
             return;
         }
 
         universalSearchAbortController?.abort();
         universalSearchAbortController = new AbortController();
         const requestId = ++searchRequestId;
+
+        setSearchLoading(true);
 
         const params = new URLSearchParams({ q: trimmedQuery });
         const view = pageRoot.dataset.liveView;
@@ -363,7 +314,6 @@ export const initDashboardQuickFilter = ({
 
             const matchCount = data.match_count ?? 0;
             updateCounter(countElement, matchCount, matchCount);
-            updateEmptyRow(card.querySelector('#dashboard-service-cases-body'), false);
 
             if (matchCount === 1) {
                 highlightSingleMatch(card);
@@ -374,28 +324,25 @@ export const initDashboardQuickFilter = ({
             if (error?.name === 'AbortError') {
                 return;
             }
+        } finally {
+            if (requestId === searchRequestId) {
+                setSearchLoading(false);
+            }
         }
     };
 
-    const scheduleSearch = () => {
+    const scheduleSearch = ({ immediate = false, force = false } = {}) => {
         syncGlobalSearchInput(input.value);
 
-        clearTimeout(localDebounceTimer);
         clearTimeout(universalDebounceTimer);
 
         const query = input.value;
-        const normalizedQuery = normalizeQuery(query);
 
-        localDebounceTimer = setTimeout(() => {
-            if (! universalSearchActive && ! shouldRunUniversalSearch(query)) {
-                reapply();
-            }
-        }, LOCAL_DEBOUNCE_MS);
-
-        if (normalizedQuery === '') {
+        if (query.trim() === '') {
             universalSearchAbortController?.abort();
             searchRequestId += 1;
             lastUniversalSearchQuery = '';
+            setSearchLoading(false);
 
             if (universalSearchActive) {
                 setUniversalSearchActive(false);
@@ -409,13 +356,26 @@ export const initDashboardQuickFilter = ({
             return;
         }
 
-        if (! shouldRunUniversalSearch(query)) {
+        if (! force && ! shouldRunUniversalSearch(query)) {
+            universalSearchAbortController?.abort();
+            searchRequestId += 1;
+            lastUniversalSearchQuery = '';
+            setSearchLoading(false);
+
             if (universalSearchActive) {
                 setUniversalSearchActive(false);
                 restoreFilterView().then(() => {
                     reapply();
                 });
             }
+
+            return;
+        }
+
+        setSearchLoading(true);
+
+        if (immediate) {
+            runUniversalSearch(query, { force });
 
             return;
         }
@@ -431,30 +391,21 @@ export const initDashboardQuickFilter = ({
         input.focus();
     };
 
-    input.addEventListener('input', scheduleSearch);
-
-    card.addEventListener('click', (event) => {
-        if (event.target.closest('[data-dashboard-quick-filter-clear]')) {
-            event.preventDefault();
-            clearFilter();
-        }
+    input.addEventListener('input', () => {
+        scheduleSearch();
     });
 
-    const bootstrapFromUrl = () => {
-        const urlQuery = new URLSearchParams(window.location.search).get('q') ?? '';
-
-        if (urlQuery === '') {
-            return false;
+    input.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
         }
 
-        input.value = urlQuery;
-        syncGlobalSearchInput(urlQuery);
-
-        return true;
-    };
+        event.preventDefault();
+        scheduleSearch({ immediate: true, force: true });
+    });
 
     if (bootstrapFromUrl() && shouldRunUniversalSearch(input.value)) {
-        scheduleSearch();
+        scheduleSearch({ immediate: true });
     } else {
         reapply();
     }
@@ -469,11 +420,31 @@ export const initDashboardQuickFilter = ({
             syncGlobalSearchInput(query);
 
             if (runSearch) {
-                scheduleSearch();
+                scheduleSearch({ immediate: true });
             }
         },
         setRestoreHandler: (handler) => {
             restoreDashboardRows = handler;
         },
     };
+};
+
+const bootstrapFromUrl = () => {
+    const pageRoot = document.getElementById('dashboard-page');
+    const input = pageRoot?.querySelector('[data-dashboard-quick-filter-input]');
+
+    if (!input) {
+        return false;
+    }
+
+    const urlQuery = new URLSearchParams(window.location.search).get('q') ?? '';
+
+    if (urlQuery === '') {
+        return false;
+    }
+
+    input.value = urlQuery;
+    syncGlobalSearchInput(urlQuery);
+
+    return true;
 };
