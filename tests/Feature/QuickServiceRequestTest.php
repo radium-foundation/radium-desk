@@ -46,7 +46,7 @@ class QuickServiceRequestTest extends TestCase
 
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD3421021',
-            'serial_number' => 'SN001',
+            'serial_number' => '7881953',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
             'notes' => 'Customer reported device not powering on.',
@@ -62,7 +62,7 @@ class QuickServiceRequestTest extends TestCase
 
         $this->assertDatabaseHas('orders', [
             'order_id' => 'RD3421021',
-            'serial_number' => 'SN001',
+            'serial_number' => '7881953',
             'product_name' => 'MFS 110',
         ]);
 
@@ -78,7 +78,7 @@ class QuickServiceRequestTest extends TestCase
 
         $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD-HP-001',
-            'serial_number' => 'SN-HP-001',
+            'serial_number' => '7881954',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
             'high_priority' => '1',
@@ -151,7 +151,7 @@ class QuickServiceRequestTest extends TestCase
 
         $order = Order::query()->create([
             'order_id' => 'RD3421021',
-            'serial_number' => 'SN001',
+            'serial_number' => '7881953',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'status' => 'active',
@@ -162,7 +162,7 @@ class QuickServiceRequestTest extends TestCase
             ->from(route('dashboard'))
             ->post(route('service-requests.quick.store'), [
                 'order_id' => 'RD3421021',
-                'serial_number' => 'SN999',
+                'serial_number' => '9999999',
                 'product' => 'MFS 110',
                 'source' => IncidentSource::Email->value,
             ])
@@ -179,7 +179,7 @@ class QuickServiceRequestTest extends TestCase
 
         $order = Order::query()->create([
             'order_id' => 'RD3421021',
-            'serial_number' => 'SN001',
+            'serial_number' => '7881953',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'status' => 'active',
@@ -188,7 +188,7 @@ class QuickServiceRequestTest extends TestCase
 
         $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD3421021',
-            'serial_number' => 'SN001',
+            'serial_number' => '7881953',
             'product' => 'MFS 110',
             'source' => IncidentSource::WhatsApp->value,
         ])

@@ -177,7 +177,7 @@ class OrderSerialTest extends TestCase
 
         $order = Order::query()->create([
             'order_id' => 'RD-SERIAL-EDIT',
-            'serial_number' => '252601401258',
+            'serial_number' => '7881953',
             'serial_entered_at' => now(),
             'serial_entered_by_user_id' => $admin->id,
             'product_name' => 'MFS 110',
@@ -189,7 +189,7 @@ class OrderSerialTest extends TestCase
         $this->actingAs($admin)
             ->put(route('orders.update', $order), [
                 'order_id' => $order->order_id,
-                'serial_number' => '999999999999',
+                'serial_number' => '7881954',
                 'product_name' => 'MFS 110',
                 'device_model' => 'MFS 110',
                 'status' => 'active',
@@ -198,7 +198,7 @@ class OrderSerialTest extends TestCase
             ->assertSessionHas('status', 'order-updated');
 
         $order->refresh();
-        $this->assertSame('999999999999', $order->serial_number);
+        $this->assertSame('7881954', $order->serial_number);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'order.identity.corrected',
@@ -213,8 +213,8 @@ class OrderSerialTest extends TestCase
             ->latest('id')
             ->first();
 
-        $this->assertSame('252601401258', $auditLog->old_values['serial_number']);
-        $this->assertSame('999999999999', $auditLog->new_values['serial_number']);
+        $this->assertSame('7881953', $auditLog->old_values['serial_number']);
+        $this->assertSame('7881954', $auditLog->new_values['serial_number']);
         $this->assertNotNull($auditLog->created_at);
     }
 
@@ -225,7 +225,7 @@ class OrderSerialTest extends TestCase
 
         Order::query()->create([
             'order_id' => 'RD-SERIAL-OWNER-2',
-            'serial_number' => '252601401258',
+            'serial_number' => '7881953',
             'serial_entered_at' => now(),
             'serial_entered_by_user_id' => $admin->id,
             'product_name' => 'MFS 110',
@@ -236,7 +236,7 @@ class OrderSerialTest extends TestCase
 
         $order = Order::query()->create([
             'order_id' => 'RD-SERIAL-EDIT-DUP',
-            'serial_number' => '111111111111',
+            'serial_number' => '7881954',
             'serial_entered_at' => now(),
             'serial_entered_by_user_id' => $admin->id,
             'product_name' => 'MFS 110',
@@ -248,7 +248,7 @@ class OrderSerialTest extends TestCase
         $this->actingAs($admin)
             ->put(route('orders.update', $order), [
                 'order_id' => $order->order_id,
-                'serial_number' => '252601401258',
+                'serial_number' => '7881953',
                 'product_name' => 'MFS 110',
                 'device_model' => 'MFS 110',
                 'status' => 'active',
@@ -256,7 +256,7 @@ class OrderSerialTest extends TestCase
             ->assertSessionHasErrors('serial_number');
 
         $order->refresh();
-        $this->assertSame('111111111111', $order->serial_number);
+        $this->assertSame('7881954', $order->serial_number);
     }
 
     public function test_edit_order_form_shows_canonical_and_formatted_device_model(): void

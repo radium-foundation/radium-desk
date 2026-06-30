@@ -290,7 +290,7 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $response = $this->actingAs($creator)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD-ASSIGN-1',
-            'serial_number' => 'SN-ASSIGN-1',
+            'serial_number' => '7881960',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
         ]);

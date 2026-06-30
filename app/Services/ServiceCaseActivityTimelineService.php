@@ -7,6 +7,7 @@ use App\Data\TimelineActor;
 use App\Enums\IncidentStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Models\Remark;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -64,6 +65,10 @@ class ServiceCaseActivityTimelineService
                 $query->where(function ($incidentQuery) use ($incident) {
                     $incidentQuery->where('auditable_type', $incident->getMorphClass())
                         ->where('auditable_id', $incident->getKey());
+                })->orWhere(function ($orderQuery) use ($incident) {
+                    $orderQuery->where('auditable_type', (new Order)->getMorphClass())
+                        ->where('auditable_id', $incident->order_id)
+                        ->where('event', 'serial.corrected_by_ira');
                 })->orWhere(function ($remarkQuery) use ($incident) {
                     $remarkQuery->where('auditable_type', (new Remark)->getMorphClass())
                         ->where('event', 'deleted')
@@ -125,6 +130,23 @@ class ServiceCaseActivityTimelineService
                 'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $actor, $occurredAt),
                 default => null,
             };
+        }
+
+        if ($auditLog->auditable_type === (new Order)->getMorphClass()
+            && $auditLog->event === 'serial.corrected_by_ira') {
+            return new ServiceCaseTimelineEntry(
+                occurredAt: $occurredAt,
+                type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                actor: $this->automationIdentity->automationActor(),
+                title: 'Corrected by IRA',
+                body: sprintf(
+                    '%s → %s',
+                    (string) ($auditLog->old_values['serial_number'] ?? '—'),
+                    (string) ($auditLog->new_values['serial_number'] ?? '—'),
+                ),
+                remark: null,
+                dedupeKey: "audit:{$auditLog->id}",
+            );
         }
 
         if ($auditLog->auditable_type === (new Remark)->getMorphClass() && $auditLog->event === 'deleted') {

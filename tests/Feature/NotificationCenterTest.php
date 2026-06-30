@@ -65,7 +65,7 @@ class NotificationCenterTest extends TestCase
 
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD-NOTIFY-HP',
-            'serial_number' => 'SN-NOTIFY-HP',
+            'serial_number' => '7881961',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
             'high_priority' => '1',

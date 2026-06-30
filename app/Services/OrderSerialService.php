@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -12,6 +12,7 @@ class OrderSerialService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly SerialValidationService $serialValidationService,
     ) {}
 
     public function assignSerialNumber(Order $order, string $serialNumber, User $actor): Order
@@ -22,13 +23,16 @@ class OrderSerialService
             ]);
         }
 
-        $serialNumber = strtoupper(trim($serialNumber));
+        $originalSerial = strtoupper(trim($serialNumber));
 
-        if ($serialNumber === '') {
+        if ($originalSerial === '') {
             throw ValidationException::withMessages([
                 'serial_number' => 'Serial number is required.',
             ]);
         }
+
+        $validation = $this->serialValidationService->assertValidForOrder($originalSerial, $order);
+        $serialNumber = $validation->normalizedSerial;
 
         $serialOwner = Order::query()
             ->where('serial_number', $serialNumber)
@@ -41,7 +45,7 @@ class OrderSerialService
             ]);
         }
 
-        return DB::transaction(function () use ($order, $serialNumber, $actor): Order {
+        return DB::transaction(function () use ($order, $serialNumber, $originalSerial, $validation, $actor): Order {
             $oldValues = [
                 'serial_number' => $order->serial_number,
             ];
@@ -67,6 +71,15 @@ class OrderSerialService
                     'serial_entered_at' => $freshOrder->serial_entered_at?->toIso8601String(),
                 ],
             );
+
+            if ($validation->corrected) {
+                $this->serialValidationService->recordIraCorrection(
+                    order: $freshOrder,
+                    originalSerial: $originalSerial,
+                    correctedSerial: $freshOrder->serial_number,
+                    actor: $actor,
+                );
+            }
 
             return $freshOrder;
         });

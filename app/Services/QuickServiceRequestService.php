@@ -9,6 +9,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\HighPriorityServiceCaseNotification;
+use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -18,6 +19,7 @@ class QuickServiceRequestService
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly SerialValidationService $serialValidationService,
     ) {}
 
     public function findByOrderId(string $orderId): ?Order
@@ -37,6 +39,10 @@ class QuickServiceRequestService
         bool $highPriority = false,
     ): Incident {
         return DB::transaction(function () use ($user, $orderId, $serialNumber, $product, $source, $notes, $highPriority): Incident {
+            $originalSerial = strtoupper(trim($serialNumber));
+            $validation = $this->serialValidationService->assertValid($originalSerial, $product);
+            $serialNumber = $validation->normalizedSerial;
+
             $serialOwner = Order::query()
                 ->where('serial_number', $serialNumber)
                 ->first();
@@ -56,6 +62,15 @@ class QuickServiceRequestService
                 'created_by' => $user->id,
                 'updated_by' => $user->id,
             ]);
+
+            if ($validation->corrected) {
+                $this->serialValidationService->recordIraCorrection(
+                    order: $order,
+                    originalSerial: $originalSerial,
+                    correctedSerial: $serialNumber,
+                    actor: $user,
+                );
+            }
 
             return $this->createForOrder(
                 user: $user,

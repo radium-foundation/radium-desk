@@ -173,6 +173,19 @@ class OrderActivityTimelineService
                         dedupeKey: "audit:{$auditLog->id}",
                     ),
                 ]),
+                'serial.corrected_by_ira' => collect([
+                    new OrderTimelineEntry(
+                        occurredAt: $occurredAt,
+                        title: 'Corrected by IRA',
+                        detail: sprintf(
+                            '%s → %s',
+                            (string) ($auditLog->old_values['serial_number'] ?? '—'),
+                            (string) ($auditLog->new_values['serial_number'] ?? '—'),
+                        ),
+                        actor: $this->automationIdentity->automationActor(),
+                        dedupeKey: "audit:{$auditLog->id}",
+                    ),
+                ]),
                 'order.identity.corrected' => collect([
                     new OrderTimelineEntry(
                         occurredAt: $occurredAt,

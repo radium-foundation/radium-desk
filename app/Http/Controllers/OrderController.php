@@ -13,6 +13,7 @@ use App\Services\OrderActivityTimelineService;
 use App\Services\QuickServiceRequestService;
 use App\Services\RadiumBox\RadiumBoxService;
 use App\Services\RemarkTimelineService;
+use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,7 @@ class OrderController extends Controller
         private readonly QuickServiceRequestService $quickServiceRequestService,
         private readonly AuditLogService $auditLogService,
         private readonly RadiumBoxService $radiumBoxService,
+        private readonly SerialValidationService $serialValidationService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -90,12 +92,29 @@ class OrderController extends Controller
 
     public function store(StoreOrderRequest $request): RedirectResponse
     {
+        $originalSerial = strtoupper(trim($request->string('serial_number')->toString()));
+        $validation = $this->serialValidationService->assertValid(
+            $originalSerial,
+            $request->string('product_name')->toString(),
+        );
+
         $order = Order::query()->create([
-            ...$request->validated(),
+            ...collect($request->validated())->replace([
+                'serial_number' => $validation->normalizedSerial,
+            ])->all(),
             'status' => OrderStatus::Active,
             'created_by' => $request->user()->id,
             'updated_by' => $request->user()->id,
         ]);
+
+        if ($validation->corrected) {
+            $this->serialValidationService->recordIraCorrection(
+                order: $order,
+                originalSerial: $originalSerial,
+                correctedSerial: $order->serial_number,
+                actor: $request->user(),
+            );
+        }
 
         return redirect()
             ->route('orders.show', $order)
@@ -176,11 +195,35 @@ class OrderController extends Controller
         $wasCompleted = $order->isTransactionLocked();
         $attributesBeforeUpdate = $order->getAttributes();
         $previousSerial = $order->serial_number;
+        $validated = collect($request->validated())->except('correction_reason')->all();
+        $iraCorrection = null;
+
+        if (array_key_exists('serial_number', $validated)) {
+            $originalSerial = (string) $validated['serial_number'];
+            $validation = $this->serialValidationService->assertValidForOrder($originalSerial, $order);
+            $validated['serial_number'] = $validation->normalizedSerial;
+
+            if ($validation->corrected) {
+                $iraCorrection = [
+                    'original' => $originalSerial,
+                    'corrected' => $validation->normalizedSerial,
+                ];
+            }
+        }
 
         $order->update([
-            ...collect($request->validated())->except('correction_reason')->all(),
+            ...$validated,
             'updated_by' => $request->user()->id,
         ]);
+
+        if ($iraCorrection !== null) {
+            $this->serialValidationService->recordIraCorrection(
+                order: $order,
+                originalSerial: $iraCorrection['original'],
+                correctedSerial: $iraCorrection['corrected'],
+                actor: $request->user(),
+            );
+        }
 
         $correctedSerial = $previousSerial !== null
             && $previousSerial !== $order->serial_number
