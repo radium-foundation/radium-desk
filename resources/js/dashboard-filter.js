@@ -316,9 +316,14 @@ export const initDashboardQuickFilter = ({
 
         const params = new URLSearchParams({ q: trimmedQuery });
         const view = pageRoot.dataset.liveView;
+        const filter = pageRoot.dataset.liveFilter;
 
         if (view && view !== 'all') {
             params.set('view', view);
+        }
+
+        if (filter) {
+            params.set('filter', filter);
         }
 
         try {

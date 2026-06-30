@@ -191,7 +191,7 @@ class UniversalSearchTest extends TestCase
         $response->assertJsonPath('incident_ids.0', $incident->id);
     }
 
-    public function test_search_finds_service_case_by_transaction_id(): void
+    public function test_search_finds_service_case_by_transaction_id_only_on_matching_tab(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -201,12 +201,32 @@ class UniversalSearchTest extends TestCase
             'transaction_id' => 'TXN-SEARCH-001',
         ]);
 
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'TXN-SEARCH-001']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0);
+
         $response = $this->actingAs($agent)
-            ->getJson(route('search.index', ['q' => 'TXN-SEARCH-001']));
+            ->getJson(route('search.index', [
+                'q' => 'TXN-SEARCH-001',
+                'filter' => 'all',
+            ]));
 
         $response->assertOk();
         $response->assertJsonPath('match_count', 1);
         $response->assertJsonPath('incident_ids.0', $incident->id);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->getJson(route('search.index', [
+                'q' => 'TXN-SEARCH-001',
+                'filter' => 'completed',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id);
     }
 
     public function test_search_finds_service_case_by_normalized_reference_formats(): void
@@ -244,23 +264,26 @@ class UniversalSearchTest extends TestCase
             ->assertJsonPath('incident_ids.0', $incident->id);
     }
 
-    public function test_search_finds_closed_service_cases(): void
+    public function test_search_does_not_find_closed_service_cases_in_dashboard_tabs(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $incident = $this->createServiceCase($agent, [
+        $this->createServiceCase($agent, [
             'order_id' => 'RD-CLOSED-001',
         ], [
             'status' => IncidentStatus::Closed,
         ]);
 
-        $response = $this->actingAs($agent)
-            ->getJson(route('search.index', ['q' => 'RD-CLOSED-001']));
-
-        $response->assertOk();
-        $response->assertJsonPath('match_count', 1);
-        $response->assertJsonPath('incident_ids.0', $incident->id);
+        foreach (['pending_admin', 'all'] as $filter) {
+            $this->actingAs($agent)
+                ->getJson(route('search.index', [
+                    'q' => 'RD-CLOSED-001',
+                    'filter' => $filter,
+                ]))
+                ->assertOk()
+                ->assertJsonPath('match_count', 0);
+        }
     }
 
     public function test_search_scopes_to_assignee_in_my_work_view(): void

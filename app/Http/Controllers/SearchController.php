@@ -55,11 +55,19 @@ class SearchController extends Controller
             $user,
             $request->query('view'),
         );
-        $assignedTo = $this->dashboardPersonalization->scopesServiceCasesToAssignee($viewResolution['view'])
+        $dashboardView = $viewResolution['view'];
+        $assignedTo = $this->dashboardPersonalization->scopesServiceCasesToAssignee($dashboardView)
             ? $user
             : null;
+        $defaultFilter = $this->dashboardPersonalization->defaultFilterFor($user, $dashboardView);
+        $filter = $request->string('filter')->toString() ?: $defaultFilter;
+        $availableFilters = $this->dashboardPersonalization->availableFiltersFor($user);
 
-        $matches = $this->universalSearchService->search($user, $query, $assignedTo);
+        if (! in_array($filter, $availableFilters, true)) {
+            $filter = $defaultFilter;
+        }
+
+        $matches = $this->universalSearchService->search($user, $query, $assignedTo, $filter);
 
         $rows = $matches->map(function ($serviceCase) use ($user) {
             return [

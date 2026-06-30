@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\IncidentStatus;
+use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,7 +20,7 @@ class UniversalSearchService
     /**
      * @return Collection<int, Incident>
      */
-    public function search(User $user, string $query, ?User $assignedTo = null): Collection
+    public function search(User $user, string $query, ?User $assignedTo = null, string $filter = 'all'): Collection
     {
         $query = trim($query);
 
@@ -31,6 +33,7 @@ class UniversalSearchService
 
         $builder = Incident::query()
             ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee'])
+            ->whereIn('status', IncidentStatus::operationallyActive())
             ->where(function (Builder $incidentQuery) use ($query, $like): void {
                 $incidentQuery->where(function (Builder $referenceQuery) use ($query): void {
                     $referenceQuery->matchingReference($query);
@@ -41,9 +44,11 @@ class UniversalSearchService
             $builder->where('assigned_to_user_id', $assignedTo->id);
         }
 
+        $this->applyServiceCaseFilter($builder, $filter);
+
         $paddedReference = $this->paddedReferenceForQuery($query);
 
-        return $builder
+        $results = $builder
             ->orderByRaw(
                 'CASE
                     WHEN EXISTS (
@@ -132,6 +137,49 @@ class UniversalSearchService
             ->orderByDesc('incidents.updated_at')
             ->limit(self::RESULT_LIMIT)
             ->get();
+
+        return match ($filter) {
+            'overdue' => $this->filterIncidentsBySlaStatus($results, ServiceCaseSlaStatus::Overdue),
+            'warning' => $this->filterIncidentsBySlaStatus($results, ServiceCaseSlaStatus::Warning),
+            default => $results,
+        };
+    }
+
+    private function applyServiceCaseFilter(Builder $query, string $filter): void
+    {
+        match ($filter) {
+            'pending_admin' => $query->whereHas('order', function ($orderQuery): void {
+                $orderQuery->where(function ($pendingQuery): void {
+                    $pendingQuery->whereNull('transaction_id')
+                        ->orWhere('transaction_id', '');
+                });
+            }),
+            'completed' => $query->whereHas('order', function ($orderQuery): void {
+                $orderQuery->whereNotNull('transaction_id')
+                    ->where('transaction_id', '!=', '');
+            }),
+            'high_priority' => $query->where('high_priority', true),
+            'overdue', 'warning' => $query->whereHas('order', function ($orderQuery): void {
+                $orderQuery->where(function ($pendingQuery): void {
+                    $pendingQuery->whereNull('transaction_id')
+                        ->orWhere('transaction_id', '');
+                });
+            }),
+            default => null,
+        };
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidents
+     * @return Collection<int, Incident>
+     */
+    private function filterIncidentsBySlaStatus(Collection $incidents, ServiceCaseSlaStatus $status): Collection
+    {
+        $now = now();
+
+        return $incidents
+            ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin() && $incident->slaStatus($now) === $status)
+            ->values();
     }
 
     /**
@@ -194,6 +242,16 @@ class UniversalSearchService
                 $applied ? $builder->orWhere('customer_email', 'like', $like) : $builder->where('customer_email', 'like', $like);
                 $applied = true;
             }
+
+            $applied ? $builder->orWhere('product_name', 'like', $like) : $builder->where('product_name', 'like', $like);
+            $applied = true;
+
+            $applied ? $builder->orWhere('device_model', 'like', $like) : $builder->where('device_model', 'like', $like);
+            $applied = true;
+
+            $applied ? $builder->orWhereHas('deviceModel', fn (Builder $modelQuery) => $modelQuery->where('name', 'like', $like))
+                : $builder->whereHas('deviceModel', fn (Builder $modelQuery) => $modelQuery->where('name', 'like', $like));
+            $applied = true;
 
             if (! $applied) {
                 $builder->whereRaw('0 = 1');
