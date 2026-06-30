@@ -18,7 +18,6 @@
         $order?->customer_email,
         $order?->customer_phone,
         $order?->serial_number,
-        $order?->transaction_id,
         $order?->displayDeviceModelName(),
     ], fn ($value) => filled($value));
     $searchText = strtolower(implode(' ', $searchParts));

@@ -554,17 +554,18 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     });
 
-    initUniversalSearch({
-        getDashboardQuickFilter: () => dashboardQuickFilter,
+    const universalSearch = initUniversalSearch({
+        pageRoot,
+        refreshDashboard: () => refreshDashboard(pageRoot),
     });
+
+    universalSearch.setRestoreHandler(() => refreshDashboard(pageRoot));
 
     initCustomer360Drawer({
         pageRoot,
         showToast: showAppToast,
         initTooltips,
     });
-
-    dashboardQuickFilter?.setRestoreHandler(() => refreshDashboard(pageRoot));
 
     const dashboardLiveHooks = {
         onRowsUpdated: () => {

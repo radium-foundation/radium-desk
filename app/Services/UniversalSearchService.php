@@ -244,16 +244,6 @@ class UniversalSearchService
                 $applied = true;
             }
 
-            $applied ? $builder->orWhere('product_name', 'like', $like) : $builder->where('product_name', 'like', $like);
-            $applied = true;
-
-            $applied ? $builder->orWhere('device_model', 'like', $like) : $builder->where('device_model', 'like', $like);
-            $applied = true;
-
-            $applied ? $builder->orWhereHas('deviceModel', fn (Builder $modelQuery) => $modelQuery->where('name', 'like', $like))
-                : $builder->whereHas('deviceModel', fn (Builder $modelQuery) => $modelQuery->where('name', 'like', $like));
-            $applied = true;
-
             if (! $applied) {
                 $builder->whereRaw('0 = 1');
             }

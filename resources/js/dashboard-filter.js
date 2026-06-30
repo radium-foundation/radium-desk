@@ -1,97 +1,85 @@
-import { applyRows } from './live-dashboard';
-import { syncGlobalSearchInput } from './universal-search';
+import { getWorkspaceSession } from './workspace/session';
 
+const FILTERED_OUT_CLASS = 'dashboard-case-row--filtered-out';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
-const UNIVERSAL_SEARCH_DEBOUNCE_MS = 400;
-const MIN_TEXT_SEARCH_LENGTH = 2;
-const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
-const SEARCH_LOADING_HTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+const EMPTY_ROW_ID = 'dashboard-quick-filter-empty-row';
+const LOCAL_DEBOUNCE_MS = 150;
 
-export const SEARCH_INTENT = {
-    STRUCTURED: 'structured',
-    TEXT: 'text',
-};
-
-export const detectSearchIntent = (query) => {
-    const trimmed = query.trim();
-
-    if (trimmed === '') {
-        return null;
-    }
-
-    if (/^\d+$/.test(trimmed)) {
-        return SEARCH_INTENT.STRUCTURED;
-    }
-
-    if (/^RD/i.test(trimmed) || /^R$/i.test(trimmed)) {
-        return SEARCH_INTENT.STRUCTURED;
-    }
-
-    if (/^S(?:C(?:[- ]?\d*)?)?$/i.test(trimmed)) {
-        return SEARCH_INTENT.STRUCTURED;
-    }
-
-    if (/^(?:SCN|SN|TXN|REF)/i.test(trimmed)) {
-        return SEARCH_INTENT.STRUCTURED;
-    }
-
-    if (/^SC[A-Z]/i.test(trimmed)) {
-        return SEARCH_INTENT.STRUCTURED;
-    }
-
-    if (trimmed.includes('@') || /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]*$/.test(trimmed)) {
-        return SEARCH_INTENT.TEXT;
-    }
-
-    if (/^[A-Z0-9][A-Z0-9._-]*$/i.test(trimmed) && ! /\s/.test(trimmed) && (/\d/.test(trimmed) || /[-_.]/.test(trimmed))) {
-        return SEARCH_INTENT.STRUCTURED;
-    }
-
-    if (/^[a-zA-Z][a-zA-Z\s'.-]*$/.test(trimmed)) {
-        return SEARCH_INTENT.TEXT;
-    }
-
-    return SEARCH_INTENT.TEXT;
-};
-
-export const shouldRunUniversalSearch = (query) => {
-    const trimmed = query.trim();
-
-    if (trimmed === '') {
-        return false;
-    }
-
-    const intent = detectSearchIntent(trimmed);
-
-    if (intent === SEARCH_INTENT.STRUCTURED) {
-        return true;
-    }
-
-    return trimmed.length >= MIN_TEXT_SEARCH_LENGTH;
-};
-
-export const isUniversalSearchActive = () => universalSearchActive;
-
-export const resetDashboardQuickFilterState = () => {
-    universalSearchActive = false;
-    universalSearchAbortController = null;
-    lastUniversalSearchQuery = '';
-    restoreDashboardRows = null;
-};
-
-let universalSearchActive = false;
-let universalSearchAbortController = null;
-let lastUniversalSearchQuery = '';
-let restoreDashboardRows = null;
+const normalizeQuery = (value) => value.trim().toLowerCase();
 
 const getDataRows = (tbody) => Array.from(
     tbody.querySelectorAll('tr[id^="service-case-row-"]'),
 );
 
+const rowShouldStayVisible = (row, normalizedQuery, lockedIncidentIds) => {
+    if (!normalizedQuery) {
+        return true;
+    }
+
+    const incidentId = Number(row.dataset.incidentId);
+
+    if (lockedIncidentIds.includes(incidentId)) {
+        return true;
+    }
+
+    if (row.querySelector('.transaction-inline-editor:not(.d-none)')) {
+        return true;
+    }
+
+    const searchText = row.dataset.searchText ?? '';
+
+    return searchText.includes(normalizedQuery);
+};
+
 const getTableColumnCount = (tbody) => {
     const table = tbody.closest('table');
 
     return table?.querySelectorAll('thead th').length ?? 1;
+};
+
+const ensureEmptyRow = (tbody) => {
+    let emptyRow = document.getElementById(EMPTY_ROW_ID);
+
+    if (emptyRow) {
+        return emptyRow;
+    }
+
+    emptyRow = document.createElement('tr');
+    emptyRow.id = EMPTY_ROW_ID;
+    emptyRow.className = 'dashboard-quick-filter-empty-row d-none';
+
+    const cell = document.createElement('td');
+    cell.colSpan = getTableColumnCount(tbody);
+    cell.className = 'text-center text-muted small py-2';
+    cell.innerHTML = `
+        No matching rows.
+        <button type="button" class="btn btn-link btn-sm p-0 align-baseline dashboard-quick-filter__clear" data-dashboard-quick-filter-clear>
+            Clear filter
+        </button>
+        to view all service cases.
+    `;
+
+    emptyRow.appendChild(cell);
+    tbody.appendChild(emptyRow);
+
+    return emptyRow;
+};
+
+const updateEmptyRow = (tbody, show) => {
+    if (getDataRows(tbody).length === 0) {
+        document.getElementById(EMPTY_ROW_ID)?.classList.add('d-none');
+
+        return;
+    }
+
+    const emptyRow = ensureEmptyRow(tbody);
+    const cell = emptyRow.querySelector('td');
+
+    if (cell) {
+        cell.colSpan = getTableColumnCount(tbody);
+    }
+
+    emptyRow.classList.toggle('d-none', ! show);
 };
 
 const updateCounter = (countElement, visibleCount, totalCount) => {
@@ -117,7 +105,9 @@ const highlightSingleMatch = (card) => {
 
     clearSearchMatchHighlight(card);
 
-    const visibleRows = getDataRows(tbody);
+    const visibleRows = getDataRows(tbody).filter(
+        (row) => ! row.classList.contains(FILTERED_OUT_CLASS),
+    );
 
     if (visibleRows.length !== 1) {
         return;
@@ -142,6 +132,7 @@ const highlightSingleMatch = (card) => {
 
 export const applyDashboardQuickFilter = ({
     card,
+    query = '',
     countElement = null,
     skipHighlight = false,
 } = {}) => {
@@ -151,248 +142,79 @@ export const applyDashboardQuickFilter = ({
         return { visibleCount: 0, totalCount: 0 };
     }
 
+    const normalizedQuery = normalizeQuery(query);
+    const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
     const rows = getDataRows(tbody);
-    const rowCount = rows.length;
+    let visibleCount = 0;
 
-    updateCounter(countElement, rowCount, rowCount);
+    rows.forEach((row) => {
+        const isVisible = rowShouldStayVisible(row, normalizedQuery, lockedIncidentIds);
+
+        row.classList.toggle(FILTERED_OUT_CLASS, ! isVisible);
+
+        if (isVisible) {
+            visibleCount += 1;
+        }
+    });
+
+    updateCounter(countElement, visibleCount, rows.length);
+    updateEmptyRow(tbody, normalizedQuery !== '' && rows.length > 0 && visibleCount === 0);
 
     if (! skipHighlight) {
-        clearSearchMatchHighlight(card);
+        if (normalizedQuery === '') {
+            clearSearchMatchHighlight(card);
+        } else {
+            highlightSingleMatch(card);
+        }
     }
 
-    return { visibleCount: rowCount, totalCount: rowCount };
+    return { visibleCount, totalCount: rows.length };
 };
 
 export const initDashboardQuickFilter = ({
     pageRoot = document,
     onFilterApplied = null,
-    onUniversalSearchStateChange = null,
 } = {}) => {
     const card = pageRoot.querySelector('.dashboard-service-cases-card');
     const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
     const countElement = pageRoot.querySelector('[data-dashboard-filter-count]');
-    const searchControl = pageRoot.querySelector('.dashboard-quick-filter__control');
-    const searchIcon = pageRoot.querySelector('.dashboard-quick-filter__icon');
-    const searchUrl = pageRoot?.dataset.searchUrl ?? '';
 
     if (!card || !input) {
         return null;
     }
 
-    let universalDebounceTimer = null;
-    let searchRequestId = 0;
+    let debounceTimer = null;
 
-    const setSearchLoading = (loading) => {
-        if (!searchIcon) {
-            return;
-        }
-
-        searchControl?.toggleAttribute('aria-busy', loading);
-        searchIcon.innerHTML = loading ? SEARCH_LOADING_HTML : SEARCH_ICON_HTML;
-    };
-
-    const setUniversalSearchActive = (active) => {
-        if (universalSearchActive === active) {
-            return;
-        }
-
-        universalSearchActive = active;
-        pageRoot.dataset.universalSearchActive = active ? 'true' : 'false';
-        onUniversalSearchStateChange?.(active);
-    };
-
-    const reapply = () => {
-        if (universalSearchActive) {
-            return { visibleCount: 0, totalCount: 0 };
-        }
-
-        const result = applyDashboardQuickFilter({
-            card,
-            countElement,
-        });
-
-        onFilterApplied?.(result);
-
-        return result;
-    };
-
-    const restoreFilterView = async () => {
-        if (typeof restoreDashboardRows === 'function') {
-            await restoreDashboardRows();
-        }
-    };
-
-    const runUniversalSearch = async (query, { force = false } = {}) => {
-        const trimmedQuery = query.trim();
-
-        if (! searchUrl || trimmedQuery === '') {
-            setSearchLoading(false);
-
-            if (universalSearchActive) {
-                setUniversalSearchActive(false);
-                lastUniversalSearchQuery = '';
-                await restoreFilterView();
-            }
-
-            reapply();
-
-            return;
-        }
-
-        if (! force && ! shouldRunUniversalSearch(trimmedQuery)) {
-            setSearchLoading(false);
-
-            if (universalSearchActive) {
-                setUniversalSearchActive(false);
-                lastUniversalSearchQuery = '';
-                await restoreFilterView();
-            }
-
-            reapply();
-
-            return;
-        }
-
-        if (trimmedQuery === lastUniversalSearchQuery) {
-            setSearchLoading(false);
-
-            return;
-        }
-
-        universalSearchAbortController?.abort();
-        universalSearchAbortController = new AbortController();
-        const requestId = ++searchRequestId;
-
-        setSearchLoading(true);
-
-        const params = new URLSearchParams({ q: trimmedQuery });
-        const view = pageRoot.dataset.liveView;
-        const filter = pageRoot.dataset.liveFilter;
-
-        if (view && view !== 'all') {
-            params.set('view', view);
-        }
-
-        if (filter) {
-            params.set('filter', filter);
-        }
-
-        try {
-            const response = await fetch(`${searchUrl}?${params.toString()}`, {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                signal: universalSearchAbortController.signal,
+    const reapply = ({ immediate = false } = {}) => {
+        const run = () => {
+            const result = applyDashboardQuickFilter({
+                card,
+                query: input.value,
+                countElement,
             });
 
-            if (! response.ok || requestId !== searchRequestId) {
-                return;
-            }
+            onFilterApplied?.(result);
 
-            const data = await response.json();
+            return result;
+        };
 
-            if (requestId !== searchRequestId) {
-                return;
-            }
-
-            lastUniversalSearchQuery = trimmedQuery;
-            setUniversalSearchActive(true);
-
-            applyRows(data.rows ?? [], {
-                serviceCasesEmpty: (data.match_count ?? 0) === 0,
-                serviceCasesEmptyHtml: `
-                    <tr id="dashboard-service-cases-empty-row">
-                        <td colspan="${getTableColumnCount(card.querySelector('#dashboard-service-cases-body'))}" class="dashboard-cases-empty">
-                            No service cases match this search.
-                        </td>
-                    </tr>
-                `,
-            });
-
-            clearSearchMatchHighlight(card);
-
-            const matchCount = data.match_count ?? 0;
-            updateCounter(countElement, matchCount, matchCount);
-
-            if (matchCount === 1) {
-                highlightSingleMatch(card);
-            }
-
-            onFilterApplied?.({ visibleCount: matchCount, totalCount: matchCount });
-        } catch (error) {
-            if (error?.name === 'AbortError') {
-                return;
-            }
-        } finally {
-            if (requestId === searchRequestId) {
-                setSearchLoading(false);
-            }
-        }
-    };
-
-    const scheduleSearch = ({ immediate = false, force = false } = {}) => {
-        syncGlobalSearchInput(input.value);
-
-        clearTimeout(universalDebounceTimer);
-
-        const query = input.value;
-
-        if (query.trim() === '') {
-            universalSearchAbortController?.abort();
-            searchRequestId += 1;
-            lastUniversalSearchQuery = '';
-            setSearchLoading(false);
-
-            if (universalSearchActive) {
-                setUniversalSearchActive(false);
-                restoreFilterView().then(() => {
-                    reapply();
-                });
-            } else {
-                reapply();
-            }
-
-            return;
-        }
-
-        if (! force && ! shouldRunUniversalSearch(query)) {
-            universalSearchAbortController?.abort();
-            searchRequestId += 1;
-            lastUniversalSearchQuery = '';
-            setSearchLoading(false);
-
-            if (universalSearchActive) {
-                setUniversalSearchActive(false);
-                restoreFilterView().then(() => {
-                    reapply();
-                });
-            }
-
-            return;
-        }
-
-        setSearchLoading(true);
+        clearTimeout(debounceTimer);
 
         if (immediate) {
-            runUniversalSearch(query, { force });
-
-            return;
+            return run();
         }
 
-        universalDebounceTimer = setTimeout(() => {
-            runUniversalSearch(query);
-        }, UNIVERSAL_SEARCH_DEBOUNCE_MS);
+        debounceTimer = setTimeout(run, LOCAL_DEBOUNCE_MS);
     };
 
     const clearFilter = () => {
         input.value = '';
-        scheduleSearch();
+        reapply({ immediate: true });
         input.focus();
     };
 
     input.addEventListener('input', () => {
-        scheduleSearch();
+        reapply();
     });
 
     input.addEventListener('keydown', (event) => {
@@ -401,50 +223,21 @@ export const initDashboardQuickFilter = ({
         }
 
         event.preventDefault();
-        scheduleSearch({ immediate: true, force: true });
+        reapply({ immediate: true });
     });
 
-    if (bootstrapFromUrl() && shouldRunUniversalSearch(input.value)) {
-        scheduleSearch({ immediate: true });
-    } else {
-        reapply();
-    }
+    card.addEventListener('click', (event) => {
+        if (event.target.closest('[data-dashboard-quick-filter-clear]')) {
+            event.preventDefault();
+            clearFilter();
+        }
+    });
+
+    reapply({ immediate: true });
 
     return {
-        reapply,
+        reapply: () => reapply({ immediate: true }),
         clearFilter,
         getQuery: () => input.value,
-        isUniversalSearchActive,
-        setQuery: (query, { runSearch = false } = {}) => {
-            input.value = query;
-            syncGlobalSearchInput(query);
-
-            if (runSearch) {
-                scheduleSearch({ immediate: true });
-            }
-        },
-        setRestoreHandler: (handler) => {
-            restoreDashboardRows = handler;
-        },
     };
-};
-
-const bootstrapFromUrl = () => {
-    const pageRoot = document.getElementById('dashboard-page');
-    const input = pageRoot?.querySelector('[data-dashboard-quick-filter-input]');
-
-    if (!input) {
-        return false;
-    }
-
-    const urlQuery = new URLSearchParams(window.location.search).get('q') ?? '';
-
-    if (urlQuery === '') {
-        return false;
-    }
-
-    input.value = urlQuery;
-    syncGlobalSearchInput(urlQuery);
-
-    return true;
 };

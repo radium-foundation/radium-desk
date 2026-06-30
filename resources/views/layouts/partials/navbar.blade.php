@@ -9,8 +9,10 @@
           role="search"
           data-universal-search-form>
         <div class="input-group">
-            <span class="input-group-text bg-white border-end-0">
-                <i class="bi bi-search text-muted"></i>
+            <span class="input-group-text bg-white border-end-0" data-universal-search-control>
+                <span data-universal-search-icon aria-hidden="true">
+                    <i class="bi bi-search text-muted"></i>
+                </span>
             </span>
             <input
                 type="search"
