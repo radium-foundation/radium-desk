@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -56,6 +57,155 @@ class ServiceCaseAssignmentTest extends TestCase
         $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         return $user;
+    }
+
+    private function createIncidentForAssignmentTest(?User $actor = null): Incident
+    {
+        $actor ??= User::factory()->create();
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-RR-'.uniqid(),
+            'serial_number' => 'SN-RR-'.uniqid(),
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+        ]);
+
+        return Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Round robin test',
+            'description' => 'Round robin test.',
+            'status' => 'open',
+            'created_by' => $actor->id,
+        ]);
+    }
+
+    private function createAgentUser(string $email, string $name, bool $active = true): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'email' => $email,
+            'is_active' => $active,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        return $user;
+    }
+
+    public function test_round_robin_assigns_first_active_agent_when_cursor_is_zero(): void
+    {
+        $agentA = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $this->createAgentUser('agent-b@test.com', 'Agent Beta');
+
+        $incident = $this->createIncidentForAssignmentTest();
+
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($agentA->id, $result->assigned_to_user_id);
+    }
+
+    public function test_round_robin_advances_cursor_and_wraps_to_first_agent(): void
+    {
+        $agentA = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $agentB = $this->createAgentUser('agent-b@test.com', 'Agent Beta');
+        $service = app(ServiceCaseAssignmentService::class);
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $first = $this->createIncidentForAssignmentTest($actor);
+        $second = $this->createIncidentForAssignmentTest($actor);
+        $third = $this->createIncidentForAssignmentTest($actor);
+
+        $this->assertSame($agentA->id, $service->assignOnCreate($first, $actor)->assigned_to_user_id);
+        $this->assertSame($agentB->id, $service->assignOnCreate($second, $actor)->assigned_to_user_id);
+        $this->assertSame($agentA->id, $service->assignOnCreate($third, $actor)->assigned_to_user_id);
+    }
+
+    public function test_round_robin_skips_inactive_agents(): void
+    {
+        $this->createAgentUser('inactive@test.com', 'Inactive Agent', active: false);
+        $activeAgent = $this->createAgentUser('active@test.com', 'Active Agent');
+
+        $incident = $this->createIncidentForAssignmentTest();
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($activeAgent->id, $result->assigned_to_user_id);
+    }
+
+    public function test_assign_on_create_leaves_case_unassigned_when_no_agents_exist(): void
+    {
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-UNASSIGNED-1',
+            'serial_number' => 'SN-UNASSIGNED-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Unassigned test',
+            'description' => 'Unassigned test.',
+            'status' => 'open',
+            'created_by' => $actor->id,
+        ]);
+
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident->fresh(), $actor);
+
+        $this->assertNull($result->assigned_to_user_id);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.unassigned',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+        ]);
+    }
+
+    public function test_assign_on_create_is_idempotent_when_already_assigned(): void
+    {
+        $agent = $this->createAgentUser('assigned@test.com', 'Assigned Agent');
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-IDEMPOTENT-1',
+            'serial_number' => 'SN-IDEMPOTENT-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Idempotent test',
+            'description' => 'Idempotent test.',
+            'status' => 'open',
+            'assigned_to_user_id' => $agent->id,
+            'created_by' => $actor->id,
+        ]);
+
+        $service = app(ServiceCaseAssignmentService::class);
+        $result = $service->assignOnCreate($incident->fresh(), $actor);
+
+        $this->assertSame($agent->id, $result->assigned_to_user_id);
+        $this->assertSame(0, AuditLog::query()
+            ->where('auditable_id', $incident->id)
+            ->whereIn('event', ['service_case.assigned', 'service_case.unassigned'])
+            ->count());
     }
 
     public function test_day_shift_assigns_configured_day_admin(): void
@@ -123,17 +273,15 @@ class ServiceCaseAssignmentTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_quick_create_automatically_assigns_owner_by_time(): void
+    public function test_quick_create_automatically_assigns_via_round_robin(): void
     {
-        $avinash = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
-        $this->configureAssignmentSettings($avinash->id, $avinash->id);
+        $agentA = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $this->createAgentUser('agent-b@test.com', 'Agent Beta');
 
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        Carbon::setTestNow(Carbon::parse('2026-06-24 10:30:00', 'Asia/Kolkata'));
-
-        $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
+        $response = $this->actingAs($creator)->post(route('service-requests.quick.store'), [
             'order_id' => 'RD-ASSIGN-1',
             'serial_number' => 'SN-ASSIGN-1',
             'product' => 'MFS 110',
@@ -145,15 +293,13 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $response->assertRedirect(route('dashboard'));
 
-        $this->assertSame('avinash@radiumbox.com', $incident->assignee?->email);
+        $this->assertSame($agentA->id, $incident->assignee?->id);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.assigned',
             'auditable_type' => $incident->getMorphClass(),
             'auditable_id' => $incident->id,
         ]);
-
-        Carbon::setTestNow();
     }
 
     public function test_admin_can_manually_reassign_service_case(): void

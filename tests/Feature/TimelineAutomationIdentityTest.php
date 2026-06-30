@@ -46,6 +46,9 @@ class TimelineAutomationIdentityTest extends TestCase
         $admin = User::factory()->create(['name' => 'Shipra Admin', 'first_name' => 'Shipra']);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
+        $supportAgent = User::factory()->create(['name' => 'Support Agent', 'first_name' => 'Support']);
+        $supportAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
         app(SettingService::class)->setMany([
             'assignment.timezone' => 'Asia/Kolkata',
             'assignment.day_shift_start' => '09:00',
@@ -147,6 +150,9 @@ class TimelineAutomationIdentityTest extends TestCase
 
         $admin = User::factory()->create(['name' => 'Shipra Admin', 'first_name' => 'Shipra']);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $supportAgent = User::factory()->create(['name' => 'Support Agent', 'first_name' => 'Support']);
+        $supportAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         app(SettingService::class)->setMany([
             'assignment.timezone' => 'Asia/Kolkata',

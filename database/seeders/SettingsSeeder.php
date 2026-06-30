@@ -28,6 +28,7 @@ class SettingsSeeder extends Seeder
             'assignment.night_shift_admin_user_id' => (string) ($dayAdmin?->id ?? ''),
             'assignment.fallback_admin_1_user_id' => (string) ($fallbackAdmin?->id ?? ''),
             'assignment.fallback_admin_2_user_id' => (string) ($dayAdmin?->id ?? ''),
+            'assignment.agent_round_robin_last_user_id' => '0',
             'notifications.assignment_enabled' => '1',
             'notifications.transaction_enabled' => '1',
             'notifications.high_priority_enabled' => '1',

@@ -57,4 +57,16 @@ return [
         env('SERVICE_CASE_FALLBACK_ADMIN_2', 'admin@radium.local'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Round Robin Assignment (Phase 1)
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, new service cases are assigned to active support agents
+    | using round robin. Set to false to restore shift-admin assignment.
+    |
+    */
+
+    'round_robin_enabled' => env('SERVICE_CASE_ROUND_ROBIN_ENABLED', true),
+
 ];

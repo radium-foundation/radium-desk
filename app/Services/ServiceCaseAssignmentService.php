@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class ServiceCaseAssignmentService
 {
+    private const ROUND_ROBIN_CURSOR_KEY = 'assignment.agent_round_robin_last_user_id';
+
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly SettingService $settingService,
@@ -51,9 +54,28 @@ class ServiceCaseAssignmentService
 
     public function assignOnCreate(Incident $incident, User $actor, ?Carbon $at = null): Incident
     {
+        if ($incident->assigned_to_user_id !== null) {
+            return $incident->fresh(['assignee']);
+        }
+
+        if (! config('service_case_assignment.round_robin_enabled', true)) {
+            return $this->applyAssignment(
+                incident: $incident,
+                assignee: $this->resolveAssignee($at),
+                actor: $actor,
+                event: 'service_case.assigned',
+            );
+        }
+
+        $assignee = $this->resolveAgentRoundRobin();
+
+        if ($assignee === null) {
+            return $this->logUnassignedOnCreate($incident, $actor);
+        }
+
         return $this->applyAssignment(
             incident: $incident,
-            assignee: $this->resolveAssignee($at),
+            assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
         );
@@ -94,6 +116,77 @@ class ServiceCaseAssignmentService
     public function reassignableAdmins(): array
     {
         return $this->reassignableUsers();
+    }
+
+    /**
+     * @return list<User>
+     */
+    public function activeSupportAgents(): array
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->role(RolePermissionSeeder::ROLE_AGENT)
+            ->orderBy('id')
+            ->get()
+            ->all();
+    }
+
+    private function resolveAgentRoundRobin(): ?User
+    {
+        return DB::transaction(function (): ?User {
+            $agents = $this->activeSupportAgents();
+
+            if ($agents === []) {
+                return null;
+            }
+
+            Setting::query()->firstOrCreate(
+                ['key' => self::ROUND_ROBIN_CURSOR_KEY],
+                ['value' => '0'],
+            );
+
+            $cursorRow = Setting::query()
+                ->where('key', self::ROUND_ROBIN_CURSOR_KEY)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lastUserId = (int) ($cursorRow->value ?? 0);
+            $nextAgent = null;
+
+            foreach ($agents as $agent) {
+                if ($agent->id > $lastUserId) {
+                    $nextAgent = $agent;
+                    break;
+                }
+            }
+
+            if ($nextAgent === null) {
+                $nextAgent = $agents[0];
+            }
+
+            $cursorRow->update(['value' => (string) $nextAgent->id]);
+            $this->settingService->forget();
+
+            return $nextAgent;
+        });
+    }
+
+    private function logUnassignedOnCreate(Incident $incident, User $actor): Incident
+    {
+        $this->auditLogService->log(
+            userId: $actor->id,
+            event: 'service_case.unassigned',
+            auditable: $incident,
+            oldValues: [
+                'assigned_to_user_id' => null,
+            ],
+            newValues: [
+                'assigned_to_user_id' => null,
+                'reason' => 'no_active_support_agents',
+            ],
+        );
+
+        return $incident->fresh(['assignee']);
     }
 
     private function resolvePrimaryAssigneeUserId(?Carbon $at = null): int
