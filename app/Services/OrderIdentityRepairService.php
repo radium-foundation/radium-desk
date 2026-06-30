@@ -5,12 +5,15 @@ namespace App\Services;
 use App\Data\OrderIdentityRepairBatchOptions;
 use App\Data\OrderIdentityRepairFailure;
 use App\Data\OrderIdentityRepairProgress;
+use App\Data\OrderIdentityRepairStatistics;
 use App\Data\OrderIdentityRepairSummary;
+use App\Data\OrderIdentityValidationAnalysisBatchResult;
 use App\Enums\IncidentStatus;
 use App\Enums\OrderIdentityRepairFailureCategory;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\ServiceCaseAutomationStatus;
 use App\Enums\SerialValidationStatus;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -61,6 +64,28 @@ class OrderIdentityRepairService
             ->get()
             ->filter(fn (Order $order): bool => $this->needsRadiumBoxFetch($order))
             ->count();
+    }
+
+    public function statistics(OrderIdentityValidationAnalysisBatchResult $analysis): OrderIdentityRepairStatistics
+    {
+        $groups = $analysis->failuresByGroup;
+
+        $validationFailures = ($groups['Validator rule'] ?? 0)
+            + ($groups['Product mapping mismatch'] ?? 0);
+
+        $lastRepairRun = AuditLog::query()
+            ->where('event', self::AUDIT_EVENT)
+            ->latest('created_at')
+            ->value('created_at');
+
+        return new OrderIdentityRepairStatistics(
+            totalRepaired: AuditLog::query()->where('event', self::AUDIT_EVENT)->count(),
+            duplicateConflicts: $groups['Duplicate serial'] ?? 0,
+            waitingCustomerSerial: $groups['Waiting for customer serial'] ?? 0,
+            validationFailures: $validationFailures,
+            notFound: $groups['RadiumBox not found'] ?? 0,
+            lastRepairRun: $lastRepairRun,
+        );
     }
 
     public function repair(

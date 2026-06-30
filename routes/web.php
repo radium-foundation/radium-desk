@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApprovalNumberController;
+use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
@@ -105,6 +106,9 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::resource('audit-logs', AuditLogController::class)
         ->only(['index', 'show'])
         ->parameters(['audit-logs' => 'auditLog']);
+
+    Route::get('/admin/automation', [AutomationOperationsController::class, 'index'])
+        ->name('admin.automation.index');
 
     Route::prefix('cashfree')->name('cashfree.')->group(function () {
         Route::get('webhook-explorer', [CashfreeWebhookLogController::class, 'index'])

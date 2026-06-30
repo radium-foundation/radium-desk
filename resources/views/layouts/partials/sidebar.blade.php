@@ -56,6 +56,14 @@
             <div class="nav-section"><span class="nav-label">Administration</span></div>
             <ul class="nav flex-column">
                 <li class="nav-item">
+                    @can('automation-operations.view')
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.automation.*')]) href="{{ route('admin.automation.index') }}" title="Automation Operations">
+                            <i class="bi bi-robot nav-icon me-2"></i>
+                            <span class="nav-label">Automation</span>
+                        </a>
+                    @endcan
+                </li>
+                <li class="nav-item">
                     @can('viewAny', App\Models\AuditLog::class)
                         <a @class(['nav-link', 'active' => request()->routeIs('audit-logs.*')]) href="{{ route('audit-logs.index') }}" title="Audit Logs">
                             <i class="bi bi-journal-text nav-icon me-2"></i>

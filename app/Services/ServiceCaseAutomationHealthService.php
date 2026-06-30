@@ -21,11 +21,37 @@ class ServiceCaseAutomationHealthService
     ) {}
 
     /**
+     * @return Collection<int, Incident>
+     */
+    public function activeIncidents(): Collection
+    {
+        return $this->activeIncidentQuery()
+            ->with(['order', 'assignee.roles'])
+            ->get();
+    }
+
+    /**
      * @return array<string, int>
      */
     public function counts(): array
     {
-        $activeIncidents = $this->activeIncidentQuery()->with(['order', 'assignee'])->get();
+        return $this->countsFor($this->activeIncidents());
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $activeIncidents
+     * @param  array<int, ServiceCaseAutomationStatus>|null  $statusByIncidentId
+     * @return array<string, int>
+     */
+    public function countsFor(Collection $activeIncidents, ?array $statusByIncidentId = null): array
+    {
+        if ($statusByIncidentId === null) {
+            $statusByIncidentId = [];
+
+            foreach ($activeIncidents as $incident) {
+                $statusByIncidentId[$incident->id] = $this->statusService->statusFor($incident);
+            }
+        }
 
         $automationPending = 0;
         $waitingOverFiveMinutes = 0;
@@ -39,7 +65,7 @@ class ServiceCaseAutomationHealthService
         $assignedToAdmin = 0;
 
         foreach ($activeIncidents as $incident) {
-            $status = $this->statusService->statusFor($incident);
+            $status = $statusByIncidentId[$incident->id];
 
             if ($status === ServiceCaseAutomationStatus::AutomationPending) {
                 $automationPending++;
@@ -73,11 +99,11 @@ class ServiceCaseAutomationHealthService
                 $graceExpired++;
             }
 
-            if ($this->isWaitingOverMinutes($incident, 5)) {
+            if ($this->isWaitingOverMinutes($incident, 5, $status)) {
                 $waitingOverFiveMinutes++;
             }
 
-            if ($this->isWaitingOverMinutes($incident, 15)) {
+            if ($this->isWaitingOverMinutes($incident, 15, $status)) {
                 $waitingOverFifteenMinutes++;
             }
         }
@@ -93,7 +119,7 @@ class ServiceCaseAutomationHealthService
             'waiting_for_customer_serial' => $waitingForCustomerSerial,
             'assigned_to_agent' => $assignedToAgent,
             'assigned_to_admin' => $assignedToAdmin,
-            'repair_needed' => $this->ordersNeedingRepair()->count(),
+            'repair_needed' => $this->ordersNeedingRepairFromIncidents($activeIncidents)->count(),
         ];
     }
 
@@ -102,9 +128,16 @@ class ServiceCaseAutomationHealthService
      */
     public function ordersNeedingRepair(bool $dryRun = false): Collection
     {
-        $orderIds = $this->activeIncidentQuery()
-            ->with(['order', 'assignee'])
-            ->get()
+        return $this->ordersNeedingRepairFromIncidents($this->activeIncidents());
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $activeIncidents
+     * @return Collection<int, Order>
+     */
+    public function ordersNeedingRepairFromIncidents(Collection $activeIncidents): Collection
+    {
+        $orderIds = $activeIncidents
             ->filter(fn (Incident $incident): bool => $this->isRepairCandidate($incident))
             ->pluck('order_id')
             ->filter()
@@ -161,17 +194,20 @@ class ServiceCaseAutomationHealthService
             ->whereNotNull('order_id');
     }
 
-    private function isWaitingOverMinutes(Incident $incident, int $minutes): bool
-    {
+    private function isWaitingOverMinutes(
+        Incident $incident,
+        int $minutes,
+        ServiceCaseAutomationStatus $status,
+    ): bool {
         if ($incident->created_at === null) {
             return false;
         }
 
-        if ($this->statusService->statusFor($incident) === ServiceCaseAutomationStatus::Completed) {
+        if ($status === ServiceCaseAutomationStatus::Completed) {
             return false;
         }
 
-        if ($this->statusService->statusFor($incident) === ServiceCaseAutomationStatus::AssignedToAdmin) {
+        if ($status === ServiceCaseAutomationStatus::AssignedToAdmin) {
             return false;
         }
 
