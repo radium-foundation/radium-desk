@@ -807,6 +807,15 @@ a:focus-visible .stat-card {
     line-height: 1;
 }
 
+.dashboard-bulk-toolbar__selection {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--bs-primary);
+    white-space: nowrap;
+}
+
 .dashboard-bulk-toolbar:not(.dashboard-bulk-toolbar--active) .dashboard-bulk-toolbar__assign {
     opacity: 0.55;
 }

@@ -208,7 +208,12 @@ class DashboardService
 
     public function serviceCasePageSize(): int
     {
-        return max(1, (int) config('dashboard.service_cases_page_size', 25));
+        return max(1, (int) config('dashboard.service_cases_page_size', 35));
+    }
+
+    public function serviceCaseLoadMoreSize(): int
+    {
+        return max(1, (int) config('dashboard.service_cases_load_more_size', 25));
     }
 
     public function serviceCaseLimitForFilter(string $filter): int

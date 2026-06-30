@@ -72,12 +72,14 @@
                                 <i class="bi bi-link-45deg" aria-hidden="true"></i>
                                 Assign Service Reference
                             </button>
+                            <span class="dashboard-bulk-toolbar__selection d-none"
+                                  data-bulk-selected-label
+                                  aria-live="polite">
+                                ☑ <span data-bulk-count>0</span> selected
+                            </span>
                         </div>
                         <span class="visually-hidden" data-bulk-idle-hint>
                             Select one or more rows for batch actions.
-                        </span>
-                        <span class="visually-hidden" data-bulk-selected-label>
-                            Selected: <span data-bulk-count>0</span>
                         </span>
                     </div>
                 @endif

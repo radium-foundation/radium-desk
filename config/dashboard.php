@@ -29,14 +29,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Service Cases Page Size
+    | Service Cases Page Sizes
     |--------------------------------------------------------------------------
     |
-    | Maximum service case rows loaded on initial dashboard render and per
-    | "Load More" request. Live refresh requests use the current loaded count.
+    | Initial rows on dashboard render (e.g. 35). Each "Load More" click
+    | appends service_cases_load_more_size rows (e.g. 25). Live refresh
+    | requests use the current loaded count.
     |
     */
 
-    'service_cases_page_size' => (int) env('DASHBOARD_SERVICE_CASES_PAGE_SIZE', 25),
+    'service_cases_page_size' => (int) env('DASHBOARD_SERVICE_CASES_PAGE_SIZE', 35),
+
+    'service_cases_load_more_size' => (int) env('DASHBOARD_SERVICE_CASES_LOAD_MORE_SIZE', 25),
 
 ];

@@ -95,7 +95,7 @@ class DashboardServiceCaseController extends Controller
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
-        $pageSize = $this->dashboardService->serviceCasePageSize();
+        $pageSize = $this->dashboardService->serviceCaseLoadMoreSize();
         $offset = max(0, $request->integer('offset', 0));
 
         $payload = $this->dashboardService->serviceCasesPayload(

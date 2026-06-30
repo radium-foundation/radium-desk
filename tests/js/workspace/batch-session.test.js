@@ -8,7 +8,7 @@ const buildDashboardDom = () => {
             <div class="dashboard-bulk-toolbar" data-bulk-bar>
                 <span class="dashboard-bulk-toolbar__status">
                     <span data-bulk-idle-hint>Select one or more rows for batch actions.</span>
-                    <span class="d-none" data-bulk-selected-label>Selected: <span data-bulk-count>0</span></span>
+                    <span class="d-none" data-bulk-selected-label>☑ <span data-bulk-count>0</span> selected</span>
                 </span>
                 <div class="dashboard-bulk-toolbar__actions">
                     <button type="button" data-batch-assign disabled>Assign</button>

@@ -8,7 +8,7 @@ const buildDashboardDom = () => {
         <div id="dashboard-page">
             <div class="dashboard-bulk-toolbar" data-bulk-bar>
                 <span data-bulk-idle-hint>Hint</span>
-                <span class="d-none" data-bulk-selected-label>Selected: <span data-bulk-count>0</span></span>
+                <span class="d-none" data-bulk-selected-label>☑ <span data-bulk-count>0</span> selected</span>
                 <button type="button" data-batch-assign disabled>Assign</button>
             </div>
             <div class="dashboard-service-cases-card">

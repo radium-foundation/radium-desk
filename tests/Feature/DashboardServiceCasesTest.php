@@ -566,6 +566,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertDontSee('Clear Selection', false)
             ->assertDontSee('Assign Model', false)
             ->assertSee('Assign Service Reference')
+            ->assertSee('data-bulk-selected-label', false)
             ->assertDontSee('aria-label="Add transaction ID"', false)
             ->assertSee('aria-label="Add service reference"', false)
             ->assertSee('service-case-select', false)
@@ -924,7 +925,10 @@ class DashboardServiceCasesTest extends TestCase
 
     public function test_pending_admin_filter_paginates_matching_cases(): void
     {
-        config(['dashboard.service_cases_page_size' => 10]);
+        config([
+            'dashboard.service_cases_page_size' => 10,
+            'dashboard.service_cases_load_more_size' => 10,
+        ]);
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -997,6 +1001,71 @@ class DashboardServiceCasesTest extends TestCase
 
         $allFilterResponse->assertOk()
             ->assertJsonCount(10, 'rows');
+    }
+
+    public function test_load_more_uses_separate_increment_from_initial_page_size(): void
+    {
+        config([
+            'dashboard.service_cases_page_size' => 35,
+            'dashboard.service_cases_load_more_size' => 25,
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $references = [];
+
+        for ($index = 1; $index <= 90; $index++) {
+            $order = Order::query()->create([
+                'order_id' => "RD-LOAD-{$index}",
+                'serial_number' => "SN-LOAD-{$index}",
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+
+            $reference = sprintf('SC-LOAD-%02d', $index);
+            $references[] = $reference;
+
+            Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => $reference,
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => "Load more case {$index}",
+                'description' => "Load more case {$index}.",
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->assertOk()
+            ->assertSee('Showing 35 of 90 service cases');
+
+        $firstLoadMore = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 35,
+            ]));
+
+        $firstLoadMore->assertOk()
+            ->assertJsonCount(25, 'rows')
+            ->assertJsonPath('loaded_count', 60)
+            ->assertJsonPath('has_more', true);
+
+        $secondLoadMore = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 60,
+            ]));
+
+        $secondLoadMore->assertOk()
+            ->assertJsonCount(25, 'rows')
+            ->assertJsonPath('loaded_count', 85)
+            ->assertJsonPath('has_more', true);
     }
 
     public function test_open_cases_kpi_links_to_dashboard_all_filter(): void
