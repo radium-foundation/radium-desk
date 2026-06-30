@@ -52,7 +52,7 @@ class DashboardBroadcastTest extends TestCase
         app(QuickServiceRequestService::class)->create(
             user: $actor,
             orderId: 'ORD-BROADCAST-1',
-            serialNumber: 'SN-BROADCAST-1',
+            serialNumber: '7881960',
             product: 'MFS 110',
             source: \App\Enums\IncidentSource::Call,
             notes: 'Broadcast test',

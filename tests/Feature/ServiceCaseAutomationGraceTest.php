@@ -128,7 +128,7 @@ class ServiceCaseAutomationGraceTest extends TestCase
         $actor = User::factory()->create();
         $order = Order::query()->create([
             'order_id' => 'RD-VALID-1',
-            'serial_number' => 'SN-VALID-1',
+            'serial_number' => '7881953',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'status' => 'active',
@@ -197,7 +197,7 @@ class ServiceCaseAutomationGraceTest extends TestCase
 
         $order = $incident->order;
         $order->update([
-            'serial_number' => 'SN-ENRICH-1',
+            'serial_number' => '7881953',
             'device_model' => 'MFS 110',
             'product_name' => 'MFS 110',
         ]);

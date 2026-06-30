@@ -113,7 +113,9 @@ class ServiceCaseActivityTimelineService
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
                     actor: $actor,
-                    title: 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
+                    title: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
+                        ? 'Automatically reassigned after successful validation.'
+                        : 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     body: null,
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",

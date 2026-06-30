@@ -25,6 +25,19 @@ class ServiceCaseAssignmentService
 
     public function resolveAssignee(?Carbon $at = null): User
     {
+        $assignee = $this->resolveAssigneeOrNull($at);
+
+        if ($assignee === null) {
+            throw ValidationException::withMessages([
+                'assigned_to_user_id' => 'No valid admin assignee is available for service case assignment.',
+            ]);
+        }
+
+        return $assignee;
+    }
+
+    public function resolveAssigneeOrNull(?Carbon $at = null): ?User
+    {
         foreach ($this->assigneeCandidateUserIds($at) as $userId) {
             $assignee = $this->findValidAdminAssigneeById($userId);
 
@@ -33,9 +46,7 @@ class ServiceCaseAssignmentService
             }
         }
 
-        throw ValidationException::withMessages([
-            'assigned_to_user_id' => 'No valid admin assignee is available for service case assignment.',
-        ]);
+        return null;
     }
 
     /**
@@ -76,9 +87,15 @@ class ServiceCaseAssignmentService
             return $incident;
         }
 
+        $assignee = $this->resolveAssigneeOrNull($at);
+
+        if ($assignee === null) {
+            return $incident;
+        }
+
         return $this->applyAssignment(
             incident: $this->clearAutomationPending($incident, $actor),
-            assignee: $this->resolveAssignee($at),
+            assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
         );
@@ -185,6 +202,37 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.reassigned',
+        );
+    }
+
+    public function reassignToShiftAdminAfterValidation(Incident $incident, User $actor, ?Carbon $at = null): Incident
+    {
+        $incident = $incident->fresh(['assignee']);
+
+        $currentAssignee = $incident->assignee;
+
+        if ($currentAssignee === null || ! $this->isSupportAgent($currentAssignee)) {
+            return $incident;
+        }
+
+        $assignee = $this->resolveAssigneeOrNull($at);
+
+        if ($assignee === null) {
+            return $incident;
+        }
+
+        if ($incident->assigned_to_user_id === $assignee->id) {
+            return $incident;
+        }
+
+        return $this->applyAssignment(
+            incident: $incident,
+            assignee: $assignee,
+            actor: $actor,
+            event: 'service_case.reassigned',
+            extraNewValues: [
+                'reason' => ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON,
+            ],
         );
     }
 
@@ -303,6 +351,7 @@ class ServiceCaseAssignmentService
         User $assignee,
         User $actor,
         string $event,
+        array $extraNewValues = [],
     ): Incident {
         if ($incident->status === IncidentStatus::Closed) {
             throw ValidationException::withMessages([
@@ -310,7 +359,7 @@ class ServiceCaseAssignmentService
             ]);
         }
 
-        return DB::transaction(function () use ($incident, $assignee, $actor, $event): Incident {
+        return DB::transaction(function () use ($incident, $assignee, $actor, $event, $extraNewValues): Incident {
             $oldValues = [
                 'assigned_to_user_id' => $incident->assigned_to_user_id,
             ];
@@ -329,6 +378,7 @@ class ServiceCaseAssignmentService
                 oldValues: $oldValues,
                 newValues: [
                     'assigned_to_user_id' => $freshIncident->assigned_to_user_id,
+                    ...$extraNewValues,
                 ],
             );
 
@@ -381,6 +431,15 @@ class ServiceCaseAssignmentService
                 'assigned_to_user_id' => 'The selected user must be an active admin or agent.',
             ]);
         }
+    }
+
+    private function isSupportAgent(User $user): bool
+    {
+        return $user->hasRole(RolePermissionSeeder::ROLE_AGENT)
+            && ! $user->hasAnyRole([
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_SUPERADMIN,
+            ]);
     }
 
     private function findValidAdminAssigneeById(int $userId): ?User

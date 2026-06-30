@@ -13,6 +13,7 @@ class OrderSerialService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly SerialValidationService $serialValidationService,
+        private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibilityService,
     ) {}
 
     public function assignSerialNumber(Order $order, string $serialNumber, User $actor): Order
@@ -80,6 +81,8 @@ class OrderSerialService
                     actor: $actor,
                 );
             }
+
+            $this->assignmentEligibilityService->evaluateAssignmentEligibility($freshOrder, $actor);
 
             return $freshOrder;
         });

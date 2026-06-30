@@ -14,6 +14,7 @@ use App\Services\QuickServiceRequestService;
 use App\Services\RadiumBox\RadiumBoxService;
 use App\Services\RemarkTimelineService;
 use App\Services\SerialValidation\SerialValidationService;
+use App\Services\ServiceCaseAssignmentEligibilityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class OrderController extends Controller
         private readonly AuditLogService $auditLogService,
         private readonly RadiumBoxService $radiumBoxService,
         private readonly SerialValidationService $serialValidationService,
+        private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibilityService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -195,6 +197,8 @@ class OrderController extends Controller
         $wasCompleted = $order->isTransactionLocked();
         $attributesBeforeUpdate = $order->getAttributes();
         $previousSerial = $order->serial_number;
+        $previousDeviceModel = $order->device_model;
+        $previousProductName = $order->product_name;
         $validated = collect($request->validated())->except('correction_reason')->all();
         $iraCorrection = null;
 
@@ -270,6 +274,17 @@ class OrderController extends Controller
                     request: $request,
                 );
             }
+        }
+
+        $identityFieldsChanged = $previousSerial !== $order->serial_number
+            || $previousDeviceModel !== $order->device_model
+            || $previousProductName !== $order->product_name;
+
+        if ($identityFieldsChanged) {
+            $this->assignmentEligibilityService->evaluateAssignmentEligibility(
+                $order->fresh(),
+                $request->user(),
+            );
         }
 
         return redirect()

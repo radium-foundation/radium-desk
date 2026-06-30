@@ -6,7 +6,7 @@ use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Order;
 use App\Services\RadiumBox\Exceptions\RadiumBoxEnrichmentRetryException;
-use App\Services\ServiceCaseAutomationGraceService;
+use App\Services\ServiceCaseAssignmentEligibilityService;
 use Illuminate\Support\Facades\Log;
 
 class RadiumBoxOrderEnrichmentService
@@ -78,7 +78,13 @@ class RadiumBoxOrderEnrichmentService
 
             $this->syncStore->markSynced($order->id, $metadata);
 
-            app(ServiceCaseAutomationGraceService::class)->processOrderEnrichmentCompleted($order->fresh());
+            $freshOrder = $order->fresh();
+            $freshOrder->loadMissing('incidents.creator');
+            $actor = $freshOrder->incidents->first()?->creator;
+
+            if ($actor !== null) {
+                app(ServiceCaseAssignmentEligibilityService::class)->evaluateAssignmentEligibility($freshOrder, $actor);
+            }
 
             $this->logAttempt(
                 orderId: $order->id,

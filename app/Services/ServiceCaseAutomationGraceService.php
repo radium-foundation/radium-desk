@@ -2,11 +2,9 @@
 
 namespace App\Services;
 
-use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -16,7 +14,7 @@ class ServiceCaseAutomationGraceService
         private readonly AuditLogService $auditLogService,
         private readonly SettingService $settingService,
         private readonly ServiceCaseAssignmentService $assignmentService,
-        private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
+        private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
     ) {}
 
     public function beginGracePeriod(Incident $incident, User $actor, ?Carbon $at = null): Incident
@@ -60,49 +58,30 @@ class ServiceCaseAutomationGraceService
 
     public function tryAssignAfterValidation(Incident $incident, User $actor, ?Carbon $at = null): ?Incident
     {
-        $incident = $incident->fresh(['order', 'assignee']);
+        $order = $incident->order;
 
-        if ($incident->assigned_to_user_id !== null) {
-            return $incident;
-        }
-
-        if ($incident->automation_pending_until === null) {
+        if ($order === null) {
             return null;
         }
 
-        if (now()->greaterThan($incident->automation_pending_until)) {
-            return null;
-        }
+        $this->eligibilityService->evaluateAssignmentEligibility($order->fresh(), $actor);
 
-        if (! $this->passesAutomationValidation($incident)) {
-            return null;
-        }
+        $freshIncident = $incident->fresh(['assignee', 'order']);
 
-        return $this->assignmentService->assignToShiftAdminAfterValidation(
-            incident: $incident,
-            actor: $actor,
-            at: $at,
-        );
+        return $freshIncident->assigned_to_user_id !== null ? $freshIncident : null;
     }
 
     public function processOrderEnrichmentCompleted(Order $order): void
     {
         $order->loadMissing('incidents.creator');
 
-        Incident::query()
-            ->where('order_id', $order->id)
-            ->whereNull('assigned_to_user_id')
-            ->whereNotNull('automation_pending_until')
-            ->with('creator')
-            ->each(function (Incident $incident): void {
-                $actor = $incident->creator;
+        $actor = $order->incidents->first()?->creator;
 
-                if ($actor === null) {
-                    return;
-                }
+        if ($actor === null) {
+            return;
+        }
 
-                $this->tryAssignAfterValidation($incident, $actor);
-            });
+        $this->eligibilityService->evaluateAssignmentEligibility($order->fresh(), $actor);
     }
 
     public function processExpiredGracePeriods(): int
@@ -131,17 +110,7 @@ class ServiceCaseAutomationGraceService
             return false;
         }
 
-        if (! filled(trim((string) $order->serial_number))) {
-            return false;
-        }
-
-        $syncStatus = $this->syncStore->status($order->id);
-
-        if ($syncStatus === null) {
-            return true;
-        }
-
-        return $syncStatus === RadiumBoxEnrichmentSyncStatus::Synced;
+        return $this->eligibilityService->passesValidationForOrder($order);
     }
 
     private function processSingleExpiredGracePeriod(int $incidentId): bool

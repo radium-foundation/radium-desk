@@ -317,7 +317,9 @@ class OrderActivityTimelineService
                 ),
                 'service_case.reassigned' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
-                    title: 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
+                    title: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
+                        ? 'Automatically reassigned after successful validation.'
+                        : 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
                     detail: $incident?->reference_no,
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
