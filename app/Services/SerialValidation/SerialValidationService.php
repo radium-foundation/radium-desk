@@ -68,6 +68,19 @@ class SerialValidationService
         return $this->validate($serial, $this->resolveProductFromOrder($order));
     }
 
+    public function validatorClassForOrder(Order $order): ?string
+    {
+        $resolvedProduct = $this->resolveProductFromOrder($order);
+
+        if ($resolvedProduct === null) {
+            return null;
+        }
+
+        $validator = $this->validatorsByProduct[$resolvedProduct] ?? null;
+
+        return $validator !== null ? $validator::class : null;
+    }
+
     public function resolveProductFromOrder(Order $order): ?string
     {
         return $this->resolveProductName($order->device_model)
