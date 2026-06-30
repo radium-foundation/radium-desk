@@ -18,6 +18,7 @@
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
          data-user-id="{{ auth()->id() }}"
          data-dashboard-search-rows-url="{{ route('dashboard.service-cases.search-rows') }}"
+         data-dashboard-load-more-url="{{ route('dashboard.service-cases.load-more') }}"
          data-reopen-quick-create="{{ ($reopenQuickCreate ?? false) ? 'true' : 'false' }}"
          data-customer-360-url="{{ url('dashboard/service-cases') }}"
          @if($reverbConfigured ?? false)
@@ -58,6 +59,9 @@
                     'serviceCasePanelTitle' => $serviceCasePanelTitle ?? 'Recent Service Cases',
                     'availableServiceCaseFilters' => $availableServiceCaseFilters ?? ['all', 'pending_admin', 'completed', 'high_priority'],
                     'assignedToScope' => $assignedToScope ?? null,
+                    'serviceCaseFilterCounts' => $serviceCaseFilterCounts ?? [],
+                    'serviceCaseTotalCount' => $serviceCaseTotalCount ?? 0,
+                    'serviceCaseHasMore' => $serviceCaseHasMore ?? false,
                     'canManageTransactions' => $canManageTransactions ?? false,
                     'canReassignServiceCases' => $canReassignServiceCases ?? false,
                 ])

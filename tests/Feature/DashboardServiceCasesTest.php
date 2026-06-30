@@ -922,14 +922,16 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_pending_admin_filter_renders_all_matching_cases_without_row_cap(): void
+    public function test_pending_admin_filter_paginates_matching_cases(): void
     {
+        config(['dashboard.service_cases_page_size' => 10]);
+
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $references = [];
 
-        for ($index = 1; $index <= 16; $index++) {
+        for ($index = 1; $index <= 15; $index++) {
             $order = Order::query()->create([
                 'order_id' => "RD-PENDING-{$index}",
                 'serial_number' => "SN-PENDING-{$index}",
@@ -957,30 +959,59 @@ class DashboardServiceCasesTest extends TestCase
         $dashboardResponse = $this->actingAs($admin)
             ->get(route('dashboard', ['filter' => 'pending_admin']));
 
-        $dashboardResponse->assertOk();
+        $dashboardResponse->assertOk()
+            ->assertSee('Showing 10 of 15 service cases')
+            ->assertSee('Load More');
 
-        foreach ($references as $reference) {
+        foreach (array_slice($references, 0, 10) as $reference) {
             $dashboardResponse->assertSee($reference);
+        }
+
+        foreach (array_slice($references, 10) as $reference) {
+            $dashboardResponse->assertDontSee($reference);
         }
 
         $liveResponse = $this->actingAs($admin)
             ->getJson(route('dashboard.live', ['filter' => 'pending_admin']));
 
         $liveResponse->assertOk()
-            ->assertJsonCount(16, 'rows')
-            ->assertJsonCount(16, 'incident_ids');
+            ->assertJsonCount(10, 'rows')
+            ->assertJsonPath('total_count', 15)
+            ->assertJsonPath('has_more', true)
+            ->assertJsonPath('loaded_count', 10);
 
-        $liveHtml = collect($liveResponse->json('rows'))->pluck('html')->implode('');
+        $loadMoreResponse = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 10,
+            ]));
 
-        foreach ($references as $reference) {
-            $this->assertStringContainsString($reference, $liveHtml);
-        }
+        $loadMoreResponse->assertOk()
+            ->assertJsonCount(5, 'rows')
+            ->assertJsonPath('total_count', 15)
+            ->assertJsonPath('has_more', false)
+            ->assertJsonPath('loaded_count', 15);
 
         $allFilterResponse = $this->actingAs($admin)
             ->getJson(route('dashboard.live', ['filter' => 'all']));
 
         $allFilterResponse->assertOk()
             ->assertJsonCount(10, 'rows');
+    }
+
+    public function test_open_cases_kpi_links_to_dashboard_all_filter(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $expectedHref = route('dashboard', ['filter' => 'all']).'#dashboard-service-cases-panel';
+
+        $this->actingAs($admin)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee($expectedHref, false)
+            ->assertSee('data-dashboard-kpi-action="focus-service-cases-all"', false)
+            ->assertSee('id="dashboard-service-cases-panel"', false);
     }
 
     public function test_dashboard_shows_cashfree_awaiting_product_details_service_case(): void

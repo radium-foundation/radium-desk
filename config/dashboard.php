@@ -27,4 +27,16 @@ return [
 
     'poll_interval_ms' => (int) env('DASHBOARD_POLL_INTERVAL_MS', 30000),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Service Cases Page Size
+    |--------------------------------------------------------------------------
+    |
+    | Maximum service case rows loaded on initial dashboard render and per
+    | "Load More" request. Live refresh requests use the current loaded count.
+    |
+    */
+
+    'service_cases_page_size' => (int) env('DASHBOARD_SERVICE_CASES_PAGE_SIZE', 25),
+
 ];

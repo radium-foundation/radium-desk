@@ -962,6 +962,12 @@ a:focus-visible .stat-card {
     -webkit-overflow-scrolling: touch;
 }
 
+.dashboard-service-cases-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+}
+
 .dashboard-cases-table {
     --bs-table-border-color: var(--dashboard-border-subtle);
     --bs-table-hover-bg: var(--dashboard-table-hover-bg);

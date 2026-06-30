@@ -112,4 +112,32 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     }
 };
 
-export { mergeServiceCaseRows };
+const appendServiceCaseRows = (card, rows, initTooltips) => {
+    const tbody = card.querySelector('#dashboard-service-cases-body');
+
+    if (!tbody) {
+        return;
+    }
+
+    document.getElementById('dashboard-service-cases-empty-row')?.remove();
+
+    rows.forEach(({ incident_id: incidentId, html }) => {
+        if (document.getElementById(`service-case-row-${incidentId}`)) {
+            return;
+        }
+
+        const newRow = parseRowHtml(html);
+
+        if (newRow) {
+            tbody.appendChild(newRow);
+
+            return;
+        }
+
+        tbody.insertAdjacentHTML('beforeend', html);
+    });
+
+    initTooltips(tbody);
+};
+
+export { mergeServiceCaseRows, appendServiceCaseRows };

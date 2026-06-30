@@ -4,6 +4,17 @@
 
 @php
     $items = [];
+    $dashboardPersonalization = app(\App\Services\DashboardPersonalizationService::class);
+    $currentUser = auth()->user();
+    $resolvedDashboardView = request()->query('view') ?: $dashboardPersonalization->defaultViewFor($currentUser);
+    $defaultDashboardView = $dashboardPersonalization->defaultViewFor($currentUser);
+    $openCasesParams = ['filter' => 'all'];
+
+    if ($resolvedDashboardView !== $defaultDashboardView) {
+        $openCasesParams['view'] = $resolvedDashboardView;
+    }
+
+    $openCasesHref = route('dashboard', $openCasesParams).'#dashboard-service-cases-panel';
 
     if (auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_AGENT)) {
         $items[] = [
@@ -61,7 +72,8 @@
         'value' => $stats['open_incidents'],
         'icon' => 'bi-exclamation-triangle',
         'color' => 'danger',
-        'href' => route('incidents.index'),
+        'href' => $openCasesHref,
+        'kpiAction' => 'focus-service-cases-all',
     ];
 
     if (auth()->user()?->can('incidents.view') && isset($stats['overdue_cases'])) {

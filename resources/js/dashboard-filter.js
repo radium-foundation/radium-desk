@@ -1,4 +1,9 @@
 import { getWorkspaceSession } from './workspace/session';
+import {
+    getServiceCaseFilterTotal,
+    updateServiceCaseCountDisplay,
+    formatServiceCaseCount,
+} from './dashboard-service-case-state';
 
 const FILTERED_OUT_CLASS = 'dashboard-case-row--filtered-out';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
@@ -82,12 +87,12 @@ const updateEmptyRow = (tbody, show) => {
     emptyRow.classList.toggle('d-none', ! show);
 };
 
-const updateCounter = (countElement, visibleCount, totalCount) => {
+const updateCounter = (countElement, visibleCount) => {
     if (!countElement) {
         return;
     }
 
-    countElement.textContent = `${visibleCount} / ${totalCount}`;
+    countElement.textContent = formatServiceCaseCount(visibleCount, getServiceCaseFilterTotal());
 };
 
 const clearSearchMatchHighlight = (card) => {
@@ -157,7 +162,7 @@ export const applyDashboardQuickFilter = ({
         }
     });
 
-    updateCounter(countElement, visibleCount, rows.length);
+    updateCounter(countElement, visibleCount);
     updateEmptyRow(tbody, normalizedQuery !== '' && rows.length > 0 && visibleCount === 0);
 
     if (! skipHighlight) {
@@ -168,7 +173,7 @@ export const applyDashboardQuickFilter = ({
         }
     }
 
-    return { visibleCount, totalCount: rows.length };
+    return { visibleCount, totalCount: getServiceCaseFilterTotal() };
 };
 
 export const initDashboardQuickFilter = ({

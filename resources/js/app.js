@@ -4,6 +4,9 @@ import { initLiveDashboard, applyKpis, applyRows, refreshDashboard } from './liv
 import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initDashboardQuickFilter } from './dashboard-filter';
 import { initDashboardSerialNumbers } from './dashboard-serial';
+import { initDashboardLoadMore } from './dashboard-load-more';
+import { initDashboardKpiActions } from './dashboard-kpi';
+import { initServiceCasePaginationState } from './dashboard-service-case-state';
 import { initBatchTransactionForm } from './dashboard-batch-transaction';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
@@ -481,6 +484,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initTooltips();
 
     const pageRoot = document.getElementById('dashboard-page') ?? document;
+    initServiceCasePaginationState(pageRoot);
+    initDashboardKpiActions(pageRoot);
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
     const dashboardTransactionsRef = { current: null };
     const dashboardSerialRef = { current: null };
@@ -551,6 +556,14 @@ document.addEventListener('DOMContentLoaded', () => {
         pageRoot,
         onFilterApplied: () => {
             dashboardTransactions?.batchSession.updateToolbar();
+        },
+    });
+
+    initDashboardLoadMore({
+        pageRoot,
+        onRowsAppended: () => {
+            dashboardTransactions?.batchSession.restoreAllRowStates();
+            dashboardQuickFilter?.reapply();
         },
     });
 

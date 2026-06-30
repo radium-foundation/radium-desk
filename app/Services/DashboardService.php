@@ -206,12 +206,24 @@ class DashboardService
             ->values();
     }
 
+    public function serviceCasePageSize(): int
+    {
+        return max(1, (int) config('dashboard.service_cases_page_size', 25));
+    }
+
+    public function serviceCaseLimitForFilter(string $filter): int
+    {
+        return $this->serviceCasePageSize();
+    }
+
     public function recentServiceCases(
         string $filter = 'pending_admin',
-        ?int $limit = 10,
+        ?int $limit = null,
         ?User $assignedTo = null,
         bool $prioritizeRecentAssignments = false,
+        int $offset = 0,
     ): Collection {
+        $limit ??= $this->serviceCasePageSize();
         $query = Incident::query()
             ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee'])
             ->whereIn('status', IncidentStatus::operationallyActive());
@@ -259,16 +271,74 @@ class DashboardService
 
         $sorted = $this->sortIncidentsForDashboard($incidents, $prioritizeRecentAssignments);
 
-        if ($limit !== null) {
+        if ($offset > 0) {
+            $sorted = $sorted->slice($offset, $limit);
+        } else {
             $sorted = $sorted->take($limit);
         }
 
         return $sorted->values();
     }
 
-    public function serviceCaseLimitForFilter(string $filter): ?int
+    /**
+     * @param  Collection<int, Incident>  $cases
+     * @return list<array{incident_id: int, html: string}>
+     */
+    public function mapServiceCaseRows(Collection $cases, User $user): array
     {
-        return $filter === 'pending_admin' ? null : 10;
+        return $cases
+            ->map(fn (Incident $serviceCase): array => [
+                'incident_id' => $serviceCase->id,
+                'html' => view(
+                    'dashboard.partials.service-case-row',
+                    $this->serviceCaseRowViewData($serviceCase, $user),
+                )->render(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{
+     *     rows: list<array{incident_id: int, html: string}>,
+     *     incident_ids: \Illuminate\Support\Collection<int, int>,
+     *     service_cases_empty: bool,
+     *     service_cases_empty_html: string,
+     *     total_count: int,
+     *     has_more: bool,
+     *     loaded_count: int,
+     * }
+     */
+    public function serviceCasesPayload(
+        User $user,
+        string $filter,
+        ?User $assignedTo,
+        bool $prioritizeRecentAssignments,
+        int $limit,
+        int $offset = 0,
+        ?array $filterCounts = null,
+    ): array {
+        $cases = $this->recentServiceCases(
+            $filter,
+            $limit,
+            $assignedTo,
+            $prioritizeRecentAssignments,
+            $offset,
+        );
+
+        $filterCounts ??= $this->serviceCaseFilterCounts($assignedTo, $user);
+        $totalCount = $filterCounts[$filter] ?? $cases->count();
+        $loadedCount = $offset + $cases->count();
+
+        return [
+            'rows' => $this->mapServiceCaseRows($cases, $user),
+            'incident_ids' => $cases->pluck('id')->values(),
+            'service_cases_empty' => $cases->isEmpty(),
+            'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
+            'total_count' => $totalCount,
+            'has_more' => $loadedCount < $totalCount,
+            'loaded_count' => $loadedCount,
+        ];
     }
 
     /**
@@ -280,7 +350,7 @@ class DashboardService
             ->mapWithKeys(fn (string $key): array => [
                 $key => $this->recentServiceCases(
                     $key,
-                    null,
+                    PHP_INT_MAX,
                     match ($key) {
                         'my_cases' => $user,
                         'pending_support' => null,

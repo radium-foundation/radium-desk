@@ -2,6 +2,7 @@ import { mergeServiceCaseRows } from './live-dashboard-merge';
 import { initTooltips } from './tooltips';
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
+import { setServiceCasePagination } from './dashboard-service-case-state';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -164,6 +165,13 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             serviceCasesEmptyHtml: data.service_cases_empty_html,
         });
 
+        setServiceCasePagination({
+            loaded: data.loaded_count ?? (data.rows?.length ?? 0),
+            total: data.total_count ?? data.service_case_filter_counts?.[
+                document.getElementById('dashboard-page')?.dataset.liveFilter ?? 'pending_admin'
+            ],
+        });
+
         resolve();
     });
 });
@@ -232,6 +240,13 @@ const refreshDashboard = async (pageRoot) => {
 
     try {
         const query = new URLSearchParams({ filter });
+        const loadedCount = Number(
+            pageRoot.querySelector('.dashboard-service-cases-card')?.dataset.serviceCasesLoaded ?? 0,
+        );
+
+        if (loadedCount > 0) {
+            query.set('limit', String(loadedCount));
+        }
 
         if (view && view !== 'all') {
             query.set('view', view);

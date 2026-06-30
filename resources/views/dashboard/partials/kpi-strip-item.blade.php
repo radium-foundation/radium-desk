@@ -5,6 +5,7 @@
     'color' => 'secondary',
     'href' => null,
     'itemClass' => null,
+    'kpiAction' => null,
 ])
 
 @php
@@ -29,6 +30,9 @@
 <{{ $tag }}
     @if($href)
         href="{{ $href }}"
+    @endif
+    @if($kpiAction)
+        data-dashboard-kpi-action="{{ $kpiAction }}"
     @endif
     @class($itemClasses)
 >

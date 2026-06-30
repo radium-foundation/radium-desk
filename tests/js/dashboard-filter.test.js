@@ -3,14 +3,17 @@ import {
     applyDashboardQuickFilter,
     initDashboardQuickFilter,
 } from '../../resources/js/dashboard-filter';
+import { initServiceCasePaginationState } from '../../resources/js/dashboard-service-case-state';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
 
-const buildDashboardCard = () => {
+const buildDashboardCard = ({ loaded = 2, total = 2 } = {}) => {
     document.body.innerHTML = `
         <div id="dashboard-page">
-            <div class="dashboard-service-cases-card">
+            <div class="dashboard-service-cases-card"
+                 data-service-cases-loaded="${loaded}"
+                 data-service-case-filter-total="${total}">
                 <input type="search" data-dashboard-quick-filter-input value="">
-                <span data-dashboard-filter-count>0 / 0</span>
+                <span data-dashboard-filter-count>Showing ${loaded} of ${total} service cases</span>
                 <div id="dashboard-service-cases-scroll">
                     <table>
                         <thead><tr><th>A</th><th>B</th></tr></thead>
@@ -38,6 +41,8 @@ const buildDashboardCard = () => {
 describe('applyDashboardQuickFilter', () => {
     beforeEach(() => {
         resetWorkspaceSession();
+        buildDashboardCard();
+        initServiceCasePaginationState();
     });
 
     afterEach(() => {
@@ -45,18 +50,31 @@ describe('applyDashboardQuickFilter', () => {
     });
 
     it('shows all rows and updates the counter when the query is empty', () => {
-        const card = buildDashboardCard();
+        const card = document.querySelector('.dashboard-service-cases-card');
         const countElement = document.querySelector('[data-dashboard-filter-count]');
 
         const result = applyDashboardQuickFilter({ card, query: '', countElement });
 
         expect(result).toEqual({ visibleCount: 2, totalCount: 2 });
-        expect(countElement?.textContent).toBe('2 / 2');
+        expect(countElement?.textContent).toBe('Showing 2 of 2 service cases');
         expect(document.querySelectorAll('.dashboard-case-row--filtered-out')).toHaveLength(0);
     });
 
+    it('uses the active filter total instead of loaded row count', () => {
+        document.body.innerHTML = '';
+        buildDashboardCard({ loaded: 2, total: 8 });
+        initServiceCasePaginationState();
+
+        const card = document.querySelector('.dashboard-service-cases-card');
+        const countElement = document.querySelector('[data-dashboard-filter-count]');
+
+        applyDashboardQuickFilter({ card, query: '', countElement });
+
+        expect(countElement?.textContent).toBe('Showing 2 of 8 service cases');
+    });
+
     it('hides non-matching rows without removing them from the DOM', () => {
-        const card = buildDashboardCard();
+        const card = document.querySelector('.dashboard-service-cases-card');
 
         applyDashboardQuickFilter({ card, query: 'ord-100' });
 
@@ -66,7 +84,7 @@ describe('applyDashboardQuickFilter', () => {
     });
 
     it('matches device model text in the local filter', () => {
-        const card = buildDashboardCard();
+        const card = document.querySelector('.dashboard-service-cases-card');
 
         applyDashboardQuickFilter({ card, query: 'mso e3' });
 
@@ -75,7 +93,7 @@ describe('applyDashboardQuickFilter', () => {
     });
 
     it('shows the quick-filter empty row when nothing matches', () => {
-        const card = buildDashboardCard();
+        const card = document.querySelector('.dashboard-service-cases-card');
 
         applyDashboardQuickFilter({ card, query: 'missing-value' });
 
@@ -87,7 +105,7 @@ describe('applyDashboardQuickFilter', () => {
     });
 
     it('does not hide rows with an active inline transaction editor', () => {
-        const card = buildDashboardCard();
+        const card = document.querySelector('.dashboard-service-cases-card');
         const row = document.getElementById('service-case-row-2');
 
         row?.insertAdjacentHTML('beforeend', `
@@ -102,7 +120,7 @@ describe('applyDashboardQuickFilter', () => {
     });
 
     it('does not hide locked rows during an active workspace session', () => {
-        const card = buildDashboardCard();
+        const card = document.querySelector('.dashboard-service-cases-card');
         const session = getWorkspaceSession();
 
         session.acquire('inline-transaction', { incidentId: 2 });
@@ -113,7 +131,7 @@ describe('applyDashboardQuickFilter', () => {
     });
 
     it('highlights a single visible match', () => {
-        const card = buildDashboardCard();
+        const card = document.querySelector('.dashboard-service-cases-card');
 
         applyDashboardQuickFilter({ card, query: 'ord-100' });
 
@@ -147,6 +165,8 @@ describe('applyDashboardQuickFilter', () => {
 describe('initDashboardQuickFilter', () => {
     beforeEach(() => {
         resetWorkspaceSession();
+        buildDashboardCard();
+        initServiceCasePaginationState();
         vi.useFakeTimers();
         global.fetch = vi.fn();
     });
@@ -158,7 +178,6 @@ describe('initDashboardQuickFilter', () => {
     });
 
     it('filters rows locally without calling the server', () => {
-        buildDashboardCard();
         const pageRoot = document.getElementById('dashboard-page');
         const onFilterApplied = vi.fn();
 
@@ -178,7 +197,6 @@ describe('initDashboardQuickFilter', () => {
     });
 
     it('applies the local filter immediately when Enter is pressed', () => {
-        buildDashboardCard();
         const pageRoot = document.getElementById('dashboard-page');
 
         initDashboardQuickFilter({ pageRoot });
@@ -193,7 +211,6 @@ describe('initDashboardQuickFilter', () => {
     });
 
     it('clears the filter from the empty-state action', () => {
-        buildDashboardCard();
         const pageRoot = document.getElementById('dashboard-page');
         const filter = initDashboardQuickFilter({ pageRoot });
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');

@@ -62,6 +62,9 @@ class LiveOperationalExperienceTest extends TestCase
                 'service_cases_empty_html',
                 'rows',
                 'incident_ids',
+                'total_count',
+                'has_more',
+                'loaded_count',
             ])
             ->assertJsonPath('service_cases_empty', false)
             ->assertJsonPath('service_case_filter_counts.all', 1);

@@ -2,9 +2,10 @@
     use App\Services\DashboardPersonalizationService;
 
     $activeFilter = $serviceCaseFilter ?? 'pending_admin';
-    $dashboardService = app(\App\Services\DashboardService::class);
-    $assignedToScope = $assignedToScope ?? null;
-    $serviceCaseFilterCounts = $dashboardService->serviceCaseFilterCounts($assignedToScope, auth()->user());
+    $serviceCaseFilterCounts = $serviceCaseFilterCounts ?? [];
+    $renderedServiceCaseCount = $recentServiceCases->count();
+    $totalServiceCaseCount = $serviceCaseTotalCount ?? ($serviceCaseFilterCounts[$activeFilter] ?? $renderedServiceCaseCount);
+    $serviceCaseHasMore = $serviceCaseHasMore ?? ($renderedServiceCaseCount < $totalServiceCaseCount);
     $availableServiceCaseFilters = $availableServiceCaseFilters ?? ['all', 'pending_admin', 'completed', 'high_priority'];
     $dashboardView = $dashboardView ?? DashboardPersonalizationService::VIEW_ALL;
     $personalization = app(DashboardPersonalizationService::class);
@@ -34,7 +35,11 @@
     };
 @endphp
 
-<div class="card border-0 shadow-sm dashboard-service-cases-card">
+<div class="card border-0 shadow-sm dashboard-service-cases-card"
+     id="dashboard-service-cases-panel"
+     data-service-cases-loaded="{{ $renderedServiceCaseCount }}"
+     data-service-case-filter-total="{{ $totalServiceCaseCount }}"
+     data-service-case-filter="{{ $activeFilter }}">
     <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
             <div class="dashboard-cases-header__title-row">
@@ -113,7 +118,7 @@
                         <span id="dashboard-quick-filter-count"
                               class="dashboard-quick-filter__count"
                               data-dashboard-filter-count
-                              aria-live="polite">0 / 0</span>
+                              aria-live="polite">Showing {{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} service {{ $totalServiceCaseCount === 1 ? 'case' : 'cases' }}</span>
                     </div>
                 </div>
             </div>
@@ -192,6 +197,14 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+            <div class="dashboard-service-cases-footer border-top bg-white px-3 py-2 text-center @if(! $serviceCaseHasMore) d-none @endif"
+                 data-dashboard-load-more-wrap>
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary dashboard-u-focus-ring"
+                        data-dashboard-load-more>
+                    Load More
+                </button>
             </div>
         </div>
     </div>

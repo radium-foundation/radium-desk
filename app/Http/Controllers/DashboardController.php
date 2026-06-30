@@ -48,6 +48,22 @@ class DashboardController extends Controller
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
 
+        $serviceCaseFilterCounts = $user->can('incidents.view')
+            && $this->dashboardPersonalization->showsServiceCasesPanel($dashboardView)
+            ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
+            : [];
+
+        $pageSize = $this->dashboardService->serviceCasePageSize();
+        $recentServiceCases = $user->can('incidents.view')
+            && $this->dashboardPersonalization->showsServiceCasesPanel($dashboardView)
+            ? $this->dashboardService->recentServiceCases(
+                $filter,
+                $pageSize,
+                $assignedTo,
+                $prioritizeRecentAssignments,
+            )
+            : collect();
+
         $canManageTransactions = $user->hasAnyRole([
             \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
             \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
@@ -58,15 +74,10 @@ class DashboardController extends Controller
         return view('dashboard.index', [
             'stats' => $this->dashboardService->statsFor($user),
             'reopenQuickCreate' => $reopenQuickCreate,
-            'recentServiceCases' => $user->can('incidents.view')
-                && $this->dashboardPersonalization->showsServiceCasesPanel($dashboardView)
-                ? $this->dashboardService->recentServiceCases(
-                    $filter,
-                    $this->dashboardService->serviceCaseLimitForFilter($filter),
-                    $assignedTo,
-                    $prioritizeRecentAssignments,
-                )
-                : collect(),
+            'recentServiceCases' => $recentServiceCases,
+            'serviceCaseFilterCounts' => $serviceCaseFilterCounts,
+            'serviceCaseTotalCount' => $serviceCaseFilterCounts[$filter] ?? $recentServiceCases->count(),
+            'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$filter] ?? $recentServiceCases->count()),
             'recentActivity' => $user->can('audit-logs.view')
                 ? $this->dashboardService->recentActivity()
                 : collect(),

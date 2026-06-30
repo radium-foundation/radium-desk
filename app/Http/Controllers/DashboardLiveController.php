@@ -49,37 +49,46 @@ class DashboardLiveController extends Controller
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
+        $pageSize = $this->dashboardService->serviceCasePageSize();
+        $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
-        return DB::transaction(function () use ($user, $filter, $assignedTo, $prioritizeRecentAssignments): JsonResponse {
-            $recentServiceCases = $user->can('incidents.view')
-                ? $this->dashboardService->recentServiceCases(
+        return DB::transaction(function () use ($user, $filter, $assignedTo, $prioritizeRecentAssignments, $limit): JsonResponse {
+            $filterCounts = $user->can('incidents.view')
+                ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
+                : [];
+
+            $serviceCasesPayload = $user->can('incidents.view')
+                ? $this->dashboardService->serviceCasesPayload(
+                    $user,
                     $filter,
-                    $this->dashboardService->serviceCaseLimitForFilter($filter),
                     $assignedTo,
                     $prioritizeRecentAssignments,
+                    $limit,
+                    filterCounts: $filterCounts,
                 )
-                : collect();
-            $stats = $this->dashboardService->statsFor($user);
-
-            $rows = $recentServiceCases->map(function ($serviceCase) use ($user) {
-                return [
-                    'incident_id' => $serviceCase->id,
-                    'html' => view(
-                        'dashboard.partials.service-case-row',
-                        $this->dashboardService->serviceCaseRowViewData($serviceCase, $user),
-                    )->render(),
+                : [
+                    'rows' => [],
+                    'incident_ids' => collect(),
+                    'service_cases_empty' => true,
+                    'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
+                    'total_count' => 0,
+                    'has_more' => false,
+                    'loaded_count' => 0,
                 ];
-            })->values();
+            $stats = $this->dashboardService->statsFor($user);
 
             return response()->json([
                 'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
                 'online_count' => $stats['online_count'],
                 'online_users' => $this->dashboardService->onlineUsersPayload($stats),
-                'service_case_filter_counts' => $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user),
-                'service_cases_empty' => $recentServiceCases->isEmpty(),
-                'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
-                'rows' => $rows,
-                'incident_ids' => $recentServiceCases->pluck('id')->values(),
+                'service_case_filter_counts' => $filterCounts,
+                'service_cases_empty' => $serviceCasesPayload['service_cases_empty'],
+                'service_cases_empty_html' => $serviceCasesPayload['service_cases_empty_html'],
+                'rows' => $serviceCasesPayload['rows'],
+                'incident_ids' => $serviceCasesPayload['incident_ids'],
+                'total_count' => $serviceCasesPayload['total_count'],
+                'has_more' => $serviceCasesPayload['has_more'],
+                'loaded_count' => $serviceCasesPayload['loaded_count'],
             ]);
         });
     }
