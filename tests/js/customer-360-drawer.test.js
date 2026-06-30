@@ -114,9 +114,7 @@ describe('initCustomer360Drawer', () => {
             new MouseEvent('click', { bubbles: true, cancelable: true }),
         );
 
-        await vi.waitFor(() => {
-            expect(fetch).toHaveBeenCalledTimes(2);
-        });
+        expect(fetch).toHaveBeenCalledTimes(1);
     });
 
     it('closes drawer on escape key', async () => {

@@ -177,6 +177,35 @@ class DashboardService
         ];
     }
 
+    /**
+     * @param  list<int>  $incidentIds
+     * @return Collection<int, array{incident_id: int, html: string}>
+     */
+    public function serviceCaseRowsForSearch(array $incidentIds, User $user): Collection
+    {
+        if ($incidentIds === [] || ! $user->can('incidents.view')) {
+            return collect();
+        }
+
+        $incidents = Incident::query()
+            ->with(['order.transactionAssigner', 'creator', 'assignee'])
+            ->whereIn('id', $incidentIds)
+            ->get()
+            ->keyBy('id');
+
+        return collect($incidentIds)
+            ->map(fn (int $incidentId): ?Incident => $incidents->get($incidentId))
+            ->filter(fn (?Incident $incident): bool => $incident instanceof Incident && $user->can('view', $incident))
+            ->map(fn (Incident $incident): array => [
+                'incident_id' => $incident->id,
+                'html' => view(
+                    'dashboard.partials.service-case-row',
+                    $this->serviceCaseRowViewData($incident, $user),
+                )->render(),
+            ])
+            ->values();
+    }
+
     public function recentServiceCases(
         string $filter = 'pending_admin',
         ?int $limit = 10,

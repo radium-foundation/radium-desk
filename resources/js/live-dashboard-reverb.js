@@ -12,6 +12,7 @@ import {
     applyPartialDashboardUpdate,
     configureLiveDashboard,
 } from './live-dashboard';
+import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
 
 const SERVICE_CASE_EVENTS = [
@@ -36,6 +37,10 @@ const shouldRemoveRowForFilter = (pageRoot, payload) => {
 };
 
 const handleServiceCaseEvent = async (pageRoot, payload) => {
+    if (isDashboardSearchActive()) {
+        return;
+    }
+
     const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
     const incidentId = Number(payload.incident_id);
 
@@ -60,6 +65,10 @@ const handleServiceCaseEvent = async (pageRoot, payload) => {
 };
 
 const handleKpisUpdated = async (payload) => {
+    if (isDashboardSearchActive()) {
+        return;
+    }
+
     await applyPartialDashboardUpdate({
         kpi_strip_html: payload.kpi_strip_html,
     });

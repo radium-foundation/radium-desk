@@ -17,6 +17,7 @@
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
          data-user-id="{{ auth()->id() }}"
+         data-dashboard-search-rows-url="{{ route('dashboard.service-cases.search-rows') }}"
          data-reopen-quick-create="{{ ($reopenQuickCreate ?? false) ? 'true' : 'false' }}"
          data-customer-360-url="{{ url('dashboard/service-cases') }}"
          @if($reverbConfigured ?? false)

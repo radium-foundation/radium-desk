@@ -1,5 +1,6 @@
 import { mergeServiceCaseRows } from './live-dashboard-merge';
 import { initTooltips } from './tooltips';
+import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
 
 const replaceInnerHtml = (elementId, html) => {
@@ -142,6 +143,12 @@ const removeRows = (incidentIds, lockedIncidentIds) => {
 
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
+        if (isDashboardSearchActive()) {
+            resolve();
+
+            return;
+        }
+
         if (getWorkspaceSession().isActive()) {
             queueDashboardRefresh(data);
             resolve();
@@ -163,6 +170,12 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
 
 const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
+        if (isDashboardSearchActive()) {
+            resolve();
+
+            return;
+        }
+
         if (getWorkspaceSession().isActive()) {
             queueDashboardRefresh({
                 kpi_strip_html: data.kpi_strip_html,
@@ -211,7 +224,7 @@ const refreshDashboard = async (pageRoot) => {
     const filter = pageRoot.dataset.liveFilter ?? 'pending_admin';
     const view = pageRoot.dataset.liveView ?? 'all';
 
-    if (!liveUrl || document.hidden || refreshInFlight) {
+    if (!liveUrl || document.hidden || refreshInFlight || isDashboardSearchActive()) {
         return;
     }
 

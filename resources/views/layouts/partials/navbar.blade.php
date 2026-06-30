@@ -23,17 +23,12 @@
                 placeholder="Search phone, order ID, serial, case ID, customer..."
                 value=""
                 aria-label="Universal search"
-                aria-controls="global-search-results"
                 autocomplete="off"
             >
             <button type="submit" class="btn btn-outline-secondary d-none d-md-inline-flex">
                 Search
             </button>
         </div>
-        <div id="global-search-results"
-             class="global-search-results d-none"
-             role="region"
-             aria-label="Search results"></div>
     </form>
 
     <div id="notification-bell-root"

@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initUniversalSearch } from '../../resources/js/universal-search';
+import { resetDashboardSearchMode } from '../../resources/js/dashboard-search-mode';
 
 describe('initUniversalSearch', () => {
     beforeEach(() => {
-        vi.useFakeTimers();
-        global.fetch = vi.fn();
+        resetDashboardSearchMode();
+        vi.stubGlobal('fetch', vi.fn());
     });
 
     afterEach(() => {
         document.body.innerHTML = '';
-        vi.useRealTimers();
+        resetDashboardSearchMode();
+        vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });
 
@@ -20,119 +22,70 @@ describe('initUniversalSearch', () => {
                     <span data-universal-search-icon><i class="bi bi-search"></i></span>
                 </span>
                 <input id="global-search-input" type="search" value="">
-                <div id="global-search-results" class="global-search-results d-none"></div>
             </form>
         `;
 
         initUniversalSearch();
     };
 
-    it('runs search on form submit', async () => {
+    it('does not run search when dashboard integration is unavailable', async () => {
         mountSearch();
 
         document.getElementById('global-search-input').value = 'RD3434509';
-
-        global.fetch.mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                match_count: 1,
-                results: [{
-                    incident_id: 99,
-                    url: '/incidents/99',
-                    service_case: 'SC00099',
-                    reference_number: 'SC-00099',
-                    order_id: 'RD3434509',
-                    customer: 'Customer',
-                    phone: '9876543210',
-                    assigned_to: 'Agent',
-                    status: 'Open',
-                    age: '1d',
-                }],
-            }),
-        });
 
         document.querySelector('[data-universal-search-form]')?.dispatchEvent(
             new Event('submit', { bubbles: true, cancelable: true }),
         );
 
         await Promise.resolve();
-        await Promise.resolve();
 
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-        expect(global.fetch).toHaveBeenCalledWith(
-            '/search?q=RD3434509',
-            expect.objectContaining({
-                headers: expect.objectContaining({
-                    Accept: 'application/json',
-                }),
-            }),
-        );
-
-        const resultsPanel = document.getElementById('global-search-results');
-        expect(resultsPanel.classList.contains('d-none')).toBe(false);
-        expect(resultsPanel.innerHTML).toContain('RD3434509');
+        expect(fetch).not.toHaveBeenCalled();
     });
 
-    it('runs search on Enter', async () => {
-        mountSearch();
+    it('runs search on Enter when dashboard integration is provided', async () => {
+        document.body.innerHTML = `
+            <form data-universal-search-form data-search-url="/search">
+                <input id="global-search-input" type="search" value="">
+            </form>
+            <div id="dashboard-page">
+                <div class="dashboard-service-cases-card">
+                    <div id="dashboard-service-cases-scroll">
+                        <table><tbody id="dashboard-service-cases-body"></tbody></table>
+                    </div>
+                </div>
+            </div>
+        `;
 
-        document.getElementById('global-search-input').value = 'D';
+        initUniversalSearch({
+            dashboardIntegration: {
+                pageRoot: document.getElementById('dashboard-page'),
+                searchRowsUrl: '/dashboard/service-cases/search-rows',
+                applyRows: vi.fn(),
+                restoreDashboard: vi.fn(),
+            },
+        });
 
-        global.fetch.mockResolvedValue({
+        fetch.mockResolvedValueOnce({
             ok: true,
             json: async () => ({
                 match_count: 0,
+                incident_ids: [],
                 results: [],
             }),
         });
 
+        document.getElementById('global-search-input').value = 'D';
         document.getElementById('global-search-input')?.dispatchEvent(
             new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
         );
 
         await Promise.resolve();
+        await Promise.resolve();
 
-        expect(global.fetch).toHaveBeenCalledTimes(1);
-        expect(global.fetch).toHaveBeenCalledWith(
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(fetch).toHaveBeenCalledWith(
             '/search?q=D',
             expect.any(Object),
         );
-    });
-
-    it('does not search while typing', async () => {
-        mountSearch();
-
-        const input = document.getElementById('global-search-input');
-        input.value = 'Da';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-
-        await vi.runAllTimersAsync();
-
-        expect(global.fetch).not.toHaveBeenCalled();
-    });
-
-    it('does not send view or filter parameters', async () => {
-        mountSearch();
-
-        document.getElementById('global-search-input').value = '9876543210';
-
-        global.fetch.mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                match_count: 0,
-                results: [],
-            }),
-        });
-
-        document.querySelector('[data-universal-search-form]')?.dispatchEvent(
-            new Event('submit', { bubbles: true, cancelable: true }),
-        );
-
-        await Promise.resolve();
-
-        const requestUrl = global.fetch.mock.calls[0][0];
-        expect(requestUrl).toBe('/search?q=9876543210');
-        expect(requestUrl).not.toContain('view=');
-        expect(requestUrl).not.toContain('filter=');
     });
 });

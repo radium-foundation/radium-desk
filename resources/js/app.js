@@ -1,6 +1,6 @@
 import './bootstrap';
 import * as bootstrap from 'bootstrap';
-import { initLiveDashboard, applyKpis, refreshDashboard } from './live-dashboard';
+import { initLiveDashboard, applyKpis, applyRows, refreshDashboard } from './live-dashboard';
 import { initLiveDashboardReverb } from './live-dashboard-reverb';
 import { initDashboardQuickFilter } from './dashboard-filter';
 import { initDashboardSerialNumbers } from './dashboard-serial';
@@ -554,9 +554,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     });
 
-    initUniversalSearch();
-
-    initCustomer360Drawer({
+    const customer360Drawer = initCustomer360Drawer({
         pageRoot,
         showToast: showAppToast,
         initTooltips,
@@ -568,6 +566,36 @@ document.addEventListener('DOMContentLoaded', () => {
             dashboardQuickFilter?.reapply();
         },
     };
+
+    initUniversalSearch({
+        dashboardIntegration: pageRoot?.querySelector('.dashboard-service-cases-card') ? {
+            pageRoot,
+            searchRowsUrl: pageRoot.dataset.dashboardSearchRowsUrl,
+            applyRows: (rows, options = {}) => {
+                const card = pageRoot.querySelector('.dashboard-service-cases-card');
+                const tbody = card?.querySelector('#dashboard-service-cases-body');
+                const columnCount = tbody?.closest('table')?.querySelectorAll('thead th').length ?? 12;
+                const emptySearchHtml = `
+                    <tr id="dashboard-service-cases-empty-row">
+                        <td colspan="${columnCount}" class="text-center text-muted small py-3">
+                            No service cases match this search.
+                        </td>
+                    </tr>
+                `;
+
+                applyRows(rows, {
+                    ...options,
+                    serviceCasesEmptyHtml: options.serviceCasesEmpty
+                        ? emptySearchHtml
+                        : options.serviceCasesEmptyHtml,
+                });
+            },
+            restoreDashboard: () => refreshDashboard(pageRoot),
+            openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),
+            closeDrawer: () => customer360Drawer?.close(),
+            onRowsUpdated: dashboardLiveHooks.onRowsUpdated,
+        } : null,
+    });
 
     const liveDashboard = initLiveDashboard(dashboardLiveHooks);
     const liveMode = liveDashboard.pageRoot?.dataset.liveMode ?? 'poll';

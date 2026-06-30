@@ -28,13 +28,18 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
             return;
         }
 
-        tbody.innerHTML = `
-            <tr id="dashboard-service-cases-empty-row">
-                <td colspan="${tbody.closest('table')?.querySelectorAll('thead th').length ?? 12}" class="text-center text-muted small py-3">
-                    No service cases match this filter.
-                </td>
-            </tr>
-        `;
+        if (emptyHtml) {
+            tbody.innerHTML = emptyHtml;
+        } else {
+            tbody.innerHTML = `
+                <tr id="dashboard-service-cases-empty-row">
+                    <td colspan="${tbody.closest('table')?.querySelectorAll('thead th').length ?? 12}" class="text-center text-muted small py-3">
+                        No service cases match this filter.
+                    </td>
+                </tr>
+            `;
+        }
+
         scrollContainer.scrollTop = previousScrollTop;
 
         return;

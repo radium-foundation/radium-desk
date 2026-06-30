@@ -1,69 +1,56 @@
+import { isDashboardSearchActive, setDashboardSearchActive } from './dashboard-search-mode';
+
 const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
 const SEARCH_LOADING_HTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
-const MAX_RESULTS = 20;
+const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
 
-const escapeHtml = (value) => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+const buildSearchRowsUrl = (baseUrl, incidentIds) => {
+    const params = new URLSearchParams();
 
-const renderResultRow = (result) => {
-    const cells = [
-        ['Service Case', result.service_case],
-        ['Order ID', result.order_id],
-        ['Reference', result.reference_number],
-        ['Customer', result.customer],
-        ['Phone', result.phone],
-        ['Assigned To', result.assigned_to],
-        ['Status', result.status],
-        ['Age', result.age],
-    ];
+    incidentIds.forEach((incidentId) => {
+        params.append('ids[]', String(incidentId));
+    });
 
-    const meta = cells
-        .map(([label, value]) => (
-            `<span class="global-search-result__meta-item"><span class="global-search-result__meta-label">${escapeHtml(label)}:</span> ${escapeHtml(value)}</span>`
-        ))
-        .join('');
-
-    return `
-        <a href="${escapeHtml(result.url)}"
-           class="global-search-result list-group-item list-group-item-action"
-           data-global-search-result
-           data-incident-id="${escapeHtml(result.incident_id)}">
-            <div class="global-search-result__primary">${escapeHtml(result.service_case)} · ${escapeHtml(result.order_id)}</div>
-            <div class="global-search-result__meta">${meta}</div>
-        </a>
-    `;
+    return `${baseUrl}?${params.toString()}`;
 };
 
-const renderResultsPanel = (results, matchCount) => {
-    if (matchCount === 0) {
-        return `
-            <div class="global-search-results__empty" role="status">
-                No service cases match this search.
-            </div>
-        `;
+const clearSearchMatchHighlight = (card) => {
+    card?.querySelectorAll(`.${SEARCH_MATCH_CLASS}`).forEach((row) => {
+        row.classList.remove(SEARCH_MATCH_CLASS);
+    });
+};
+
+const highlightSearchMatch = (card, incidentId) => {
+    clearSearchMatchHighlight(card);
+
+    const row = document.getElementById(`service-case-row-${incidentId}`);
+
+    if (!row) {
+        return;
     }
 
-    const cappedCount = Math.min(matchCount, MAX_RESULTS);
-    const summary = matchCount > MAX_RESULTS
-        ? `Showing ${MAX_RESULTS} of ${matchCount} matches`
-        : `${matchCount} match${matchCount === 1 ? '' : 'es'}`;
+    row.classList.add(SEARCH_MATCH_CLASS);
 
-    return `
-        <div class="global-search-results__summary" role="status">${escapeHtml(summary)}</div>
-        <div class="list-group list-group-flush global-search-results__list">
-            ${results.slice(0, MAX_RESULTS).map(renderResultRow).join('')}
-        </div>
-    `;
+    const scrollContainer = card.querySelector('#dashboard-service-cases-scroll');
+
+    if (scrollContainer) {
+        const rowTop = row.offsetTop - scrollContainer.offsetTop;
+        const rowBottom = rowTop + row.offsetHeight;
+        const viewTop = scrollContainer.scrollTop;
+        const viewBottom = viewTop + scrollContainer.clientHeight;
+
+        if (rowTop < viewTop || rowBottom > viewBottom) {
+            row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
 };
 
-export const initUniversalSearch = () => {
+export const initUniversalSearch = ({
+    dashboardIntegration = null,
+} = {}) => {
     const form = document.querySelector('[data-universal-search-form]');
     const globalInput = document.getElementById('global-search-input');
     const searchUrl = form?.dataset.searchUrl ?? '';
-    const resultsPanel = document.getElementById('global-search-results');
     const searchControl = document.querySelector('[data-universal-search-control]');
     const searchIcon = document.querySelector('[data-universal-search-icon]');
 
@@ -79,24 +66,78 @@ export const initUniversalSearch = () => {
         searchIcon.innerHTML = loading ? SEARCH_LOADING_HTML : SEARCH_ICON_HTML;
     };
 
-    const hideResults = () => {
-        if (!resultsPanel) {
+    const getDashboardCard = () => (
+        dashboardIntegration?.pageRoot?.querySelector('.dashboard-service-cases-card') ?? null
+    );
+
+    const applySearchRows = async (incidentIds, matchCount) => {
+        if (!dashboardIntegration?.searchRowsUrl || !dashboardIntegration.applyRows) {
             return;
         }
 
-        resultsPanel.classList.add('d-none');
-        resultsPanel.innerHTML = '';
-        resultsPanel.removeAttribute('aria-live');
+        const card = getDashboardCard();
+
+        if (!card) {
+            return;
+        }
+
+        if (incidentIds.length === 0) {
+            setDashboardSearchActive(true);
+            dashboardIntegration.applyRows([], {
+                serviceCasesEmpty: true,
+            });
+            dashboardIntegration.onRowsUpdated?.();
+
+            return;
+        }
+
+        const rowsResponse = await fetch(
+            buildSearchRowsUrl(dashboardIntegration.searchRowsUrl, incidentIds),
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: searchAbortController?.signal,
+            },
+        );
+
+        if (!rowsResponse.ok) {
+            return;
+        }
+
+        const rowsData = await rowsResponse.json();
+
+        setDashboardSearchActive(true);
+        dashboardIntegration.applyRows(rowsData.rows ?? [], {
+            serviceCasesEmpty: Boolean(rowsData.service_cases_empty),
+            serviceCasesEmptyHtml: rowsData.service_cases_empty_html ?? '',
+        });
+        dashboardIntegration.onRowsUpdated?.();
+
+        if (matchCount === 1 && incidentIds.length === 1) {
+            const incidentId = incidentIds[0];
+            highlightSearchMatch(card, incidentId);
+
+            const row = document.getElementById(`service-case-row-${incidentId}`);
+            const referenceLabel = row?.querySelector('.case-reference-link')?.textContent?.trim() ?? '';
+
+            await dashboardIntegration.openDrawer?.(incidentId, referenceLabel);
+        } else {
+            clearSearchMatchHighlight(card);
+        }
     };
 
-    const showResults = (html) => {
-        if (!resultsPanel) {
-            return;
+    const restoreDashboard = async () => {
+        setDashboardSearchActive(false);
+        clearSearchMatchHighlight(getDashboardCard());
+        dashboardIntegration?.closeDrawer?.();
+
+        if (dashboardIntegration?.restoreDashboard) {
+            await dashboardIntegration.restoreDashboard();
         }
 
-        resultsPanel.innerHTML = html;
-        resultsPanel.classList.remove('d-none');
-        resultsPanel.setAttribute('aria-live', 'polite');
+        dashboardIntegration?.onRowsUpdated?.();
     };
 
     const runUniversalSearch = async (query) => {
@@ -104,8 +145,11 @@ export const initUniversalSearch = () => {
 
         if (!searchUrl || trimmedQuery === '') {
             setSearchLoading(false);
-            hideResults();
 
+            return;
+        }
+
+        if (!dashboardIntegration) {
             return;
         }
 
@@ -136,7 +180,9 @@ export const initUniversalSearch = () => {
                 return;
             }
 
-            showResults(renderResultsPanel(data.results ?? [], data.match_count ?? 0));
+            const incidentIds = (data.incident_ids ?? []).map(Number);
+
+            await applySearchRows(incidentIds, data.match_count ?? 0);
         } catch (error) {
             if (error?.name === 'AbortError') {
                 return;
@@ -148,9 +194,28 @@ export const initUniversalSearch = () => {
         }
     };
 
+    const clearSearch = async () => {
+        searchAbortController?.abort();
+        searchRequestId += 1;
+        setSearchLoading(false);
+
+        if (isDashboardSearchActive()) {
+            await restoreDashboard();
+        }
+    };
+
     form?.addEventListener('submit', (event) => {
         event.preventDefault();
-        runUniversalSearch(globalInput?.value ?? '');
+
+        const query = globalInput?.value ?? '';
+
+        if (query.trim() === '') {
+            clearSearch();
+
+            return;
+        }
+
+        runUniversalSearch(query);
     });
 
     globalInput?.addEventListener('keydown', (event) => {
@@ -159,21 +224,27 @@ export const initUniversalSearch = () => {
         }
 
         event.preventDefault();
-        runUniversalSearch(globalInput.value);
+
+        const query = globalInput.value ?? '';
+
+        if (query.trim() === '') {
+            clearSearch();
+
+            return;
+        }
+
+        runUniversalSearch(query);
     });
 
-    document.addEventListener('click', (event) => {
-        if (!form?.contains(event.target) && !resultsPanel?.contains(event.target)) {
-            hideResults();
+    globalInput?.addEventListener('search', () => {
+        if ((globalInput.value ?? '').trim() === '') {
+            clearSearch();
         }
     });
 
     globalInput?.addEventListener('input', () => {
         if ((globalInput.value ?? '').trim() === '') {
-            searchAbortController?.abort();
-            searchRequestId += 1;
-            setSearchLoading(false);
-            hideResults();
+            clearSearch();
         }
     });
 };

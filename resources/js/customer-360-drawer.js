@@ -125,12 +125,13 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     };
 
     const close = () => {
-        if (!drawer.classList.contains('is-open')) {
+        fetchController?.abort();
+        fetchController = null;
+
+        if (!drawer.classList.contains('is-open') && activeIncidentId === null) {
             return;
         }
 
-        fetchController?.abort();
-        fetchController = null;
         activeIncidentId = null;
 
         drawer.classList.remove('is-open');

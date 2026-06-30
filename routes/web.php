@@ -44,6 +44,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
     Route::get('/search', [SearchController::class, 'search'])->name('search.index');
     Route::get('/dashboard/search', [SearchController::class, 'search'])->name('dashboard.search');
+    Route::get('dashboard/service-cases/search-rows', [DashboardServiceCaseController::class, 'searchRows'])
+        ->name('dashboard.service-cases.search-rows');
     Route::get('dashboard/service-cases/{incident}/row', [DashboardServiceCaseController::class, 'row'])
         ->name('dashboard.service-cases.row');
     Route::get('dashboard/service-cases/{incident}/customer-360', [Customer360Controller::class, 'show'])

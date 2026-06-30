@@ -30,4 +30,35 @@ class DashboardServiceCaseController extends Controller
             )->render(),
         ]);
     }
+
+    public function searchRows(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->can('incidents.view')) {
+            return response()->json([
+                'rows' => [],
+                'service_cases_empty' => true,
+                'service_cases_empty_html' => '',
+                'incident_ids' => [],
+            ]);
+        }
+
+        $incidentIds = collect($request->input('ids', []))
+            ->filter(fn ($id): bool => is_numeric($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->take(20)
+            ->all();
+
+        $rows = $this->dashboardService->serviceCaseRowsForSearch($incidentIds, $user);
+
+        return response()->json([
+            'rows' => $rows,
+            'service_cases_empty' => $rows->isEmpty(),
+            'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
+            'incident_ids' => $rows->pluck('incident_id')->values(),
+        ]);
+    }
 }
