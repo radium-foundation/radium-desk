@@ -34,7 +34,18 @@ describe('dashboard global search integration', () => {
                  data-customer-360-url="http://localhost/dashboard/service-cases"
                  data-dashboard-search-rows-url="/dashboard/service-cases/search-rows">
                 <div class="dashboard-service-cases-card">
-                    <div id="dashboard-service-cases-scroll">
+                    <div id="dashboard-service-cases-content">
+                        <div class="dashboard-search-banner d-none"
+                             data-dashboard-search-banner
+                             hidden
+                             role="status">
+                            <div class="dashboard-search-banner__content">
+                                <strong data-dashboard-search-banner-title>Search Results</strong>
+                                <p data-dashboard-search-banner-message></p>
+                                <button type="button" data-dashboard-search-clear>Clear Search</button>
+                            </div>
+                        </div>
+                        <div id="dashboard-service-cases-scroll">
                         <table>
                             <thead><tr><th>Ref</th><th>Order</th></tr></thead>
                             <tbody id="dashboard-service-cases-body">
@@ -48,6 +59,7 @@ describe('dashboard global search integration', () => {
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -94,6 +106,11 @@ describe('dashboard global search integration', () => {
 
         await vi.waitFor(() => {
             expect(isDashboardSearchActive()).toBe(true);
+            expect(document.querySelector('[data-dashboard-search-banner]')?.hidden).toBe(false);
+        });
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-universal-search-icon]')?.querySelector('.spinner-border')).toBeNull();
         });
     };
 
@@ -288,5 +305,163 @@ describe('dashboard global search integration', () => {
         expect(searchRequestUrl).toBe('/search?q=9876543210');
         expect(searchRequestUrl).not.toContain('view=');
         expect(searchRequestUrl).not.toContain('filter=');
+    });
+
+    it('activates search mode before network requests', async () => {
+        mountDashboard();
+
+        fetch.mockImplementationOnce(() => {
+            expect(isDashboardSearchActive()).toBe(true);
+
+            return Promise.resolve({
+                ok: true,
+                json: async () => ({
+                    match_count: 0,
+                    incident_ids: [],
+                    results: [],
+                }),
+            });
+        });
+
+        await submitSearch('RD-EARLY-MODE');
+    });
+
+    it('shows search banner with result count', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 2,
+                    incident_ids: [42, 43],
+                    results: [{ incident_id: 42 }, { incident_id: 43 }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [
+                        {
+                            incident_id: 42,
+                            html: '<tr id="service-case-row-42" data-incident-id="42"><td><a class="case-reference-link">SC00042</a></td><td>RD-A</td></tr>',
+                        },
+                        {
+                            incident_id: 43,
+                            html: '<tr id="service-case-row-43" data-incident-id="43"><td><a class="case-reference-link">SC00043</a></td><td>RD-B</td></tr>',
+                        },
+                    ],
+                }),
+            });
+
+        await submitSearch('RD-MULTI');
+
+        const banner = document.querySelector('[data-dashboard-search-banner]');
+        expect(banner?.hidden).toBe(false);
+        expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(false);
+        expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Showing 2 matching service cases');
+    });
+
+    it('shows zero-result banner without blanking dashboard rows', async () => {
+        mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+            }),
+        });
+
+        await submitSearch('RD-NO-MATCH');
+
+        const banner = document.querySelector('[data-dashboard-search-banner]');
+        expect(banner?.hidden).toBe(false);
+        expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(true);
+        expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('No matching service cases found.');
+        expect(document.getElementById('service-case-row-10')).not.toBeNull();
+        expect(document.getElementById('service-case-row-20')).not.toBeNull();
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('prevents live dashboard refresh from overwriting search rows', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [42],
+                    results: [{ incident_id: 42 }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 42,
+                        html: '<tr id="service-case-row-42" data-incident-id="42"><td><a class="case-reference-link">SC00042</a></td><td>RD-MATCH-042</td></tr>',
+                    }],
+                }),
+            });
+
+        await submitSearch('RD-MATCH-042');
+
+        expect(document.getElementById('service-case-row-42')).not.toBeNull();
+        expect(document.getElementById('service-case-row-10')).toBeNull();
+
+        await refreshDashboard(document.getElementById('dashboard-page'));
+
+        expect(document.getElementById('service-case-row-42')).not.toBeNull();
+        expect(document.getElementById('service-case-row-10')).toBeNull();
+        expect(isDashboardSearchActive()).toBe(true);
+    });
+
+    it('clears search banner when search is cleared', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 0,
+                    incident_ids: [],
+                    results: [],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [
+                        {
+                            incident_id: 10,
+                            html: '<tr id="service-case-row-10" data-incident-id="10"><td><a class="case-reference-link">SC00010</a></td><td>RD-LOCAL-010</td></tr>',
+                        },
+                        {
+                            incident_id: 20,
+                            html: '<tr id="service-case-row-20" data-incident-id="20"><td><a class="case-reference-link">SC00020</a></td><td>RD-LOCAL-020</td></tr>',
+                        },
+                    ],
+                }),
+            });
+
+        await submitSearch('RD-NO-MATCH');
+
+        expect(document.querySelector('[data-dashboard-search-banner]')?.hidden).toBe(false);
+
+        document.querySelector('[data-dashboard-search-clear]')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-dashboard-search-banner]')?.hidden).toBe(true);
+        });
+
+        expect(isDashboardSearchActive()).toBe(false);
     });
 });

@@ -121,6 +121,25 @@
     </div>
     <div class="card-body p-0 position-relative">
         <div id="dashboard-service-cases-content">
+            <div class="dashboard-search-banner d-none"
+                 data-dashboard-search-banner
+                 hidden
+                 role="status"
+                 aria-live="polite">
+                <div class="dashboard-search-banner__content">
+                    <div>
+                        <strong class="dashboard-search-banner__title"
+                                data-dashboard-search-banner-title>Search Results</strong>
+                        <p class="dashboard-search-banner__message mb-0"
+                           data-dashboard-search-banner-message></p>
+                    </div>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary"
+                            data-dashboard-search-clear>
+                        Clear Search
+                    </button>
+                </div>
+            </div>
             <div class="dashboard-cases-table-wrap" id="dashboard-service-cases-scroll">
                 <table class="table table-sm table-hover align-middle mb-0 dashboard-cases-table">
                     <thead class="table-light">

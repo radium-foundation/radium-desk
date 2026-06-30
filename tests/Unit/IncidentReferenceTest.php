@@ -68,6 +68,45 @@ class IncidentReferenceTest extends TestCase
         }
     }
 
+    public function test_matching_reference_scope_finds_five_digit_reference_variants(): void
+    {
+        $incident = Incident::query()->create([
+            'order_id' => \App\Models\Order::query()->create([
+                'order_id' => 'RD-REF-2865',
+                'serial_number' => 'SN-REF-2865',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+            ])->id,
+            'reference_no' => 'SC02865',
+            'category' => 'General',
+            'source' => 'call',
+            'title' => 'Five digit case',
+            'description' => 'Test',
+            'status' => 'open',
+            'created_by' => \App\Models\User::factory()->create()->id,
+        ]);
+
+        foreach (['SC02865', 'SC2865', 'SC-02865', 'SC-2865', '2865'] as $query) {
+            $this->assertTrue(
+                Incident::query()->matchingReference($query)->whereKey($incident->id)->exists(),
+                "Failed to match reference using query: {$query}"
+            );
+        }
+    }
+
+    public function test_format_display_reference_matches_matching_reference_variants(): void
+    {
+        $sequence = 2865;
+
+        $this->assertSame('SC02865', Incident::formatDisplayReference($sequence));
+        $this->assertContains('SC02865', Incident::referenceMatchVariants($sequence));
+        $this->assertContains('SC2865', Incident::referenceMatchVariants($sequence));
+        $this->assertContains('SC-02865', Incident::referenceMatchVariants($sequence));
+        $this->assertContains('SC-2865', Incident::referenceMatchVariants($sequence));
+        $this->assertContains('2865', Incident::referenceMatchVariants($sequence));
+    }
+
     public function test_generate_uses_sc_prefix_without_hyphen(): void
     {
         Incident::query()->create([

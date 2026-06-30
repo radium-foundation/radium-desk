@@ -236,12 +236,12 @@ class UniversalSearchTest extends TestCase
             ->assertJsonPath('incident_ids.0', $incident->id);
     }
 
-    public function test_search_does_not_find_closed_service_cases(): void
+    public function test_search_finds_closed_service_cases(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $this->createServiceCase($agent, [
+        $incident = $this->createServiceCase($agent, [
             'order_id' => 'RD-CLOSED-001',
         ], [
             'status' => IncidentStatus::Closed,
@@ -250,7 +250,44 @@ class UniversalSearchTest extends TestCase
         $this->actingAs($agent)
             ->getJson(route('search.index', ['q' => 'RD-CLOSED-001']))
             ->assertOk()
-            ->assertJsonPath('match_count', 0);
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id);
+    }
+
+    public function test_search_finds_resolved_service_cases(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createServiceCase($agent, [
+            'order_id' => 'RD-RESOLVED-001',
+        ], [
+            'status' => IncidentStatus::Resolved,
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD-RESOLVED-001']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id);
+    }
+
+    public function test_search_finds_service_case_by_five_digit_reference_variants(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createServiceCase($agent, [], [
+            'reference_no' => 'SC02865',
+        ]);
+
+        foreach (['SC02865', 'SC2865', 'SC-02865', 'SC-2865', '2865'] as $query) {
+            $this->actingAs($agent)
+                ->getJson(route('search.index', ['q' => $query]))
+                ->assertOk()
+                ->assertJsonPath('match_count', 1, "Failed for query: {$query}")
+                ->assertJsonPath('incident_ids.0', $incident->id, "Failed for query: {$query}");
+        }
     }
 
     public function test_agent_can_find_another_agents_active_case(): void

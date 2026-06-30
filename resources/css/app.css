@@ -931,6 +931,30 @@ a:focus-visible .stat-card {
     border-color: rgba(168, 68, 85, 0.28);
 }
 
+.dashboard-search-banner {
+    border-bottom: 1px solid var(--dashboard-border-subtle);
+    background: var(--dashboard-card-bg);
+    padding: 0.625rem 0.875rem;
+}
+
+.dashboard-search-banner__content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.dashboard-search-banner__title {
+    display: block;
+    font-size: 0.8125rem;
+    margin-bottom: 0.125rem;
+}
+
+.dashboard-search-banner__message {
+    color: var(--dashboard-color-muted);
+    font-size: 0.8125rem;
+}
+
 .dashboard-cases-table-wrap,
 #dashboard-service-cases-scroll {
     overflow: auto;

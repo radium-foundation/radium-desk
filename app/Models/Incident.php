@@ -103,10 +103,35 @@ class Incident extends Model
         }
 
         if (preg_match('/^SC-?(\d+)$/i', $this->reference_no, $matches) === 1) {
-            return 'SC'.str_pad($matches[1], 5, '0', STR_PAD_LEFT);
+            return self::formatDisplayReference((int) $matches[1]);
         }
 
         return $this->reference_no;
+    }
+
+    public static function formatDisplayReference(int $sequence): string
+    {
+        return 'SC'.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * All stored reference forms that resolve to the same service case sequence.
+     *
+     * @return list<string>
+     */
+    public static function referenceMatchVariants(int $sequence): array
+    {
+        $padded = str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+        $unpadded = (string) $sequence;
+
+        return [
+            'SC'.$padded,
+            'SC-'.$padded,
+            'SC'.$unpadded,
+            'SC-'.$unpadded,
+            $padded,
+            $unpadded,
+        ];
     }
 
     public static function parseReferenceSequence(string $query): ?int
@@ -141,17 +166,11 @@ class Incident extends Model
         $sequence = self::parseReferenceSequence($term);
 
         if ($sequence !== null) {
-            $padded = str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+            $variants = self::referenceMatchVariants($sequence);
 
-            $query->where(function (Builder $builder) use ($term, $sequence, $padded) {
-                $builder->where('reference_no', 'like', '%'.$term.'%')
-                    ->orWhere('reference_no', 'SC-'.$padded)
-                    ->orWhere('reference_no', 'SC'.$padded);
-
-                if ($sequence !== (int) $padded) {
-                    $builder->orWhere('reference_no', 'SC-'.$sequence)
-                        ->orWhere('reference_no', 'SC'.$sequence);
-                }
+            $query->where(function (Builder $builder) use ($term, $variants) {
+                $builder->whereIn('reference_no', $variants)
+                    ->orWhere('reference_no', 'like', '%'.$term.'%');
             });
 
             return;

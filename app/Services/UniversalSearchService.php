@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -32,14 +31,13 @@ class UniversalSearchService
 
         $builder = Incident::query()
             ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee'])
-            ->whereIn('status', IncidentStatus::operationallyActive())
             ->where(function (Builder $incidentQuery) use ($query, $like): void {
                 $incidentQuery->where(function (Builder $referenceQuery) use ($query): void {
                     $referenceQuery->matchingReference($query);
                 })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like));
             });
 
-        $paddedReference = $this->paddedReferenceForQuery($query);
+        $referenceExactMatches = $this->referenceExactMatchBindings($query);
 
         return $builder
             ->orderByRaw(
@@ -78,10 +76,10 @@ class UniversalSearchService
                     ELSE 2
                 END',
                 [
-                    $paddedReference['sc_dash'],
-                    $paddedReference['sc_plain'],
-                    $paddedReference['sc_dash_unpadded'],
-                    $paddedReference['sc_plain_unpadded'],
+                    $referenceExactMatches[0],
+                    $referenceExactMatches[1],
+                    $referenceExactMatches[2],
+                    $referenceExactMatches[3],
                     $query,
                     $query,
                     $query,
@@ -103,29 +101,17 @@ class UniversalSearchService
     }
 
     /**
-     * @return array{sc_dash: string, sc_plain: string, sc_dash_unpadded: string, sc_plain_unpadded: string}
+     * @return list<string>
      */
-    private function paddedReferenceForQuery(string $query): array
+    private function referenceExactMatchBindings(string $query): array
     {
         $sequence = Incident::parseReferenceSequence($query);
 
         if ($sequence === null) {
-            return [
-                'sc_dash' => $query,
-                'sc_plain' => $query,
-                'sc_dash_unpadded' => $query,
-                'sc_plain_unpadded' => $query,
-            ];
+            return [$query, $query, $query, $query];
         }
 
-        $padded = str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
-
-        return [
-            'sc_dash' => 'SC-'.$padded,
-            'sc_plain' => 'SC'.$padded,
-            'sc_dash_unpadded' => 'SC-'.$sequence,
-            'sc_plain_unpadded' => 'SC'.$sequence,
-        ];
+        return array_slice(Incident::referenceMatchVariants($sequence), 0, 4);
     }
 
     public function applyOrderSearchFilters(Builder $orderQuery, string $like): void

@@ -572,23 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pageRoot,
             searchRowsUrl: pageRoot.dataset.dashboardSearchRowsUrl,
             applyRows: (rows, options = {}) => {
-                const card = pageRoot.querySelector('.dashboard-service-cases-card');
-                const tbody = card?.querySelector('#dashboard-service-cases-body');
-                const columnCount = tbody?.closest('table')?.querySelectorAll('thead th').length ?? 12;
-                const emptySearchHtml = `
-                    <tr id="dashboard-service-cases-empty-row">
-                        <td colspan="${columnCount}" class="text-center text-muted small py-3">
-                            No service cases match this search.
-                        </td>
-                    </tr>
-                `;
-
-                applyRows(rows, {
-                    ...options,
-                    serviceCasesEmptyHtml: options.serviceCasesEmpty
-                        ? emptySearchHtml
-                        : options.serviceCasesEmptyHtml,
-                });
+                applyRows(rows, options);
             },
             restoreDashboard: () => refreshDashboard(pageRoot),
             openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),

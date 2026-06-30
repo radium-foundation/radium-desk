@@ -1,4 +1,5 @@
 import { isDashboardSearchActive, setDashboardSearchActive } from './dashboard-search-mode';
+import { hideSearchBanner, showSearchBanner } from './dashboard-search-banner';
 
 const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
 const SEARCH_LOADING_HTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
@@ -77,17 +78,7 @@ export const initUniversalSearch = ({
 
         const card = getDashboardCard();
 
-        if (!card) {
-            return;
-        }
-
-        if (incidentIds.length === 0) {
-            setDashboardSearchActive(true);
-            dashboardIntegration.applyRows([], {
-                serviceCasesEmpty: true,
-            });
-            dashboardIntegration.onRowsUpdated?.();
-
+        if (!card || incidentIds.length === 0) {
             return;
         }
 
@@ -108,7 +99,6 @@ export const initUniversalSearch = ({
 
         const rowsData = await rowsResponse.json();
 
-        setDashboardSearchActive(true);
         dashboardIntegration.applyRows(rowsData.rows ?? [], {
             serviceCasesEmpty: Boolean(rowsData.service_cases_empty),
             serviceCasesEmptyHtml: rowsData.service_cases_empty_html ?? '',
@@ -130,6 +120,7 @@ export const initUniversalSearch = ({
 
     const restoreDashboard = async () => {
         setDashboardSearchActive(false);
+        hideSearchBanner(getDashboardCard());
         clearSearchMatchHighlight(getDashboardCard());
         dashboardIntegration?.closeDrawer?.();
 
@@ -158,6 +149,7 @@ export const initUniversalSearch = ({
         const requestId = ++searchRequestId;
 
         setSearchLoading(true);
+        setDashboardSearchActive(true);
 
         const params = new URLSearchParams({ q: trimmedQuery });
 
@@ -181,8 +173,18 @@ export const initUniversalSearch = ({
             }
 
             const incidentIds = (data.incident_ids ?? []).map(Number);
+            const matchCount = data.match_count ?? 0;
+            const card = getDashboardCard();
 
-            await applySearchRows(incidentIds, data.match_count ?? 0);
+            showSearchBanner(card, { matchCount });
+
+            if (incidentIds.length === 0) {
+                dashboardIntegration.onRowsUpdated?.();
+
+                return;
+            }
+
+            await applySearchRows(incidentIds, matchCount);
         } catch (error) {
             if (error?.name === 'AbortError') {
                 return;
@@ -203,6 +205,14 @@ export const initUniversalSearch = ({
             await restoreDashboard();
         }
     };
+
+    getDashboardCard()?.querySelector('[data-dashboard-search-clear]')?.addEventListener('click', () => {
+        if (globalInput) {
+            globalInput.value = '';
+        }
+
+        clearSearch();
+    });
 
     form?.addEventListener('submit', (event) => {
         event.preventDefault();
