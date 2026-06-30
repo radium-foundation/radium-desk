@@ -15,6 +15,7 @@ class ServiceCaseAutomationGraceService
         private readonly SettingService $settingService,
         private readonly ServiceCaseAssignmentService $assignmentService,
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
+        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
 
     public function beginGracePeriod(Incident $incident, User $actor, ?Carbon $at = null): Incident
@@ -148,6 +149,9 @@ class ServiceCaseAutomationGraceService
 
                 return true;
             }
+
+            $this->automationMonitor->recordValidationFailed($incident, $actor);
+            $this->automationMonitor->recordWaitingManualCorrection($incident, $actor);
 
             $this->assignmentService->assignViaRoundRobinAfterGracePeriod(
                 incident: $incident,

@@ -77,6 +77,9 @@
         @endif
 
         @if(auth()->user()?->hasAnyRole([\Database\Seeders\RolePermissionSeeder::ROLE_ADMIN, \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN]))
+            @include('dashboard.partials.automation-health-card', [
+                'automationHealth' => $stats['automation_health'] ?? [],
+            ])
             @include('dashboard.partials.admin-metrics-strip', ['stats' => $stats])
         @endif
     </div>

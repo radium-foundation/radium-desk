@@ -14,6 +14,7 @@ class OrderSerialService
         private readonly AuditLogService $auditLogService,
         private readonly SerialValidationService $serialValidationService,
         private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibilityService,
+        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
 
     public function assignSerialNumber(Order $order, string $serialNumber, User $actor): Order
@@ -83,6 +84,10 @@ class OrderSerialService
             }
 
             $this->assignmentEligibilityService->evaluateAssignmentEligibility($freshOrder, $actor);
+
+            if ($this->assignmentEligibilityService->passesValidationForOrder($freshOrder)) {
+                $this->automationMonitor->recordValidationPassed($freshOrder, $actor);
+            }
 
             return $freshOrder;
         });

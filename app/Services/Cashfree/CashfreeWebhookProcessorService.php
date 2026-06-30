@@ -13,6 +13,7 @@ use App\Services\DashboardBroadcastService;
 use App\Services\IncidentReferenceService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\ServiceCaseAssignmentService;
+use App\Services\ServiceCaseAutomationMonitorService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -29,6 +30,7 @@ class CashfreeWebhookProcessorService
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
+        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -156,6 +158,7 @@ class CashfreeWebhookProcessorService
         ]);
 
         $incident = $this->serviceCaseAssignmentService->assignOnCreate($incident, $systemUser);
+        $this->automationMonitor->recordPaymentReceived($incident, $systemUser);
         $this->dashboardBroadcastService->serviceCaseCreated($incident, $systemUser);
 
         return $incident;

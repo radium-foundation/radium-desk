@@ -15,6 +15,7 @@ use App\Services\RadiumBox\RadiumBoxService;
 use App\Services\RemarkTimelineService;
 use App\Services\SerialValidation\SerialValidationService;
 use App\Services\ServiceCaseAssignmentEligibilityService;
+use App\Services\ServiceCaseAutomationMonitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,7 @@ class OrderController extends Controller
         private readonly RadiumBoxService $radiumBoxService,
         private readonly SerialValidationService $serialValidationService,
         private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibilityService,
+        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -281,10 +283,16 @@ class OrderController extends Controller
             || $previousProductName !== $order->product_name;
 
         if ($identityFieldsChanged) {
+            $freshOrder = $order->fresh();
+
             $this->assignmentEligibilityService->evaluateAssignmentEligibility(
-                $order->fresh(),
+                $freshOrder,
                 $request->user(),
             );
+
+            if ($this->assignmentEligibilityService->passesValidationForOrder($freshOrder)) {
+                $this->automationMonitor->recordValidationPassed($freshOrder, $request->user());
+            }
         }
 
         return redirect()

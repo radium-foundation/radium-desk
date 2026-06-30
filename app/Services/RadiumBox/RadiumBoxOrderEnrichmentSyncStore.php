@@ -3,6 +3,8 @@
 namespace App\Services\RadiumBox;
 
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Models\Order;
+use App\Services\ServiceCaseAutomationMonitorService;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -16,6 +18,10 @@ class RadiumBoxOrderEnrichmentSyncStore
     private const CACHE_PREFIX = 'radiumbox:order-enrichment:sync:';
 
     private const CACHE_TTL_SECONDS = 60 * 60 * 24 * 30;
+
+    public function __construct(
+        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+    ) {}
 
     public function status(int $orderId): ?RadiumBoxEnrichmentSyncStatus
     {
@@ -55,6 +61,8 @@ class RadiumBoxOrderEnrichmentSyncStore
             'metadata' => $this->metadata($orderId) ?? [],
             'updated_at' => now()->toIso8601String(),
         ]);
+
+        $this->recordAutomationEvent($orderId, 'waiting');
     }
 
     /**
@@ -67,6 +75,8 @@ class RadiumBoxOrderEnrichmentSyncStore
             'metadata' => array_merge($this->metadata($orderId) ?? [], $metadata),
             'updated_at' => now()->toIso8601String(),
         ]);
+
+        $this->recordAutomationEvent($orderId, 'verified');
     }
 
     /**
@@ -159,5 +169,25 @@ class RadiumBoxOrderEnrichmentSyncStore
     private function cacheKey(int $orderId): string
     {
         return self::CACHE_PREFIX.$orderId;
+    }
+
+    private function recordAutomationEvent(int $orderId, string $type): void
+    {
+        $order = Order::query()->with('incidents.creator')->find($orderId);
+
+        if ($order === null) {
+            return;
+        }
+
+        $actor = $order->incidents->first()?->creator
+            ?? $this->automationMonitor->resolveAutomationActor();
+
+        if ($type === 'waiting') {
+            $this->automationMonitor->recordWaitingRadiumBox($order, $actor);
+
+            return;
+        }
+
+        $this->automationMonitor->recordRadiumBoxVerified($order, $actor);
     }
 }

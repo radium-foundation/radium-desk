@@ -10,6 +10,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
 
 class ServiceCaseActivityTimelineService
@@ -100,23 +101,17 @@ class ServiceCaseActivityTimelineService
 
         if ($auditLog->auditable_type === $incident->getMorphClass()) {
             return match ($auditLog->event) {
-                'service_case.assigned' => new ServiceCaseTimelineEntry(
-                    occurredAt: $occurredAt,
-                    type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
-                    actor: $actor,
-                    title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
-                    body: null,
-                    remark: null,
-                    dedupeKey: "audit:{$auditLog->id}",
-                ),
+                'service_case.assigned' => $this->mapAssignedEntry($auditLog, $incident, $actor, $occurredAt),
                 'service_case.reassigned' => new ServiceCaseTimelineEntry(
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
                     actor: $actor,
                     title: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
-                        ? 'Automatically reassigned after successful validation.'
+                        ? 'Automatically reassigned to Shift Admin'
                         : 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
-                    body: null,
+                    body: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
+                        ? 'Automatically reassigned after successful validation.'
+                        : null,
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
@@ -124,7 +119,61 @@ class ServiceCaseActivityTimelineService
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
                     actor: $actor,
-                    title: 'Automation Pending',
+                    title: 'Automation pending ('.((int) ($auditLog->new_values['grace_period_seconds'] ?? 60)).' seconds)',
+                    body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                ServiceCaseAutomationMonitorService::EVENT_PAYMENT_RECEIVED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Payment received',
+                    body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                ServiceCaseAutomationMonitorService::EVENT_WAITING_RADIUMBOX => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Waiting for RadiumBox',
+                    body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                ServiceCaseAutomationMonitorService::EVENT_RADIUMBOX_VERIFIED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'RadiumBox verification successful',
+                    body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                ServiceCaseAutomationMonitorService::EVENT_VALIDATION_PASSED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Serial validation successful',
+                    body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                ServiceCaseAutomationMonitorService::EVENT_VALIDATION_FAILED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Validation failed',
+                    body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                ServiceCaseAutomationMonitorService::EVENT_WAITING_MANUAL_CORRECTION => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Waiting for manual correction',
                     body: null,
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
@@ -164,6 +213,34 @@ class ServiceCaseActivityTimelineService
         }
 
         return null;
+    }
+
+    private function mapAssignedEntry(
+        AuditLog $auditLog,
+        Incident $incident,
+        TimelineActor $actor,
+        $occurredAt,
+    ): ServiceCaseTimelineEntry {
+        $assigneeId = $auditLog->new_values['assigned_to_user_id'] ?? null;
+        $assignee = $assigneeId ? User::query()->find($assigneeId) : null;
+        $isRoundRobinAgent = $assignee !== null
+            && $assignee->hasRole(RolePermissionSeeder::ROLE_AGENT)
+            && ! $assignee->hasAnyRole([
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_SUPERADMIN,
+            ]);
+
+        return new ServiceCaseTimelineEntry(
+            occurredAt: $occurredAt,
+            type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
+            actor: $actor,
+            title: $isRoundRobinAgent
+                ? 'Assigned to Agent (Round Robin)'
+                : 'Assigned to '.$this->assigneeFirstName($assigneeId, $incident),
+            body: null,
+            remark: null,
+            dedupeKey: "audit:{$auditLog->id}",
+        );
     }
 
     private function mapStatusChangeEntry(AuditLog $auditLog, TimelineActor $actor, $occurredAt): ServiceCaseTimelineEntry

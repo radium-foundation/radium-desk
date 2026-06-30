@@ -85,6 +85,7 @@ class DashboardService
 
         if ($user->hasAnyRole([RolePermissionSeeder::ROLE_ADMIN, RolePermissionSeeder::ROLE_SUPERADMIN])) {
             $stats['approval_numbers'] = ApprovalNumber::query()->count();
+            $stats['automation_health'] = app(ServiceCaseAutomationHealthService::class)->counts();
         }
 
         if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
