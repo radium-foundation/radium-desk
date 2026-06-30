@@ -56,9 +56,7 @@ class SearchController extends Controller
             $request->query('view'),
         );
         $dashboardView = $viewResolution['view'];
-        $assignedTo = $this->dashboardPersonalization->scopesServiceCasesToAssignee($dashboardView)
-            ? $user
-            : null;
+        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
         $defaultFilter = $this->dashboardPersonalization->defaultFilterFor($user, $dashboardView);
         $filter = $request->string('filter')->toString() ?: $defaultFilter;
         $availableFilters = $this->dashboardPersonalization->availableFiltersFor($user);

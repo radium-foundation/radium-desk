@@ -202,6 +202,7 @@ class DashboardService
                     ->where('transaction_id', '!=', '');
             }),
             'high_priority' => $query->where('high_priority', true),
+            'pending_support' => $query->whereNull('assigned_to_user_id'),
             'overdue' => $query->whereHas('order', function ($orderQuery): void {
                 $orderQuery->where(function ($pendingQuery): void {
                     $pendingQuery->whereNull('transaction_id')
@@ -242,11 +243,19 @@ class DashboardService
     /**
      * @return array<string, int>
      */
-    public function serviceCaseFilterCounts(?User $assignedTo = null): array
+    public function serviceCaseFilterCounts(?User $assignedTo = null, ?User $user = null): array
     {
-        return collect(['all', 'pending_admin', 'completed', 'high_priority'])
+        return collect(['all', 'pending_admin', 'completed', 'high_priority', 'my_cases', 'pending_support'])
             ->mapWithKeys(fn (string $key): array => [
-                $key => $this->recentServiceCases($key, null, $assignedTo)->count(),
+                $key => $this->recentServiceCases(
+                    $key,
+                    null,
+                    match ($key) {
+                        'my_cases' => $user,
+                        'pending_support' => null,
+                        default => $assignedTo,
+                    },
+                )->count(),
             ])
             ->all();
     }

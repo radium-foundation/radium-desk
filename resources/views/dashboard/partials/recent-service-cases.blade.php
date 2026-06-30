@@ -4,7 +4,7 @@
     $activeFilter = $serviceCaseFilter ?? 'pending_admin';
     $dashboardService = app(\App\Services\DashboardService::class);
     $assignedToScope = $assignedToScope ?? null;
-    $serviceCaseFilterCounts = $dashboardService->serviceCaseFilterCounts($assignedToScope);
+    $serviceCaseFilterCounts = $dashboardService->serviceCaseFilterCounts($assignedToScope, auth()->user());
     $availableServiceCaseFilters = $availableServiceCaseFilters ?? ['all', 'pending_admin', 'completed', 'high_priority'];
     $dashboardView = $dashboardView ?? DashboardPersonalizationService::VIEW_ALL;
     $personalization = app(DashboardPersonalizationService::class);
@@ -12,8 +12,10 @@
     $serviceCaseFilterMeta = [
         'all' => ['label' => 'All', 'icon' => 'bi-grid-3x3-gap-fill', 'tone' => 'primary'],
         'pending_admin' => ['label' => 'Pending Admin', 'icon' => 'bi-clock', 'tone' => 'warning'],
+        'pending_support' => ['label' => 'Unassigned', 'icon' => 'bi-headset', 'tone' => 'warning'],
         'completed' => ['label' => 'Completed', 'icon' => 'bi-check-circle-fill', 'tone' => 'success'],
         'high_priority' => ['label' => 'High Priority', 'icon' => 'bi-flag-fill', 'tone' => 'danger'],
+        'my_cases' => ['label' => 'My Cases', 'icon' => 'bi-person-fill', 'tone' => 'primary'],
     ];
 
     $filterUrl = function (string $filterKey) use ($dashboardView, $defaultView): string {

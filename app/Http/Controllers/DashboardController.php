@@ -45,9 +45,7 @@ class DashboardController extends Controller
             }
         }
 
-        $assignedTo = $this->dashboardPersonalization->scopesServiceCasesToAssignee($dashboardView)
-            ? $user
-            : null;
+        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
 
         $canManageTransactions = $user->hasAnyRole([

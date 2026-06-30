@@ -159,6 +159,7 @@ class UniversalSearchService
                     ->where('transaction_id', '!=', '');
             }),
             'high_priority' => $query->where('high_priority', true),
+            'pending_support' => $query->whereNull('assigned_to_user_id'),
             'overdue', 'warning' => $query->whereHas('order', function ($orderQuery): void {
                 $orderQuery->where(function ($pendingQuery): void {
                     $pendingQuery->whereNull('transaction_id')

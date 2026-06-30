@@ -47,9 +47,7 @@ class DashboardLiveController extends Controller
             $filter = $defaultFilter;
         }
 
-        $assignedTo = $this->dashboardPersonalization->scopesServiceCasesToAssignee($dashboardView)
-            ? $user
-            : null;
+        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
 
         return DB::transaction(function () use ($user, $filter, $assignedTo, $prioritizeRecentAssignments): JsonResponse {
@@ -77,7 +75,7 @@ class DashboardLiveController extends Controller
                 'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
                 'online_count' => $stats['online_count'],
                 'online_users' => $this->dashboardService->onlineUsersPayload($stats),
-                'service_case_filter_counts' => $this->dashboardService->serviceCaseFilterCounts($assignedTo),
+                'service_case_filter_counts' => $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user),
                 'service_cases_empty' => $recentServiceCases->isEmpty(),
                 'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
                 'rows' => $rows,
