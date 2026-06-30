@@ -172,10 +172,10 @@ class DashboardPersonalizationService
     public function availableFiltersFor(User $user): array
     {
         if ($user->hasRole(RolePermissionSeeder::ROLE_AGENT)) {
-            return ['pending_admin', 'pending_support', 'high_priority', 'all', 'my_cases'];
+            return ['pending_admin', 'pending_support', 'high_priority', 'needs_attention', 'all', 'my_cases'];
         }
 
-        return ['all', 'pending_admin', 'pending_support', 'completed', 'high_priority', 'my_cases', 'overdue', 'warning'];
+        return ['all', 'pending_admin', 'pending_support', 'completed', 'high_priority', 'needs_attention', 'my_cases', 'overdue', 'warning'];
     }
 
     public function resolveAssignedToScope(User $user, string $view, string $filter): ?User

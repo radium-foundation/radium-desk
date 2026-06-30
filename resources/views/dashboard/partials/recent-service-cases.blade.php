@@ -15,6 +15,7 @@
         'pending_support' => ['label' => 'Unassigned', 'icon' => 'bi-headset', 'tone' => 'warning'],
         'completed' => ['label' => 'Completed', 'icon' => 'bi-check-circle-fill', 'tone' => 'success'],
         'high_priority' => ['label' => 'High Priority', 'icon' => 'bi-flag-fill', 'tone' => 'danger'],
+        'needs_attention' => ['label' => 'Needs Attention', 'icon' => 'bi-exclamation-triangle-fill', 'tone' => 'warning'],
         'my_cases' => ['label' => 'My Cases', 'icon' => 'bi-person-fill', 'tone' => 'primary'],
     ];
 

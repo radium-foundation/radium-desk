@@ -388,6 +388,150 @@ class DashboardServiceCasesTest extends TestCase
             ->assertDontSee('SC-HP-CLOSED');
     }
 
+    public function test_dashboard_needs_attention_filter_shows_only_active_cases_with_missing_serial(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $missingSerialOrder = Order::query()->create([
+            'order_id' => 'RD-NA-MISSING',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $whitespaceSerialOrder = Order::query()->create([
+            'order_id' => 'RD-NA-BLANK',
+            'serial_number' => '   ',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $presentSerialOrder = Order::query()->create([
+            'order_id' => 'RD-NA-PRESENT',
+            'serial_number' => 'SN-NA-PRESENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $missingSerialOrder->id,
+            'reference_no' => 'SC-NA-MISSING',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Missing serial',
+            'description' => 'Missing serial.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $whitespaceSerialOrder->id,
+            'reference_no' => 'SC-NA-BLANK',
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Whitespace serial',
+            'description' => 'Whitespace serial.',
+            'status' => IncidentStatus::InProgress->value,
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $presentSerialOrder->id,
+            'reference_no' => 'SC-NA-PRESENT',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Has serial',
+            'description' => 'Has serial.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $missingSerialOrder->id,
+            'reference_no' => 'SC-NA-CLOSED',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Closed missing serial',
+            'description' => 'Closed missing serial.',
+            'status' => IncidentStatus::Closed->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'needs_attention']))
+            ->assertOk()
+            ->assertSee('Needs Attention')
+            ->assertSee('SC-NA-MISSING')
+            ->assertSee('SC-NA-BLANK')
+            ->assertDontSee('SC-NA-PRESENT')
+            ->assertDontSee('SC-NA-CLOSED');
+    }
+
+    public function test_dashboard_needs_attention_filter_count_matches_matching_cases(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        foreach (['SC-NA-COUNT-1', 'SC-NA-COUNT-2'] as $referenceNo) {
+            $order = Order::query()->create([
+                'order_id' => 'RD-'.str_replace('-', '', $referenceNo),
+                'serial_number' => null,
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+
+            Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => $referenceNo,
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => 'Missing serial count',
+                'description' => 'Missing serial count.',
+                'status' => IncidentStatus::Open->value,
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $presentOrder = Order::query()->create([
+            'order_id' => 'RD-NACOUNTPRESENT',
+            'serial_number' => 'SN-NA-COUNT-PRESENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $presentOrder->id,
+            'reference_no' => 'SC-NA-COUNT-3',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Has serial count',
+            'description' => 'Has serial count.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $counts = app(\App\Services\DashboardService::class)->serviceCaseFilterCounts(null, $admin);
+
+        $this->assertSame(2, $counts['needs_attention']);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'needs_attention']))
+            ->assertOk()
+            ->assertSee('data-dashboard-case-filter-count="needs_attention"', false)
+            ->assertSee('(2)', false);
+    }
+
     public function test_admin_dashboard_shows_bulk_selection_and_inline_transaction_controls(): void
     {
         $admin = User::factory()->create(['name' => 'Admin User']);

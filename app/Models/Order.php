@@ -6,6 +6,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\OrderCompletionStatus;
 use App\Enums\OrderStatus;
 use App\Support\AppDateFormatter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -75,6 +76,18 @@ class Order extends Model
     public function isSerialLocked(): bool
     {
         return filled($this->serial_number);
+    }
+
+    /**
+     * Orders with no usable serial number (null, empty, or whitespace-only).
+     */
+    public function scopeWhereSerialMissing(Builder $query): void
+    {
+        $query->where(function (Builder $builder): void {
+            $builder->whereNull('serial_number')
+                ->orWhere('serial_number', '')
+                ->orWhereRaw("TRIM(serial_number) = ''");
+        });
     }
 
     public function hasDeviceModelAssigned(): bool

@@ -229,6 +229,80 @@ class UniversalSearchTest extends TestCase
             ->assertJsonPath('incident_ids.0', $incident->id);
     }
 
+    public function test_search_respects_needs_attention_filter(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $missingSerialOrder = Order::query()->create([
+            'order_id' => 'RD-NA-SRCH-MISSING',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $presentSerialOrder = Order::query()->create([
+            'order_id' => 'RD-NA-SRCH-PRESENT',
+            'serial_number' => 'SN-NA-SRCH-PRESENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $missingIncident = Incident::query()->create([
+            'order_id' => $missingSerialOrder->id,
+            'reference_no' => 'SC-NA-SRCH-MISSING',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Missing serial search',
+            'description' => 'Missing serial search.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+            'assigned_to_user_id' => $admin->id,
+        ]);
+
+        $presentIncident = Incident::query()->create([
+            'order_id' => $presentSerialOrder->id,
+            'reference_no' => 'SC-NA-SRCH-PRESENT',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Present serial search',
+            'description' => 'Present serial search.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+            'assigned_to_user_id' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson(route('search.index', [
+                'q' => 'RD-NA-SRCH',
+                'filter' => 'needs_attention',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $missingIncident->id);
+
+        $this->actingAs($admin)
+            ->getJson(route('search.index', [
+                'q' => 'RD-NA-SRCH-PRESENT',
+                'filter' => 'needs_attention',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0);
+
+        $this->actingAs($admin)
+            ->getJson(route('search.index', [
+                'q' => 'RD-NA-SRCH-PRESENT',
+                'filter' => 'all',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $presentIncident->id);
+    }
+
     public function test_search_finds_service_case_by_normalized_reference_formats(): void
     {
         $agent = User::factory()->create();
