@@ -54,4 +54,19 @@ class AutomationIdentityService
 
         return strcasecmp($user->email, $systemEmail) === 0;
     }
+
+    public function systemUser(): User
+    {
+        $systemEmail = (string) config('cashfree.system_user_email');
+
+        if ($systemEmail !== '') {
+            $user = User::query()->where('email', $systemEmail)->first();
+
+            if ($user !== null) {
+                return $user;
+            }
+        }
+
+        return User::query()->firstOrFail();
+    }
 }

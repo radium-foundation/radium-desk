@@ -25,6 +25,7 @@ class ServiceCaseAutomationMonitorService
 
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly AutomationIdentityService $automationIdentity,
     ) {}
 
     public function recordPaymentReceived(Incident $incident, User $actor): void
@@ -89,18 +90,30 @@ class ServiceCaseAutomationMonitorService
         $systemEmail = (string) config('cashfree.system_user_email');
 
         if ($systemEmail === '') {
-            return $fallback ?? User::query()->firstOrFail();
+            return $fallback ?? $this->automationIdentity->systemUser();
         }
 
-        return Cache::remember(
-            'automation.monitor.actor.'.$systemEmail,
+        $userId = Cache::remember(
+            'automation.monitor.actor_id.'.$systemEmail,
             now()->addDay(),
-            function () use ($systemEmail, $fallback): User {
-                $systemUser = User::query()->where('email', $systemEmail)->first();
+            function () use ($systemEmail, $fallback): int {
+                $systemUserId = User::query()->where('email', $systemEmail)->value('id');
 
-                return $systemUser ?? $fallback ?? User::query()->firstOrFail();
+                return $systemUserId ?? $fallback?->id ?? $this->automationIdentity->systemUser()->id;
             },
         );
+
+        $user = User::query()->find($userId);
+
+        if ($user instanceof User) {
+            return $user;
+        }
+
+        if ($fallback instanceof User) {
+            return $fallback;
+        }
+
+        return $this->automationIdentity->systemUser();
     }
 
     private function recordForOrderIncidents(Order $order, string $event, User $actor): void

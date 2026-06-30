@@ -98,4 +98,24 @@ class AutomationIdentityServiceTest extends TestCase
         $this->assertSame('AI Assistant', $actor->subtitle);
         $this->assertTrue($actor->isAutomation);
     }
+
+    public function test_system_user_returns_configured_user_from_database(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'superadmin@radium.local',
+        ]);
+
+        $this->assertSame($user->id, $this->service->systemUser()->id);
+    }
+
+    public function test_system_user_falls_back_to_first_user_when_configured_email_missing(): void
+    {
+        config(['cashfree.system_user_email' => 'missing@radium.local']);
+
+        $user = User::factory()->create([
+            'email' => 'other@radium.local',
+        ]);
+
+        $this->assertSame($user->id, $this->service->systemUser()->id);
+    }
 }

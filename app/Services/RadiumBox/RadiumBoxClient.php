@@ -62,11 +62,16 @@ class RadiumBoxClient
                     'orderid' => $orderId,
                 ]);
 
+            if ($response->status() === 429 || $this->responseIndicatesRateLimit($response->json())) {
+                return $this->rateLimitedFetchResult($response);
+            }
+
             if ($response->failed() && ! $response->json()) {
                 return new RadiumBoxOrderEnrichmentFetchResult(
                     retriable: true,
                     errorMessage: 'RadiumBox API request failed with HTTP '.$response->status().'.',
                     errorType: 'http_error',
+                    httpStatus: $response->status(),
                 );
             }
 
@@ -77,6 +82,7 @@ class RadiumBoxClient
                     retriable: true,
                     errorMessage: 'RadiumBox API returned a non-JSON response.',
                     errorType: 'invalid_response',
+                    httpStatus: $response->status(),
                 );
             }
 
@@ -85,6 +91,7 @@ class RadiumBoxClient
             return new RadiumBoxOrderEnrichmentFetchResult(
                 retriable: false,
                 enrichment: $enrichment,
+                httpStatus: $response->status(),
             );
         } catch (RadiumBoxOrderNotFoundException $exception) {
             return new RadiumBoxOrderEnrichmentFetchResult(
@@ -93,6 +100,15 @@ class RadiumBoxClient
                 errorType: 'order_not_found',
             );
         } catch (RadiumBoxInvalidResponseException $exception) {
+            if ($this->messageIndicatesRateLimit($exception->getMessage())) {
+                return new RadiumBoxOrderEnrichmentFetchResult(
+                    retriable: true,
+                    errorMessage: $exception->getMessage(),
+                    errorType: 'rate_limited',
+                    httpStatus: 429,
+                );
+            }
+
             return new RadiumBoxOrderEnrichmentFetchResult(
                 retriable: true,
                 errorMessage: $exception->getMessage(),
@@ -126,5 +142,70 @@ class RadiumBoxClient
             'error_type' => $errorType,
             'message' => $message,
         ]);
+    }
+
+    /**
+     * @param  mixed  $payload
+     */
+    private function responseIndicatesRateLimit(mixed $payload): bool
+    {
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        if (($payload['status'] ?? null) === 429) {
+            return true;
+        }
+
+        return $this->messageIndicatesRateLimit(is_string($payload['message'] ?? null) ? $payload['message'] : null);
+    }
+
+    private function messageIndicatesRateLimit(?string $message): bool
+    {
+        if ($message === null || $message === '') {
+            return false;
+        }
+
+        $normalized = strtolower($message);
+
+        return str_contains($normalized, 'too many attempts')
+            || str_contains($normalized, 'too many requests');
+    }
+
+    private function rateLimitedFetchResult(\Illuminate\Http\Client\Response $response): RadiumBoxOrderEnrichmentFetchResult
+    {
+        $payload = $response->json();
+        $message = is_array($payload) && is_string($payload['message'] ?? null)
+            ? $payload['message']
+            : 'RadiumBox API rate limit exceeded (HTTP 429).';
+
+        return new RadiumBoxOrderEnrichmentFetchResult(
+            retriable: true,
+            errorMessage: $message,
+            errorType: 'rate_limited',
+            httpStatus: 429,
+            retryAfterSeconds: $this->parseRetryAfterHeader($response->header('Retry-After')),
+        );
+    }
+
+    private function parseRetryAfterHeader(?string $retryAfter): ?int
+    {
+        if ($retryAfter === null || trim($retryAfter) === '') {
+            return null;
+        }
+
+        $retryAfter = trim($retryAfter);
+
+        if (ctype_digit($retryAfter)) {
+            return max(0, (int) $retryAfter);
+        }
+
+        $retryAt = strtotime($retryAfter);
+
+        if ($retryAt === false) {
+            return null;
+        }
+
+        return max(0, $retryAt - time());
     }
 }

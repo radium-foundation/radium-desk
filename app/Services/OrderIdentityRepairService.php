@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Data\OrderIdentityRepairBatchOptions;
 use App\Data\OrderIdentityRepairFailure;
+use App\Data\OrderIdentityRepairProgress;
 use App\Data\OrderIdentityRepairSummary;
 use App\Enums\IncidentStatus;
 use App\Enums\OrderIdentityRepairFailureCategory;
@@ -20,12 +22,26 @@ use App\Services\SerialValidation\SerialValidationService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Sleep;
 
 class OrderIdentityRepairService
 {
     public const AUDIT_EVENT = 'order.identity.repaired';
+
+    public const RESUME_CACHE_KEY = 'orders:repair-identity:last-processed-order-id';
+
+    private const MAX_FETCH_ATTEMPTS = 3;
+
+    private const MAX_RATE_LIMIT_PAUSES = 3;
+
+    private const BACKOFF_BASE_SECONDS = 1;
+
+    private const DEFAULT_RATE_LIMIT_PAUSE_SECONDS = 60;
+
+    private const PROGRESS_INTERVAL = 25;
 
     /** @var list<string> */
     private const PLACEHOLDER_VALUES = [
@@ -62,14 +78,44 @@ class OrderIdentityRepairService
             ->count();
     }
 
-    public function repair(?int $limit = null, bool $dryRun = false, bool $activeOnly = false): OrderIdentityRepairSummary
-    {
+    public function repair(
+        ?int $limit = null,
+        bool $dryRun = false,
+        bool $activeOnly = false,
+        int $offset = 0,
+        bool $resume = false,
+        ?callable $onProgress = null,
+    ): OrderIdentityRepairSummary {
+        return $this->repairWithOptions(
+            new OrderIdentityRepairBatchOptions(
+                limit: $limit,
+                offset: $offset,
+                dryRun: $dryRun,
+                activeOnly: $activeOnly,
+                resume: $resume,
+            ),
+            $onProgress,
+        );
+    }
+
+    public function repairWithOptions(
+        OrderIdentityRepairBatchOptions $options,
+        ?callable $onProgress = null,
+    ): OrderIdentityRepairSummary {
+        $startedAt = microtime(true);
+
         $summary = [
             'ordersScanned' => 0,
+            'ordersProcessed' => 0,
             'ordersRepaired' => 0,
             'ordersSkipped' => 0,
             'ordersAlreadyValid' => 0,
             'ordersFailed' => 0,
+            'rateLimited' => 0,
+            'duplicateSerials' => 0,
+            'notFound' => 0,
+            'validationFailed' => 0,
+            'unexpectedFailures' => 0,
             'assignmentsEscalated' => 0,
             'assignmentsToAgent' => 0,
             'assignmentsUnchanged' => 0,
@@ -78,12 +124,26 @@ class OrderIdentityRepairService
         ];
 
         $processed = 0;
+        $candidateIndex = 0;
+        $batchTotal = $this->countBatchTotal($options);
 
-        $this->ordersQuery($activeOnly)->chunkById(100, function (Collection $orders) use (
+        $query = $this->ordersQuery($options->activeOnly);
+
+        if ($options->resume) {
+            $lastProcessedId = Cache::get(self::RESUME_CACHE_KEY);
+
+            if (is_numeric($lastProcessedId)) {
+                $query->where('id', '>', (int) $lastProcessedId);
+            }
+        }
+
+        $query->chunkById(100, function (Collection $orders) use (
             &$summary,
             &$processed,
-            $limit,
-            $dryRun,
+            &$candidateIndex,
+            $options,
+            $onProgress,
+            $batchTotal,
         ): bool {
             foreach ($orders as $order) {
                 $summary['ordersScanned']++;
@@ -100,26 +160,39 @@ class OrderIdentityRepairService
                     continue;
                 }
 
-                if ($limit !== null && $processed >= $limit) {
+                if (! $options->resume && $candidateIndex < $options->offset) {
+                    $candidateIndex++;
+
+                    continue;
+                }
+
+                if ($options->limit !== null && $processed >= $options->limit) {
                     return false;
                 }
 
+                $candidateIndex++;
                 $processed++;
+                $summary['ordersProcessed']++;
 
                 try {
-                    $result = $this->repairOrder($order, $dryRun);
+                    $fetchResult = $this->fetchOrderEnrichmentForRepair($order->order_id);
+                    $result = $this->repairOrderFromFetch($order, $fetchResult, $options->dryRun);
                 } catch (\Throwable $exception) {
-                    $summary['ordersFailed']++;
-                    $summary['failedOrders'][] = new OrderIdentityRepairFailure(
+                    $failure = new OrderIdentityRepairFailure(
                         orderId: (string) $order->order_id,
                         message: $exception->getMessage(),
                         category: OrderIdentityRepairFailureCategory::UnexpectedException,
                     );
+                    $this->recordFailure($summary, $failure);
 
                     Log::warning('Legacy identity repair failed with unexpected exception.', [
                         'order_id' => $order->order_id,
                         'message' => $exception->getMessage(),
                     ]);
+
+                    $this->rememberResumePosition($order, $options);
+
+                    $this->maybeReportProgress($summary, $processed, $batchTotal, $onProgress);
 
                     continue;
                 }
@@ -134,22 +207,81 @@ class OrderIdentityRepairService
                 }
 
                 if ($result['failure'] !== null) {
-                    $summary['failedOrders'][] = $result['failure'];
+                    $this->recordFailure($summary, $result['failure']);
                 }
 
                 $summary['assignmentsEscalated'] += $result['assignmentsEscalated'];
                 $summary['assignmentsToAgent'] += $result['assignmentsToAgent'];
                 $summary['assignmentsUnchanged'] += $result['assignmentsUnchanged'];
+
+                $this->rememberResumePosition($order, $options);
+                $this->maybeReportProgress($summary, $processed, $batchTotal, $onProgress);
             }
 
-            if ($limit !== null && $processed >= $limit) {
+            if ($options->limit !== null && $processed >= $options->limit) {
                 return false;
             }
 
             return true;
         });
 
-        return new OrderIdentityRepairSummary(...$summary);
+        $this->maybeReportProgress($summary, $processed, $batchTotal, $onProgress, force: true);
+
+        return new OrderIdentityRepairSummary(
+            ...$summary,
+            elapsedSeconds: round(microtime(true) - $startedAt, 2),
+        );
+    }
+
+    public function countBatchTotal(OrderIdentityRepairBatchOptions $options): int
+    {
+        $candidateCount = 0;
+
+        $query = $this->ordersQuery($options->activeOnly);
+
+        if ($options->resume) {
+            $lastProcessedId = Cache::get(self::RESUME_CACHE_KEY);
+
+            if (is_numeric($lastProcessedId)) {
+                $query->where('id', '>', (int) $lastProcessedId);
+            }
+        }
+
+        $query->chunkById(100, function (Collection $orders) use (&$candidateCount, $options): bool {
+            foreach ($orders as $order) {
+                if ($this->eligibilityService->passesValidationForOrder($order)) {
+                    continue;
+                }
+
+                if (! $this->needsRadiumBoxFetch($order)) {
+                    continue;
+                }
+
+                $candidateCount++;
+            }
+
+            return true;
+        });
+
+        $available = max(0, $candidateCount - ($options->resume ? 0 : $options->offset));
+
+        if ($options->limit === null) {
+            return $available;
+        }
+
+        return min($options->limit, $available);
+    }
+
+    public function clearResumePosition(): void
+    {
+        Cache::forget(self::RESUME_CACHE_KEY);
+    }
+
+    public function lastResumePosition(): ?int
+    {
+        $lastProcessedId = Cache::get(self::RESUME_CACHE_KEY);
+
+        return is_numeric($lastProcessedId) ? (int) $lastProcessedId : null;
     }
 
     /**
@@ -226,7 +358,7 @@ class OrderIdentityRepairService
      *     failure: ?OrderIdentityRepairFailure,
      * }
      */
-    private function repairOrder(Order $order, bool $dryRun): array
+    private function repairOrderFromFetch(Order $order, RadiumBoxOrderEnrichmentFetchResult $fetchResult, bool $dryRun): array
     {
         $emptyStats = [
             'outcome' => 'skipped',
@@ -240,9 +372,7 @@ class OrderIdentityRepairService
             return $emptyStats;
         }
 
-        $fetchResult = $this->radiumBoxClient->fetchOrderEnrichmentForBackgroundSync($order->order_id);
-
-        if ($fetchResult->errorType === 'disabled' || $fetchResult->retriable) {
+        if ($fetchResult->errorType === 'disabled' || ($fetchResult->retriable && ! $fetchResult->isNotFound())) {
             return [
                 ...$emptyStats,
                 'outcome' => 'failed',
@@ -376,6 +506,14 @@ class OrderIdentityRepairService
     {
         $message = $fetchResult->errorMessage ?? 'RadiumBox enrichment lookup failed.';
 
+        if ($fetchResult->isRateLimited()) {
+            return new OrderIdentityRepairFailure(
+                orderId: (string) $order->order_id,
+                message: $message,
+                category: OrderIdentityRepairFailureCategory::RateLimited,
+            );
+        }
+
         if ($this->isApiTimeoutFailure($fetchResult)) {
             return new OrderIdentityRepairFailure(
                 orderId: (string) $order->order_id,
@@ -391,13 +529,131 @@ class OrderIdentityRepairService
         );
     }
 
-    private function isApiTimeoutFailure(RadiumBoxOrderEnrichmentFetchResult $fetchResult): bool
+    private function fetchOrderEnrichmentForRepair(string $orderId): RadiumBoxOrderEnrichmentFetchResult
     {
-        if (in_array($fetchResult->errorType, ['connection_error', 'request_error'], true)) {
-            return true;
+        $transientAttempts = 0;
+        $rateLimitPauses = 0;
+
+        while (true) {
+            $result = $this->radiumBoxClient->fetchOrderEnrichmentForBackgroundSync($orderId);
+
+            if ($result->isRateLimited()) {
+                $rateLimitPauses++;
+
+                if ($rateLimitPauses > self::MAX_RATE_LIMIT_PAUSES) {
+                    return $result;
+                }
+
+                $this->pauseBatchForRateLimit($result, $orderId);
+
+                continue;
+            }
+
+            if ($result->isTransientFailure()) {
+                $transientAttempts++;
+
+                if ($transientAttempts >= self::MAX_FETCH_ATTEMPTS) {
+                    return $result;
+                }
+
+                $this->pauseSeconds(self::BACKOFF_BASE_SECONDS * (2 ** ($transientAttempts - 1)));
+
+                continue;
+            }
+
+            return $result;
+        }
+    }
+
+    private function pauseBatchForRateLimit(RadiumBoxOrderEnrichmentFetchResult $result, string $orderId): void
+    {
+        $seconds = $result->retryAfterSeconds;
+
+        if ($seconds === null || $seconds <= 0) {
+            $seconds = self::DEFAULT_RATE_LIMIT_PAUSE_SECONDS;
         }
 
-        if ($fetchResult->errorType === 'http_error') {
+        Log::info('Legacy identity repair batch paused for RadiumBox rate limit.', [
+            'order_id' => $orderId,
+            'sleep_seconds' => $seconds,
+            'http_status' => $result->httpStatus,
+            'retry_after_seconds' => $result->retryAfterSeconds,
+        ]);
+
+        $this->pauseSeconds($seconds);
+    }
+
+    protected function pauseSeconds(int $seconds): void
+    {
+        if ($seconds <= 0) {
+            return;
+        }
+
+        Sleep::sleep($seconds);
+    }
+
+    /**
+     * @param  array<string, mixed>  $summary
+     */
+    private function recordFailure(array &$summary, OrderIdentityRepairFailure $failure): void
+    {
+        $summary['failedOrders'][] = $failure;
+
+        match ($failure->category) {
+            OrderIdentityRepairFailureCategory::RateLimited => $summary['rateLimited']++,
+            OrderIdentityRepairFailureCategory::DuplicateSerial => $summary['duplicateSerials']++,
+            OrderIdentityRepairFailureCategory::RadiumBoxNotFound => $summary['notFound']++,
+            OrderIdentityRepairFailureCategory::ValidationFailed => $summary['validationFailed']++,
+            OrderIdentityRepairFailureCategory::ApiTimeout,
+            OrderIdentityRepairFailureCategory::UnexpectedException => $summary['unexpectedFailures']++,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $summary
+     */
+    private function maybeReportProgress(
+        array $summary,
+        int $processed,
+        int $batchTotal,
+        ?callable $onProgress,
+        bool $force = false,
+    ): void {
+        if ($onProgress === null) {
+            return;
+        }
+
+        if (! $force && ($processed === 0 || $processed % self::PROGRESS_INTERVAL !== 0)) {
+            return;
+        }
+
+        $onProgress(new OrderIdentityRepairProgress(
+            processed: $processed,
+            batchTotal: $batchTotal,
+            repaired: $summary['ordersRepaired'],
+            alreadyValid: $summary['ordersAlreadyValid'],
+            failed: $summary['ordersFailed'],
+            rateLimited: $summary['rateLimited'],
+            remaining: max(0, $batchTotal - $processed),
+        ));
+    }
+
+    private function rememberResumePosition(Order $order, OrderIdentityRepairBatchOptions $options): void
+    {
+        if ($options->dryRun) {
+            return;
+        }
+
+        Cache::put(self::RESUME_CACHE_KEY, $order->id, now()->addDays(30));
+    }
+
+    private function isApiTimeoutFailure(RadiumBoxOrderEnrichmentFetchResult $fetchResult): bool
+    {
+        if ($fetchResult->isRateLimited()) {
+            return false;
+        }
+
+        if (in_array($fetchResult->errorType, ['connection_error', 'request_error'], true)) {
             return true;
         }
 
