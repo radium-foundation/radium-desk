@@ -226,6 +226,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     });
 
     panel?.addEventListener('click', (event) => {
+        if (event.target.closest('[data-workspace-trigger]')) {
+            return;
+        }
+
         event.stopPropagation();
     });
 

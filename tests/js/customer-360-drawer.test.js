@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initCustomer360Drawer } from '../../resources/js/customer-360-drawer';
+import { initWorkspace } from '../../resources/js/workspace';
+import { resetWorkspaceSession } from '../../resources/js/workspace/session';
 
 describe('initCustomer360Drawer', () => {
     afterEach(() => {
         document.body.innerHTML = '';
         document.body.classList.remove('customer-360-drawer-open');
+        resetWorkspaceSession();
         vi.restoreAllMocks();
     });
 
@@ -138,5 +141,109 @@ describe('initCustomer360Drawer', () => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
         expect(drawer?.isOpen()).toBe(false);
+    });
+
+    it('allows workspace trigger clicks inside the drawer panel to bubble', () => {
+        const pageRoot = setupDashboard();
+
+        initCustomer360Drawer({ pageRoot });
+
+        const contentHost = document.querySelector('[data-customer-360-content-host]');
+        contentHost.innerHTML = '<button type="button" data-workspace-trigger="request-serial">Request Serial</button>';
+
+        const documentHandler = vi.fn();
+        document.addEventListener('click', documentHandler);
+
+        document.querySelector('[data-workspace-trigger="request-serial"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(documentHandler).toHaveBeenCalled();
+    });
+
+    it('keeps ordinary drawer panel clicks from bubbling to document', () => {
+        const pageRoot = setupDashboard();
+
+        initCustomer360Drawer({ pageRoot });
+
+        const contentHost = document.querySelector('[data-customer-360-content-host]');
+        contentHost.innerHTML = '<button type="button" data-customer-360-copy="phone" data-copy-value="9876543210">Copy Phone</button>';
+
+        const documentHandler = vi.fn();
+        document.addEventListener('click', documentHandler);
+
+        contentHost.querySelector('button')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(documentHandler).not.toHaveBeenCalled();
+    });
+
+    it('opens workspace component when clicking request-serial inside drawer content', async () => {
+        document.body.innerHTML = `
+            <script type="application/json" id="workspace-context-slugs">${JSON.stringify({
+                Dashboard: 'dashboard',
+                ServiceCase: 'service_case',
+                Order: 'order',
+                Customer: 'customer',
+                Mobile: 'mobile',
+                Api: 'api',
+                Ai: 'ai',
+            })}</script>
+            <div id="dashboard-page" data-customer-360-url="http://localhost/dashboard/service-cases"></div>
+            <div data-customer-360-drawer aria-hidden="true">
+                <div data-customer-360-backdrop></div>
+                <aside data-customer-360-panel>
+                    <button type="button" data-customer-360-close></button>
+                    <span data-customer-360-subtitle></span>
+                    <div data-customer-360-loading hidden></div>
+                    <div data-customer-360-error class="d-none"></div>
+                    <div data-customer-360-content-host">
+                        <button type="button"
+                                data-workspace-trigger="request-serial"
+                                data-workspace-incident-id="42"
+                                data-workspace-context="customer">
+                            Request Serial
+                        </button>
+                    </div>
+                </aside>
+            </div>
+            <div data-workspace-modal-host>
+                <div data-workspace-modal-content></div>
+            </div>
+        `;
+
+        window.bootstrap = {
+            Modal: {
+                getOrCreateInstance: vi.fn(() => ({
+                    show: vi.fn(),
+                })),
+            },
+        };
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => '<form data-workspace-action-form="request-serial"></form>',
+        });
+
+        resetWorkspaceSession();
+        initWorkspace();
+        initCustomer360Drawer({ pageRoot: document.getElementById('dashboard-page') });
+
+        document.querySelector('[data-workspace-trigger="request-serial"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true, cancelable: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledWith(
+                '/incidents/42/components/request-serial?context=customer',
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        Accept: 'text/html',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    }),
+                }),
+            );
+        });
     });
 });
