@@ -8,13 +8,13 @@ use App\Http\Requests\UpdateSettingsNotificationsRequest;
 use App\Http\Requests\UpdateSettingsSearchRequest;
 use App\Http\Requests\UpdateSettingsSlaRequest;
 use App\Models\SettingProduct;
-use App\Services\SystemSettingsService;
+use App\Services\ApplicationSettingsService;
 use Illuminate\Http\RedirectResponse;
 
 class SettingsSectionController extends Controller
 {
     public function __construct(
-        private readonly SystemSettingsService $systemSettingsService,
+        private readonly ApplicationSettingsService $applicationSettingsService,
     ) {
         $this->middleware(function ($request, $next) {
             $this->authorize('update', SettingProduct::class);
@@ -25,7 +25,7 @@ class SettingsSectionController extends Controller
 
     public function updateGeneral(UpdateSettingsGeneralRequest $request): RedirectResponse
     {
-        $this->systemSettingsService->updateGeneral($request->validated());
+        $this->applicationSettingsService->updateGeneral($request->validated());
 
         return redirect()
             ->route('settings.index', ['tab' => 'general'])
@@ -34,7 +34,7 @@ class SettingsSectionController extends Controller
 
     public function updateAssignment(UpdateSettingsAssignmentRequest $request): RedirectResponse
     {
-        $this->systemSettingsService->updateAssignment($request->validated());
+        $this->applicationSettingsService->updateAssignment($request->validated());
 
         return redirect()
             ->route('settings.index', ['tab' => 'assignment'])
@@ -43,7 +43,7 @@ class SettingsSectionController extends Controller
 
     public function updateNotifications(UpdateSettingsNotificationsRequest $request): RedirectResponse
     {
-        $this->systemSettingsService->updateNotifications($request->validated());
+        $this->applicationSettingsService->updateNotifications($request->validated());
 
         return redirect()
             ->route('settings.index', ['tab' => 'notifications'])
@@ -52,7 +52,7 @@ class SettingsSectionController extends Controller
 
     public function updateSla(UpdateSettingsSlaRequest $request): RedirectResponse
     {
-        $this->systemSettingsService->updateSla($request->validated());
+        $this->applicationSettingsService->updateSla($request->validated());
 
         return redirect()
             ->route('settings.index', ['tab' => 'sla'])
@@ -61,7 +61,7 @@ class SettingsSectionController extends Controller
 
     public function updateSearch(UpdateSettingsSearchRequest $request): RedirectResponse
     {
-        $this->systemSettingsService->updateSearch($request->validated());
+        $this->applicationSettingsService->updateSearch($request->validated());
 
         return redirect()
             ->route('settings.index', ['tab' => 'search'])

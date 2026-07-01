@@ -57,6 +57,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->call(SettingsSeeder::class);
+        $this->call(SystemSettingsSeeder::class);
         $this->call(DeviceModelSeeder::class);
     }
 }

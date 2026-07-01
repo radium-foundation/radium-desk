@@ -6,9 +6,11 @@ use App\Listeners\BroadcastNotificationCreated;
 use App\Models\DeviceModel;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Policies\DashboardPolicy;
 use App\Policies\SettingPolicy;
+use App\Policies\SystemSettingPolicy;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
@@ -50,6 +52,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SettingProduct::class, SettingPolicy::class);
         Gate::policy(SettingSource::class, SettingPolicy::class);
         Gate::policy(DeviceModel::class, SettingPolicy::class);
+        Gate::policy(SystemSetting::class, SystemSettingPolicy::class);
 
         Paginator::useBootstrapFive();
 

@@ -53,6 +53,7 @@
             'device-model-updated' => 'Model updated successfully.',
             'device-model-activated' => 'Model activated successfully.',
             'device-model-deactivated' => 'Model deactivated successfully.',
+            'operational-system-settings-updated' => 'System settings saved successfully.',
             default => session('status'),
         };
     @endphp

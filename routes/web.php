@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\AutomationOperationsController;
+use App\Http\Controllers\OperationalSystemSettingsController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
@@ -119,6 +120,11 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/admin/automation', [AutomationOperationsController::class, 'index'])
         ->name('admin.automation.index');
+
+    Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
+        ->name('admin.system-settings.index');
+    Route::put('/admin/system-settings', [OperationalSystemSettingsController::class, 'update'])
+        ->name('admin.system-settings.update');
 
     Route::prefix('cashfree')->name('cashfree.')->group(function () {
         Route::get('webhook-explorer', [CashfreeWebhookLogController::class, 'index'])

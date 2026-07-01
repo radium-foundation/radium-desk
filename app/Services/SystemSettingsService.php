@@ -2,203 +2,177 @@
 
 namespace App\Services;
 
-use App\Models\SettingProduct;
-use App\Models\SettingSource;
+use App\Models\SystemSetting;
 use App\Models\User;
-use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 class SystemSettingsService
 {
+    private const CACHE_PREFIX = 'system_settings.key.';
+
     public function __construct(
-        private readonly SettingService $settingService,
+        private readonly AuditLogService $auditLogService,
     ) {}
 
-    /**
-     * @param  array{company_name: string, company_email: string, timezone: string}  $data
-     */
-    public function updateGeneral(array $data): void
+    public function get(string $key, mixed $default = null): mixed
     {
-        $this->settingService->setMany([
-            'general.company_name' => $data['company_name'],
-            'general.company_email' => $data['company_email'],
-            'general.timezone' => $data['timezone'],
-        ]);
+        $definition = $this->definition($key);
+        $default ??= $definition['default'] ?? null;
+        $type = $definition['type'] ?? 'string';
 
-        config(['app.timezone' => $data['timezone']]);
-        date_default_timezone_set($data['timezone']);
+        $raw = Cache::rememberForever($this->cacheKey($key), function () use ($key, $default, $type): string {
+            $row = SystemSetting::query()->where('key', $key)->first();
+
+            if ($row === null || $row->value === null) {
+                return $this->serializeValue($default, $type);
+            }
+
+            return (string) $row->value;
+        });
+
+        return $this->castValue($raw, $type);
     }
 
-    /**
-     * @param  array{
-     *     timezone: string,
-     *     day_shift_start: string,
-     *     day_shift_end: string,
-     *     day_shift_admin_user_id: int,
-     *     night_shift_admin_user_id: int,
-     *     fallback_admin_1_user_id: int|null,
-     *     fallback_admin_2_user_id: int|null
-     * }  $data
-     */
-    public function updateAssignment(array $data): void
+    public function getBool(string $key, bool $default = false): bool
     {
-        $this->ensureAdminUsers([
-            $data['day_shift_admin_user_id'],
-            $data['night_shift_admin_user_id'],
-            $data['fallback_admin_1_user_id'],
-            $data['fallback_admin_2_user_id'],
-        ]);
-
-        $this->settingService->setMany([
-            'assignment.timezone' => $data['timezone'],
-            'assignment.day_shift_start' => $data['day_shift_start'],
-            'assignment.day_shift_end' => $data['day_shift_end'],
-            'assignment.day_shift_admin_user_id' => (string) $data['day_shift_admin_user_id'],
-            'assignment.night_shift_admin_user_id' => (string) $data['night_shift_admin_user_id'],
-            'assignment.fallback_admin_1_user_id' => $data['fallback_admin_1_user_id'] !== null
-                ? (string) $data['fallback_admin_1_user_id'] : '',
-            'assignment.fallback_admin_2_user_id' => $data['fallback_admin_2_user_id'] !== null
-                ? (string) $data['fallback_admin_2_user_id'] : '',
-        ]);
+        return (bool) $this->get($key, $default);
     }
 
-    /**
-     * @param  array{assignment_enabled: bool, transaction_enabled: bool, high_priority_enabled: bool}  $data
-     */
-    public function updateNotifications(array $data): void
+    public function set(string $key, mixed $value, ?User $actor = null): SystemSetting
     {
-        $this->settingService->setMany([
-            'notifications.assignment_enabled' => $data['assignment_enabled'] ? '1' : '0',
-            'notifications.transaction_enabled' => $data['transaction_enabled'] ? '1' : '0',
-            'notifications.high_priority_enabled' => $data['high_priority_enabled'] ? '1' : '0',
-        ]);
-    }
+        $definition = $this->definition($key);
+        $type = $definition['type'] ?? 'string';
+        $serialized = $this->serializeValue($value, $type);
 
-    /**
-     * @param  array{
-     *     normal_warning_hours: int,
-     *     normal_overdue_hours: int,
-     *     priority_warning_hours: int,
-     *     priority_overdue_hours: int
-     * }  $data
-     */
-    public function updateSla(array $data): void
-    {
-        $this->settingService->setMany([
-            'sla.normal_warning_hours' => (string) $data['normal_warning_hours'],
-            'sla.normal_overdue_hours' => (string) $data['normal_overdue_hours'],
-            'sla.priority_warning_hours' => (string) $data['priority_warning_hours'],
-            'sla.priority_overdue_hours' => (string) $data['priority_overdue_hours'],
-        ]);
-    }
+        return DB::transaction(function () use ($key, $serialized, $actor): SystemSetting {
+            $existing = SystemSetting::query()->where('key', $key)->first();
+            $oldValue = $existing?->value;
 
-    /**
-     * @param  array<string, bool>  $data
-     */
-    public function updateSearch(array $data): void
-    {
-        $this->settingService->setMany([
-            'search.order_id_enabled' => $data['order_id_enabled'] ? '1' : '0',
-            'search.serial_number_enabled' => $data['serial_number_enabled'] ? '1' : '0',
-            'search.transaction_id_enabled' => $data['transaction_id_enabled'] ? '1' : '0',
-            'search.email_enabled' => $data['email_enabled'] ? '1' : '0',
-            'search.mobile_enabled' => $data['mobile_enabled'] ? '1' : '0',
-        ]);
-    }
+            $setting = SystemSetting::query()->updateOrCreate(
+                ['key' => $key],
+                [
+                    'value' => $serialized,
+                    'updated_by' => $actor?->id,
+                ],
+            );
 
-    public function createProduct(string $name, int $sortOrder): SettingProduct
-    {
-        return DB::transaction(function () use ($name, $sortOrder): SettingProduct {
-            $product = SettingProduct::query()->create([
-                'name' => $name,
-                'sort_order' => $sortOrder,
-                'is_enabled' => true,
-            ]);
+            $this->forget($key);
 
-            return $product;
+            if ($oldValue !== $serialized && $actor !== null) {
+                $this->auditLogService->log(
+                    userId: $actor->id,
+                    event: 'system_setting.updated',
+                    auditable: $setting,
+                    oldValues: ['key' => $key, 'value' => $oldValue],
+                    newValues: ['key' => $key, 'value' => $serialized],
+                );
+            }
+
+            return $setting->fresh(['updatedBy']);
         });
     }
 
-    public function updateProduct(SettingProduct $product, string $name, int $sortOrder): SettingProduct
-    {
-        $product->update([
-            'name' => $name,
-            'sort_order' => $sortOrder,
-        ]);
-
-        return $product->fresh();
-    }
-
-    public function toggleProduct(SettingProduct $product, bool $enabled): SettingProduct
-    {
-        $product->update(['is_enabled' => $enabled]);
-
-        return $product->fresh();
-    }
-
-    public function createSource(string $key, string $label, string $icon, int $sortOrder): SettingSource
-    {
-        return SettingSource::query()->create([
-            'key' => $key,
-            'label' => $label,
-            'icon' => $icon,
-            'sort_order' => $sortOrder,
-            'is_enabled' => true,
-        ]);
-    }
-
-    public function updateSource(SettingSource $source, string $label, string $icon, int $sortOrder): SettingSource
-    {
-        $source->update([
-            'label' => $label,
-            'icon' => $icon,
-            'sort_order' => $sortOrder,
-        ]);
-
-        return $source->fresh();
-    }
-
-    public function toggleSource(SettingSource $source, bool $enabled): SettingSource
-    {
-        $source->update(['is_enabled' => $enabled]);
-
-        return $source->fresh();
-    }
-
     /**
-     * @return list<User>
+     * @param  array<string, mixed>  $values
      */
-    public function assignableAdminUsers(): array
+    public function setMany(array $values, User $actor): void
     {
-        return User::query()
-            ->where('is_active', true)
-            ->role([
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ])
-            ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->get()
-            ->all();
-    }
-
-    /**
-     * @param  list<int|null>  $userIds
-     */
-    private function ensureAdminUsers(array $userIds): void
-    {
-        foreach (array_filter($userIds) as $userId) {
-            $user = User::query()->find($userId);
-
-            if ($user === null || $user->trashed() || ! $user->is_active || ! $user->hasAnyRole([
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ])) {
-                throw ValidationException::withMessages([
-                    'assignment' => 'All assignment admins must be active admin users.',
-                ]);
+        DB::transaction(function () use ($values, $actor): void {
+            foreach ($values as $key => $value) {
+                $this->set($key, $value, $actor);
             }
+        });
+    }
+
+    /**
+     * @return Collection<string, Collection<int, array{
+     *     key: string,
+     *     label: string,
+     *     description: string|null,
+     *     type: string,
+     *     value: mixed,
+     *     updated_at: \Illuminate\Support\Carbon|null,
+     *     updated_by_name: string|null
+     * }>>
+     */
+    public function groupedForAdmin(): Collection
+    {
+        $rows = SystemSetting::query()
+            ->with('updatedBy')
+            ->get()
+            ->keyBy('key');
+
+        $categories = collect(config('system_settings.categories', []))
+            ->sortBy('sort')
+            ->keys();
+
+        $settings = collect(config('system_settings.settings', []));
+
+        return $categories->mapWithKeys(function (string $categoryKey) use ($settings, $rows): array {
+            $categorySettings = $settings
+                ->filter(fn (array $definition): bool => ($definition['category'] ?? '') === $categoryKey)
+                ->map(function (array $definition, string $key) use ($rows): array {
+                    $row = $rows->get($key);
+
+                    return [
+                        'key' => $key,
+                        'label' => $definition['label'],
+                        'description' => $definition['description'] ?? null,
+                        'type' => $definition['type'] ?? 'string',
+                        'value' => $this->get($key, $definition['default'] ?? null),
+                        'updated_at' => $row?->updated_at,
+                        'updated_by_name' => $row?->updatedBy?->name,
+                    ];
+                })
+                ->values();
+
+            return [$categoryKey => $categorySettings];
+        })->filter(fn (Collection $items): bool => $items->isNotEmpty());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function definition(string $key): array
+    {
+        $definitions = config('system_settings.settings', []);
+        $definition = $definitions[$key] ?? null;
+
+        if (! is_array($definition)) {
+            throw new InvalidArgumentException("Unknown system setting [{$key}].");
         }
+
+        return $definition;
+    }
+
+    public function forget(string $key): void
+    {
+        Cache::forget($this->cacheKey($key));
+    }
+
+    public function serializeValue(mixed $value, string $type): string
+    {
+        return match ($type) {
+            'boolean' => filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0',
+            'integer' => (string) (int) $value,
+            default => $value === null ? '' : (string) $value,
+        };
+    }
+
+    private function cacheKey(string $key): string
+    {
+        return self::CACHE_PREFIX.$key;
+    }
+
+    private function castValue(string $raw, string $type): mixed
+    {
+        return match ($type) {
+            'boolean' => filter_var($raw, FILTER_VALIDATE_BOOLEAN),
+            'integer' => (int) $raw,
+            default => $raw,
+        };
     }
 }

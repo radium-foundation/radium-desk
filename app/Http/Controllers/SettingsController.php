@@ -6,14 +6,14 @@ use App\Models\SettingProduct;
 use App\Models\SettingSource;
 use App\Services\DeviceModelSettingsService;
 use App\Services\SettingService;
-use App\Services\SystemSettingsService;
+use App\Services\ApplicationSettingsService;
 use Illuminate\View\View;
 
 class SettingsController extends Controller
 {
     public function __construct(
         private readonly SettingService $settingService,
-        private readonly SystemSettingsService $systemSettingsService,
+        private readonly ApplicationSettingsService $applicationSettingsService,
         private readonly DeviceModelSettingsService $deviceModelSettingsService,
     ) {
         $this->middleware(function ($request, $next) {
@@ -63,7 +63,7 @@ class SettingsController extends Controller
             'deviceModels' => $this->deviceModelSettingsService->paginated(
                 search: request('search'),
             ),
-            'adminUsers' => $this->systemSettingsService->assignableAdminUsers(),
+            'adminUsers' => $this->applicationSettingsService->assignableAdminUsers(),
             'timezones' => timezone_identifiers_list(),
         ]);
     }

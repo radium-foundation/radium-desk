@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreSettingProductRequest;
 use App\Http\Requests\UpdateSettingProductRequest;
 use App\Models\SettingProduct;
-use App\Services\SystemSettingsService;
+use App\Services\ApplicationSettingsService;
 use Illuminate\Http\RedirectResponse;
 
 class SettingProductController extends Controller
 {
     public function __construct(
-        private readonly SystemSettingsService $systemSettingsService,
+        private readonly ApplicationSettingsService $applicationSettingsService,
     ) {
         $this->middleware(function ($request, $next) {
             $this->authorize('update', SettingProduct::class);
@@ -24,7 +24,7 @@ class SettingProductController extends Controller
     {
         $validated = $request->validated();
 
-        $this->systemSettingsService->createProduct(
+        $this->applicationSettingsService->createProduct(
             $validated['name'],
             (int) $validated['sort_order'],
         );
@@ -38,7 +38,7 @@ class SettingProductController extends Controller
     {
         $validated = $request->validated();
 
-        $this->systemSettingsService->updateProduct(
+        $this->applicationSettingsService->updateProduct(
             $product,
             $validated['name'],
             (int) $validated['sort_order'],
@@ -51,7 +51,7 @@ class SettingProductController extends Controller
 
     public function toggle(SettingProduct $product): RedirectResponse
     {
-        $this->systemSettingsService->toggleProduct($product, ! $product->is_enabled);
+        $this->applicationSettingsService->toggleProduct($product, ! $product->is_enabled);
 
         return redirect()
             ->route('settings.index', ['tab' => 'products'])

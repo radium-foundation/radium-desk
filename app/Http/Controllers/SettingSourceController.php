@@ -6,13 +6,13 @@ use App\Http\Requests\StoreSettingSourceRequest;
 use App\Http\Requests\UpdateSettingSourceRequest;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
-use App\Services\SystemSettingsService;
+use App\Services\ApplicationSettingsService;
 use Illuminate\Http\RedirectResponse;
 
 class SettingSourceController extends Controller
 {
     public function __construct(
-        private readonly SystemSettingsService $systemSettingsService,
+        private readonly ApplicationSettingsService $applicationSettingsService,
     ) {
         $this->middleware(function ($request, $next) {
             $this->authorize('update', SettingProduct::class);
@@ -25,7 +25,7 @@ class SettingSourceController extends Controller
     {
         $validated = $request->validated();
 
-        $this->systemSettingsService->createSource(
+        $this->applicationSettingsService->createSource(
             $validated['key'],
             $validated['label'],
             $validated['icon'],
@@ -41,7 +41,7 @@ class SettingSourceController extends Controller
     {
         $validated = $request->validated();
 
-        $this->systemSettingsService->updateSource(
+        $this->applicationSettingsService->updateSource(
             $source,
             $validated['label'],
             $validated['icon'],
@@ -55,7 +55,7 @@ class SettingSourceController extends Controller
 
     public function toggle(SettingSource $source): RedirectResponse
     {
-        $this->systemSettingsService->toggleSource($source, ! $source->is_enabled);
+        $this->applicationSettingsService->toggleSource($source, ! $source->is_enabled);
 
         return redirect()
             ->route('settings.index', ['tab' => 'sources'])
