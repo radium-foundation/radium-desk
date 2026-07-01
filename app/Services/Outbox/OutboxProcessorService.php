@@ -4,8 +4,11 @@ namespace App\Services\Outbox;
 
 use App\Enums\OutboxEventStatus;
 use App\Models\OutboxEvent;
+use App\Models\InteraktWebhookLog;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
+use App\Services\Interakt\InteraktWebhookOutboxWriter;
+use App\Services\Interakt\InteraktWebhookProcessorService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -23,6 +26,7 @@ class OutboxProcessorService
 
     public function __construct(
         private readonly CashfreeWebhookDeferredOperationsService $cashfreeDeferredOperationsService,
+        private readonly InteraktWebhookProcessorService $interaktWebhookProcessorService,
     ) {}
 
     public function process(?int $limit = null): int
@@ -105,8 +109,27 @@ class OutboxProcessorService
     {
         match ($event->event_type) {
             CashfreeWebhookOutboxWriter::EVENT_TYPE => $this->dispatchCashfreeDeferredOperation($event),
+            InteraktWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktWebhookProcessing($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
+    }
+
+    private function dispatchInteraktWebhookProcessing(OutboxEvent $event): void
+    {
+        $payload = $event->payload ?? [];
+        $webhookLogId = (int) ($payload['webhook_log_id'] ?? 0);
+
+        if ($webhookLogId <= 0) {
+            throw new RuntimeException('Interakt outbox event is missing webhook_log_id.');
+        }
+
+        $webhookLog = InteraktWebhookLog::query()->find($webhookLogId);
+
+        if ($webhookLog === null) {
+            throw new RuntimeException('Interakt webhook log not found: '.$webhookLogId);
+        }
+
+        $this->interaktWebhookProcessorService->process($webhookLog);
     }
 
     private function dispatchCashfreeDeferredOperation(OutboxEvent $event): void

@@ -62,7 +62,8 @@ enum TimelineEventType: string
             self::ServiceCaseCreated,
             self::Assignment,
             self::InternalNote,
-            self::AuditEvent => true,
+            self::AuditEvent,
+            self::WhatsApp => true,
             default => false,
         };
     }

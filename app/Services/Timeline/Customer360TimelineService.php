@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Services\AutomationIdentityService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\Timeline\Sources\OrderCustomerTimelineSource;
+use App\Services\Timeline\Sources\WhatsAppTimelineEventSource;
 
 class Customer360TimelineService
 {
@@ -45,6 +46,9 @@ class Customer360TimelineService
                     order: $order,
                     orderActivityTimelineService: $this->orderActivityTimelineService,
                     automationIdentity: $this->automationIdentity,
+                ),
+                new WhatsAppTimelineEventSource(
+                    order: $order,
                 ),
             ],
             offset: $offset,
