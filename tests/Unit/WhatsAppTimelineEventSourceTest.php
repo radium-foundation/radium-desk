@@ -58,6 +58,8 @@ class WhatsAppTimelineEventSourceTest extends TestCase
             'delivery_status' => 'read',
             'sent_at' => now()->subMinutes(30),
             'read_at' => now()->subMinutes(20),
+            'channel_failure_reason' => 'Recipient is not a valid WhatsApp user',
+            'channel_error_code' => '1013',
         ]);
 
         $events = (new WhatsAppTimelineEventSource($order))->collect();
@@ -74,6 +76,7 @@ class WhatsAppTimelineEventSourceTest extends TestCase
         $this->assertSame('Repair Started', $outgoing->actor->subtitle);
         $this->assertSame('Read', $outgoing->statusLabel);
         $this->assertSame('read', $outgoing->statusVariant);
-        $this->assertNull($outgoing->detail);
+        $this->assertStringContainsString('Recipient is not a valid WhatsApp user', (string) $outgoing->detail);
+        $this->assertStringContainsString('Error 1013', (string) $outgoing->detail);
     }
 }

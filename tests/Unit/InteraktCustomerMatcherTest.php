@@ -40,6 +40,26 @@ class InteraktCustomerMatcherTest extends TestCase
         $this->assertSame('9876543210', $matcher->resolveStoredPhone('+91', '919876543210'));
     }
 
+    public function test_channel_phone_number_matches_existing_order(): void
+    {
+        $user = User::factory()->create();
+
+        Order::query()->create([
+            'order_id' => 'RD-MATCH-2',
+            'serial_number' => 'SN-MATCH-2',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $user->id,
+        ]);
+
+        $matcher = app(InteraktCustomerMatcher::class);
+
+        $this->assertSame(['9876543210'], $matcher->matchingStoredPhones(null, null, '919876543210'));
+        $this->assertSame('9876543210', $matcher->resolveStoredPhone(null, null, '919876543210'));
+    }
+
     public function test_phone_candidates_include_common_formats(): void
     {
         $matcher = app(InteraktCustomerMatcher::class);
@@ -49,5 +69,16 @@ class InteraktCustomerMatcherTest extends TestCase
         $this->assertContains('9876543210', $candidates);
         $this->assertContains('+919876543210', $candidates);
         $this->assertContains('919876543210', $candidates);
+    }
+
+    public function test_channel_phone_candidates_include_normalized_formats(): void
+    {
+        $matcher = app(InteraktCustomerMatcher::class);
+
+        $candidates = $matcher->channelPhoneCandidates('919876543210');
+
+        $this->assertContains('919876543210', $candidates);
+        $this->assertContains('9876543210', $candidates);
+        $this->assertContains('+919876543210', $candidates);
     }
 }

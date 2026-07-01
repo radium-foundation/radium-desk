@@ -18,6 +18,7 @@ use App\Services\Outbox\OutboxProcessorService;
 use App\Services\Timeline\Customer360TimelineService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Tests\Support\InteractsWithInteraktWebhooks;
@@ -35,6 +36,7 @@ class InteraktWebhookTest extends TestCase
         config([
             'interakt.verify_signature' => false,
             'interakt.api_key' => 'test-interakt-key',
+            'interakt.webhook_secret' => 'test-interakt-webhook-secret',
             'interakt.base_url' => 'https://api.interakt.ai',
         ]);
 
@@ -57,7 +59,7 @@ class InteraktWebhookTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $response = $this->postJson('/api/webhooks/interakt', $this->incomingMessagePayload());
+        $response = $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload());
 
         $response->assertOk()->assertExactJson(['status' => 'ok']);
 
@@ -67,11 +69,18 @@ class InteraktWebhookTest extends TestCase
         ]);
 
         $this->assertDatabaseHas('interakt_messages', [
-            'message_id' => 'msg-in-001',
+            'message_id' => '60076f05-da52-4dd1-b813-36223c1eded7',
             'customer_phone' => '9876543210',
             'direction' => InteraktMessageDirection::Incoming->value,
             'text' => 'When will my device be ready?',
         ]);
+
+        $message = InteraktMessage::query()->first();
+        $this->assertNotNull($message);
+        $this->assertSame(
+            Carbon::parse('2022-06-03T05:57:57.359000')->toIso8601String(),
+            $message->sent_at?->toIso8601String(),
+        );
 
         $timeline = app(Customer360TimelineService::class)->forOrder($order);
         $whatsappEvents = $timeline->groups
@@ -86,7 +95,7 @@ class InteraktWebhookTest extends TestCase
 
     public function test_duplicate_webhook_does_not_create_duplicate_message(): void
     {
-        $payload = $this->incomingMessagePayload();
+        $payload = $this->officialIncomingMessagePayload();
 
         $this->postJson('/api/webhooks/interakt', $payload)->assertOk();
         $this->postJson('/api/webhooks/interakt', $payload)->assertOk();
@@ -123,19 +132,34 @@ class InteraktWebhookTest extends TestCase
                 'name' => 'Repair Started',
                 'languageCode' => 'en',
             ],
+            callbackData: 'service-case:RD-WA-2',
         );
 
         $this->assertTrue($result->success);
         $this->assertSame('msg-out-001', $result->messageId);
 
-        $this->postJson('/api/webhooks/interakt', $this->templateDeliveredPayload())->assertOk();
-        $this->postJson('/api/webhooks/interakt', $this->templateReadPayload())->assertOk();
+        $this->postJson('/api/webhooks/interakt', $this->officialApiDeliveredPayload(messageId: 'msg-out-001'))->assertOk();
+        $this->postJson('/api/webhooks/interakt', $this->officialApiReadPayload(messageId: 'msg-out-001'))->assertOk();
 
         $message = InteraktMessage::query()->where('message_id', 'msg-out-001')->first();
         $this->assertNotNull($message);
         $this->assertSame(InteraktMessageDirection::Outgoing, $message->direction);
         $this->assertSame('Repair Started', $message->template_name);
+        $this->assertSame('en', $message->template_language);
+        $this->assertSame('service-case:RD-WA-1', $message->callback_data);
         $this->assertSame(InteraktDeliveryStatus::Read, $message->delivery_status);
+        $this->assertSame(
+            Carbon::parse('2022-06-03T05:43:33.133000')->toIso8601String(),
+            $message->sent_at?->toIso8601String(),
+        );
+        $this->assertSame(
+            Carbon::parse('2022-06-03T05:43:33.848000')->toIso8601String(),
+            $message->delivered_at?->toIso8601String(),
+        );
+        $this->assertSame(
+            Carbon::parse('2022-06-03T05:43:34.257000')->toIso8601String(),
+            $message->read_at?->toIso8601String(),
+        );
 
         $timeline = app(Customer360TimelineService::class)->forOrder($order);
         $whatsappEvent = $timeline->groups
@@ -145,14 +169,153 @@ class InteraktWebhookTest extends TestCase
         $this->assertNotNull($whatsappEvent);
         $this->assertSame('Template', $whatsappEvent->actor->displayName);
         $this->assertSame('Repair Started', $whatsappEvent->actor->subtitle);
-        $this->assertSame('Read', $whatsappEvent->detail);
+        $this->assertSame('Read', $whatsappEvent->statusLabel);
     }
 
-    public function test_customer_matching_uses_existing_order_phone_format(): void
+    public function test_official_api_status_webhooks_persist_metadata(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
+        Order::query()->create([
+            'order_id' => 'RD-WA-API',
+            'serial_number' => 'SN-WA-API',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'API Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $messageId = 'api-status-msg-001';
+
+        $this->postJson('/api/webhooks/interakt', $this->officialApiSentPayload($messageId))->assertOk();
+        $this->postJson('/api/webhooks/interakt', $this->officialApiDeliveredPayload($messageId))->assertOk();
+        $this->postJson('/api/webhooks/interakt', $this->officialApiReadPayload($messageId))->assertOk();
+
+        $message = InteraktMessage::query()->where('message_id', $messageId)->first();
+        $this->assertNotNull($message);
+        $this->assertSame('9876543210', $message->customer_phone);
+        $this->assertSame(InteraktDeliveryStatus::Read, $message->delivery_status);
+        $this->assertSame('Repair Started', $message->template_name);
+        $this->assertSame('service-case:RD-WA-1', $message->callback_data);
+    }
+
+    public function test_official_api_failed_webhook_persists_failure_metadata(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-WA-FAIL',
+            'serial_number' => 'SN-WA-FAIL',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Failed Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->postJson('/api/webhooks/interakt', $this->officialApiFailedPayload())->assertOk();
+
+        $message = InteraktMessage::query()->first();
+        $this->assertNotNull($message);
+        $this->assertSame(InteraktDeliveryStatus::Failed, $message->delivery_status);
+        $this->assertSame('Recipient is not a valid WhatsApp user', $message->channel_failure_reason);
+        $this->assertSame('1013', $message->channel_error_code);
+
+        $timeline = app(Customer360TimelineService::class)->forOrder($order);
+        $whatsappEvent = $timeline->groups
+            ->flatMap(fn ($group) => $group->events)
+            ->first(fn ($event) => $event->type === TimelineEventType::WhatsApp);
+
+        $this->assertNotNull($whatsappEvent);
+        $this->assertSame('Failed', $whatsappEvent->statusLabel);
+        $this->assertStringContainsString('Recipient is not a valid WhatsApp user', (string) $whatsappEvent->detail);
+        $this->assertStringContainsString('Error 1013', (string) $whatsappEvent->detail);
+    }
+
+    public function test_official_campaign_status_webhooks_reuse_delivery_status_logic(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD-WA-CAMP',
+            'serial_number' => 'SN-WA-CAMP',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Campaign Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $messageId = 'campaign-msg-001';
+
+        $this->postJson('/api/webhooks/interakt', $this->officialCampaignSentPayload($messageId))->assertOk();
+        $this->postJson('/api/webhooks/interakt', $this->officialCampaignDeliveredPayload($messageId))->assertOk();
+        $this->postJson('/api/webhooks/interakt', $this->officialCampaignReadPayload($messageId))->assertOk();
+
+        $message = InteraktMessage::query()->where('message_id', $messageId)->first();
+        $this->assertNotNull($message);
+        $this->assertSame(InteraktDeliveryStatus::Read, $message->delivery_status);
+        $this->assertSame('9876543210', $message->customer_phone);
+        $this->assertSame(
+            Carbon::parse('2022-06-03T06:00:10.000000')->toIso8601String(),
+            $message->read_at?->toIso8601String(),
+        );
+    }
+
+    public function test_official_campaign_failed_webhook_persists_failure_metadata(): void
+    {
+        Order::query()->create([
+            'order_id' => 'RD-WA-CAMP-FAIL',
+            'serial_number' => 'SN-WA-CAMP-FAIL',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Campaign Failed Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => User::factory()->create()->id,
+        ]);
+
+        $this->postJson('/api/webhooks/interakt', $this->officialCampaignFailedPayload())->assertOk();
+
+        $this->assertDatabaseHas('interakt_messages', [
+            'message_id' => 'campaign-msg-failed-001',
+            'delivery_status' => InteraktDeliveryStatus::Failed->value,
+            'channel_failure_reason' => 'Campaign delivery failed',
+            'channel_error_code' => '2001',
+        ]);
+    }
+
+    public function test_legacy_country_code_phone_payload_remains_supported(): void
+    {
+        Order::query()->create([
+            'order_id' => 'RD-WA-LEGACY',
+            'serial_number' => 'SN-WA-LEGACY',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Legacy Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => User::factory()->create()->id,
+        ]);
+
+        $this->postJson('/api/webhooks/interakt', $this->legacyIncomingMessagePayload())->assertOk();
+
+        $this->assertDatabaseHas('interakt_messages', [
+            'message_id' => 'msg-legacy-in-001',
+            'customer_phone' => '9876543210',
+            'text' => 'Legacy payload message',
+        ]);
+    }
+
+    public function test_customer_matching_uses_channel_phone_number(): void
+    {
         Order::query()->create([
             'order_id' => 'RD-WA-3',
             'serial_number' => 'SN-WA-3',
@@ -161,13 +324,12 @@ class InteraktWebhookTest extends TestCase
             'customer_name' => 'Match Customer',
             'customer_phone' => '9876543210',
             'status' => 'active',
-            'created_by' => $agent->id,
+            'created_by' => User::factory()->create()->id,
         ]);
 
-        $this->postJson('/api/webhooks/interakt', $this->incomingMessagePayload(
+        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload(
             messageId: 'msg-in-match',
-            phoneNumber: '9876543210',
-            countryCode: '+91',
+            channelPhoneNumber: '919876543210',
         ))->assertOk();
 
         $this->assertDatabaseHas('interakt_messages', [
@@ -207,7 +369,7 @@ class InteraktWebhookTest extends TestCase
         $this->app->forgetInstance(\App\Services\Interakt\InteraktWebhookProcessorService::class);
         $this->app->forgetInstance(OutboxProcessorService::class);
 
-        $this->postJson('/api/webhooks/interakt', $this->incomingMessagePayload(messageId: 'msg-retry-001'))
+        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload(messageId: 'msg-retry-001'))
             ->assertOk();
 
         $event = OutboxEvent::query()->first();
@@ -224,7 +386,7 @@ class InteraktWebhookTest extends TestCase
 
     public function test_outbox_retry_reprocesses_failed_webhook(): void
     {
-        $this->postJson('/api/webhooks/interakt', $this->incomingMessagePayload(messageId: 'msg-retry-002'))
+        $this->postJson('/api/webhooks/interakt', $this->officialIncomingMessagePayload(messageId: 'msg-retry-002'))
             ->assertOk();
 
         InteraktWebhookLog::query()->update([

@@ -2,6 +2,7 @@
 
 return [
     'api_key' => env('INTERAKT_API_KEY'),
+    'webhook_secret' => env('INTERAKT_WEBHOOK_SECRET'),
     'base_url' => rtrim((string) env('INTERAKT_BASE_URL', 'https://api.interakt.ai'), '/'),
     'verify_signature' => filter_var(env('INTERAKT_VERIFY_SIGNATURE', false), FILTER_VALIDATE_BOOLEAN),
     'timeout_seconds' => (int) env('INTERAKT_TIMEOUT_SECONDS', 15),

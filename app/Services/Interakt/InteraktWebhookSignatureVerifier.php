@@ -11,7 +11,7 @@ class InteraktWebhookSignatureVerifier
     public function verify(Request $request): bool
     {
         $signature = $this->headerValue($request, 'interakt-signature');
-        $secretKey = (string) config('interakt.api_key');
+        $secretKey = (string) config('interakt.webhook_secret');
 
         if ($signature === null || $secretKey === '') {
             return false;

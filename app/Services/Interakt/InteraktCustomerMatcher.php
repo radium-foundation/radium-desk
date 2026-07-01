@@ -39,9 +39,47 @@ class InteraktCustomerMatcher
     /**
      * @return list<string>
      */
-    public function matchingStoredPhones(?string $countryCode, ?string $phoneNumber): array
+    public function channelPhoneCandidates(?string $channelPhoneNumber): array
     {
-        $candidates = $this->phoneCandidates($countryCode, $phoneNumber);
+        if (! filled($channelPhoneNumber)) {
+            return [];
+        }
+
+        $digits = preg_replace('/\D+/', '', (string) $channelPhoneNumber) ?? '';
+
+        if ($digits === '') {
+            return [];
+        }
+
+        $candidates = [
+            trim((string) $channelPhoneNumber),
+            $digits,
+            '+'.$digits,
+        ];
+
+        if (strlen($digits) > 10) {
+            $candidates[] = substr($digits, -10);
+        }
+
+        if (str_starts_with($digits, '91') && strlen($digits) >= 12) {
+            $local = substr($digits, 2);
+            $candidates[] = $local;
+            $candidates[] = '+'.$local;
+            $candidates[] = '+91'.$local;
+        }
+
+        return array_values(array_unique(array_filter($candidates, fn (string $value): bool => $value !== '')));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function matchingStoredPhones(?string $countryCode, ?string $phoneNumber, ?string $channelPhoneNumber = null): array
+    {
+        $candidates = array_values(array_unique(array_merge(
+            $this->channelPhoneCandidates($channelPhoneNumber),
+            $this->phoneCandidates($countryCode, $phoneNumber),
+        )));
 
         if ($candidates === []) {
             return [];
@@ -56,11 +94,20 @@ class InteraktCustomerMatcher
             ->all();
     }
 
-    public function resolveStoredPhone(?string $countryCode, ?string $phoneNumber): ?string
-    {
-        $matches = $this->matchingStoredPhones($countryCode, $phoneNumber);
+    public function resolveStoredPhone(
+        ?string $countryCode = null,
+        ?string $phoneNumber = null,
+        ?string $channelPhoneNumber = null,
+    ): ?string {
+        $matches = $this->matchingStoredPhones($countryCode, $phoneNumber, $channelPhoneNumber);
 
-        return $matches[0] ?? $this->phoneCandidates($countryCode, $phoneNumber)[0] ?? null;
+        if ($matches !== []) {
+            return $matches[0];
+        }
+
+        return $this->channelPhoneCandidates($channelPhoneNumber)[0]
+            ?? $this->phoneCandidates($countryCode, $phoneNumber)[0]
+            ?? null;
     }
 
     /**

@@ -85,11 +85,21 @@ class WhatsAppTimelineEventSource implements TimelineEventSource
 
     private function resolveDetail(InteraktMessage $message): ?string
     {
-        if (! filled($message->media_url)) {
-            return null;
+        $parts = [];
+
+        if (filled($message->channel_failure_reason)) {
+            $parts[] = $message->channel_failure_reason;
         }
 
-        return $message->media_url;
+        if (filled($message->channel_error_code)) {
+            $parts[] = 'Error '.$message->channel_error_code;
+        }
+
+        if (filled($message->media_url)) {
+            $parts[] = $message->media_url;
+        }
+
+        return $parts === [] ? null : implode(' · ', $parts);
     }
 
     private function deliveryStatusLabel(?InteraktDeliveryStatus $status): ?string

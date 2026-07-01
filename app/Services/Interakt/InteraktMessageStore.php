@@ -5,7 +5,6 @@ namespace App\Services\Interakt;
 use App\Enums\InteraktDeliveryStatus;
 use App\Enums\InteraktMessageDirection;
 use App\Models\InteraktMessage;
-use Illuminate\Support\Carbon;
 
 class InteraktMessageStore
 {
@@ -25,14 +24,15 @@ class InteraktMessageStore
             return null;
         }
 
+        $channelPhoneNumber = $this->payloadParser->channelPhoneNumber($payload);
         $countryCode = $this->payloadParser->countryCode($payload);
         $phoneNumber = $this->payloadParser->phoneNumber($payload);
-        $storedPhone = $this->customerMatcher->resolveStoredPhone($countryCode, $phoneNumber);
+        $storedPhone = $this->customerMatcher->resolveStoredPhone($countryCode, $phoneNumber, $channelPhoneNumber);
 
         $existing = InteraktMessage::query()->where('message_id', $messageId)->first();
         $direction = $this->resolveDirection($payload, $existing);
         $deliveryStatus = $this->resolveDeliveryStatus($payload, $existing);
-        $statusTimestamp = $this->payloadParser->statusTimestamp($payload) ?? now();
+        $templateMetadata = $this->payloadParser->templateMetadata($payload);
 
         return InteraktMessage::query()->updateOrCreate(
             ['message_id' => $messageId],
@@ -40,13 +40,19 @@ class InteraktMessageStore
                 'customer_phone' => $storedPhone ?? $existing?->customer_phone ?? $phoneNumber ?? '',
                 'direction' => $direction,
                 'message_type' => $this->payloadParser->messageType($payload) ?? $existing?->message_type,
-                'text' => $this->payloadParser->messageText($payload) ?? $existing?->text,
+                'text' => $this->payloadParser->messageText($payload)
+                    ?? $templateMetadata['body']
+                    ?? $existing?->text,
                 'media_url' => $this->payloadParser->mediaUrl($payload) ?? $existing?->media_url,
                 'template_name' => $this->payloadParser->templateName($payload) ?? $existing?->template_name,
+                'template_language' => $this->payloadParser->templateLanguage($payload) ?? $existing?->template_language,
                 'delivery_status' => $deliveryStatus,
-                'sent_at' => $this->resolveSentAt($payload, $existing, $statusTimestamp),
-                'delivered_at' => $this->resolveDeliveredAt($deliveryStatus, $existing, $statusTimestamp),
-                'read_at' => $this->resolveReadAt($deliveryStatus, $existing, $statusTimestamp),
+                'channel_failure_reason' => $this->payloadParser->channelFailureReason($payload) ?? $existing?->channel_failure_reason,
+                'channel_error_code' => $this->payloadParser->channelErrorCode($payload) ?? $existing?->channel_error_code,
+                'callback_data' => $this->payloadParser->callbackData($payload) ?? $existing?->callback_data,
+                'sent_at' => $this->resolveSentAt($payload, $existing),
+                'delivered_at' => $this->resolveDeliveredAt($payload, $existing),
+                'read_at' => $this->resolveReadAt($payload, $existing),
                 'payload' => $payload,
             ],
         );
@@ -76,54 +82,28 @@ class InteraktMessageStore
         return $existing?->delivery_status ?? InteraktDeliveryStatus::Sent;
     }
 
-    private function resolveSentAt(array $payload, ?InteraktMessage $existing, Carbon $statusTimestamp): ?Carbon
+    private function resolveSentAt(array $payload, ?InteraktMessage $existing): ?\Illuminate\Support\Carbon
     {
-        if ($existing?->sent_at !== null) {
-            return $existing->sent_at;
-        }
-
-        if ($this->payloadParser->isIncomingMessage($payload)) {
-            return $statusTimestamp;
-        }
-
-        $status = $this->payloadParser->deliveryStatus($payload);
-
-        if ($status === InteraktDeliveryStatus::Sent) {
-            return $statusTimestamp;
-        }
-
-        return null;
+        return $this->payloadParser->receivedAtUtc($payload)
+            ?? $existing?->sent_at
+            ?? ($this->payloadParser->isIncomingMessage($payload) ? $this->payloadParser->statusTimestamp($payload) : null);
     }
 
-    private function resolveDeliveredAt(
-        InteraktDeliveryStatus $deliveryStatus,
-        ?InteraktMessage $existing,
-        Carbon $statusTimestamp,
-    ): ?Carbon {
-        if ($existing?->delivered_at !== null) {
-            return $existing->delivered_at;
-        }
-
-        if (in_array($deliveryStatus, [InteraktDeliveryStatus::Delivered, InteraktDeliveryStatus::Read], true)) {
-            return $statusTimestamp;
-        }
-
-        return null;
+    private function resolveDeliveredAt(array $payload, ?InteraktMessage $existing): ?\Illuminate\Support\Carbon
+    {
+        return $this->payloadParser->deliveredAtUtc($payload)
+            ?? $existing?->delivered_at
+            ?? ($this->payloadParser->deliveryStatus($payload) === InteraktDeliveryStatus::Delivered
+                ? $this->payloadParser->statusTimestamp($payload)
+                : null);
     }
 
-    private function resolveReadAt(
-        InteraktDeliveryStatus $deliveryStatus,
-        ?InteraktMessage $existing,
-        Carbon $statusTimestamp,
-    ): ?Carbon {
-        if ($existing?->read_at !== null) {
-            return $existing->read_at;
-        }
-
-        if ($deliveryStatus === InteraktDeliveryStatus::Read) {
-            return $statusTimestamp;
-        }
-
-        return null;
+    private function resolveReadAt(array $payload, ?InteraktMessage $existing): ?\Illuminate\Support\Carbon
+    {
+        return $this->payloadParser->seenAtUtc($payload)
+            ?? $existing?->read_at
+            ?? ($this->payloadParser->deliveryStatus($payload) === InteraktDeliveryStatus::Read
+                ? $this->payloadParser->statusTimestamp($payload)
+                : null);
     }
 }

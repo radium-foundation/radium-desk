@@ -3,7 +3,6 @@
 namespace App\Services\Interakt;
 
 use App\Enums\InteraktDeliveryStatus;
-use App\Enums\InteraktMessageDirection;
 use Illuminate\Support\Carbon;
 
 class InteraktWebhookPayloadParser
@@ -50,6 +49,15 @@ class InteraktWebhookPayloadParser
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function channelPhoneNumber(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'data.customer.channel_phone_number'))
+            ?? $this->scalarValue(data_get($payload, 'customer.channel_phone_number'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function countryCode(array $payload): ?string
     {
         return $this->scalarValue(data_get($payload, 'data.customer.country_code'))
@@ -70,9 +78,19 @@ class InteraktWebhookPayloadParser
      */
     public function messageText(array $payload): ?string
     {
-        return $this->scalarValue(data_get($payload, 'data.message.message'))
+        $message = $this->scalarValue(data_get($payload, 'data.message.message'))
             ?? $this->scalarValue(data_get($payload, 'data.message.text'))
             ?? $this->scalarValue(data_get($payload, 'message.message'));
+
+        if ($message === null) {
+            return null;
+        }
+
+        if (str_starts_with($message, '[') || str_starts_with($message, '{')) {
+            return null;
+        }
+
+        return $message;
     }
 
     /**
@@ -90,9 +108,52 @@ class InteraktWebhookPayloadParser
      */
     public function templateName(array $payload): ?string
     {
+        $metadata = $this->templateMetadata($payload);
+
+        if (filled($metadata['name'])) {
+            return $metadata['name'];
+        }
+
         return $this->scalarValue(data_get($payload, 'data.message.template_name'))
             ?? $this->scalarValue(data_get($payload, 'data.message.template.name'))
             ?? $this->scalarValue(data_get($payload, 'data.template.name'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function templateLanguage(array $payload): ?string
+    {
+        return $this->templateMetadata($payload)['language'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{name: ?string, language: ?string, body: ?string}
+     */
+    public function templateMetadata(array $payload): array
+    {
+        $rawTemplate = $this->scalarValue(data_get($payload, 'data.message.raw_template'))
+            ?? $this->scalarValue(data_get($payload, 'message.raw_template'));
+
+        if ($rawTemplate === null) {
+            return ['name' => null, 'language' => null, 'body' => null];
+        }
+
+        $decoded = json_decode($rawTemplate, true);
+
+        if (! is_array($decoded)) {
+            return ['name' => null, 'language' => null, 'body' => null];
+        }
+
+        $name = $this->scalarValue($decoded['display_name'] ?? null)
+            ?? $this->scalarValue($decoded['name'] ?? null);
+
+        return [
+            'name' => $name,
+            'language' => $this->scalarValue($decoded['language'] ?? null),
+            'body' => $this->scalarValue($decoded['body'] ?? null),
+        ];
     }
 
     /**
@@ -103,6 +164,34 @@ class InteraktWebhookPayloadParser
         return $this->scalarValue(data_get($payload, 'data.message.message_content_type'))
             ?? $this->scalarValue(data_get($payload, 'data.message.type'))
             ?? $this->scalarValue(data_get($payload, 'message.type'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function callbackData(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'data.message.meta_data.source_data.callback_data'))
+            ?? $this->scalarValue(data_get($payload, 'data.message.meta_data.callback_data'))
+            ?? $this->scalarValue(data_get($payload, 'message.meta_data.source_data.callback_data'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function channelFailureReason(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'data.message.channel_failure_reason'))
+            ?? $this->scalarValue(data_get($payload, 'message.channel_failure_reason'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function channelErrorCode(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'data.message.channel_error_code'))
+            ?? $this->scalarValue(data_get($payload, 'message.channel_error_code'));
     }
 
     /**
@@ -144,23 +233,65 @@ class InteraktWebhookPayloadParser
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function receivedAtUtc(array $payload): ?Carbon
+    {
+        return $this->parseTimestamp(
+            data_get($payload, 'data.message.received_at_utc')
+            ?? data_get($payload, 'message.received_at_utc')
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function deliveredAtUtc(array $payload): ?Carbon
+    {
+        return $this->parseTimestamp(
+            data_get($payload, 'data.message.delivered_at_utc')
+            ?? data_get($payload, 'message.delivered_at_utc')
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function seenAtUtc(array $payload): ?Carbon
+    {
+        return $this->parseTimestamp(
+            data_get($payload, 'data.message.seen_at_utc')
+            ?? data_get($payload, 'message.seen_at_utc')
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function statusTimestamp(array $payload): ?Carbon
     {
-        foreach ([
-            'timestamp',
-            'data.timestamp',
-            'data.message.timestamp',
-            'data.message.created_at_utc',
-            'event_time',
-        ] as $path) {
-            $value = data_get($payload, $path);
+        $deliveryStatus = $this->deliveryStatus($payload);
 
-            if (is_scalar($value) && trim((string) $value) !== '') {
-                return Carbon::parse((string) $value);
-            }
+        if ($deliveryStatus === InteraktDeliveryStatus::Read) {
+            return $this->seenAtUtc($payload)
+                ?? $this->deliveredAtUtc($payload)
+                ?? $this->receivedAtUtc($payload)
+                ?? $this->fallbackTimestamp($payload);
         }
 
-        return null;
+        if ($deliveryStatus === InteraktDeliveryStatus::Delivered) {
+            return $this->deliveredAtUtc($payload)
+                ?? $this->receivedAtUtc($payload)
+                ?? $this->fallbackTimestamp($payload);
+        }
+
+        if ($deliveryStatus === InteraktDeliveryStatus::Sent || $deliveryStatus === InteraktDeliveryStatus::Failed) {
+            return $this->receivedAtUtc($payload) ?? $this->fallbackTimestamp($payload);
+        }
+
+        if ($this->isIncomingMessage($payload)) {
+            return $this->receivedAtUtc($payload) ?? $this->fallbackTimestamp($payload);
+        }
+
+        return $this->fallbackTimestamp($payload);
     }
 
     /**
@@ -176,6 +307,37 @@ class InteraktWebhookPayloadParser
             || $this->deliveryStatus($payload) !== null
             || filled($this->messageText($payload))
             || filled($this->templateName($payload));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function fallbackTimestamp(array $payload): ?Carbon
+    {
+        foreach ([
+            'timestamp',
+            'data.timestamp',
+            'data.message.timestamp',
+            'data.message.created_at_utc',
+            'event_time',
+        ] as $path) {
+            $parsed = $this->parseTimestamp(data_get($payload, $path));
+
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private function parseTimestamp(mixed $value): ?Carbon
+    {
+        if (! is_scalar($value) || trim((string) $value) === '') {
+            return null;
+        }
+
+        return Carbon::parse((string) $value);
     }
 
     private function scalarValue(mixed $value): ?string
