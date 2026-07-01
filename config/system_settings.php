@@ -8,6 +8,12 @@ return [
             'icon' => 'bi-cpu',
             'sort' => 10,
         ],
+        'notifications' => [
+            'label' => 'Notifications',
+            'description' => 'Channel-agnostic notification dispatch controls.',
+            'icon' => 'bi-bell',
+            'sort' => 15,
+        ],
         'whatsapp' => [
             'label' => 'WhatsApp',
             'description' => 'WhatsApp API and automation feature flags.',
@@ -45,6 +51,20 @@ return [
             'category' => 'system',
             'label' => 'Debug mode',
             'description' => 'Enable verbose diagnostics for troubleshooting.',
+            'type' => 'boolean',
+            'default' => false,
+        ],
+        'notifications.whatsapp.enabled' => [
+            'category' => 'notifications',
+            'label' => 'WhatsApp notifications',
+            'description' => 'Allow the notification dispatcher to send WhatsApp messages.',
+            'type' => 'boolean',
+            'default' => true,
+        ],
+        'notifications.email.enabled' => [
+            'category' => 'notifications',
+            'label' => 'Email notifications',
+            'description' => 'Allow the notification dispatcher to send email messages.',
             'type' => 'boolean',
             'default' => false,
         ],

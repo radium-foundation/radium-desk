@@ -13,8 +13,12 @@ use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
+use App\Services\Notifications\Channels\EmailChannel;
+use App\Services\Notifications\Channels\WhatsAppChannel;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
+use App\Services\SystemSettingsService;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
@@ -35,6 +39,16 @@ class AppServiceProvider extends ServiceProvider
             return new GlobalSearchService([
                 $app->make(ServiceCaseGlobalSearchProvider::class),
             ]);
+        });
+
+        $this->app->singleton(NotificationDispatcher::class, function ($app): NotificationDispatcher {
+            return new NotificationDispatcher(
+                $app->make(SystemSettingsService::class),
+                [
+                    $app->make(WhatsAppChannel::class),
+                    $app->make(EmailChannel::class),
+                ],
+            );
         });
     }
 

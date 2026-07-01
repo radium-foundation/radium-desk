@@ -2,22 +2,24 @@
 
 namespace App\Services;
 
+use App\Data\NotificationMessage;
 use App\Data\Workspace\WorkspaceActionResponse;
 use App\Data\Workspace\WorkspaceRequestContext;
+use App\Enums\NotificationType;
 use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
-use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Notifications\NotificationDispatcher;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 
 class WorkspaceRequestSerialActionService
 {
     public function __construct(
-        private readonly WhatsAppAutomationDispatcher $automationDispatcher,
+        private readonly NotificationDispatcher $notificationDispatcher,
         private readonly RequestSerialNumberEligibilityService $eligibilityService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
@@ -44,19 +46,26 @@ class WorkspaceRequestSerialActionService
                 ->build();
         }
 
-        $result = $this->automationDispatcher->dispatch(
-            template: WhatsAppTemplate::RequestSerialNumber,
-            incident: $incident,
-            triggerSource: WhatsAppTemplateTriggerSource::Manual,
-            actor: $actor,
-            context: [
-                'source' => 'customer360',
-            ],
-            request: $request,
+        $incident->loadMissing('order');
+
+        $dispatchResult = $this->notificationDispatcher->send(
+            NotificationType::RequestSerialNumber,
+            new NotificationMessage(
+                type: NotificationType::RequestSerialNumber,
+                customer: $incident->order,
+                incident: $incident,
+                template: WhatsAppTemplate::RequestSerialNumber->value,
+                metadata: [
+                    'source' => 'customer360',
+                    'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,
+                ],
+                actor: $actor,
+                httpRequest: $request,
+            ),
         );
 
-        if (! $result->success) {
-            $message = $result->message ?? 'Unable to send WhatsApp template.';
+        if (! $dispatchResult->success) {
+            $message = $dispatchResult->message ?? 'Unable to send WhatsApp template.';
 
             return WorkspaceActionResponseBuilder::make('request-serial', $incident->id)
                 ->forContext($requestContext->context)

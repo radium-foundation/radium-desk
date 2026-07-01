@@ -65,6 +65,8 @@ class OperationalSystemSettingsTest extends TestCase
         $service = app(SystemSettingsService::class);
 
         $this->assertFalse($service->getBool('system.debug_mode'));
+        $this->assertTrue($service->getBool('notifications.whatsapp.enabled'));
+        $this->assertFalse($service->getBool('notifications.email.enabled'));
         $this->assertTrue($service->getBool('whatsapp.api_enabled'));
         $this->assertTrue($service->getBool('whatsapp.manual_templates_enabled'));
         $this->assertFalse($service->getBool('whatsapp.automation_enabled'));
@@ -81,6 +83,8 @@ class OperationalSystemSettingsTest extends TestCase
         $payload = [
             'settings' => [
                 'system.debug_mode' => '1',
+                'notifications.whatsapp.enabled' => '1',
+                'notifications.email.enabled' => '0',
                 'whatsapp.api_enabled' => '0',
                 'whatsapp.manual_templates_enabled' => '1',
                 'whatsapp.automation_enabled' => '0',
@@ -117,6 +121,8 @@ class OperationalSystemSettingsTest extends TestCase
         $this->actingAs($admin)->put(route('admin.system-settings.update'), [
             'settings' => [
                 'system.debug_mode' => '1',
+                'notifications.whatsapp.enabled' => '1',
+                'notifications.email.enabled' => '0',
                 'whatsapp.api_enabled' => '1',
                 'whatsapp.manual_templates_enabled' => '1',
                 'whatsapp.automation_enabled' => '0',
