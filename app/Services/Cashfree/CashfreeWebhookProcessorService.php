@@ -2,6 +2,7 @@
 
 namespace App\Services\Cashfree;
 
+use App\Data\CashfreeWebhookDeferredContext;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OrderStatus;
@@ -9,11 +10,8 @@ use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\DashboardBroadcastService;
 use App\Services\IncidentReferenceService;
-use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\ServiceCaseAssignmentService;
-use App\Services\ServiceCaseAutomationMonitorService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -28,9 +26,8 @@ class CashfreeWebhookProcessorService
         private readonly CashfreeWebhookPayloadParser $payloadParser,
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
-        private readonly DashboardBroadcastService $dashboardBroadcastService,
-        private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
-        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly CashfreeWebhookDeferredOperationsService $deferredOperationsService,
+        private readonly CashfreeWebhookReliabilityMetrics $reliabilityMetrics,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -46,7 +43,7 @@ class CashfreeWebhookProcessorService
         }
 
         try {
-            return DB::transaction(function () use ($webhookLog, $payload): CashfreeWebhookLog {
+            $deferredContext = DB::transaction(function () use ($webhookLog, $payload): ?CashfreeWebhookDeferredContext {
                 $cfPaymentId = $this->payloadParser->cfPaymentId($payload);
 
                 if ($cfPaymentId === null) {
@@ -56,16 +53,30 @@ class CashfreeWebhookProcessorService
                 $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
 
                 if ($existingIncident !== null) {
-                    return $this->markProcessed($webhookLog, $existingIncident);
+                    $this->markProcessed($webhookLog, $existingIncident);
+
+                    return null;
                 }
 
-                $order = $this->createOrder($payload, $cfPaymentId);
-                $incident = $this->createServiceRequest($order, $payload);
+                $systemUser = $this->resolveSystemUser();
+                $order = $this->createOrder($payload, $cfPaymentId, $systemUser);
+                $incident = $this->createServiceRequest($order, $payload, $systemUser);
 
-                $this->radiumBoxOrderEnrichmentService->dispatch($order);
+                $this->markProcessed($webhookLog, $incident);
+                $this->reliabilityMetrics->recordOrderCreated();
 
-                return $this->markProcessed($webhookLog, $incident);
+                return new CashfreeWebhookDeferredContext(
+                    orderId: $order->id,
+                    incidentId: $incident->id,
+                    actorId: $systemUser->id,
+                );
             });
+
+            if ($deferredContext !== null) {
+                $this->deferredOperationsService->run($deferredContext);
+            }
+
+            return $webhookLog->fresh(['incident']);
         } catch (\Throwable $exception) {
             $webhookLog->update([
                 'processing_status' => self::STATUS_FAILED,
@@ -104,7 +115,7 @@ class CashfreeWebhookProcessorService
     /**
      * @param  array<string, mixed>  $payload
      */
-    private function createOrder(array $payload, string $cfPaymentId): Order
+    private function createOrder(array $payload, string $cfPaymentId, User $systemUser): Order
     {
         $orderId = $this->payloadParser->orderId($payload);
 
@@ -112,7 +123,6 @@ class CashfreeWebhookProcessorService
             throw new RuntimeException('Cashfree webhook payload is missing order_id.');
         }
 
-        $systemUser = $this->resolveSystemUser();
         $paymentDate = $this->payloadParser->paymentDate($payload);
 
         return Order::query()->create([
@@ -139,9 +149,8 @@ class CashfreeWebhookProcessorService
     /**
      * @param  array<string, mixed>  $payload
      */
-    private function createServiceRequest(Order $order, array $payload): Incident
+    private function createServiceRequest(Order $order, array $payload, User $systemUser): Incident
     {
-        $systemUser = $this->resolveSystemUser();
         $orderId = $this->payloadParser->orderId($payload) ?? $order->order_id;
 
         $incident = Incident::query()->create([
@@ -157,11 +166,7 @@ class CashfreeWebhookProcessorService
             'updated_by' => $systemUser->id,
         ]);
 
-        $incident = $this->serviceCaseAssignmentService->assignOnCreate($incident, $systemUser);
-        $this->automationMonitor->recordPaymentReceived($incident, $systemUser);
-        $this->dashboardBroadcastService->serviceCaseCreated($incident, $systemUser);
-
-        return $incident;
+        return $this->serviceCaseAssignmentService->assignOnCreate($incident, $systemUser);
     }
 
     private function markProcessed(CashfreeWebhookLog $webhookLog, Incident $incident): CashfreeWebhookLog

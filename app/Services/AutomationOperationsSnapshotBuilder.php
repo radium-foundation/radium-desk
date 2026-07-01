@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Cashfree\CashfreeWebhookReliabilityMetrics;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
@@ -38,6 +39,7 @@ class AutomationOperationsSnapshotBuilder
         private readonly AutomationOperationsValidationCollector $validationCollector,
         private readonly OrderIdentityRepairService $repairService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
+        private readonly CashfreeWebhookReliabilityMetrics $cashfreeReliabilityMetrics,
     ) {}
 
     public function build(): AutomationOperationsDashboardData
@@ -47,7 +49,10 @@ class AutomationOperationsSnapshotBuilder
         $analysis = $this->validationCollector->collect($statusByIncidentId);
 
         return new AutomationOperationsDashboardData(
-            healthCounts: $this->healthService->countsFor($activeIncidents, $statusByIncidentId),
+            healthCounts: array_merge(
+                $this->healthService->countsFor($activeIncidents, $statusByIncidentId),
+                $this->cashfreeReliabilityMetrics->dashboardCounts(),
+            ),
             waitingForCustomerSerialQueue: $this->waitingForCustomerSerialQueue($activeIncidents, $statusByIncidentId),
             duplicateSerialConflicts: $this->duplicateSerialConflicts($analysis->failures),
             radiumBoxNotFoundQueue: $this->radiumBoxNotFoundQueue($analysis->failures),
