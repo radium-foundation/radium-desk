@@ -4264,6 +4264,20 @@ body.customer-360-drawer-open {
     font-size: 0.875rem;
 }
 
+.workspace-note-dialog-body {
+    padding-top: 0.25rem;
+}
+
+.workspace-note-notify legend {
+    font-size: 0.875rem;
+}
+
+.service-case-activity-note-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+}
+
 [data-workspace-modal-host].workspace-modal--compact .modal-dialog {
     max-width: 28rem;
 }

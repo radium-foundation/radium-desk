@@ -1,5 +1,5 @@
 @can('create', App\Models\Remark::class)
-    <div class="modal fade" id="remarkModal" tabindex="-1" aria-labelledby="remarkModalLabel" aria-hidden="true">
+    <div class="modal fade" id="remarkModal" tabindex="-1" aria-labelledby="noteModalLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 @include('service-cases.fragments.remark-form', [

@@ -54,7 +54,7 @@ class ServiceCaseActivityTimelineService
                 occurredAt: $remark->created_at,
                 type: ServiceCaseTimelineEntry::TYPE_REMARK,
                 actor: $this->automationIdentity->resolve($remark->user),
-                title: '',
+                title: 'Internal Note',
                 body: $remark->body,
                 remark: $remark,
                 dedupeKey: "remark:{$remark->id}",

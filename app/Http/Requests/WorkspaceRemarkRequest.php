@@ -49,7 +49,7 @@ class WorkspaceRemarkRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'body' => 'remark',
+            'body' => 'note',
             'workspace_context' => 'workspace context',
         ];
     }

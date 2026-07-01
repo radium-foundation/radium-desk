@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const modalHost = document.querySelector('[data-workspace-modal-host]');
             const modalContent = document.querySelector('[data-workspace-modal-content]');
 
-            modalHost?.classList.toggle('workspace-modal--compact', component === 'action');
+            modalHost?.classList.toggle('workspace-modal--compact', component === 'action' || component === 'remark');
 
             if (component === 'remark' || component === 'action' || component === 'resolve' || component === 'close') {
                 initMentionTextareas(modalContent);

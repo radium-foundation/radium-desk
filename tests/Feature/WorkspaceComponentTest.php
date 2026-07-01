@@ -91,9 +91,9 @@ class WorkspaceComponentTest extends TestCase
             ]))
             ->assertOk()
             ->assertHeader('Content-Type', 'text/html; charset=UTF-8')
-            ->assertSee('id="remarkModalLabel"', false)
-            ->assertSee('id="modal_remark_body"', false)
-            ->assertSee('Add Remark', false);
+            ->assertSee('id="noteModalLabel"', false)
+            ->assertSee('id="modal_note_body"', false)
+            ->assertSee('Add Note', false);
     }
 
     public function test_agent_can_load_assign_component(): void

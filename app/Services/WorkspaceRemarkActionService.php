@@ -7,11 +7,14 @@ use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\Concerns\BuildsWorkspaceValidationFailure;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class WorkspaceRemarkActionService
 {
+    use BuildsWorkspaceValidationFailure;
+
     public function __construct(
         private readonly RemarkService $remarkService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
@@ -41,6 +44,7 @@ class WorkspaceRemarkActionService
         ValidationException $exception,
         ?string $body = null,
     ): WorkspaceActionResponse {
+        $message = $this->firstValidationMessageFromException($exception);
         $fragmentHtml = $this->refreshRenderer->renderRemarkFragment(
             $incident,
             $requestContext,
@@ -49,8 +53,8 @@ class WorkspaceRemarkActionService
 
         return WorkspaceActionResponseBuilder::make('remark', $incident->id)
             ->forContext($requestContext->context)
-            ->failure('The given data was invalid.')
-            ->withToast('Please correct the highlighted fields.', 'danger')
+            ->failure($message)
+            ->withToast($message, 'danger')
             ->withUi(closeWorkspaceHost: false)
             ->withErrors($exception->errors())
             ->withValidationFragment('remark', $fragmentHtml)
@@ -75,7 +79,7 @@ class WorkspaceRemarkActionService
             $actor,
         );
 
-        $message = 'Remark added.';
+        $message = 'Note saved.';
 
         return WorkspaceActionResponseBuilder::make('remark', $incident->id)
             ->forContext($requestContext->context)

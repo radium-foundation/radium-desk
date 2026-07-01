@@ -123,12 +123,12 @@
                                 class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
                                 data-bs-toggle="tooltip"
                                 data-bs-placement="top"
-                                data-bs-title="Remark"
+                                data-bs-title="Note"
                                 data-workspace-trigger="remark"
                                 data-workspace-incident-id="{{ $serviceCase->id }}"
                                 data-workspace-context="dashboard"
-                                aria-label="Add remark for {{ $serviceCase->display_reference }}">
-                            <i class="bi bi-chat-left-text" aria-hidden="true"></i>
+                                aria-label="Add note for {{ $serviceCase->display_reference }}">
+                            <i class="bi bi-journal-text" aria-hidden="true"></i>
                         </button>
                     @endcan
                 @endcan

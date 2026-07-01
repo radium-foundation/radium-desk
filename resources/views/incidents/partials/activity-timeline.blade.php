@@ -33,29 +33,40 @@
                         'service-case-activity-item--remark' => $isRemark,
                         'service-case-activity-item--own' => $isOwnRemark,
                     ])>
-                        <div class="service-case-activity-meta">
-                            <span class="service-case-activity-time">{{ display_app_timeline_time($entry->occurredAt) }}</span>
-                            @if($entry->actor->isVisible())
-                                <span class="service-case-activity-actor fw-semibold">
-                                    <x-timeline-actor :actor="$entry->actor" />
-                                </span>
-                            @endif
-                        </div>
+                        @if(! $isRemark)
+                            <div class="service-case-activity-meta">
+                                <span class="service-case-activity-time">{{ display_app_timeline_time($entry->occurredAt) }}</span>
+                                @if($entry->actor->isVisible())
+                                    <span class="service-case-activity-actor fw-semibold">
+                                        <x-timeline-actor :actor="$entry->actor" />
+                                    </span>
+                                @endif
+                            </div>
+                        @endif
                         <div @class([
                             'service-case-activity-bubble',
                             'service-case-activity-bubble--system' => ! $isRemark,
                             'service-case-activity-bubble--remark' => $isRemark,
                         ])>
                             @if($isRemark)
+                                <div class="service-case-activity-title">📝 {{ $entry->title ?: 'Internal Note' }}</div>
                                 <div class="service-case-activity-message">{!! $mentionFormatter->format($entry->body ?? '') !!}</div>
+                                <div class="service-case-activity-note-meta small text-muted mt-2">
+                                    @if($entry->actor->isVisible())
+                                        <span class="service-case-activity-note-by">
+                                            By: <x-timeline-actor :actor="$entry->actor" />
+                                        </span>
+                                    @endif
+                                    <span class="service-case-activity-note-time">{{ display_app_timeline_time($entry->occurredAt) }}</span>
+                                </div>
                                 @if($entry->remark)
                                     @can('delete', $entry->remark)
                                         <form method="POST" action="{{ route('remarks.destroy', $entry->remark) }}"
                                               class="service-case-activity-delete"
-                                              onsubmit="return confirm('Delete this remark?');">
+                                              onsubmit="return confirm('Delete this note?');">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Delete remark">
+                                            <button type="submit" class="btn btn-sm btn-link text-danger p-0" title="Delete note">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </form>

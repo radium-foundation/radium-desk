@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceContext;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
@@ -63,8 +65,8 @@ class WorkspaceRemarkActionTest extends TestCase
             'reference_no' => $overrides['reference_no'] ?? app(IncidentReferenceService::class)->generate(),
             'category' => 'General',
             'source' => IncidentSource::Call,
-            'title' => $overrides['title'] ?? 'Workspace remark action test',
-            'description' => $overrides['description'] ?? 'Workspace remark action test description.',
+            'title' => $overrides['title'] ?? 'Workspace note action test',
+            'description' => $overrides['description'] ?? 'Workspace note action test description.',
             'status' => $overrides['status'] ?? IncidentStatus::Open,
             'created_by' => $creator->id,
             'updated_by' => $creator->id,
@@ -72,10 +74,12 @@ class WorkspaceRemarkActionTest extends TestCase
         ]);
     }
 
-    public function test_remark_action_returns_service_case_timeline_refresh_payload(): void
+    public function test_note_action_returns_service_case_timeline_refresh_payload(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $incident = $this->createIncident($agent);
+        $originalStatus = $incident->status;
+        $originalAssignee = $incident->assigned_to_user_id;
 
         $response = $this->actingAs($agent)
             ->postJson(route('incidents.workspace.remark', $incident), [
@@ -85,6 +89,7 @@ class WorkspaceRemarkActionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('action', 'remark')
+            ->assertJsonPath('toast.message', 'Note saved.')
             ->assertJsonPath('incident_id', $incident->id)
             ->assertJsonPath('meta.context', WorkspaceContext::ServiceCase->value)
             ->assertJsonPath('ui.close_workspace_host', true)
@@ -95,26 +100,60 @@ class WorkspaceRemarkActionTest extends TestCase
         $timelineHtml = collect($response->json('refresh.targets'))
             ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
 
+        $this->assertStringContainsString('Internal Note', $timelineHtml);
         $this->assertStringContainsString('Customer confirmed', $timelineHtml);
         $this->assertStringContainsString('remark-mention', $timelineHtml);
         $this->assertStringContainsString('@Damini', $timelineHtml);
+        $this->assertStringContainsString('By:', $timelineHtml);
         $this->assertStringNotContainsString('.service-case-header', $timelineHtml);
+
+        $freshIncident = $incident->fresh();
+        $this->assertSame($originalStatus, $freshIncident->status);
+        $this->assertSame($originalAssignee, $freshIncident->assigned_to_user_id);
 
         $this->assertDatabaseHas('remarks', [
             'remarkable_type' => $incident->getMorphClass(),
             'remarkable_id' => $incident->id,
             'body' => 'Customer confirmed @Damini will call back.',
         ]);
+
+        $remark = Remark::query()->where('remarkable_id', $incident->id)->first();
+        $this->assertNotNull($remark);
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => $remark->getMorphClass(),
+            'auditable_id' => $remark->id,
+            'event' => 'created',
+        ]);
     }
 
-    public function test_remark_action_returns_dashboard_refresh_payload(): void
+    public function test_note_component_fragment_renders_add_note_dialog(): void
+    {
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $incident = $this->createIncident($agent);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'remark',
+                'context' => WorkspaceContext::ServiceCase->value,
+            ]))
+            ->assertOk()
+            ->assertSee('Add Note', false)
+            ->assertSee('Save Note', false)
+            ->assertSee('Notify Customer', false)
+            ->assertSee(route('incidents.workspace.remark', $incident), false)
+            ->assertSee('data-workspace-action-form="remark"', false)
+            ->assertSee('data-mention-textarea', false);
+    }
+
+    public function test_note_action_returns_dashboard_refresh_payload(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createIncident($admin);
 
         $response = $this->actingAs($admin)
             ->postJson(route('incidents.workspace.remark', $incident), [
-                'body' => 'Dashboard remark from workspace.',
+                'body' => 'Dashboard note from workspace.',
                 'workspace_context' => WorkspaceContext::Dashboard->value,
             ])
             ->assertOk()
@@ -136,7 +175,7 @@ class WorkspaceRemarkActionTest extends TestCase
         );
     }
 
-    public function test_remark_action_is_forbidden_for_unauthorized_user(): void
+    public function test_note_action_is_forbidden_for_unauthorized_user(): void
     {
         $unauthorized = User::factory()->create();
 
@@ -153,7 +192,7 @@ class WorkspaceRemarkActionTest extends TestCase
         $this->assertSame(0, Remark::query()->count());
     }
 
-    public function test_remark_action_returns_validation_response_with_fragment_and_preserved_text(): void
+    public function test_note_action_returns_validation_response_with_fragment_and_preserved_text(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $incident = $this->createIncident($agent);
@@ -177,7 +216,13 @@ class WorkspaceRemarkActionTest extends TestCase
             ])
             ->assertJsonPath('refresh.fragments.0.component', 'remark');
 
+        $this->assertStringNotContainsString(
+            'Please correct the highlighted fields.',
+            (string) $response->json('toast.message'),
+        );
+
         $fragmentHtml = (string) $response->json('refresh.fragments.0.html');
+        $this->assertStringContainsString('Add Note', $fragmentHtml);
         $this->assertStringContainsString('name="body"', $fragmentHtml);
         $this->assertStringContainsString('>no</textarea>', $fragmentHtml);
         $this->assertSame(0, Remark::query()->count());
@@ -203,7 +248,7 @@ class WorkspaceRemarkActionTest extends TestCase
         ]);
     }
 
-    public function test_remark_component_fragment_includes_workspace_fields_for_context(): void
+    public function test_note_component_fragment_includes_workspace_fields_for_context(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $incident = $this->createIncident($agent);
@@ -220,5 +265,34 @@ class WorkspaceRemarkActionTest extends TestCase
             ->assertSee('value="dashboard"', false)
             ->assertSee('data-workspace-action-form="remark"', false)
             ->assertSee('data-mention-textarea', false);
+    }
+
+    public function test_action_workflow_is_unaffected_by_note_changes(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $shipra = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');
+        $incident = $this->createIncident($admin);
+
+        $this->actingAs($admin)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'action',
+                'context' => WorkspaceContext::ServiceCase->value,
+            ]))
+            ->assertOk()
+            ->assertSee('Customer Action', false)
+            ->assertSee('data-workspace-action-card="assign"', false);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Assign->value,
+                'assigned_to_user_id' => $shipra->id,
+                'body' => 'Assigning after note UX update.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('action', 'action');
+
+        $this->assertSame($shipra->id, $incident->fresh()->assigned_to_user_id);
     }
 }

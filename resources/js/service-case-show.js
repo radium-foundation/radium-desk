@@ -43,10 +43,19 @@ export const initServiceCaseShow = () => {
 
         const key = event.key.toLowerCase();
 
-        if (key === 'r' && root.querySelector('[data-sc-action="remark"]')) {
-            event.preventDefault();
-            openModal('#remarkModal');
-            return;
+        if (key === 'n' || key === 'r') {
+            const noteTrigger = root.querySelector('[data-workspace-trigger="remark"]');
+
+            if (noteTrigger instanceof HTMLButtonElement) {
+                event.preventDefault();
+                noteTrigger.click();
+                return;
+            }
+
+            if (key === 'r' && root.querySelector('[data-sc-action="remark"]')) {
+                event.preventDefault();
+                openModal('#remarkModal');
+            }
         }
 
         if (key === 'a' && root.querySelector('[data-sc-action="assign"]')) {
@@ -79,7 +88,7 @@ export const initServiceCaseShow = () => {
         openModal('#assignModal');
     }
 
-    if (document.querySelector('#remarkModal') && document.querySelector('.is-invalid#modal_remark_body, .is-invalid[name="body"]')) {
+    if (document.querySelector('#remarkModal') && document.querySelector('.is-invalid#modal_note_body, .is-invalid[name="body"]')) {
         openModal('#remarkModal');
     }
 

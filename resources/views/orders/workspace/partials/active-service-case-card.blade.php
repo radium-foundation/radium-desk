@@ -40,7 +40,7 @@
                 <button type="button"
                         class="btn btn-sm btn-outline-secondary"
                         data-workspace-tab-trigger="notes">
-                    <i class="bi bi-chat-left-text me-1"></i> Add Remark
+                    <i class="bi bi-journal-text me-1"></i> Add Note
                 </button>
             @endisset
         </div>

@@ -17,7 +17,7 @@ describe('initCustomer360Drawer', () => {
                             <td><a href="/incidents/42" class="case-reference-link">SC-001</a></td>
                             <td class="case-order-cell"><a href="/orders/99">RD-001</a></td>
                             <td class="dashboard-actions-cell">
-                                <button type="button" data-workspace-trigger="remark">Remark</button>
+                                <button type="button" data-workspace-trigger="remark">Note</button>
                             </td>
                         </tr>
                     </tbody>
