@@ -10,6 +10,8 @@ readonly class TimelineEvent
 {
     public const DETAIL_COLLAPSE_THRESHOLD = 120;
 
+    public const INTERNAL_NOTE_TITLE = '📝 Internal Note';
+
     public function __construct(
         public TimelineEventType $type,
         public Carbon $occurredAt,
@@ -20,6 +22,9 @@ readonly class TimelineEvent
         public ?string $detail = null,
         public ?string $statusLabel = null,
         public ?string $statusVariant = null,
+        public ?string $noteBody = null,
+        /** @var list<string> */
+        public array $mentionedUserNames = [],
     ) {}
 
     public function filterCategory(): string

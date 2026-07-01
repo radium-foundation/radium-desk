@@ -39,7 +39,7 @@ class ServiceCaseActivityTimelineService
         }
 
         $remarks = Remark::query()
-            ->with('user')
+            ->with(['user', 'mentions.user'])
             ->where('remarkable_type', $incident->getMorphClass())
             ->where('remarkable_id', $incident->getKey())
             ->orderBy('created_at')

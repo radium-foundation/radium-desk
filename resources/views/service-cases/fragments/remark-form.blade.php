@@ -47,28 +47,6 @@
         @error('body')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
-
-        <fieldset class="workspace-note-notify mt-3 mb-0" aria-label="Customer notification">
-            <legend class="form-label mb-2">Notify Customer</legend>
-            <div class="d-flex gap-3">
-                <div class="form-check">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           name="notify_whatsapp"
-                           value="1"
-                           id="workspace_note_notify_whatsapp">
-                    <label class="form-check-label" for="workspace_note_notify_whatsapp">WhatsApp</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           name="notify_email"
-                           value="1"
-                           id="workspace_note_notify_email">
-                    <label class="form-check-label" for="workspace_note_notify_email">Email</label>
-                </div>
-            </div>
-        </fieldset>
     </div>
 
     <div class="modal-footer border-0 pt-0">

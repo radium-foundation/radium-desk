@@ -42,6 +42,7 @@ class SettingsSeeder extends Seeder
             'search.transaction_id_enabled' => '1',
             'search.email_enabled' => '1',
             'search.mobile_enabled' => '1',
+            'search.notes_enabled' => '1',
         ]);
 
         foreach (config('products', []) as $index => $productName) {

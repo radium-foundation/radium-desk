@@ -2,6 +2,14 @@
     'event',
 ])
 
+@php
+    use App\Enums\TimelineEventType;
+    use App\Services\RemarkMentionFormatter;
+
+    $isInternalNote = $event->type === TimelineEventType::InternalNote;
+    $mentionFormatter = app(RemarkMentionFormatter::class);
+@endphp
+
 <article class="unified-timeline-item unified-timeline-item--card"
          role="listitem"
          data-timeline-event
@@ -22,32 +30,50 @@
         <time class="unified-timeline-time"
               datetime="{{ $event->occurredAt->toIso8601String() }}"
               title="{{ $event->exactTimestamp() }}">
-            {{ $event->relativeTimestamp() }}
+            @if($isInternalNote)
+                {{ display_app_timeline_datetime($event->occurredAt) }}
+            @else
+                {{ $event->relativeTimestamp() }}
+            @endif
         </time>
     </div>
 
     <div class="unified-timeline-content">
         <div class="unified-timeline-title">{{ $event->title }}</div>
 
+        @if($isInternalNote && filled($event->noteBody))
+            <div class="unified-timeline-detail unified-timeline-note-body">{!! $mentionFormatter->format($event->noteBody) !!}</div>
+        @endif
+
         @if($event->actor->isVisible())
             <div class="unified-timeline-actor">
-                <span @class([
-                    'timeline-actor-badge',
-                    'timeline-actor-badge--' . $event->actor->roleVariant(),
-                ])>{{ $event->actor->roleLabel() }}</span>
+                @unless($isInternalNote)
+                    <span @class([
+                        'timeline-actor-badge',
+                        'timeline-actor-badge--' . $event->actor->roleVariant(),
+                    ])>{{ $event->actor->roleLabel() }}</span>
+                @endunless
                 <x-timeline-actor :actor="$event->actor" class="timeline-actor-name" />
             </div>
         @endif
 
-        @if($event->isDetailExpandable())
-            <details class="unified-timeline-details">
-                <summary class="unified-timeline-details-summary">{{ $event->collapsedDetailPreview() }}</summary>
-                <div class="unified-timeline-details-body">{{ $event->detail }}</div>
-            </details>
-        @elseif($event->detail !== null)
-            <div class="unified-timeline-detail">{{ $event->detail }}</div>
-        @elseif($event->summary !== null)
-            <div class="unified-timeline-detail">{{ $event->summary }}</div>
+        @if($isInternalNote && $event->mentionedUserNames !== [])
+            <div class="unified-timeline-note-mentions small text-muted">
+                Mentioned: {{ implode(', ', $event->mentionedUserNames) }}
+            </div>
         @endif
+
+        @unless($isInternalNote)
+            @if($event->isDetailExpandable())
+                <details class="unified-timeline-details">
+                    <summary class="unified-timeline-details-summary">{{ $event->collapsedDetailPreview() }}</summary>
+                    <div class="unified-timeline-details-body">{{ $event->detail }}</div>
+                </details>
+            @elseif($event->detail !== null)
+                <div class="unified-timeline-detail">{{ $event->detail }}</div>
+            @elseif($event->summary !== null)
+                <div class="unified-timeline-detail">{{ $event->summary }}</div>
+            @endif
+        @endunless
     </div>
 </article>

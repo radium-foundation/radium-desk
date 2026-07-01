@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Data\TimelineEvent;
 use App\Enums\TimelineEventType;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -90,6 +91,8 @@ class CustomerTimelineTest extends TestCase
 
         $note = $events->first(fn ($event) => $event->type === TimelineEventType::InternalNote);
         $this->assertTrue($note->isDetailExpandable());
+        $this->assertSame(TimelineEvent::INTERNAL_NOTE_TITLE, $note->title);
+        $this->assertSame(trim($longNote), $note->noteBody);
     }
 
     public function test_customer_360_timeline_endpoint_returns_older_events_fragment(): void

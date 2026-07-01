@@ -110,7 +110,7 @@ class OrderCustomerTimelineSource implements TimelineEventSource
         $refundIds = $this->order->refundRequests()->pluck('id');
 
         $remarks = Remark::query()
-            ->with('user')
+            ->with(['user', 'mentions.user'])
             ->where(function ($query) use ($incidentIds, $refundIds) {
                 $query->where(function ($orderQuery) {
                     $orderQuery->where('remarkable_type', $this->order->getMorphClass())
@@ -143,11 +143,13 @@ class OrderCustomerTimelineSource implements TimelineEventSource
                 return new TimelineEvent(
                     type: TimelineEventType::InternalNote,
                     occurredAt: $remark->created_at,
-                    title: 'Internal note added',
+                    title: TimelineEvent::INTERNAL_NOTE_TITLE,
                     actor: $this->automationIdentity->resolve($remark->user),
                     dedupeKey: "remark:{$remark->id}",
                     summary: $body !== '' && ! $isLong ? $body : null,
                     detail: $isLong ? $body : null,
+                    noteBody: $body !== '' ? $body : null,
+                    mentionedUserNames: $remark->mentionedUserNames(),
                 );
             });
     }
@@ -206,7 +208,7 @@ class OrderCustomerTimelineSource implements TimelineEventSource
         return match ($type) {
             TimelineEventType::ServiceCaseCreated => $entry->title,
             TimelineEventType::Assignment => $entry->title,
-            TimelineEventType::InternalNote => 'Internal note added',
+            TimelineEventType::InternalNote => TimelineEvent::INTERNAL_NOTE_TITLE,
             TimelineEventType::Payment => $entry->title,
             TimelineEventType::AuditEvent => $entry->title,
             default => $entry->title,

@@ -57,8 +57,13 @@
                                             By: <x-timeline-actor :actor="$entry->actor" />
                                         </span>
                                     @endif
-                                    <span class="service-case-activity-note-time">{{ display_app_timeline_time($entry->occurredAt) }}</span>
+                                    <span class="service-case-activity-note-time">{{ display_app_timeline_datetime($entry->occurredAt) }}</span>
                                 </div>
+                                @if($entry->remark && $entry->remark->mentionedUserNames() !== [])
+                                    <div class="service-case-activity-note-mentions small text-muted mt-1">
+                                        Mentioned: {{ implode(', ', $entry->remark->mentionedUserNames()) }}
+                                    </div>
+                                @endif
                                 @if($entry->remark)
                                     @can('delete', $entry->remark)
                                         <form method="POST" action="{{ route('remarks.destroy', $entry->remark) }}"

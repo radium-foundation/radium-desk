@@ -37,6 +37,11 @@ class UniversalSearchService
                 })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like))
                     ->orWhereHas('closeExceptions', fn (Builder $exceptionQuery) => $exceptionQuery
                         ->where('exception_id', 'like', $like));
+
+                if ($this->settingService->getBool('search.notes_enabled', true)) {
+                    $incidentQuery->orWhereHas('remarks', fn (Builder $remarkQuery) => $remarkQuery
+                        ->where('body', 'like', $like));
+                }
             });
 
         $referenceExactMatches = $this->referenceExactMatchBindings($query);

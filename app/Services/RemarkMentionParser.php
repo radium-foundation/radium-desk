@@ -8,6 +8,26 @@ use Illuminate\Support\Collection;
 class RemarkMentionParser
 {
     /**
+     * @return list<string>
+     */
+    public function mentionedAiAgents(string $body): array
+    {
+        $normalizedBody = trim($body);
+
+        if ($normalizedBody === '') {
+            return [];
+        }
+
+        $agents = [];
+
+        if (preg_match('/@IRA\b/u', $normalizedBody) === 1) {
+            $agents[] = 'ira';
+        }
+
+        return $agents;
+    }
+
+    /**
      * @return list<int>
      */
     public function mentionedUserIds(string $body): array

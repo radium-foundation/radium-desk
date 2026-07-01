@@ -4278,6 +4278,15 @@ body.customer-360-drawer-open {
     gap: 0.5rem 1rem;
 }
 
+.unified-timeline-note-mentions,
+.service-case-activity-note-mentions {
+    margin-top: 0.25rem;
+}
+
+.unified-timeline-note-body {
+    margin-bottom: 0.35rem;
+}
+
 [data-workspace-modal-host].workspace-modal--compact .modal-dialog {
     max-width: 28rem;
 }

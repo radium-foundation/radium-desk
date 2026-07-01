@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Data\RemarkMetadata;
 use App\Models\Remark;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -21,11 +22,15 @@ class RemarkService
         string $body,
         ?Request $request = null,
     ): Remark {
+        $normalizedBody = trim($body);
+        $metadata = $this->buildInitialMetadata($normalizedBody);
+
         $remark = Remark::query()->create([
             'user_id' => $actor->id,
             'remarkable_type' => $remarkable->getMorphClass(),
             'remarkable_id' => $remarkable->getKey(),
-            'body' => trim($body),
+            'body' => $normalizedBody,
+            'metadata' => $metadata->toArray() !== [] ? $metadata->toArray() : null,
         ]);
 
         $this->syncMentions($remark, $remark->body);
@@ -58,5 +63,16 @@ class RemarkService
                 'user_id' => $userId,
             ]);
         }
+    }
+
+    private function buildInitialMetadata(string $body): RemarkMetadata
+    {
+        $aiMentions = $this->mentionParser->mentionedAiAgents($body);
+
+        if ($aiMentions === []) {
+            return new RemarkMetadata;
+        }
+
+        return (new RemarkMetadata)->withAiMentions($aiMentions);
     }
 }

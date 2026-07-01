@@ -6,6 +6,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\Remark;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\UniversalSearchService;
@@ -234,6 +235,54 @@ class UniversalSearchTest extends TestCase
             ->assertOk()
             ->assertJsonPath('match_count', 1)
             ->assertJsonPath('incident_ids.0', $incident->id);
+    }
+
+    public function test_search_finds_service_case_by_note_body(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createServiceCase($agent, [
+            'order_id' => 'RD-NOTE-SEARCH-001',
+        ]);
+
+        Remark::query()->create([
+            'user_id' => $agent->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => 'Customer requested replacement keypad cover.',
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'keypad cover']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id);
+    }
+
+    public function test_search_does_not_match_note_metadata(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createServiceCase($agent, [
+            'order_id' => 'RD-NOTE-META-001',
+        ]);
+
+        Remark::query()->create([
+            'user_id' => $agent->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => 'Visible note text only.',
+            'metadata' => [
+                'reminder' => ['message' => 'secret-reminder-token'],
+            ],
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'secret-reminder-token']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0);
     }
 
     public function test_search_finds_closed_service_cases(): void

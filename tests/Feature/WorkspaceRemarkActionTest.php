@@ -77,6 +77,7 @@ class WorkspaceRemarkActionTest extends TestCase
     public function test_note_action_returns_service_case_timeline_refresh_payload(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        User::factory()->create(['name' => 'Damini', 'is_active' => true]);
         $incident = $this->createIncident($agent);
         $originalStatus = $incident->status;
         $originalAssignee = $incident->assigned_to_user_id;
@@ -105,6 +106,7 @@ class WorkspaceRemarkActionTest extends TestCase
         $this->assertStringContainsString('remark-mention', $timelineHtml);
         $this->assertStringContainsString('@Damini', $timelineHtml);
         $this->assertStringContainsString('By:', $timelineHtml);
+        $this->assertStringContainsString('Mentioned: Damini', $timelineHtml);
         $this->assertStringNotContainsString('.service-case-header', $timelineHtml);
 
         $freshIncident = $incident->fresh();
@@ -140,7 +142,7 @@ class WorkspaceRemarkActionTest extends TestCase
             ->assertOk()
             ->assertSee('Add Note', false)
             ->assertSee('Save Note', false)
-            ->assertSee('Notify Customer', false)
+            ->assertDontSee('Notify Customer', false)
             ->assertSee(route('incidents.workspace.remark', $incident), false)
             ->assertSee('data-workspace-action-form="remark"', false)
             ->assertSee('data-mention-textarea', false);

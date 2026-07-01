@@ -39,4 +39,12 @@ class RemarkMentionParserTest extends TestCase
 
         $this->assertSame([], $parser->mentionedUserIds('Please follow up with @Inactive User.'));
     }
+
+    public function test_it_detects_ira_ai_mention(): void
+    {
+        $parser = app(RemarkMentionParser::class);
+
+        $this->assertSame(['ira'], $parser->mentionedAiAgents('Please review @IRA summary.'));
+        $this->assertSame([], $parser->mentionedAiAgents('No AI mention here.'));
+    }
 }
