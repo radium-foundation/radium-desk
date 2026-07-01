@@ -1,0 +1,118 @@
+<?php
+
+namespace App\Services\Automation\Handlers;
+
+use App\Contracts\Automation\ActionHandler;
+use App\Data\Automation\ActionHandlerResult;
+use App\Data\Automation\PlannedAutomationAction;
+use App\Data\NotificationMessage;
+use App\Data\NotificationResult;
+use App\Enums\AutomationPolicyActionType;
+use App\Enums\NotificationChannelType;
+use App\Enums\WhatsAppTemplateTriggerSource;
+use App\Services\Automation\AutomationNotificationTypeResolver;
+use App\Services\Notifications\NotificationDispatcher;
+
+class NotificationActionHandler implements ActionHandler
+{
+    public function __construct(
+        private readonly NotificationDispatcher $notificationDispatcher,
+        private readonly AutomationNotificationTypeResolver $notificationTypeResolver,
+    ) {}
+
+    public function supports(AutomationPolicyActionType $type): bool
+    {
+        return $type === AutomationPolicyActionType::WhatsAppTemplate;
+    }
+
+    public function handle(PlannedAutomationAction $action): ActionHandlerResult
+    {
+        $notificationType = $this->notificationTypeResolver->resolve($action->actionKey);
+
+        if ($notificationType === null) {
+            return ActionHandlerResult::failure(
+                "No notification mapping exists for action key [{$action->actionKey}].",
+            );
+        }
+
+        $waitingState = $action->waitingState;
+        $waitingState->loadMissing(['incident.order']);
+
+        $incident = $waitingState->incident;
+        $order = $incident?->order;
+
+        if ($incident === null || $order === null) {
+            return ActionHandlerResult::failure('Incident order context is required for notification actions.');
+        }
+
+        $dispatchResult = $this->notificationDispatcher->send(
+            $notificationType,
+            new NotificationMessage(
+                type: $notificationType,
+                customer: $order,
+                incident: $incident,
+                metadata: [
+                    'source' => 'automation_runtime',
+                    'trigger_source' => WhatsAppTemplateTriggerSource::Automation->value,
+                    'waiting_state_id' => $waitingState->id,
+                    'policy_key' => $action->policyKey,
+                    'schedule_step' => $action->scheduleStep,
+                    'action_key' => $action->actionKey,
+                ],
+            ),
+        );
+
+        $channelResults = array_map(
+            fn ($result): array => [
+                'channel' => $result->channel->value,
+                'success' => $result->success,
+                'external_id' => $result->external_id,
+                'message' => $result->message,
+                'retryable' => $result->retryable,
+                'metadata' => $result->metadata,
+            ],
+            $dispatchResult->results,
+        );
+
+        $metadata = [
+            'notification_type' => $notificationType->value,
+            'channel_results' => $channelResults,
+        ];
+
+        if (! $dispatchResult->success) {
+            return ActionHandlerResult::failure(
+                $dispatchResult->message ?? 'Notification dispatch failed.',
+                metadata: $metadata,
+            );
+        }
+
+        $externalId = $this->resolveExternalId($dispatchResult->results);
+
+        return ActionHandlerResult::success(
+            externalId: $externalId,
+            metadata: $metadata,
+        );
+    }
+
+    /**
+     * @param  array<int, NotificationResult>  $results
+     */
+    private function resolveExternalId(array $results): ?string
+    {
+        foreach ($results as $result) {
+            if ($result->success && filled($result->external_id)) {
+                return $result->external_id;
+            }
+        }
+
+        foreach ($results as $result) {
+            if ($result->success) {
+                return $result->channel === NotificationChannelType::WhatsApp
+                    ? 'whatsapp-dispatched'
+                    : $result->channel->value;
+            }
+        }
+
+        return null;
+    }
+}

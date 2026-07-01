@@ -74,6 +74,7 @@ class OperationalSystemSettingsTest extends TestCase
         $this->assertFalse($service->getBool('telegram.api_enabled'));
         $this->assertTrue($service->getBool('outbox.processor_enabled'));
         $this->assertTrue($service->getBool('ira.enabled'));
+        $this->assertFalse($service->getBool('automation.scheduler.enabled'));
     }
 
     public function test_admin_can_update_system_settings(): void

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Services\SystemSettingsService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -53,6 +54,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/outbox-processor.log'));
+
+        $schedule->command('automation:run')
+            ->hourly()
+            ->when(fn (): bool => app(SystemSettingsService::class)->getBool('automation.scheduler.enabled', false))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/automation-scheduler.log'));
 
         // Phase 2: enable when ready to recover delayed RadiumBox product details automatically.
         // Uses progressive backoff (1h → 4h → 12h → 24h) within a 7-day automatic window.

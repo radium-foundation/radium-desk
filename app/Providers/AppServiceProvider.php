@@ -11,6 +11,9 @@ use App\Models\User;
 use App\Policies\DashboardPolicy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
+use App\Services\Automation\AutomationIdempotencyKeyGenerator;
+use App\Services\Automation\AutomationRuntime;
+use App\Services\Automation\Handlers\NotificationActionHandler;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\Notifications\Channels\EmailChannel;
@@ -47,6 +50,15 @@ class AppServiceProvider extends ServiceProvider
                 [
                     $app->make(WhatsAppChannel::class),
                     $app->make(EmailChannel::class),
+                ],
+            );
+        });
+
+        $this->app->singleton(AutomationRuntime::class, function ($app): AutomationRuntime {
+            return new AutomationRuntime(
+                $app->make(AutomationIdempotencyKeyGenerator::class),
+                [
+                    $app->make(NotificationActionHandler::class),
                 ],
             );
         });

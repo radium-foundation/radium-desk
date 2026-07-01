@@ -44,6 +44,12 @@ return [
             'icon' => 'bi-stars',
             'sort' => 60,
         ],
+        'automation' => [
+            'label' => 'Automation',
+            'description' => 'Waiting-state automation scheduler and execution controls.',
+            'icon' => 'bi-robot',
+            'sort' => 70,
+        ],
     ],
 
     'settings' => [
@@ -116,6 +122,13 @@ return [
             'description' => 'Enable the intelligent response assistant.',
             'type' => 'boolean',
             'default' => true,
+        ],
+        'automation.scheduler.enabled' => [
+            'category' => 'automation',
+            'label' => 'Automation scheduler',
+            'description' => 'Run the hourly automation scheduler for waiting-state reminders.',
+            'type' => 'boolean',
+            'default' => false,
         ],
     ],
 ];

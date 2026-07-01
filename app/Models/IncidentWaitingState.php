@@ -6,6 +6,7 @@ use App\Enums\WaitingReason;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class IncidentWaitingState extends Model
 {
@@ -47,6 +48,11 @@ class IncidentWaitingState extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function automationExecutions(): HasMany
+    {
+        return $this->hasMany(AutomationExecution::class, 'waiting_state_id');
     }
 
     public function scopeActive(Builder $query): void
