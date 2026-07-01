@@ -19,6 +19,7 @@ class Customer360Service
         private readonly Customer360TimelineService $customer360TimelineService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $enrichmentSyncStore,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
+        private readonly IncidentWaitingStateService $waitingStateService,
     ) {}
 
     /**
@@ -26,7 +27,7 @@ class Customer360Service
      */
     public function drawerData(Incident $incident): array
     {
-        $incident->loadMissing(['order.deviceModel']);
+        $incident->loadMissing(['order.deviceModel', 'activeWaitingState']);
         $order = $incident->order;
 
         if ($order === null) {
@@ -51,6 +52,7 @@ class Customer360Service
             'timeline' => $timeline,
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
+            'waitingStateCard' => $this->waitingStateService->customer360Card($incident),
         ];
     }
 
@@ -287,6 +289,7 @@ class Customer360Service
             ),
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => false,
+            'waitingStateCard' => null,
         ];
     }
 }

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -89,6 +90,25 @@ class Incident extends Model
     public function closeExceptions(): HasMany
     {
         return $this->hasMany(ServiceCaseCloseException::class);
+    }
+
+    public function waitingStates(): HasMany
+    {
+        return $this->hasMany(IncidentWaitingState::class);
+    }
+
+    public function activeWaitingState(): HasOne
+    {
+        return $this->hasOne(IncidentWaitingState::class)->active()->latest('started_at');
+    }
+
+    public function hasSlaPaused(): bool
+    {
+        $waitingState = $this->relationLoaded('activeWaitingState')
+            ? $this->activeWaitingState
+            : $this->activeWaitingState()->first();
+
+        return $waitingState !== null && $waitingState->sla_paused;
     }
 
     public function refundRequests(): HasMany
@@ -208,6 +228,10 @@ class Incident extends Model
 
     public function slaStatus(?Carbon $now = null): ServiceCaseSlaStatus
     {
+        if ($this->hasSlaPaused()) {
+            return ServiceCaseSlaStatus::Paused;
+        }
+
         if (! $this->isPendingAdmin() || $this->created_at === null) {
             return ServiceCaseSlaStatus::WithinSla;
         }
@@ -235,6 +259,10 @@ class Incident extends Model
     {
         if (! $this->isPendingAdmin()) {
             return 6;
+        }
+
+        if ($this->hasSlaPaused()) {
+            return 7;
         }
 
         $status = $this->slaStatus($now);

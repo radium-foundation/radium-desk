@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\Workspace\WorkspaceActionResponse;
 use App\Data\Workspace\WorkspaceRequestContext;
+use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
@@ -18,6 +19,7 @@ class WorkspaceRequestSerialActionService
     public function __construct(
         private readonly WhatsAppAutomationDispatcher $automationDispatcher,
         private readonly RequestSerialNumberEligibilityService $eligibilityService,
+        private readonly IncidentWaitingStateService $waitingStateService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
     ) {}
 
@@ -63,6 +65,12 @@ class WorkspaceRequestSerialActionService
                 ->withUi(closeWorkspaceHost: false)
                 ->build();
         }
+
+        $this->waitingStateService->start(
+            incident: $incident,
+            reason: WaitingReason::SerialNumber,
+            actor: $actor,
+        );
 
         $effects = $this->refreshPolicy->effectsFor(
             $requestContext->context,

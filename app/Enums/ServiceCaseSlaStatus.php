@@ -7,6 +7,7 @@ enum ServiceCaseSlaStatus: string
     case WithinSla = 'within_sla';
     case Warning = 'warning';
     case Overdue = 'overdue';
+    case Paused = 'paused';
 
     public function label(): string
     {
@@ -14,6 +15,7 @@ enum ServiceCaseSlaStatus: string
             self::WithinSla => 'Within SLA',
             self::Warning => 'Warning',
             self::Overdue => 'Overdue',
+            self::Paused => 'Paused',
         };
     }
 
@@ -23,6 +25,7 @@ enum ServiceCaseSlaStatus: string
             self::WithinSla => '🟢',
             self::Warning => '🟡',
             self::Overdue => '🔴',
+            self::Paused => '⏸',
         };
     }
 
@@ -32,6 +35,7 @@ enum ServiceCaseSlaStatus: string
             self::WithinSla => 'sla-status--within',
             self::Warning => 'sla-status--warning',
             self::Overdue => 'sla-status--overdue',
+            self::Paused => 'sla-status--paused',
         };
     }
 
@@ -41,6 +45,7 @@ enum ServiceCaseSlaStatus: string
             self::WithinSla => 'dashboard-sla-tooltip-duration--within',
             self::Warning => 'dashboard-sla-tooltip-duration--warning',
             self::Overdue => 'dashboard-sla-tooltip-duration--overdue',
+            self::Paused => 'dashboard-sla-tooltip-duration--paused',
         };
     }
 }
