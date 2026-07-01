@@ -60,13 +60,16 @@ class Customer360DrawerTest extends TestCase
         $response->assertHeader('Content-Type', 'text/html; charset=UTF-8');
         $response->assertSee('Drawer Customer', false);
         $response->assertSee('9123456780', false);
-        $response->assertSee('Customer Summary', false);
+        $response->assertSee('data-customer-360-section="health-card"', false);
         $response->assertSee('Customer Timeline', false);
         $response->assertSee('data-unified-timeline', false);
+        $response->assertSee('data-timeline-filters', false);
         $response->assertSee('Quick Actions', false);
-        $response->assertSee('data-customer-360-section="customer"', false);
-        $response->assertSee('Copy Serial', false);
-        $response->assertSee('Copy Mobile', false);
+        $response->assertSee('Copy Phone', false);
+        $response->assertSee('Copy Email', false);
+        $response->assertSee('Coming soon', false);
+        $response->assertSee('timeline-actor-badge', false);
+        $response->assertSee('unified-timeline-filter-chip', false);
     }
 
     public function test_customer_360_endpoint_requires_authentication(): void

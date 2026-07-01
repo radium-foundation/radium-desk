@@ -40,6 +40,10 @@ class WhatsAppTimelineEventSource implements TimelineEventSource
             ?? $message->read_at
             ?? $message->created_at;
 
+        $statusLabel = $message->direction === InteraktMessageDirection::Outgoing
+            ? $this->deliveryStatusLabel($message->delivery_status)
+            : null;
+
         return new TimelineEvent(
             type: TimelineEventType::WhatsApp,
             occurredAt: $occurredAt,
@@ -48,6 +52,8 @@ class WhatsAppTimelineEventSource implements TimelineEventSource
             dedupeKey: "whatsapp:{$message->message_id}",
             summary: $this->resolveSummary($message),
             detail: $this->resolveDetail($message),
+            statusLabel: $statusLabel,
+            statusVariant: $this->deliveryStatusVariant($message->delivery_status),
         );
     }
 
@@ -79,21 +85,11 @@ class WhatsAppTimelineEventSource implements TimelineEventSource
 
     private function resolveDetail(InteraktMessage $message): ?string
     {
-        $parts = [];
-
-        if ($message->direction === InteraktMessageDirection::Outgoing) {
-            $statusLabel = $this->deliveryStatusLabel($message->delivery_status);
-
-            if ($statusLabel !== null) {
-                $parts[] = $statusLabel;
-            }
+        if (! filled($message->media_url)) {
+            return null;
         }
 
-        if (filled($message->media_url)) {
-            $parts[] = $message->media_url;
-        }
-
-        return $parts === [] ? null : implode(' · ', $parts);
+        return $message->media_url;
     }
 
     private function deliveryStatusLabel(?InteraktDeliveryStatus $status): ?string
@@ -104,6 +100,18 @@ class WhatsAppTimelineEventSource implements TimelineEventSource
             InteraktDeliveryStatus::Read => 'Read',
             InteraktDeliveryStatus::Failed => 'Failed',
             InteraktDeliveryStatus::Pending => 'Pending',
+            default => null,
+        };
+    }
+
+    private function deliveryStatusVariant(?InteraktDeliveryStatus $status): ?string
+    {
+        return match ($status) {
+            InteraktDeliveryStatus::Sent => 'sent',
+            InteraktDeliveryStatus::Delivered => 'delivered',
+            InteraktDeliveryStatus::Read => 'read',
+            InteraktDeliveryStatus::Failed => 'failed',
+            InteraktDeliveryStatus::Pending => 'pending',
             default => null,
         };
     }

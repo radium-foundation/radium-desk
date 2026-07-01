@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\TimelineViewModel;
 use App\Enums\IncidentStatus;
+use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -32,15 +33,20 @@ class Customer360Service
 
         $fullModelName = $order->displayDeviceModelName();
         $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
+        $customer = $this->customerSection($order);
+        $activeServices = $this->activeServices($order, $enrichmentMetadata);
+        $summary = $this->customerSummary($order->customer_phone);
+        $timeline = $this->customer360TimelineService->forOrder($order);
 
         return [
             'incident' => $incident,
             'order' => $order,
-            'customer' => $this->customerSection($order),
+            'customer' => $customer,
             'device' => $this->deviceSection($order, $fullModelName),
-            'activeServices' => $this->activeServices($order, $enrichmentMetadata),
-            'summary' => $this->customerSummary($order->customer_phone),
-            'timeline' => $this->customer360TimelineService->forOrder($order),
+            'activeServices' => $activeServices,
+            'summary' => $summary,
+            'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary, $timeline),
+            'timeline' => $timeline,
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
         ];
     }
@@ -147,6 +153,78 @@ class Customer360Service
         ];
     }
 
+    /**
+     * @param  array<string, string|null>  $customer
+     * @param  list<array{label: string, status: string, variant: string}>  $activeServices
+     * @param  array<string, int>  $summary
+     * @return array<string, mixed>
+     */
+    private function healthCard(
+        Order $order,
+        array $customer,
+        array $activeServices,
+        array $summary,
+        TimelineViewModel $timeline,
+    ): array {
+        $events = $timeline->events();
+        $lastPaymentEvent = $events->first(fn ($event) => $event->type === TimelineEventType::Payment);
+        $lastWhatsAppEvent = $events->first(fn ($event) => $event->type === TimelineEventType::WhatsApp);
+        $lastInteraction = $events->first();
+        $warranty = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
+
+        return [
+            'name' => $customer['name'],
+            'phone' => $customer['mobile'],
+            'email' => $customer['email'],
+            'warranty_status' => $warranty,
+            'active_service_cases' => $summary['open_cases'] ?? 0,
+            'last_payment' => $this->resolveLastPayment($order, $lastPaymentEvent),
+            'last_whatsapp_status' => $lastWhatsAppEvent?->statusLabel,
+            'last_interaction_at' => $lastInteraction?->occurredAt,
+            'last_call' => null,
+            'last_email' => null,
+        ];
+    }
+
+    /**
+     * @return array{label: string, occurred_at: \Illuminate\Support\Carbon}|null
+     */
+    private function resolveLastPayment(Order $order, ?\App\Data\TimelineEvent $paymentEvent): ?array
+    {
+        if ($paymentEvent !== null) {
+            $label = $paymentEvent->summary ?? $paymentEvent->title;
+
+            return [
+                'label' => $label,
+                'occurred_at' => $paymentEvent->occurredAt,
+            ];
+        }
+
+        if ($order->payment_date === null) {
+            return null;
+        }
+
+        return [
+            'label' => $this->formatPaymentSummary($order) ?? 'Payment received',
+            'occurred_at' => $order->payment_date,
+        ];
+    }
+
+    private function formatPaymentSummary(Order $order): ?string
+    {
+        $parts = [];
+
+        if ($order->payment_amount !== null) {
+            $parts[] = '₹'.number_format((float) $order->payment_amount, 2);
+        }
+
+        if (filled($order->payment_method)) {
+            $parts[] = (string) $order->payment_method;
+        }
+
+        return $parts === [] ? null : implode(' · ', $parts);
+    }
+
     private function normalizeServiceStatus(mixed $value): string
     {
         if (! is_string($value) || trim($value) === '') {
@@ -183,6 +261,18 @@ class Customer360Service
                 'total_devices' => 0,
                 'open_cases' => 0,
                 'closed_cases' => 0,
+            ],
+            'healthCard' => [
+                'name' => null,
+                'phone' => null,
+                'email' => null,
+                'warranty_status' => 'Not Available',
+                'active_service_cases' => 0,
+                'last_payment' => null,
+                'last_whatsapp_status' => null,
+                'last_interaction_at' => null,
+                'last_call' => null,
+                'last_email' => null,
             ],
             'timeline' => new TimelineViewModel(
                 groups: collect(),

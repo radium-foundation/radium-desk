@@ -82,7 +82,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
                 await copyTextToClipboard(value);
 
-                const label = button.dataset.customer360Copy === 'mobile' ? 'Mobile number' : 'Serial number';
+                const label = ({
+                    mobile: 'Mobile number',
+                    phone: 'Phone number',
+                    email: 'Email address',
+                    serial: 'Serial number',
+                })[button.dataset.customer360Copy] ?? 'Value';
                 showToast?.(`${label} copied`);
             });
         });

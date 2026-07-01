@@ -6,15 +6,26 @@
     'emptyMessage' => 'No activity recorded yet.',
     'loadMoreUrl' => null,
     'showLoadMore' => true,
+    'showFilters' => false,
 ])
 
 @php
     /** @var \App\Data\TimelineViewModel $viewModel */
+    $filterEmptyMessages = [
+        'all' => $emptyMessage,
+        'whatsapp' => 'No WhatsApp activity',
+        'payments' => 'No Payments',
+        'repairs' => 'No Repairs',
+        'notes' => 'No Notes',
+        'assignments' => 'No Assignments',
+        'audit' => 'No Audit Events',
+    ];
 @endphp
 
 <div @class([
     'unified-timeline-wrap',
     'unified-timeline-wrap--compact' => $compact,
+    'unified-timeline-wrap--filtered' => $showFilters,
 ]) data-unified-timeline>
     @if($showHeading)
         <h3 @class([
@@ -24,8 +35,34 @@
         ])>{{ $heading }}</h3>
     @endif
 
+    @if($showFilters)
+        <div class="unified-timeline-filters" role="toolbar" aria-label="Timeline filters" data-timeline-filters>
+            @foreach([
+                'all' => 'All',
+                'whatsapp' => 'WhatsApp',
+                'payments' => 'Payments',
+                'repairs' => 'Repairs',
+                'notes' => 'Notes',
+                'assignments' => 'Assignments',
+                'audit' => 'Audit',
+            ] as $filterKey => $filterLabel)
+                <button type="button"
+                        @class([
+                            'unified-timeline-filter-chip',
+                            'is-active' => $filterKey === 'all',
+                        ])
+                        data-timeline-filter-chip="{{ $filterKey }}"
+                        aria-pressed="{{ $filterKey === 'all' ? 'true' : 'false' }}">
+                    {{ $filterLabel }}
+                </button>
+            @endforeach
+        </div>
+        <div class="unified-timeline-filter-empty d-none" role="status" data-timeline-filter-empty hidden></div>
+        <template data-timeline-filter-empty-messages>@json($filterEmptyMessages)</template>
+    @endif
+
     @if($viewModel->isEmpty())
-        <div class="unified-timeline-empty" role="status">
+        <div class="unified-timeline-empty" role="status" data-timeline-global-empty>
             <i class="bi bi-clock-history" aria-hidden="true"></i>
             <p class="mb-0">{{ $emptyMessage }}</p>
         </div>

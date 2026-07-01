@@ -72,6 +72,8 @@ class WhatsAppTimelineEventSourceTest extends TestCase
         $this->assertSame('Need an update', $incoming->summary);
         $this->assertSame('Template', $outgoing->actor->displayName);
         $this->assertSame('Repair Started', $outgoing->actor->subtitle);
-        $this->assertSame('Read', $outgoing->detail);
+        $this->assertSame('Read', $outgoing->statusLabel);
+        $this->assertSame('read', $outgoing->statusVariant);
+        $this->assertNull($outgoing->detail);
     }
 }

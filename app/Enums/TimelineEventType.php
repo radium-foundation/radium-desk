@@ -67,4 +67,17 @@ enum TimelineEventType: string
             default => false,
         };
     }
+
+    public function filterCategory(): string
+    {
+        return match ($this) {
+            self::WhatsApp => 'whatsapp',
+            self::Payment => 'payments',
+            self::ServiceCaseCreated => 'repairs',
+            self::InternalNote => 'notes',
+            self::Assignment => 'assignments',
+            self::AuditEvent => 'audit',
+            default => 'audit',
+        };
+    }
 }

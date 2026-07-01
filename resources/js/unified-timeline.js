@@ -1,12 +1,129 @@
+export const TIMELINE_FILTER_EMPTY_MESSAGES = {
+    all: 'No customer activity recorded yet.',
+    whatsapp: 'No WhatsApp activity',
+    payments: 'No Payments',
+    repairs: 'No Repairs',
+    notes: 'No Notes',
+    assignments: 'No Assignments',
+    audit: 'No Audit Events',
+};
+
+const parseFilterEmptyMessages = (timeline) => {
+    const template = timeline.querySelector('[data-timeline-filter-empty-messages]');
+
+    if (!template?.textContent) {
+        return TIMELINE_FILTER_EMPTY_MESSAGES;
+    }
+
+    try {
+        return {
+            ...TIMELINE_FILTER_EMPTY_MESSAGES,
+            ...JSON.parse(template.textContent),
+        };
+    } catch {
+        return TIMELINE_FILTER_EMPTY_MESSAGES;
+    }
+};
+
+export const applyTimelineFilter = (timeline, filterKey, emptyMessages) => {
+    const events = timeline.querySelectorAll('[data-timeline-event]');
+    let visibleCount = 0;
+
+    events.forEach((eventNode) => {
+        const eventFilter = eventNode.dataset.timelineFilter ?? '';
+        const isVisible = filterKey === 'all' || eventFilter === filterKey;
+
+        eventNode.classList.toggle('is-filter-hidden', !isVisible);
+        eventNode.hidden = !isVisible;
+
+        if (isVisible) {
+            visibleCount += 1;
+        }
+    });
+
+    timeline.querySelectorAll('[data-timeline-group]').forEach((group) => {
+        const visibleEvents = group.querySelectorAll('[data-timeline-event]:not(.is-filter-hidden)');
+        group.classList.toggle('is-filter-empty', visibleEvents.length === 0);
+        group.hidden = visibleEvents.length === 0;
+    });
+
+    const filterEmpty = timeline.querySelector('[data-timeline-filter-empty]');
+    const globalEmpty = timeline.querySelector('[data-timeline-global-empty]');
+    const list = timeline.querySelector('[data-timeline-list]');
+    const loadMoreWrap = timeline.querySelector('[data-timeline-load-more-wrap]');
+
+    if (filterEmpty) {
+        const message = emptyMessages[filterKey] ?? emptyMessages.all;
+
+        if (filterKey !== 'all' && events.length > 0 && visibleCount === 0) {
+            filterEmpty.textContent = message;
+            filterEmpty.classList.remove('d-none');
+            filterEmpty.hidden = false;
+        } else {
+            filterEmpty.textContent = '';
+            filterEmpty.classList.add('d-none');
+            filterEmpty.hidden = true;
+        }
+    }
+
+    if (list) {
+        list.hidden = filterKey !== 'all' && events.length > 0 && visibleCount === 0;
+    }
+
+    if (globalEmpty) {
+        globalEmpty.hidden = filterKey !== 'all';
+    }
+
+    if (loadMoreWrap) {
+        loadMoreWrap.hidden = filterKey !== 'all';
+    }
+};
+
+const bindTimelineFilters = (timeline) => {
+    const filterHost = timeline.querySelector('[data-timeline-filters]');
+
+    if (!filterHost || filterHost.dataset.timelineFiltersBound === 'true') {
+        return;
+    }
+
+    filterHost.dataset.timelineFiltersBound = 'true';
+
+    const emptyMessages = parseFilterEmptyMessages(timeline);
+    let activeFilter = 'all';
+
+    filterHost.addEventListener('click', (event) => {
+        const chip = event.target.closest('[data-timeline-filter-chip]');
+
+        if (!chip || !filterHost.contains(chip)) {
+            return;
+        }
+
+        activeFilter = chip.dataset.timelineFilterChip ?? 'all';
+
+        filterHost.querySelectorAll('[data-timeline-filter-chip]').forEach((button) => {
+            const isActive = button === chip;
+            button.classList.toggle('is-active', isActive);
+            button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+
+        applyTimelineFilter(timeline, activeFilter, emptyMessages);
+    });
+
+    applyTimelineFilter(timeline, activeFilter, emptyMessages);
+};
+
 export const initUnifiedTimeline = (root = document) => {
     const timelines = root.querySelectorAll('[data-unified-timeline]');
 
     timelines.forEach((timeline) => {
         if (timeline.dataset.timelineBound === 'true') {
+            bindTimelineFilters(timeline);
+
             return;
         }
 
         timeline.dataset.timelineBound = 'true';
+        bindTimelineFilters(timeline);
 
         timeline.addEventListener('click', async (event) => {
             const button = event.target.closest('[data-timeline-load-more]');
@@ -75,6 +192,10 @@ export const initUnifiedTimeline = (root = document) => {
                         loadMoreWrap.remove();
                     }
                 }
+
+                const activeChip = timeline.querySelector('[data-timeline-filter-chip].is-active');
+                const activeFilter = activeChip?.dataset.timelineFilterChip ?? 'all';
+                applyTimelineFilter(timeline, activeFilter, parseFilterEmptyMessages(timeline));
             } catch (error) {
                 // Ignore transient network errors during timeline pagination.
             } finally {

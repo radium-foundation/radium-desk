@@ -3,6 +3,7 @@
         :viewModel="$timeline"
         heading="Customer Timeline"
         :compact="true"
+        :showFilters="true"
         :loadMoreUrl="$timelineLoadMoreUrl ?? null"
         emptyMessage="No customer activity recorded yet."
     />

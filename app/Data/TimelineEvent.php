@@ -18,7 +18,14 @@ readonly class TimelineEvent
         public string $dedupeKey,
         public ?string $summary = null,
         public ?string $detail = null,
+        public ?string $statusLabel = null,
+        public ?string $statusVariant = null,
     ) {}
+
+    public function filterCategory(): string
+    {
+        return $this->type->filterCategory();
+    }
 
     public function iconClass(): string
     {
