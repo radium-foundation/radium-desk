@@ -2,19 +2,19 @@
 
 namespace App\Services;
 
+use App\Data\TimelineViewModel;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\Timeline\Customer360TimelineService;
+use App\Services\Timeline\TimelineService;
 use App\Support\DeviceModelFormatter;
-use Illuminate\Support\Collection;
 
 class Customer360Service
 {
-    private const TIMELINE_LIMIT = 8;
-
     public function __construct(
-        private readonly OrderActivityTimelineService $orderActivityTimelineService,
+        private readonly Customer360TimelineService $customer360TimelineService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $enrichmentSyncStore,
     ) {}
 
@@ -40,7 +40,8 @@ class Customer360Service
             'device' => $this->deviceSection($order, $fullModelName),
             'activeServices' => $this->activeServices($order, $enrichmentMetadata),
             'summary' => $this->customerSummary($order->customer_phone),
-            'timeline' => $this->recentTimeline($order),
+            'timeline' => $this->customer360TimelineService->forOrder($order),
+            'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
         ];
     }
 
@@ -146,13 +147,6 @@ class Customer360Service
         ];
     }
 
-    private function recentTimeline(Order $order): Collection
-    {
-        return $this->orderActivityTimelineService
-            ->forOrder($order)
-            ->take(self::TIMELINE_LIMIT);
-    }
-
     private function normalizeServiceStatus(mixed $value): string
     {
         if (! is_string($value) || trim($value) === '') {
@@ -190,7 +184,15 @@ class Customer360Service
                 'open_cases' => 0,
                 'closed_cases' => 0,
             ],
-            'timeline' => collect(),
+            'timeline' => new TimelineViewModel(
+                groups: collect(),
+                totalCount: 0,
+                loadedCount: 0,
+                offset: 0,
+                limit: TimelineService::DEFAULT_PAGE_SIZE,
+                hasMore: false,
+            ),
+            'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
         ];
     }
 }

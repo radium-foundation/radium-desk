@@ -106,7 +106,8 @@ class Customer360ServiceTest extends TestCase
         $this->assertSame(2, $data['summary']['total_devices']);
         $this->assertSame(1, $data['summary']['open_cases']);
         $this->assertSame(1, $data['summary']['closed_cases']);
-        $this->assertLessThanOrEqual(8, $data['timeline']->count());
+        $this->assertInstanceOf(\App\Data\TimelineViewModel::class, $data['timeline']);
+        $this->assertLessThanOrEqual(8, $data['timeline']->events()->count());
     }
 
     public function test_active_services_show_not_available_when_enrichment_missing(): void

@@ -1,4 +1,5 @@
 import { getWorkspaceSession } from './workspace/session';
+import { initUnifiedTimeline } from './unified-timeline';
 
 const SESSION_REASON = 'customer-360-drawer';
 
@@ -112,6 +113,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             const html = await response.text();
             contentHost.innerHTML = html;
             bindCopyActions();
+            initUnifiedTimeline(contentHost);
             initTooltips?.(contentHost);
         } catch (error) {
             if (error.name === 'AbortError') {

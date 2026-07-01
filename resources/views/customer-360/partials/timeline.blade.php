@@ -1,9 +1,9 @@
 <section class="customer-360-section" data-customer-360-section="timeline" aria-labelledby="customer-360-timeline-heading">
-    @include('orders.workspace.partials.timeline', [
-        'activityTimeline' => $timeline,
-        'compact' => true,
-        'showHeading' => true,
-        'heading' => 'Recent Timeline',
-        'emptyMessage' => 'No activity recorded yet.',
-    ])
+    <x-timeline-renderer
+        :viewModel="$timeline"
+        heading="Customer Timeline"
+        :compact="true"
+        :loadMoreUrl="$timelineLoadMoreUrl ?? null"
+        emptyMessage="No customer activity recorded yet."
+    />
 </section>

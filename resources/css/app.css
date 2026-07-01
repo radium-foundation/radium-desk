@@ -3680,6 +3680,169 @@ a:focus-visible .stat-card {
     padding-bottom: 0.625rem;
 }
 
+/* Unified Customer Timeline */
+.unified-timeline-wrap {
+    margin-top: 0;
+}
+
+.unified-timeline-heading {
+    margin: 0 0 0.625rem;
+}
+
+.unified-timeline-empty {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--dashboard-color-muted);
+    padding: 0.25rem 0;
+}
+
+.unified-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.unified-timeline-group-label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--dashboard-color-muted);
+    margin: 0 0 0.5rem;
+}
+
+.unified-timeline-group-items {
+    position: relative;
+    padding-left: 1.75rem;
+}
+
+.unified-timeline-group-items::before {
+    content: '';
+    position: absolute;
+    left: 0.6875rem;
+    top: 0.375rem;
+    bottom: 0.375rem;
+    width: 2px;
+    background: #dee2e6;
+}
+
+.unified-timeline-item {
+    position: relative;
+    padding-bottom: 1rem;
+}
+
+.unified-timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.unified-timeline-icon {
+    position: absolute;
+    left: -1.75rem;
+    top: 0.125rem;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 50%;
+    background: var(--dashboard-card-bg, #fff);
+    border: 2px solid rgba(13, 110, 253, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.625rem;
+    color: var(--dashboard-accent-primary, #0d6efd);
+}
+
+.unified-timeline-icon--payment {
+    border-color: rgba(25, 135, 84, 0.45);
+    color: #198754;
+}
+
+.unified-timeline-icon--service_case_created {
+    border-color: rgba(13, 110, 253, 0.45);
+}
+
+.unified-timeline-icon--assignment {
+    border-color: rgba(111, 66, 193, 0.45);
+    color: #6f42c1;
+}
+
+.unified-timeline-icon--internal_note {
+    border-color: rgba(255, 193, 7, 0.55);
+    color: #cc9a06;
+}
+
+.unified-timeline-icon--audit_event {
+    border-color: rgba(108, 117, 125, 0.45);
+    color: #6c757d;
+}
+
+.unified-timeline-time {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--dashboard-color-muted);
+    margin-bottom: 0.125rem;
+    cursor: help;
+}
+
+.unified-timeline-title {
+    font-weight: 600;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+}
+
+.unified-timeline-actor {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--dashboard-color-muted);
+    margin-top: 0.125rem;
+}
+
+.unified-timeline-detail {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    margin-top: 0.375rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.unified-timeline-details {
+    margin-top: 0.375rem;
+}
+
+.unified-timeline-details-summary {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    cursor: pointer;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.unified-timeline-details-body {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    margin-top: 0.375rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.unified-timeline-load-more-wrap {
+    margin-top: 0.75rem;
+    display: flex;
+    justify-content: center;
+}
+
+.unified-timeline-wrap--compact .unified-timeline-item {
+    padding-bottom: 0.625rem;
+}
+
+.unified-timeline-wrap--compact .unified-timeline-title {
+    font-size: 0.8125rem;
+}
+
 .dashboard-case-row--clickable {
     cursor: pointer;
 }

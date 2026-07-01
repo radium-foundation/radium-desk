@@ -71,4 +71,11 @@ class AppDateFormatter
 
         return "{$formattedDate} • {$formattedTime}";
     }
+
+    public static function timelineRelative(?CarbonInterface $date): ?string
+    {
+        $localized = self::inAppTimezone($date);
+
+        return $localized?->diffForHumans();
+    }
 }

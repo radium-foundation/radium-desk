@@ -49,6 +49,11 @@ function display_app_timeline_datetime(?CarbonInterface $date, string $fallback 
     return AppDateFormatter::timelineDatetime($date) ?? $fallback;
 }
 
+function display_app_timeline_relative(?CarbonInterface $date, string $fallback = '—'): string
+{
+    return AppDateFormatter::timelineRelative($date) ?? $fallback;
+}
+
 function display_device_model_short(?string $fullModel, string $fallback = '—'): string
 {
     return DeviceModelFormatter::shortDisplay($fullModel) ?? $fallback;

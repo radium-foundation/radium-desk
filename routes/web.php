@@ -52,6 +52,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.row');
     Route::get('dashboard/service-cases/{incident}/customer-360', [Customer360Controller::class, 'show'])
         ->name('dashboard.service-cases.customer-360');
+    Route::get('dashboard/service-cases/{incident}/customer-360/timeline', [Customer360Controller::class, 'timeline'])
+        ->name('dashboard.service-cases.customer-360.timeline');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
         ->name('dashboard.transactions.bulk');
     Route::get('dashboard/components/batch-transaction', [DashboardWorkspaceComponentController::class, 'batchTransaction'])
