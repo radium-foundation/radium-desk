@@ -50,6 +50,8 @@ class InteraktMessageStore
                 'channel_failure_reason' => $this->payloadParser->channelFailureReason($payload) ?? $existing?->channel_failure_reason,
                 'channel_error_code' => $this->payloadParser->channelErrorCode($payload) ?? $existing?->channel_error_code,
                 'callback_data' => $this->payloadParser->callbackData($payload) ?? $existing?->callback_data,
+                'interakt_customer_id' => $this->payloadParser->customerId($payload) ?? $existing?->interakt_customer_id,
+                'conversation_id' => $this->payloadParser->conversationId($payload) ?? $existing?->conversation_id,
                 'sent_at' => $this->resolveSentAt($payload, $existing),
                 'delivered_at' => $this->resolveDeliveredAt($payload, $existing),
                 'read_at' => $this->resolveReadAt($payload, $existing),

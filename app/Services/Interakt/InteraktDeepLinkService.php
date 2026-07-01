@@ -2,36 +2,36 @@
 
 namespace App\Services\Interakt;
 
-use App\Models\WhatsAppCommunicationSummary;
+use App\Data\WhatsAppConversationSnapshot;
 
 class InteraktDeepLinkService
 {
-    public function conversationUrl(WhatsAppCommunicationSummary $summary): string
+    public function conversationUrl(WhatsAppConversationSnapshot $snapshot): string
     {
         $conversationTemplate = (string) config('interakt.conversation_url_template');
 
         if ($conversationTemplate !== '') {
-            return $this->applyTemplate($conversationTemplate, $summary);
+            return $this->applyTemplate($conversationTemplate, $snapshot);
         }
 
-        if (filled($summary->interakt_customer_id)) {
+        if (filled($snapshot->interaktCustomerId)) {
             return $this->applyTemplate(
                 (string) config('interakt.customer_profile_url_template'),
-                $summary,
+                $snapshot,
             );
         }
 
         return (string) config('interakt.app_url');
     }
 
-    private function applyTemplate(string $template, WhatsAppCommunicationSummary $summary): string
+    private function applyTemplate(string $template, WhatsAppConversationSnapshot $snapshot): string
     {
         $replacements = [
             '{app_url}' => rtrim((string) config('interakt.app_url'), '/'),
-            '{customer_id}' => (string) ($summary->interakt_customer_id ?? ''),
-            '{conversation_id}' => (string) ($summary->conversation_id ?? ''),
-            '{phone}' => (string) $summary->customer_phone,
-            '{message_id}' => (string) ($summary->last_message_id ?? ''),
+            '{customer_id}' => (string) ($snapshot->interaktCustomerId ?? ''),
+            '{conversation_id}' => (string) ($snapshot->conversationId ?? ''),
+            '{phone}' => $snapshot->customerPhone,
+            '{message_id}' => (string) ($snapshot->lastMessageId ?? ''),
         ];
 
         $url = strtr($template, $replacements);

@@ -15,7 +15,6 @@ class InteraktWebhookProcessorService
     public function __construct(
         private readonly InteraktWebhookPayloadParser $payloadParser,
         private readonly InteraktMessageStore $messageStore,
-        private readonly WhatsAppCommunicationSummaryStore $summaryStore,
     ) {}
 
     public function process(InteraktWebhookLog $webhookLog): InteraktWebhookLog
@@ -35,8 +34,6 @@ class InteraktWebhookProcessorService
                 if ($message === null) {
                     throw new RuntimeException('Interakt webhook payload is missing message id.');
                 }
-
-                $this->summaryStore->refreshForMessage($message, $payload);
 
                 $this->markProcessed($webhookLog);
             });

@@ -21,6 +21,8 @@ class InteraktMessage extends Model
         'channel_failure_reason',
         'channel_error_code',
         'callback_data',
+        'interakt_customer_id',
+        'conversation_id',
         'sent_at',
         'delivered_at',
         'read_at',

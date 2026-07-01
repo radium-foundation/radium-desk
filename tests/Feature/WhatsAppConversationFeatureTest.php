@@ -6,12 +6,10 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\InteraktMessageDirection;
 use App\Enums\TimelineEventType;
-use App\Enums\WhatsAppConversationStatus;
 use App\Models\Incident;
 use App\Models\InteraktMessage;
 use App\Models\Order;
 use App\Models\User;
-use App\Models\WhatsAppCommunicationSummary;
 use App\Services\IncidentReferenceService;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\UniversalSearchService;
@@ -20,7 +18,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\InteractsWithInteraktWebhooks;
 use Tests\TestCase;
 
-class WhatsAppCommunicationSummaryFeatureTest extends TestCase
+class WhatsAppConversationFeatureTest extends TestCase
 {
     use InteractsWithInteraktWebhooks;
     use RefreshDatabase;
@@ -37,7 +35,7 @@ class WhatsAppCommunicationSummaryFeatureTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_webhook_updates_summary_and_timeline_shows_single_card(): void
+    public function test_webhook_messages_produce_single_runtime_timeline_card(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -58,11 +56,8 @@ class WhatsAppCommunicationSummaryFeatureTest extends TestCase
             channelPhoneNumber: '919876543210',
         ))->assertOk();
 
-        $this->assertDatabaseHas('whatsapp_communication_summaries', [
-            'customer_phone' => '9876543210',
-            'messages_exchanged_count' => 2,
-            'conversation_status' => WhatsAppConversationStatus::WaitingForAgent->value,
-        ]);
+        $this->assertFalse(\Illuminate\Support\Facades\Schema::hasTable('whatsapp_communication_summaries'));
+        $this->assertSame(2, InteraktMessage::query()->where('customer_phone', '9876543210')->count());
 
         $timeline = app(Customer360TimelineService::class)->forOrder($order);
         $whatsappEvents = $timeline->groups
@@ -73,11 +68,12 @@ class WhatsAppCommunicationSummaryFeatureTest extends TestCase
         $event = $whatsappEvents->first();
         $this->assertSame('whatsapp:summary:9876543210', $event->dedupeKey);
         $this->assertSame('2 exchanged', collect($event->summaryFields)->firstWhere('label', 'Messages')['value']);
+        $this->assertSame('Waiting for Agent', $event->statusLabel);
         $this->assertSame('Open in Interakt', $event->actionLabel);
         $this->assertStringContainsString('52918eb3-bd00-4331-a51d-c4dcffee48d6', (string) $event->actionUrl);
     }
 
-    public function test_drawer_renders_open_in_interakt_link(): void
+    public function test_drawer_renders_open_in_interakt_link_without_message_text(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -105,17 +101,26 @@ class WhatsAppCommunicationSummaryFeatureTest extends TestCase
             'assigned_to_user_id' => $agent->id,
         ]);
 
-        WhatsAppCommunicationSummary::query()->create([
+        InteraktMessage::query()->create([
+            'message_id' => 'msg-ui-001',
             'customer_phone' => '9876543210',
+            'direction' => InteraktMessageDirection::Outgoing,
+            'message_type' => 'template',
+            'template_name' => 'Repair Started',
             'interakt_customer_id' => 'cust-ui-001',
-            'conversation_status' => WhatsAppConversationStatus::WaitingForCustomer,
-            'messages_exchanged_count' => 6,
-            'last_template_name' => 'Repair Started',
-            'last_message_id' => 'msg-ui-001',
-            'last_sender' => 'template',
-            'last_activity_at' => now(),
-            'last_communication_at' => now(),
+            'sent_at' => now(),
         ]);
+
+        for ($index = 2; $index <= 6; $index++) {
+            InteraktMessage::query()->create([
+                'message_id' => 'msg-ui-00'.$index,
+                'customer_phone' => '9876543210',
+                'direction' => InteraktMessageDirection::Incoming,
+                'message_type' => 'text',
+                'text' => 'Casual greeting '.$index,
+                'sent_at' => now()->subMinutes($index),
+            ]);
+        }
 
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
@@ -125,6 +130,7 @@ class WhatsAppCommunicationSummaryFeatureTest extends TestCase
             ->assertSee('Repair Started', false)
             ->assertSee('Open in Interakt', false)
             ->assertSee('https://app.interakt.ai/inbox/cust-ui-001', false)
+            ->assertDontSee('Casual greeting', false)
             ->assertDontSee('When will my device be ready?', false);
     }
 
@@ -156,16 +162,6 @@ class WhatsAppCommunicationSummaryFeatureTest extends TestCase
             'assigned_to_user_id' => $agent->id,
         ]);
 
-        WhatsAppCommunicationSummary::query()->create([
-            'customer_phone' => '9000000099',
-            'conversation_status' => WhatsAppConversationStatus::WaitingForCustomer,
-            'messages_exchanged_count' => 3,
-            'last_template_name' => 'Repair Started',
-            'last_message_id' => 'msg-search-001',
-            'last_activity_at' => now(),
-            'last_communication_at' => now(),
-        ]);
-
         InteraktMessage::query()->create([
             'message_id' => 'msg-search-001',
             'customer_phone' => '9000000099',
@@ -179,5 +175,40 @@ class WhatsAppCommunicationSummaryFeatureTest extends TestCase
         $results = app(UniversalSearchService::class)->search($agent, 'Repair Started');
 
         $this->assertTrue($results->contains(fn ($row) => $row->is($incident)));
+    }
+
+    public function test_aggregator_uses_count_and_limit_queries(): void
+    {
+        InteraktMessage::query()->create([
+            'message_id' => 'msg-perf-1',
+            'customer_phone' => '9876543210',
+            'direction' => InteraktMessageDirection::Incoming,
+            'message_type' => 'text',
+            'text' => 'Hello',
+            'sent_at' => now()->subMinutes(10),
+        ]);
+
+        InteraktMessage::query()->create([
+            'message_id' => 'msg-perf-2',
+            'customer_phone' => '9876543210',
+            'direction' => InteraktMessageDirection::Outgoing,
+            'message_type' => 'template',
+            'template_name' => 'Repair Started',
+            'sent_at' => now(),
+        ]);
+
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+
+        app(\App\Services\Interakt\WhatsAppConversationAggregator::class)->forPhone('9876543210');
+
+        $queries = collect(\Illuminate\Support\Facades\DB::getQueryLog())
+            ->pluck('query')
+            ->filter(fn (string $query) => str_contains($query, 'interakt_messages'));
+
+        $this->assertSame(2, $queries->count());
+        $this->assertTrue($queries->contains(fn (string $query) => str_contains($query, 'count')));
+        $this->assertTrue($queries->contains(fn (string $query) => str_contains($query, 'limit 1') || str_contains($query, 'limit 1 offset 0')));
+
+        \Illuminate\Support\Facades\DB::disableQueryLog();
     }
 }
