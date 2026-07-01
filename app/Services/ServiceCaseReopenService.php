@@ -21,7 +21,6 @@ class ServiceCaseReopenService
         Incident $incident,
         User $actor,
         string $body,
-        string $reason,
         ?User $assignee = null,
         ?Request $request = null,
     ): Incident {
@@ -31,7 +30,7 @@ class ServiceCaseReopenService
             ]);
         }
 
-        return DB::transaction(function () use ($incident, $actor, $body, $reason, $assignee, $request): Incident {
+        return DB::transaction(function () use ($incident, $actor, $body, $assignee, $request): Incident {
             $this->remarkService->createForRemarkable(
                 remarkable: $incident,
                 actor: $actor,

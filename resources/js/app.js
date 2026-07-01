@@ -528,7 +528,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            const modalHost = document.querySelector('[data-workspace-modal-host]');
             const modalContent = document.querySelector('[data-workspace-modal-content]');
+
+            modalHost?.classList.toggle('workspace-modal--compact', component === 'action');
 
             if (component === 'remark' || component === 'action' || component === 'resolve' || component === 'close') {
                 initMentionTextareas(modalContent);
@@ -542,6 +545,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 initBatchTransactionForm(modalContent, showAppToast);
                 initTooltips(modalContent);
             }
+        },
+        afterClose: (host) => {
+            host?.classList.remove('workspace-modal--compact');
         },
     });
 

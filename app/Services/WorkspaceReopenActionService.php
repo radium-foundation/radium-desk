@@ -26,7 +26,6 @@ class WorkspaceReopenActionService
         Incident $incident,
         User $actor,
         string $body,
-        string $reason,
         WorkspaceRequestContext $requestContext,
         ?User $assignee = null,
         ?Request $request = null,
@@ -36,7 +35,6 @@ class WorkspaceReopenActionService
                 incident: $incident,
                 actor: $actor,
                 body: $body,
-                reason: $reason,
                 assignee: $assignee,
                 request: $request,
             );
@@ -47,7 +45,6 @@ class WorkspaceReopenActionService
                 $exception,
                 [
                     'body' => $body,
-                    'reopen_reason' => $reason,
                     'assigned_to_user_id' => $assignee?->id,
                 ],
             );

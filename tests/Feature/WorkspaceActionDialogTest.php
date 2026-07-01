@@ -14,7 +14,6 @@ use App\Models\Remark;
 use App\Models\ServiceCaseCloseException;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
-use App\Services\ServiceCaseCloseExceptionIdService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -80,7 +79,7 @@ class WorkspaceActionDialogTest extends TestCase
         ]);
     }
 
-    public function test_action_component_fragment_renders_action_cards_and_form(): void
+    public function test_action_component_fragment_renders_customer_action_dialog(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createIncident($admin);
@@ -92,11 +91,14 @@ class WorkspaceActionDialogTest extends TestCase
                 'context' => WorkspaceContext::ServiceCase->value,
             ]))
             ->assertOk()
+            ->assertSee('Customer Action', false)
             ->assertSee('data-workspace-action-form="action"', false)
             ->assertSee('data-workspace-action-card="assign"', false)
             ->assertSee('data-workspace-action-card="close"', false)
-            ->assertSee(route('incidents.workspace.action', $incident), false)
-            ->assertSee('Confirm', false);
+            ->assertSee('Notify Customer', false)
+            ->assertSee('data-mention-textarea', false)
+            ->assertSee('Done', false)
+            ->assertSee(route('incidents.workspace.action', $incident), false);
     }
 
     public function test_assign_action_requires_remark_and_assignee(): void
@@ -166,8 +168,10 @@ class WorkspaceActionDialogTest extends TestCase
         ]);
     }
 
-    public function test_close_action_with_exception_creates_unique_exception_id_and_timeline(): void
+    public function test_close_action_with_exceptions_creates_exs_exr_ids_and_applies_values(): void
     {
+        $this->travelTo('2026-07-01 12:00:00');
+
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createIncident($admin, [
             'reference_no' => '',
@@ -181,18 +185,30 @@ class WorkspaceActionDialogTest extends TestCase
                 'body' => 'Closing with documented exceptions.',
                 'serial_number_unavailable' => true,
                 'reference_number_unavailable' => true,
-                'exception_reason' => ServiceCaseCloseExceptionReason::CustomerCancelledBeforePayment->value,
+                'serial_exception_reason' => ServiceCaseCloseExceptionReason::CustomerCancelledBeforePayment->value,
+                'reference_exception_reason' => ServiceCaseCloseExceptionReason::ApprovedByAdmin->value,
             ])
             ->assertOk();
 
-        $exception = ServiceCaseCloseException::query()->where('incident_id', $incident->id)->first();
-        $this->assertNotNull($exception);
-        $this->assertMatchesRegularExpression('/^EXC-\d{8}-\d{4}$/', $exception->exception_id);
+        $exceptions = ServiceCaseCloseException::query()
+            ->where('incident_id', $incident->id)
+            ->orderBy('id')
+            ->get();
+
+        $this->assertCount(2, $exceptions);
+        $this->assertSame('EXS-20260701-0001', $exceptions[0]->exception_id);
+        $this->assertSame('EXR-20260701-0001', $exceptions[1]->exception_id);
+        $this->assertTrue($exceptions[0]->serial_number_unavailable);
+        $this->assertTrue($exceptions[1]->reference_number_unavailable);
+
+        $freshIncident = $incident->fresh(['order']);
+        $this->assertSame('EXS-20260701-0001', $freshIncident->order?->serial_number);
+        $this->assertSame('EXR-20260701-0001', $freshIncident->reference_no);
 
         $timelineHtml = collect($response->json('refresh.targets'))
             ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
-        $this->assertStringContainsString($exception->exception_id, $timelineHtml);
-        $this->assertStringContainsString('Customer cancelled before payment', $timelineHtml);
+        $this->assertStringContainsString('EXS-20260701-0001', $timelineHtml);
+        $this->assertStringContainsString('EXR-20260701-0001', $timelineHtml);
 
         $this->assertDatabaseHas('audit_logs', [
             'auditable_id' => $incident->id,
@@ -200,28 +216,60 @@ class WorkspaceActionDialogTest extends TestCase
         ]);
     }
 
-    public function test_exception_id_generation_is_unique_per_day(): void
+    public function test_exception_id_generation_is_unique_per_type_and_day(): void
     {
         $this->travelTo('2026-07-01 12:00:00');
 
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
-        $first = $this->createIncident($admin, ['order_id' => 'ORD-EX-1']);
-        $second = $this->createIncident($admin, ['order_id' => 'ORD-EX-2']);
+        $first = $this->createIncident($admin, ['order_id' => 'ORD-EX-1', 'reference_no' => 'REF-EX-1']);
+        $second = $this->createIncident($admin, ['order_id' => 'ORD-EX-2', 'reference_no' => '']);
+        $third = $this->createIncident($admin, ['order_id' => 'ORD-EX-3', 'reference_no' => 'REF-EX-3']);
 
-        foreach ([$first, $second] as $incident) {
-            $this->actingAs($admin)
-                ->patchJson(route('incidents.workspace.action', $incident), [
-                    'workspace_context' => WorkspaceContext::ServiceCase->value,
-                    'action_type' => WorkspaceActionType::Close->value,
-                    'body' => 'Exception close.',
-                    'reference_number_unavailable' => true,
-                    'exception_reason' => ServiceCaseCloseExceptionReason::ApprovedByAdmin->value,
-                ])
-                ->assertOk();
-        }
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $first), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Serial exception close.',
+                'serial_number_unavailable' => true,
+                'serial_exception_reason' => ServiceCaseCloseExceptionReason::ApprovedByAdmin->value,
+            ])
+            ->assertOk();
 
-        $ids = ServiceCaseCloseException::query()->orderBy('id')->pluck('exception_id')->all();
-        $this->assertSame(['EXC-20260701-0001', 'EXC-20260701-0002'], $ids);
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $second), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Reference exception close.',
+                'reference_number_unavailable' => true,
+                'reference_exception_reason' => ServiceCaseCloseExceptionReason::ApprovedByAdmin->value,
+            ])
+            ->assertOk();
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $third), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Both exceptions close.',
+                'serial_number_unavailable' => true,
+                'reference_number_unavailable' => true,
+                'serial_exception_reason' => ServiceCaseCloseExceptionReason::ApprovedByAdmin->value,
+                'reference_exception_reason' => ServiceCaseCloseExceptionReason::ApprovedByAdmin->value,
+            ])
+            ->assertOk();
+
+        $serialIds = ServiceCaseCloseException::query()
+            ->where('exception_id', 'like', 'EXS-%')
+            ->orderBy('id')
+            ->pluck('exception_id')
+            ->all();
+        $referenceIds = ServiceCaseCloseException::query()
+            ->where('exception_id', 'like', 'EXR-%')
+            ->orderBy('id')
+            ->pluck('exception_id')
+            ->all();
+
+        $this->assertSame(['EXS-20260701-0001', 'EXS-20260701-0002'], $serialIds);
+        $this->assertSame(['EXR-20260701-0001', 'EXR-20260701-0002'], $referenceIds);
     }
 
     public function test_close_validation_returns_first_error_message_in_dialog_response(): void
@@ -247,7 +295,7 @@ class WorkspaceActionDialogTest extends TestCase
         );
     }
 
-    public function test_reopen_action_reopens_closed_service_case(): void
+    public function test_reopen_action_reopens_closed_service_case_with_remark_only(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $shipra = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');
@@ -257,7 +305,6 @@ class WorkspaceActionDialogTest extends TestCase
             ->patchJson(route('incidents.workspace.action', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
                 'action_type' => WorkspaceActionType::Reopen->value,
-                'reopen_reason' => 'Customer reported the issue again.',
                 'assigned_to_user_id' => $shipra->id,
                 'body' => 'Reopening for further investigation.',
             ])
@@ -283,7 +330,7 @@ class WorkspaceActionDialogTest extends TestCase
                 'action_type' => WorkspaceActionType::Close->value,
                 'body' => 'Closed with exception.',
                 'reference_number_unavailable' => true,
-                'exception_reason' => ServiceCaseCloseExceptionReason::DuplicateServiceCase->value,
+                'reference_exception_reason' => ServiceCaseCloseExceptionReason::DuplicateServiceCase->value,
             ])
             ->assertOk();
 

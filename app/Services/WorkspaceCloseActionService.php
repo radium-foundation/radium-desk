@@ -33,8 +33,10 @@ class WorkspaceCloseActionService
      *     body: string,
      *     serial_number_unavailable?: bool,
      *     reference_number_unavailable?: bool,
-     *     exception_reason?: string|null,
-     *     exception_reason_custom?: string|null,
+     *     serial_exception_reason?: string|null,
+     *     serial_exception_reason_custom?: string|null,
+     *     reference_exception_reason?: string|null,
+     *     reference_exception_reason_custom?: string|null,
      *     notify_whatsapp?: bool,
      *     notify_email?: bool,
      * }  $payload
@@ -92,8 +94,10 @@ class WorkspaceCloseActionService
      *     body: string,
      *     serial_number_unavailable?: bool,
      *     reference_number_unavailable?: bool,
-     *     exception_reason?: string|null,
-     *     exception_reason_custom?: string|null,
+     *     serial_exception_reason?: string|null,
+     *     serial_exception_reason_custom?: string|null,
+     *     reference_exception_reason?: string|null,
+     *     reference_exception_reason_custom?: string|null,
      *     notify_whatsapp?: bool,
      *     notify_email?: bool,
      * }  $payload
@@ -113,13 +117,7 @@ class WorkspaceCloseActionService
             $referenceUnavailable,
         );
 
-        if ($serialUnavailable || $referenceUnavailable) {
-            if (! filled($payload['exception_reason'] ?? null)) {
-                throw ValidationException::withMessages([
-                    'exception_reason' => 'Select a reason when recording an exception.',
-                ]);
-            }
-        }
+        $this->validateExceptionReasons($payload, $serialUnavailable, $referenceUnavailable);
 
         return DB::transaction(function () use (
             $incident,
@@ -129,18 +127,29 @@ class WorkspaceCloseActionService
             $serialUnavailable,
             $referenceUnavailable,
         ): Incident {
-            if ($serialUnavailable || $referenceUnavailable) {
-                $reason = ServiceCaseCloseExceptionReason::from((string) $payload['exception_reason']);
+            $notifyWhatsapp = (bool) ($payload['notify_whatsapp'] ?? false);
+            $notifyEmail = (bool) ($payload['notify_email'] ?? false);
 
-                $this->closeExceptionService->create(
+            if ($serialUnavailable) {
+                $this->closeExceptionService->createSerialException(
                     incident: $incident,
                     actor: $actor,
-                    serialNumberUnavailable: $serialUnavailable,
-                    referenceNumberUnavailable: $referenceUnavailable,
-                    reason: $reason,
-                    reasonCustom: $payload['exception_reason_custom'] ?? null,
-                    notifyWhatsapp: (bool) ($payload['notify_whatsapp'] ?? false),
-                    notifyEmail: (bool) ($payload['notify_email'] ?? false),
+                    reason: ServiceCaseCloseExceptionReason::from((string) $payload['serial_exception_reason']),
+                    reasonCustom: $payload['serial_exception_reason_custom'] ?? null,
+                    notifyWhatsapp: $notifyWhatsapp,
+                    notifyEmail: $notifyEmail,
+                    request: $request,
+                );
+            }
+
+            if ($referenceUnavailable) {
+                $this->closeExceptionService->createReferenceException(
+                    incident: $incident,
+                    actor: $actor,
+                    reason: ServiceCaseCloseExceptionReason::from((string) $payload['reference_exception_reason']),
+                    reasonCustom: $payload['reference_exception_reason_custom'] ?? null,
+                    notifyWhatsapp: $notifyWhatsapp,
+                    notifyEmail: $notifyEmail,
                     request: $request,
                 );
             }
@@ -158,6 +167,31 @@ class WorkspaceCloseActionService
                 actor: $actor,
             );
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     *
+     * @throws ValidationException
+     */
+    private function validateExceptionReasons(
+        array $payload,
+        bool $serialUnavailable,
+        bool $referenceUnavailable,
+    ): void {
+        $messages = [];
+
+        if ($serialUnavailable && ! filled($payload['serial_exception_reason'] ?? null)) {
+            $messages['serial_exception_reason'] = 'Select a reason when serial number is unavailable.';
+        }
+
+        if ($referenceUnavailable && ! filled($payload['reference_exception_reason'] ?? null)) {
+            $messages['reference_exception_reason'] = 'Select a reason when reference number is unavailable.';
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
+        }
     }
 
     private function buildSuccessResponse(

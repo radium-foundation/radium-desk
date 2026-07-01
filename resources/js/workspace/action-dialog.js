@@ -8,11 +8,15 @@ export const initActionDialog = (root = document) => {
     const typeInput = form.querySelector('[data-workspace-action-type-input]');
     const cards = [...form.querySelectorAll('[data-workspace-action-card]')];
     const panels = [...form.querySelectorAll('[data-workspace-action-panel]')];
-    const exceptionFields = form.querySelector('[data-workspace-exception-fields]');
-    const exceptionCustom = form.querySelector('[data-workspace-exception-custom]');
-    const exceptionReason = form.querySelector('#workspace_action_exception_reason');
     const serialCheckbox = form.querySelector('#workspace_action_serial_unavailable');
     const referenceCheckbox = form.querySelector('#workspace_action_reference_unavailable');
+    const serialDetail = form.querySelector('[data-workspace-exception-detail="serial"]');
+    const referenceDetail = form.querySelector('[data-workspace-exception-detail="reference"]');
+    const serialReason = form.querySelector('#workspace_action_serial_reason');
+    const referenceReason = form.querySelector('#workspace_action_reference_reason');
+    const serialCustom = form.querySelector('[data-workspace-exception-custom="serial"]');
+    const referenceCustom = form.querySelector('[data-workspace-exception-custom="reference"]');
+    const exceptionsDetails = form.querySelector('.workspace-action-exceptions');
 
     const togglePanelFields = (actionType, enabled) => {
         const panel = form.querySelector(`[data-workspace-action-panel="${actionType}"]`);
@@ -50,21 +54,30 @@ export const initActionDialog = (root = document) => {
         });
     };
 
-    const syncExceptionFields = () => {
-        if (!exceptionFields) {
+    const syncExceptionDetail = (checkbox, detail) => {
+        if (!detail) {
             return;
         }
 
-        const show = Boolean(serialCheckbox?.checked || referenceCheckbox?.checked);
-        exceptionFields.classList.toggle('d-none', !show);
+        detail.classList.toggle('d-none', !checkbox?.checked);
     };
 
-    const syncExceptionCustom = () => {
-        if (!exceptionCustom || !exceptionReason) {
+    const syncExceptionCustom = (reasonSelect, customBlock) => {
+        if (!customBlock || !reasonSelect) {
             return;
         }
 
-        exceptionCustom.classList.toggle('d-none', exceptionReason.value !== 'other');
+        customBlock.classList.toggle('d-none', reasonSelect.value !== 'other');
+    };
+
+    const openExceptionsIfNeeded = () => {
+        if (!exceptionsDetails) {
+            return;
+        }
+
+        if (serialCheckbox?.checked || referenceCheckbox?.checked) {
+            exceptionsDetails.open = true;
+        }
     };
 
     cards.forEach((card) => {
@@ -73,12 +86,29 @@ export const initActionDialog = (root = document) => {
         });
     });
 
-    serialCheckbox?.addEventListener('change', syncExceptionFields);
-    referenceCheckbox?.addEventListener('change', syncExceptionFields);
-    exceptionReason?.addEventListener('change', syncExceptionCustom);
+    serialCheckbox?.addEventListener('change', () => {
+        syncExceptionDetail(serialCheckbox, serialDetail);
+        openExceptionsIfNeeded();
+    });
 
-    syncExceptionFields();
-    syncExceptionCustom();
+    referenceCheckbox?.addEventListener('change', () => {
+        syncExceptionDetail(referenceCheckbox, referenceDetail);
+        openExceptionsIfNeeded();
+    });
+
+    serialReason?.addEventListener('change', () => {
+        syncExceptionCustom(serialReason, serialCustom);
+    });
+
+    referenceReason?.addEventListener('change', () => {
+        syncExceptionCustom(referenceReason, referenceCustom);
+    });
+
+    openExceptionsIfNeeded();
+    syncExceptionDetail(serialCheckbox, serialDetail);
+    syncExceptionDetail(referenceCheckbox, referenceDetail);
+    syncExceptionCustom(serialReason, serialCustom);
+    syncExceptionCustom(referenceReason, referenceCustom);
 
     form.dataset.workspaceActionDialogInitialized = 'true';
 };

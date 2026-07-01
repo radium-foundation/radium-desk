@@ -50,9 +50,8 @@ class WorkspaceActionDialogService
                 incident: $incident,
                 actor: $actor,
                 body: (string) ($payload['body'] ?? ''),
-                reason: (string) ($payload['reopen_reason'] ?? ''),
                 requestContext: $requestContext,
-                assignee: isset($payload['assigned_to_user_id'])
+                assignee: isset($payload['assigned_to_user_id']) && filled($payload['assigned_to_user_id'])
                     ? User::query()->find((int) $payload['assigned_to_user_id'])
                     : null,
                 request: $request,

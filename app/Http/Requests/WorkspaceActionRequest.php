@@ -74,15 +74,26 @@ class WorkspaceActionRequest extends FormRequest
                 ...$rules,
                 'serial_number_unavailable' => ['sometimes', 'boolean'],
                 'reference_number_unavailable' => ['sometimes', 'boolean'],
-                'exception_reason' => [
-                    Rule::requiredIf(fn (): bool => $this->boolean('serial_number_unavailable')
-                        || $this->boolean('reference_number_unavailable')),
+                'serial_exception_reason' => [
+                    Rule::requiredIf(fn (): bool => $this->boolean('serial_number_unavailable')),
                     'nullable',
                     'string',
                     Rule::in(ServiceCaseCloseExceptionReason::values()),
                 ],
-                'exception_reason_custom' => [
-                    Rule::requiredIf(fn (): bool => $this->input('exception_reason') === ServiceCaseCloseExceptionReason::Other->value),
+                'serial_exception_reason_custom' => [
+                    Rule::requiredIf(fn (): bool => $this->input('serial_exception_reason') === ServiceCaseCloseExceptionReason::Other->value),
+                    'nullable',
+                    'string',
+                    'max:5000',
+                ],
+                'reference_exception_reason' => [
+                    Rule::requiredIf(fn (): bool => $this->boolean('reference_number_unavailable')),
+                    'nullable',
+                    'string',
+                    Rule::in(ServiceCaseCloseExceptionReason::values()),
+                ],
+                'reference_exception_reason_custom' => [
+                    Rule::requiredIf(fn (): bool => $this->input('reference_exception_reason') === ServiceCaseCloseExceptionReason::Other->value),
                     'nullable',
                     'string',
                     'max:5000',
@@ -92,7 +103,6 @@ class WorkspaceActionRequest extends FormRequest
             ],
             WorkspaceActionType::Reopen => [
                 ...$rules,
-                'reopen_reason' => ['required', 'string', 'max:5000'],
                 'assigned_to_user_id' => [
                     'nullable',
                     'integer',
@@ -115,11 +125,12 @@ class WorkspaceActionRequest extends FormRequest
             'action_type' => 'action',
             'assigned_to_user_id' => 'assign to',
             'workspace_context' => 'workspace context',
-            'exception_reason' => 'exception reason',
-            'exception_reason_custom' => 'custom exception remark',
-            'reopen_reason' => 'reason',
-            'serial_number_unavailable' => 'serial number unavailable',
-            'reference_number_unavailable' => 'reference number unavailable',
+            'serial_exception_reason' => 'serial number reason',
+            'serial_exception_reason_custom' => 'serial number custom remark',
+            'reference_exception_reason' => 'reference number reason',
+            'reference_exception_reason_custom' => 'reference number custom remark',
+            'serial_number_unavailable' => 'serial number not available',
+            'reference_number_unavailable' => 'reference number not available',
         ];
     }
 

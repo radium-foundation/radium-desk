@@ -298,19 +298,27 @@ class ServiceCaseActivityTimelineService
         TimelineActor $actor,
         $occurredAt,
     ): ServiceCaseTimelineEntry {
-        $exception = ServiceCaseCloseException::query()
+        $exceptions = ServiceCaseCloseException::query()
             ->where('incident_id', $incident->id)
             ->whereBetween('created_at', [
                 $occurredAt->copy()->subSeconds(10),
                 $occurredAt->copy()->addSeconds(2),
             ])
-            ->latest('id')
-            ->first();
+            ->orderBy('id')
+            ->get();
 
         $body = null;
 
-        if ($exception !== null) {
-            $body = "Exception ID:\n{$exception->exception_id}\n\nReason:\n{$exception->displayReason()}";
+        if ($exceptions->isNotEmpty()) {
+            $lines = $exceptions->map(function ($exception) {
+                $label = $exception->serial_number_unavailable
+                    ? 'Serial Number'
+                    : 'Reference Number';
+
+                return "{$label}:\n{$exception->exception_id}\n\nReason:\n{$exception->displayReason()}";
+            });
+
+            $body = $lines->implode("\n\n");
         }
 
         return new ServiceCaseTimelineEntry(
