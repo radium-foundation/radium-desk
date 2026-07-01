@@ -25,6 +25,10 @@ readonly class TimelineEvent
         public ?string $noteBody = null,
         /** @var list<string> */
         public array $mentionedUserNames = [],
+        /** @var list<array{label: string, value: string}> */
+        public array $summaryFields = [],
+        public ?string $actionLabel = null,
+        public ?string $actionUrl = null,
     ) {}
 
     public function filterCategory(): string

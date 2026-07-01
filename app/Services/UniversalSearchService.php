@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Incident;
 use App\Models\User;
+use App\Models\WhatsAppCommunicationSummary;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -41,6 +42,18 @@ class UniversalSearchService
                 if ($this->settingService->getBool('search.notes_enabled', true)) {
                     $incidentQuery->orWhereHas('remarks', fn (Builder $remarkQuery) => $remarkQuery
                         ->where('body', 'like', $like));
+                }
+
+                if ($this->settingService->getBool('search.whatsapp_enabled', true)) {
+                    $incidentQuery->orWhereHas('order', fn (Builder $orderQuery) => $orderQuery
+                        ->whereIn('customer_phone', WhatsAppCommunicationSummary::query()
+                            ->select('customer_phone')
+                            ->where(function (Builder $summaryQuery) use ($like): void {
+                                $summaryQuery->where('last_template_name', 'like', $like)
+                                    ->orWhere('last_message_id', 'like', $like)
+                                    ->orWhere('conversation_id', 'like', $like)
+                                    ->orWhere('interakt_customer_id', 'like', $like);
+                            })));
                 }
             });
 

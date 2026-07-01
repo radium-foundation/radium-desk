@@ -3,19 +3,21 @@
 namespace App\Services\Timeline\Sources;
 
 use App\Contracts\Timeline\TimelineEventSource;
-use App\Data\TimelineActor;
 use App\Data\TimelineEvent;
-use App\Enums\InteraktDeliveryStatus;
-use App\Enums\InteraktMessageDirection;
 use App\Enums\TimelineEventType;
-use App\Models\InteraktMessage;
 use App\Models\Order;
+use App\Models\WhatsAppCommunicationSummary;
+use App\Services\Interakt\InteraktDeepLinkService;
+use App\Services\Interakt\WhatsAppCommunicationSummaryStore;
+use App\Support\AppDateFormatter;
 use Illuminate\Support\Collection;
 
 class WhatsAppTimelineEventSource implements TimelineEventSource
 {
     public function __construct(
         private readonly Order $order,
+        private readonly WhatsAppCommunicationSummaryStore $summaryStore,
+        private readonly InteraktDeepLinkService $deepLinkService,
     ) {}
 
     public function collect(): Collection
@@ -24,105 +26,72 @@ class WhatsAppTimelineEventSource implements TimelineEventSource
             return collect();
         }
 
-        return InteraktMessage::query()
+        $summary = WhatsAppCommunicationSummary::query()
             ->where('customer_phone', $this->order->customer_phone)
-            ->orderByDesc('sent_at')
-            ->orderByDesc('id')
-            ->get()
-            ->map(fn (InteraktMessage $message): TimelineEvent => $this->mapMessage($message))
-            ->values();
+            ->first();
+
+        if ($summary === null) {
+            $summary = $this->summaryStore->refreshForPhone($this->order->customer_phone);
+        }
+
+        if ($summary === null || $summary->last_activity_at === null) {
+            return collect();
+        }
+
+        return collect([$this->mapSummary($summary)]);
     }
 
-    private function mapMessage(InteraktMessage $message): TimelineEvent
+    private function mapSummary(WhatsAppCommunicationSummary $summary): TimelineEvent
     {
-        $occurredAt = $message->sent_at
-            ?? $message->delivered_at
-            ?? $message->read_at
-            ?? $message->created_at;
+        $summaryFields = [
+            [
+                'label' => 'Last Activity',
+                'value' => AppDateFormatter::timelineDatetime($summary->last_activity_at) ?? '—',
+            ],
+            [
+                'label' => 'Messages',
+                'value' => $summary->messages_exchanged_count.' exchanged',
+            ],
+            [
+                'label' => 'Current Status',
+                'value' => $summary->conversation_status->label(),
+            ],
+        ];
 
-        $statusLabel = $message->direction === InteraktMessageDirection::Outgoing
-            ? $this->deliveryStatusLabel($message->delivery_status)
-            : null;
+        if (filled($summary->last_template_name)) {
+            $summaryFields[] = [
+                'label' => 'Template',
+                'value' => $summary->last_template_name,
+            ];
+        }
+
+        if ($summary->unread_count !== null && $summary->unread_count > 0) {
+            $summaryFields[] = [
+                'label' => 'Unread',
+                'value' => (string) $summary->unread_count,
+            ];
+        }
 
         return new TimelineEvent(
             type: TimelineEventType::WhatsApp,
-            occurredAt: $occurredAt,
+            occurredAt: $summary->last_activity_at,
             title: 'WhatsApp',
-            actor: $this->resolveActor($message),
-            dedupeKey: "whatsapp:{$message->message_id}",
-            summary: $this->resolveSummary($message),
-            detail: $this->resolveDetail($message),
-            statusLabel: $statusLabel,
-            statusVariant: $this->deliveryStatusVariant($message->delivery_status),
+            actor: $this->resolveActor($summary),
+            dedupeKey: 'whatsapp:summary:'.$summary->customer_phone,
+            statusLabel: $summary->conversation_status->label(),
+            statusVariant: $summary->conversation_status->statusVariant(),
+            summaryFields: $summaryFields,
+            actionLabel: 'Open in Interakt',
+            actionUrl: $this->deepLinkService->conversationUrl($summary),
         );
     }
 
-    private function resolveActor(InteraktMessage $message): TimelineActor
+    private function resolveActor(WhatsAppCommunicationSummary $summary): \App\Data\TimelineActor
     {
-        if ($message->direction === InteraktMessageDirection::Incoming) {
-            return new TimelineActor('Customer');
-        }
-
-        if (filled($message->template_name)) {
-            return new TimelineActor('Template', $message->template_name);
-        }
-
-        return new TimelineActor('Radium Desk');
-    }
-
-    private function resolveSummary(InteraktMessage $message): ?string
-    {
-        if (filled($message->text)) {
-            return $message->text;
-        }
-
-        if (filled($message->template_name)) {
-            return $message->template_name;
-        }
-
-        return null;
-    }
-
-    private function resolveDetail(InteraktMessage $message): ?string
-    {
-        $parts = [];
-
-        if (filled($message->channel_failure_reason)) {
-            $parts[] = $message->channel_failure_reason;
-        }
-
-        if (filled($message->channel_error_code)) {
-            $parts[] = 'Error '.$message->channel_error_code;
-        }
-
-        if (filled($message->media_url)) {
-            $parts[] = $message->media_url;
-        }
-
-        return $parts === [] ? null : implode(' · ', $parts);
-    }
-
-    private function deliveryStatusLabel(?InteraktDeliveryStatus $status): ?string
-    {
-        return match ($status) {
-            InteraktDeliveryStatus::Sent => 'Sent',
-            InteraktDeliveryStatus::Delivered => 'Delivered',
-            InteraktDeliveryStatus::Read => 'Read',
-            InteraktDeliveryStatus::Failed => 'Failed',
-            InteraktDeliveryStatus::Pending => 'Pending',
-            default => null,
-        };
-    }
-
-    private function deliveryStatusVariant(?InteraktDeliveryStatus $status): ?string
-    {
-        return match ($status) {
-            InteraktDeliveryStatus::Sent => 'sent',
-            InteraktDeliveryStatus::Delivered => 'delivered',
-            InteraktDeliveryStatus::Read => 'read',
-            InteraktDeliveryStatus::Failed => 'failed',
-            InteraktDeliveryStatus::Pending => 'pending',
-            default => null,
+        return match ($summary->last_sender) {
+            'customer' => new \App\Data\TimelineActor('Customer'),
+            'template' => new \App\Data\TimelineActor('Template', $summary->last_template_name),
+            default => new \App\Data\TimelineActor('Radium Desk'),
         };
     }
 }

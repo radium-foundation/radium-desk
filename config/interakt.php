@@ -9,4 +9,10 @@ return [
     'connect_timeout_seconds' => (int) env('INTERAKT_CONNECT_TIMEOUT_SECONDS', 5),
     'max_retries' => (int) env('INTERAKT_MAX_RETRIES', 3),
     'retry_delay_ms' => (int) env('INTERAKT_RETRY_DELAY_MS', 200),
+    'app_url' => rtrim((string) env('INTERAKT_APP_URL', 'https://app.interakt.ai'), '/'),
+    'conversation_url_template' => env('INTERAKT_CONVERSATION_URL_TEMPLATE'),
+    'customer_profile_url_template' => env(
+        'INTERAKT_CUSTOMER_PROFILE_URL_TEMPLATE',
+        '{app_url}/contacts?search={phone}',
+    ),
 ];

@@ -169,6 +169,49 @@ class InteraktWebhookPayloadParser
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function customerId(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'data.customer.id'))
+            ?? $this->scalarValue(data_get($payload, 'customer.id'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function conversationId(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'data.conversation.id'))
+            ?? $this->scalarValue(data_get($payload, 'data.message.conversation_id'))
+            ?? $this->scalarValue(data_get($payload, 'conversation.id'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function unreadCount(array $payload): ?int
+    {
+        foreach ([
+            'data.conversation.unread_count',
+            'data.message.unread_count',
+            'conversation.unread_count',
+        ] as $path) {
+            $value = data_get($payload, $path);
+
+            if (is_int($value)) {
+                return max(0, $value);
+            }
+
+            if (is_string($value) && is_numeric($value)) {
+                return max(0, (int) $value);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function callbackData(array $payload): ?string
     {
         return $this->scalarValue(data_get($payload, 'data.message.meta_data.source_data.callback_data'))

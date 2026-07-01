@@ -47,9 +47,9 @@ class Customer360TimelineService
                     orderActivityTimelineService: $this->orderActivityTimelineService,
                     automationIdentity: $this->automationIdentity,
                 ),
-                new WhatsAppTimelineEventSource(
-                    order: $order,
-                ),
+                app()->makeWith(WhatsAppTimelineEventSource::class, [
+                    'order' => $order,
+                ]),
             ],
             offset: $offset,
             limit: $pageSize,

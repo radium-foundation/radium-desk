@@ -110,7 +110,7 @@ class InteraktService
             $storedPhone = app(InteraktCustomerMatcher::class)
                 ->resolveStoredPhone($countryCode, $phoneNumber);
 
-            InteraktMessage::query()->updateOrCreate(
+            $message = InteraktMessage::query()->updateOrCreate(
                 ['message_id' => $messageId],
                 [
                     'customer_phone' => $storedPhone ?? $phoneNumber,
@@ -123,6 +123,8 @@ class InteraktService
                     'payload' => $payload,
                 ],
             );
+
+            app(WhatsAppCommunicationSummaryStore::class)->refreshForMessage($message);
 
             return InteraktSendResult::success($messageId);
         } catch (ConnectionException $exception) {

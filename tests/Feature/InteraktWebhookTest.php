@@ -88,9 +88,12 @@ class InteraktWebhookTest extends TestCase
             ->filter(fn ($event) => $event->type === TimelineEventType::WhatsApp);
 
         $this->assertCount(1, $whatsappEvents);
-        $this->assertSame('WhatsApp', $whatsappEvents->first()->title);
-        $this->assertSame('Customer', $whatsappEvents->first()->actor->displayName);
-        $this->assertSame('When will my device be ready?', $whatsappEvents->first()->summary);
+        $event = $whatsappEvents->first();
+        $this->assertSame('WhatsApp', $event->title);
+        $this->assertSame('whatsapp:summary:9876543210', $event->dedupeKey);
+        $this->assertSame('Waiting for Agent', $event->statusLabel);
+        $this->assertSame('Open in Interakt', $event->actionLabel);
+        $this->assertSame('1 exchanged', collect($event->summaryFields)->firstWhere('label', 'Messages')['value']);
     }
 
     public function test_duplicate_webhook_does_not_create_duplicate_message(): void
@@ -167,9 +170,8 @@ class InteraktWebhookTest extends TestCase
             ->first(fn ($event) => $event->type === TimelineEventType::WhatsApp);
 
         $this->assertNotNull($whatsappEvent);
-        $this->assertSame('Template', $whatsappEvent->actor->displayName);
-        $this->assertSame('Repair Started', $whatsappEvent->actor->subtitle);
-        $this->assertSame('Read', $whatsappEvent->statusLabel);
+        $this->assertSame('Waiting for Customer', $whatsappEvent->statusLabel);
+        $this->assertSame('Repair Started', collect($whatsappEvent->summaryFields)->firstWhere('label', 'Template')['value']);
     }
 
     public function test_official_api_status_webhooks_persist_metadata(): void
@@ -233,8 +235,7 @@ class InteraktWebhookTest extends TestCase
 
         $this->assertNotNull($whatsappEvent);
         $this->assertSame('Failed', $whatsappEvent->statusLabel);
-        $this->assertStringContainsString('Recipient is not a valid WhatsApp user', (string) $whatsappEvent->detail);
-        $this->assertStringContainsString('Error 1013', (string) $whatsappEvent->detail);
+        $this->assertSame('Failed', collect($whatsappEvent->summaryFields)->firstWhere('label', 'Current Status')['value']);
     }
 
     public function test_official_campaign_status_webhooks_reuse_delivery_status_logic(): void
