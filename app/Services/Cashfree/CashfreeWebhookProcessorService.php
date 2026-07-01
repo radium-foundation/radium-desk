@@ -11,6 +11,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Outbox\OutboxProcessorService;
 use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,8 @@ class CashfreeWebhookProcessorService
         private readonly CashfreeWebhookPayloadParser $payloadParser,
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
-        private readonly CashfreeWebhookDeferredOperationsService $deferredOperationsService,
+        private readonly CashfreeWebhookOutboxWriter $outboxWriter,
+        private readonly OutboxProcessorService $outboxProcessorService,
         private readonly CashfreeWebhookReliabilityMetrics $reliabilityMetrics,
     ) {}
 
@@ -65,15 +67,19 @@ class CashfreeWebhookProcessorService
                 $this->markProcessed($webhookLog, $incident);
                 $this->reliabilityMetrics->recordOrderCreated();
 
-                return new CashfreeWebhookDeferredContext(
+                $deferredContext = new CashfreeWebhookDeferredContext(
                     orderId: $order->id,
                     incidentId: $incident->id,
                     actorId: $systemUser->id,
                 );
+
+                $this->outboxWriter->writeDeferredOperations($deferredContext);
+
+                return $deferredContext;
             });
 
             if ($deferredContext !== null) {
-                $this->deferredOperationsService->run($deferredContext);
+                $this->outboxProcessorService->process();
             }
 
             return $webhookLog->fresh(['incident']);

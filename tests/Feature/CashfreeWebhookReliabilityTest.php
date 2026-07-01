@@ -2,17 +2,21 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\ProcessCashfreeWebhookDeferredOperationJob;
+use App\Enums\OutboxEventStatus;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\OutboxEvent;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
+use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use App\Services\Cashfree\CashfreeWebhookReliabilityMetrics;
 use App\Services\DashboardBroadcastService;
+use App\Services\Outbox\OutboxProcessorService;
 use App\Services\ServiceCaseAutomationMonitorService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
@@ -110,9 +114,11 @@ class CashfreeWebhookReliabilityTest extends TestCase
         $this->assertNotNull($log);
         $this->assertSame(CashfreeWebhookProcessorService::STATUS_PROCESSED, $log->processing_status);
 
-        Queue::assertPushed(ProcessCashfreeWebhookDeferredOperationJob::class, function (ProcessCashfreeWebhookDeferredOperationJob $job): bool {
-            return $job->operation === 'automation_monitor';
-        });
+        $this->assertDatabaseHas('outbox_events', [
+            'event_type' => CashfreeWebhookOutboxWriter::EVENT_TYPE,
+            'status' => OutboxEventStatus::Pending->value,
+            'payload->operation' => CashfreeWebhookDeferredOperationsService::OPERATION_AUTOMATION_MONITOR,
+        ]);
     }
 
     public function test_dashboard_broadcast_failure_does_not_roll_back_order_creation(): void
@@ -130,9 +136,10 @@ class CashfreeWebhookReliabilityTest extends TestCase
         $this->assertSame(1, Order::query()->where('cashfree_payment_id', '1453002796')->count());
         $this->assertSame(1, Incident::query()->count());
 
-        Queue::assertPushed(ProcessCashfreeWebhookDeferredOperationJob::class, function (ProcessCashfreeWebhookDeferredOperationJob $job): bool {
-            return $job->operation === 'dashboard_broadcast';
-        });
+        $this->assertDatabaseHas('outbox_events', [
+            'payload->operation' => CashfreeWebhookDeferredOperationsService::OPERATION_DASHBOARD_BROADCAST,
+            'status' => OutboxEventStatus::Pending->value,
+        ]);
     }
 
     public function test_audit_failure_during_payment_received_does_not_roll_back_order_creation(): void
@@ -174,9 +181,10 @@ class CashfreeWebhookReliabilityTest extends TestCase
             ->where('event', ServiceCaseAutomationMonitorService::EVENT_PAYMENT_RECEIVED)
             ->count());
 
-        Queue::assertPushed(ProcessCashfreeWebhookDeferredOperationJob::class, function (ProcessCashfreeWebhookDeferredOperationJob $job): bool {
-            return $job->operation === 'automation_monitor';
-        });
+        $this->assertDatabaseHas('outbox_events', [
+            'payload->operation' => CashfreeWebhookDeferredOperationsService::OPERATION_AUTOMATION_MONITOR,
+            'status' => OutboxEventStatus::Pending->value,
+        ]);
     }
 
     public function test_critical_database_failure_still_rolls_back_order_creation(): void
@@ -194,6 +202,7 @@ class CashfreeWebhookReliabilityTest extends TestCase
         $this->assertStringContainsString('order_id', (string) $log->processing_error);
         $this->assertSame(0, Order::query()->count());
         $this->assertSame(0, Incident::query()->count());
+        $this->assertSame(0, OutboxEvent::query()->count());
     }
 
     public function test_existing_webhook_behavior_remains_unchanged(): void
@@ -217,11 +226,12 @@ class CashfreeWebhookReliabilityTest extends TestCase
         Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, function (RadiumBoxOrderEnrichmentJob $job) use ($order): bool {
             return $job->orderId === $order->id;
         });
+
+        $this->assertSame(3, OutboxEvent::query()->where('status', OutboxEventStatus::Completed)->count());
     }
 
-    public function test_deferred_failure_records_metrics_and_dispatches_retry_job(): void
+    public function test_deferred_failure_leaves_outbox_event_for_retry(): void
     {
-        $metrics = app(CashfreeWebhookReliabilityMetrics::class);
         $auditLogService = app(AuditLogService::class);
 
         $this->mock(AuditLogService::class, function ($mock) use ($auditLogService): void {
@@ -253,49 +263,57 @@ class CashfreeWebhookReliabilityTest extends TestCase
 
         $this->postSuccessfulWebhook('1453002799', 'order-retry-success');
 
-        $snapshot = $metrics->snapshot();
-        $this->assertSame(1, $snapshot->ordersCreated);
-        $this->assertSame(1, $snapshot->deferredTaskFailures);
-        $this->assertSame(0, $snapshot->successfulRetries);
+        $metrics = app(CashfreeWebhookReliabilityMetrics::class)->snapshot();
+        $this->assertSame(1, $metrics->ordersCreated);
+        $this->assertSame(1, $metrics->outboxPending);
+        $this->assertSame(0, $metrics->outboxFailed);
 
-        Queue::assertPushed(ProcessCashfreeWebhookDeferredOperationJob::class, function (ProcessCashfreeWebhookDeferredOperationJob $job): bool {
-            return $job->operation === 'automation_monitor';
-        });
+        $event = OutboxEvent::query()
+            ->where('payload->operation', CashfreeWebhookDeferredOperationsService::OPERATION_AUTOMATION_MONITOR)
+            ->first();
+
+        $this->assertNotNull($event);
+        $this->assertSame(OutboxEventStatus::Pending, $event->status);
+        $this->assertSame(1, $event->attempts);
+        $this->assertNotNull($event->last_error);
     }
 
-    public function test_deferred_retry_job_records_successful_retry_metric(): void
+    public function test_outbox_retry_records_successful_retry_metric(): void
     {
-        $metrics = app(CashfreeWebhookReliabilityMetrics::class);
+        Queue::fake();
 
         $this->postSuccessfulWebhook('1453002801', 'order-retry-job');
 
-        $order = Order::query()->where('cashfree_payment_id', '1453002801')->firstOrFail();
-        $incidentId = (int) CashfreeWebhookLog::query()->value('incident_id');
-        $actorId = (int) User::query()->where('email', 'superadmin@radium.local')->value('id');
+        $event = OutboxEvent::query()
+            ->where('payload->operation', CashfreeWebhookDeferredOperationsService::OPERATION_AUTOMATION_MONITOR)
+            ->firstOrFail();
 
-        $job = new ProcessCashfreeWebhookDeferredOperationJob(
-            operation: 'automation_monitor',
-            orderId: $order->id,
-            incidentId: $incidentId,
-            actorId: $actorId,
-        );
+        $event->update([
+            'status' => OutboxEventStatus::Pending,
+            'attempts' => 1,
+            'available_at' => now()->subSecond(),
+        ]);
 
-        $job->handle(
-            app(\App\Services\Cashfree\CashfreeWebhookDeferredOperationsService::class),
-            $metrics,
-        );
+        app(OutboxProcessorService::class)->process();
 
-        $this->assertSame(1, $metrics->snapshot()->successfulRetries);
+        $metrics = app(CashfreeWebhookReliabilityMetrics::class)->snapshot();
+        $this->assertSame(0, $metrics->outboxPending);
+        $this->assertGreaterThanOrEqual(2, $metrics->outboxRetryCount);
+        $event->refresh();
+        $this->assertSame(OutboxEventStatus::Completed, $event->status);
     }
 
     public function test_reliability_metrics_are_available_for_automation_dashboard(): void
     {
+        Queue::fake();
+
         $this->postSuccessfulWebhook('1453002800', 'order-metrics');
 
         $counts = app(CashfreeWebhookReliabilityMetrics::class)->dashboardCounts();
 
         $this->assertSame(1, $counts['cashfree_orders_created']);
-        $this->assertSame(0, $counts['cashfree_deferred_failures']);
-        $this->assertSame(0, $counts['cashfree_deferred_retries']);
+        $this->assertSame(0, $counts['cashfree_outbox_pending']);
+        $this->assertSame(0, $counts['cashfree_outbox_failed']);
+        $this->assertSame(3, $counts['cashfree_outbox_completed_today']);
     }
 }

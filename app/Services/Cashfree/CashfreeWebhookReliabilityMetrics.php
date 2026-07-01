@@ -3,6 +3,8 @@
 namespace App\Services\Cashfree;
 
 use App\Data\CashfreeWebhookReliabilitySnapshot;
+use App\Enums\OutboxEventStatus;
+use App\Models\OutboxEvent;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -12,15 +14,7 @@ class CashfreeWebhookReliabilityMetrics
 
     private const KEY_ORDERS_CREATED = self::CACHE_PREFIX.'orders_created';
 
-    private const KEY_DEFERRED_FAILURES = self::CACHE_PREFIX.'deferred_failures';
-
-    private const KEY_SUCCESSFUL_RETRIES = self::CACHE_PREFIX.'successful_retries';
-
     private const KEY_LAST_ORDER_CREATED_AT = self::CACHE_PREFIX.'last_order_created_at';
-
-    private const KEY_LAST_DEFERRED_FAILURE_AT = self::CACHE_PREFIX.'last_deferred_failure_at';
-
-    private const KEY_LAST_SUCCESSFUL_RETRY_AT = self::CACHE_PREFIX.'last_successful_retry_at';
 
     public function recordOrderCreated(): void
     {
@@ -28,31 +22,15 @@ class CashfreeWebhookReliabilityMetrics
         Cache::put(self::KEY_LAST_ORDER_CREATED_AT, now()->toIso8601String(), now()->addDays(30));
     }
 
-    public function recordDeferredFailure(string $operation): void
-    {
-        $this->increment(self::KEY_DEFERRED_FAILURES);
-        Cache::put(self::KEY_LAST_DEFERRED_FAILURE_AT, now()->toIso8601String(), now()->addDays(30));
-
-        $this->increment(self::CACHE_PREFIX.'deferred_failures:'.$operation);
-    }
-
-    public function recordSuccessfulRetry(string $operation): void
-    {
-        $this->increment(self::KEY_SUCCESSFUL_RETRIES);
-        Cache::put(self::KEY_LAST_SUCCESSFUL_RETRY_AT, now()->toIso8601String(), now()->addDays(30));
-
-        $this->increment(self::CACHE_PREFIX.'successful_retries:'.$operation);
-    }
-
     public function snapshot(): CashfreeWebhookReliabilitySnapshot
     {
         return new CashfreeWebhookReliabilitySnapshot(
             ordersCreated: $this->counterValue(self::KEY_ORDERS_CREATED),
-            deferredTaskFailures: $this->counterValue(self::KEY_DEFERRED_FAILURES),
-            successfulRetries: $this->counterValue(self::KEY_SUCCESSFUL_RETRIES),
+            outboxPending: $this->outboxPendingCount(),
+            outboxFailed: $this->outboxFailedCount(),
+            outboxCompletedToday: $this->outboxCompletedTodayCount(),
+            outboxRetryCount: $this->outboxRetryCount(),
             lastOrderCreatedAt: $this->cachedTimestamp(self::KEY_LAST_ORDER_CREATED_AT),
-            lastDeferredFailureAt: $this->cachedTimestamp(self::KEY_LAST_DEFERRED_FAILURE_AT),
-            lastSuccessfulRetryAt: $this->cachedTimestamp(self::KEY_LAST_SUCCESSFUL_RETRY_AT),
             capturedAt: now(),
         );
     }
@@ -63,6 +41,36 @@ class CashfreeWebhookReliabilityMetrics
     public function dashboardCounts(): array
     {
         return $this->snapshot()->dashboardCounts();
+    }
+
+    private function outboxPendingCount(): int
+    {
+        return OutboxEvent::query()
+            ->where('status', OutboxEventStatus::Pending)
+            ->count();
+    }
+
+    private function outboxFailedCount(): int
+    {
+        return OutboxEvent::query()
+            ->where('status', OutboxEventStatus::Failed)
+            ->count();
+    }
+
+    private function outboxCompletedTodayCount(): int
+    {
+        return OutboxEvent::query()
+            ->where('status', OutboxEventStatus::Completed)
+            ->whereDate('processed_at', today())
+            ->count();
+    }
+
+    private function outboxRetryCount(): int
+    {
+        return (int) OutboxEvent::query()
+            ->where('status', OutboxEventStatus::Completed)
+            ->where('attempts', '>', 1)
+            ->sum('attempts');
     }
 
     private function increment(string $key): void

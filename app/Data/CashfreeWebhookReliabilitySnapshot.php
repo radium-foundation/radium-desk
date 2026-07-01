@@ -8,11 +8,11 @@ readonly class CashfreeWebhookReliabilitySnapshot
 {
     public function __construct(
         public int $ordersCreated,
-        public int $deferredTaskFailures,
-        public int $successfulRetries,
+        public int $outboxPending,
+        public int $outboxFailed,
+        public int $outboxCompletedToday,
+        public int $outboxRetryCount,
         public ?Carbon $lastOrderCreatedAt,
-        public ?Carbon $lastDeferredFailureAt,
-        public ?Carbon $lastSuccessfulRetryAt,
         public Carbon $capturedAt,
     ) {}
 
@@ -23,8 +23,10 @@ readonly class CashfreeWebhookReliabilitySnapshot
     {
         return [
             'cashfree_orders_created' => $this->ordersCreated,
-            'cashfree_deferred_failures' => $this->deferredTaskFailures,
-            'cashfree_deferred_retries' => $this->successfulRetries,
+            'cashfree_outbox_pending' => $this->outboxPending,
+            'cashfree_outbox_failed' => $this->outboxFailed,
+            'cashfree_outbox_completed_today' => $this->outboxCompletedToday,
+            'cashfree_outbox_retries' => $this->outboxRetryCount,
         ];
     }
 
@@ -35,11 +37,11 @@ readonly class CashfreeWebhookReliabilitySnapshot
     {
         return [
             'orders_created' => $this->ordersCreated,
-            'deferred_task_failures' => $this->deferredTaskFailures,
-            'successful_retries' => $this->successfulRetries,
+            'outbox_pending' => $this->outboxPending,
+            'outbox_failed' => $this->outboxFailed,
+            'outbox_completed_today' => $this->outboxCompletedToday,
+            'outbox_retry_count' => $this->outboxRetryCount,
             'last_order_created_at' => $this->lastOrderCreatedAt?->toIso8601String(),
-            'last_deferred_failure_at' => $this->lastDeferredFailureAt?->toIso8601String(),
-            'last_successful_retry_at' => $this->lastSuccessfulRetryAt?->toIso8601String(),
             'captured_at' => $this->capturedAt->toIso8601String(),
         ];
     }
