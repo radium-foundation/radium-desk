@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\Workspace\WorkspaceRefreshEffects;
 use App\Data\Workspace\WorkspaceRequestContext;
+use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
@@ -66,6 +67,26 @@ class WorkspaceRefreshRenderer
         }
 
         return $refresh;
+    }
+
+    public function renderActionFragment(
+        Incident $incident,
+        WorkspaceRequestContext $requestContext,
+        WorkspaceActionType $selectedAction,
+        array $payload = [],
+    ): string {
+        return view(
+            $this->componentService->view(WorkspaceComponent::Action),
+            [
+                ...$this->componentService->viewData(
+                    WorkspaceComponent::Action,
+                    $incident,
+                    $requestContext,
+                ),
+                'selectedAction' => $selectedAction,
+                'formPayload' => $payload,
+            ],
+        )->render();
     }
 
     public function renderAssignFragment(Incident $incident, WorkspaceRequestContext $requestContext): string

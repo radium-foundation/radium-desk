@@ -63,6 +63,9 @@
                                 @endif
                             @else
                                 <div class="service-case-activity-title">{{ $entry->title }}</div>
+                                @if(filled($entry->body))
+                                    <div class="service-case-activity-detail small text-muted mt-1">{!! nl2br(e($entry->body)) !!}</div>
+                                @endif
                             @endif
                         </div>
                     </div>

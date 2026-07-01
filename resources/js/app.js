@@ -15,6 +15,7 @@ import { initOrderWorkspace } from './order-workspace';
 import { initTooltips } from './tooltips';
 import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
+import { initActionDialog } from './workspace/action-dialog';
 import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
@@ -529,8 +530,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const modalContent = document.querySelector('[data-workspace-modal-content]');
 
-            if (component === 'remark' || component === 'resolve' || component === 'close') {
+            if (component === 'remark' || component === 'action' || component === 'resolve' || component === 'close') {
                 initMentionTextareas(modalContent);
+            }
+
+            if (component === 'action') {
+                initActionDialog(modalContent);
             }
 
             if (component === 'batch-transaction') {

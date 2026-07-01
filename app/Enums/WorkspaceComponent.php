@@ -5,6 +5,7 @@ namespace App\Enums;
 enum WorkspaceComponent: string
 {
     case Assign = 'assign';
+    case Action = 'action';
     case Remark = 'remark';
     case Resolve = 'resolve';
     case Close = 'close';
@@ -16,6 +17,7 @@ enum WorkspaceComponent: string
     {
         return match ($this) {
             self::Assign => 'service-cases.fragments.assign-form',
+            self::Action => 'service-cases.fragments.action-form',
             self::Remark => 'service-cases.fragments.remark-form',
             self::Resolve => 'service-cases.fragments.resolve-form',
             self::Close => 'service-cases.fragments.close-form',

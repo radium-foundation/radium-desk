@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\WorkspaceContext;
+use App\Http\Requests\Concerns\RequiresActionRemarkBody;
 use App\Models\Incident;
 use App\Services\WorkspaceAssignActionService;
 use Illuminate\Contracts\Validation\Validator;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class WorkspaceAssignRequest extends FormRequest
 {
+    use RequiresActionRemarkBody;
+
     public function authorize(): bool
     {
         /** @var Incident $incident */
@@ -28,6 +31,7 @@ class WorkspaceAssignRequest extends FormRequest
     public function rules(): array
     {
         return [
+            ...$this->actionRemarkBodyRules(),
             'assigned_to_user_id' => [
                 'required',
                 'integer',
@@ -49,6 +53,7 @@ class WorkspaceAssignRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            ...$this->actionRemarkBodyAttributes(),
             'assigned_to_user_id' => 'assigned admin',
             'workspace_context' => 'workspace context',
         ];

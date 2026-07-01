@@ -59,7 +59,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         ]);
     }
 
-    public function test_dashboard_declares_workspace_context_and_assign_trigger_for_admin(): void
+    public function test_dashboard_declares_workspace_context_and_action_trigger_for_admin(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createOpenIncident($admin);
@@ -69,12 +69,12 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertOk()
             ->assertSee('data-workspace-context="dashboard"', false)
             ->assertSee('id="workspace-context-slugs"', false)
-            ->assertSee('data-workspace-trigger="assign"', false)
+            ->assertSee('data-workspace-trigger="action"', false)
             ->assertSee('data-workspace-incident-id="'.$incident->id.'"', false)
             ->assertSee('dashboard-actions-cell', false);
     }
 
-    public function test_dashboard_shows_assign_actions_for_agents(): void
+    public function test_dashboard_shows_action_for_agents(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -85,7 +85,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-workspace-trigger="assign"', false)
+            ->assertSee('data-workspace-trigger="action"', false)
             ->assertSee('data-workspace-trigger="remark"', false)
             ->assertSee('dashboard-actions-cell', false);
     }
@@ -100,6 +100,7 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->patchJson(route('incidents.workspace.assign', $incident), [
                 'assigned_to_user_id' => $shipra->id,
                 'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Dashboard assign with remark.',
             ])
             ->assertOk()
             ->assertJsonPath('meta.context', WorkspaceContext::Dashboard->value)
@@ -113,12 +114,12 @@ class WorkspaceDashboardAssignTest extends TestCase
             ]);
 
         $this->assertStringContainsString(
-            'data-workspace-trigger="assign"',
+            'data-workspace-trigger="action"',
             (string) $response->json('refresh.replace_row.html'),
         );
     }
 
-    public function test_live_dashboard_rows_include_assign_trigger_for_admin(): void
+    public function test_live_dashboard_rows_include_action_trigger_for_admin(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $this->createOpenIncident($admin);
@@ -128,7 +129,7 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertOk();
 
         $this->assertStringContainsString(
-            'data-workspace-trigger="assign"',
+            'data-workspace-trigger="action"',
             (string) $response->json('rows.0.html'),
         );
     }

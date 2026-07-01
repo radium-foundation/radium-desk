@@ -26,7 +26,6 @@ class ServiceCaseStatusService
             IncidentStatus::Open,
             IncidentStatus::InProgress,
             IncidentStatus::AwaitingProductDetails,
-            IncidentStatus::Resolved,
         ];
     }
 
@@ -34,7 +33,7 @@ class ServiceCaseStatusService
     {
         Incident::query()
             ->where('order_id', $order->id)
-            ->whereIn('status', self::unfinishedWorkflowStatuses())
+            ->where('status', '!=', IncidentStatus::Closed)
             ->orderBy('id')
             ->get()
             ->each(fn (Incident $incident) => $this->updateStatus($incident, IncidentStatus::Closed, $actor));
@@ -48,11 +47,11 @@ class ServiceCaseStatusService
 
         if ($incident->status === IncidentStatus::Closed) {
             throw ValidationException::withMessages([
-                'status' => 'Closed service cases cannot be reopened.',
+                'status' => 'Closed service cases cannot be updated. Use reopen instead.',
             ]);
         }
 
-        if (in_array($status, [IncidentStatus::Resolved, IncidentStatus::Closed], true)) {
+        if ($status === IncidentStatus::Closed) {
             $this->validateAgentResolutionRequirements($incident, $actor);
         }
 
@@ -75,10 +74,39 @@ class ServiceCaseStatusService
             );
 
             match ($status) {
-                IncidentStatus::Resolved => $this->dashboardBroadcastService->serviceCaseResolved($freshIncident, $actor),
                 IncidentStatus::Closed => $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor),
                 default => null,
             };
+
+            return $freshIncident;
+        });
+    }
+
+    public function reopen(Incident $incident, User $actor): Incident
+    {
+        if ($incident->status !== IncidentStatus::Closed) {
+            throw ValidationException::withMessages([
+                'status' => 'Only closed service cases can be reopened.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($incident, $actor): Incident {
+            $oldStatus = $incident->status;
+
+            $incident->update([
+                'status' => IncidentStatus::Open,
+                'updated_by' => $actor->id,
+            ]);
+
+            $freshIncident = $incident->fresh();
+
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: 'service_case.status_changed',
+                auditable: $freshIncident,
+                oldValues: ['status' => $oldStatus->value],
+                newValues: ['status' => IncidentStatus::Open->value],
+            );
 
             return $freshIncident;
         });
@@ -97,13 +125,13 @@ class ServiceCaseStatusService
         $messages = [];
 
         if ($incident->remarks()->count() === 0) {
-            $messages['remarks'] = 'Add at least one remark before resolving or closing this service case.';
+            $messages['remarks'] = 'Add at least one remark before closing this service case.';
         }
 
         $order = $incident->order;
 
         if ($order === null || $order->transaction_id === null || trim((string) $order->transaction_id) === '') {
-            $messages['transaction_id'] = 'Assign a transaction ID to the related order before resolving or closing this service case.';
+            $messages['transaction_id'] = 'Assign a transaction ID to the related order before closing this service case.';
         }
 
         if ($messages !== []) {

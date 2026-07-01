@@ -10,43 +10,36 @@ use App\Models\Incident;
 use App\Models\User;
 use App\Services\Concerns\BuildsWorkspaceValidationFailure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
-class WorkspaceAssignActionService
+class WorkspaceReopenActionService
 {
     use BuildsWorkspaceValidationFailure;
 
     public function __construct(
-        private readonly ServiceCaseAssignmentService $assignmentService,
-        private readonly RemarkService $remarkService,
+        private readonly ServiceCaseReopenService $reopenService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly WorkspaceRefreshRenderer $refreshRenderer,
     ) {}
 
-    public function assign(
+    public function reopen(
         Incident $incident,
-        User $assignee,
         User $actor,
         string $body,
+        string $reason,
         WorkspaceRequestContext $requestContext,
+        ?User $assignee = null,
         ?Request $request = null,
     ): WorkspaceActionResponse {
         try {
-            $freshIncident = DB::transaction(function () use ($incident, $assignee, $actor, $body, $request): Incident {
-                $this->remarkService->createForRemarkable(
-                    remarkable: $incident,
-                    actor: $actor,
-                    body: $body,
-                    request: $request,
-                );
-
-                return $this->assignmentService->reassign(
-                    incident: $incident,
-                    assignee: $assignee,
-                    actor: $actor,
-                );
-            });
+            $freshIncident = $this->reopenService->reopen(
+                incident: $incident,
+                actor: $actor,
+                body: $body,
+                reason: $reason,
+                assignee: $assignee,
+                request: $request,
+            );
         } catch (ValidationException $exception) {
             return $this->validationFailure(
                 $incident,
@@ -54,7 +47,8 @@ class WorkspaceAssignActionService
                 $exception,
                 [
                     'body' => $body,
-                    'assigned_to_user_id' => $assignee->id,
+                    'reopen_reason' => $reason,
+                    'assigned_to_user_id' => $assignee?->id,
                 ],
             );
         }
@@ -72,7 +66,7 @@ class WorkspaceAssignActionService
         $fragmentHtml = $this->refreshRenderer->renderActionFragment(
             $incident,
             $requestContext,
-            WorkspaceActionType::Assign,
+            WorkspaceActionType::Reopen,
             $payload,
         );
 
@@ -104,8 +98,7 @@ class WorkspaceAssignActionService
             $actor,
         );
 
-        $assigneeName = $incident->assignee?->firstName() ?? 'admin';
-        $message = "Service case assigned to {$assigneeName}.";
+        $message = 'Service case reopened.';
 
         return WorkspaceActionResponseBuilder::make('action', $incident->id)
             ->forContext($requestContext->context)

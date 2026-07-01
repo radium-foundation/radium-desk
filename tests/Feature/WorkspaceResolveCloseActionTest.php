@@ -97,7 +97,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('action', 'resolve')
+            ->assertJsonPath('action', 'action')
             ->assertJsonPath('meta.context', WorkspaceContext::ServiceCase->value)
             ->assertJsonPath('ui.close_workspace_host', true)
             ->assertJsonPath('refresh.kpis', false)
@@ -109,16 +109,15 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $headerHtml = collect($response->json('refresh.targets'))
             ->firstWhere('selector', '.service-case-header')['html'] ?? '';
 
-        $this->assertStringContainsString('Status: In Progress', $timelineHtml);
-        $this->assertStringContainsString('Resolved', $timelineHtml);
-        $this->assertStringContainsString('Resolved', $headerHtml);
-        $this->assertSame(IncidentStatus::Resolved, $incident->fresh()->status);
+        $this->assertStringContainsString('Service case closed', $timelineHtml);
+        $this->assertStringContainsString('Closed', $headerHtml);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
     public function test_close_action_returns_service_case_timeline_and_header_refresh_payload(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
-        $incident = $this->createIncident($agent, ['status' => IncidentStatus::Resolved]);
+        $incident = $this->createIncident($agent, ['status' => IncidentStatus::InProgress]);
         $this->prepareAgentResolvableIncident($incident, $agent);
 
         $response = $this->actingAs($agent)
@@ -128,7 +127,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('action', 'close')
+            ->assertJsonPath('action', 'action')
             ->assertJsonFragment(['selector' => '#activity-timeline'])
             ->assertJsonFragment(['selector' => '.service-case-header']);
 
@@ -159,17 +158,14 @@ class WorkspaceResolveCloseActionTest extends TestCase
                 ],
             ]);
 
-        $this->assertStringContainsString(
-            'data-workspace-trigger="close"',
-            (string) $response->json('refresh.replace_row.html'),
-        );
         $this->assertStringNotContainsString(
             'data-workspace-trigger="resolve"',
             (string) $response->json('refresh.replace_row.html'),
         );
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
-    public function test_close_action_returns_dashboard_refresh_payload_without_resolve_or_close_triggers(): void
+    public function test_close_action_returns_dashboard_refresh_payload_with_reopen_action_trigger(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createIncident($admin);
@@ -185,6 +181,8 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $rowHtml = (string) $response->json('refresh.replace_row.html');
         $this->assertStringNotContainsString('data-workspace-trigger="resolve"', $rowHtml);
         $this->assertStringNotContainsString('data-workspace-trigger="close"', $rowHtml);
+        $this->assertStringContainsString('data-workspace-trigger="action"', $rowHtml);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
     public function test_resolve_action_is_forbidden_for_unauthorized_user(): void
@@ -243,9 +241,9 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonPath('success', false)
-            ->assertJsonPath('action', 'resolve')
+            ->assertJsonPath('action', 'action')
             ->assertJsonPath('ui.close_workspace_host', false)
-            ->assertJsonPath('refresh.fragments.0.component', 'resolve');
+            ->assertJsonPath('refresh.fragments.0.component', 'action');
     }
 
     public function test_close_action_returns_validation_response_with_fragment(): void
@@ -259,9 +257,9 @@ class WorkspaceResolveCloseActionTest extends TestCase
                 'body' => 'Attempted close.',
             ])
             ->assertUnprocessable()
-            ->assertJsonPath('action', 'close')
+            ->assertJsonPath('action', 'action')
             ->assertJsonPath('ui.close_workspace_host', false)
-            ->assertJsonPath('refresh.fragments.0.component', 'close');
+            ->assertJsonPath('refresh.fragments.0.component', 'action');
     }
 
     public function test_legacy_status_update_routes_remain_unchanged(): void
@@ -396,7 +394,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true);
 
-        $this->assertSame(IncidentStatus::Resolved, $incident->fresh()->status);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
         $this->assertDatabaseHas('remarks', [
             'remarkable_type' => $incident->getMorphClass(),
             'remarkable_id' => $incident->id,
@@ -441,11 +439,11 @@ class WorkspaceResolveCloseActionTest extends TestCase
             ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
 
         $remarkPos = strpos($timelineHtml, 'Device reboot resolved the issue.');
-        $resolvedPos = strpos($timelineHtml, 'Resolved');
+        $closedPos = strpos($timelineHtml, 'Service case closed');
 
         $this->assertNotFalse($remarkPos);
-        $this->assertNotFalse($resolvedPos);
-        $this->assertLessThan($resolvedPos, $remarkPos);
+        $this->assertNotFalse($closedPos);
+        $this->assertLessThan($closedPos, $remarkPos);
     }
 
     public function test_dashboard_excludes_closed_cases_from_pending_admin_filter(): void
@@ -522,7 +520,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->assertSame(1, $stats['open_incidents']);
     }
 
-    public function test_dashboard_shows_resolve_and_close_triggers_for_updatable_cases(): void
+    public function test_dashboard_shows_action_trigger_for_updatable_cases(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $this->createIncident($agent, ['assigned_to_user_id' => $agent->id]);
@@ -530,11 +528,12 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-workspace-trigger="resolve"', false)
-            ->assertSee('data-workspace-trigger="close"', false);
+            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertDontSee('data-workspace-trigger="resolve"', false)
+            ->assertDontSee('data-workspace-trigger="close"', false);
     }
 
-    public function test_dashboard_hides_resolve_and_close_for_closed_cases(): void
+    public function test_dashboard_hides_action_for_closed_cases(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $this->createIncident($agent, [
@@ -545,6 +544,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertDontSee('data-workspace-trigger="action"', false)
             ->assertDontSee('data-workspace-trigger="resolve"', false)
             ->assertDontSee('data-workspace-trigger="close"', false);
     }

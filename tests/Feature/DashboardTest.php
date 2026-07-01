@@ -192,6 +192,7 @@ class DashboardTest extends TestCase
             ->patchJson(route('incidents.workspace.assign', $newlyAssigned), [
                 'assigned_to_user_id' => $agent->id,
                 'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Assigning to Jayram for immediate follow-up.',
             ])
             ->assertOk();
 

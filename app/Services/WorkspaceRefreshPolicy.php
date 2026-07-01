@@ -46,7 +46,7 @@ class WorkspaceRefreshPolicy
     private function serviceCaseEffects(WorkspaceComponent $component): WorkspaceRefreshEffects
     {
         return match ($component) {
-            WorkspaceComponent::Assign, WorkspaceComponent::Resolve, WorkspaceComponent::Close => new WorkspaceRefreshEffects(
+            WorkspaceComponent::Assign, WorkspaceComponent::Action, WorkspaceComponent::Close => new WorkspaceRefreshEffects(
                 targetSelectors: [
                     $this->target('activity_timeline'),
                     $this->target('service_case_header'),

@@ -36,7 +36,7 @@ class SyncCompletedOrdersServiceCases extends Command
 
         $incidents = Incident::query()
             ->whereIn('order_id', $completedOrderIds)
-            ->whereIn('status', ServiceCaseStatusService::unfinishedWorkflowStatuses())
+            ->where('status', '!=', IncidentStatus::Closed)
             ->with(['order' => fn ($query) => $query->select(
                 'id',
                 'order_id',

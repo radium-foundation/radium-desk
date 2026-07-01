@@ -83,6 +83,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.status.update');
     Route::get('incidents/{incident}/components/{component}', [WorkspaceComponentController::class, 'show'])
         ->name('incidents.components.show');
+    Route::patch('incidents/{incident}/workspace/action', [WorkspaceActionController::class, 'action'])
+        ->name('incidents.workspace.action');
     Route::patch('incidents/{incident}/workspace/assign', [WorkspaceActionController::class, 'assign'])
         ->name('incidents.workspace.assign');
     Route::post('incidents/{incident}/workspace/remark', [WorkspaceActionController::class, 'remark'])

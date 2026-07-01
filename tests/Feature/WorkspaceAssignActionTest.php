@@ -71,10 +71,11 @@ class WorkspaceAssignActionTest extends TestCase
             ->patchJson(route('incidents.workspace.assign', $incident), [
                 'assigned_to_user_id' => $shipra->id,
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Assigning for follow-up.',
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('action', 'assign')
+            ->assertJsonPath('action', 'action')
             ->assertJsonPath('incident_id', $incident->id)
             ->assertJsonPath('meta.context', WorkspaceContext::ServiceCase->value)
             ->assertJsonPath('ui.close_workspace_host', true)
@@ -103,6 +104,7 @@ class WorkspaceAssignActionTest extends TestCase
             ->patchJson(route('incidents.workspace.assign', $incident), [
                 'assigned_to_user_id' => $shipra->id,
                 'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Dashboard assign.',
             ])
             ->assertOk()
             ->assertJsonPath('success', true)
@@ -129,6 +131,7 @@ class WorkspaceAssignActionTest extends TestCase
             ->patchJson(route('incidents.workspace.assign', $incident), [
                 'assigned_to_user_id' => $admin->id,
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Escalating to admin.',
             ])
             ->assertOk()
             ->assertJsonPath('success', true);
@@ -162,10 +165,11 @@ class WorkspaceAssignActionTest extends TestCase
             ->patchJson(route('incidents.workspace.assign', $incident), [
                 'assigned_to_user_id' => 99999,
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Invalid assignee test.',
             ])
             ->assertUnprocessable()
             ->assertJsonPath('success', false)
-            ->assertJsonPath('action', 'assign')
+            ->assertJsonPath('action', 'action')
             ->assertJsonPath('ui.close_workspace_host', false)
             ->assertJsonStructure([
                 'errors' => ['assigned_to_user_id'],
@@ -175,7 +179,7 @@ class WorkspaceAssignActionTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('refresh.fragments.0.component', 'assign');
+            ->assertJsonPath('refresh.fragments.0.component', 'action');
     }
 
     public function test_assign_action_rejects_closed_service_case(): void
@@ -190,6 +194,7 @@ class WorkspaceAssignActionTest extends TestCase
             ->patchJson(route('incidents.workspace.assign', $incident), [
                 'assigned_to_user_id' => $shipra->id,
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'body' => 'Assigning for follow-up.',
             ])
             ->assertForbidden();
 

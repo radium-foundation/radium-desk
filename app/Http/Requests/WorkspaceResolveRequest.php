@@ -24,7 +24,7 @@ class WorkspaceResolveRequest extends FormRequest
         $incident = $this->route('incident');
 
         return ($this->user()?->can('update', $incident) ?? false)
-            && ! in_array($incident->status, [IncidentStatus::Resolved, IncidentStatus::Closed], true);
+            && $incident->status !== IncidentStatus::Closed;
     }
 
     /**
@@ -75,7 +75,7 @@ class WorkspaceResolveRequest extends FormRequest
                 $incident,
                 $requestContext,
                 ValidationException::withMessages($validator->errors()->messages()),
-                $this->input('body'),
+                ['body' => $this->input('body')],
             )->toJsonResponse(422),
         );
     }

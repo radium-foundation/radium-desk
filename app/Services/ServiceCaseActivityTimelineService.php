@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
+use App\Models\ServiceCaseCloseException;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
@@ -178,7 +179,8 @@ class ServiceCaseActivityTimelineService
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
-                'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $actor, $occurredAt),
+                'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $incident, $actor, $occurredAt),
+                'service_case.close_exception' => null,
                 default => null,
             };
         }
@@ -243,14 +245,34 @@ class ServiceCaseActivityTimelineService
         );
     }
 
-    private function mapStatusChangeEntry(AuditLog $auditLog, TimelineActor $actor, $occurredAt): ServiceCaseTimelineEntry
-    {
+    private function mapStatusChangeEntry(
+        AuditLog $auditLog,
+        Incident $incident,
+        TimelineActor $actor,
+        $occurredAt,
+    ): ServiceCaseTimelineEntry {
         $oldStatus = $this->statusLabel($auditLog->old_values['status'] ?? null);
         $newStatus = $this->statusLabel($auditLog->new_values['status'] ?? null);
         $newValue = (string) ($auditLog->new_values['status'] ?? '');
 
+        if ($newValue === IncidentStatus::Closed->value) {
+            return $this->mapClosedEntry($auditLog, $incident, $actor, $occurredAt);
+        }
+
+        if ($newValue === IncidentStatus::Open->value
+            && ($auditLog->old_values['status'] ?? null) === IncidentStatus::Closed->value) {
+            return new ServiceCaseTimelineEntry(
+                occurredAt: $occurredAt,
+                type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                actor: $actor,
+                title: 'Service case reopened.',
+                body: null,
+                remark: null,
+                dedupeKey: "audit:{$auditLog->id}",
+            );
+        }
+
         $title = match ($newValue) {
-            IncidentStatus::Closed->value => 'Closed Service Case',
             IncidentStatus::Resolved->value => $oldStatus !== null
                 ? "Status: {$oldStatus} → Resolved"
                 : 'Service case resolved',
@@ -265,6 +287,38 @@ class ServiceCaseActivityTimelineService
             actor: $actor,
             title: $title,
             body: null,
+            remark: null,
+            dedupeKey: "audit:{$auditLog->id}",
+        );
+    }
+
+    private function mapClosedEntry(
+        AuditLog $auditLog,
+        Incident $incident,
+        TimelineActor $actor,
+        $occurredAt,
+    ): ServiceCaseTimelineEntry {
+        $exception = ServiceCaseCloseException::query()
+            ->where('incident_id', $incident->id)
+            ->whereBetween('created_at', [
+                $occurredAt->copy()->subSeconds(10),
+                $occurredAt->copy()->addSeconds(2),
+            ])
+            ->latest('id')
+            ->first();
+
+        $body = null;
+
+        if ($exception !== null) {
+            $body = "Exception ID:\n{$exception->exception_id}\n\nReason:\n{$exception->displayReason()}";
+        }
+
+        return new ServiceCaseTimelineEntry(
+            occurredAt: $occurredAt,
+            type: ServiceCaseTimelineEntry::TYPE_STATUS,
+            actor: $actor,
+            title: 'Service case closed',
+            body: $body,
             remark: null,
             dedupeKey: "audit:{$auditLog->id}",
         );

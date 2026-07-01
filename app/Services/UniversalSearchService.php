@@ -34,7 +34,9 @@ class UniversalSearchService
             ->where(function (Builder $incidentQuery) use ($query, $like): void {
                 $incidentQuery->where(function (Builder $referenceQuery) use ($query): void {
                     $referenceQuery->matchingReference($query);
-                })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like));
+                })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like))
+                    ->orWhereHas('closeExceptions', fn (Builder $exceptionQuery) => $exceptionQuery
+                        ->where('exception_id', 'like', $like));
             });
 
         $referenceExactMatches = $this->referenceExactMatchBindings($query);

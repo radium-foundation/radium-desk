@@ -3,14 +3,12 @@
 
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
-    $canResolve = auth()->user()?->can('update', $serviceCase)
-        && ! in_array($serviceCase->status, [IncidentStatus::Resolved, IncidentStatus::Closed], true);
-    $canClose = auth()->user()?->can('update', $serviceCase)
-        && $serviceCase->status !== IncidentStatus::Closed;
+    $canUpdate = auth()->user()?->can('update', $serviceCase);
+    $isClosed = $serviceCase->status === IncidentStatus::Closed;
+    $canAssign = auth()->user()?->can('reassign', $serviceCase) && ! $isClosed;
+    $canAction = ($canAssign) || ($canUpdate && ! $isClosed) || ($canUpdate && $isClosed);
     $canShowRowActions = (auth()->user()?->can('create', \App\Models\Remark::class) && auth()->user()?->can('view', $serviceCase))
-        || auth()->user()?->can('reassign', $serviceCase)
-        || $canResolve
-        || $canClose;
+        || $canAction;
     $searchParts = array_filter([
         $order?->order_id,
         $serviceCase->display_reference,
@@ -134,43 +132,17 @@
                         </button>
                     @endcan
                 @endcan
-                @can('reassign', $serviceCase)
+                @if($canAction)
                     <button type="button"
                             class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
-                            data-bs-title="Assign"
-                            data-workspace-trigger="assign"
+                            data-bs-title="Action"
+                            data-workspace-trigger="action"
                             data-workspace-incident-id="{{ $serviceCase->id }}"
                             data-workspace-context="dashboard"
-                            aria-label="Assign {{ $serviceCase->display_reference }}">
-                        <i class="bi bi-person-check" aria-hidden="true"></i>
-                    </button>
-                @endcan
-                @if($canResolve)
-                    <button type="button"
-                            class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="top"
-                            data-bs-title="Resolve"
-                            data-workspace-trigger="resolve"
-                            data-workspace-incident-id="{{ $serviceCase->id }}"
-                            data-workspace-context="dashboard"
-                            aria-label="Resolve {{ $serviceCase->display_reference }}">
-                        <i class="bi bi-check-circle" aria-hidden="true"></i>
-                    </button>
-                @endif
-                @if($canClose)
-                    <button type="button"
-                            class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="top"
-                            data-bs-title="Close"
-                            data-workspace-trigger="close"
-                            data-workspace-incident-id="{{ $serviceCase->id }}"
-                            data-workspace-context="dashboard"
-                            aria-label="Close {{ $serviceCase->display_reference }}">
-                        <i class="bi bi-x-circle" aria-hidden="true"></i>
+                            aria-label="Action for {{ $serviceCase->display_reference }}">
+                        <i class="bi bi-lightning-charge" aria-hidden="true"></i>
                     </button>
                 @endif
             </div>

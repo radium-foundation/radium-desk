@@ -1,0 +1,349 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
+use App\Enums\ServiceCaseCloseExceptionReason;
+use App\Enums\WorkspaceActionType;
+use App\Enums\WorkspaceContext;
+use App\Models\AuditLog;
+use App\Models\Incident;
+use App\Models\Order;
+use App\Models\Remark;
+use App\Models\ServiceCaseCloseException;
+use App\Models\User;
+use App\Services\IncidentReferenceService;
+use App\Services\ServiceCaseCloseExceptionIdService;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class WorkspaceActionDialogTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    private function createAdminUser(string $email, string $name): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'email' => $email,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        return $user;
+    }
+
+    private function createAgentUser(string $email, string $name): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'email' => $email,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        return $user;
+    }
+
+    private function createIncident(User $creator, array $overrides = []): Incident
+    {
+        $order = Order::query()->create([
+            'order_id' => $overrides['order_id'] ?? 'ORD-ACTION-1',
+            'serial_number' => $overrides['serial_number'] ?? 'SN-ACTION-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => $overrides['transaction_id'] ?? null,
+            'status' => 'active',
+            'created_by' => $creator->id,
+        ]);
+
+        unset($overrides['order_id'], $overrides['serial_number'], $overrides['transaction_id']);
+
+        return Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => $overrides['reference_no'] ?? app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => $overrides['title'] ?? 'Action dialog test',
+            'description' => $overrides['description'] ?? 'Action dialog test description.',
+            'status' => $overrides['status'] ?? IncidentStatus::Open,
+            'created_by' => $creator->id,
+            'updated_by' => $creator->id,
+            ...$overrides,
+        ]);
+    }
+
+    public function test_action_component_fragment_renders_action_cards_and_form(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin);
+
+        $this->actingAs($admin)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'action',
+                'context' => WorkspaceContext::ServiceCase->value,
+            ]))
+            ->assertOk()
+            ->assertSee('data-workspace-action-form="action"', false)
+            ->assertSee('data-workspace-action-card="assign"', false)
+            ->assertSee('data-workspace-action-card="close"', false)
+            ->assertSee(route('incidents.workspace.action', $incident), false)
+            ->assertSee('Confirm', false);
+    }
+
+    public function test_assign_action_requires_remark_and_assignee(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $shipra = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');
+        $incident = $this->createIncident($admin);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Assign->value,
+                'assigned_to_user_id' => $shipra->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('action', 'action')
+            ->assertJsonStructure(['errors' => ['body']]);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Assign->value,
+                'assigned_to_user_id' => $shipra->id,
+                'body' => 'Assigning to Shipra for follow-up.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('action', 'action');
+
+        $this->assertSame($shipra->id, $incident->fresh()->assigned_to_user_id);
+        $this->assertDatabaseHas('remarks', [
+            'remarkable_id' => $incident->id,
+            'body' => 'Assigning to Shipra for follow-up.',
+        ]);
+
+        $timelineHtml = collect($response->json('refresh.targets'))
+            ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
+        $this->assertStringContainsString('Assigning to Shipra for follow-up.', $timelineHtml);
+    }
+
+    public function test_close_action_closes_service_case_with_remark_and_timeline(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, ['status' => IncidentStatus::InProgress]);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Customer confirmed resolution.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+
+        $timelineHtml = collect($response->json('refresh.targets'))
+            ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
+        $this->assertStringContainsString('Service case closed', $timelineHtml);
+        $this->assertStringContainsString('Customer confirmed resolution.', $timelineHtml);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'event' => 'service_case.status_changed',
+        ]);
+    }
+
+    public function test_close_action_with_exception_creates_unique_exception_id_and_timeline(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, [
+            'reference_no' => '',
+            'serial_number' => null,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Closing with documented exceptions.',
+                'serial_number_unavailable' => true,
+                'reference_number_unavailable' => true,
+                'exception_reason' => ServiceCaseCloseExceptionReason::CustomerCancelledBeforePayment->value,
+            ])
+            ->assertOk();
+
+        $exception = ServiceCaseCloseException::query()->where('incident_id', $incident->id)->first();
+        $this->assertNotNull($exception);
+        $this->assertMatchesRegularExpression('/^EXC-\d{8}-\d{4}$/', $exception->exception_id);
+
+        $timelineHtml = collect($response->json('refresh.targets'))
+            ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
+        $this->assertStringContainsString($exception->exception_id, $timelineHtml);
+        $this->assertStringContainsString('Customer cancelled before payment', $timelineHtml);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_id' => $incident->id,
+            'event' => 'service_case.close_exception',
+        ]);
+    }
+
+    public function test_exception_id_generation_is_unique_per_day(): void
+    {
+        $this->travelTo('2026-07-01 12:00:00');
+
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $first = $this->createIncident($admin, ['order_id' => 'ORD-EX-1']);
+        $second = $this->createIncident($admin, ['order_id' => 'ORD-EX-2']);
+
+        foreach ([$first, $second] as $incident) {
+            $this->actingAs($admin)
+                ->patchJson(route('incidents.workspace.action', $incident), [
+                    'workspace_context' => WorkspaceContext::ServiceCase->value,
+                    'action_type' => WorkspaceActionType::Close->value,
+                    'body' => 'Exception close.',
+                    'reference_number_unavailable' => true,
+                    'exception_reason' => ServiceCaseCloseExceptionReason::ApprovedByAdmin->value,
+                ])
+                ->assertOk();
+        }
+
+        $ids = ServiceCaseCloseException::query()->orderBy('id')->pluck('exception_id')->all();
+        $this->assertSame(['EXC-20260701-0001', 'EXC-20260701-0002'], $ids);
+    }
+
+    public function test_close_validation_returns_first_error_message_in_dialog_response(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, ['reference_no' => '']);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Attempting close without reference.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Reference Number is required before closing this service case.')
+            ->assertJsonPath('toast.message', 'Reference Number is required before closing this service case.')
+            ->assertJsonPath('refresh.fragments.0.component', 'action');
+
+        $this->assertStringNotContainsString(
+            'Please correct the highlighted fields.',
+            (string) $response->json('toast.message'),
+        );
+    }
+
+    public function test_reopen_action_reopens_closed_service_case(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $shipra = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');
+        $incident = $this->createIncident($admin, ['status' => IncidentStatus::Closed]);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Reopen->value,
+                'reopen_reason' => 'Customer reported the issue again.',
+                'assigned_to_user_id' => $shipra->id,
+                'body' => 'Reopening for further investigation.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+        $this->assertSame($shipra->id, $incident->fresh()->assigned_to_user_id);
+
+        $timelineHtml = collect($response->json('refresh.targets'))
+            ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
+        $this->assertStringContainsString('Service case reopened.', $timelineHtml);
+    }
+
+    public function test_global_search_finds_service_case_by_exception_id(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, ['reference_no' => '']);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Closed with exception.',
+                'reference_number_unavailable' => true,
+                'exception_reason' => ServiceCaseCloseExceptionReason::DuplicateServiceCase->value,
+            ])
+            ->assertOk();
+
+        $exceptionId = ServiceCaseCloseException::query()->value('exception_id');
+
+        $this->actingAs($admin)
+            ->getJson(route('search.index', ['q' => $exceptionId]))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $incident->id);
+    }
+
+    public function test_legacy_resolve_route_now_closes_service_case(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.resolve', $incident), [
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+                'body' => 'Legacy resolve route.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('action', 'action');
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
+    public function test_dashboard_shows_single_action_trigger_for_updatable_cases(): void
+    {
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $this->createIncident($agent, ['assigned_to_user_id' => $agent->id]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertDontSee('data-workspace-trigger="resolve"', false)
+            ->assertDontSee('data-workspace-trigger="close"', false);
+    }
+
+    public function test_agent_close_requires_transaction_id(): void
+    {
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $incident = $this->createIncident($agent);
+
+        Remark::query()->create([
+            'user_id' => $agent->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => 'Prior remark.',
+        ]);
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Ready to close.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonStructure(['errors' => ['transaction_id']]);
+    }
+}

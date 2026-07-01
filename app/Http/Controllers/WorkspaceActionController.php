@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\WorkspaceActionRequest;
 use App\Http\Requests\WorkspaceAssignRequest;
 use App\Http\Requests\WorkspaceCloseRequest;
 use App\Http\Requests\WorkspaceRemarkRequest;
 use App\Http\Requests\WorkspaceResolveRequest;
 use App\Models\Incident;
 use App\Models\User;
+use App\Enums\WorkspaceActionType;
+use App\Services\WorkspaceActionDialogService;
 use App\Services\WorkspaceAssignActionService;
 use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
@@ -19,12 +22,30 @@ use Illuminate\Validation\ValidationException;
 class WorkspaceActionController extends Controller
 {
     public function __construct(
+        private readonly WorkspaceActionDialogService $actionDialogService,
         private readonly WorkspaceAssignActionService $assignActionService,
         private readonly WorkspaceRemarkActionService $remarkActionService,
         private readonly WorkspaceResolveActionService $resolveActionService,
         private readonly WorkspaceCloseActionService $closeActionService,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
+
+    public function action(WorkspaceActionRequest $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+        $actionType = WorkspaceActionType::from($request->string('action_type')->toString());
+
+        $response = $this->actionDialogService->execute(
+            incident: $incident,
+            actor: $request->user(),
+            actionType: $actionType,
+            payload: $request->all(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
 
     public function assign(WorkspaceAssignRequest $request, Incident $incident): JsonResponse
     {
@@ -36,13 +57,16 @@ class WorkspaceActionController extends Controller
                 incident: $incident,
                 assignee: $assignee,
                 actor: $request->user(),
+                body: $request->string('body')->toString(),
                 requestContext: $requestContext,
+                request: $request,
             );
         } catch (ValidationException $exception) {
             $response = $this->assignActionService->validationFailure(
                 $incident,
                 $requestContext,
                 $exception,
+                $request->all(),
             );
 
             return $response->toJsonResponse(422);
@@ -88,7 +112,7 @@ class WorkspaceActionController extends Controller
         $response = $this->closeActionService->close(
             incident: $incident,
             actor: $request->user(),
-            body: $request->string('body')->toString(),
+            payload: ['body' => $request->string('body')->toString()],
             requestContext: $requestContext,
             request: $request,
         );

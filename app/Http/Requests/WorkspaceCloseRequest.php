@@ -75,7 +75,7 @@ class WorkspaceCloseRequest extends FormRequest
                 $incident,
                 $requestContext,
                 ValidationException::withMessages($validator->errors()->messages()),
-                $this->input('body'),
+                ['body' => $this->input('body')],
             )->toJsonResponse(422),
         );
     }

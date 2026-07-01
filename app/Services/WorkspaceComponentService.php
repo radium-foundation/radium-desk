@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\IncidentStatus;
+use App\Enums\ServiceCaseCloseExceptionReason;
+use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\Remark;
@@ -33,9 +35,10 @@ class WorkspaceComponentService
     {
         $authorized = match ($component) {
             WorkspaceComponent::Assign => $user->can('reassign', $incident),
+            WorkspaceComponent::Action => $this->canUseActionDialog($incident, $user),
             WorkspaceComponent::Remark => $user->can('create', Remark::class),
             WorkspaceComponent::Resolve => $user->can('update', $incident)
-                && ! in_array($incident->status, [IncidentStatus::Resolved, IncidentStatus::Closed], true),
+                && $incident->status !== IncidentStatus::Closed,
             WorkspaceComponent::Close => $user->can('update', $incident)
                 && $incident->status !== IncidentStatus::Closed,
             WorkspaceComponent::Timeline => $user->can('view', $incident),
@@ -64,6 +67,18 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 'reassignableAdmins' => $this->assignmentService->reassignableAdmins(),
                 ...$this->assignWorkspaceFields($requestContext, $incident),
+            ],
+            WorkspaceComponent::Action => [
+                'incident' => $incident,
+                'reassignableAdmins' => $this->assignmentService->reassignableAdmins(),
+                'actionCapabilities' => $this->actionCapabilities($incident, auth()->user()),
+                'selectedAction' => WorkspaceActionType::tryFrom((string) request()->query('action'))
+                    ?? ($incident->status === IncidentStatus::Closed
+                        ? WorkspaceActionType::Reopen
+                        : WorkspaceActionType::Assign),
+                'exceptionReasons' => ServiceCaseCloseExceptionReason::cases(),
+                ...$this->actionWorkspaceFields($requestContext, $incident),
+                ...$this->actionRemarkUsers(),
             ],
             WorkspaceComponent::Remark => [
                 'incident' => $incident,
@@ -138,6 +153,43 @@ class WorkspaceComponentService
             'workspaceActionUrl' => route('dashboard.workspace.batch-device-model'),
             'workspaceContext' => $requestContext->context->value,
             'incidentIds' => $incidentIds,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function actionWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.action', $incident),
+            'workspaceContext' => $requestContext->context->value,
+        ];
+    }
+
+    private function canUseActionDialog(Incident $incident, User $user): bool
+    {
+        $capabilities = $this->actionCapabilities($incident, $user);
+
+        return $capabilities['assign'] || $capabilities['close'] || $capabilities['reopen'];
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function actionCapabilities(Incident $incident, User $user): array
+    {
+        $canUpdate = $user->can('update', $incident);
+        $isClosed = $incident->status === IncidentStatus::Closed;
+
+        return [
+            'assign' => $user->can('reassign', $incident) && ! $isClosed,
+            'close' => $canUpdate && ! $isClosed,
+            'reopen' => $canUpdate && $isClosed,
         ];
     }
 

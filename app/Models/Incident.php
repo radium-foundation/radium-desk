@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
+use App\Models\ServiceCaseCloseException;
 use App\Services\SettingService;
 use App\Support\AppDateFormatter;
 use Illuminate\Database\Eloquent\Builder;
@@ -83,6 +84,11 @@ class Incident extends Model
     public function remarks(): MorphMany
     {
         return $this->morphMany(Remark::class, 'remarkable');
+    }
+
+    public function closeExceptions(): HasMany
+    {
+        return $this->hasMany(ServiceCaseCloseException::class);
     }
 
     public function refundRequests(): HasMany
