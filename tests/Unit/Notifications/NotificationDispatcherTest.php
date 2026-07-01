@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Notifications;
 
+use App\Data\NotificationDispatchResult;
 use App\Data\NotificationMessage;
 use App\Data\NotificationResult;
 use App\Data\WhatsAppTemplateDispatchResult;
@@ -102,6 +103,42 @@ class NotificationDispatcherTest extends TestCase
         $this->assertTrue($result->results[0]->success);
         $this->assertFalse($result->results[1]->success);
         $this->assertSame(NotificationChannelType::Email, $result->results[1]->channel);
+        $this->assertSame('missing_customer_email', $result->results[1]->metadata['status']);
+    }
+
+    public function test_send_includes_email_channel_when_enabled_and_customer_has_email(): void
+    {
+        $this->setNotificationChannelEnabled('notifications.whatsapp.enabled', false);
+        $this->setNotificationChannelEnabled('notifications.email.enabled', true);
+
+        config([
+            'mail.enabled' => true,
+            'mail.default' => 'array',
+        ]);
+
+        [$message] = $this->makeMessage(withDispatch: false, customerEmail: 'customer@example.com');
+
+        $result = app(NotificationDispatcher::class)->send(NotificationType::RequestSerialNumber, $message);
+
+        $this->assertTrue($result->success);
+        $this->assertCount(1, $result->results);
+        $this->assertTrue($result->results[0]->success);
+        $this->assertSame(NotificationChannelType::Email, $result->results[0]->channel);
+        $this->assertSame('Email notification sent successfully.', $result->message);
+    }
+
+    public function test_disabled_email_channel_is_skipped_by_dispatcher(): void
+    {
+        $this->setNotificationChannelEnabled('notifications.whatsapp.enabled', false);
+        $this->setNotificationChannelEnabled('notifications.email.enabled', false);
+
+        [$message] = $this->makeMessage(withDispatch: false, customerEmail: 'customer@example.com');
+
+        $result = app(NotificationDispatcher::class)->send(NotificationType::RequestSerialNumber, $message);
+
+        $this->assertFalse($result->success);
+        $this->assertSame([], $result->results);
+        $this->assertSame('No notification channels are available.', $result->message);
     }
 
     public function test_send_aggregates_failure_when_all_channels_fail(): void
@@ -136,7 +173,8 @@ class NotificationDispatcherTest extends TestCase
         $results = [
             NotificationResult::failure(
                 channel: NotificationChannelType::Email,
-                message: 'Email notifications are not implemented yet.',
+                message: 'Customer email address is not available.',
+                metadata: ['status' => 'missing_customer_email'],
             ),
             NotificationResult::success(
                 channel: NotificationChannelType::WhatsApp,
@@ -145,7 +183,7 @@ class NotificationDispatcherTest extends TestCase
             ),
         ];
 
-        $aggregate = \App\Data\NotificationDispatchResult::fromResults($results);
+        $aggregate = NotificationDispatchResult::fromResults($results);
 
         $this->assertTrue($aggregate->success);
         $this->assertSame('WhatsApp template sent successfully.', $aggregate->message);
@@ -165,7 +203,7 @@ class NotificationDispatcherTest extends TestCase
     /**
      * @return array{0: NotificationMessage, 1: WhatsAppTemplateDispatch|null}
      */
-    private function makeMessage(bool $withDispatch = false): array
+    private function makeMessage(bool $withDispatch = false, ?string $customerEmail = null): array
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -176,6 +214,7 @@ class NotificationDispatcherTest extends TestCase
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'customer_phone' => '9876543210',
+            'customer_email' => $customerEmail,
             'status' => 'active',
             'created_by' => $agent->id,
         ]);

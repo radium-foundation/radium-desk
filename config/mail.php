@@ -18,6 +18,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mail Delivery Enabled
+    |--------------------------------------------------------------------------
+    |
+    | When disabled, notification email channels skip transport and return a
+    | structured failure without attempting delivery.
+    |
+    */
+
+    'enabled' => env('MAIL_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Mailer Configurations
     |--------------------------------------------------------------------------
     |
