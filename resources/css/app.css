@@ -4077,6 +4077,10 @@ a:focus-visible .stat-card {
     content: '💬 ';
 }
 
+.unified-timeline-item--whatsapp-template-sent .unified-timeline-title::before {
+    content: '📱 ';
+}
+
 .unified-timeline-summary-fields {
     display: grid;
     gap: 0.375rem;

@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Services\AutomationIdentityService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\Timeline\Sources\OrderCustomerTimelineSource;
+use App\Services\Timeline\Sources\WhatsAppTemplateDispatchTimelineSource;
 use App\Services\Timeline\Sources\WhatsAppTimelineEventSource;
 
 class Customer360TimelineService
@@ -50,6 +51,9 @@ class Customer360TimelineService
                 app()->makeWith(WhatsAppTimelineEventSource::class, [
                     'order' => $order,
                 ]),
+                new WhatsAppTemplateDispatchTimelineSource(
+                    order: $order,
+                ),
             ],
             offset: $offset,
             limit: $pageSize,

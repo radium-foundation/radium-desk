@@ -90,6 +90,9 @@ class WorkspaceRefreshPolicy
                 ],
                 closeWorkspaceHost: false,
             ),
+            WorkspaceComponent::RequestSerialNumber => new WorkspaceRefreshEffects(
+                closeWorkspaceHost: true,
+            ),
             default => new WorkspaceRefreshEffects(
                 preferRedirect: true,
                 closeWorkspaceHost: true,

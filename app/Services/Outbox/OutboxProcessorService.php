@@ -7,6 +7,8 @@ use App\Models\OutboxEvent;
 use App\Models\InteraktWebhookLog;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
+use App\Services\Interakt\InteraktOutboundOutboxWriter;
+use App\Services\Interakt\InteraktOutboundProcessorService;
 use App\Services\Interakt\InteraktWebhookOutboxWriter;
 use App\Services\Interakt\InteraktWebhookProcessorService;
 use Illuminate\Support\Carbon;
@@ -27,6 +29,7 @@ class OutboxProcessorService
     public function __construct(
         private readonly CashfreeWebhookDeferredOperationsService $cashfreeDeferredOperationsService,
         private readonly InteraktWebhookProcessorService $interaktWebhookProcessorService,
+        private readonly InteraktOutboundProcessorService $interaktOutboundProcessorService,
     ) {}
 
     public function process(?int $limit = null): int
@@ -110,6 +113,7 @@ class OutboxProcessorService
         match ($event->event_type) {
             CashfreeWebhookOutboxWriter::EVENT_TYPE => $this->dispatchCashfreeDeferredOperation($event),
             InteraktWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktWebhookProcessing($event),
+            InteraktOutboundOutboxWriter::EVENT_TYPE => $this->dispatchInteraktTemplateSend($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
     }
@@ -130,6 +134,18 @@ class OutboxProcessorService
         }
 
         $this->interaktWebhookProcessorService->process($webhookLog);
+    }
+
+    private function dispatchInteraktTemplateSend(OutboxEvent $event): void
+    {
+        $payload = $event->payload ?? [];
+        $dispatchId = (int) ($payload['dispatch_id'] ?? 0);
+
+        if ($dispatchId <= 0) {
+            throw new RuntimeException('Interakt outbound event is missing dispatch_id.');
+        }
+
+        $this->interaktOutboundProcessorService->processDispatch($dispatchId);
     }
 
     private function dispatchCashfreeDeferredOperation(OutboxEvent $event): void

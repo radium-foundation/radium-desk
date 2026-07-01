@@ -142,6 +142,12 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
             await lifecycle.run('afterSuccess', data, host);
         }
 
+        if (data.extensions?.refresh_customer360 && data.incident_id) {
+            document.dispatchEvent(new CustomEvent('customer360:refresh', {
+                detail: { incidentId: data.incident_id },
+            }));
+        }
+
         if (data.ui?.redirect?.url) {
             const navigate = data.ui.redirect.replace ? location.replace : location.assign;
             navigate(data.ui.redirect.url);

@@ -5,6 +5,7 @@
         'order' => $order,
         'customer' => $customer,
         'device' => $device,
+        'canRequestSerialNumber' => $canRequestSerialNumber ?? false,
     ])
     @include('customer-360.partials.current-device', ['device' => $device])
     @include('customer-360.partials.active-services', ['activeServices' => $activeServices])

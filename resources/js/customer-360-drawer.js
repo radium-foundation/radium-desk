@@ -229,6 +229,18 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         event.stopPropagation();
     });
 
+    document.addEventListener('customer360:refresh', (event) => {
+        const incidentId = event.detail?.incidentId;
+
+        if (!incidentId || !drawer.classList.contains('is-open')) {
+            return;
+        }
+
+        if (String(activeIncidentId) === String(incidentId)) {
+            loadContent(incidentId);
+        }
+    });
+
     return {
         open,
         close,

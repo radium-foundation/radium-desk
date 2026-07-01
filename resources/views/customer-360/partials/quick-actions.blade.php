@@ -47,6 +47,17 @@
             </button>
         @endif
 
+        @if($canRequestSerialNumber ?? false)
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm customer-360-quick-action"
+                    data-workspace-trigger="request-serial"
+                    data-workspace-incident-id="{{ $incident->id }}"
+                    data-workspace-context="customer"
+                    title="Send approved WhatsApp template to request serial number">
+                <span aria-hidden="true">📱</span> Request Serial Number
+            </button>
+        @endif
+
         <button type="button"
                 class="btn btn-outline-secondary btn-sm customer-360-quick-action"
                 disabled

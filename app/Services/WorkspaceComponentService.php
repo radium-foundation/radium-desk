@@ -11,6 +11,7 @@ use App\Models\Incident;
 use App\Models\Remark;
 use App\Models\User;
 use App\Services\DeviceModelSettingsService;
+use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use Illuminate\Auth\Access\AuthorizationException;
 
 class WorkspaceComponentService
@@ -18,6 +19,7 @@ class WorkspaceComponentService
     public function __construct(
         private readonly ServiceCaseAssignmentService $assignmentService,
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
+        private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -42,6 +44,8 @@ class WorkspaceComponentService
             WorkspaceComponent::Close => $user->can('update', $incident)
                 && $incident->status !== IncidentStatus::Closed,
             WorkspaceComponent::Timeline => $user->can('view', $incident),
+            WorkspaceComponent::RequestSerialNumber => $user->can('update', $incident)
+                && $this->requestSerialEligibilityService->canShowAction($incident),
         };
 
         if (! $authorized) {
@@ -104,7 +108,26 @@ class WorkspaceComponentService
             ],
             WorkspaceComponent::BatchTransaction => [],
             WorkspaceComponent::BatchDeviceModel => [],
+            WorkspaceComponent::RequestSerialNumber => [
+                'incident' => $incident,
+                ...$this->requestSerialWorkspaceFields($requestContext, $incident),
+            ],
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requestSerialWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.request-serial', $incident),
+            'workspaceContext' => $requestContext->context->value,
+        ];
     }
 
     /**

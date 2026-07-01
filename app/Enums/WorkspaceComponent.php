@@ -12,6 +12,7 @@ enum WorkspaceComponent: string
     case Timeline = 'timeline';
     case BatchTransaction = 'batch-transaction';
     case BatchDeviceModel = 'batch-device-model';
+    case RequestSerialNumber = 'request-serial';
 
     public function view(): string
     {
@@ -24,6 +25,7 @@ enum WorkspaceComponent: string
             self::Timeline => 'incidents.partials.activity-timeline',
             self::BatchTransaction => 'dashboard.fragments.batch-transaction-form',
             self::BatchDeviceModel => 'dashboard.fragments.batch-device-model-form',
+            self::RequestSerialNumber => 'customer-360.fragments.request-serial-form',
         };
     }
 }

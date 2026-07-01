@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
@@ -17,6 +18,7 @@ class Customer360Service
     public function __construct(
         private readonly Customer360TimelineService $customer360TimelineService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $enrichmentSyncStore,
+        private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
     ) {}
 
     /**
@@ -48,6 +50,7 @@ class Customer360Service
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary, $timeline),
             'timeline' => $timeline,
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
+            'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
         ];
     }
 
@@ -283,6 +286,7 @@ class Customer360Service
                 hasMore: false,
             ),
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
+            'canRequestSerialNumber' => false,
         ];
     }
 }

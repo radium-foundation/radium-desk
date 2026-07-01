@@ -12,6 +12,7 @@ enum TimelineEventType: string
 
     // Reserved for future phases — add handlers in TimelineEventTypeRegistry without UI changes.
     case WhatsApp = 'whatsapp';
+    case WhatsAppTemplateSent = 'whatsapp_template_sent';
     case Email = 'email';
     case IvrCall = 'ivr_call';
     case Dispatch = 'dispatch';
@@ -28,6 +29,7 @@ enum TimelineEventType: string
             self::InternalNote => 'Internal Note',
             self::AuditEvent => 'Audit Event',
             self::WhatsApp => 'WhatsApp',
+            self::WhatsAppTemplateSent => 'WhatsApp Template Sent',
             self::Email => 'Email',
             self::IvrCall => 'IVR Call',
             self::Dispatch => 'Dispatch',
@@ -45,7 +47,8 @@ enum TimelineEventType: string
             self::Assignment => 'bi-person-check',
             self::InternalNote => 'bi-chat-left-text',
             self::AuditEvent => 'bi-journal-text',
-            self::WhatsApp => 'bi-whatsapp',
+            self::WhatsApp,
+            self::WhatsAppTemplateSent => 'bi-whatsapp',
             self::Email => 'bi-envelope',
             self::IvrCall => 'bi-telephone',
             self::Dispatch => 'bi-truck',
@@ -63,7 +66,8 @@ enum TimelineEventType: string
             self::Assignment,
             self::InternalNote,
             self::AuditEvent,
-            self::WhatsApp => true,
+            self::WhatsApp,
+            self::WhatsAppTemplateSent => true,
             default => false,
         };
     }
@@ -71,7 +75,8 @@ enum TimelineEventType: string
     public function filterCategory(): string
     {
         return match ($this) {
-            self::WhatsApp => 'whatsapp',
+            self::WhatsApp,
+            self::WhatsAppTemplateSent => 'whatsapp',
             self::Payment => 'payments',
             self::ServiceCaseCreated => 'repairs',
             self::InternalNote => 'notes',

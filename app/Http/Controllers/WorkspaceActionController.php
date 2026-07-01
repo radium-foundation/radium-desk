@@ -15,8 +15,10 @@ use App\Services\WorkspaceAssignActionService;
 use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
 use App\Services\WorkspaceRemarkActionService;
+use App\Services\WorkspaceRequestSerialActionService;
 use App\Services\WorkspaceResolveActionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class WorkspaceActionController extends Controller
@@ -27,6 +29,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceRemarkActionService $remarkActionService,
         private readonly WorkspaceResolveActionService $resolveActionService,
         private readonly WorkspaceCloseActionService $closeActionService,
+        private readonly WorkspaceRequestSerialActionService $requestSerialActionService,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
 
@@ -113,6 +116,22 @@ class WorkspaceActionController extends Controller
             incident: $incident,
             actor: $request->user(),
             payload: ['body' => $request->string('body')->toString()],
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function requestSerial(Request $request, Incident $incident): JsonResponse
+    {
+        $this->authorize('update', $incident);
+
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->requestSerialActionService->send(
+            incident: $incident,
+            actor: $request->user(),
             requestContext: $requestContext,
             request: $request,
         );

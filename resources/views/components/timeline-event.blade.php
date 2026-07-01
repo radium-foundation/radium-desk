@@ -8,12 +8,15 @@
 
     $isInternalNote = $event->type === TimelineEventType::InternalNote;
     $isWhatsAppSummary = $event->type === TimelineEventType::WhatsApp && $event->summaryFields !== [];
+    $isWhatsAppTemplateSent = $event->type === TimelineEventType::WhatsAppTemplateSent && $event->summaryFields !== [];
+    $isStructuredSummary = $isWhatsAppSummary || $isWhatsAppTemplateSent;
     $mentionFormatter = app(RemarkMentionFormatter::class);
 @endphp
 
 <article @class([
         'unified-timeline-item unified-timeline-item--card',
         'unified-timeline-item--whatsapp-summary' => $isWhatsAppSummary,
+        'unified-timeline-item--whatsapp-template-sent' => $isWhatsAppTemplateSent,
     ])
          role="listitem"
          data-timeline-event
@@ -49,7 +52,7 @@
             <div class="unified-timeline-detail unified-timeline-note-body">{!! $mentionFormatter->format($event->noteBody) !!}</div>
         @endif
 
-        @if($isWhatsAppSummary)
+        @if($isStructuredSummary)
             <dl class="unified-timeline-summary-fields">
                 @foreach($event->summaryFields as $field)
                     <div class="unified-timeline-summary-field">
