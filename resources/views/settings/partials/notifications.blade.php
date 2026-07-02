@@ -7,6 +7,10 @@
             @csrf
             @method('PUT')
             <div class="vstack gap-3">
+                <p class="text-muted small mb-0">
+                    Email, WhatsApp, Telegram, and desktop delivery channels are managed in
+                    <a href="{{ route('admin.system-settings.index') }}">System Settings</a>.
+                </p>
                 <div class="form-check form-switch">
                     <input type="checkbox" name="assignment_enabled" value="1" id="assignment_enabled" class="form-check-input"
                            @checked(old('assignment_enabled', $notifications['assignment_enabled']))>
@@ -21,10 +25,6 @@
                     <input type="checkbox" name="high_priority_enabled" value="1" id="high_priority_enabled" class="form-check-input"
                            @checked(old('high_priority_enabled', $notifications['high_priority_enabled']))>
                     <label class="form-check-label" for="high_priority_enabled">High priority notifications</label>
-                </div>
-                <div>
-                    <label class="form-label">Desktop notifications</label>
-                    <input type="text" class="form-control" value="Coming soon" disabled>
                 </div>
             </div>
             <div class="mt-4">

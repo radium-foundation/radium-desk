@@ -58,6 +58,49 @@ class SystemSettingsTest extends TestCase
             ->assertSee('Assignment');
     }
 
+    public function test_superadmin_can_view_notification_settings(): void
+    {
+        $superadmin = $this->createSuperAdmin();
+
+        $this->actingAs($superadmin)
+            ->get(route('settings.index', ['tab' => 'notifications']))
+            ->assertOk()
+            ->assertSee('System Settings')
+            ->assertSee('Assignment notifications')
+            ->assertSee('Transaction notifications')
+            ->assertSee('High priority notifications')
+            ->assertDontSee('Email notifications')
+            ->assertDontSee('WhatsApp notifications')
+            ->assertDontSee('Telegram notifications');
+    }
+
+    public function test_superadmin_can_update_notification_settings(): void
+    {
+        $superadmin = $this->createSuperAdmin();
+        $settingService = app(SettingService::class);
+
+        $this->actingAs($superadmin)->put(route('settings.notifications.update'), [
+            'assignment_enabled' => '0',
+            'transaction_enabled' => '1',
+            'high_priority_enabled' => '0',
+        ])
+            ->assertRedirect(route('settings.index', ['tab' => 'notifications']))
+            ->assertSessionHas('status', 'settings-notifications-updated');
+
+        $this->assertFalse($settingService->getBool('notifications.assignment_enabled'));
+        $this->assertTrue($settingService->getBool('notifications.transaction_enabled'));
+        $this->assertFalse($settingService->getBool('notifications.high_priority_enabled'));
+    }
+
+    public function test_notification_settings_seeder_defaults(): void
+    {
+        $settingService = app(SettingService::class);
+
+        $this->assertTrue($settingService->getBool('notifications.assignment_enabled'));
+        $this->assertTrue($settingService->getBool('notifications.transaction_enabled'));
+        $this->assertTrue($settingService->getBool('notifications.high_priority_enabled'));
+    }
+
     public function test_superadmin_can_update_general_settings(): void
     {
         $superadmin = $this->createSuperAdmin();

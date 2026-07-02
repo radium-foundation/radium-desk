@@ -64,7 +64,11 @@ class ApplicationSettingsService
     }
 
     /**
-     * @param  array{assignment_enabled: bool, transaction_enabled: bool, high_priority_enabled: bool}  $data
+     * @param  array{
+     *     assignment_enabled: bool,
+     *     transaction_enabled: bool,
+     *     high_priority_enabled: bool
+     * }  $data
      */
     public function updateNotifications(array $data): void
     {
