@@ -19,8 +19,8 @@ use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\RefundRequest;
-use App\Models\Remark;
 use App\Services\AI\CustomerScopeQueryCache;
+use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Carbon;
@@ -71,6 +71,7 @@ class KnowledgeEngine
             $scopeCache,
             $incidents,
             $serialMissing,
+            $aggregation,
         );
 
         $repair = $this->buildRepairKnowledge($incident, $incidents, $scopeCache, $aggregation);
@@ -135,6 +136,7 @@ class KnowledgeEngine
         CustomerScopeQueryCache $scopeCache,
         Collection $incidents,
         bool $serialMissing,
+        KnowledgeAggregationCache $aggregation,
     ): DeviceKnowledgeDTO {
         if ($order === null) {
             return new DeviceKnowledgeDTO(
@@ -192,7 +194,7 @@ class KnowledgeEngine
                 ->values()
                 ->all(),
             failureHistory: $this->failureHistory($incidents, $modelKey, $incident),
-            partsReplaced: $this->partsFromIncidentIds($incidents->pluck('id')->all()),
+            partsReplaced: $aggregation->partsFromIncidentIds($incidents->pluck('id')->all()),
             technicianHistory: $this->technicianHistory($incidents, $incident),
             serialHistory: $scopeCache->orders()
                 ->filter(fn (Order $item) => filled(trim((string) $item->serial_number)))
@@ -457,47 +459,6 @@ class KnowledgeEngine
     }
 
     /**
-     * @param  list<int>  $incidentIds
-     * @return list<string>
-     */
-    private function partsFromIncidentIds(array $incidentIds): array
-    {
-        if ($incidentIds === []) {
-            return [];
-        }
-
-        return Remark::query()
-            ->where('remarkable_type', (new Incident)->getMorphClass())
-            ->whereIn('remarkable_id', $incidentIds)
-            ->latest('created_at')
-            ->limit(30)
-            ->pluck('body')
-            ->flatMap(function (?string $body): array {
-                if (! filled($body)) {
-                    return [];
-                }
-
-                $found = [];
-                $lower = Str::lower($body);
-
-                foreach (self::PART_KEYWORDS as $keyword) {
-                    if (Str::contains($lower, $keyword)) {
-                        $found[] = $keyword;
-                    }
-                }
-
-                return $found;
-            })
-            ->countBy()
-            ->sortDesc()
-            ->take(5)
-            ->keys()
-            ->map(fn (string $keyword) => ucfirst($keyword))
-            ->values()
-            ->all();
-    }
-
-    /**
      * @param  Collection<int, Incident>  $incidents
      * @return list<array{technician: string, reference: string, occurred_at: Carbon|null}>
      */
@@ -558,7 +519,7 @@ class KnowledgeEngine
         return AuditLog::query()
             ->where('auditable_type', $incident->getMorphClass())
             ->where('auditable_id', $incident->id)
-            ->where('event', 'like', '%notification%')
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
             ->latest('created_at')
             ->limit(10)
             ->get()

@@ -4,10 +4,13 @@ namespace App\Services\Knowledge;
 
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\Remark;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class KnowledgeAggregationCache
 {
+    private const PART_KEYWORDS = ['replaced', 'part', 'board', 'sensor', 'battery', 'display'];
     private ?Collection $closedIncidents = null;
 
     private ?float $averageRepairTurnaroundDays = null;
@@ -25,6 +28,9 @@ class KnowledgeAggregationCache
 
     /** @var list<string>|null */
     private ?array $topRecommendedFixes = null;
+
+    /** @var list<string>|null */
+    private ?array $partsFromIncidentIds = null;
 
     public function __construct(
         private readonly Collection $incidents,
@@ -179,6 +185,51 @@ class KnowledgeAggregationCache
             ->sortByDesc(fn ($group) => $group->count())
             ->take(3)
             ->map(fn ($group, string $key) => ucfirst(trim(explode(':', $key, 2)[1] ?? $key)))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $incidentIds
+     * @return list<string>
+     */
+    public function partsFromIncidentIds(array $incidentIds): array
+    {
+        if ($this->partsFromIncidentIds !== null) {
+            return $this->partsFromIncidentIds;
+        }
+
+        if ($incidentIds === []) {
+            return $this->partsFromIncidentIds = [];
+        }
+
+        return $this->partsFromIncidentIds = Remark::query()
+            ->where('remarkable_type', (new Incident)->getMorphClass())
+            ->whereIn('remarkable_id', $incidentIds)
+            ->latest('created_at')
+            ->limit(30)
+            ->pluck('body')
+            ->flatMap(function (?string $body): array {
+                if (! filled($body)) {
+                    return [];
+                }
+
+                $found = [];
+                $lower = Str::lower($body);
+
+                foreach (self::PART_KEYWORDS as $keyword) {
+                    if (Str::contains($lower, $keyword)) {
+                        $found[] = $keyword;
+                    }
+                }
+
+                return $found;
+            })
+            ->countBy()
+            ->sortDesc()
+            ->take(5)
+            ->keys()
+            ->map(fn (string $keyword) => ucfirst($keyword))
             ->values()
             ->all();
     }

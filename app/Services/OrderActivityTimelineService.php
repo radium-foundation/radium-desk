@@ -81,7 +81,7 @@ class OrderActivityTimelineService
             ));
         }
 
-        $auditLogs = AuditLog::query()
+        $auditLogQuery = AuditLog::query()
             ->with(['user.roles'])
             ->where(function ($query) use ($order, $incidentIds, $refundIds, $remarkIds, $approvalIds) {
                 $query->where(function ($orderQuery) use ($order) {
@@ -119,16 +119,22 @@ class OrderActivityTimelineService
                     });
                 }
             })
-            ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('created_at');
+
+        if ($limit !== null) {
+            $auditLogQuery->limit($limit + $incidentIds->count());
+        }
+
+        $auditLogs = $auditLogQuery->get();
+
+        $assigneeUsers = $this->assigneeUsersForAuditLogs($auditLogs);
 
         $approvalNumbers = ApprovalNumber::query()
             ->whereIn('id', $approvalIds)
-            ->get()
-            ->keyBy('id');
+            ->pluck('approval_number', 'id');
 
         foreach ($auditLogs as $auditLog) {
-            foreach ($this->mapAuditLogEntries($auditLog, $incidentsById, $approvalNumbers, $incidentIds) as $entry) {
+            foreach ($this->mapAuditLogEntries($auditLog, $incidentsById, $approvalNumbers, $incidentIds, $assigneeUsers) as $entry) {
                 $entries->push($entry);
             }
         }
@@ -147,8 +153,9 @@ class OrderActivityTimelineService
 
     /**
      * @param  Collection<int, Incident>  $incidentsById
-     * @param  Collection<int, ApprovalNumber>  $approvalNumbers
+     * @param  Collection<int, int|string>  $approvalNumbers
      * @param  Collection<int, int|string>  $orderIncidentIds
+     * @param  Collection<int, User>  $assigneeUsers
      * @return Collection<int, OrderTimelineEntry>
      */
     private function mapAuditLogEntries(
@@ -156,6 +163,7 @@ class OrderActivityTimelineService
         Collection $incidentsById,
         Collection $approvalNumbers,
         Collection $orderIncidentIds,
+        Collection $assigneeUsers,
     ): Collection {
         $occurredAt = $auditLog->created_at ?? now();
 
@@ -229,6 +237,7 @@ class OrderActivityTimelineService
             $approvalNumbers,
             $orderIncidentIds,
             $occurredAt,
+            $assigneeUsers,
         );
 
         return $entry !== null ? collect([$entry]) : collect();
@@ -298,8 +307,9 @@ class OrderActivityTimelineService
 
     /**
      * @param  Collection<int, Incident>  $incidentsById
-     * @param  Collection<int, ApprovalNumber>  $approvalNumbers
+     * @param  Collection<int, int|string>  $approvalNumbers
      * @param  Collection<int, int|string>  $orderIncidentIds
+     * @param  Collection<int, User>  $assigneeUsers
      */
     private function mapNonOrderAuditLogEntry(
         AuditLog $auditLog,
@@ -307,6 +317,7 @@ class OrderActivityTimelineService
         Collection $approvalNumbers,
         Collection $orderIncidentIds,
         $occurredAt,
+        Collection $assigneeUsers,
     ): ?OrderTimelineEntry {
         $actor = $this->automationIdentity->resolve($auditLog->user);
 
@@ -316,7 +327,7 @@ class OrderActivityTimelineService
             return match ($auditLog->event) {
                 'service_case.assigned' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
-                    title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
+                    title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident, $assigneeUsers),
                     detail: $incident?->reference_no,
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
@@ -325,7 +336,7 @@ class OrderActivityTimelineService
                     occurredAt: $occurredAt,
                     title: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
                         ? 'Automatically reassigned after successful validation.'
-                        : 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
+                        : 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident, $assigneeUsers),
                     detail: $incident?->reference_no,
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
@@ -374,7 +385,7 @@ class OrderActivityTimelineService
         }
 
         if ($auditLog->auditable_type === (new ApprovalNumber)->getMorphClass()) {
-            $approval = $approvalNumbers->get($auditLog->auditable_id);
+            $approvalNumber = $approvalNumbers->get($auditLog->auditable_id);
             $linkedIncidentId = $auditLog->new_values['incident_id'] ?? null;
 
             if ($auditLog->event === 'incident_linked' && $linkedIncidentId !== null) {
@@ -387,14 +398,14 @@ class OrderActivityTimelineService
                 'incident_linked' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Approval linked',
-                    detail: $approval?->approval_number,
+                    detail: $approvalNumber,
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
                 'deleted' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Approval closed',
-                    detail: (string) ($auditLog->old_values['approval_number'] ?? $approval?->approval_number ?? ''),
+                    detail: (string) ($auditLog->old_values['approval_number'] ?? $approvalNumber ?? ''),
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
@@ -405,10 +416,10 @@ class OrderActivityTimelineService
         return null;
     }
 
-    private function assigneeFirstName(mixed $userId, ?Incident $incident): string
+    private function assigneeFirstName(mixed $userId, ?Incident $incident, Collection $assigneeUsers): string
     {
         if ($userId) {
-            $user = User::query()->find($userId);
+            $user = $assigneeUsers->get((int) $userId);
 
             if ($user !== null) {
                 return $user->firstName();
@@ -416,6 +427,29 @@ class OrderActivityTimelineService
         }
 
         return $incident?->assignee?->firstName() ?? 'Admin';
+    }
+
+    /**
+     * @param  Collection<int, AuditLog>  $auditLogs
+     * @return Collection<int, User>
+     */
+    private function assigneeUsersForAuditLogs(Collection $auditLogs): Collection
+    {
+        $assigneeIds = $auditLogs
+            ->filter(fn (AuditLog $auditLog): bool => in_array($auditLog->event, ['service_case.assigned', 'service_case.reassigned'], true))
+            ->map(fn (AuditLog $auditLog): mixed => $auditLog->new_values['assigned_to_user_id'] ?? null)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($assigneeIds->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('id', $assigneeIds)
+            ->get()
+            ->keyBy('id');
     }
 
     /**

@@ -184,17 +184,30 @@ class OperationsAdvisorSnapshot
             return $this->amcEligibleCustomers;
         }
 
-        return $this->amcEligibleCustomers = $this->pendingAdminIncidents()
-            ->filter(function (Incident $incident): bool {
+        $pending = $this->pendingAdminIncidents();
+        $phones = $pending
+            ->map(fn (Incident $incident): ?string => $incident->order?->customer_phone)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $orderCountsByPhone = $phones->isEmpty()
+            ? collect()
+            : Order::query()
+                ->selectRaw('customer_phone, COUNT(*) as aggregate')
+                ->whereIn('customer_phone', $phones)
+                ->groupBy('customer_phone')
+                ->pluck('aggregate', 'customer_phone');
+
+        return $this->amcEligibleCustomers = $pending
+            ->filter(function (Incident $incident) use ($orderCountsByPhone): bool {
                 $phone = $incident->order?->customer_phone;
 
                 if (! filled($phone)) {
                     return false;
                 }
 
-                $orderCount = Order::query()->where('customer_phone', $phone)->count();
-
-                if ($orderCount < 2) {
+                if ((int) ($orderCountsByPhone[$phone] ?? 0) < 2) {
                     return false;
                 }
 
