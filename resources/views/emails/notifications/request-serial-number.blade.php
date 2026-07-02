@@ -1,23 +1,46 @@
-@extends('emails.notifications.layout')
+@extends('emails.layouts.master')
 
-@section('title', 'Please provide your device serial number')
+@section('title', 'Help Us Complete Your Device Setup')
+
+@section('preheader', 'Reply with your device serial number or let us know a convenient time to call.')
+
+@section('email_title', 'Help Us Complete Your Device Setup')
+
+@section('greeting')
+Dear {{ $customer_name }},
+@endsection
 
 @section('content')
-    <p>Dear {{ $customer_name }},</p>
+    <p style="margin: 0 0 16px;">
+        We are reaching out to provide dedicated technical support and get your biometric device set up successfully.
+    </p>
 
-    <p>To continue processing your service request, we require your device serial number.</p>
+    <p style="margin: 0 0 16px;">
+        To ensure a smooth setup, please let us know a convenient time for us to call you between 9:00 AM and 6:00 PM.
+    </p>
 
-    <p>You can reply to this email with:</p>
+    <p style="margin: 0 0 12px;">
+        Alternatively, to fast-track your service, simply reply to this email with:
+    </p>
 
-    <ul>
-        <li>A clear photo of the serial-number label<br>OR</li>
-        <li>A screenshot/photo showing the serial number</li>
+    <ul style="margin: 0 0 16px; padding-left: 20px;">
+        <li style="margin-bottom: 8px;">A clear photo of the back of your device showing the serial number, or</li>
+        <li style="margin-bottom: 0;">A screenshot of the device's internal serial number.</li>
     </ul>
 
-    <p>Once received, our support team will continue your repair immediately.</p>
-
-    <p>
-        Thank you,<br>
-        Radium Support
+    <p style="margin: 0 0 16px;">
+        Once we receive the serial number, we'll proceed with your request right away.
     </p>
+
+    <p style="margin: 0;">
+        Looking forward to getting you successfully connected!
+    </p>
+@endsection
+
+@section('contact_email', 'support@radiumbox.com')
+
+@section('contact_phone', '+91 XXXXX XXXXX')
+
+@section('signature')
+Team Radium Box
 @endsection

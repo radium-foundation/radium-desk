@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Radium Desk Email Design System Preview</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: #eef1f4;
+            color: #212529;
+        }
+        .page {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+        }
+        .intro { margin-bottom: 32px; }
+        .intro h1 { margin: 0 0 8px; font-size: 28px; }
+        .intro p { margin: 0; color: #6c757d; line-height: 1.6; }
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        .preview-card {
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(33, 37, 41, 0.06);
+        }
+        .preview-card__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid #e9ecef;
+            background: #f8f9fa;
+        }
+        .preview-card__title { margin: 0; font-size: 15px; font-weight: 600; }
+        .preview-card__meta { font-size: 12px; color: #6c757d; }
+        .preview-frame-wrap { background: #f8f9fa; padding: 16px; }
+        .preview-frame-wrap--desktop { min-height: 760px; }
+        .preview-frame-wrap--mobile {
+            display: flex;
+            justify-content: center;
+            min-height: 760px;
+        }
+        .preview-frame { width: 100%; border: 0; background: #ffffff; }
+        .preview-frame--desktop { height: 720px; }
+        .preview-frame--mobile {
+            width: 375px;
+            max-width: 100%;
+            height: 720px;
+            border: 1px solid #dee2e6;
+            border-radius: 24px;
+            box-shadow: 0 12px 32px rgba(33, 37, 41, 0.12);
+        }
+        .section-showcase h2 { margin: 0 0 16px; font-size: 20px; }
+        .section-showcase p { margin: 0 0 24px; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="intro">
+            <h1>Radium Desk Email Design System</h1>
+            <p>Master layout preview for support notifications. Desktop (600px) and mobile (375px) renderings of the Request Serial Number email.</p>
+        </div>
+
+        <div class="preview-grid">
+            <div class="preview-card">
+                <div class="preview-card__header">
+                    <h2 class="preview-card__title">Desktop</h2>
+                    <span class="preview-card__meta">600px max width</span>
+                </div>
+                <div class="preview-frame-wrap preview-frame-wrap--desktop">
+                    <iframe
+                        class="preview-frame preview-frame--desktop"
+                        title="Desktop email preview"
+                        src="request-serial-number-email.html"
+                    ></iframe>
+                </div>
+            </div>
+
+            <div class="preview-card">
+                <div class="preview-card__header">
+                    <h2 class="preview-card__title">Mobile</h2>
+                    <span class="preview-card__meta">375px viewport</span>
+                </div>
+                <div class="preview-frame-wrap preview-frame-wrap--mobile">
+                    <iframe
+                        class="preview-frame preview-frame--mobile"
+                        title="Mobile email preview"
+                        src="request-serial-number-email.html"
+                    ></iframe>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-showcase">
+            <h2>Section Variants</h2>
+            <p>Status variants for optional information boxes, CTA button, and contact block.</p>
+            <div class="preview-card">
+                <div class="preview-card__header">
+                    <h2 class="preview-card__title">Design System Sections</h2>
+                    <span class="preview-card__meta">Info, Success, Warning, Error</span>
+                </div>
+                <div class="preview-frame-wrap preview-frame-wrap--desktop">
+                    <iframe
+                        class="preview-frame preview-frame--desktop"
+                        title="Section variants preview"
+                        src="email-section-variants.html"
+                    ></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

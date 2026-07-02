@@ -13,7 +13,7 @@ class NotificationMailTemplateRegistry
     {
         return match ($type) {
             NotificationType::RequestSerialNumber => new NotificationMailTemplateDefinition(
-                subject: 'Please provide your device serial number',
+                subject: 'Help Us Complete Your Device Setup',
                 view: 'emails.notifications.request-serial-number',
                 requiredVariables: ['customer_name'],
             ),
