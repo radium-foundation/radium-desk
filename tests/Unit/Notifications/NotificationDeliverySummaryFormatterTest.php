@@ -72,7 +72,7 @@ class NotificationDeliverySummaryFormatterTest extends TestCase
         ));
 
         $this->assertSame(
-            "Notification sent\n✓ WhatsApp\n✗ Email: Customer email address is not available.\n⏭ Desktop (Not configured)\n⏭ Telegram (Not configured)",
+            "Notification sent with warnings\n✓ WhatsApp\n✗ Email: Customer email address is not available.\n⏭ Desktop (Not configured)\n⏭ Telegram (Not configured)",
             $summary,
         );
     }

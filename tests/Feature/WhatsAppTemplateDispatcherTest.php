@@ -248,6 +248,55 @@ class WhatsAppTemplateDispatcherTest extends TestCase
         $this->assertSame('Request Serial Number', $configuration->purpose);
     }
 
+    public function test_dispatch_returns_failure_when_template_remains_pending(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-WS-PEND',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Pending template case',
+            'description' => 'Pending template case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->partialMock(\App\Services\Interakt\InteraktOutboundProcessorService::class, function ($mock): void {
+            $mock->shouldReceive('processDispatch')
+                ->once()
+                ->andReturnUsing(fn (int $dispatchId) => WhatsAppTemplateDispatch::query()->findOrFail($dispatchId));
+        });
+
+        $result = app(WhatsAppTemplateDispatcher::class)->dispatch(
+            template: \App\Enums\WhatsAppTemplate::RequestSerialNumber,
+            incident: $incident,
+            actor: $agent,
+            triggerSource: WhatsAppTemplateTriggerSource::Manual,
+        );
+
+        $this->assertFalse($result->success);
+        $this->assertSame(WhatsAppTemplateDispatchStatus::Pending, $result->dispatch?->status);
+        $this->assertSame(
+            'WhatsApp template dispatch is still pending. The outbox will retry automatically.',
+            $result->message,
+        );
+    }
+
     public function test_automation_dispatcher_accepts_non_manual_trigger_sources(): void
     {
         $agent = User::factory()->create();

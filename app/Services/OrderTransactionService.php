@@ -36,7 +36,7 @@ class OrderTransactionService
             ]);
         }
 
-        return DB::transaction(function () use ($order, $transactionId, $actor): Order {
+        return DB::transaction(function () use ($order, $transactionId, $actor, $broadcast): Order {
             $oldValues = [
                 'transaction_id' => $order->transaction_id,
                 'completed_at' => $order->completed_at?->toIso8601String(),

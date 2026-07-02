@@ -9,7 +9,6 @@ use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
-use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Outbox\OutboxProcessorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

@@ -3,6 +3,8 @@ import { initUnifiedTimeline } from './unified-timeline';
 
 const SESSION_REASON = 'customer-360-drawer';
 
+let customer360RefreshAbortController = null;
+
 const hashContent = async (content) => {
     if (!content || !globalThis.crypto?.subtle) {
         return null;
@@ -303,10 +305,14 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
             showToast?.('IRA AI refreshed');
 
-            await postWorkbenchAudit(workbenchRoot, {
-                action: 'viewed',
-                artifact_key: artifactKey,
-            });
+            const refreshedWorkbenchRoot = contentHost.querySelector('[data-ai-workbench-root]');
+
+            if (refreshedWorkbenchRoot) {
+                await postWorkbenchAudit(refreshedWorkbenchRoot, {
+                    action: 'viewed',
+                    artifact_key: artifactKey,
+                });
+            }
         };
 
         workbenchRoot.querySelectorAll('[data-ai-workbench-refresh]').forEach((button) => {
@@ -318,37 +324,55 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         logViewed();
     };
 
+    const ACTIVE_TAB_ATTR = 'data-customer-360-active-tab';
+
+    const getPersistedTab = () => contentHost.getAttribute(ACTIVE_TAB_ATTR);
+
+    const setPersistedTab = (tabKey) => {
+        contentHost.setAttribute(ACTIVE_TAB_ATTR, tabKey);
+    };
+
+    const clearPersistedTab = () => {
+        contentHost.removeAttribute(ACTIVE_TAB_ATTR);
+    };
+
+    const getTabRoot = () => contentHost.querySelector('[data-customer-360-content]') ?? contentHost;
+
     const activateTab = (tabKey) => {
-        const tabs = contentHost.querySelectorAll('[data-customer-360-tab]');
-        const panes = contentHost.querySelectorAll('[data-customer-360-tab-pane]');
+        const tabRoot = getTabRoot();
+        const tabs = tabRoot.querySelectorAll('[data-customer-360-tab]');
+        const panes = tabRoot.querySelectorAll('[data-customer-360-tab-pane]');
 
         if (tabs.length === 0 || panes.length === 0) {
             return;
         }
 
         tabs.forEach((tab) => {
-            const isActive = tab.dataset.customer360Tab === tabKey;
+            const tabKeyForNode = tab.getAttribute('data-customer-360-tab');
+            const isActive = tabKeyForNode === tabKey;
             tab.classList.toggle('active', isActive);
             tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
 
         panes.forEach((pane) => {
-            const isActive = pane.dataset.customer360TabPane === tabKey;
+            const paneKey = pane.getAttribute('data-customer-360-tab-pane');
+            const isActive = paneKey === tabKey;
             pane.classList.toggle('d-none', !isActive);
         });
 
-        contentHost.dataset.customer360ActiveTab = tabKey;
+        setPersistedTab(tabKey);
     };
 
     const syncTabState = () => {
-        const tabs = contentHost.querySelectorAll('[data-customer-360-tab]');
+        const tabs = getTabRoot().querySelectorAll('[data-customer-360-tab]');
 
         if (tabs.length === 0) {
             return;
         }
 
-        const persistedTab = contentHost.dataset.customer360ActiveTab;
-        const serverActiveTab = tabs.find((tab) => tab.classList.contains('active'))?.dataset.customer360Tab;
+        const persistedTab = getPersistedTab();
+        const serverActiveTab = tabs.find((tab) => tab.classList.contains('active'))
+            ?.getAttribute('data-customer-360-tab');
         const initialTab = persistedTab ?? serverActiveTab ?? 'overview';
 
         activateTab(initialTab);
@@ -364,11 +388,18 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         contentHost.addEventListener('click', (event) => {
             const tab = event.target.closest('[data-customer-360-tab]');
 
-            if (!tab || !contentHost.contains(tab)) {
+            if (!tab || !getTabRoot().contains(tab)) {
                 return;
             }
 
-            activateTab(tab.dataset.customer360Tab);
+            event.preventDefault();
+            const tabKey = tab.getAttribute('data-customer-360-tab');
+
+            if (!tabKey) {
+                return;
+            }
+
+            activateTab(tabKey);
         });
     };
 
@@ -429,7 +460,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         getWorkspaceSession().release(SESSION_REASON);
 
         clearContent();
-        delete contentHost.dataset.customer360ActiveTab;
+        clearPersistedTab();
         setError('');
         setLoading(false);
 
@@ -458,7 +489,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         activeIncidentId = incidentId;
 
         if (String(previousIncidentId) !== String(incidentId)) {
-            delete contentHost.dataset.customer360ActiveTab;
+            clearPersistedTab();
         }
         drawer.classList.add('is-open');
         drawer.setAttribute('aria-hidden', 'false');
@@ -523,6 +554,9 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         event.stopPropagation();
     });
 
+    customer360RefreshAbortController?.abort();
+    customer360RefreshAbortController = new AbortController();
+
     document.addEventListener('customer360:refresh', (event) => {
         const incidentId = event.detail?.incidentId;
 
@@ -533,7 +567,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         if (String(activeIncidentId) === String(incidentId)) {
             loadContent(incidentId);
         }
-    });
+    }, { signal: customer360RefreshAbortController.signal });
 
     return {
         open,

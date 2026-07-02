@@ -37,7 +37,7 @@ class EmailChannel implements NotificationChannel
         if (! $this->mailSender->isEnabled()) {
             return NotificationResult::failure(
                 channel: NotificationChannelType::Email,
-                message: 'Email delivery is disabled.',
+                message: 'Email delivery is disabled. Enable MAIL_ENABLED and notifications.email.enabled.',
                 retryable: false,
                 metadata: array_merge($metadata, [
                     'status' => 'mail_disabled',
@@ -84,9 +84,14 @@ class EmailChannel implements NotificationChannel
         );
 
         if (! $sendResult['success']) {
+            $error = trim((string) ($sendResult['error'] ?? ''));
+            $message = $error === ''
+                ? 'Unable to send email notification.'
+                : 'Unable to send email notification: '.$error;
+
             return NotificationResult::failure(
                 channel: NotificationChannelType::Email,
-                message: 'Unable to send email notification.',
+                message: $message,
                 retryable: true,
                 metadata: array_merge($metadata, [
                     'status' => 'transport_failure',

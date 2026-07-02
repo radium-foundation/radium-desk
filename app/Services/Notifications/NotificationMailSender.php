@@ -3,6 +3,7 @@
 namespace App\Services\Notifications;
 
 use App\Mail\NotificationMail;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
 
@@ -27,6 +28,12 @@ class NotificationMailSender
                 'error' => null,
             ];
         } catch (Throwable $exception) {
+            Log::error('notification.email.transport_failed', [
+                'recipient_email' => $recipientEmail,
+                'mailer' => config('mail.default'),
+                'error' => $exception->getMessage(),
+            ]);
+
             return [
                 'success' => false,
                 'message_id' => null,

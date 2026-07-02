@@ -30,9 +30,15 @@ class NotificationDeliverySummaryFormatter
 
     private function headline(NotificationDispatchResult $result): string
     {
-        return $result->success
-            ? 'Notification sent'
-            : 'Notification failed';
+        if (! $result->success) {
+            return 'Notification failed';
+        }
+
+        $hasChannelFailure = collect($result->results)->contains(
+            fn (NotificationResult $channelResult): bool => ! $channelResult->isSkipped() && ! $channelResult->success,
+        );
+
+        return $hasChannelFailure ? 'Notification sent with warnings' : 'Notification sent';
     }
 
     private function formatChannelLine(NotificationResult $result): string

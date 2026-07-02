@@ -77,7 +77,7 @@ class EmailChannelTest extends TestCase
         $this->assertFalse($result->success);
         $this->assertSame(NotificationChannelType::Email, $result->channel);
         $this->assertNull($result->external_id);
-        $this->assertSame('Email delivery is disabled.', $result->message);
+        $this->assertSame('Email delivery is disabled. Enable MAIL_ENABLED and notifications.email.enabled.', $result->message);
         $this->assertFalse($result->retryable);
         $this->assertSame('mail_disabled', $result->metadata['status']);
     }
@@ -125,7 +125,10 @@ class EmailChannelTest extends TestCase
         $this->assertFalse($result->success);
         $this->assertSame(NotificationChannelType::Email, $result->channel);
         $this->assertNull($result->external_id);
-        $this->assertSame('Unable to send email notification.', $result->message);
+        $this->assertSame(
+            'Unable to send email notification: Connection could not be established with host "smtp.example.com".',
+            $result->message,
+        );
         $this->assertTrue($result->retryable);
         $this->assertSame('transport_failure', $result->metadata['status']);
         $this->assertSame('Connection could not be established with host "smtp.example.com".', $result->metadata['error']);

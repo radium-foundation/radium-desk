@@ -254,6 +254,36 @@ describe('initCustomer360Drawer', () => {
             `,
         });
 
+        const drawer = initCustomer360Drawer({ pageRoot });
+
+        await drawer.open('42', 'SC-001');
+
+        document.querySelector('[data-customer-360-tab="ai-assistant"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(document.querySelector('[data-customer-360-content-host]')?.getAttribute('data-customer-360-active-tab')).toBe('ai-assistant');
+        expect(document.querySelector('[data-customer-360-tab-pane="ai-assistant"]')?.classList.contains('d-none')).toBe(false);
+        expect(document.querySelector('[data-customer-360-tab="ai-assistant"]')?.classList.contains('active')).toBe(true);
+    });
+
+    it('switches tabs repeatedly without losing active state', async () => {
+        const pageRoot = setupDashboard();
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => `
+                <div class="customer-360-drawer-content" data-customer-360-content>
+                    <button type="button" data-customer-360-tab="overview" class="nav-link active">Overview</button>
+                    <button type="button" data-customer-360-tab="timeline" class="nav-link">Timeline</button>
+                    <button type="button" data-customer-360-tab="ai-assistant" class="nav-link">IRA AI</button>
+                    <div data-customer-360-tab-pane="overview" class="customer-360-tab-pane">Overview pane</div>
+                    <div data-customer-360-tab-pane="timeline" class="customer-360-tab-pane d-none">Timeline pane</div>
+                    <div data-customer-360-tab-pane="ai-assistant" class="customer-360-tab-pane d-none">AI pane</div>
+                </div>
+            `,
+        });
+
         initCustomer360Drawer({ pageRoot });
 
         document.querySelector('tr[data-incident-id="42"]')?.dispatchEvent(
@@ -261,33 +291,38 @@ describe('initCustomer360Drawer', () => {
         );
 
         await vi.waitFor(() => {
-            expect(document.querySelector('[data-customer-360-tab-pane="timeline"]')?.classList.contains('d-none')).toBe(true);
+            expect(document.querySelector('[data-customer-360-tab="overview"]')).not.toBeNull();
         });
 
-        document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
-            new MouseEvent('click', { bubbles: true }),
-        );
+        const clickTab = (tabKey) => {
+            document.querySelector(`[data-customer-360-tab="${tabKey}"]`)?.dispatchEvent(
+                new MouseEvent('click', { bubbles: true }),
+            );
+        };
 
-        expect(document.querySelector('[data-customer-360-tab-pane="timeline"]')?.classList.contains('d-none')).toBe(false);
+        const expectActiveTab = (tabKey) => {
+            expect(document.querySelector(`[data-customer-360-tab-pane="${tabKey}"]`)?.classList.contains('d-none')).toBe(false);
+            expect(document.querySelector(`[data-customer-360-tab="${tabKey}"]`)?.classList.contains('active')).toBe(true);
+        };
+
+        clickTab('timeline');
+        expectActiveTab('timeline');
         expect(document.querySelector('[data-customer-360-tab-pane="overview"]')?.classList.contains('d-none')).toBe(true);
 
-        document.querySelector('[data-customer-360-tab="ai-assistant"]')?.dispatchEvent(
-            new MouseEvent('click', { bubbles: true }),
-        );
+        clickTab('overview');
+        expectActiveTab('overview');
 
-        expect(document.querySelector('[data-customer-360-tab-pane="ai-assistant"]')?.classList.contains('d-none')).toBe(false);
+        clickTab('ai-assistant');
+        expectActiveTab('ai-assistant');
 
-        document.dispatchEvent(new CustomEvent('customer360:refresh', {
-            detail: { incidentId: 42 },
-        }));
+        clickTab('timeline');
+        expectActiveTab('timeline');
 
-        await vi.waitFor(() => {
-            expect(fetch).toHaveBeenCalledTimes(2);
-        });
-
-        expect(document.querySelector('[data-customer-360-tab-pane="ai-assistant"]')?.classList.contains('d-none')).toBe(false);
-        expect(document.querySelector('[data-customer-360-tab="ai-assistant"]')?.classList.contains('active')).toBe(true);
+        clickTab('overview');
+        expectActiveTab('overview');
     });
+
+    it('opens workspace component when clicking request-serial inside drawer content', async () => {
         document.body.innerHTML = `
             <script type="application/json" id="workspace-context-slugs">${JSON.stringify({
                 Dashboard: 'dashboard',
