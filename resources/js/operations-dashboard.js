@@ -86,6 +86,4 @@ const initOperationsDashboard = () => {
     startPolling(pageRoot, intervalMs);
 };
 
-initOperationsDashboard();
-
-export { refreshOperationsDashboard };
+export { refreshOperationsDashboard, initOperationsDashboard };
