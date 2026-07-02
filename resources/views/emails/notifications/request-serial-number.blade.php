@@ -37,6 +37,10 @@ Dear {{ $customer_name }},
     </p>
 @endsection
 
+@section('cta_url', $booking_url ?? '')
+
+@section('cta_label', 'Schedule Technical Support')
+
 @section('contact_email', 'support@radiumbox.com')
 
 @section('contact_phone', '+91 XXXXX XXXXX')

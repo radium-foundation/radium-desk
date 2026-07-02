@@ -47,6 +47,9 @@
         ])
         @include('customer-360.partials.health-card', ['healthCard' => $healthCard])
         @include('customer-360.partials.waiting-state-card', ['waitingStateCard' => $waitingStateCard ?? null])
+        @include('customer-360.partials.support-appointments', [
+            'supportAppointments' => $supportAppointments ?? collect(),
+        ])
         @include('customer-360.partials.quick-actions', [
             'incident' => $incident,
             'order' => $order,

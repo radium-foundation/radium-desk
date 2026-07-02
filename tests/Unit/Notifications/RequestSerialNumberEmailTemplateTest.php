@@ -16,13 +16,14 @@ class RequestSerialNumberEmailTemplateTest extends TestCase
         $this->assertNotNull($definition);
         $this->assertSame('Help Us Complete Your Device Setup', $definition->subject);
         $this->assertSame('emails.notifications.request-serial-number', $definition->view);
-        $this->assertSame(['customer_name'], $definition->requiredVariables);
+        $this->assertSame(['customer_name', 'booking_url'], $definition->requiredVariables);
     }
 
     public function test_template_renders_customer_facing_content(): void
     {
         $html = view('emails.notifications.request-serial-number', [
             'customer_name' => 'Jane Doe',
+            'booking_url' => 'https://example.com/support-appointments/1/book?signature=test',
         ])->render();
 
         $this->assertStringContainsString('Help Us Complete Your Device Setup', $html);
@@ -37,5 +38,7 @@ class RequestSerialNumberEmailTemplateTest extends TestCase
         $this->assertStringContainsString('+91 XXXXX XXXXX', $html);
         $this->assertStringContainsString('Team Radium Box', $html);
         $this->assertStringContainsString('Radium Box', $html);
+        $this->assertStringContainsString('Schedule Technical Support', $html);
+        $this->assertStringContainsString('https://example.com/support-appointments/1/book?signature=test', $html);
     }
 }

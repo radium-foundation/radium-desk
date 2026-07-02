@@ -122,6 +122,11 @@ class Incident extends Model
             ->withPivot(['linked_by', 'created_at']);
     }
 
+    public function supportAppointments(): HasMany
+    {
+        return $this->hasMany(SupportAppointment::class);
+    }
+
     public function getDisplayReferenceAttribute(): string
     {
         if ($this->reference_no === null || $this->reference_no === '') {

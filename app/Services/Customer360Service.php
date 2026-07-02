@@ -37,7 +37,11 @@ class Customer360Service
      */
     public function drawerData(Incident $incident): array
     {
-        $incident->loadMissing(['order.deviceModel', 'activeWaitingState']);
+        $incident->loadMissing([
+            'order.deviceModel',
+            'activeWaitingState',
+            'supportAppointments' => fn ($query) => $query->latest('preferred_date')->latest('id'),
+        ]);
         $order = $incident->order;
 
         if ($order === null) {
@@ -74,6 +78,7 @@ class Customer360Service
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
             'waitingStateCard' => $waitingStateCard,
+            'supportAppointments' => $incident->supportAppointments,
             'aiAssistant' => $aiBundle->response,
             'executiveSummary' => $this->executiveSummaryService->buildFromBundle(
                 $incident,
@@ -281,6 +286,7 @@ class Customer360Service
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => false,
             'waitingStateCard' => null,
+            'supportAppointments' => collect(),
             'aiAssistant' => ($bundle = $this->aiService->buildBundle($incident))->response,
             'executiveSummary' => $this->executiveSummaryService->buildFromBundle($incident, $bundle),
             'operationsAdvisorInsights' => [],
