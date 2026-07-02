@@ -22,8 +22,38 @@ class TimelineService
         iterable $sources,
         int $offset = 0,
         int $limit = self::DEFAULT_PAGE_SIZE,
+        ?Customer360TimelineRequestCache $cache = null,
+        ?int $cacheKey = null,
     ): TimelineViewModel {
+        if ($cache !== null && $cacheKey !== null && ($cached = $cache->get($cacheKey)) !== null) {
+            return $this->paginate($cached, $offset, $limit);
+        }
+
+        $needed = $offset + $limit;
+        $partial = $this->mergeSources($sources, $needed);
+
+        if ($partial->count() < $needed) {
+            if ($cache !== null && $cacheKey !== null) {
+                $cache->put($cacheKey, $partial);
+            }
+
+            return $this->paginate($partial, $offset, $limit);
+        }
+
         $events = $this->mergeSources($sources);
+
+        if ($cache !== null && $cacheKey !== null) {
+            $cache->put($cacheKey, $events);
+        }
+
+        return $this->paginate($events, $offset, $limit);
+    }
+
+    /**
+     * @param  Collection<int, TimelineEvent>  $events
+     */
+    public function paginate(Collection $events, int $offset, int $limit): TimelineViewModel
+    {
         $totalCount = $events->count();
         $page = $events->slice($offset, $limit)->values();
 
@@ -41,12 +71,12 @@ class TimelineService
      * @param  iterable<TimelineEventSource>  $sources
      * @return Collection<int, TimelineEvent>
      */
-    public function mergeSources(iterable $sources): Collection
+    public function mergeSources(iterable $sources, ?int $limit = null): Collection
     {
         $events = collect();
 
         foreach ($sources as $source) {
-            $events = $events->merge($source->collect());
+            $events = $events->merge($source->collect($limit));
         }
 
         return $events

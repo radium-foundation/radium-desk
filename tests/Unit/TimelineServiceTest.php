@@ -21,7 +21,7 @@ class TimelineServiceTest extends TestCase
 
         $source = new class implements TimelineEventSource
         {
-            public function collect(): Collection
+            public function collect(?int $limit = null): Collection
             {
                 return collect([
                     $this->event('today', now()),
@@ -63,7 +63,7 @@ class TimelineServiceTest extends TestCase
 
         $source = new class implements TimelineEventSource
         {
-            public function collect(): Collection
+            public function collect(?int $limit = null): Collection
             {
                 return collect(range(1, 5))->map(fn (int $index) => new TimelineEvent(
                     type: TimelineEventType::AuditEvent,
@@ -100,7 +100,7 @@ class TimelineServiceTest extends TestCase
         {
             public function __construct(private readonly TimelineEvent $event) {}
 
-            public function collect(): Collection
+            public function collect(?int $limit = null): Collection
             {
                 return collect([$this->event]);
             }
@@ -110,7 +110,7 @@ class TimelineServiceTest extends TestCase
         {
             public function __construct(private readonly TimelineEvent $event) {}
 
-            public function collect(): Collection
+            public function collect(?int $limit = null): Collection
             {
                 return collect([$this->event]);
             }

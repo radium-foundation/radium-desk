@@ -3,13 +3,14 @@
 namespace App\Services;
 
 use App\Data\AI\AIContextBuildSnapshot;
+use App\Data\AI\AIWorkbenchDTO;
 use App\Data\TimelineViewModel;
-use App\Enums\IncidentStatus;
 use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\AI\AIService;
 use App\Services\AI\AIWorkbenchService;
+use App\Services\AI\CustomerScopeQueryCache;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -45,7 +46,8 @@ class Customer360Service
         $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
         $customer = $this->customerSection($order);
         $activeServices = $this->activeServices($order, $enrichmentMetadata);
-        $summary = $this->customerSummary($order->customer_phone);
+        $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
+        $summary = $scopeCache->customerSummary();
         $timeline = $this->customer360TimelineService->forOrder($order);
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
         $snapshot = new AIContextBuildSnapshot(
@@ -55,7 +57,7 @@ class Customer360Service
             timeline: $timeline,
             waitingStateCard: $waitingStateCard,
         );
-        $aiBundle = $this->aiService->buildBundle($incident, $snapshot);
+        $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
 
         return [
             'incident' => $incident,
@@ -73,6 +75,14 @@ class Customer360Service
             'operationsAdvisorInsights' => $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot),
             'aiWorkbench' => $this->aiWorkbenchService->buildFromBundle($incident, $aiBundle),
         ];
+    }
+
+    public function refreshAiWorkbench(Incident $incident): AIWorkbenchDTO
+    {
+        $incident->loadMissing(['order.deviceModel', 'activeWaitingState', 'assignee']);
+        $bundle = $this->aiService->buildBundle($incident);
+
+        return $this->aiWorkbenchService->buildFromBundle($incident, $bundle);
     }
 
     /**
@@ -127,53 +137,6 @@ class Customer360Service
                 'status' => $amc,
                 'variant' => $amc === 'Not Available' ? 'neutral' : 'info',
             ],
-        ];
-    }
-
-    /**
-     * @return array<string, int>
-     */
-    private function customerSummary(?string $customerPhone): array
-    {
-        if (! filled($customerPhone)) {
-            return [
-                'total_orders' => 0,
-                'total_devices' => 0,
-                'open_cases' => 0,
-                'closed_cases' => 0,
-            ];
-        }
-
-        $orderIds = Order::query()
-            ->where('customer_phone', $customerPhone)
-            ->pluck('id');
-
-        $openStatuses = array_map(
-            fn (IncidentStatus $status) => $status->value,
-            IncidentStatus::operationallyActive(),
-        );
-
-        $closedStatuses = [
-            IncidentStatus::Resolved->value,
-            IncidentStatus::Closed->value,
-        ];
-
-        return [
-            'total_orders' => $orderIds->count(),
-            'total_devices' => Order::query()
-                ->where('customer_phone', $customerPhone)
-                ->whereNotNull('serial_number')
-                ->where('serial_number', '!=', '')
-                ->distinct()
-                ->count('serial_number'),
-            'open_cases' => Incident::query()
-                ->whereIn('order_id', $orderIds)
-                ->whereIn('status', $openStatuses)
-                ->count(),
-            'closed_cases' => Incident::query()
-                ->whereIn('order_id', $orderIds)
-                ->whereIn('status', $closedStatuses)
-                ->count(),
         ];
     }
 

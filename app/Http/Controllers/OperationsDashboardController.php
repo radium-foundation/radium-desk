@@ -31,8 +31,8 @@ class OperationsDashboardController extends Controller
 
     public function live(Request $request): JsonResponse
     {
-        $dashboard = $this->dashboardService->dashboardData(useCache: false);
-        $advisorInsights = $this->advisorService->platformInsights(useCache: false);
+        $dashboard = $this->dashboardService->dashboardData();
+        $advisorInsights = $this->advisorService->platformInsights();
 
         return response()->json([
             'generated_at' => $dashboard->generatedAt->toIso8601String(),

@@ -10,5 +10,5 @@ interface TimelineEventSource
     /**
      * @return Collection<int, TimelineEvent>
      */
-    public function collect(): Collection;
+    public function collect(?int $limit = null): Collection;
 }

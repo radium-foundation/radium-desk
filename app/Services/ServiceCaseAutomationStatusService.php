@@ -13,6 +13,9 @@ use Database\Seeders\RolePermissionSeeder;
 
 class ServiceCaseAutomationStatusService
 {
+    /** @var array<int, ServiceCaseAutomationStatus> */
+    private array $statusCache = [];
+
     public function __construct(
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
         private readonly SerialPlaceholderService $placeholderService,
@@ -21,52 +24,56 @@ class ServiceCaseAutomationStatusService
 
     public function statusFor(Incident $incident): ServiceCaseAutomationStatus
     {
+        if (array_key_exists($incident->id, $this->statusCache)) {
+            return $this->statusCache[$incident->id];
+        }
+
         $incident->loadMissing(['order', 'assignee']);
 
         if (! $incident->isActive() || $incident->status === IncidentStatus::Closed) {
-            return ServiceCaseAutomationStatus::Completed;
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::Completed;
         }
 
         if ($incident->order !== null && $incident->order->isTransactionLocked()) {
-            return ServiceCaseAutomationStatus::Completed;
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::Completed;
         }
 
         if ($incident->isAutomationPending()) {
             if ($this->isWaitingRadiumBox($incident)) {
-                return ServiceCaseAutomationStatus::WaitingRadiumbox;
+                return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::WaitingRadiumbox;
             }
 
-            return ServiceCaseAutomationStatus::AutomationPending;
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::AutomationPending;
         }
 
         $assignee = $incident->assignee;
 
         if ($assignee !== null && $this->isAdminUser($assignee)) {
-            return ServiceCaseAutomationStatus::AssignedToAdmin;
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::AssignedToAdmin;
         }
 
         $passesValidation = $incident->order !== null
             && $this->eligibilityService->passesValidationForOrder($incident->order);
 
         if ($incident->order !== null && $this->isWaitingForCustomerSerial($incident->order)) {
-            return ServiceCaseAutomationStatus::WaitingForCustomerSerial;
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::WaitingForCustomerSerial;
         }
 
         if ($assignee !== null && $this->isAgentUser($assignee)) {
-            return $passesValidation
+            return $this->statusCache[$incident->id] = $passesValidation
                 ? ServiceCaseAutomationStatus::AssignedToAgent
                 : ServiceCaseAutomationStatus::ValidationFailed;
         }
 
         if ($this->isWaitingRadiumBox($incident)) {
-            return ServiceCaseAutomationStatus::WaitingRadiumbox;
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::WaitingRadiumbox;
         }
 
         if (! $passesValidation) {
-            return ServiceCaseAutomationStatus::ValidationFailed;
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::ValidationFailed;
         }
 
-        return ServiceCaseAutomationStatus::AutomationPending;
+        return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::AutomationPending;
     }
 
     private function isWaitingForCustomerSerial(Order $order): bool

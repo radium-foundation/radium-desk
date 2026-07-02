@@ -119,7 +119,12 @@ class ServiceCaseAutomationHealthService
             'waiting_for_customer_serial' => $waitingForCustomerSerial,
             'assigned_to_agent' => $assignedToAgent,
             'assigned_to_admin' => $assignedToAdmin,
-            'repair_needed' => $this->ordersNeedingRepairFromIncidents($activeIncidents)->count(),
+            'repair_needed' => $activeIncidents
+                ->filter(fn (Incident $incident): bool => $this->isRepairCandidate($incident))
+                ->pluck('order_id')
+                ->filter()
+                ->unique()
+                ->count(),
         ];
     }
 

@@ -17,6 +17,7 @@ class Customer360TimelineService
         private readonly TimelineService $timelineService,
         private readonly OrderActivityTimelineService $orderActivityTimelineService,
         private readonly AutomationIdentityService $automationIdentity,
+        private readonly Customer360TimelineRequestCache $timelineRequestCache,
     ) {}
 
     public function forIncident(Incident $incident, int $offset = 0, ?int $limit = null): TimelineViewModel
@@ -57,6 +58,8 @@ class Customer360TimelineService
             ],
             offset: $offset,
             limit: $pageSize,
+            cache: $this->timelineRequestCache,
+            cacheKey: $order->id,
         );
     }
 }

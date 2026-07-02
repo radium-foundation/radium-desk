@@ -50,7 +50,7 @@ class OrderActivityTimelineService
         private readonly AutomationIdentityService $automationIdentity,
     ) {}
 
-    public function forOrder(Order $order): Collection
+    public function forOrder(Order $order, ?int $limit = null): Collection
     {
         $order->loadMissing([
             'incidents.creator',
@@ -133,10 +133,16 @@ class OrderActivityTimelineService
             }
         }
 
-        return $entries
+        $entries = $entries
             ->unique(fn (OrderTimelineEntry $entry) => $entry->dedupeKey)
             ->sortByDesc(fn (OrderTimelineEntry $entry) => $entry->occurredAt->timestamp)
             ->values();
+
+        if ($limit !== null) {
+            return $entries->take($limit);
+        }
+
+        return $entries;
     }
 
     /**

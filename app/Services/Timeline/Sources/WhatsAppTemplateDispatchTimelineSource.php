@@ -17,7 +17,7 @@ class WhatsAppTemplateDispatchTimelineSource implements TimelineEventSource
         private readonly Order $order,
     ) {}
 
-    public function collect(): Collection
+    public function collect(?int $limit = null): Collection
     {
         return WhatsAppTemplateDispatch::query()
             ->where('order_id', $this->order->id)
@@ -27,6 +27,7 @@ class WhatsAppTemplateDispatchTimelineSource implements TimelineEventSource
             ])
             ->orderByDesc('dispatched_at')
             ->orderByDesc('id')
+            ->when($limit !== null, fn ($query) => $query->limit($limit))
             ->get()
             ->map(fn (WhatsAppTemplateDispatch $dispatch): TimelineEvent => $this->mapDispatch($dispatch))
             ->values();

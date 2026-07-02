@@ -74,8 +74,9 @@ class IncidentAIContextBuilder
         $serialMissing = $order !== null && $this->isSerialMissing($order);
         $automationStatus = $this->automationStatusService->statusFor($incident)->label();
         $recentActivities = $this->recentActivities($incident);
-        $internalRemarksCount = $this->internalRemarksCount($incident);
-        $internalRemarksSummary = $this->internalRemarksSummary($incident);
+        $internalRemarks = $this->internalRemarksMetrics($incident);
+        $internalRemarksCount = $internalRemarks['count'];
+        $internalRemarksSummary = $internalRemarks['summary'];
 
         $customerIntelligence = $this->knowledgeMapper->toCustomerIntelligence($knowledge);
         $deviceIntelligence = $this->knowledgeMapper->toDeviceIntelligence($knowledge);
@@ -273,13 +274,28 @@ class IncidentAIContextBuilder
 
         $now = now();
         $rank = $incident->slaSortRank($now);
+        $activeStatuses = array_map(
+            fn (IncidentStatus $status) => $status->value,
+            IncidentStatus::operationallyActive(),
+        );
 
         $ahead = Incident::query()
-            ->whereNull('assigned_to_user_id')
-            ->whereIn('status', array_map(fn (IncidentStatus $s) => $s->value, IncidentStatus::operationallyActive()))
-            ->where('id', '!=', $incident->id)
+            ->select(['incidents.id', 'incidents.high_priority', 'incidents.created_at'])
+            ->with([
+                'order:id,transaction_id',
+                'activeWaitingState:id,incident_id,sla_paused',
+            ])
+            ->whereNull('incidents.assigned_to_user_id')
+            ->whereIn('incidents.status', $activeStatuses)
+            ->where('incidents.id', '!=', $incident->id)
+            ->whereHas('order', function ($query): void {
+                $query->where(function ($builder): void {
+                    $builder->whereNull('transaction_id')
+                        ->orWhere('transaction_id', '');
+                });
+            })
             ->get()
-            ->filter(fn (Incident $item) => $item->isPendingAdmin() && $item->slaSortRank($now) < $rank)
+            ->filter(fn (Incident $item) => $item->slaSortRank($now) < $rank)
             ->count();
 
         return $ahead + 1;
@@ -296,14 +312,37 @@ class IncidentAIContextBuilder
         return $timeline->totalCount.' timeline event(s). Latest: '.($latest?->title ?? 'Unknown').'.';
     }
 
-    private function internalRemarksSummary(Incident $incident): string
+    /**
+     * @return array{count: int, summary: string}
+     */
+    private function internalRemarksMetrics(Incident $incident): array
     {
-        $remarks = Remark::query()
+        $rows = Remark::query()
             ->where('remarkable_type', $incident->getMorphClass())
             ->where('remarkable_id', $incident->id)
-            ->latest('created_at')
+            ->selectRaw('body, COUNT(*) OVER() as total_count')
+            ->orderByDesc('created_at')
             ->limit(self::REMARKS_SUMMARY_LIMIT)
-            ->pluck('body')
+            ->get();
+
+        $count = (int) ($rows->first()?->total_count ?? 0);
+
+        return [
+            'count' => $count,
+            'summary' => $this->formatInternalRemarksSummary($rows->pluck('body'), $count),
+        ];
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, string|null>  $bodies
+     */
+    private function formatInternalRemarksSummary(\Illuminate\Support\Collection $bodies, int $count): string
+    {
+        if ($count === 0) {
+            return 'No internal remarks recorded.';
+        }
+
+        $remarks = $bodies
             ->filter(fn (?string $body) => filled($body))
             ->map(fn (string $body) => Str::limit(trim($body), 80))
             ->values();
@@ -313,14 +352,6 @@ class IncidentAIContextBuilder
         }
 
         return $remarks->count().' recent note(s): '.$remarks->implode(' | ');
-    }
-
-    private function internalRemarksCount(Incident $incident): int
-    {
-        return Remark::query()
-            ->where('remarkable_type', $incident->getMorphClass())
-            ->where('remarkable_id', $incident->id)
-            ->count();
     }
 
     private function isSerialMissing(Order $order): bool

@@ -11,15 +11,14 @@ class OperationsAutomationMetricsService
     /**
      * @return array<string, mixed>
      */
-    public function metrics(): array
+    public function metrics(?OperationsDashboardSnapshot $snapshot = null): array
     {
         if (! Schema::hasTable('automation_executions')) {
             return $this->emptyMetrics();
         }
 
-        $executions = AutomationExecution::query()
-            ->where('created_at', '>=', today())
-            ->get();
+        $executions = $snapshot?->todayAutomationExecutions()
+            ?? AutomationExecution::query()->where('created_at', '>=', today())->get();
 
         $success = 0;
         $partialSuccess = 0;

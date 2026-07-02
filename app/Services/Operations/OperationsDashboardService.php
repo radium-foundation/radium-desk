@@ -3,6 +3,8 @@
 namespace App\Services\Operations;
 
 use App\Data\Operations\OperationsDashboardData;
+use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
+use App\Infrastructure\Queue\QueueMetricsService;
 use Illuminate\Support\Facades\Cache;
 
 class OperationsDashboardService
@@ -11,7 +13,11 @@ class OperationsDashboardService
 
     private const CACHE_TTL_SECONDS = 30;
 
+    private ?OperationsDashboardSnapshot $snapshot = null;
+
     public function __construct(
+        private readonly QueueMetricsService $infrastructureQueueMetrics,
+        private readonly CashfreeIntegrationHealthProbe $cashfreeProbe,
         private readonly OperationsSystemHealthService $systemHealthService,
         private readonly OperationsNotificationMetricsService $notificationMetricsService,
         private readonly OperationsAutomationMetricsService $automationMetricsService,
@@ -40,15 +46,25 @@ class OperationsDashboardService
 
     public function build(): OperationsDashboardData
     {
+        $snapshot = $this->snapshot();
+
         return new OperationsDashboardData(
-            systemHealth: $this->systemHealthService->components(),
-            notificationMetrics: $this->notificationMetricsService->metrics(),
-            automationMetrics: $this->automationMetricsService->metrics(),
-            queueMetrics: $this->queueMetricsService->metrics(),
-            integrationHealth: $this->integrationHealthService->cards(),
+            systemHealth: $this->systemHealthService->components($snapshot),
+            notificationMetrics: $this->notificationMetricsService->metrics($snapshot->auditAggregator()),
+            automationMetrics: $this->automationMetricsService->metrics($snapshot),
+            queueMetrics: $this->queueMetricsService->metrics($snapshot),
+            integrationHealth: $this->integrationHealthService->cards($snapshot),
             recentNotificationFailures: $this->recentNotificationFailuresService->recent(limit: 15),
             recentAutomationActivity: $this->recentAutomationActivityService->recent(limit: 15),
             generatedAt: now(),
+        );
+    }
+
+    public function snapshot(): OperationsDashboardSnapshot
+    {
+        return $this->snapshot ??= OperationsDashboardSnapshot::load(
+            $this->infrastructureQueueMetrics,
+            $this->cashfreeProbe,
         );
     }
 }

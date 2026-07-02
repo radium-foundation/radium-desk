@@ -25,7 +25,7 @@ class OrderCustomerTimelineSource implements TimelineEventSource
         private readonly AutomationIdentityService $automationIdentity,
     ) {}
 
-    public function collect(): Collection
+    public function collect(?int $limit = null): Collection
     {
         $events = collect();
 
@@ -33,11 +33,11 @@ class OrderCustomerTimelineSource implements TimelineEventSource
             $events->push($event);
         }
 
-        foreach ($this->internalNoteEvents() as $event) {
+        foreach ($this->internalNoteEvents($limit) as $event) {
             $events->push($event);
         }
 
-        foreach ($this->orderActivityTimelineService->forOrder($this->order) as $entry) {
+        foreach ($this->orderActivityTimelineService->forOrder($this->order, $limit) as $entry) {
             if ($this->shouldSkipOrderActivityEntry($entry)) {
                 continue;
             }
@@ -103,7 +103,7 @@ class OrderCustomerTimelineSource implements TimelineEventSource
     /**
      * @return Collection<int, TimelineEvent>
      */
-    private function internalNoteEvents(): Collection
+    private function internalNoteEvents(?int $limit = null): Collection
     {
         $this->order->loadMissing('incidents');
         $incidentIds = $this->order->incidents->pluck('id');
@@ -132,6 +132,7 @@ class OrderCustomerTimelineSource implements TimelineEventSource
                 }
             })
             ->orderByDesc('created_at')
+            ->when($limit !== null, fn ($query) => $query->limit($limit))
             ->get();
 
         return $remarks

@@ -17,19 +17,34 @@ class OperationsQueueMetricsService
     /**
      * @return array<string, mixed>
      */
-    public function metrics(): array
+    public function metrics(?OperationsDashboardSnapshot $snapshot = null): array
     {
-        $snapshot = $this->queueMetricsService->latest() ?? $this->queueMetricsService->capture();
+        if ($snapshot !== null) {
+            $queueSnapshot = $snapshot->queueSnapshot();
+
+            return [
+                'pending' => $snapshot->pendingJobsCount(),
+                'running' => $snapshot->runningJobsCount(),
+                'failed' => $queueSnapshot->failedJobs,
+                'retries' => $snapshot->retriesCount(),
+                'queues' => $queueSnapshot->queues,
+                'oldest_pending_at' => $queueSnapshot->oldestPendingJobAt?->toIso8601String(),
+                'last_successful_job_at' => $queueSnapshot->lastSuccessfulJobAt?->toIso8601String(),
+                'average_processing_ms' => $queueSnapshot->averageProcessingTimeMs,
+            ];
+        }
+
+        $queueSnapshot = $this->queueMetricsService->latest() ?? $this->queueMetricsService->capture();
 
         return [
             'pending' => $this->countPendingJobs(),
             'running' => $this->countRunningJobs(),
-            'failed' => $snapshot->failedJobs,
+            'failed' => $queueSnapshot->failedJobs,
             'retries' => $this->countRetries(),
-            'queues' => $snapshot->queues,
-            'oldest_pending_at' => $snapshot->oldestPendingJobAt?->toIso8601String(),
-            'last_successful_job_at' => $snapshot->lastSuccessfulJobAt?->toIso8601String(),
-            'average_processing_ms' => $snapshot->averageProcessingTimeMs,
+            'queues' => $queueSnapshot->queues,
+            'oldest_pending_at' => $queueSnapshot->oldestPendingJobAt?->toIso8601String(),
+            'last_successful_job_at' => $queueSnapshot->lastSuccessfulJobAt?->toIso8601String(),
+            'average_processing_ms' => $queueSnapshot->averageProcessingTimeMs,
         ];
     }
 

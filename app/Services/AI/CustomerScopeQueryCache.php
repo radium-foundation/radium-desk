@@ -129,17 +129,22 @@ class CustomerScopeQueryCache
             IncidentStatus::Closed->value,
         ];
 
-        $incidents = $this->incidents();
-
         return [
             'total_orders' => $orderIds->count(),
-            'total_devices' => $this->orders()
-                ->filter(fn (Order $order) => filled(trim((string) $order->serial_number)))
-                ->pluck('serial_number')
-                ->unique()
+            'total_devices' => Order::query()
+                ->whereIn('id', $orderIds)
+                ->whereNotNull('serial_number')
+                ->where('serial_number', '!=', '')
+                ->distinct()
+                ->count('serial_number'),
+            'open_cases' => Incident::query()
+                ->whereIn('order_id', $orderIds)
+                ->whereIn('status', $openStatuses)
                 ->count(),
-            'open_cases' => $incidents->whereIn('status', $openStatuses)->count(),
-            'closed_cases' => $incidents->whereIn('status', $closedStatuses)->count(),
+            'closed_cases' => Incident::query()
+                ->whereIn('order_id', $orderIds)
+                ->whereIn('status', $closedStatuses)
+                ->count(),
         ];
     }
 }

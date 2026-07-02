@@ -2,11 +2,9 @@
 
 namespace App\Services\Operations;
 
-use App\Enums\InteraktMessageDirection;
 use App\Enums\OperationsHealthStatus;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Models\AuditLog;
-use App\Models\InteraktMessage;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\SystemSettingsService;
 use Illuminate\Support\Carbon;
@@ -23,23 +21,24 @@ class OperationsIntegrationHealthService
     /**
      * @return list<array<string, mixed>>
      */
-    public function cards(): array
+    public function cards(?OperationsDashboardSnapshot $snapshot = null): array
     {
         return [
-            $this->cashfreeCard(),
-            $this->interaktCard(),
-            $this->zeptomailCard(),
-            $this->telegramCard(),
+            $this->cashfreeCard($snapshot),
+            $this->interaktCard($snapshot),
+            $this->zeptomailCard($snapshot),
+            $this->telegramCard($snapshot),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function cashfreeCard(): array
+    private function cashfreeCard(?OperationsDashboardSnapshot $snapshot): array
     {
-        $snapshot = $this->cashfreeProbe->probe();
-        $status = $this->mapConnectionStatus($snapshot->connectionStatus);
+        $probeSnapshot = $snapshot?->cashfreeIntegrationSnapshot()
+            ?? $this->cashfreeProbe->probe();
+        $status = $this->mapConnectionStatus($probeSnapshot->connectionStatus);
 
         return [
             'key' => 'cashfree',
@@ -47,17 +46,17 @@ class OperationsIntegrationHealthService
             'status' => $status->value,
             'status_label' => $status->label(),
             'badge_class' => $status->badgeClass(),
-            'last_success_at' => $snapshot->lastSuccessAt,
-            'last_failure_at' => $snapshot->lastFailureAt,
-            'retry_count' => $snapshot->retryCount,
-            'detail' => $snapshot->lastErrorMessage ?? 'Payment webhook integration.',
+            'last_success_at' => $probeSnapshot->lastSuccessAt,
+            'last_failure_at' => $probeSnapshot->lastFailureAt,
+            'retry_count' => $probeSnapshot->retryCount,
+            'detail' => $probeSnapshot->lastErrorMessage ?? 'Payment webhook integration.',
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function interaktCard(): array
+    private function interaktCard(?OperationsDashboardSnapshot $snapshot): array
     {
         if (! filled(Config::get('interakt.api_key'))) {
             return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::NotConfigured, 'Interakt API key is not configured.');
@@ -71,17 +70,14 @@ class OperationsIntegrationHealthService
             return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::Warning, 'Message store unavailable.');
         }
 
-        $lastSuccess = InteraktMessage::query()
-            ->where('direction', InteraktMessageDirection::Outgoing)
-            ->whereNotNull('sent_at')
-            ->latest('sent_at')
-            ->value('sent_at');
+        $interaktInputs = $snapshot?->interaktInputs() ?? [
+            'last_success_at' => null,
+            'recent_failures' => 0,
+            'has_recent_activity' => false,
+        ];
 
-        $recentFailures = (int) InteraktMessage::query()
-            ->where('direction', InteraktMessageDirection::Outgoing)
-            ->where('created_at', '>=', now()->subDay())
-            ->whereNotNull('channel_failure_reason')
-            ->count();
+        $lastSuccess = $interaktInputs['last_success_at'];
+        $recentFailures = (int) $interaktInputs['recent_failures'];
 
         if ($recentFailures > 0) {
             return $this->integrationCard(
@@ -103,7 +99,7 @@ class OperationsIntegrationHealthService
     /**
      * @return array<string, mixed>
      */
-    private function zeptomailCard(): array
+    private function zeptomailCard(?OperationsDashboardSnapshot $snapshot): array
     {
         if (! $this->systemSettings->getBool('notifications.email.enabled', false)) {
             return $this->integrationCard('zeptomail', 'ZeptoMail', OperationsHealthStatus::Disabled, 'Email notifications are disabled.');
@@ -117,7 +113,7 @@ class OperationsIntegrationHealthService
             return $this->integrationCard('zeptomail', 'ZeptoMail', OperationsHealthStatus::NotConfigured, 'Mail transport is not configured for production delivery.');
         }
 
-        $emailMetrics = $this->channelAuditSummary('email');
+        $emailMetrics = $this->channelAuditSummary('email', $snapshot);
 
         if ($emailMetrics['failed'] > 0) {
             return $this->integrationCard(
@@ -141,7 +137,7 @@ class OperationsIntegrationHealthService
     /**
      * @return array<string, mixed>
      */
-    private function telegramCard(): array
+    private function telegramCard(?OperationsDashboardSnapshot $snapshot): array
     {
         if (! $this->systemSettings->getBool('notifications.telegram.enabled', false)) {
             return $this->integrationCard('telegram', 'Telegram', OperationsHealthStatus::Disabled, 'Telegram notifications are disabled.');
@@ -151,7 +147,7 @@ class OperationsIntegrationHealthService
             return $this->integrationCard('telegram', 'Telegram', OperationsHealthStatus::NotConfigured, 'Telegram API is not enabled.');
         }
 
-        $telegramMetrics = $this->channelAuditSummary('telegram');
+        $telegramMetrics = $this->channelAuditSummary('telegram', $snapshot);
 
         if ($telegramMetrics['sent'] === 0 && $telegramMetrics['failed'] === 0) {
             return $this->integrationCard('telegram', 'Telegram', OperationsHealthStatus::NotConfigured, 'Enabled but channel is not yet wired for delivery.');
@@ -177,10 +173,14 @@ class OperationsIntegrationHealthService
     }
 
     /**
-     * @return array{sent: int, failed: int, last_success_at: ?\Illuminate\Support\Carbon}
+     * @return array{sent: int, failed: int, last_success_at: ?Carbon}
      */
-    private function channelAuditSummary(string $channel): array
+    private function channelAuditSummary(string $channel, ?OperationsDashboardSnapshot $snapshot): array
     {
+        if ($snapshot !== null) {
+            return $snapshot->auditAggregator()->channelSummary($channel);
+        }
+
         if (! Schema::hasTable('audit_logs')) {
             return ['sent' => 0, 'failed' => 0, 'last_success_at' => null];
         }
@@ -191,36 +191,7 @@ class OperationsIntegrationHealthService
             ->latest('created_at')
             ->get();
 
-        $sent = 0;
-        $failed = 0;
-        $lastSuccessAt = null;
-
-        foreach ($logs as $log) {
-            $channelResults = $log->new_values['channel_results'] ?? [];
-
-            if (! is_array($channelResults)) {
-                continue;
-            }
-
-            foreach ($channelResults as $result) {
-                if (! is_array($result) || ($result['channel'] ?? null) !== $channel) {
-                    continue;
-                }
-
-                if (($result['success'] ?? false) === true && ($result['status'] ?? '') !== 'not_yet_configured') {
-                    $sent++;
-                    $lastSuccessAt ??= $log->created_at;
-                } elseif (($result['status'] ?? '') !== 'not_yet_configured') {
-                    $failed++;
-                }
-            }
-        }
-
-        return [
-            'sent' => $sent,
-            'failed' => $failed,
-            'last_success_at' => $lastSuccessAt,
-        ];
+        return (new OperationsAuditAggregator($logs))->channelSummary($channel);
     }
 
     private function mapConnectionStatus(string $connectionStatus): OperationsHealthStatus

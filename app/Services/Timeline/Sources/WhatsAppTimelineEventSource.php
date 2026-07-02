@@ -21,7 +21,7 @@ class WhatsAppTimelineEventSource implements TimelineEventSource
         private readonly InteraktDeepLinkService $deepLinkService,
     ) {}
 
-    public function collect(): Collection
+    public function collect(?int $limit = null): Collection
     {
         if (! filled($this->order->customer_phone)) {
             return collect();

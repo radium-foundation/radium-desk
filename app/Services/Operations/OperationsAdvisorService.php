@@ -7,7 +7,6 @@ use App\Data\AI\AIIncidentBundle;
 use App\Data\Operations\OperationsInsightDTO;
 use App\Enums\AI\AIConfidenceLevel;
 use App\Enums\AI\AIRiskLevel;
-use App\Enums\IncidentStatus;
 use App\Enums\Operations\OperationsInsightCategory;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
@@ -215,7 +214,10 @@ class OperationsAdvisorService
      */
     private function buildPlatformInsights(): array
     {
-        $snapshot = new OperationsAdvisorSnapshot($this->dashboardService->dashboardData());
+        $snapshot = new OperationsAdvisorSnapshot(
+            $this->dashboardService->dashboardData(),
+            $this->enrichmentSyncStore,
+        );
         $insights = [
             ...$this->analyzeSlaRisk($snapshot),
             ...$this->analyzeCustomerRisk($snapshot),
@@ -310,8 +312,7 @@ class OperationsAdvisorService
     private function analyzeCustomerRisk(OperationsAdvisorSnapshot $snapshot): array
     {
         $insights = [];
-        $active = $snapshot->activeIncidents();
-        $repeatCustomers = $this->repeatComplaintCustomers($active);
+        $repeatCustomers = $snapshot->repeatComplaintCustomers();
 
         if ($repeatCustomers->isNotEmpty()) {
             $count = $repeatCustomers->count();
@@ -345,7 +346,7 @@ class OperationsAdvisorService
             );
         }
 
-        $premiumWaiting = $this->premiumCustomersWaiting($snapshot->pendingAdminIncidents());
+        $premiumWaiting = $snapshot->premiumCustomersWaiting();
         if ($premiumWaiting->isNotEmpty()) {
             $worst = $premiumWaiting->sortByDesc(
                 fn (Incident $incident): int => $incident->created_at !== null
@@ -671,10 +672,10 @@ class OperationsAdvisorService
     private function analyzeRevenueOpportunities(OperationsAdvisorSnapshot $snapshot): array
     {
         $insights = [];
-        $pending = $snapshot->pendingAdminIncidents();
-        $amcCandidates = $this->amcEligibleCustomers($pending);
-        $repeatRepairCandidates = $this->repeatRepairCandidates($pending);
-        $expiredWarrantyCount = $this->expiredWarrantyOpenCases($pending)->count();
+        $amcCandidates = $snapshot->amcEligibleCustomers();
+        $repeatRepairCandidates = $snapshot->repeatRepairCandidates();
+        $expiredWarrantyCases = $snapshot->expiredWarrantyOpenCases();
+        $expiredWarrantyCount = $expiredWarrantyCases->count();
 
         if ($amcCandidates->isNotEmpty()) {
             $count = $amcCandidates->count();
@@ -715,12 +716,12 @@ class OperationsAdvisorService
                 confidence: AIConfidenceLevel::Medium,
                 confidenceScore: 68,
                 recommendation: 'Discuss paid repair or upgrade options with warranty-expired customers.',
-                affectedIncidents: $this->expiredWarrantyOpenCases($pending)
+                affectedIncidents: $expiredWarrantyCases
                     ->take(10)
                     ->map(fn (Incident $incident): array => $this->incidentReference($incident))
                     ->values()
                     ->all(),
-                affectedCustomers: $this->expiredWarrantyOpenCases($pending)
+                affectedCustomers: $expiredWarrantyCases
                     ->take(10)
                     ->map(fn (Incident $incident): array => $this->customerReference($incident->order))
                     ->filter()
@@ -841,35 +842,6 @@ class OperationsAdvisorService
     }
 
     /**
-     * @return Collection<string, Collection<int, Incident>>
-     */
-    private function repeatComplaintCustomers(Collection $incidents): Collection
-    {
-        return $incidents
-            ->filter(fn (Incident $incident): bool => filled($incident->order?->customer_phone))
-            ->groupBy(fn (Incident $incident): string => (string) $incident->order?->customer_phone)
-            ->filter(fn (Collection $group): bool => $group->count() >= 2);
-    }
-
-    /**
-     * @return Collection<int, Incident>
-     */
-    private function premiumCustomersWaiting(Collection $pendingIncidents): Collection
-    {
-        $phonesWithMultipleOrders = Order::query()
-            ->select('customer_phone')
-            ->whereNotNull('customer_phone')
-            ->groupBy('customer_phone')
-            ->havingRaw('COUNT(*) >= 2')
-            ->pluck('customer_phone');
-
-        return $pendingIncidents
-            ->filter(fn (Incident $incident): bool => $phonesWithMultipleOrders->contains($incident->order?->customer_phone)
-                && $incident->created_at !== null
-                && $incident->created_at->lte(now()->subDays(2)));
-    }
-
-    /**
      * @param  list<array<string, mixed>>  $failures
      * @param  list<string>|null  $reasonNeedles
      * @return list<array<string, mixed>>
@@ -959,66 +931,6 @@ class OperationsAdvisorService
             || $metadataAmc === 'not available';
 
         return $warrantyExpired && $amcInactive;
-    }
-
-    /**
-     * @return Collection<string, Collection<int, Incident>>
-     */
-    private function amcEligibleCustomers(Collection $pendingIncidents): Collection
-    {
-        return $pendingIncidents
-            ->filter(function (Incident $incident): bool {
-                $phone = $incident->order?->customer_phone;
-
-                if (! filled($phone)) {
-                    return false;
-                }
-
-                $orderCount = Order::query()->where('customer_phone', $phone)->count();
-
-                if ($orderCount < 2) {
-                    return false;
-                }
-
-                $metadata = $this->enrichmentSyncStore->metadata($incident->order_id) ?? [];
-                $warranty = Str::lower((string) ($metadata['warranty'] ?? 'expired'));
-                $amc = Str::lower((string) ($metadata['amc'] ?? 'not available'));
-
-                return (Str::contains($warranty, 'expired') || $warranty === '')
-                    && ! Str::contains($amc, 'active');
-            })
-            ->groupBy(fn (Incident $incident): string => (string) $incident->order?->customer_phone);
-    }
-
-    /**
-     * @return Collection<int, Incident>
-     */
-    private function expiredWarrantyOpenCases(Collection $pendingIncidents): Collection
-    {
-        return $pendingIncidents->filter(function (Incident $incident): bool {
-            $metadata = $this->enrichmentSyncStore->metadata($incident->order_id) ?? [];
-            $warranty = Str::lower((string) ($metadata['warranty'] ?? ''));
-
-            return Str::contains($warranty, 'expired');
-        })->values();
-    }
-
-    /**
-     * @return Collection<string, Collection<int, Incident>>
-     */
-    private function repeatRepairCandidates(Collection $pendingIncidents): Collection
-    {
-        $phonesWithHistory = Incident::query()
-            ->with('order')
-            ->whereIn('status', [IncidentStatus::Closed, IncidentStatus::Resolved])
-            ->get()
-            ->groupBy(fn (Incident $incident): string => (string) $incident->order?->customer_phone)
-            ->filter(fn (Collection $history): bool => $history->count() >= 2)
-            ->keys();
-
-        return $pendingIncidents
-            ->filter(fn (Incident $incident): bool => $phonesWithHistory->contains($incident->order?->customer_phone))
-            ->groupBy(fn (Incident $incident): string => (string) $incident->order?->customer_phone);
     }
 
     /**

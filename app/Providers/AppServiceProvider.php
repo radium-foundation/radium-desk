@@ -27,6 +27,7 @@ use App\Services\Notifications\NotificationDispatcher;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
 use App\Services\SystemSettingsService;
+use App\Services\Timeline\Customer360TimelineRequestCache;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
@@ -42,6 +43,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(RadiumBoxRequestCache::class);
+        $this->app->singleton(Customer360TimelineRequestCache::class);
 
         $this->app->singleton(AIProvider::class, function ($app): AIProvider {
             return match (config('ai.provider')) {

@@ -32,12 +32,12 @@ class Customer360Controller extends Controller
     {
         $this->authorize('view', $incident);
 
-        $data = $this->customer360Service->drawerData($incident);
+        $data = $this->customer360Service->refreshAiWorkbench($incident);
 
         return response()->json([
             'generated_at' => now()->toIso8601String(),
             'html' => view('customer-360.partials.ai-workbench', [
-                'workbench' => $data['aiWorkbench'],
+                'workbench' => $data,
                 'incident' => $incident,
             ])->render(),
         ]);

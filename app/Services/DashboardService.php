@@ -2,15 +2,12 @@
 
 namespace App\Services;
 
-use App\Enums\ApprovalStatus;
-use App\Enums\IncidentStatus;
-use App\Enums\RefundStatus;
+use App\Services\Dashboard\DashboardKpiAggregator;
+use App\Services\Dashboard\DashboardSnapshot;
 use App\Enums\ServiceCaseSlaStatus;
-use App\Models\ApprovalNumber;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
-use App\Models\RefundRequest;
 use App\Models\Remark;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -21,71 +18,51 @@ class DashboardService
 {
     private const ONLINE_SESSION_MINUTES = 5;
 
+    private ?DashboardSnapshot $snapshot = null;
+
+    public function __construct(
+        private readonly DashboardKpiAggregator $kpiAggregator,
+    ) {}
+
     /**
      * @return array<string, mixed>
      */
     public function statsFor(User $user): array
     {
         $onlineUsers = $this->onlineUsers();
+        $activeIncidents = $this->snapshot()->activeIncidents();
+        $activeKpis = $this->kpiAggregator->activeIncidentKpis($activeIncidents, $user);
+        $incidentStatusCounts = $this->kpiAggregator->incidentStatusCounts();
 
         $stats = [
             'online_count' => $onlineUsers->count(),
             'online_users' => $onlineUsers,
             'total_orders' => Order::query()->count(),
-            'open_incidents' => Incident::query()
-                ->whereIn('status', IncidentStatus::operationallyActive())
-                ->count(),
-            'resolved_incidents' => Incident::query()
-                ->where('status', IncidentStatus::Resolved)
-                ->count(),
-            'closed_incidents' => Incident::query()
-                ->where('status', IncidentStatus::Closed)
-                ->count(),
-            'my_active_cases' => Incident::query()
-                ->where('assigned_to_user_id', $user->id)
-                ->whereIn('status', IncidentStatus::operationallyActive())
-                ->count(),
-            'waiting_for_admin' => Incident::query()
-                ->where('assigned_to_user_id', $user->id)
-                ->whereIn('status', IncidentStatus::operationallyActive())
-                ->whereHas('order', function ($orderQuery): void {
-                    $orderQuery->where(function ($pendingQuery): void {
-                        $pendingQuery->whereNull('transaction_id')
-                            ->orWhere('transaction_id', '');
-                    });
-                })
-                ->count(),
-            'high_priority_cases' => Incident::query()
-                ->where('assigned_to_user_id', $user->id)
-                ->whereIn('status', IncidentStatus::operationallyActive())
-                ->where('high_priority', true)
-                ->count(),
-            'total_active_cases' => Incident::query()
-                ->whereIn('status', IncidentStatus::operationallyActive())
-                ->count(),
+            'open_incidents' => $activeKpis['open_incidents'],
+            'resolved_incidents' => $incidentStatusCounts['resolved'],
+            'closed_incidents' => $incidentStatusCounts['closed'],
+            'my_active_cases' => $activeKpis['my_active_cases'],
+            'waiting_for_admin' => $activeKpis['waiting_for_admin'],
+            'high_priority_cases' => $activeKpis['high_priority_cases'],
+            'total_active_cases' => $activeKpis['total_active_cases'],
         ];
 
         if ($user->can('refunds.view')) {
-            $stats['pending_refunds'] = RefundRequest::query()
-                ->where('status', RefundStatus::Pending)
-                ->count();
-            $stats['approved_refunds'] = RefundRequest::query()
-                ->where('status', RefundStatus::Approved)
-                ->count();
-            $stats['rejected_refunds'] = RefundRequest::query()
-                ->where('status', RefundStatus::Rejected)
-                ->count();
+            $refundCounts = $this->kpiAggregator->refundStatusCounts();
+
+            $stats['pending_refunds'] = $refundCounts['pending'];
+            $stats['approved_refunds'] = $refundCounts['approved'];
+            $stats['rejected_refunds'] = $refundCounts['rejected'];
         }
 
         if ($user->can('approvals.view')) {
-            $stats['pending_approvals'] = ApprovalNumber::query()
-                ->where('status', ApprovalStatus::Open)
-                ->count();
+            $stats['pending_approvals'] = $this->kpiAggregator->approvalCounts()['open'];
         }
 
         if ($user->hasAnyRole([RolePermissionSeeder::ROLE_ADMIN, RolePermissionSeeder::ROLE_SUPERADMIN])) {
-            $stats['approval_numbers'] = ApprovalNumber::query()->count();
-            $stats['automation_health'] = app(ServiceCaseAutomationHealthService::class)->counts();
+            $stats['approval_numbers'] = $this->kpiAggregator->approvalCounts()['total'];
+            $stats['automation_health'] = app(ServiceCaseAutomationHealthService::class)
+                ->countsFor($activeIncidents);
         }
 
         if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
@@ -96,7 +73,7 @@ class DashboardService
         if ($user->can('incidents.view')) {
             $stats = [
                 ...$stats,
-                ...$this->slaCounts(),
+                ...$this->snapshot()->slaCounts(),
             ];
         }
 
@@ -229,44 +206,8 @@ class DashboardService
         int $offset = 0,
     ): Collection {
         $limit ??= $this->serviceCasePageSize();
-        $query = Incident::query()
-            ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee'])
-            ->whereIn('status', IncidentStatus::operationallyActive());
 
-        if ($assignedTo !== null) {
-            $query->where('assigned_to_user_id', $assignedTo->id);
-        }
-
-        match ($filter) {
-            'pending_admin' => $query->whereHas('order', function ($orderQuery): void {
-                $orderQuery->where(function ($pendingQuery): void {
-                    $pendingQuery->whereNull('transaction_id')
-                        ->orWhere('transaction_id', '');
-                });
-            }),
-            'completed' => $query->whereHas('order', function ($orderQuery): void {
-                $orderQuery->whereNotNull('transaction_id')
-                    ->where('transaction_id', '!=', '');
-            }),
-            'high_priority' => $query->where('high_priority', true),
-            'needs_attention' => $query->whereHas('order', fn ($orderQuery) => $orderQuery->whereSerialMissing()),
-            'pending_support' => $query->whereNull('assigned_to_user_id'),
-            'overdue' => $query->whereHas('order', function ($orderQuery): void {
-                $orderQuery->where(function ($pendingQuery): void {
-                    $pendingQuery->whereNull('transaction_id')
-                        ->orWhere('transaction_id', '');
-                });
-            }),
-            'warning' => $query->whereHas('order', function ($orderQuery): void {
-                $orderQuery->where(function ($pendingQuery): void {
-                    $pendingQuery->whereNull('transaction_id')
-                        ->orWhere('transaction_id', '');
-                });
-            }),
-            default => null,
-        };
-
-        $incidents = $query->get();
+        $incidents = $this->snapshot()->incidentsForFilter($filter, $assignedTo);
 
         $incidents = match ($filter) {
             'overdue' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Overdue),
@@ -351,19 +292,7 @@ class DashboardService
      */
     public function serviceCaseFilterCounts(?User $assignedTo = null, ?User $user = null): array
     {
-        return collect(['all', 'pending_admin', 'completed', 'high_priority', 'needs_attention', 'my_cases', 'pending_support'])
-            ->mapWithKeys(fn (string $key): array => [
-                $key => $this->recentServiceCases(
-                    $key,
-                    PHP_INT_MAX,
-                    match ($key) {
-                        'my_cases' => $user,
-                        'pending_support' => null,
-                        default => $assignedTo,
-                    },
-                )->count(),
-            ])
-            ->all();
+        return $this->snapshot()->filterCounts($assignedTo, $user);
     }
 
     /**
@@ -371,27 +300,12 @@ class DashboardService
      */
     public function slaCounts(): array
     {
-        $pendingIncidents = Incident::query()
-            ->with('order')
-            ->whereIn('status', IncidentStatus::operationallyActive())
-            ->whereHas('order', function ($orderQuery): void {
-                $orderQuery->where(function ($pendingQuery): void {
-                    $pendingQuery->whereNull('transaction_id')
-                        ->orWhere('transaction_id', '');
-                });
-            })
-            ->get();
+        return $this->snapshot()->slaCounts();
+    }
 
-        $now = now();
-
-        return [
-            'overdue_cases' => $pendingIncidents
-                ->filter(fn (Incident $incident): bool => $incident->slaStatus($now) === ServiceCaseSlaStatus::Overdue)
-                ->count(),
-            'warning_cases' => $pendingIncidents
-                ->filter(fn (Incident $incident): bool => $incident->slaStatus($now) === ServiceCaseSlaStatus::Warning)
-                ->count(),
-        ];
+    public function snapshot(): DashboardSnapshot
+    {
+        return $this->snapshot ??= DashboardSnapshot::load();
     }
 
     /**

@@ -23,10 +23,14 @@ class AIService
         return $this->buildBundle($incident, $snapshot)->response;
     }
 
-    public function buildBundle(Incident $incident, ?AIContextBuildSnapshot $snapshot = null): AIIncidentBundle
+    public function buildBundle(
+        Incident $incident,
+        ?AIContextBuildSnapshot $snapshot = null,
+        ?CustomerScopeQueryCache $scopeCache = null,
+    ): AIIncidentBundle
     {
         $incident->loadMissing(['order']);
-        $scopeCache = new CustomerScopeQueryCache($incident->order?->customer_phone);
+        $scopeCache ??= new CustomerScopeQueryCache($incident->order?->customer_phone);
         $knowledge = $this->knowledgeEngine->forIncident($incident, $snapshot, $scopeCache);
         $context = $this->contextBuilder->build($incident, $snapshot, $knowledge, $scopeCache);
         $nextActions = $this->provider->suggestNextActions($context);
