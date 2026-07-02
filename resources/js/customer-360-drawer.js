@@ -5,6 +5,34 @@ const SESSION_REASON = 'customer-360-drawer';
 
 let customer360RefreshAbortController = null;
 
+const logCustomer360Failure = (endpoint, status, context, error = null) => {
+    if (!import.meta.env?.DEV) {
+        return;
+    }
+
+    console.error('[Customer 360] Request failed', {
+        context,
+        endpoint,
+        status,
+        error,
+    });
+};
+
+const drawerContentUrl = (baseUrl, incidentId) => `${baseUrl}/${incidentId}/customer-360`;
+
+const verifyAiDomIntegrity = (contentHost) => {
+    if (!import.meta.env?.DEV) {
+        return;
+    }
+
+    const aiTab = contentHost.querySelector('#customer-360-tab-ai-assistant');
+    const workbench = contentHost.querySelector('#customer-360-ai-workbench');
+
+    if (!aiTab || !workbench || !aiTab.contains(workbench)) {
+        console.error('Customer360: IRA AI DOM structure invalid');
+    }
+};
+
 const hashContent = async (content) => {
     if (!content || !globalThis.crypto?.subtle) {
         return null;
@@ -276,6 +304,32 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             });
         });
 
+        const showWorkbenchError = (message) => {
+            let errorNode = workbenchRoot.querySelector('[data-ai-workbench-error]');
+
+            if (!errorNode) {
+                errorNode = document.createElement('div');
+                errorNode.className = 'alert alert-danger py-2 px-3 mb-2';
+                errorNode.setAttribute('data-ai-workbench-error', '');
+                errorNode.setAttribute('role', 'alert');
+                workbenchRoot.prepend(errorNode);
+            }
+
+            errorNode.textContent = message;
+            errorNode.hidden = false;
+        };
+
+        const clearWorkbenchError = () => {
+            const errorNode = workbenchRoot.querySelector('[data-ai-workbench-error]');
+
+            if (!errorNode) {
+                return;
+            }
+
+            errorNode.textContent = '';
+            errorNode.hidden = true;
+        };
+
         const refreshWorkbench = async (artifactKey = 'workbench') => {
             const refreshUrl = workbenchRoot.dataset.aiWorkbenchRefreshUrl;
 
@@ -283,35 +337,45 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
-            const response = await fetch(refreshUrl, {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-            });
-
-            if (!response.ok) {
-                showToast?.('IRA AI unavailable — unable to refresh suggestions');
-                return;
-            }
-
-            const payload = await response.json();
-            const container = contentHost.querySelector('#customer-360-ai-workbench');
-
-            if (container && payload.html) {
-                container.outerHTML = payload.html;
-                bindWorkbenchActions();
-            }
-
-            showToast?.('IRA AI refreshed');
-
-            const refreshedWorkbenchRoot = contentHost.querySelector('[data-ai-workbench-root]');
-
-            if (refreshedWorkbenchRoot) {
-                await postWorkbenchAudit(refreshedWorkbenchRoot, {
-                    action: 'viewed',
-                    artifact_key: artifactKey,
+            try {
+                const response = await fetch(refreshUrl, {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
                 });
+
+                if (!response.ok) {
+                    logCustomer360Failure(refreshUrl, response.status, 'workbench-refresh');
+                    showWorkbenchError('Unable to refresh IRA AI suggestions. Please try again.');
+                    showToast?.('IRA AI unavailable — unable to refresh suggestions');
+
+                    return;
+                }
+
+                const payload = await response.json();
+                const container = contentHost.querySelector('#customer-360-ai-workbench');
+
+                if (container && payload.html) {
+                    container.outerHTML = payload.html;
+                    bindWorkbenchActions();
+                }
+
+                clearWorkbenchError();
+                showToast?.('IRA AI refreshed');
+
+                const refreshedWorkbenchRoot = contentHost.querySelector('[data-ai-workbench-root]');
+
+                if (refreshedWorkbenchRoot) {
+                    await postWorkbenchAudit(refreshedWorkbenchRoot, {
+                        action: 'viewed',
+                        artifact_key: artifactKey,
+                    });
+                }
+            } catch (error) {
+                logCustomer360Failure(refreshUrl, null, 'workbench-refresh', error);
+                showWorkbenchError('Unable to refresh IRA AI suggestions. Please try again.');
+                showToast?.('IRA AI unavailable — unable to refresh suggestions');
             }
         };
 
@@ -361,6 +425,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
 
         setPersistedTab(tabKey);
+
+        const drawerBody = drawer.querySelector('[data-customer-360-body]');
+
+        if (drawerBody) {
+            drawerBody.scrollTop = 0;
+        }
     };
 
     const syncTabState = () => {
@@ -371,7 +441,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         const persistedTab = getPersistedTab();
-        const serverActiveTab = tabs.find((tab) => tab.classList.contains('active'))
+        const serverActiveTab = Array.from(tabs).find((tab) => tab.classList.contains('active'))
             ?.getAttribute('data-customer-360-tab');
         const initialTab = persistedTab ?? serverActiveTab ?? 'overview';
 
@@ -403,7 +473,20 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
     };
 
-    const loadContent = async (incidentId) => {
+    const finalizeDrawerContent = () => {
+        try {
+            verifyAiDomIntegrity(contentHost);
+            bindCopyActions();
+            bindWorkbenchActions();
+            syncTabState();
+            initUnifiedTimeline(contentHost);
+            initTooltips?.(contentHost);
+        } catch (error) {
+            logCustomer360Failure(null, null, 'drawer-init', error);
+        }
+    };
+
+    const loadInitialContent = async (incidentId) => {
         fetchController?.abort();
         fetchController = new AbortController();
 
@@ -411,8 +494,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         clearContent();
         setLoading(true);
 
+        const url = drawerContentUrl(baseUrl, incidentId);
+
         try {
-            const response = await fetch(`${baseUrl}/${incidentId}/customer-360`, {
+            const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     Accept: 'text/html',
@@ -422,24 +507,62 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             });
 
             if (!response.ok) {
-                throw new Error('Unable to load customer details.');
+                logCustomer360Failure(url, response.status, 'initial-load');
+                setError('Unable to load customer details. Please try again.');
+
+                return;
             }
 
             const html = await response.text();
             contentHost.innerHTML = html;
-            bindCopyActions();
-            bindWorkbenchActions();
-            syncTabState();
-            initUnifiedTimeline(contentHost);
-            initTooltips?.(contentHost);
+            finalizeDrawerContent();
         } catch (error) {
             if (error.name === 'AbortError') {
                 return;
             }
 
+            logCustomer360Failure(url, null, 'initial-load', error);
             setError('Unable to load customer details. Please try again.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const refreshDrawerContent = async (incidentId) => {
+        fetchController?.abort();
+        fetchController = new AbortController();
+
+        const url = drawerContentUrl(baseUrl, incidentId);
+        const previousHtml = contentHost.innerHTML;
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    Accept: 'text/html',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: fetchController.signal,
+            });
+
+            if (!response.ok) {
+                logCustomer360Failure(url, response.status, 'drawer-refresh');
+                showToast?.('Unable to refresh customer details. Please try again.');
+
+                return;
+            }
+
+            const html = await response.text();
+            contentHost.innerHTML = html;
+            finalizeDrawerContent();
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
+            logCustomer360Failure(url, null, 'drawer-refresh', error);
+            contentHost.innerHTML = previousHtml;
+            showToast?.('Unable to refresh customer details. Please try again.');
         }
     };
 
@@ -504,7 +627,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
 
         closeButton?.focus();
-        await loadContent(incidentId);
+        await loadInitialContent(incidentId);
     };
 
     const handleRowClick = (event) => {
@@ -565,7 +688,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         if (String(activeIncidentId) === String(incidentId)) {
-            loadContent(incidentId);
+            refreshDrawerContent(incidentId);
         }
     }, { signal: customer360RefreshAbortController.signal });
 

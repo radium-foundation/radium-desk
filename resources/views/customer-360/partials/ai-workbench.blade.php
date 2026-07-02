@@ -140,6 +140,7 @@
                   readonly
                   data-ai-workbench-editor="checklist">@foreach($workbench->checklist as $item)☐ {{ $item['label'] }}
 @endforeach</textarea>
+        <div class="customer-360-ai-workbench-actions">
             <button type="button"
                     class="btn btn-sm btn-outline-primary"
                     data-ai-workbench-copy

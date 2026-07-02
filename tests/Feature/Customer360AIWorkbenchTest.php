@@ -29,7 +29,7 @@ class Customer360AIWorkbenchTest extends TestCase
     {
         [$agent, $incident] = $this->createFixture();
 
-        $this->actingAs($agent)
+        $html = $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('IRA Workspace', false)
@@ -40,7 +40,24 @@ class Customer360AIWorkbenchTest extends TestCase
             ->assertSee('Operator approved', false)
             ->assertSee('data-ai-workbench-copy', false)
             ->assertSee('data-ai-workbench-insert', false)
-            ->assertSee('Insert into editor', false);
+            ->assertSee('Insert into editor', false)
+            ->getContent();
+
+        $document = new \DOMDocument();
+        libxml_use_internal_errors(true);
+        $document->loadHTML($html);
+        libxml_clear_errors();
+
+        $xpath = new \DOMXPath($document);
+        $aiTab = $xpath->query('//*[@id="customer-360-tab-ai-assistant"]')->item(0);
+        $workbench = $xpath->query('//*[@id="customer-360-ai-workbench"]')->item(0);
+
+        $this->assertNotNull($aiTab, 'IRA AI tab pane should exist.');
+        $this->assertNotNull($workbench, 'IRA workbench should exist.');
+        $this->assertTrue($aiTab->contains($workbench), 'IRA workbench should render inside the IRA AI tab pane.');
+
+        $orphanWorkbenchNodes = $xpath->query('//*[@id="customer-360-ai-workbench"][not(ancestor::*[@id="customer-360-tab-ai-assistant"])]');
+        $this->assertSame(0, $orphanWorkbenchNodes->length, 'No orphan workbench nodes should exist outside the IRA AI tab pane.');
     }
 
     public function test_ai_workbench_refresh_endpoint_returns_html_payload(): void

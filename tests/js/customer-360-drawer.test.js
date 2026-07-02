@@ -33,7 +33,9 @@ describe('initCustomer360Drawer', () => {
                     <span data-customer-360-subtitle></span>
                     <div data-customer-360-loading hidden></div>
                     <div data-customer-360-error class="d-none"></div>
-                    <div data-customer-360-content-host></div>
+                    <div class="customer-360-drawer-body" data-customer-360-body>
+                        <div data-customer-360-content-host></div>
+                    </div>
                 </aside>
             </div>
         `;
@@ -320,6 +322,271 @@ describe('initCustomer360Drawer', () => {
 
         clickTab('overview');
         expectActiveTab('overview');
+    });
+
+    const aiTabFixture = () => `
+        <div class="customer-360-drawer-content" data-customer-360-content>
+            <button type="button" data-customer-360-tab="overview" class="nav-link active">Overview</button>
+            <button type="button" data-customer-360-tab="timeline" class="nav-link">Timeline</button>
+            <button type="button" data-customer-360-tab="ai-assistant" class="nav-link">IRA AI</button>
+            <div id="customer-360-tab-overview" data-customer-360-tab-pane="overview" class="customer-360-tab-pane">Overview pane</div>
+            <div id="customer-360-tab-timeline" data-customer-360-tab-pane="timeline" class="customer-360-tab-pane d-none">Timeline pane</div>
+            <div id="customer-360-tab-ai-assistant" data-customer-360-tab-pane="ai-assistant" class="customer-360-tab-pane d-none">
+                <section data-customer-360-section="ai-advisor">IRA Advisor</section>
+                <section class="customer-360-ai-assistant">Customer Intelligence</section>
+                <section id="customer-360-ai-workbench" data-ai-workbench-root data-ai-workbench-refresh-url="/workbench">
+                    <button type="button" data-ai-workbench-refresh data-artifact-key="workbench">Refresh</button>
+                    <h3>Suggested Next Workflow</h3>
+                </section>
+            </div>
+        </div>
+    `;
+
+    it('keeps IRA AI workbench and workflow content inside the ai-assistant tab pane', async () => {
+        const pageRoot = setupDashboard();
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => aiTabFixture(),
+        });
+
+        const drawer = initCustomer360Drawer({ pageRoot });
+
+        await drawer.open('42', 'SC-001');
+
+        const aiTab = document.querySelector('#customer-360-tab-ai-assistant');
+        const workbench = document.querySelector('#customer-360-ai-workbench');
+
+        expect(aiTab).not.toBeNull();
+        expect(workbench).not.toBeNull();
+        expect(aiTab?.contains(workbench)).toBe(true);
+        expect(aiTab?.textContent).toContain('Suggested Next Workflow');
+        expect(document.querySelector('[data-customer-360-content]')?.contains(workbench)).toBe(true);
+        expect(document.querySelector('[data-customer-360-content]')?.querySelectorAll('#customer-360-ai-workbench')).toHaveLength(1);
+    });
+
+    it('does not leave orphan IRA AI nodes outside the ai-assistant tab pane', async () => {
+        const pageRoot = setupDashboard();
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => aiTabFixture(),
+        });
+
+        const drawer = initCustomer360Drawer({ pageRoot });
+
+        await drawer.open('42', 'SC-001');
+
+        const contentRoot = document.querySelector('[data-customer-360-content]');
+        const aiTab = document.querySelector('#customer-360-tab-ai-assistant');
+
+        contentRoot?.querySelectorAll('[data-ai-workbench-root], #customer-360-ai-workbench').forEach((node) => {
+            expect(aiTab?.contains(node)).toBe(true);
+        });
+    });
+
+    it('resets drawer body scroll to top after tab switch', async () => {
+        const pageRoot = setupDashboard();
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => `
+                <div class="customer-360-drawer-content" data-customer-360-content>
+                    <button type="button" data-customer-360-tab="overview" class="nav-link active">Overview</button>
+                    <button type="button" data-customer-360-tab="timeline" class="nav-link">Timeline</button>
+                    <button type="button" data-customer-360-tab="ai-assistant" class="nav-link">IRA AI</button>
+                    <div data-customer-360-tab-pane="overview" class="customer-360-tab-pane">Overview pane</div>
+                    <div data-customer-360-tab-pane="timeline" class="customer-360-tab-pane d-none">Timeline pane</div>
+                    <div data-customer-360-tab-pane="ai-assistant" class="customer-360-tab-pane d-none">AI pane</div>
+                </div>
+            `,
+        });
+
+        const drawer = initCustomer360Drawer({ pageRoot });
+
+        await drawer.open('42', 'SC-001');
+
+        const drawerBody = document.querySelector('[data-customer-360-body]');
+
+        Object.defineProperty(drawerBody, 'scrollTop', {
+            writable: true,
+            configurable: true,
+            value: 480,
+        });
+
+        document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(drawerBody?.scrollTop).toBe(0);
+
+        Object.defineProperty(drawerBody, 'scrollTop', {
+            writable: true,
+            configurable: true,
+            value: 320,
+        });
+
+        document.querySelector('[data-customer-360-tab="ai-assistant"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(drawerBody?.scrollTop).toBe(0);
+    });
+
+    it('logs IRA AI DOM integrity errors in development when structure is invalid', async () => {
+        const pageRoot = setupDashboard();
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => `
+                <div class="customer-360-drawer-content" data-customer-360-content>
+                    <div id="customer-360-tab-ai-assistant" data-customer-360-tab-pane="ai-assistant"></div>
+                    <section id="customer-360-ai-workbench" data-ai-workbench-root>Orphan workbench</section>
+                </div>
+            `,
+        });
+
+        const drawer = initCustomer360Drawer({ pageRoot });
+
+        await drawer.open('42', 'SC-001');
+
+        expect(consoleError).toHaveBeenCalledWith('Customer360: IRA AI DOM structure invalid');
+
+        consoleError.mockRestore();
+    });
+
+    it('preserves active tab after drawer refresh, workbench refresh, and customer360:refresh', async () => {
+        const pageRoot = setupDashboard();
+        const showToast = vi.fn();
+
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => aiTabFixture(),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => aiTabFixture(),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    html: `
+                        <section id="customer-360-ai-workbench" data-ai-workbench-root>
+                            <h3>Suggested Next Workflow</h3>
+                        </section>
+                    `,
+                }),
+            });
+
+        const drawer = initCustomer360Drawer({ pageRoot, showToast });
+
+        await drawer.open('42', 'SC-001');
+
+        document.querySelector('[data-customer-360-tab="ai-assistant"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(document.querySelector('[data-customer-360-content-host]')?.getAttribute('data-customer-360-active-tab')).toBe('ai-assistant');
+
+        document.dispatchEvent(new CustomEvent('customer360:refresh', {
+            detail: { incidentId: '42' },
+        }));
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledTimes(2);
+        });
+
+        expect(document.querySelector('[data-customer-360-content-host]')?.getAttribute('data-customer-360-active-tab')).toBe('ai-assistant');
+        expect(document.querySelector('[data-customer-360-tab-pane="ai-assistant"]')?.classList.contains('d-none')).toBe(false);
+
+        document.querySelector('[data-ai-workbench-refresh]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledTimes(3);
+        });
+
+        expect(document.querySelector('[data-customer-360-content-host]')?.getAttribute('data-customer-360-active-tab')).toBe('ai-assistant');
+        expect(document.querySelector('#customer-360-tab-ai-assistant')?.contains(document.querySelector('#customer-360-ai-workbench'))).toBe(true);
+    });
+
+    it('shows global error banner only when initial drawer content request fails', async () => {
+        const pageRoot = setupDashboard();
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: false,
+            status: 503,
+            text: async () => '',
+        });
+
+        const drawer = initCustomer360Drawer({ pageRoot });
+
+        await drawer.open('42', 'SC-001');
+
+        const errorState = document.querySelector('[data-customer-360-error]');
+        expect(errorState?.classList.contains('d-none')).toBe(false);
+        expect(errorState?.textContent).toBe('Unable to load customer details. Please try again.');
+        expect(document.querySelector('[data-customer-360-content-host]')?.innerHTML).toBe('');
+    });
+
+    it('does not show global error banner when drawer refresh fails after successful load', async () => {
+        const pageRoot = setupDashboard();
+        const showToast = vi.fn();
+
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content>Loaded overview</div>',
+            })
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 500,
+                text: async () => '',
+            });
+
+        const drawer = initCustomer360Drawer({ pageRoot, showToast });
+
+        await drawer.open('42', 'SC-001');
+
+        document.dispatchEvent(new CustomEvent('customer360:refresh', {
+            detail: { incidentId: '42' },
+        }));
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledTimes(2);
+        });
+
+        const errorState = document.querySelector('[data-customer-360-error]');
+        expect(errorState?.classList.contains('d-none')).toBe(true);
+        expect(document.querySelector('[data-customer-360-content-host]')?.innerHTML).toContain('Loaded overview');
+        expect(showToast).toHaveBeenCalledWith('Unable to refresh customer details. Please try again.');
+    });
+
+    it('does not show global error banner when post-render initialization throws', async () => {
+        const pageRoot = setupDashboard();
+        const initTooltips = vi.fn(() => {
+            throw new Error('Tooltip init failed');
+        });
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => '<div data-customer-360-content>Loaded overview</div>',
+        });
+
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const drawer = initCustomer360Drawer({ pageRoot, initTooltips });
+
+        await drawer.open('42', 'SC-001');
+
+        const errorState = document.querySelector('[data-customer-360-error]');
+        expect(errorState?.classList.contains('d-none')).toBe(true);
+        expect(document.querySelector('[data-customer-360-content-host]')?.innerHTML).toContain('Loaded overview');
+
+        consoleError.mockRestore();
     });
 
     it('opens workspace component when clicking request-serial inside drawer content', async () => {

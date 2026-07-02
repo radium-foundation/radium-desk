@@ -79,6 +79,44 @@ export const applyTimelineFilter = (timeline, filterKey, emptyMessages) => {
     }
 };
 
+const logTimelineFailure = (endpoint, status, error = null) => {
+    if (!import.meta.env?.DEV) {
+        return;
+    }
+
+    console.error('[Customer 360] Timeline request failed', {
+        endpoint,
+        status,
+        error,
+    });
+};
+
+const showTimelineRequestError = (timeline, message) => {
+    let errorNode = timeline.querySelector('[data-timeline-request-error]');
+
+    if (!errorNode) {
+        errorNode = document.createElement('div');
+        errorNode.className = 'alert alert-danger py-2 px-3 mb-2';
+        errorNode.setAttribute('data-timeline-request-error', '');
+        errorNode.setAttribute('role', 'alert');
+        timeline.prepend(errorNode);
+    }
+
+    errorNode.textContent = message;
+    errorNode.hidden = false;
+};
+
+const clearTimelineRequestError = (timeline) => {
+    const errorNode = timeline.querySelector('[data-timeline-request-error]');
+
+    if (!errorNode) {
+        return;
+    }
+
+    errorNode.textContent = '';
+    errorNode.hidden = true;
+};
+
 const bindTimelineFilters = (timeline) => {
     const filterHost = timeline.querySelector('[data-timeline-filters]');
 
@@ -144,7 +182,8 @@ export const initUnifiedTimeline = (root = document) => {
             button.disabled = true;
 
             try {
-                const response = await fetch(`${loadMoreUrl}?offset=${offset}`, {
+                const requestUrl = `${loadMoreUrl}?offset=${offset}`;
+                const response = await fetch(requestUrl, {
                     headers: {
                         Accept: 'text/html',
                         'X-Requested-With': 'XMLHttpRequest',
@@ -152,8 +191,13 @@ export const initUnifiedTimeline = (root = document) => {
                 });
 
                 if (!response.ok) {
+                    logTimelineFailure(requestUrl, response.status);
+                    showTimelineRequestError(timeline, 'Unable to load older timeline events. Please try again.');
+
                     return;
                 }
+
+                clearTimelineRequestError(timeline);
 
                 const html = await response.text();
                 const parser = new DOMParser();
@@ -197,7 +241,8 @@ export const initUnifiedTimeline = (root = document) => {
                 const activeFilter = activeChip?.dataset.timelineFilterChip ?? 'all';
                 applyTimelineFilter(timeline, activeFilter, parseFilterEmptyMessages(timeline));
             } catch (error) {
-                // Ignore transient network errors during timeline pagination.
+                logTimelineFailure(`${loadMoreUrl}?offset=${offset}`, null, error);
+                showTimelineRequestError(timeline, 'Unable to load older timeline events. Please try again.');
             } finally {
                 const activeButton = timeline.querySelector('[data-timeline-load-more]');
 
