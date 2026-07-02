@@ -74,6 +74,20 @@ return [
             'type' => 'boolean',
             'default' => false,
         ],
+        'notifications.desktop.enabled' => [
+            'category' => 'notifications',
+            'label' => 'Desktop notifications',
+            'description' => 'Allow the notification dispatcher to send desktop push notifications.',
+            'type' => 'boolean',
+            'default' => false,
+        ],
+        'notifications.telegram.enabled' => [
+            'category' => 'notifications',
+            'label' => 'Telegram notifications',
+            'description' => 'Allow the notification dispatcher to send Telegram messages.',
+            'type' => 'boolean',
+            'default' => false,
+        ],
         'whatsapp.api_enabled' => [
             'category' => 'whatsapp',
             'label' => 'WhatsApp API',

@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'System Settings')
+@section('title', 'Application Settings')
 
 @section('content')
     @php($activeTab = request('tab', 'general'))
 
     <div class="mb-4">
-        <h1 class="h3 mb-1">System Settings</h1>
+        <h1 class="h3 mb-1">Application Settings</h1>
         <p class="text-muted mb-0">Configure application behavior without code changes.</p>
     </div>
 

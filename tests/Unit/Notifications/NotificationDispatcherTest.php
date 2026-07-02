@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Notifications;
 
+use App\Contracts\Notifications\NotificationChannel;
 use App\Data\NotificationDispatchResult;
 use App\Data\NotificationMessage;
 use App\Data\NotificationResult;
@@ -19,7 +20,9 @@ use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Notifications\Channels\DesktopChannel;
 use App\Services\Notifications\Channels\EmailChannel;
+use App\Services\Notifications\Channels\TelegramChannel;
 use App\Services\Notifications\Channels\WhatsAppChannel;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\SystemSettingsService;
@@ -37,6 +40,17 @@ class NotificationDispatcherTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+    }
+
+    public function test_dispatcher_registers_four_channels(): void
+    {
+        $dispatcher = app(NotificationDispatcher::class);
+
+        $this->assertCount(4, $dispatcher->channels());
+        $this->assertContainsOnlyInstancesOf(
+            NotificationChannel::class,
+            $dispatcher->channels(),
+        );
     }
 
     public function test_dispatcher_resolves_enabled_channels_that_support_type(): void
@@ -70,6 +84,45 @@ class NotificationDispatcherTest extends TestCase
         $this->assertFalse($result->success);
         $this->assertSame([], $result->results);
         $this->assertSame('No notification channels are available.', $result->message);
+    }
+
+    public function test_send_fans_out_to_all_enabled_channels_without_prioritization(): void
+    {
+        $this->setNotificationChannelEnabled('notifications.whatsapp.enabled', true);
+        $this->setNotificationChannelEnabled('notifications.email.enabled', true);
+        $this->setNotificationChannelEnabled('notifications.desktop.enabled', true);
+        $this->setNotificationChannelEnabled('notifications.telegram.enabled', true);
+
+        [$message, $dispatch] = $this->makeMessage(withDispatch: true);
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')
+            ->once()
+            ->andReturn(WhatsAppTemplateDispatchResult::success(
+                $dispatch,
+                'WhatsApp template sent successfully.',
+            ));
+
+        $dispatcher = new NotificationDispatcher(
+            app(SystemSettingsService::class),
+            [
+                new WhatsAppChannel($automationDispatcher),
+                app(EmailChannel::class),
+                app(DesktopChannel::class),
+                app(TelegramChannel::class),
+            ],
+        );
+
+        $result = $dispatcher->send(NotificationType::RequestSerialNumber, $message);
+
+        $this->assertTrue($result->success);
+        $this->assertCount(4, $result->results);
+        $this->assertSame(NotificationChannelType::WhatsApp, $result->results[0]->channel);
+        $this->assertSame(NotificationChannelType::Email, $result->results[1]->channel);
+        $this->assertSame(NotificationChannelType::Desktop, $result->results[2]->channel);
+        $this->assertSame(NotificationChannelType::Telegram, $result->results[3]->channel);
+        $this->assertSame('Not Yet Configured', $result->results[2]->message);
+        $this->assertSame('Not Yet Configured', $result->results[3]->message);
     }
 
     public function test_send_aggregates_results_and_succeeds_when_any_channel_succeeds(): void

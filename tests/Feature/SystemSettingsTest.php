@@ -52,7 +52,8 @@ class SystemSettingsTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('settings.index'))
             ->assertOk()
-            ->assertSee('System Settings')
+            ->assertSee('Application Settings')
+            ->assertDontSee('Save System Settings')
             ->assertSee('General')
             ->assertSee('Assignment');
     }

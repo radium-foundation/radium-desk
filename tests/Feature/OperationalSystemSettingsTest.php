@@ -56,6 +56,10 @@ class OperationalSystemSettingsTest extends TestCase
             ->get(route('admin.system-settings.index'))
             ->assertOk()
             ->assertSee('System Settings')
+            ->assertSee('WhatsApp notifications')
+            ->assertSee('Email notifications')
+            ->assertSee('Desktop notifications')
+            ->assertSee('Telegram notifications')
             ->assertSee('WhatsApp API')
             ->assertSee('Debug mode');
     }
@@ -67,6 +71,8 @@ class OperationalSystemSettingsTest extends TestCase
         $this->assertFalse($service->getBool('system.debug_mode'));
         $this->assertTrue($service->getBool('notifications.whatsapp.enabled'));
         $this->assertFalse($service->getBool('notifications.email.enabled'));
+        $this->assertFalse($service->getBool('notifications.desktop.enabled'));
+        $this->assertFalse($service->getBool('notifications.telegram.enabled'));
         $this->assertTrue($service->getBool('whatsapp.api_enabled'));
         $this->assertTrue($service->getBool('whatsapp.manual_templates_enabled'));
         $this->assertFalse($service->getBool('whatsapp.automation_enabled'));
@@ -86,6 +92,8 @@ class OperationalSystemSettingsTest extends TestCase
                 'system.debug_mode' => '1',
                 'notifications.whatsapp.enabled' => '1',
                 'notifications.email.enabled' => '0',
+                'notifications.desktop.enabled' => '0',
+                'notifications.telegram.enabled' => '0',
                 'whatsapp.api_enabled' => '0',
                 'whatsapp.manual_templates_enabled' => '1',
                 'whatsapp.automation_enabled' => '0',
@@ -93,6 +101,7 @@ class OperationalSystemSettingsTest extends TestCase
                 'telegram.api_enabled' => '1',
                 'outbox.processor_enabled' => '1',
                 'ira.enabled' => '0',
+                'automation.scheduler.enabled' => '0',
             ],
         ];
 
@@ -124,6 +133,8 @@ class OperationalSystemSettingsTest extends TestCase
                 'system.debug_mode' => '1',
                 'notifications.whatsapp.enabled' => '1',
                 'notifications.email.enabled' => '0',
+                'notifications.desktop.enabled' => '0',
+                'notifications.telegram.enabled' => '0',
                 'whatsapp.api_enabled' => '1',
                 'whatsapp.manual_templates_enabled' => '1',
                 'whatsapp.automation_enabled' => '0',
@@ -131,6 +142,7 @@ class OperationalSystemSettingsTest extends TestCase
                 'telegram.api_enabled' => '0',
                 'outbox.processor_enabled' => '1',
                 'ira.enabled' => '1',
+                'automation.scheduler.enabled' => '0',
             ],
         ]);
 

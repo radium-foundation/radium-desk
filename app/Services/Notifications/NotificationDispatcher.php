@@ -7,7 +7,9 @@ use App\Data\NotificationDispatchResult;
 use App\Data\NotificationMessage;
 use App\Enums\NotificationChannelType;
 use App\Enums\NotificationType;
+use App\Services\Notifications\Channels\DesktopChannel;
 use App\Services\Notifications\Channels\EmailChannel;
+use App\Services\Notifications\Channels\TelegramChannel;
 use App\Services\Notifications\Channels\WhatsAppChannel;
 use App\Services\SystemSettingsService;
 
@@ -19,6 +21,8 @@ class NotificationDispatcher
     private const CHANNEL_SETTING_KEYS = [
         WhatsAppChannel::class => 'notifications.whatsapp.enabled',
         EmailChannel::class => 'notifications.email.enabled',
+        DesktopChannel::class => 'notifications.desktop.enabled',
+        TelegramChannel::class => 'notifications.telegram.enabled',
     ];
 
     /**
@@ -65,6 +69,8 @@ class NotificationDispatcher
         return match ($channel::class) {
             WhatsAppChannel::class => NotificationChannelType::WhatsApp,
             EmailChannel::class => NotificationChannelType::Email,
+            DesktopChannel::class => NotificationChannelType::Desktop,
+            TelegramChannel::class => NotificationChannelType::Telegram,
             default => null,
         };
     }

@@ -16,7 +16,9 @@ use App\Services\Automation\AutomationRuntime;
 use App\Services\Automation\Handlers\NotificationActionHandler;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
+use App\Services\Notifications\Channels\DesktopChannel;
 use App\Services\Notifications\Channels\EmailChannel;
+use App\Services\Notifications\Channels\TelegramChannel;
 use App\Services\Notifications\Channels\WhatsAppChannel;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
@@ -50,6 +52,8 @@ class AppServiceProvider extends ServiceProvider
                 [
                     $app->make(WhatsAppChannel::class),
                     $app->make(EmailChannel::class),
+                    $app->make(DesktopChannel::class),
+                    $app->make(TelegramChannel::class),
                 ],
             );
         });
