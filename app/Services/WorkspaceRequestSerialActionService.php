@@ -12,6 +12,7 @@ use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class WorkspaceRequestSerialActionService
         private readonly RequestSerialNumberEligibilityService $eligibilityService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
+        private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
     ) {}
 
     public function send(
@@ -64,8 +66,10 @@ class WorkspaceRequestSerialActionService
             ),
         );
 
+        $deliverySummary = $this->deliverySummaryFormatter;
+
         if (! $dispatchResult->success) {
-            $message = $dispatchResult->message ?? 'Unable to send WhatsApp template.';
+            $message = $deliverySummary->failureMessage($dispatchResult);
 
             return WorkspaceActionResponseBuilder::make('request-serial', $incident->id)
                 ->forContext($requestContext->context)
@@ -87,16 +91,26 @@ class WorkspaceRequestSerialActionService
             $incident,
         );
 
-        $message = 'WhatsApp template request sent.';
+        $message = $deliverySummary->format($dispatchResult);
+        $toastVariant = $this->resolveToastVariant($dispatchResult);
 
         return WorkspaceActionResponseBuilder::make('request-serial', $incident->id)
             ->forContext($requestContext->context)
             ->success($message)
-            ->withToast($message, 'success')
+            ->withToast($message, $toastVariant)
             ->withUi(closeWorkspaceHost: $effects->closeWorkspaceHost)
             ->withExtensions([
                 'refresh_customer360' => $requestContext->context === \App\Enums\WorkspaceContext::Customer,
             ])
             ->build();
+    }
+
+    private function resolveToastVariant(\App\Data\NotificationDispatchResult $dispatchResult): string
+    {
+        $hasFailure = collect($dispatchResult->results)->contains(
+            fn (\App\Data\NotificationResult $result): bool => ! $result->isSkipped() && ! $result->success,
+        );
+
+        return $hasFailure ? 'warning' : 'success';
     }
 }

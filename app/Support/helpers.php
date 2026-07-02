@@ -58,3 +58,13 @@ function display_device_model_short(?string $fullModel, string $fallback = '—'
 {
     return DeviceModelFormatter::shortDisplay($fullModel) ?? $fallback;
 }
+
+function audit_event_label(string $event): string
+{
+    return match ($event) {
+        'ai_workbench.suggestion_viewed' => 'IRA AI viewed',
+        'ai_workbench.suggestion_copied' => 'IRA AI suggestion copied',
+        'ai_workbench.suggestion_inserted' => 'IRA AI suggestion inserted',
+        default => str_replace('_', ' ', $event),
+    };
+}

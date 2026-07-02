@@ -56,4 +56,49 @@ readonly class NotificationResult
             metadata: $metadata,
         );
     }
+
+    public function status(): string
+    {
+        $metadataStatus = $this->metadata['status'] ?? null;
+
+        if (is_string($metadataStatus) && $metadataStatus !== '') {
+            return $metadataStatus;
+        }
+
+        return $this->success ? 'sent' : 'failed';
+    }
+
+    public function isSkipped(): bool
+    {
+        return $this->status() === 'not_yet_configured';
+    }
+
+    public function countsTowardSuccess(): bool
+    {
+        return $this->success && ! $this->isSkipped();
+    }
+
+    /**
+     * @return array{
+     *     channel: string,
+     *     status: string,
+     *     success: bool,
+     *     retryable: bool,
+     *     message: ?string,
+     *     timestamp: string,
+     *     duration_ms: int,
+     * }
+     */
+    public function toAuditRecord(string $timestamp, int $durationMs = 0): array
+    {
+        return [
+            'channel' => $this->channel->value,
+            'status' => $this->status(),
+            'success' => $this->success,
+            'retryable' => $this->retryable,
+            'message' => $this->message,
+            'timestamp' => $timestamp,
+            'duration_ms' => $durationMs,
+        ];
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Contracts\AI\AIProvider;
 use App\Listeners\BroadcastNotificationCreated;
 use App\Models\DeviceModel;
 use App\Models\SettingProduct;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Policies\DashboardPolicy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
+use App\Services\AI\Providers\NullAIProvider;
 use App\Services\Automation\AutomationIdempotencyKeyGenerator;
 use App\Services\Automation\AutomationRuntime;
 use App\Services\Automation\Handlers\NotificationActionHandler;
@@ -20,6 +22,7 @@ use App\Services\Notifications\Channels\DesktopChannel;
 use App\Services\Notifications\Channels\EmailChannel;
 use App\Services\Notifications\Channels\TelegramChannel;
 use App\Services\Notifications\Channels\WhatsAppChannel;
+use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
@@ -40,6 +43,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(RadiumBoxRequestCache::class);
 
+        $this->app->singleton(AIProvider::class, function ($app): AIProvider {
+            return match (config('ai.provider')) {
+                'null' => $app->make(NullAIProvider::class),
+                default => $app->make(NullAIProvider::class),
+            };
+        });
+
         $this->app->singleton(GlobalSearchService::class, function ($app): GlobalSearchService {
             return new GlobalSearchService([
                 $app->make(ServiceCaseGlobalSearchProvider::class),
@@ -55,6 +65,7 @@ class AppServiceProvider extends ServiceProvider
                     $app->make(DesktopChannel::class),
                     $app->make(TelegramChannel::class),
                 ],
+                $app->make(NotificationAuditTrailService::class),
             );
         });
 

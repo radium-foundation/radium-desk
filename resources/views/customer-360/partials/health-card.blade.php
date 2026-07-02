@@ -16,11 +16,23 @@
     <dl class="customer-360-health-grid">
         <div class="customer-360-health-item">
             <dt><i class="bi bi-telephone" aria-hidden="true"></i> Phone</dt>
-            <dd>{{ $displayValue($healthCard['phone'] ?? null) }}</dd>
+            <dd>
+                <x-customer-360-inline-copy
+                    :value="$healthCard['phone'] ?? null"
+                    label="Customer Phone"
+                    copy-key="phone"
+                />
+            </dd>
         </div>
         <div class="customer-360-health-item">
             <dt><i class="bi bi-envelope" aria-hidden="true"></i> Email</dt>
-            <dd>{{ $displayValue($healthCard['email'] ?? null) }}</dd>
+            <dd>
+                <x-customer-360-inline-copy
+                    :value="$healthCard['email'] ?? null"
+                    label="Customer Email"
+                    copy-key="email"
+                />
+            </dd>
         </div>
         <div class="customer-360-health-item">
             <dt><i class="bi bi-shield-check" aria-hidden="true"></i> Warranty</dt>

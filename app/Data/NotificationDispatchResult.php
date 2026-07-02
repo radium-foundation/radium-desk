@@ -28,7 +28,7 @@ readonly class NotificationDispatchResult
 
         $successful = array_values(array_filter(
             $results,
-            fn (NotificationResult $result): bool => $result->success,
+            fn (NotificationResult $result): bool => $result->countsTowardSuccess(),
         ));
 
         if ($successful !== []) {
@@ -39,12 +39,17 @@ readonly class NotificationDispatchResult
             );
         }
 
-        $failed = $results[0];
+        $failed = array_values(array_filter(
+            $results,
+            fn (NotificationResult $result): bool => ! $result->isSkipped(),
+        ));
+
+        $message = $failed[0]->message ?? $results[0]->message ?? 'Notification dispatch failed.';
 
         return new self(
             success: false,
             results: $results,
-            message: $failed->message,
+            message: $message,
         );
     }
 }

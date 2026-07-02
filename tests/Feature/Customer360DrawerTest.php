@@ -65,8 +65,13 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('data-unified-timeline', false);
         $response->assertSee('data-timeline-filters', false);
         $response->assertSee('Quick Actions', false);
-        $response->assertSee('Copy Phone', false);
-        $response->assertSee('Copy Email', false);
+        $response->assertDontSee('Copy Phone', false);
+        $response->assertDontSee('Copy Email', false);
+        $response->assertSee('data-customer-360-copy="phone"', false);
+        $response->assertSee('data-customer-360-copy="email"', false);
+        $response->assertSee('data-customer-360-copy="serial"', false);
+        $response->assertSee('data-customer-360-copy="order-id"', false);
+        $response->assertSee('aria-label="Copy Customer Phone"', false);
         $response->assertSee('Coming soon', false);
         $response->assertSee('timeline-actor-badge', false);
         $response->assertSee('unified-timeline-filter-chip', false);

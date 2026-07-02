@@ -1,0 +1,49 @@
+<?php
+
+namespace App\Services\Notifications;
+
+use App\Data\NotificationDispatchResult;
+use App\Data\NotificationMessage;
+use App\Models\AuditLog;
+use App\Services\AuditLogService;
+
+class NotificationAuditTrailService
+{
+    public const EVENT_DISPATCHED = 'notification.dispatched';
+
+    public function __construct(
+        private readonly AuditLogService $auditLogService,
+    ) {}
+
+    /**
+     * @param  array<int, array{
+     *     channel: string,
+     *     status: string,
+     *     success: bool,
+     *     retryable: bool,
+     *     message: ?string,
+     *     timestamp: string,
+     *     duration_ms: int,
+     * }>  $channelRecords
+     */
+    public function record(
+        NotificationMessage $message,
+        NotificationDispatchResult $dispatchResult,
+        array $channelRecords,
+    ): AuditLog {
+        return $this->auditLogService->log(
+            userId: $message->actor?->id,
+            event: self::EVENT_DISPATCHED,
+            auditable: $message->incident,
+            newValues: [
+                'notification_type' => $message->type->value,
+                'source' => $message->metadata['source'] ?? null,
+                'trigger_source' => $message->metadata['trigger_source'] ?? null,
+                'aggregate_success' => $dispatchResult->success,
+                'aggregate_message' => $dispatchResult->message,
+                'channel_results' => $channelRecords,
+            ],
+            request: $message->httpRequest,
+        );
+    }
+}

@@ -28,7 +28,7 @@ class TimelineAutomationIdentityTest extends TestCase
 
         config([
             'automation.display_name' => 'Ira',
-            'automation.subtitle' => 'AI Assistant',
+            'automation.subtitle' => 'IRA AI',
             'cashfree.system_user_email' => 'superadmin@radium.local',
             'service_case_assignment.automation_grace_period_enabled' => true,
         ]);
@@ -89,7 +89,7 @@ class TimelineAutomationIdentityTest extends TestCase
 
         foreach ($automationEntries as $entry) {
             $this->assertSame('Ira', $entry->actor->displayName);
-            $this->assertSame('AI Assistant', $entry->actor->subtitle);
+            $this->assertSame('IRA AI', $entry->actor->subtitle);
         }
 
         $this->assertNull($incident->assigned_to_user_id);
@@ -204,7 +204,7 @@ class TimelineAutomationIdentityTest extends TestCase
             ->get(route('incidents.show', $incident))
             ->assertOk()
             ->assertSee('Ira', false)
-            ->assertSee('AI Assistant', false)
+            ->assertSee('IRA AI', false)
             ->assertSee('timeline-actor-subtitle', false);
     }
 }

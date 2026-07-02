@@ -1,0 +1,75 @@
+<?php
+
+namespace App\Services\Notifications;
+
+use App\Data\NotificationDispatchResult;
+use App\Data\NotificationResult;
+use App\Enums\NotificationChannelType;
+
+class NotificationDeliverySummaryFormatter
+{
+    public function format(NotificationDispatchResult $result): string
+    {
+        $lines = [$this->headline($result)];
+
+        foreach ($result->results as $channelResult) {
+            $lines[] = $this->formatChannelLine($channelResult);
+        }
+
+        return implode("\n", $lines);
+    }
+
+    public function failureMessage(NotificationDispatchResult $result): string
+    {
+        if ($result->results === []) {
+            return $result->message ?? 'No notification channels are available.';
+        }
+
+        return $this->format($result);
+    }
+
+    private function headline(NotificationDispatchResult $result): string
+    {
+        return $result->success
+            ? 'Notification sent'
+            : 'Notification failed';
+    }
+
+    private function formatChannelLine(NotificationResult $result): string
+    {
+        $label = $this->channelLabel($result->channel);
+
+        if ($result->isSkipped()) {
+            return sprintf('⏭ %s (%s)', $label, $this->skippedReason($result));
+        }
+
+        if ($result->countsTowardSuccess()) {
+            return sprintf('✓ %s', $label);
+        }
+
+        $message = trim((string) ($result->message ?? 'Delivery failed.'));
+
+        return sprintf('✗ %s: %s', $label, $message);
+    }
+
+    private function channelLabel(NotificationChannelType $channel): string
+    {
+        return match ($channel) {
+            NotificationChannelType::WhatsApp => 'WhatsApp',
+            NotificationChannelType::Email => 'Email',
+            NotificationChannelType::Desktop => 'Desktop',
+            NotificationChannelType::Telegram => 'Telegram',
+        };
+    }
+
+    private function skippedReason(NotificationResult $result): string
+    {
+        $message = trim((string) ($result->message ?? ''));
+
+        if ($message === '' || strcasecmp($message, 'Not Yet Configured') === 0) {
+            return 'Not configured';
+        }
+
+        return $message;
+    }
+}

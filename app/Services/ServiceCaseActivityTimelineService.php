@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use App\Data\NotificationDispatchResult;
+use App\Data\NotificationResult;
 use App\Data\ServiceCaseTimelineEntry;
 use App\Data\TimelineActor;
+use App\Enums\NotificationChannelType;
 use App\Enums\IncidentStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -11,6 +14,8 @@ use App\Models\Order;
 use App\Models\Remark;
 use App\Models\ServiceCaseCloseException;
 use App\Models\User;
+use App\Services\Notifications\NotificationAuditTrailService;
+use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
 
@@ -18,6 +23,7 @@ class ServiceCaseActivityTimelineService
 {
     public function __construct(
         private readonly AutomationIdentityService $automationIdentity,
+        private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
     ) {}
 
     public function forIncident(Incident $incident): Collection
@@ -179,6 +185,11 @@ class ServiceCaseActivityTimelineService
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
+                NotificationAuditTrailService::EVENT_DISPATCHED => $this->mapNotificationDispatchedEntry(
+                    $auditLog,
+                    $actor,
+                    $occurredAt,
+                ),
                 'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $incident, $actor, $occurredAt),
                 'service_case.close_exception' => null,
                 default => null,
@@ -215,6 +226,60 @@ class ServiceCaseActivityTimelineService
         }
 
         return null;
+    }
+
+    private function mapNotificationDispatchedEntry(
+        AuditLog $auditLog,
+        TimelineActor $actor,
+        $occurredAt,
+    ): ServiceCaseTimelineEntry {
+        $channelResults = collect($auditLog->new_values['channel_results'] ?? [])
+            ->map(function (array $record): NotificationResult {
+                $channel = NotificationChannelType::tryFrom((string) ($record['channel'] ?? ''));
+
+                if ($channel === null) {
+                    return NotificationResult::failure(
+                        channel: NotificationChannelType::WhatsApp,
+                        message: (string) ($record['message'] ?? 'Unknown channel result.'),
+                        metadata: ['status' => (string) ($record['status'] ?? 'failed')],
+                    );
+                }
+
+                $success = (bool) ($record['success'] ?? false);
+                $metadata = ['status' => (string) ($record['status'] ?? ($success ? 'sent' : 'failed'))];
+
+                return $success
+                    ? NotificationResult::success(
+                        channel: $channel,
+                        message: $record['message'] ?? null,
+                        metadata: $metadata,
+                    )
+                    : NotificationResult::failure(
+                        channel: $channel,
+                        message: (string) ($record['message'] ?? 'Delivery failed.'),
+                        retryable: (bool) ($record['retryable'] ?? false),
+                        metadata: $metadata,
+                    );
+            })
+            ->values()
+            ->all();
+
+        $aggregateSuccess = (bool) ($auditLog->new_values['aggregate_success'] ?? false);
+        $summary = $this->deliverySummaryFormatter->format(new NotificationDispatchResult(
+            success: $aggregateSuccess,
+            results: $channelResults,
+            message: $auditLog->new_values['aggregate_message'] ?? null,
+        ));
+
+        return new ServiceCaseTimelineEntry(
+            occurredAt: $occurredAt,
+            type: ServiceCaseTimelineEntry::TYPE_STATUS,
+            actor: $actor,
+            title: $aggregateSuccess ? 'Notification sent' : 'Notification failed',
+            body: $summary,
+            remark: null,
+            dedupeKey: "audit:{$auditLog->id}",
+        );
     }
 
     private function mapAssignedEntry(

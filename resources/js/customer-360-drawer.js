@@ -3,8 +3,54 @@ import { initUnifiedTimeline } from './unified-timeline';
 
 const SESSION_REASON = 'customer-360-drawer';
 
+const hashContent = async (content) => {
+    if (!content || !globalThis.crypto?.subtle) {
+        return null;
+    }
+
+    const digest = await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(content),
+    );
+
+    return Array.from(new Uint8Array(digest))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
+};
+
 const copyTextToClipboard = async (text) => {
     await navigator.clipboard.writeText(text);
+};
+
+const COPY_SUCCESS_MS = 1500;
+
+const showInlineCopySuccess = (button) => {
+    const icon = button.querySelector('[data-customer-360-copy-icon]');
+    const check = button.querySelector('[data-customer-360-copy-check]');
+    const label = button.dataset.copyLabel ?? 'Value';
+
+    if (!icon || !check) {
+        return;
+    }
+
+    if (button.dataset.copyResetTimer) {
+        clearTimeout(Number(button.dataset.copyResetTimer));
+    }
+
+    icon.hidden = true;
+    check.hidden = false;
+    button.classList.add('is-copied');
+    button.setAttribute('aria-label', `${label} copied`);
+
+    const timerId = setTimeout(() => {
+        icon.hidden = false;
+        check.hidden = true;
+        button.classList.remove('is-copied');
+        button.setAttribute('aria-label', `Copy ${label}`);
+        delete button.dataset.copyResetTimer;
+    }, COPY_SUCCESS_MS);
+
+    button.dataset.copyResetTimer = String(timerId);
 };
 
 const isInteractiveTarget = (target) => {
@@ -82,15 +128,225 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
                 await copyTextToClipboard(value);
 
-                const label = ({
-                    mobile: 'Mobile number',
-                    phone: 'Phone number',
-                    email: 'Email address',
-                    serial: 'Serial number',
-                })[button.dataset.customer360Copy] ?? 'Value';
+                const label = button.dataset.copyLabel
+                    ?? ({
+                        mobile: 'Mobile number',
+                        phone: 'Customer Phone',
+                        email: 'Customer Email',
+                        serial: 'Serial Number',
+                        'order-id': 'Order ID',
+                    })[button.dataset.customer360Copy]
+                    ?? 'Value';
+
+                showInlineCopySuccess(button);
                 showToast?.(`${label} copied`);
             });
         });
+    };
+
+    const postWorkbenchAudit = async (root, payload) => {
+        const auditUrl = root.dataset.aiWorkbenchAuditUrl;
+
+        if (!auditUrl) {
+            return;
+        }
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+        try {
+            await fetch(auditUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                },
+                body: JSON.stringify(payload),
+            });
+        } catch {
+            // Audit failures should not block operator actions.
+        }
+    };
+
+    const bindWorkbenchActions = () => {
+        const workbenchRoot = contentHost.querySelector('[data-ai-workbench-root]');
+
+        if (!workbenchRoot) {
+            return;
+        }
+
+        let viewedLogged = false;
+
+        const logViewed = async () => {
+            if (viewedLogged) {
+                return;
+            }
+
+            viewedLogged = true;
+            await postWorkbenchAudit(workbenchRoot, {
+                action: 'viewed',
+                artifact_key: 'workbench',
+            });
+        };
+
+        workbenchRoot.querySelectorAll('[data-ai-workbench-reply-tab]').forEach((tab) => {
+            tab.addEventListener('click', () => {
+                const tabKey = tab.dataset.aiWorkbenchReplyTab;
+
+                workbenchRoot.querySelectorAll('[data-ai-workbench-reply-tab]').forEach((button) => {
+                    const isActive = button.dataset.aiWorkbenchReplyTab === tabKey;
+                    button.classList.toggle('is-active', isActive);
+                    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+
+                workbenchRoot.querySelectorAll('[data-ai-workbench-reply-pane]').forEach((pane) => {
+                    pane.classList.toggle('d-none', pane.dataset.aiWorkbenchReplyPane !== tabKey);
+                });
+            });
+        });
+
+        workbenchRoot.querySelectorAll('[data-ai-workbench-copy]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const artifactKey = button.dataset.artifactKey ?? 'unknown';
+                const editor = workbenchRoot.querySelector(`[data-ai-workbench-editor="${artifactKey}"]`);
+                const value = editor instanceof HTMLTextAreaElement
+                    ? editor.value.trim()
+                    : button.dataset.copyValue?.trim() ?? '';
+
+                if (value === '') {
+                    return;
+                }
+
+                await copyTextToClipboard(value);
+                showToast?.('IRA AI suggestion copied');
+
+                await postWorkbenchAudit(workbenchRoot, {
+                    action: 'copied',
+                    artifact_key: artifactKey,
+                    content_length: value.length,
+                    content_hash: await hashContent(value),
+                });
+            });
+        });
+
+        workbenchRoot.querySelectorAll('[data-ai-workbench-insert]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const artifactKey = button.dataset.artifactKey ?? 'unknown';
+                const target = button.dataset.insertTarget ?? 'editor';
+                const workbenchEditor = workbenchRoot.querySelector(`[data-ai-workbench-editor="${artifactKey}"]`);
+                const remarkEditor = document.querySelector('#modal_note_body');
+                const editor = target === 'remark' && remarkEditor instanceof HTMLTextAreaElement
+                    ? remarkEditor
+                    : workbenchEditor;
+                const value = workbenchEditor instanceof HTMLTextAreaElement
+                    ? workbenchEditor.value.trim()
+                    : button.dataset.insertValue?.trim() ?? '';
+
+                if (value === '') {
+                    return;
+                }
+
+                if (editor instanceof HTMLTextAreaElement) {
+                    editor.readOnly = false;
+                    editor.value = value;
+                    editor.focus();
+                }
+
+                document.dispatchEvent(new CustomEvent('workbench:insert', {
+                    detail: {
+                        incidentId: workbenchRoot.dataset.aiWorkbenchIncidentId,
+                        target,
+                        content: value,
+                        artifactKey,
+                    },
+                }));
+
+                showToast?.('IRA AI suggestion inserted into editor');
+
+                await postWorkbenchAudit(workbenchRoot, {
+                    action: 'inserted',
+                    artifact_key: artifactKey,
+                    target,
+                    content_length: value.length,
+                    content_hash: await hashContent(value),
+                });
+            });
+        });
+
+        const refreshWorkbench = async (artifactKey = 'workbench') => {
+            const refreshUrl = workbenchRoot.dataset.aiWorkbenchRefreshUrl;
+
+            if (!refreshUrl) {
+                return;
+            }
+
+            const response = await fetch(refreshUrl, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                showToast?.('IRA AI unavailable — unable to refresh suggestions');
+                return;
+            }
+
+            const payload = await response.json();
+            const container = contentHost.querySelector('#customer-360-ai-workbench');
+
+            if (container && payload.html) {
+                container.outerHTML = payload.html;
+                bindWorkbenchActions();
+            }
+
+            showToast?.('IRA AI refreshed');
+
+            await postWorkbenchAudit(workbenchRoot, {
+                action: 'viewed',
+                artifact_key: artifactKey,
+            });
+        };
+
+        workbenchRoot.querySelectorAll('[data-ai-workbench-refresh]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                await refreshWorkbench(button.dataset.artifactKey ?? 'workbench');
+            });
+        });
+
+        logViewed();
+    };
+
+    const initTabs = () => {
+        const tabs = Array.from(contentHost.querySelectorAll('[data-customer-360-tab]'));
+        const panes = Array.from(contentHost.querySelectorAll('[data-customer-360-tab-pane]'));
+
+        if (tabs.length === 0 || panes.length === 0) {
+            return;
+        }
+
+        const activateTab = (tabKey) => {
+            tabs.forEach((tab) => {
+                const isActive = tab.dataset.customer360Tab === tabKey;
+                tab.classList.toggle('active', isActive);
+                tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+
+            panes.forEach((pane) => {
+                const isActive = pane.dataset.customer360TabPane === tabKey;
+                pane.classList.toggle('d-none', !isActive);
+            });
+        };
+
+        tabs.forEach((tab) => {
+            tab.addEventListener('click', () => {
+                activateTab(tab.dataset.customer360Tab);
+            });
+        });
+
+        const initialTab = tabs.find((tab) => tab.classList.contains('active'))?.dataset.customer360Tab ?? 'overview';
+        activateTab(initialTab);
     };
 
     const loadContent = async (incidentId) => {
@@ -118,6 +374,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             const html = await response.text();
             contentHost.innerHTML = html;
             bindCopyActions();
+            bindWorkbenchActions();
+            initTabs();
             initUnifiedTimeline(contentHost);
             initTooltips?.(contentHost);
         } catch (error) {

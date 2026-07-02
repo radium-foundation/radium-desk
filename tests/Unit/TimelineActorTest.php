@@ -11,7 +11,7 @@ class TimelineActorTest extends TestCase
     public function test_role_labels(): void
     {
         $this->assertSame('Customer', (new TimelineActor('Customer'))->roleLabel());
-        $this->assertSame('System', (new TimelineActor('Ira', 'AI Assistant', true))->roleLabel());
+        $this->assertSame('System', (new TimelineActor('Ira', 'IRA AI', true))->roleLabel());
         $this->assertSame('Agent', (new TimelineActor('Priya'))->roleLabel());
     }
 

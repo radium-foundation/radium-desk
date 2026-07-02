@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Data\AI\AIContextBuildSnapshot;
 use App\Data\TimelineViewModel;
 use App\Enums\IncidentStatus;
 use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Services\AI\AIService;
+use App\Services\AI\AIWorkbenchService;
+use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\Timeline\Customer360TimelineService;
@@ -20,6 +24,9 @@ class Customer360Service
         private readonly RadiumBoxOrderEnrichmentSyncStore $enrichmentSyncStore,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
         private readonly IncidentWaitingStateService $waitingStateService,
+        private readonly AIService $aiService,
+        private readonly OperationsAdvisorService $operationsAdvisorService,
+        private readonly AIWorkbenchService $aiWorkbenchService,
     ) {}
 
     /**
@@ -40,6 +47,15 @@ class Customer360Service
         $activeServices = $this->activeServices($order, $enrichmentMetadata);
         $summary = $this->customerSummary($order->customer_phone);
         $timeline = $this->customer360TimelineService->forOrder($order);
+        $waitingStateCard = $this->waitingStateService->customer360Card($incident);
+        $snapshot = new AIContextBuildSnapshot(
+            customerSummary: $summary,
+            activeServices: $activeServices,
+            enrichmentMetadata: $enrichmentMetadata,
+            timeline: $timeline,
+            waitingStateCard: $waitingStateCard,
+        );
+        $aiBundle = $this->aiService->buildBundle($incident, $snapshot);
 
         return [
             'incident' => $incident,
@@ -52,7 +68,10 @@ class Customer360Service
             'timeline' => $timeline,
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
-            'waitingStateCard' => $this->waitingStateService->customer360Card($incident),
+            'waitingStateCard' => $waitingStateCard,
+            'aiAssistant' => $aiBundle->response,
+            'operationsAdvisorInsights' => $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot),
+            'aiWorkbench' => $this->aiWorkbenchService->buildFromBundle($incident, $aiBundle),
         ];
     }
 
@@ -290,6 +309,9 @@ class Customer360Service
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => false,
             'waitingStateCard' => null,
+            'aiAssistant' => ($bundle = $this->aiService->buildBundle($incident))->response,
+            'operationsAdvisorInsights' => [],
+            'aiWorkbench' => $this->aiWorkbenchService->buildFromBundle($incident, $bundle),
         ];
     }
 }

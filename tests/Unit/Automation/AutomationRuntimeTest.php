@@ -65,7 +65,7 @@ class AutomationRuntimeTest extends TestCase
 
         $runtime = new AutomationRuntime(
             app(AutomationIdempotencyKeyGenerator::class),
-            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class))],
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class))],
         );
 
         $result = $runtime->execute($waitingState, $plannedActions);
@@ -117,7 +117,7 @@ class AutomationRuntimeTest extends TestCase
 
         $runtime = new AutomationRuntime(
             app(AutomationIdempotencyKeyGenerator::class),
-            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class))],
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class))],
         );
 
         $firstRun = $runtime->execute($waitingState, $plannedActions);
@@ -178,7 +178,7 @@ class AutomationRuntimeTest extends TestCase
 
         $runtime = new AutomationRuntime(
             app(AutomationIdempotencyKeyGenerator::class),
-            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class))],
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class))],
         );
 
         $result = $runtime->execute($waitingState, $plannedActions);
@@ -187,7 +187,7 @@ class AutomationRuntimeTest extends TestCase
         $this->assertDatabaseHas('automation_executions', [
             'waiting_state_id' => $waitingState->id,
             'status' => AutomationExecutionStatus::Failed->value,
-            'error_message' => 'WhatsApp dispatch failed.',
+            'error_message' => "Notification failed\n✗ WhatsApp: WhatsApp dispatch failed.",
         ]);
     }
 

@@ -11,6 +11,7 @@ use App\Enums\AutomationPolicyActionType;
 use App\Enums\NotificationChannelType;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Services\Automation\AutomationNotificationTypeResolver;
+use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
 
 class NotificationActionHandler implements ActionHandler
@@ -18,6 +19,7 @@ class NotificationActionHandler implements ActionHandler
     public function __construct(
         private readonly NotificationDispatcher $notificationDispatcher,
         private readonly AutomationNotificationTypeResolver $notificationTypeResolver,
+        private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
     ) {}
 
     public function supports(AutomationPolicyActionType $type): bool
@@ -81,7 +83,7 @@ class NotificationActionHandler implements ActionHandler
 
         if (! $dispatchResult->success) {
             return ActionHandlerResult::failure(
-                $dispatchResult->message ?? 'Notification dispatch failed.',
+                $this->deliverySummaryFormatter->failureMessage($dispatchResult),
                 metadata: $metadata,
             );
         }

@@ -35,7 +35,7 @@ enum TimelineEventType: string
             self::Dispatch => 'Dispatch',
             self::Replacement => 'Replacement',
             self::Automation => 'Automation',
-            self::AiSummary => 'AI Summary',
+            self::AiSummary => 'IRA AI Analysis',
         };
     }
 

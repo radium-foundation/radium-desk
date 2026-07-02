@@ -167,7 +167,7 @@ describe('initCustomer360Drawer', () => {
         initCustomer360Drawer({ pageRoot });
 
         const contentHost = document.querySelector('[data-customer-360-content-host]');
-        contentHost.innerHTML = '<button type="button" data-customer-360-copy="phone" data-copy-value="9876543210">Copy Phone</button>';
+        contentHost.innerHTML = '<button type="button" class="customer-360-inline-copy" data-customer-360-copy="phone" data-copy-value="9876543210" data-copy-label="Customer Phone" aria-label="Copy Customer Phone"><i data-customer-360-copy-icon></i><span data-customer-360-copy-check hidden>✓</span></button>';
 
         const documentHandler = vi.fn();
         document.addEventListener('click', documentHandler);
@@ -177,6 +177,64 @@ describe('initCustomer360Drawer', () => {
         );
 
         expect(documentHandler).not.toHaveBeenCalled();
+    });
+
+    it('copies inline field value and shows success feedback', async () => {
+        const pageRoot = setupDashboard();
+        const showToast = vi.fn();
+
+        vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined);
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => `
+                <div data-customer-360-content>
+                    <button type="button"
+                            class="customer-360-inline-copy"
+                            data-customer-360-copy="order-id"
+                            data-copy-value="RD-360-HTML"
+                            data-copy-label="Order ID"
+                            aria-label="Copy Order ID">
+                        <i data-customer-360-copy-icon></i>
+                        <span data-customer-360-copy-check hidden>✓</span>
+                    </button>
+                </div>
+            `,
+        });
+
+        initCustomer360Drawer({ pageRoot, showToast });
+
+        document.querySelector('tr[data-incident-id="42"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-customer-360-copy]')).not.toBeNull();
+        });
+
+        document.querySelector('[data-customer-360-copy]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(navigator.clipboard.writeText).toHaveBeenCalledWith('RD-360-HTML');
+            expect(showToast).toHaveBeenCalledWith('Order ID copied');
+        });
+
+        const button = document.querySelector('[data-customer-360-copy]');
+        expect(button?.classList.contains('is-copied')).toBe(true);
+        expect(button?.querySelector('[data-customer-360-copy-icon]')?.hidden).toBe(true);
+        expect(button?.querySelector('[data-customer-360-copy-check]')?.hidden).toBe(false);
+
+        await vi.waitFor(async () => {
+            await new Promise((resolve) => {
+                setTimeout(resolve, 1600);
+            });
+            expect(button?.classList.contains('is-copied')).toBe(false);
+        }, { timeout: 3000 });
+
+        expect(button?.querySelector('[data-customer-360-copy-icon]')?.hidden).toBe(false);
+        expect(button?.querySelector('[data-customer-360-copy-check]')?.hidden).toBe(true);
     });
 
     it('opens workspace component when clicking request-serial inside drawer content', async () => {

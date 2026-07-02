@@ -20,6 +20,7 @@ import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
+import { initOperationsDashboard } from './operations-dashboard';
 
 window.bootstrap = bootstrap;
 
@@ -228,14 +229,24 @@ const showAppToast = (message, variant = 'success') => {
     toastElement.setAttribute('role', 'alert');
     toastElement.setAttribute('aria-live', 'assertive');
     toastElement.setAttribute('aria-atomic', 'true');
-    toastElement.innerHTML = `
-        <div class="d-flex">
-            <div class="toast-body">
-                <i class="bi bi-check-circle me-1"></i> ${message}
-            </div>
-            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-    `;
+
+    const body = document.createElement('div');
+    body.className = 'toast-body';
+    body.style.whiteSpace = 'pre-line';
+    body.textContent = message ?? '';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'd-flex';
+    wrapper.appendChild(body);
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'btn-close btn-close-white me-2 m-auto';
+    closeButton.setAttribute('data-bs-dismiss', 'toast');
+    closeButton.setAttribute('aria-label', 'Close');
+    wrapper.appendChild(closeButton);
+
+    toastElement.appendChild(wrapper);
 
     container.appendChild(toastElement);
 
@@ -693,4 +704,6 @@ document.addEventListener('DOMContentLoaded', () => {
         isWorkspaceSubmitBusy: () => workspaceApi?.isBusy?.('submit') ?? false,
         openDashboardQuickFilter: () => dashboardQuickFilter?.open?.(),
     });
+
+    initOperationsDashboard();
 });

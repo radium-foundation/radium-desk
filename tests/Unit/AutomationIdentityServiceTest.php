@@ -21,7 +21,7 @@ class AutomationIdentityServiceTest extends TestCase
 
         config([
             'automation.display_name' => 'Ira',
-            'automation.subtitle' => 'AI Assistant',
+            'automation.subtitle' => 'IRA AI',
             'cashfree.system_user_email' => 'superadmin@radium.local',
         ]);
 
@@ -55,7 +55,7 @@ class AutomationIdentityServiceTest extends TestCase
         $actor = $this->service->resolve($user);
 
         $this->assertSame('Ira', $actor->displayName);
-        $this->assertSame('AI Assistant', $actor->subtitle);
+        $this->assertSame('IRA AI', $actor->subtitle);
         $this->assertTrue($actor->isAutomation);
     }
 
@@ -64,7 +64,7 @@ class AutomationIdentityServiceTest extends TestCase
         $actor = $this->service->resolve(null);
 
         $this->assertSame('Ira', $actor->displayName);
-        $this->assertSame('AI Assistant', $actor->subtitle);
+        $this->assertSame('IRA AI', $actor->subtitle);
         $this->assertTrue($actor->isAutomation);
     }
 
@@ -95,7 +95,7 @@ class AutomationIdentityServiceTest extends TestCase
         $actor = $this->service->resolveWithRoleLabel($user);
 
         $this->assertSame('Ira', $actor->displayName);
-        $this->assertSame('AI Assistant', $actor->subtitle);
+        $this->assertSame('IRA AI', $actor->subtitle);
         $this->assertTrue($actor->isAutomation);
     }
 

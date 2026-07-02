@@ -35,7 +35,7 @@ class AutomationIdentityService
     {
         return new TimelineActor(
             displayName: (string) config('automation.display_name', 'Ira'),
-            subtitle: (string) config('automation.subtitle', 'AI Assistant'),
+            subtitle: (string) config('automation.subtitle', 'IRA AI'),
             isAutomation: true,
         );
     }

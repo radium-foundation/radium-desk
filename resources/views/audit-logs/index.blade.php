@@ -56,7 +56,7 @@
                         <option value="">All events</option>
                         @foreach($events as $event)
                             <option value="{{ $event }}" @selected(($filters['event'] ?? '') === $event)>
-                                {{ str_replace('_', ' ', $event) }}
+                                {{ audit_event_label($event) }}
                             </option>
                         @endforeach
                     </select>

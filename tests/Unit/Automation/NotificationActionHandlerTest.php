@@ -76,6 +76,7 @@ class NotificationActionHandlerTest extends TestCase
         $handler = new NotificationActionHandler(
             $notificationDispatcher,
             app(AutomationNotificationTypeResolver::class),
+            app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
         );
 
         $result = $handler->handle($plannedAction);
@@ -96,6 +97,7 @@ class NotificationActionHandlerTest extends TestCase
         $handler = new NotificationActionHandler(
             $notificationDispatcher,
             app(AutomationNotificationTypeResolver::class),
+            app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
         );
 
         $result = $handler->handle($plannedAction);

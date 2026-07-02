@@ -24,6 +24,7 @@ use App\Services\Notifications\Channels\DesktopChannel;
 use App\Services\Notifications\Channels\EmailChannel;
 use App\Services\Notifications\Channels\TelegramChannel;
 use App\Services\Notifications\Channels\WhatsAppChannel;
+use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\SystemSettingsService;
 use Database\Seeders\RolePermissionSeeder;
@@ -111,6 +112,7 @@ class NotificationDispatcherTest extends TestCase
                 app(DesktopChannel::class),
                 app(TelegramChannel::class),
             ],
+            app(NotificationAuditTrailService::class),
         );
 
         $result = $dispatcher->send(NotificationType::RequestSerialNumber, $message);
@@ -146,6 +148,7 @@ class NotificationDispatcherTest extends TestCase
                 new WhatsAppChannel($automationDispatcher),
                 app(EmailChannel::class),
             ],
+            app(NotificationAuditTrailService::class),
         );
 
         $result = $dispatcher->send(NotificationType::RequestSerialNumber, $message);
@@ -211,6 +214,7 @@ class NotificationDispatcherTest extends TestCase
         $dispatcher = new NotificationDispatcher(
             app(SystemSettingsService::class),
             [new WhatsAppChannel($automationDispatcher)],
+            app(NotificationAuditTrailService::class),
         );
 
         $result = $dispatcher->send(NotificationType::RequestSerialNumber, $message);

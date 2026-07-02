@@ -9,7 +9,7 @@
     if ($automationIdentity->isAutomationActor($user)) {
         $initial = 'I';
         $displayName = (string) config('automation.display_name', 'Ira');
-        $subtitle = 'Automation Assistant';
+        $subtitle = (string) config('automation.subtitle', 'IRA AI');
         $tooltipHtml = e($displayName).'<br>'.e($subtitle);
         $ariaLabel = "{$ariaPrefix}: {$displayName}, {$subtitle}";
     } else {

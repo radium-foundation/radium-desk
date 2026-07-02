@@ -18,11 +18,23 @@
         </div>
         <div class="customer-360-dl-row">
             <dt>Serial Number</dt>
-            <dd class="font-monospace">{{ $displayValue($device['serial_number'] ?? null) }}</dd>
+            <dd class="font-monospace">
+                <x-customer-360-inline-copy
+                    :value="$device['serial_number'] ?? null"
+                    label="Serial Number"
+                    copy-key="serial"
+                />
+            </dd>
         </div>
         <div class="customer-360-dl-row">
             <dt>Order ID</dt>
-            <dd>{{ $displayValue($device['order_id'] ?? null) }}</dd>
+            <dd>
+                <x-customer-360-inline-copy
+                    :value="$device['order_id'] ?? null"
+                    label="Order ID"
+                    copy-key="order-id"
+                />
+            </dd>
         </div>
         <div class="customer-360-dl-row">
             <dt>Service Reference</dt>

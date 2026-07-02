@@ -15,6 +15,7 @@ use App\Http\Controllers\DashboardWorkspaceComponentController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
+use App\Http\Controllers\OperationsDashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
@@ -55,6 +56,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360');
     Route::get('dashboard/service-cases/{incident}/customer-360/timeline', [Customer360Controller::class, 'timeline'])
         ->name('dashboard.service-cases.customer-360.timeline');
+    Route::get('dashboard/service-cases/{incident}/customer-360/ai-workbench', [Customer360Controller::class, 'aiWorkbench'])
+        ->name('dashboard.service-cases.customer-360.ai-workbench');
+    Route::post('dashboard/service-cases/{incident}/customer-360/ai-workbench/audit', [Customer360Controller::class, 'auditWorkbench'])
+        ->name('dashboard.service-cases.customer-360.ai-workbench.audit');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
         ->name('dashboard.transactions.bulk');
     Route::get('dashboard/components/batch-transaction', [DashboardWorkspaceComponentController::class, 'batchTransaction'])
@@ -120,6 +125,11 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/admin/automation', [AutomationOperationsController::class, 'index'])
         ->name('admin.automation.index');
+
+    Route::get('/admin/operations', [OperationsDashboardController::class, 'index'])
+        ->name('admin.operations.index');
+    Route::get('/admin/operations/live', [OperationsDashboardController::class, 'live'])
+        ->name('admin.operations.live');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');

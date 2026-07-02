@@ -3561,6 +3561,290 @@ a:focus-visible .stat-card {
     gap: 1rem;
 }
 
+.customer-360-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fff;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--dashboard-border-subtle);
+}
+
+.customer-360-tab-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+}
+
+.customer-360-tab-list .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.75rem;
+}
+
+.customer-360-tab-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.customer-360-ai-confidence-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--dashboard-radius-sm);
+    border: 1px solid var(--dashboard-border-subtle);
+    background: rgba(248, 249, 250, 0.85);
+    font-size: 0.875rem;
+}
+
+.customer-360-ai-confidence-banner-label {
+    color: var(--dashboard-color-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.customer-360-ai-confidence-banner-score {
+    margin-left: auto;
+    font-weight: 700;
+}
+
+.customer-360-ai-confidence-banner--high {
+    border-color: #198754;
+    background: rgba(25, 135, 84, 0.08);
+}
+
+.customer-360-ai-confidence-banner--medium {
+    border-color: #ffc107;
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.customer-360-ai-confidence-banner--low {
+    border-color: #dc3545;
+    background: rgba(220, 53, 69, 0.08);
+}
+
+.customer-360-ai-dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+    margin: 0;
+}
+
+.customer-360-ai-dl div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.customer-360-ai-dl dt {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dashboard-color-muted);
+}
+
+.customer-360-ai-dl dd {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+}
+
+.customer-360-ai-dl--knowledge .customer-360-ai-dl-full {
+    grid-column: 1 / -1;
+}
+
+.customer-360-ai-card--section {
+    background: #fff;
+}
+
+.customer-360-ai-risk-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.customer-360-ai-risk-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.customer-360-ai-risk-level {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.125rem 0.375rem;
+    border-radius: 999px;
+    border: 1px solid var(--dashboard-border-subtle);
+}
+
+.customer-360-ai-risk-item--high .customer-360-ai-risk-level {
+    color: #842029;
+    background: rgba(220, 53, 69, 0.12);
+    border-color: rgba(220, 53, 69, 0.25);
+}
+
+.customer-360-ai-risk-item--medium .customer-360-ai-risk-level {
+    color: #664d03;
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.35);
+}
+
+.customer-360-ai-risk-item--low .customer-360-ai-risk-level {
+    color: #0f5132;
+    background: rgba(25, 135, 84, 0.12);
+    border-color: rgba(25, 135, 84, 0.25);
+}
+
+.customer-360-ai-assistant {
+    margin-top: 0;
+}
+
+.customer-360-ai-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.customer-360-ai-badge {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dashboard-color-muted);
+    border: 1px solid var(--dashboard-border-subtle);
+    border-radius: 999px;
+    padding: 0.125rem 0.5rem;
+    background: rgba(248, 249, 250, 0.85);
+}
+
+.customer-360-ai-provider-note {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+}
+
+.customer-360-ai-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.customer-360-ai-card {
+    border: 1px solid var(--dashboard-border-subtle);
+    border-radius: var(--dashboard-radius-sm);
+    background: rgba(248, 249, 250, 0.65);
+    padding: 0.75rem;
+}
+
+.customer-360-ai-card--wide {
+    grid-column: 1 / -1;
+}
+
+.customer-360-ai-card-title {
+    margin: 0 0 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dashboard-color-muted);
+}
+
+.customer-360-ai-text {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+}
+
+.customer-360-ai-text--multiline {
+    white-space: pre-line;
+}
+
+.customer-360-ai-text--muted {
+    color: var(--dashboard-color-muted);
+}
+
+.customer-360-ai-meta {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--dashboard-color-muted);
+}
+
+.customer-360-ai-list,
+.customer-360-ai-action-list {
+    margin: 0;
+    padding-left: 1.125rem;
+    font-size: 0.875rem;
+}
+
+.customer-360-ai-action-list li + li {
+    margin-top: 0.5rem;
+}
+
+.customer-360-ai-action-title {
+    display: block;
+    font-weight: 600;
+}
+
+.customer-360-ai-action-description {
+    display: block;
+    color: var(--dashboard-color-muted);
+    font-size: 0.8125rem;
+}
+
+.customer-360-ai-reply {
+    margin: 0;
+    padding: 0.625rem 0.75rem;
+    border-left: 3px solid #6c757d;
+    background: #fff;
+    border-radius: 0 var(--dashboard-radius-sm) var(--dashboard-radius-sm) 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.customer-360-ai-confidence-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+}
+
+.customer-360-ai-confidence-bar {
+    margin-top: 0.375rem;
+    height: 0.375rem;
+    border-radius: 999px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.customer-360-ai-confidence-fill {
+    display: block;
+    height: 100%;
+    background: #0d6efd;
+    border-radius: inherit;
+}
+
+.customer-360-ai-explanation {
+    font-size: 0.875rem;
+    color: var(--dashboard-color-muted);
+}
+
+.customer-360-ai-explanation summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #212529;
+}
+
 /* Customer Health Card */
 .customer-360-health-card {
     padding: 0.875rem 1rem;
@@ -3759,6 +4043,51 @@ a:focus-visible .stat-card {
     margin: 0;
     font-size: 0.875rem;
     word-break: break-word;
+}
+
+.customer-360-copyable-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 100%;
+}
+
+.customer-360-inline-copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--dashboard-color-muted);
+    line-height: 1;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+}
+
+.customer-360-inline-copy:hover,
+.customer-360-inline-copy:focus-visible {
+    color: var(--dashboard-color-text);
+    background: rgba(0, 0, 0, 0.05);
+    outline: none;
+}
+
+.customer-360-inline-copy .bi {
+    font-size: 0.75rem;
+}
+
+.customer-360-inline-copy-check {
+    font-size: 0.8125rem;
+    color: var(--bs-success, #198754);
+    font-weight: 600;
+    line-height: 1;
+}
+
+.customer-360-inline-copy.is-copied {
+    color: var(--bs-success, #198754);
 }
 
 .customer-360-device-model {
@@ -4423,4 +4752,234 @@ body.customer-360-drawer-open {
         grid-template-columns: 1fr;
     }
 }
+
+.operations-advisor-card {
+    display: flex;
+    gap: 0.875rem;
+    height: 100%;
+    padding: 1rem;
+    border-radius: var(--dashboard-radius-md, 0.5rem);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #fff;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.04);
+    color: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.operations-advisor-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.08);
+}
+
+.operations-advisor-card--high {
+    border-left: 4px solid #dc3545;
+}
+
+.operations-advisor-card--medium {
+    border-left: 4px solid #ffc107;
+}
+
+.operations-advisor-card--low {
+    border-left: 4px solid #6c757d;
+}
+
+.operations-advisor-card-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.operations-advisor-card-title {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.operations-advisor-card-category {
+    margin: 0 0 0.5rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.operations-advisor-card-recommendation {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.operations-advisor-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.customer-360-ai-advisor {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.customer-360-ai-advisor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.customer-360-ai-advisor-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.customer-360-ai-advisor-item {
+    padding: 0.875rem 1rem;
+    border-radius: var(--dashboard-radius-sm, 0.375rem);
+    background: #fff;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.customer-360-ai-advisor-item--high {
+    border-left: 3px solid #dc3545;
+}
+
+.customer-360-ai-advisor-item--medium {
+    border-left: 3px solid #ffc107;
+}
+
+.customer-360-ai-advisor-item--low {
+    border-left: 3px solid #6c757d;
+}
+
+.customer-360-ai-advisor-item-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.375rem;
+}
+
+.customer-360-ai-advisor-category {
+    font-size: 0.75rem;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.customer-360-ai-advisor-recommendation {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+}
+
+.customer-360-ai-advisor-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.customer-360-ai-workbench {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.customer-360-ai-workbench-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.customer-360-ai-workbench-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.875rem;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.customer-360-ai-workbench-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.customer-360-ai-workbench-confidence-note,
+.customer-360-ai-workbench-scenario,
+.customer-360-ai-workbench-explanation {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.customer-360-ai-workbench-channel-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.customer-360-ai-workbench-channel-tab {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: #fff;
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8125rem;
+}
+
+.customer-360-ai-workbench-channel-tab.is-active {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.customer-360-ai-workbench-editor {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.customer-360-ai-workbench-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.customer-360-ai-workbench-checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.customer-360-ai-workbench-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.125rem;
+}
+
+.customer-360-ai-workbench-checklist-note {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--dashboard-color-muted, #6c757d);
+}
+
+.customer-360-ai-workbench-workflow-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.customer-360-ai-workbench-workflow-item {
+    display: grid;
+    gap: 0.25rem;
+}
+
 
