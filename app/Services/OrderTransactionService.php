@@ -20,7 +20,7 @@ class OrderTransactionService
         private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
-    public function assignTransactionId(Order $order, string $transactionId, User $actor): Order
+    public function assignTransactionId(Order $order, string $transactionId, User $actor, bool $broadcast = true): Order
     {
         if ($order->isTransactionLocked()) {
             throw ValidationException::withMessages([
@@ -66,11 +66,13 @@ class OrderTransactionService
 
             $this->notifyTransactionCompleted($freshOrder, $transactionId, $actor);
 
-            Incident::query()
-                ->with(['order.transactionAssigner', 'creator', 'assignee'])
-                ->where('order_id', $freshOrder->id)
-                ->get()
-                ->each(fn (Incident $incident) => $this->dashboardBroadcastService->transactionAssigned($incident, $actor));
+            if ($broadcast) {
+                Incident::query()
+                    ->with(['order.transactionAssigner', 'creator', 'assignee'])
+                    ->where('order_id', $freshOrder->id)
+                    ->get()
+                    ->each(fn (Incident $incident) => $this->dashboardBroadcastService->transactionAssigned($incident, $actor));
+            }
 
             return $freshOrder;
         });
@@ -136,7 +138,7 @@ class OrderTransactionService
                 continue;
             }
 
-            $this->assignTransactionId($order, $transactionId, $actor);
+            $this->assignTransactionId($order, $transactionId, $actor, broadcast: false);
         }
 
         $refreshedIncidents = Incident::query()
@@ -217,6 +219,10 @@ class OrderTransactionService
                 'incident_id' => $incidentId,
                 'message' => 'Unable to assign transaction ID.',
             ];
+        }
+
+        if ($succeededIncidentIds !== []) {
+            $this->dashboardBroadcastService->transactionsAssigned($succeededIncidentIds, $actor);
         }
 
         return [

@@ -52,6 +52,39 @@ class OutboxProcessorService
         return $processed;
     }
 
+    public function processAggregate(string $aggregateType, int $aggregateId): void
+    {
+        $this->recoverStaleProcessingEvents();
+
+        $event = DB::transaction(function () use ($aggregateType, $aggregateId): ?OutboxEvent {
+            $event = OutboxEvent::query()
+                ->where('aggregate_type', $aggregateType)
+                ->where('aggregate_id', $aggregateId)
+                ->where('status', OutboxEventStatus::Pending)
+                ->where('available_at', '<=', now())
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->first();
+
+            if ($event === null) {
+                return null;
+            }
+
+            $event->update([
+                'status' => OutboxEventStatus::Processing,
+                'attempts' => $event->attempts + 1,
+            ]);
+
+            return $event->fresh();
+        });
+
+        if ($event === null) {
+            return;
+        }
+
+        $this->processClaimedEvent($event);
+    }
+
     private function recoverStaleProcessingEvents(): void
     {
         OutboxEvent::query()

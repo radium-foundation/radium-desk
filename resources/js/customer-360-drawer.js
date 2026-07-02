@@ -318,35 +318,58 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         logViewed();
     };
 
-    const initTabs = () => {
-        const tabs = Array.from(contentHost.querySelectorAll('[data-customer-360-tab]'));
-        const panes = Array.from(contentHost.querySelectorAll('[data-customer-360-tab-pane]'));
+    const activateTab = (tabKey) => {
+        const tabs = contentHost.querySelectorAll('[data-customer-360-tab]');
+        const panes = contentHost.querySelectorAll('[data-customer-360-tab-pane]');
 
         if (tabs.length === 0 || panes.length === 0) {
             return;
         }
 
-        const activateTab = (tabKey) => {
-            tabs.forEach((tab) => {
-                const isActive = tab.dataset.customer360Tab === tabKey;
-                tab.classList.toggle('active', isActive);
-                tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
-            });
-
-            panes.forEach((pane) => {
-                const isActive = pane.dataset.customer360TabPane === tabKey;
-                pane.classList.toggle('d-none', !isActive);
-            });
-        };
-
         tabs.forEach((tab) => {
-            tab.addEventListener('click', () => {
-                activateTab(tab.dataset.customer360Tab);
-            });
+            const isActive = tab.dataset.customer360Tab === tabKey;
+            tab.classList.toggle('active', isActive);
+            tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
 
-        const initialTab = tabs.find((tab) => tab.classList.contains('active'))?.dataset.customer360Tab ?? 'overview';
+        panes.forEach((pane) => {
+            const isActive = pane.dataset.customer360TabPane === tabKey;
+            pane.classList.toggle('d-none', !isActive);
+        });
+
+        contentHost.dataset.customer360ActiveTab = tabKey;
+    };
+
+    const syncTabState = () => {
+        const tabs = contentHost.querySelectorAll('[data-customer-360-tab]');
+
+        if (tabs.length === 0) {
+            return;
+        }
+
+        const persistedTab = contentHost.dataset.customer360ActiveTab;
+        const serverActiveTab = tabs.find((tab) => tab.classList.contains('active'))?.dataset.customer360Tab;
+        const initialTab = persistedTab ?? serverActiveTab ?? 'overview';
+
         activateTab(initialTab);
+    };
+
+    const bindTabNavigation = () => {
+        if (contentHost.dataset.customer360TabsBound === 'true') {
+            return;
+        }
+
+        contentHost.dataset.customer360TabsBound = 'true';
+
+        contentHost.addEventListener('click', (event) => {
+            const tab = event.target.closest('[data-customer-360-tab]');
+
+            if (!tab || !contentHost.contains(tab)) {
+                return;
+            }
+
+            activateTab(tab.dataset.customer360Tab);
+        });
     };
 
     const loadContent = async (incidentId) => {
@@ -375,7 +398,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             contentHost.innerHTML = html;
             bindCopyActions();
             bindWorkbenchActions();
-            initTabs();
+            syncTabState();
             initUnifiedTimeline(contentHost);
             initTooltips?.(contentHost);
         } catch (error) {
@@ -406,6 +429,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         getWorkspaceSession().release(SESSION_REASON);
 
         clearContent();
+        delete contentHost.dataset.customer360ActiveTab;
         setError('');
         setLoading(false);
 
@@ -425,11 +449,17 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             return;
         }
 
+        const previousIncidentId = activeIncidentId;
+
         previouslyFocusedElement = document.activeElement instanceof HTMLElement
             ? document.activeElement
             : null;
 
         activeIncidentId = incidentId;
+
+        if (String(previousIncidentId) !== String(incidentId)) {
+            delete contentHost.dataset.customer360ActiveTab;
+        }
         drawer.classList.add('is-open');
         drawer.setAttribute('aria-hidden', 'false');
         document.body.classList.add('customer-360-drawer-open');
@@ -468,6 +498,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         event.preventDefault();
         open(incidentId, referenceLabel);
     };
+
+    bindTabNavigation();
 
     root.addEventListener('click', handleRowClick);
 

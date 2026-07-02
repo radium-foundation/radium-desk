@@ -237,7 +237,57 @@ describe('initCustomer360Drawer', () => {
         expect(button?.querySelector('[data-customer-360-copy-check]')?.hidden).toBe(true);
     });
 
-    it('opens workspace component when clicking request-serial inside drawer content', async () => {
+    it('switches tabs using delegated events and preserves active tab across refresh', async () => {
+        const pageRoot = setupDashboard();
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => `
+                <div class="customer-360-drawer-content" data-customer-360-content>
+                    <button type="button" data-customer-360-tab="overview" class="nav-link active">Overview</button>
+                    <button type="button" data-customer-360-tab="timeline" class="nav-link">Timeline</button>
+                    <button type="button" data-customer-360-tab="ai-assistant" class="nav-link">IRA AI</button>
+                    <div data-customer-360-tab-pane="overview" class="customer-360-tab-pane">Overview pane</div>
+                    <div data-customer-360-tab-pane="timeline" class="customer-360-tab-pane d-none">Timeline pane</div>
+                    <div data-customer-360-tab-pane="ai-assistant" class="customer-360-tab-pane d-none">AI pane</div>
+                </div>
+            `,
+        });
+
+        initCustomer360Drawer({ pageRoot });
+
+        document.querySelector('tr[data-incident-id="42"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-customer-360-tab-pane="timeline"]')?.classList.contains('d-none')).toBe(true);
+        });
+
+        document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(document.querySelector('[data-customer-360-tab-pane="timeline"]')?.classList.contains('d-none')).toBe(false);
+        expect(document.querySelector('[data-customer-360-tab-pane="overview"]')?.classList.contains('d-none')).toBe(true);
+
+        document.querySelector('[data-customer-360-tab="ai-assistant"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        expect(document.querySelector('[data-customer-360-tab-pane="ai-assistant"]')?.classList.contains('d-none')).toBe(false);
+
+        document.dispatchEvent(new CustomEvent('customer360:refresh', {
+            detail: { incidentId: 42 },
+        }));
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledTimes(2);
+        });
+
+        expect(document.querySelector('[data-customer-360-tab-pane="ai-assistant"]')?.classList.contains('d-none')).toBe(false);
+        expect(document.querySelector('[data-customer-360-tab="ai-assistant"]')?.classList.contains('active')).toBe(true);
+    });
         document.body.innerHTML = `
             <script type="application/json" id="workspace-context-slugs">${JSON.stringify({
                 Dashboard: 'dashboard',

@@ -67,11 +67,31 @@ class DashboardBroadcastService
             return;
         }
 
-        Incident::query()
+        $incidents = Incident::query()
             ->with(['order.transactionAssigner', 'creator', 'assignee'])
             ->whereIn('id', $incidentIds)
-            ->get()
-            ->each(fn (Incident $incident) => $this->transactionAssigned($incident, $actor));
+            ->get();
+
+        foreach ($incidents as $incident) {
+            $this->broadcastRowUpdate(
+                incident: $incident,
+                actor: $actor,
+                eventClass: TransactionAssigned::class,
+                removeFromList: ! $incident->isPendingAdmin(),
+            );
+        }
+
+        $this->kpisUpdated($actor);
+
+        foreach ($incidents as $incident) {
+            if ($incident->isPendingAdmin()) {
+                $this->broadcastRowUpdate(
+                    incident: $incident,
+                    actor: $actor,
+                    eventClass: SlaStatusChanged::class,
+                );
+            }
+        }
     }
 
     public function serviceCaseRemarked(Incident $incident, User $actor): void

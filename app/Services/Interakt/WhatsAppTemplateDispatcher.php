@@ -9,10 +9,11 @@ use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
+use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Outbox\OutboxProcessorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
+use Illuminate\Support\Facades\Log;
 
 class WhatsAppTemplateDispatcher
 {
@@ -67,8 +68,18 @@ class WhatsAppTemplateDispatcher
         $this->outboxWriter->writeSendJob($dispatch->id);
 
         try {
-            $this->outboxProcessor->process(limit: 1);
+            $this->outboxProcessor->processAggregate(
+                InteraktOutboundOutboxWriter::AGGREGATE_TYPE,
+                $dispatch->id,
+            );
         } catch (\Throwable $exception) {
+            Log::error('whatsapp.template.dispatch.exception', [
+                'dispatch_id' => $dispatch->id,
+                'incident_id' => $incident->id,
+                'template' => $template->value,
+                'exception' => $exception->getMessage(),
+            ]);
+
             $dispatch->refresh();
 
             if ($dispatch->status === WhatsAppTemplateDispatchStatus::Failed) {
@@ -78,7 +89,10 @@ class WhatsAppTemplateDispatcher
                 );
             }
 
-            throw $exception;
+            return WhatsAppTemplateDispatchResult::failure(
+                $dispatch,
+                'WhatsApp template dispatch failed: '.$exception->getMessage(),
+            );
         }
 
         $dispatch->refresh();
@@ -92,7 +106,17 @@ class WhatsAppTemplateDispatcher
                 $dispatch,
                 $dispatch->error_message ?? 'WhatsApp template dispatch failed.',
             ),
-            default => throw new RuntimeException('WhatsApp template dispatch did not complete.'),
+            WhatsAppTemplateDispatchStatus::Pending => WhatsAppTemplateDispatchResult::failure(
+                $dispatch,
+                'WhatsApp template dispatch is still pending. The outbox will retry automatically.',
+            ),
+            default => WhatsAppTemplateDispatchResult::failure(
+                $dispatch,
+                sprintf(
+                    'WhatsApp template dispatch returned unexpected status: %s.',
+                    $dispatch->status->value,
+                ),
+            ),
         };
     }
 }
