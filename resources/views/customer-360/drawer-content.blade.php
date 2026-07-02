@@ -41,6 +41,10 @@
          class="customer-360-tab-pane"
          role="tabpanel"
          data-customer-360-tab-pane="overview">
+        @include('customer-360.partials.executive-summary', [
+            'incident' => $incident,
+            'executiveSummary' => $executiveSummary ?? null,
+        ])
         @include('customer-360.partials.health-card', ['healthCard' => $healthCard])
         @include('customer-360.partials.waiting-state-card', ['waitingStateCard' => $waitingStateCard ?? null])
         @include('customer-360.partials.quick-actions', [

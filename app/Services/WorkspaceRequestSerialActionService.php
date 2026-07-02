@@ -12,6 +12,7 @@ use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Notifications\NotificationChannelAvailabilityService;
 use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -25,6 +26,7 @@ class WorkspaceRequestSerialActionService
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
+        private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
     ) {}
 
     public function send(
@@ -49,6 +51,19 @@ class WorkspaceRequestSerialActionService
         }
 
         $incident->loadMissing('order');
+        $channels = $this->channelAvailabilityService->forRequestSerialNumber($incident->order);
+        $channelBlockReason = $this->channelAvailabilityService->unavailableReason($channels);
+
+        if ($channelBlockReason !== null) {
+            $message = 'Notification failed.'."\n".$channelBlockReason;
+
+            return WorkspaceActionResponseBuilder::make('request-serial', $incident->id)
+                ->forContext($requestContext->context)
+                ->failure($message)
+                ->withToast($message, 'danger')
+                ->withUi(closeWorkspaceHost: false)
+                ->build();
+        }
 
         $dispatchResult = $this->notificationDispatcher->send(
             NotificationType::RequestSerialNumber,
@@ -66,10 +81,8 @@ class WorkspaceRequestSerialActionService
             ),
         );
 
-        $deliverySummary = $this->deliverySummaryFormatter;
-
         if (! $dispatchResult->success) {
-            $message = $deliverySummary->failureMessage($dispatchResult);
+            $message = $this->deliverySummaryFormatter->formatOperatorResult($dispatchResult);
 
             return WorkspaceActionResponseBuilder::make('request-serial', $incident->id)
                 ->forContext($requestContext->context)
@@ -91,7 +104,10 @@ class WorkspaceRequestSerialActionService
             $incident,
         );
 
-        $message = $deliverySummary->format($dispatchResult);
+        $message = $this->deliverySummaryFormatter->formatOperatorResult(
+            $dispatchResult,
+            'Waiting state started.',
+        );
         $toastVariant = $this->resolveToastVariant($dispatchResult);
 
         return WorkspaceActionResponseBuilder::make('request-serial', $incident->id)

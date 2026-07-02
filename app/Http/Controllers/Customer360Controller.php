@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Customer360AIWorkbenchAuditRequest;
+use App\Http\Requests\Customer360ExecutiveSummaryTranslationRequest;
 use App\Models\Incident;
 use App\Services\AI\AIWorkbenchAuditService;
+use App\Services\AI\IRAExecutiveSummaryTranslationService;
 use App\Services\Customer360Service;
 use App\Services\Timeline\Customer360TimelineService;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +19,7 @@ class Customer360Controller extends Controller
         private readonly Customer360Service $customer360Service,
         private readonly Customer360TimelineService $customer360TimelineService,
         private readonly AIWorkbenchAuditService $workbenchAuditService,
+        private readonly IRAExecutiveSummaryTranslationService $executiveSummaryTranslationService,
     ) {}
 
     public function show(Incident $incident): Response
@@ -79,6 +82,19 @@ class Customer360Controller extends Controller
         };
 
         return response()->json(['status' => 'ok']);
+    }
+
+    public function translateExecutiveSummary(
+        Incident $incident,
+        Customer360ExecutiveSummaryTranslationRequest $request,
+    ): JsonResponse {
+        $this->authorize('view', $incident);
+
+        $validated = $request->validated();
+
+        return response()->json(
+            $this->executiveSummaryTranslationService->translatePayloadToHindi($validated),
+        );
     }
 
     public function timeline(Incident $incident, Request $request): Response

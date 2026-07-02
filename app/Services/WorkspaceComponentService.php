@@ -12,6 +12,7 @@ use App\Models\Remark;
 use App\Models\User;
 use App\Services\DeviceModelSettingsService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Notifications\NotificationChannelAvailabilityService;
 use Illuminate\Auth\Access\AuthorizationException;
 
 class WorkspaceComponentService
@@ -20,6 +21,7 @@ class WorkspaceComponentService
         private readonly ServiceCaseAssignmentService $assignmentService,
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
+        private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -124,9 +126,19 @@ class WorkspaceComponentService
             return [];
         }
 
+        $incident->loadMissing(['order', 'activeWaitingState']);
+        $order = $incident->order;
+        $channelAvailability = $this->channelAvailabilityService->forRequestSerialNumber($order);
+
         return [
             'workspaceActionUrl' => route('incidents.workspace.request-serial', $incident),
             'workspaceContext' => $requestContext->context->value,
+            'customerName' => $order?->customer_name,
+            'customerPhone' => $order?->customer_phone,
+            'channelAvailability' => $channelAvailability,
+            'canSendRequest' => $this->channelAvailabilityService->hasDeliverableChannel($channelAvailability),
+            'hasActiveSerialWaitingState' => $incident->activeWaitingState !== null
+                && $incident->activeWaitingState->waiting_reason === \App\Enums\WaitingReason::SerialNumber,
         ];
     }
 

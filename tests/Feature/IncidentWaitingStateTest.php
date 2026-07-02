@@ -10,10 +10,12 @@ use App\Exceptions\ActiveWaitingStateExistsException;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
+use App\Services\SystemSettingsService;
 use App\Support\AppDateFormatter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -37,9 +39,25 @@ class IncidentWaitingStateTest extends TestCase
             'interakt.templates.request_serial_number.display_name' => 'Order Update',
             'interakt.templates.request_serial_number.language_code' => 'en',
             'interakt.templates.request_serial_number.internal_note' => 'Requested serial number from customer via approved WhatsApp template.',
+            'mail.enabled' => true,
+            'mail.default' => 'array',
         ]);
 
         $this->seed(RolePermissionSeeder::class);
+
+        foreach ([
+            'notifications.whatsapp.enabled' => true,
+            'notifications.email.enabled' => true,
+            'whatsapp.api_enabled' => true,
+            'email.api_enabled' => true,
+        ] as $key => $enabled) {
+            SystemSetting::query()->updateOrCreate(
+                ['key' => $key],
+                ['value' => $enabled ? '1' : '0'],
+            );
+
+            app(SystemSettingsService::class)->forget($key);
+        }
     }
 
     public function test_request_serial_action_creates_waiting_state_with_sla_paused(): void

@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Services\AI\AIService;
 use App\Services\AI\AIWorkbenchService;
 use App\Services\AI\CustomerScopeQueryCache;
+use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -28,6 +29,7 @@ class Customer360Service
         private readonly AIService $aiService,
         private readonly OperationsAdvisorService $operationsAdvisorService,
         private readonly AIWorkbenchService $aiWorkbenchService,
+        private readonly IRAExecutiveSummaryService $executiveSummaryService,
     ) {}
 
     /**
@@ -58,6 +60,7 @@ class Customer360Service
             waitingStateCard: $waitingStateCard,
         );
         $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
+        $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);
 
         return [
             'incident' => $incident,
@@ -72,7 +75,13 @@ class Customer360Service
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
             'waitingStateCard' => $waitingStateCard,
             'aiAssistant' => $aiBundle->response,
-            'operationsAdvisorInsights' => $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot),
+            'executiveSummary' => $this->executiveSummaryService->buildFromBundle(
+                $incident,
+                $aiBundle,
+                $snapshot,
+                $operationsAdvisorInsights,
+            ),
+            'operationsAdvisorInsights' => $operationsAdvisorInsights,
             'aiWorkbench' => $this->aiWorkbenchService->buildFromBundle($incident, $aiBundle),
         ];
     }
@@ -273,6 +282,7 @@ class Customer360Service
             'canRequestSerialNumber' => false,
             'waitingStateCard' => null,
             'aiAssistant' => ($bundle = $this->aiService->buildBundle($incident))->response,
+            'executiveSummary' => $this->executiveSummaryService->buildFromBundle($incident, $bundle),
             'operationsAdvisorInsights' => [],
             'aiWorkbench' => $this->aiWorkbenchService->buildFromBundle($incident, $bundle),
         ];

@@ -47,6 +47,8 @@ class NotificationDispatchAuditTrailTest extends TestCase
             'notifications.email.enabled' => true,
             'notifications.desktop.enabled' => true,
             'notifications.telegram.enabled' => true,
+            'whatsapp.api_enabled' => true,
+            'email.api_enabled' => true,
         ]);
 
         Http::fake([
@@ -64,10 +66,9 @@ class NotificationDispatchAuditTrailTest extends TestCase
         $toastMessage = $response->json('toast.message');
 
         $this->assertStringContainsString('Notification sent', $toastMessage);
-        $this->assertStringContainsString('✓ WhatsApp', $toastMessage);
-        $this->assertStringContainsString('✓ Email', $toastMessage);
-        $this->assertStringContainsString('⏭ Desktop (Not configured)', $toastMessage);
-        $this->assertStringContainsString('⏭ Telegram (Not configured)', $toastMessage);
+        $this->assertStringContainsString('✓ WhatsApp delivered', $toastMessage);
+        $this->assertStringContainsString('✓ Email delivered', $toastMessage);
+        $this->assertStringContainsString('Waiting state started.', $toastMessage);
     }
 
     public function test_manual_request_serial_persists_notification_audit_trail_and_timeline_entry(): void
@@ -78,6 +79,7 @@ class NotificationDispatchAuditTrailTest extends TestCase
             'notifications.whatsapp.enabled' => true,
             'notifications.email.enabled' => false,
             'notifications.desktop.enabled' => true,
+            'whatsapp.api_enabled' => true,
         ]);
 
         Http::fake([
@@ -100,7 +102,6 @@ class NotificationDispatchAuditTrailTest extends TestCase
 
         $this->assertNotNull($entry);
         $this->assertStringContainsString('✓ WhatsApp', (string) $entry->body);
-        $this->assertStringContainsString('⏭ Desktop (Not configured)', (string) $entry->body);
     }
 
     public function test_manual_request_serial_returns_detailed_failure_when_all_enabled_channels_fail(): void
@@ -112,6 +113,7 @@ class NotificationDispatchAuditTrailTest extends TestCase
             'notifications.email.enabled' => true,
             'notifications.desktop.enabled' => false,
             'notifications.telegram.enabled' => false,
+            'email.api_enabled' => true,
         ]);
 
         $response = $this->actingAs($agent)->postJson(
@@ -125,7 +127,7 @@ class NotificationDispatchAuditTrailTest extends TestCase
         $message = $response->json('toast.message');
 
         $this->assertStringContainsString('Notification failed', $message);
-        $this->assertStringContainsString('✗ Email: Customer email address is not available.', $message);
+        $this->assertStringContainsString('Customer email address is not available', $message);
     }
 
     /**

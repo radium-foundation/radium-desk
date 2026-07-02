@@ -19,6 +19,30 @@ class NotificationDeliverySummaryFormatterTest extends TestCase
         $this->formatter = app(NotificationDeliverySummaryFormatter::class);
     }
 
+    public function test_formats_operator_result_with_delivered_labels_and_suffix(): void
+    {
+        $summary = $this->formatter->formatOperatorResult(new NotificationDispatchResult(
+            success: true,
+            results: [
+                NotificationResult::success(
+                    channel: NotificationChannelType::Email,
+                    message: 'Email notification sent successfully.',
+                    metadata: ['status' => 'sent'],
+                ),
+                NotificationResult::failure(
+                    channel: NotificationChannelType::WhatsApp,
+                    message: 'Invalid Interakt token.',
+                    metadata: ['status' => 'failed'],
+                ),
+            ],
+        ), 'Waiting state started.');
+
+        $this->assertSame(
+            "Notification sent with warnings\n✓ Email delivered\n✗ WhatsApp\nInvalid Interakt token.\nWaiting state started.",
+            $summary,
+        );
+    }
+
     public function test_formats_all_successful_channels(): void
     {
         $summary = $this->formatter->format(new NotificationDispatchResult(

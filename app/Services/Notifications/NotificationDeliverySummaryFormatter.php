@@ -19,6 +19,25 @@ class NotificationDeliverySummaryFormatter
         return implode("\n", $lines);
     }
 
+    public function formatOperatorResult(NotificationDispatchResult $result, ?string $suffix = null): string
+    {
+        $lines = [$this->headline($result)];
+
+        foreach ($result->results as $channelResult) {
+            if ($channelResult->isSkipped()) {
+                continue;
+            }
+
+            $lines[] = $this->formatOperatorChannelLine($channelResult);
+        }
+
+        if (filled($suffix)) {
+            $lines[] = $suffix;
+        }
+
+        return implode("\n", $lines);
+    }
+
     public function failureMessage(NotificationDispatchResult $result): string
     {
         if ($result->results === []) {
@@ -56,6 +75,30 @@ class NotificationDeliverySummaryFormatter
         $message = trim((string) ($result->message ?? 'Delivery failed.'));
 
         return sprintf('✗ %s: %s', $label, $message);
+    }
+
+    private function formatOperatorChannelLine(NotificationResult $result): string
+    {
+        $label = $this->channelLabel($result->channel);
+
+        if ($result->countsTowardSuccess()) {
+            return sprintf('✓ %s delivered', $label);
+        }
+
+        $message = $this->operatorFailureMessage($result);
+
+        return sprintf("✗ %s\n%s", $label, $message);
+    }
+
+    private function operatorFailureMessage(NotificationResult $result): string
+    {
+        $message = trim((string) ($result->message ?? ''));
+
+        if (($result->metadata['status'] ?? null) === 'transport_failure') {
+            return 'Transport unavailable';
+        }
+
+        return $message !== '' ? $message : 'Delivery failed.';
     }
 
     private function channelLabel(NotificationChannelType $channel): string

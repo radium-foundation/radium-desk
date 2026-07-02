@@ -473,10 +473,131 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
     };
 
+    const bindExecutiveSummaryTranslation = () => {
+        const summaryRoot = contentHost.querySelector('[data-ira-executive-summary]');
+
+        if (!summaryRoot) {
+            return;
+        }
+
+        const toggleButton = summaryRoot.querySelector('[data-ira-summary-lang-toggle]');
+        const contentRoot = summaryRoot.querySelector('[data-ira-summary-content]');
+
+        if (!toggleButton || !contentRoot) {
+            return;
+        }
+
+        let hindiPayload = null;
+        let showingHindi = false;
+        let loadingTranslation = false;
+
+        const parseEnglishPayload = () => {
+            const raw = contentRoot.dataset.iraSummaryEn ?? '{}';
+
+            try {
+                return JSON.parse(raw);
+            } catch {
+                return null;
+            }
+        };
+
+        const renderPayload = (payload) => {
+            const executiveBlock = contentRoot.querySelector('[data-ira-summary-block="executive"]');
+            const opinionBlock = contentRoot.querySelector('[data-ira-summary-block="opinion"]');
+            const recommendationBlock = contentRoot.querySelector('[data-ira-summary-block="recommendation"]');
+
+            if (executiveBlock) {
+                executiveBlock.innerHTML = '';
+                (payload.executive_summary ?? []).forEach((line) => {
+                    const paragraph = document.createElement('p');
+                    paragraph.className = 'customer-360-executive-summary-line';
+                    paragraph.textContent = line;
+                    executiveBlock.appendChild(paragraph);
+                });
+            }
+
+            if (opinionBlock) {
+                opinionBlock.textContent = `"${payload.opinion ?? ''}"`;
+            }
+
+            if (recommendationBlock) {
+                recommendationBlock.textContent = `"${payload.recommendation ?? ''}"`;
+            }
+        };
+
+        const setLanguageState = (isHindi) => {
+            showingHindi = isHindi;
+            toggleButton.setAttribute('aria-pressed', isHindi ? 'true' : 'false');
+            toggleButton.classList.toggle('is-active', isHindi);
+        };
+
+        toggleButton.addEventListener('click', async () => {
+            if (showingHindi) {
+                const englishPayload = parseEnglishPayload();
+
+                if (englishPayload) {
+                    renderPayload(englishPayload);
+                }
+
+                setLanguageState(false);
+
+                return;
+            }
+
+            if (hindiPayload) {
+                renderPayload(hindiPayload);
+                setLanguageState(true);
+
+                return;
+            }
+
+            const englishPayload = parseEnglishPayload();
+            const translateUrl = summaryRoot.dataset.iraTranslateUrl;
+
+            if (!englishPayload || !translateUrl || loadingTranslation) {
+                return;
+            }
+
+            loadingTranslation = true;
+            toggleButton.disabled = true;
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            try {
+                const response = await fetch(translateUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                    },
+                    body: JSON.stringify(englishPayload),
+                });
+
+                if (!response.ok) {
+                    showToast?.('Unable to load Hindi translation. Please try again.');
+
+                    return;
+                }
+
+                hindiPayload = await response.json();
+                renderPayload(hindiPayload);
+                setLanguageState(true);
+            } catch {
+                showToast?.('Unable to load Hindi translation. Please try again.');
+            } finally {
+                loadingTranslation = false;
+                toggleButton.disabled = false;
+            }
+        });
+    };
+
     const finalizeDrawerContent = () => {
         try {
             verifyAiDomIntegrity(contentHost);
             bindCopyActions();
+            bindExecutiveSummaryTranslation();
             bindWorkbenchActions();
             syncTabState();
             initUnifiedTimeline(contentHost);

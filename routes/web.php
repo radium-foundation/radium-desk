@@ -60,6 +60,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360.ai-workbench');
     Route::post('dashboard/service-cases/{incident}/customer-360/ai-workbench/audit', [Customer360Controller::class, 'auditWorkbench'])
         ->name('dashboard.service-cases.customer-360.ai-workbench.audit');
+    Route::post('dashboard/service-cases/{incident}/customer-360/executive-summary/translate', [Customer360Controller::class, 'translateExecutiveSummary'])
+        ->name('dashboard.service-cases.customer-360.executive-summary.translate');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
         ->name('dashboard.transactions.bulk');
     Route::get('dashboard/components/batch-transaction', [DashboardWorkspaceComponentController::class, 'batchTransaction'])

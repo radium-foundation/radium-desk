@@ -416,6 +416,7 @@ class WhatsAppTemplateDispatcherTest extends TestCase
             ->assertOk()
             ->assertSee('Request Serial Number', false)
             ->assertSee('Send Request', false)
-            ->assertSee('approved WhatsApp template', false);
+            ->assertSee('Channels', false)
+            ->assertSee('Clear photo of device back label', false);
     }
 }
