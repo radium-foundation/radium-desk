@@ -4,7 +4,7 @@
 # Edit these values to match your production environment.
 
 # SSH connection
-SSH_HOST="193.203.185.119"
+SSH_HOST="187.127.183.72"
 SSH_PORT="65002"
 SSH_USER="u215544208"
 
