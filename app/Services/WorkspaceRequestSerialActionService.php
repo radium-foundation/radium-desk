@@ -92,11 +92,17 @@ class WorkspaceRequestSerialActionService
                 ->build();
         }
 
-        $this->waitingStateService->start(
-            incident: $incident,
-            reason: WaitingReason::SerialNumber,
-            actor: $actor,
-        );
+        $waitingStateSuffix = 'Waiting state started.';
+
+        if ($this->waitingStateService->activeFor($incident) === null) {
+            $this->waitingStateService->start(
+                incident: $incident,
+                reason: WaitingReason::SerialNumber,
+                actor: $actor,
+            );
+        } else {
+            $waitingStateSuffix = 'Waiting state already active.';
+        }
 
         $effects = $this->refreshPolicy->effectsFor(
             $requestContext->context,
@@ -106,7 +112,7 @@ class WorkspaceRequestSerialActionService
 
         $message = $this->deliverySummaryFormatter->formatOperatorResult(
             $dispatchResult,
-            'Waiting state started.',
+            $waitingStateSuffix,
         );
         $toastVariant = $this->resolveToastVariant($dispatchResult);
 

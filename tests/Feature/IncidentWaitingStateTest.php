@@ -95,6 +95,40 @@ class IncidentWaitingStateTest extends TestCase
         ]);
     }
 
+    public function test_request_serial_action_is_idempotent_when_waiting_state_already_active(): void
+    {
+        [$agent, $incident] = $this->createOpenIncidentWithoutSerial();
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-waiting-repeat'], 200),
+        ]);
+
+        $this->actingAs($agent)->postJson(
+            route('incidents.workspace.request-serial', $incident),
+            ['workspace_context' => 'customer'],
+        )->assertOk()
+            ->assertJsonPath('success', true);
+
+        $firstWaitingStateId = IncidentWaitingState::query()->value('id');
+
+        $response = $this->actingAs($agent)->postJson(
+            route('incidents.workspace.request-serial', $incident),
+            ['workspace_context' => 'customer'],
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('success', true);
+
+        $toastMessage = $response->json('toast.message');
+        $this->assertStringContainsString('Notification sent', $toastMessage);
+        $this->assertStringContainsString('Waiting state already active.', $toastMessage);
+
+        $this->assertSame(1, IncidentWaitingState::query()->count());
+        $this->assertSame($firstWaitingStateId, IncidentWaitingState::query()->value('id'));
+
+        $this->assertDatabaseCount('outbox_events', 2);
+    }
+
     public function test_only_one_active_waiting_state_is_allowed_per_incident(): void
     {
         [$agent, $incident] = $this->createOpenIncidentWithoutSerial();
