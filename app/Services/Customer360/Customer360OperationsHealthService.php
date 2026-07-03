@@ -7,6 +7,8 @@ use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Models\Order;
 use App\Services\Operations\OperationsRadiumBoxHealthService;
 use App\Services\Operations\OperationsIntegrationHealthService;
+use App\Services\Interakt\InteraktTemplateConfigurationValidator;
+use App\Enums\WhatsAppTemplate;
 use Illuminate\Support\Facades\Cache;
 
 class Customer360OperationsHealthService
@@ -16,6 +18,7 @@ class Customer360OperationsHealthService
     public function __construct(
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
+        private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
     ) {}
 
     /**
@@ -54,7 +57,13 @@ class Customer360OperationsHealthService
                 'platform_failed' => $radiumBox['failed_syncs'] ?? 0,
             ],
             'email' => $this->channelHealth($integrations->firstWhere('key', 'zeptomail')),
-            'whatsapp' => $this->channelHealth($integrations->firstWhere('key', 'interakt')),
+            'whatsapp' => array_merge(
+                $this->channelHealth($integrations->firstWhere('key', 'interakt')),
+                [
+                    'template_diagnostics' => $this->interaktTemplateConfigurationValidator
+                        ->diagnosticsFor(WhatsAppTemplate::RequestSerialNumber),
+                ],
+            ),
             'appointments' => [
                 'status' => 'healthy',
                 'status_label' => 'Healthy',

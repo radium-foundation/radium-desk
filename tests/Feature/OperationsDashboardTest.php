@@ -163,6 +163,32 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('Cashfree');
     }
 
+    public function test_operations_dashboard_shows_interakt_template_configuration_health(): void
+    {
+        config(['interakt.api_key' => 'test-interakt-key']);
+
+        foreach ([
+            'request_serial_number' => 'order_confirm_manual_schedule',
+            'repair_started' => 'repair_started',
+            'repair_completed' => 'repair_completed',
+            'ready_for_dispatch' => 'ready_for_dispatch',
+            'refund_update' => 'refund_update',
+            'amc_reminder' => 'amc_reminder',
+        ] as $templateKey => $templateName) {
+            config([
+                'interakt.templates.'.$templateKey.'.name' => $templateName,
+                'interakt.templates.'.$templateKey.'.language_code' => 'en_US',
+                'interakt.templates.'.$templateKey.'.language_code_is_default' => false,
+            ]);
+        }
+
+        $this->actingAs($this->createAdminUser('admin-ops-templates@test.com'))
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('Interakt Template Configuration', false)
+            ->assertSee('6 / 6 templates configured', false);
+    }
+
     public function test_admin_can_refresh_operations_dashboard_live_payload(): void
     {
         $admin = $this->createAdminUser('admin-ops-live@test.com');

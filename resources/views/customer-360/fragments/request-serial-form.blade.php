@@ -60,6 +60,35 @@
                             <div class="request-serial-dialog-channel-note">{{ $whatsapp['fallback_note'] }}</div>
                         @endif
                     @endif
+
+                    @php
+                        $templateDiagnostics = $interaktTemplateDiagnostics ?? ($whatsapp['template_diagnostics'] ?? []);
+                    @endphp
+                    @if($templateDiagnostics !== [])
+                        <div class="request-serial-dialog-channel-diagnostics" data-whatsapp-template-diagnostics>
+                            <div class="request-serial-dialog-dl-row">
+                                <dt>Interakt Template</dt>
+                                <dd>
+                                    @if($templateDiagnostics['template_missing'] ?? false)
+                                        <span class="text-danger">❌ Template not configured</span>
+                                    @else
+                                        {{ $templateDiagnostics['template_name'] ?? 'Not configured' }}
+                                    @endif
+                                </dd>
+                            </div>
+                            <div class="request-serial-dialog-dl-row">
+                                <dt>Language</dt>
+                                <dd>
+                                    {{ $templateDiagnostics['language_code'] ?? 'Not configured' }}
+                                    @if(filled($templateDiagnostics['language_fallback_warning'] ?? null))
+                                        <div class="request-serial-dialog-channel-note text-warning">
+                                            ⚠ Using fallback language "{{ \App\Services\Interakt\InteraktTemplateConfigurationValidator::DEFAULT_LANGUAGE }}"
+                                        </div>
+                                    @endif
+                                </dd>
+                            </div>
+                        </div>
+                    @endif
                 </li>
                 <li class="request-serial-dialog-channel-item">
                     @if($email['available'] ?? false)

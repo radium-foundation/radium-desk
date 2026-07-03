@@ -25,6 +25,8 @@ class RequestSerialDialogTest extends TestCase
         config([
             'interakt.api_key' => 'test-interakt-key',
             'interakt.templates.request_serial_number.name' => 'order_update_request_serial',
+            'interakt.templates.request_serial_number.language_code' => 'en_US',
+            'interakt.templates.request_serial_number.language_code_is_default' => false,
             'mail.enabled' => true,
             'mail.default' => 'array',
         ]);
@@ -55,7 +57,45 @@ class RequestSerialDialogTest extends TestCase
             ->assertSee('Clear photo of device back label', false)
             ->assertSee('Waiting State', false)
             ->assertSee('Send Request', false)
-            ->assertSee('Cancel', false);
+            ->assertSee('Cancel', false)
+            ->assertSee('Interakt Template', false)
+            ->assertSee('order_update_request_serial', false)
+            ->assertSee('Language', false)
+            ->assertSee('en_US', false);
+    }
+
+    public function test_request_serial_dialog_shows_fallback_language_warning(): void
+    {
+        [$agent, $incident] = $this->createIncidentWithoutSerial();
+
+        config([
+            'interakt.templates.request_serial_number.language_code' => 'en',
+            'interakt.templates.request_serial_number.language_code_is_default' => true,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [$incident, 'request-serial']).'?workspace_context=customer')
+            ->assertOk()
+            ->assertSee('Using fallback language "en"', false);
+    }
+
+    public function test_customer360_operations_health_shows_interakt_template_diagnostics(): void
+    {
+        [$agent, $incident] = $this->createIncidentWithoutSerial();
+        $order = $incident->order;
+
+        config([
+            'interakt.templates.request_serial_number.name' => 'order_confirm_manual_schedule',
+            'interakt.templates.request_serial_number.language_code' => 'en_US',
+            'interakt.templates.request_serial_number.language_code_is_default' => false,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('Interakt Template', false)
+            ->assertSee('order_confirm_manual_schedule', false)
+            ->assertSee('en_US', false);
     }
 
     public function test_request_serial_dialog_shows_whatsapp_unavailable_reason(): void

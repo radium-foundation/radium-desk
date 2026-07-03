@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Enums\OperationsHealthStatus;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Models\AuditLog;
+use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\SystemSettingsService;
 use Illuminate\Support\Carbon;
@@ -16,6 +17,7 @@ class OperationsIntegrationHealthService
     public function __construct(
         private readonly CashfreeIntegrationHealthProbe $cashfreeProbe,
         private readonly SystemSettingsService $systemSettings,
+        private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
     ) {}
 
     /**
@@ -26,6 +28,7 @@ class OperationsIntegrationHealthService
         return [
             $this->cashfreeCard($snapshot),
             $this->interaktCard($snapshot),
+            $this->interaktTemplateConfigurationCard(),
             $this->zeptomailCard($snapshot),
             $this->telegramCard($snapshot),
         ];
@@ -94,6 +97,26 @@ class OperationsIntegrationHealthService
         }
 
         return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::Healthy, 'WhatsApp messaging is operational.', $lastSuccess);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function interaktTemplateConfigurationCard(): array
+    {
+        $summary = $this->interaktTemplateConfigurationValidator->healthSummary();
+
+        return [
+            'key' => 'interakt_templates',
+            'label' => 'Interakt Template Configuration',
+            'status' => $summary['status']->value,
+            'status_label' => $summary['status_label'],
+            'badge_class' => $summary['status']->badgeClass(),
+            'last_success_at' => null,
+            'detail' => $summary['detail'],
+            'configured_count' => $summary['configured_count'],
+            'total_count' => $summary['total_count'],
+        ];
     }
 
     /**

@@ -19,6 +19,7 @@ return [
         'request_serial_number' => [
             'name' => env('INTERAKT_TEMPLATE_REQUEST_SERIAL'),
             'language_code' => env('INTERAKT_TEMPLATE_REQUEST_SERIAL_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REQUEST_SERIAL_LANGUAGE')),
             'display_name' => env('INTERAKT_TEMPLATE_REQUEST_SERIAL_DISPLAY', 'Order Update'),
             'purpose' => 'Request Serial Number',
             'internal_note' => 'Requested serial number from customer via approved WhatsApp template.',
@@ -26,30 +27,35 @@ return [
         'repair_started' => [
             'name' => env('INTERAKT_TEMPLATE_REPAIR_STARTED'),
             'language_code' => env('INTERAKT_TEMPLATE_REPAIR_STARTED_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REPAIR_STARTED_LANGUAGE')),
             'display_name' => env('INTERAKT_TEMPLATE_REPAIR_STARTED_DISPLAY', 'Repair Started'),
             'purpose' => 'Repair Started',
         ],
         'repair_completed' => [
             'name' => env('INTERAKT_TEMPLATE_REPAIR_COMPLETED'),
             'language_code' => env('INTERAKT_TEMPLATE_REPAIR_COMPLETED_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REPAIR_COMPLETED_LANGUAGE')),
             'display_name' => env('INTERAKT_TEMPLATE_REPAIR_COMPLETED_DISPLAY', 'Repair Completed'),
             'purpose' => 'Repair Completed',
         ],
         'ready_for_dispatch' => [
             'name' => env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH'),
             'language_code' => env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH_LANGUAGE')),
             'display_name' => env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH_DISPLAY', 'Ready for Dispatch'),
             'purpose' => 'Ready for Dispatch',
         ],
         'refund_update' => [
             'name' => env('INTERAKT_TEMPLATE_REFUND_UPDATE'),
             'language_code' => env('INTERAKT_TEMPLATE_REFUND_UPDATE_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REFUND_UPDATE_LANGUAGE')),
             'display_name' => env('INTERAKT_TEMPLATE_REFUND_UPDATE_DISPLAY', 'Refund Update'),
             'purpose' => 'Refund Update',
         ],
         'amc_reminder' => [
             'name' => env('INTERAKT_TEMPLATE_AMC_REMINDER'),
             'language_code' => env('INTERAKT_TEMPLATE_AMC_REMINDER_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_AMC_REMINDER_LANGUAGE')),
             'display_name' => env('INTERAKT_TEMPLATE_AMC_REMINDER_DISPLAY', 'AMC Reminder'),
             'purpose' => 'AMC Reminder',
         ],

@@ -29,6 +29,25 @@
             <span class="customer-360-ops-health-label">WhatsApp</span>
             <strong class="customer-360-ops-health-value">{{ $health['whatsapp']['status_label'] ?? 'Unavailable' }}</strong>
             <span class="customer-360-ops-health-detail">{{ $health['whatsapp']['detail'] ?? '' }}</span>
+            @php($templateDiagnostics = $health['whatsapp']['template_diagnostics'] ?? [])
+            @if($templateDiagnostics !== [])
+                <div class="customer-360-ops-health-diagnostics mt-2">
+                    <div class="customer-360-ops-health-detail">
+                        Interakt Template:
+                        @if($templateDiagnostics['template_missing'] ?? false)
+                            ❌ Template not configured
+                        @else
+                            {{ $templateDiagnostics['template_name'] ?? 'Not configured' }}
+                        @endif
+                    </div>
+                    <div class="customer-360-ops-health-detail">
+                        Language: {{ $templateDiagnostics['language_code'] ?? 'Not configured' }}
+                        @if(filled($templateDiagnostics['language_fallback_warning'] ?? null))
+                            <span class="text-warning">⚠ Using fallback language "{{ \App\Services\Interakt\InteraktTemplateConfigurationValidator::DEFAULT_LANGUAGE }}"</span>
+                        @endif
+                    </div>
+                </div>
+            @endif
         </div>
         <div class="customer-360-ops-health-card">
             <span class="customer-360-ops-health-label">Appointments</span>

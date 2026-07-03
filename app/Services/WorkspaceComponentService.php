@@ -12,6 +12,8 @@ use App\Models\Remark;
 use App\Models\User;
 use App\Services\DeviceModelSettingsService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Interakt\InteraktTemplateConfigurationValidator;
+use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use Illuminate\Auth\Access\AuthorizationException;
 
@@ -22,6 +24,7 @@ class WorkspaceComponentService
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
+        private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -137,6 +140,8 @@ class WorkspaceComponentService
             'customerPhone' => $order?->customer_phone,
             'channelAvailability' => $channelAvailability,
             'canSendRequest' => $this->channelAvailabilityService->hasDeliverableChannel($channelAvailability),
+            'interaktTemplateDiagnostics' => $this->interaktTemplateConfigurationValidator
+                ->diagnosticsFor(WhatsAppTemplate::RequestSerialNumber),
             'hasActiveSerialWaitingState' => $incident->activeWaitingState !== null
                 && $incident->activeWaitingState->waiting_reason === \App\Enums\WaitingReason::SerialNumber,
         ];

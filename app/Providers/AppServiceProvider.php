@@ -26,6 +26,7 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
+use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\SystemSettingsService;
 use App\Services\Timeline\Customer360TimelineRequestCache;
 use Illuminate\Notifications\Events\NotificationSent;
@@ -87,6 +88,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->applyApplicationTimezone();
+        $this->validateInteraktTemplateConfiguration();
 
         Event::listen(NotificationSent::class, BroadcastNotificationCreated::class);
 
@@ -117,6 +119,17 @@ class AppServiceProvider extends ServiceProvider
                 },
                 'latestNotifications' => $user->notifications()->latest()->limit(10)->get(),
             ]);
+        });
+    }
+
+    private function validateInteraktTemplateConfiguration(): void
+    {
+        $this->app->booted(function (): void {
+            try {
+                $this->app->make(InteraktTemplateConfigurationValidator::class)->logValidationSummaryOnce();
+            } catch (\Throwable) {
+                //
+            }
         });
     }
 
