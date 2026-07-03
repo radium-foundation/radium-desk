@@ -206,6 +206,9 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
         $this->assertDatabaseHas('support_appointments', [
             'incident_id' => $incident->id,
         ]);
+        $this->assertSame(0, WhatsAppTemplateDispatch::query()->count());
+        $this->assertSame(0, \App\Models\OutboxEvent::query()->count());
+        Http::assertNothingSent();
 
         $auditLog = AuditLog::query()
             ->where('auditable_type', $incident->getMorphClass())
@@ -216,6 +219,66 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
         $this->assertNotNull($auditLog);
         $this->assertSame('support_appointment_booked', $auditLog->new_values['notification_type'] ?? null);
         $this->assertFalse($auditLog->new_values['aggregate_success'] ?? true);
+
+        $whatsappResult = collect($auditLog->new_values['channel_results'] ?? [])
+            ->firstWhere('channel', 'whatsapp');
+
+        $this->assertSame('not_yet_configured', $whatsappResult['status'] ?? null);
+        $this->assertSame('Skipped - Template not configured', $whatsappResult['message'] ?? null);
+    }
+
+    public function test_web_booking_sends_email_and_skips_whatsapp_when_template_is_not_configured(): void
+    {
+        config(['interakt.templates.support_appointment_booked.name' => '']);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $this->bookViaWeb($incident);
+
+        $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertSame(0, WhatsAppTemplateDispatch::query()->count());
+        $this->assertSame(0, \App\Models\OutboxEvent::query()->count());
+        Http::assertNothingSent();
+
+        $auditLog = AuditLog::query()
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->first();
+
+        $this->assertNotNull($auditLog);
+        $this->assertTrue($auditLog->new_values['aggregate_success'] ?? false);
+
+        $channelResults = collect($auditLog->new_values['channel_results'] ?? []);
+        $whatsappResult = $channelResults->firstWhere('channel', 'whatsapp');
+        $emailResult = $channelResults->firstWhere('channel', 'email');
+
+        $this->assertSame('not_yet_configured', $whatsappResult['status'] ?? null);
+        $this->assertSame('Skipped - Template not configured', $whatsappResult['message'] ?? null);
+        $this->assertTrue($emailResult['success'] ?? false);
+        $this->assertSame('sent', $emailResult['status'] ?? null);
+    }
+
+    public function test_web_booking_dispatches_whatsapp_when_template_is_configured(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $this->bookViaWeb($incident);
+
+        $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertDatabaseCount('whatsapp_template_dispatches', 1);
+        $this->assertDatabaseHas('whatsapp_template_dispatches', [
+            'incident_id' => $incident->id,
+            'template_key' => 'support_appointment_booked',
+        ]);
+
+        Http::assertSentCount(1);
     }
 
     public function test_web_booking_succeeds_when_confirmation_notification_throws(): void

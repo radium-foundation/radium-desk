@@ -103,6 +103,11 @@ class Customer360OperationsHealthService
                 [
                     'template_diagnostics' => $this->interaktTemplateConfigurationValidator
                         ->diagnosticsFor(WhatsAppTemplate::RequestSerialNumber),
+                    'support_appointment_template_diagnostics' => $incident !== null
+                        && $incident->supportAppointments->isNotEmpty()
+                        ? $this->interaktTemplateConfigurationValidator
+                            ->diagnosticsFor(WhatsAppTemplate::SupportAppointmentBooked)
+                        : null,
                 ],
             ),
             'appointments' => [

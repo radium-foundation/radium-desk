@@ -3,6 +3,7 @@
 namespace App\Services\Notifications;
 
 use App\Enums\NotificationType;
+use App\Enums\WhatsAppTemplate;
 use App\Models\Order;
 use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 use App\Services\SystemSettingsService;
@@ -24,15 +25,26 @@ class NotificationChannelAvailabilityService
     public function forRequestSerialNumber(?Order $order): array
     {
         return [
-            'whatsapp' => $this->assessWhatsApp($order),
+            'whatsapp' => $this->assessWhatsApp($order, WhatsAppTemplate::RequestSerialNumber),
             'email' => $this->assessEmail($order),
+        ];
+    }
+
+    /**
+     * @return array{whatsapp: array<string, mixed>, email: array<string, mixed>}
+     */
+    public function forSupportAppointmentBooked(?Order $order): array
+    {
+        return [
+            'whatsapp' => $this->assessWhatsApp($order, WhatsAppTemplate::SupportAppointmentBooked),
+            'email' => $this->assessEmailForSupportAppointmentBooked($order),
         ];
     }
 
     /**
      * @return array{available: bool, label: string, reason: ?string, fallback_note: ?string}
      */
-    public function assessWhatsApp(?Order $order): array
+    public function assessWhatsApp(?Order $order, WhatsAppTemplate $template): array
     {
         if (! $this->systemSettings->getBool('notifications.whatsapp.enabled', false)) {
             return $this->unavailable('WhatsApp', 'WhatsApp notifications are disabled.', 'Email will still be used.');
@@ -47,11 +59,13 @@ class NotificationChannelAvailabilityService
         }
 
         try {
-            $this->whatsAppTemplateConfigurationResolver->resolve(
-                \App\Enums\WhatsAppTemplate::RequestSerialNumber,
-            );
+            $this->whatsAppTemplateConfigurationResolver->resolve($template);
         } catch (\Throwable) {
-            return $this->unavailable('WhatsApp', 'Request serial WhatsApp template is not configured.', 'Email will still be used.');
+            return $this->unavailable(
+                'WhatsApp',
+                sprintf('%s WhatsApp template is not configured.', $template->purposeLabel()),
+                'Email will still be used.',
+            );
         }
 
         $phone = trim((string) ($order?->customer_phone ?? ''));
@@ -68,6 +82,22 @@ class NotificationChannelAvailabilityService
      */
     public function assessEmail(?Order $order): array
     {
+        return $this->assessEmailForNotificationType($order, NotificationType::RequestSerialNumber);
+    }
+
+    /**
+     * @return array{available: bool, label: string, reason: ?string, fallback_note: ?string}
+     */
+    public function assessEmailForSupportAppointmentBooked(?Order $order): array
+    {
+        return $this->assessEmailForNotificationType($order, NotificationType::SupportAppointmentBooked);
+    }
+
+    /**
+     * @return array{available: bool, label: string, reason: ?string, fallback_note: ?string}
+     */
+    private function assessEmailForNotificationType(?Order $order, NotificationType $notificationType): array
+    {
         if (! $this->systemSettings->getBool('notifications.email.enabled', false)) {
             return $this->unavailable('Email', 'Email notifications disabled.', 'WhatsApp will still be used.');
         }
@@ -80,7 +110,7 @@ class NotificationChannelAvailabilityService
             return $this->unavailable('Email', 'Email delivery is disabled.', 'WhatsApp will still be used.');
         }
 
-        if ($this->mailTemplateRegistry->resolve(NotificationType::RequestSerialNumber) === null) {
+        if ($this->mailTemplateRegistry->resolve($notificationType) === null) {
             return $this->unavailable('Email', 'No email template is configured for this notification.', 'WhatsApp will still be used.');
         }
 

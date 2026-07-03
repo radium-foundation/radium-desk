@@ -93,7 +93,7 @@ class RequestSerialDialogTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Interakt Template', false)
+            ->assertSee('Request Serial Template', false)
             ->assertSee('order_confirm_manual_schedule', false)
             ->assertSee('en_US', false);
     }

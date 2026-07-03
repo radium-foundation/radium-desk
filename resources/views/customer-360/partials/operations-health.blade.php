@@ -30,10 +30,11 @@
             <strong class="customer-360-ops-health-value">{{ $health['whatsapp']['status_label'] ?? 'Unavailable' }}</strong>
             <span class="customer-360-ops-health-detail">{{ $health['whatsapp']['detail'] ?? '' }}</span>
             @php($templateDiagnostics = $health['whatsapp']['template_diagnostics'] ?? [])
+            @php($supportAppointmentTemplateDiagnostics = $health['whatsapp']['support_appointment_template_diagnostics'] ?? null)
             @if($templateDiagnostics !== [])
                 <div class="customer-360-ops-health-diagnostics mt-2">
                     <div class="customer-360-ops-health-detail">
-                        Interakt Template:
+                        Request Serial Template:
                         @if($templateDiagnostics['template_missing'] ?? false)
                             ❌ Template not configured
                         @else
@@ -43,6 +44,24 @@
                     <div class="customer-360-ops-health-detail">
                         Language: {{ $templateDiagnostics['language_code'] ?? 'Not configured' }}
                         @if(filled($templateDiagnostics['language_fallback_warning'] ?? null))
+                            <span class="text-warning">⚠ Using fallback language "{{ \App\Services\Interakt\InteraktTemplateConfigurationValidator::DEFAULT_LANGUAGE }}"</span>
+                        @endif
+                    </div>
+                </div>
+            @endif
+            @if(is_array($supportAppointmentTemplateDiagnostics))
+                <div class="customer-360-ops-health-diagnostics mt-2">
+                    <div class="customer-360-ops-health-detail">
+                        Support Appointment Template:
+                        @if($supportAppointmentTemplateDiagnostics['template_missing'] ?? false)
+                            ❌ Template not configured
+                        @else
+                            {{ $supportAppointmentTemplateDiagnostics['template_name'] ?? 'Not configured' }}
+                        @endif
+                    </div>
+                    <div class="customer-360-ops-health-detail">
+                        Language: {{ $supportAppointmentTemplateDiagnostics['language_code'] ?? 'Not configured' }}
+                        @if(filled($supportAppointmentTemplateDiagnostics['language_fallback_warning'] ?? null))
                             <span class="text-warning">⚠ Using fallback language "{{ \App\Services\Interakt\InteraktTemplateConfigurationValidator::DEFAULT_LANGUAGE }}"</span>
                         @endif
                     </div>

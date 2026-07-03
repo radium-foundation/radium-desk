@@ -10,11 +10,15 @@ use App\Enums\NotificationType;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 
 class WhatsAppChannel implements NotificationChannel
 {
+    private const SKIPPED_TEMPLATE_MESSAGE = 'Skipped - Template not configured';
+
     public function __construct(
         private readonly WhatsAppAutomationDispatcher $automationDispatcher,
+        private readonly WhatsAppTemplateConfigurationResolver $templateConfigurationResolver,
     ) {}
 
     public function supports(NotificationType $type): bool
@@ -28,6 +32,11 @@ class WhatsAppChannel implements NotificationChannel
     public function send(NotificationMessage $message): NotificationResult
     {
         $template = $this->resolveTemplate($message->type);
+
+        if (! $this->isTemplateConfigured($template)) {
+            return $this->skippedTemplateResult($message, $template);
+        }
+
         $triggerSource = $this->resolveTriggerSource($message);
 
         $result = $this->automationDispatcher->dispatch(
@@ -84,5 +93,32 @@ class WhatsAppChannel implements NotificationChannel
         }
 
         return WhatsAppTemplateTriggerSource::Manual;
+    }
+
+    private function isTemplateConfigured(WhatsAppTemplate $template): bool
+    {
+        try {
+            $this->templateConfigurationResolver->resolve($template);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function skippedTemplateResult(
+        NotificationMessage $message,
+        WhatsAppTemplate $template,
+    ): NotificationResult {
+        return NotificationResult::success(
+            channel: NotificationChannelType::WhatsApp,
+            message: self::SKIPPED_TEMPLATE_MESSAGE,
+            metadata: [
+                'notification_type' => $message->type->value,
+                'incident_id' => $message->incident->id,
+                'template_key' => $template->value,
+                'status' => 'not_yet_configured',
+            ],
+        );
     }
 }

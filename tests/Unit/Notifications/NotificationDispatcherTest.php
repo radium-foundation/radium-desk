@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 use App\Services\Notifications\Channels\DesktopChannel;
 use App\Services\Notifications\Channels\EmailChannel;
 use App\Services\Notifications\Channels\TelegramChannel;
@@ -39,6 +40,11 @@ class NotificationDispatcherTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        config([
+            'interakt.templates.request_serial_number.name' => 'order_update_request_serial',
+            'interakt.templates.request_serial_number.language_code' => 'en',
+        ]);
 
         $this->seed(RolePermissionSeeder::class);
     }
@@ -107,7 +113,10 @@ class NotificationDispatcherTest extends TestCase
         $dispatcher = new NotificationDispatcher(
             app(SystemSettingsService::class),
             [
-                new WhatsAppChannel($automationDispatcher),
+                new WhatsAppChannel(
+                    $automationDispatcher,
+                    app(WhatsAppTemplateConfigurationResolver::class),
+                ),
                 app(EmailChannel::class),
                 app(DesktopChannel::class),
                 app(TelegramChannel::class),
@@ -145,7 +154,10 @@ class NotificationDispatcherTest extends TestCase
         $dispatcher = new NotificationDispatcher(
             app(SystemSettingsService::class),
             [
-                new WhatsAppChannel($automationDispatcher),
+                new WhatsAppChannel(
+                    $automationDispatcher,
+                    app(WhatsAppTemplateConfigurationResolver::class),
+                ),
                 app(EmailChannel::class),
             ],
             app(NotificationAuditTrailService::class),
@@ -213,7 +225,10 @@ class NotificationDispatcherTest extends TestCase
 
         $dispatcher = new NotificationDispatcher(
             app(SystemSettingsService::class),
-            [new WhatsAppChannel($automationDispatcher)],
+            [new WhatsAppChannel(
+                $automationDispatcher,
+                app(WhatsAppTemplateConfigurationResolver::class),
+            )],
             app(NotificationAuditTrailService::class),
         );
 

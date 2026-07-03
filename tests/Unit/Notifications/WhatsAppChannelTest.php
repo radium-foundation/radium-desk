@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
+use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 use App\Services\Notifications\Channels\WhatsAppChannel;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,6 +30,13 @@ class WhatsAppChannelTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        config([
+            'interakt.templates.request_serial_number.name' => 'order_update_request_serial',
+            'interakt.templates.request_serial_number.language_code' => 'en',
+            'interakt.templates.support_appointment_booked.name' => 'support_appointment_booked',
+            'interakt.templates.support_appointment_booked.language_code' => 'en',
+        ]);
 
         $this->seed(RolePermissionSeeder::class);
     }
@@ -60,7 +68,10 @@ class WhatsAppChannelTest extends TestCase
                 'WhatsApp template sent successfully.',
             ));
 
-        $channel = new WhatsAppChannel($automationDispatcher);
+        $channel = new WhatsAppChannel(
+            $automationDispatcher,
+            app(WhatsAppTemplateConfigurationResolver::class),
+        );
         $result = $channel->send($message);
 
         $this->assertTrue($result->success);
@@ -69,6 +80,49 @@ class WhatsAppChannelTest extends TestCase
         $this->assertSame('WhatsApp template sent successfully.', $result->message);
         $this->assertFalse($result->retryable);
         $this->assertSame($dispatch->id, $result->metadata['dispatch_id']);
+    }
+
+    public function test_send_skips_whatsapp_when_template_is_not_configured(): void
+    {
+        config(['interakt.templates.request_serial_number.name' => '']);
+
+        [$message] = $this->makeMessage();
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldNotReceive('dispatch');
+
+        $channel = new WhatsAppChannel(
+            $automationDispatcher,
+            app(WhatsAppTemplateConfigurationResolver::class),
+        );
+        $result = $channel->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertTrue($result->isSkipped());
+        $this->assertSame('Skipped - Template not configured', $result->message);
+        $this->assertSame('not_yet_configured', $result->metadata['status']);
+        $this->assertSame('request_serial_number', $result->metadata['template_key']);
+    }
+
+    public function test_send_skips_support_appointment_booked_when_template_is_not_configured(): void
+    {
+        config(['interakt.templates.support_appointment_booked.name' => '']);
+
+        [$message] = $this->makeSupportAppointmentMessage();
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldNotReceive('dispatch');
+
+        $channel = new WhatsAppChannel(
+            $automationDispatcher,
+            app(WhatsAppTemplateConfigurationResolver::class),
+        );
+        $result = $channel->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertTrue($result->isSkipped());
+        $this->assertSame('Skipped - Template not configured', $result->message);
+        $this->assertSame('support_appointment_booked', $result->metadata['template_key']);
     }
 
     public function test_send_maps_failure_from_automation_dispatcher(): void
@@ -83,7 +137,10 @@ class WhatsAppChannelTest extends TestCase
                 'Template not approved.',
             ));
 
-        $channel = new WhatsAppChannel($automationDispatcher);
+        $channel = new WhatsAppChannel(
+            $automationDispatcher,
+            app(WhatsAppTemplateConfigurationResolver::class),
+        );
         $result = $channel->send($message);
 
         $this->assertFalse($result->success);
@@ -149,5 +206,51 @@ class WhatsAppChannelTest extends TestCase
         );
 
         return [$message, $dispatch];
+    }
+
+    /**
+     * @return array{0: NotificationMessage}
+     */
+    private function makeSupportAppointmentMessage(): array
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-WA-SAB-'.uniqid(),
+            'serial_number' => 'SN-WA-SAB',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'customer_email' => 'support-booked@example.com',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Support appointment WhatsApp channel case',
+            'description' => 'Support appointment WhatsApp channel case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $message = new NotificationMessage(
+            type: NotificationType::SupportAppointmentBooked,
+            customer: $order,
+            incident: $incident,
+            metadata: [
+                'source' => 'support_appointment_web',
+                'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,
+            ],
+            actor: $agent,
+        );
+
+        return [$message];
     }
 }
