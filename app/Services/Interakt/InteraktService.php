@@ -13,6 +13,9 @@ use Illuminate\Support\Facades\Log;
 
 class InteraktService
 {
+    public function __construct(
+        private readonly InteraktAuthentication $authentication,
+    ) {}
     public function sendTextMessage(
         string $countryCode,
         string $phoneNumber,
@@ -76,6 +79,11 @@ class InteraktService
         }
 
         try {
+            Log::debug('[Interakt] Outbound request', [
+                'url' => rtrim((string) config('interakt.base_url'), '/').'/v1/public/message/',
+                'headers' => $this->authentication->redactHeadersForLogging($this->authentication->headers()),
+            ]);
+
             $response = $this->httpClient()
                 ->post('/v1/public/message/', $body);
 
@@ -186,11 +194,8 @@ class InteraktService
 
     private function httpClient(): \Illuminate\Http\Client\PendingRequest
     {
-        $apiKey = (string) config('interakt.api_key');
-
         return Http::baseUrl((string) config('interakt.base_url'))
-            ->acceptJson()
-            ->withBasicAuth($apiKey, '')
+            ->withHeaders($this->authentication->headers())
             ->connectTimeout((int) config('interakt.connect_timeout_seconds'))
             ->timeout((int) config('interakt.timeout_seconds'))
             ->retry(

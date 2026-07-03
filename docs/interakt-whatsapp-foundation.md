@@ -50,7 +50,7 @@ Webhook handling mirrors Cashfree reliability patterns: persist first, enqueue o
 
 | Variable | Purpose |
 |----------|---------|
-| `INTERAKT_API_KEY` | Outbound API authentication (Basic Auth) |
+| `INTERAKT_API_KEY` | Outbound API secret key (see authentication below) |
 | `INTERAKT_WEBHOOK_SECRET` | Webhook HMAC secret from Developer Settings (not the API key) |
 | `INTERAKT_BASE_URL` | Interakt API base URL (default: `https://api.interakt.ai`) |
 | `INTERAKT_VERIFY_SIGNATURE` | Require valid `Interakt-Signature` header |
@@ -58,6 +58,19 @@ Webhook handling mirrors Cashfree reliability patterns: persist first, enqueue o
 | `INTERAKT_MAX_RETRIES` | Retry count for transient API failures |
 
 Credentials are never hardcoded. See `config/interakt.php`.
+
+### Outbound authentication (Phase 12.6)
+
+Interakt does **not** use RFC 7617 HTTP Basic Authentication. Laravel's `withBasicAuth()` must not be used because it base64-encodes `secret:`.
+
+Interakt requires a literal header (confirmed by Interakt Support):
+
+```
+Authorization: Basic <INTERAKT_API_KEY>
+Content-Type: application/json
+```
+
+The secret key is placed directly after `Basic ` with **no** base64 encoding. All outbound requests build this header via `InteraktAuthentication::headers()`. Debug logs redact the key as `Authorization: Basic ********`.
 
 ---
 
