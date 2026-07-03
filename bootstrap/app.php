@@ -61,8 +61,13 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/automation-scheduler.log'));
 
-        // Phase 2: enable when ready to recover delayed RadiumBox product details automatically.
-        // Uses progressive backoff (1h → 4h → 12h → 24h) within a 7-day automatic window.
+        $schedule->command('radiumbox:recover-sync')
+            ->cron(sprintf('*/%d * * * *', max(1, (int) config('radiumbox.recovery.schedule_interval_minutes', 15))))
+            ->when(fn (): bool => (bool) config('radiumbox.recovery.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/radiumbox-recovery.log'));
+
+        // Legacy backfill remains available for manual/admin use.
         // $schedule->command('radiumbox:backfill-orders --limit=50')
         //     ->hourly()
         //     ->withoutOverlapping()

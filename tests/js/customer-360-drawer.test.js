@@ -656,4 +656,63 @@ describe('initCustomer360Drawer', () => {
             );
         });
     });
+
+    it('disables and refreshes drawer when radiumbox sync succeeds', async () => {
+        const pageRoot = setupDashboard();
+        const showToast = vi.fn();
+
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => `
+                    <div data-customer-360-content>
+                        <div data-customer-360-device-section>
+                            <button type="button"
+                                    data-customer-360-radiumbox-sync
+                                    data-sync-url="http://localhost/dashboard/service-cases/42/customer-360/radiumbox-sync">
+                                <svg class="heroicon heroicon-arrow-path"></svg>
+                            </button>
+                        </div>
+                    </div>
+                `,
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    success: true,
+                    message: '✓ Device information synchronized successfully.',
+                    device_html: '<div data-customer-360-device-section>Synced</div>',
+                }),
+            });
+
+        initCustomer360Drawer({ pageRoot, showToast });
+
+        document.querySelector('tr[data-incident-id="42"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-customer-360-radiumbox-sync]')).not.toBeNull();
+        });
+
+        document.querySelector('[data-customer-360-radiumbox-sync]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledTimes(2);
+        });
+
+        expect(fetch).toHaveBeenNthCalledWith(
+            2,
+            'http://localhost/dashboard/service-cases/42/customer-360/radiumbox-sync',
+            expect.objectContaining({ method: 'POST' }),
+        );
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-customer-360-device-section]')?.innerHTML).toContain('Synced');
+        });
+
+        expect(showToast).toHaveBeenCalledWith('✓ Device information synchronized successfully.');
+    });
 });

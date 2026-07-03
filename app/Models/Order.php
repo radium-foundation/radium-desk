@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\IncidentStatus;
 use App\Enums\OrderCompletionStatus;
 use App\Enums\OrderStatus;
+use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Support\AppDateFormatter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -20,12 +21,21 @@ class Order extends Model
 {
     use SoftDeletes;
 
+    protected $attributes = [
+        'radiumbox_sync_status' => 'NOT_SYNCED',
+        'radiumbox_sync_attempts' => 0,
+    ];
+
     protected $fillable = [
         'order_id',
         'customer_id',
         'serial_number',
         'serial_entered_at',
         'serial_entered_by_user_id',
+        'radiumbox_sync_status',
+        'radiumbox_last_sync_at',
+        'radiumbox_last_sync_error',
+        'radiumbox_sync_attempts',
         'product_name',
         'device_model',
         'device_model_id',
@@ -55,6 +65,9 @@ class Order extends Model
             'status' => OrderStatus::class,
             'completed_at' => 'datetime',
             'serial_entered_at' => 'datetime',
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::class,
+            'radiumbox_last_sync_at' => 'datetime',
+            'radiumbox_sync_attempts' => 'integer',
             'device_model_assigned_at' => 'datetime',
             'payment_date' => 'datetime',
             'payment_amount' => 'decimal:2',
@@ -116,6 +129,15 @@ class Order extends Model
 
         $supported ??= Schema::hasTable('device_models')
             && Schema::hasColumn('orders', 'device_model_id');
+
+        return $supported;
+    }
+
+    public static function supportsRadiumBoxSyncTracking(): bool
+    {
+        static $supported = null;
+
+        $supported ??= Schema::hasColumn('orders', 'radiumbox_sync_status');
 
         return $supported;
     }

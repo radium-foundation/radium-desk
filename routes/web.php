@@ -64,6 +64,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.row');
     Route::get('dashboard/service-cases/{incident}/customer-360', [Customer360Controller::class, 'show'])
         ->name('dashboard.service-cases.customer-360');
+    Route::post('dashboard/service-cases/{incident}/customer-360/radiumbox-sync', [Customer360Controller::class, 'radiumBoxSync'])
+        ->name('dashboard.service-cases.customer-360.radiumbox-sync');
+    Route::get('dashboard/service-cases/{incident}/customer-360/device', [Customer360Controller::class, 'device'])
+        ->name('dashboard.service-cases.customer-360.device');
     Route::get('dashboard/service-cases/{incident}/customer-360/timeline', [Customer360Controller::class, 'timeline'])
         ->name('dashboard.service-cases.customer-360.timeline');
     Route::get('dashboard/service-cases/{incident}/customer-360/ai-workbench', [Customer360Controller::class, 'aiWorkbench'])

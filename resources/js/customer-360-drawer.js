@@ -53,6 +53,7 @@ const copyTextToClipboard = async (text) => {
 };
 
 const COPY_SUCCESS_MS = 1500;
+const DEVICE_SYNC_POLL_MS = 10000;
 
 const showInlineCopySuccess = (button) => {
     const icon = button.querySelector('[data-customer-360-copy-icon]');
@@ -122,6 +123,85 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     let activeIncidentId = null;
     let fetchController = null;
     let previouslyFocusedElement = null;
+    let devicePollTimer = null;
+
+    const stopDeviceSyncPolling = () => {
+        if (devicePollTimer === null) {
+            return;
+        }
+
+        clearInterval(devicePollTimer);
+        devicePollTimer = null;
+    };
+
+    const bindDeviceSectionInteractions = () => {
+        bindCopyActions();
+        bindRadiumBoxSyncActions();
+        initTooltips?.(contentHost);
+    };
+
+    const replaceDeviceSection = (deviceHtml) => {
+        const section = contentHost.querySelector('[data-customer-360-device-section]');
+
+        if (!section || !deviceHtml) {
+            return false;
+        }
+
+        section.outerHTML = deviceHtml;
+        bindDeviceSectionInteractions();
+        configureDeviceSyncPolling();
+
+        return true;
+    };
+
+    const refreshDeviceSection = async (refreshUrl) => {
+        if (!refreshUrl) {
+            return;
+        }
+
+        try {
+            const response = await fetch(refreshUrl, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                logCustomer360Failure(refreshUrl, response.status, 'device-refresh');
+
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (payload.html) {
+                replaceDeviceSection(payload.html);
+            }
+        } catch (error) {
+            logCustomer360Failure(refreshUrl, null, 'device-refresh', error);
+        }
+    };
+
+    const configureDeviceSyncPolling = () => {
+        stopDeviceSyncPolling();
+
+        const section = contentHost.querySelector('[data-customer-360-device-section]');
+
+        if (!section || section.dataset.shouldPollSync !== 'true') {
+            return;
+        }
+
+        const refreshUrl = section.dataset.deviceRefreshUrl?.trim() ?? '';
+
+        if (refreshUrl === '') {
+            return;
+        }
+
+        devicePollTimer = setInterval(() => {
+            refreshDeviceSection(refreshUrl);
+        }, DEVICE_SYNC_POLL_MS);
+    };
 
     const setLoading = (isLoading) => {
         loadingState.hidden = !isLoading;
@@ -593,15 +673,79 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
     };
 
+    const bindRadiumBoxSyncActions = () => {
+        contentHost.querySelectorAll('[data-customer-360-radiumbox-sync]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const syncUrl = button.dataset.syncUrl?.trim() ?? '';
+
+                if (syncUrl === '' || button.disabled) {
+                    return;
+                }
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                const previousHtml = contentHost.innerHTML;
+
+                button.disabled = true;
+                button.classList.add('is-syncing');
+
+                try {
+                    const response = await fetch(syncUrl, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                        },
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok || !payload.success) {
+                        const message = payload.message ?? 'Unable to synchronize serial number. Please try again.';
+                        showToast?.(message, 'danger');
+
+                        return;
+                    }
+
+                    if (payload.device_html) {
+                        replaceDeviceSection(payload.device_html);
+                    } else if (payload.html) {
+                        contentHost.innerHTML = payload.html;
+                        finalizeDrawerContent();
+                    } else if (activeIncidentId !== null) {
+                        await refreshDeviceSection(
+                            contentHost.querySelector('[data-customer-360-device-section]')?.dataset.deviceRefreshUrl,
+                        );
+                    }
+
+                    showToast?.(payload.message ?? '✓ Device information synchronized successfully.');
+                } catch (error) {
+                    logCustomer360Failure(syncUrl, null, 'radiumbox-sync', error);
+                    contentHost.innerHTML = previousHtml;
+                    finalizeDrawerContent();
+                    showToast?.('Unable to synchronize serial number. Please try again.', 'danger');
+                } finally {
+                    const activeButton = contentHost.querySelector('[data-customer-360-radiumbox-sync]');
+
+                    if (activeButton instanceof HTMLButtonElement) {
+                        activeButton.disabled = false;
+                        activeButton.classList.remove('is-syncing');
+                    }
+                }
+            });
+        });
+    };
+
     const finalizeDrawerContent = () => {
         try {
             verifyAiDomIntegrity(contentHost);
-            bindCopyActions();
+            bindDeviceSectionInteractions();
             bindExecutiveSummaryTranslation();
             bindWorkbenchActions();
             syncTabState();
             initUnifiedTimeline(contentHost);
-            initTooltips?.(contentHost);
+            configureDeviceSyncPolling();
         } catch (error) {
             logCustomer360Failure(null, null, 'drawer-init', error);
         }
@@ -690,6 +834,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     const close = () => {
         fetchController?.abort();
         fetchController = null;
+        stopDeviceSyncPolling();
 
         if (!drawer.classList.contains('is-open') && activeIncidentId === null) {
             return;

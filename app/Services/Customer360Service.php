@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Data\AI\AIContextBuildSnapshot;
 use App\Data\AI\AIWorkbenchDTO;
 use App\Data\TimelineViewModel;
+use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
@@ -15,15 +16,21 @@ use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
+use App\Support\AppDateFormatter;
 use App\Support\DeviceModelFormatter;
+use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
+use Illuminate\Support\Carbon;
 
 class Customer360Service
 {
     public function __construct(
         private readonly Customer360TimelineService $customer360TimelineService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $enrichmentSyncStore,
+        private readonly RadiumBoxSyncTimelineService $syncTimelineService,
+        private readonly RadiumBoxSyncErrorFormatter $syncErrorFormatter,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly AIService $aiService,
@@ -70,7 +77,8 @@ class Customer360Service
             'incident' => $incident,
             'order' => $order,
             'customer' => $customer,
-            'device' => $this->deviceSection($order, $fullModelName),
+            'device' => $this->deviceSection($order, $fullModelName, $incident),
+            'sync_history' => $this->syncTimelineService->forOrder($order),
             'activeServices' => $activeServices,
             'summary' => $summary,
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary, $timeline),
@@ -100,6 +108,27 @@ class Customer360Service
     }
 
     /**
+     * @return array{device: array<string, mixed>, sync_history: list<array<string, mixed>>}
+     */
+    public function devicePayload(Incident $incident): array
+    {
+        $incident->loadMissing('order.deviceModel');
+        $order = $incident->order;
+
+        if ($order === null) {
+            return [
+                'device' => [],
+                'sync_history' => [],
+            ];
+        }
+
+        return [
+            'device' => $this->deviceSection($order, $order->displayDeviceModelName(), $incident),
+            'sync_history' => $this->syncTimelineService->forOrder($order),
+        ];
+    }
+
+    /**
      * @return array<string, string|null>
      */
     private function customerSection(Order $order): array
@@ -113,17 +142,93 @@ class Customer360Service
     }
 
     /**
-     * @return array<string, string|null>
+     * @return array<string, mixed>
      */
-    private function deviceSection(Order $order, ?string $fullModelName): array
+    private function deviceSection(Order $order, ?string $fullModelName, Incident $incident): array
     {
+        $syncStatus = $this->enrichmentSyncStore->status($order->id);
+        $metadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
+        $hasSerial = filled($order->serial_number);
+        $lastAttemptAt = $this->resolveLastAttemptAt($order);
+
+        $lastSyncedAt = $order->radiumbox_last_sync_at;
+
         return [
             'model_short' => DeviceModelFormatter::shortDisplay($fullModelName),
             'model_canonical' => $fullModelName,
             'serial_number' => $order->serial_number,
+            'serial_sync_status' => $syncStatus->value,
+            'sync_status_label' => $syncStatus->label(),
+            'sync_attempts' => $this->enrichmentSyncStore->attemptCount($order->id),
+            'last_sync_at' => AppDateFormatter::format($lastSyncedAt, 'd M Y h:i A'),
+            'last_attempt_at' => $lastAttemptAt,
+            'last_sync_error' => $this->syncErrorFormatter->friendlyMessage(
+                $order->radiumbox_last_sync_error,
+                metadata: $metadata,
+            ),
+            'show_sync_diagnostics' => ! $hasSerial,
+            'show_sync_freshness' => $hasSerial && $syncStatus === RadiumBoxEnrichmentSyncStatus::Synced,
+            'last_synced_label' => $this->resolveLastSyncedLabel($lastSyncedAt),
+            'last_synced_relative' => AppDateFormatter::timelineRelative($lastSyncedAt),
+            'last_synced_tooltip' => AppDateFormatter::datetime($lastSyncedAt),
+            'should_poll_sync' => ! $hasSerial && $syncStatus === RadiumBoxEnrichmentSyncStatus::Pending,
+            'device_refresh_url' => route('dashboard.service-cases.customer-360.device', $incident),
+            'can_manual_sync' => $this->canManualRadiumBoxSync($order, $syncStatus),
+            'manual_sync_url' => route('dashboard.service-cases.customer-360.radiumbox-sync', $incident),
             'order_id' => $order->order_id,
             'service_reference' => $order->transaction_id,
         ];
+    }
+
+    private function resolveLastSyncedLabel(?Carbon $lastSyncedAt): ?string
+    {
+        if ($lastSyncedAt === null) {
+            return null;
+        }
+
+        $localized = AppDateFormatter::inAppTimezone($lastSyncedAt);
+
+        if ($localized === null) {
+            return null;
+        }
+
+        if ($localized->isToday()) {
+            return 'Today at '.$localized->format('h:i A');
+        }
+
+        if ($localized->isYesterday()) {
+            return 'Yesterday at '.$localized->format('h:i A');
+        }
+
+        return AppDateFormatter::format($lastSyncedAt, 'd M Y h:i A');
+    }
+
+    private function resolveLastAttemptAt(Order $order): ?string
+    {
+        $lastAttemptIso = $this->enrichmentSyncStore->lastAttemptAt($order->id);
+
+        if (is_string($lastAttemptIso) && $lastAttemptIso !== '') {
+            return AppDateFormatter::format(Carbon::parse($lastAttemptIso), 'd M Y h:i A');
+        }
+
+        return AppDateFormatter::format($order->radiumbox_last_sync_at, 'd M Y h:i A');
+    }
+
+    private function canManualRadiumBoxSync(Order $order, RadiumBoxEnrichmentSyncStatus $syncStatus): bool
+    {
+        if (filled($order->serial_number)) {
+            return false;
+        }
+
+        if ($syncStatus === RadiumBoxEnrichmentSyncStatus::Pending) {
+            return false;
+        }
+
+        return in_array($syncStatus, [
+            RadiumBoxEnrichmentSyncStatus::Failed,
+            RadiumBoxEnrichmentSyncStatus::NotSynced,
+            RadiumBoxEnrichmentSyncStatus::Synced,
+        ], true);
     }
 
     /**
@@ -253,6 +358,15 @@ class Customer360Service
                 'model_short' => null,
                 'model_canonical' => null,
                 'serial_number' => null,
+                'serial_sync_status' => RadiumBoxEnrichmentSyncStatus::NotSynced->value,
+                'sync_status_label' => RadiumBoxEnrichmentSyncStatus::NotSynced->label(),
+                'sync_attempts' => 0,
+                'last_sync_at' => null,
+                'last_attempt_at' => null,
+                'last_sync_error' => null,
+                'show_sync_diagnostics' => false,
+                'can_manual_sync' => false,
+                'manual_sync_url' => null,
                 'order_id' => null,
                 'service_reference' => null,
             ],

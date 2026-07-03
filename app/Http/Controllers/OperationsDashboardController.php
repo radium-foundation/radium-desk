@@ -55,6 +55,9 @@ class OperationsDashboardController extends Controller
                 'integration_health' => view('admin.operations.partials.integration-health', [
                     'cards' => $dashboard->integrationHealth,
                 ])->render(),
+                'radiumbox_health' => view('admin.operations.partials.radiumbox-health', [
+                    'health' => $dashboard->radiumBoxHealth,
+                ])->render(),
                 'recent_notification_failures' => view('admin.operations.partials.recent-notification-failures', [
                     'failures' => $dashboard->recentNotificationFailures,
                 ])->render(),

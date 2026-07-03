@@ -12,6 +12,7 @@ readonly class OperationsDashboardData
      * @param  array<string, mixed>  $automationMetrics
      * @param  array<string, mixed>  $queueMetrics
      * @param  list<array<string, mixed>>  $integrationHealth
+     * @param  array<string, mixed>  $radiumBoxHealth
      * @param  list<array<string, mixed>>  $recentNotificationFailures
      * @param  list<array<string, mixed>>  $recentAutomationActivity
      */
@@ -21,6 +22,7 @@ readonly class OperationsDashboardData
         public array $automationMetrics,
         public array $queueMetrics,
         public array $integrationHealth,
+        public array $radiumBoxHealth,
         public array $recentNotificationFailures,
         public array $recentAutomationActivity,
         public Carbon $generatedAt,
@@ -37,6 +39,7 @@ readonly class OperationsDashboardData
             'automation_metrics' => $this->automationMetrics,
             'queue_metrics' => $this->queueMetrics,
             'integration_health' => $this->integrationHealth,
+            'radiumbox_health' => $this->radiumBoxHealth,
             'recent_notification_failures' => $this->recentNotificationFailures,
             'recent_automation_activity' => $this->recentAutomationActivity,
             'generated_at' => $this->generatedAt->toIso8601String(),

@@ -23,6 +23,7 @@ class OperationsDashboardService
         private readonly OperationsAutomationMetricsService $automationMetricsService,
         private readonly OperationsQueueMetricsService $queueMetricsService,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
+        private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
         private readonly OperationsRecentNotificationFailuresService $recentNotificationFailuresService,
         private readonly OperationsRecentAutomationActivityService $recentAutomationActivityService,
     ) {}
@@ -54,6 +55,7 @@ class OperationsDashboardService
             automationMetrics: $this->automationMetricsService->metrics($snapshot),
             queueMetrics: $this->queueMetricsService->metrics($snapshot),
             integrationHealth: $this->integrationHealthService->cards($snapshot),
+            radiumBoxHealth: $this->radiumBoxHealthService->widget(),
             recentNotificationFailures: $this->recentNotificationFailuresService->recent(limit: 15),
             recentAutomationActivity: $this->recentAutomationActivityService->recent(limit: 15),
             generatedAt: now(),

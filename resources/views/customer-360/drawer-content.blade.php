@@ -57,7 +57,10 @@
             'device' => $device,
             'canRequestSerialNumber' => $canRequestSerialNumber ?? false,
         ])
-        @include('customer-360.partials.current-device', ['device' => $device])
+        @include('customer-360.partials.device-section', [
+            'device' => $device,
+            'sync_history' => $sync_history ?? [],
+        ])
         @include('customer-360.partials.active-services', ['activeServices' => $activeServices])
     </div>
 

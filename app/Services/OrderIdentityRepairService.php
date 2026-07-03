@@ -333,7 +333,7 @@ class OrderIdentityRepairService
 
         $syncStatus = $this->syncStore->status($order->id);
 
-        if ($syncStatus !== null && $syncStatus !== RadiumBoxEnrichmentSyncStatus::Synced) {
+        if ($syncStatus !== RadiumBoxEnrichmentSyncStatus::Synced) {
             return true;
         }
 

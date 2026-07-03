@@ -44,6 +44,10 @@
             </div>
         </div>
 
+        <div id="operations-radiumbox-health" class="mb-4">
+            @include('admin.operations.partials.radiumbox-health', ['health' => $dashboard->radiumBoxHealth])
+        </div>
+
         <div id="operations-integration-health" class="mb-4">
             @include('admin.operations.partials.integration-health', ['cards' => $dashboard->integrationHealth])
         </div>

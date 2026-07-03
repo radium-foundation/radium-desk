@@ -8,10 +8,10 @@ use App\Services\ServiceCaseAutomationMonitorService;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Lightweight sync status tracking for RadiumBox order enrichment.
+ * Sync status tracking for RadiumBox order enrichment.
  *
- * Encapsulated behind this store so status can move to persistent storage later
- * without changing callers.
+ * Core status fields are persisted on orders; supplemental metadata remains in cache
+ * for backward compatibility with existing enrichment consumers.
  */
 class RadiumBoxOrderEnrichmentSyncStore
 {
@@ -23,19 +23,19 @@ class RadiumBoxOrderEnrichmentSyncStore
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
 
-    public function status(int $orderId): ?RadiumBoxEnrichmentSyncStatus
+    public function status(int $orderId): RadiumBoxEnrichmentSyncStatus
     {
         $record = $this->read($orderId);
 
         if ($record === null) {
-            return null;
+            return RadiumBoxEnrichmentSyncStatus::NotSynced;
         }
 
         $status = $record['status'] ?? null;
 
         return is_string($status)
-            ? RadiumBoxEnrichmentSyncStatus::tryFrom($status)
-            : null;
+            ? (RadiumBoxEnrichmentSyncStatus::tryFrom($status) ?? RadiumBoxEnrichmentSyncStatus::NotSynced)
+            : RadiumBoxEnrichmentSyncStatus::NotSynced;
     }
 
     /**
@@ -56,10 +56,13 @@ class RadiumBoxOrderEnrichmentSyncStore
 
     public function markPending(int $orderId): void
     {
-        $this->write($orderId, [
+        $metadata = $this->metadata($orderId) ?? [];
+
+        $this->persist($orderId, [
             'status' => RadiumBoxEnrichmentSyncStatus::Pending->value,
-            'metadata' => $this->metadata($orderId) ?? [],
+            'metadata' => $metadata,
             'updated_at' => now()->toIso8601String(),
+            'last_sync_error' => null,
         ]);
 
         $this->recordAutomationEvent($orderId, 'waiting');
@@ -70,10 +73,11 @@ class RadiumBoxOrderEnrichmentSyncStore
      */
     public function markSynced(int $orderId, array $metadata = []): void
     {
-        $this->write($orderId, [
+        $this->persist($orderId, [
             'status' => RadiumBoxEnrichmentSyncStatus::Synced->value,
             'metadata' => array_merge($this->metadata($orderId) ?? [], $metadata),
             'updated_at' => now()->toIso8601String(),
+            'last_sync_error' => null,
         ]);
 
         $this->recordAutomationEvent($orderId, 'verified');
@@ -84,18 +88,30 @@ class RadiumBoxOrderEnrichmentSyncStore
      */
     public function markFailed(int $orderId, ?string $errorMessage = null, array $metadata = []): void
     {
-        $this->write($orderId, [
+        $this->persist($orderId, [
             'status' => RadiumBoxEnrichmentSyncStatus::Failed->value,
             'metadata' => array_merge($this->metadata($orderId) ?? [], $metadata, array_filter([
                 'last_error' => $errorMessage,
             ])),
             'updated_at' => now()->toIso8601String(),
+            'last_sync_error' => $errorMessage,
         ]);
     }
 
     public function forget(int $orderId): void
     {
         Cache::forget($this->cacheKey($orderId));
+
+        if (! Order::supportsRadiumBoxSyncTracking()) {
+            return;
+        }
+
+        Order::query()->whereKey($orderId)->update([
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::NotSynced,
+            'radiumbox_last_sync_at' => null,
+            'radiumbox_last_sync_error' => null,
+            'radiumbox_sync_attempts' => 0,
+        ]);
     }
 
     public function updatedAt(int $orderId): ?string
@@ -125,6 +141,14 @@ class RadiumBoxOrderEnrichmentSyncStore
 
     public function attemptCount(int $orderId): int
     {
+        if (Order::supportsRadiumBoxSyncTracking()) {
+            $attempts = Order::query()->whereKey($orderId)->value('radiumbox_sync_attempts');
+
+            if (is_numeric($attempts)) {
+                return (int) $attempts;
+            }
+        }
+
         $metadata = $this->metadata($orderId);
 
         if (! is_array($metadata)) {
@@ -137,23 +161,45 @@ class RadiumBoxOrderEnrichmentSyncStore
     public function recordProcessingAttempt(int $orderId): void
     {
         $record = $this->read($orderId);
+        $nextAttempt = $this->attemptCount($orderId) + 1;
         $metadata = $this->metadata($orderId) ?? [];
-        $metadata['attempt_count'] = $this->attemptCount($orderId) + 1;
+        $metadata['attempt_count'] = $nextAttempt;
         $metadata['last_attempt_at'] = now()->toIso8601String();
 
-        $this->write($orderId, [
+        $this->persist($orderId, [
             'status' => is_array($record) ? ($record['status'] ?? RadiumBoxEnrichmentSyncStatus::Pending->value) : RadiumBoxEnrichmentSyncStatus::Pending->value,
             'metadata' => $metadata,
             'updated_at' => now()->toIso8601String(),
-        ]);
+        ], syncAttempts: $nextAttempt);
     }
 
     /**
      * @param  array<string, mixed>  $record
      */
-    private function write(int $orderId, array $record): void
+    private function persist(int $orderId, array $record, ?int $syncAttempts = null): void
     {
-        Cache::put($this->cacheKey($orderId), $record, self::CACHE_TTL_SECONDS);
+        $this->writeCacheMetadata($orderId, $record);
+
+        if (! Order::supportsRadiumBoxSyncTracking()) {
+            return;
+        }
+
+        $status = $record['status'] ?? null;
+        $syncStatus = is_string($status)
+            ? RadiumBoxEnrichmentSyncStatus::tryFrom($status)
+            : null;
+
+        $updates = [
+            'radiumbox_sync_status' => $syncStatus ?? RadiumBoxEnrichmentSyncStatus::NotSynced,
+            'radiumbox_last_sync_at' => now(),
+            'radiumbox_last_sync_error' => $record['last_sync_error'] ?? null,
+        ];
+
+        if ($syncAttempts !== null) {
+            $updates['radiumbox_sync_attempts'] = $syncAttempts;
+        }
+
+        Order::query()->whereKey($orderId)->update($updates);
     }
 
     /**
@@ -161,9 +207,83 @@ class RadiumBoxOrderEnrichmentSyncStore
      */
     private function read(int $orderId): ?array
     {
+        $metadata = $this->readCacheMetadata($orderId) ?? [];
+
+        if (Order::supportsRadiumBoxSyncTracking()) {
+            $order = Order::query()
+                ->whereKey($orderId)
+                ->first([
+                    'id',
+                    'radiumbox_sync_status',
+                    'radiumbox_last_sync_at',
+                    'radiumbox_last_sync_error',
+                    'radiumbox_sync_attempts',
+                ]);
+
+            if ($order !== null) {
+                $status = $order->radiumbox_sync_status ?? RadiumBoxEnrichmentSyncStatus::NotSynced;
+
+                return [
+                    'status' => $status->value,
+                    'metadata' => $metadata,
+                    'updated_at' => $order->radiumbox_last_sync_at?->toIso8601String(),
+                    'last_sync_error' => $order->radiumbox_last_sync_error,
+                ];
+            }
+        }
+
+        $cacheRecord = $this->readCacheRecord($orderId);
+
+        if ($cacheRecord === null) {
+            return [
+                'status' => RadiumBoxEnrichmentSyncStatus::NotSynced->value,
+                'metadata' => $metadata,
+                'updated_at' => null,
+                'last_sync_error' => null,
+            ];
+        }
+
+        return [
+            'status' => $cacheRecord['status'] ?? null,
+            'metadata' => array_merge($metadata, is_array($cacheRecord['metadata'] ?? null) ? $cacheRecord['metadata'] : []),
+            'updated_at' => $cacheRecord['updated_at'] ?? null,
+            'last_sync_error' => $metadata['last_error'] ?? null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $record
+     */
+    private function writeCacheMetadata(int $orderId, array $record): void
+    {
+        $metadata = $record['metadata'] ?? [];
+
+        Cache::put($this->cacheKey($orderId), [
+            'status' => $record['status'] ?? null,
+            'metadata' => is_array($metadata) ? $metadata : [],
+            'updated_at' => $record['updated_at'] ?? now()->toIso8601String(),
+        ], self::CACHE_TTL_SECONDS);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function readCacheRecord(int $orderId): ?array
+    {
         $record = Cache::get($this->cacheKey($orderId));
 
         return is_array($record) ? $record : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function readCacheMetadata(int $orderId): ?array
+    {
+        $record = $this->readCacheRecord($orderId);
+        $metadata = is_array($record) ? ($record['metadata'] ?? null) : null;
+
+        return is_array($metadata) ? $metadata : null;
     }
 
     private function cacheKey(int $orderId): string

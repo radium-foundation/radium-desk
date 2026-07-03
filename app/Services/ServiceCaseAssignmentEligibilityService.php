@@ -131,7 +131,7 @@ class ServiceCaseAssignmentEligibilityService
     {
         $syncStatus = $this->syncStore->status($order->id);
 
-        if ($syncStatus === null) {
+        if ($syncStatus === RadiumBoxEnrichmentSyncStatus::NotSynced) {
             return true;
         }
 

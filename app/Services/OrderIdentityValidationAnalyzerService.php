@@ -320,10 +320,10 @@ class OrderIdentityValidationAnalyzerService
         $status = $this->syncStore->status($order->id);
 
         return match ($status) {
+            RadiumBoxEnrichmentSyncStatus::NotSynced => 'Not Synced',
             RadiumBoxEnrichmentSyncStatus::Pending => 'Pending',
             RadiumBoxEnrichmentSyncStatus::Synced => 'Synced',
             RadiumBoxEnrichmentSyncStatus::Failed => 'Failed',
-            default => 'Unknown',
         };
     }
 

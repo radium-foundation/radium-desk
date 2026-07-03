@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Customer360AIWorkbenchAuditRequest;
 use App\Http\Requests\Customer360ExecutiveSummaryTranslationRequest;
 use App\Models\Incident;
+use App\Models\User;
 use App\Services\AI\AIWorkbenchAuditService;
 use App\Services\AI\IRAExecutiveSummaryTranslationService;
 use App\Services\Customer360Service;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\Timeline\Customer360TimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,7 @@ class Customer360Controller extends Controller
         private readonly Customer360TimelineService $customer360TimelineService,
         private readonly AIWorkbenchAuditService $workbenchAuditService,
         private readonly IRAExecutiveSummaryTranslationService $executiveSummaryTranslationService,
+        private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
     ) {}
 
     public function show(Incident $incident): Response
@@ -29,6 +32,72 @@ class Customer360Controller extends Controller
         $html = view('customer-360.drawer-content', $this->customer360Service->drawerData($incident))->render();
 
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+
+    public function radiumBoxSync(Incident $incident): JsonResponse
+    {
+        $this->authorize('view', $incident);
+
+        $incident->loadMissing('order');
+        $order = $incident->order;
+
+        if ($order === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Service case is not linked to an order.',
+            ], 422);
+        }
+
+        $result = $this->radiumBoxOrderEnrichmentService->manualSync(
+            $order,
+            $this->authenticatedUser(),
+        );
+
+        if (! $result->success) {
+            return response()->json([
+                'success' => false,
+                'message' => $result->message,
+            ], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $result->message,
+            'device_html' => $this->renderDeviceSection($incident->fresh(['order.deviceModel'])),
+        ]);
+    }
+
+    public function device(Incident $incident): JsonResponse
+    {
+        $this->authorize('view', $incident);
+
+        $payload = $this->customer360Service->devicePayload($incident);
+
+        return response()->json([
+            'html' => $this->renderDeviceSection($incident),
+            'should_poll_sync' => (bool) ($payload['device']['should_poll_sync'] ?? false),
+        ]);
+    }
+
+    private function renderDeviceSection(Incident $incident): string
+    {
+        $payload = $this->customer360Service->devicePayload($incident);
+
+        return view('customer-360.partials.device-section', [
+            'device' => $payload['device'],
+            'sync_history' => $payload['sync_history'],
+        ])->render();
+    }
+
+    private function authenticatedUser(): User
+    {
+        $user = request()->user();
+
+        if ($user === null) {
+            abort(403);
+        }
+
+        return $user;
     }
 
     public function aiWorkbench(Incident $incident): JsonResponse
