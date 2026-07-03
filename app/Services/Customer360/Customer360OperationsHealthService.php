@@ -4,6 +4,7 @@ namespace App\Services\Customer360;
 
 use App\Enums\OperationsHealthStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Models\Incident;
 use App\Models\Order;
 use App\Services\Operations\OperationsRadiumBoxHealthService;
 use App\Services\Operations\OperationsIntegrationHealthService;
@@ -24,16 +25,48 @@ class Customer360OperationsHealthService
     /**
      * @return array<string, mixed>
      */
-    public function forOrder(Order $order): array
+    public function forIncident(Incident $incident): array
     {
-        $cacheKey = 'customer360:operations-health:order:'.$order->id;
+        $cacheKey = 'customer360:operations-health:incident:'.$incident->id;
         $cached = Cache::get($cacheKey);
 
         if (is_array($cached)) {
             return $cached;
         }
 
-        $widget = $this->build($order);
+        $incident->loadMissing('supportAppointments');
+        $order = $incident->order;
+
+        if ($order === null) {
+            return [
+                'radiumbox' => [
+                    'status' => 'idle',
+                    'pending' => false,
+                    'failed' => false,
+                    'recovery_running' => false,
+                    'platform_pending' => 0,
+                    'platform_failed' => 0,
+                ],
+                'email' => [
+                    'status' => 'unknown',
+                    'status_label' => 'Unavailable',
+                    'detail' => 'Monitoring data unavailable.',
+                ],
+                'whatsapp' => [
+                    'status' => 'unknown',
+                    'status_label' => 'Unavailable',
+                    'detail' => 'Monitoring data unavailable.',
+                ],
+                'appointments' => [
+                    'status' => 'healthy',
+                    'status_label' => 'Healthy',
+                    'detail' => 'Booking links available for support appointments.',
+                ],
+                'whatsapp_flow' => $this->whatsappFlowHealth($incident),
+            ];
+        }
+
+        $widget = $this->build($order, $incident);
         Cache::put($cacheKey, $widget, now()->addSeconds(self::CACHE_TTL_SECONDS));
 
         return $widget;
@@ -42,7 +75,15 @@ class Customer360OperationsHealthService
     /**
      * @return array<string, mixed>
      */
-    private function build(Order $order): array
+    public function forOrder(Order $order): array
+    {
+        return $this->build($order);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function build(Order $order, ?Incident $incident = null): array
     {
         $radiumBox = $this->radiumBoxHealthService->widget();
         $integrations = collect($this->integrationHealthService->cards());
@@ -69,6 +110,29 @@ class Customer360OperationsHealthService
                 'status_label' => 'Healthy',
                 'detail' => 'Booking links available for support appointments.',
             ],
+            'whatsapp_flow' => $this->whatsappFlowHealth($incident),
+        ];
+    }
+
+    /**
+     * @return array{status: string, status_label: string, detail: string}
+     */
+    private function whatsappFlowHealth(?Incident $incident): array
+    {
+        $hasAppointment = $incident !== null && $incident->supportAppointments->isNotEmpty();
+
+        if ($hasAppointment) {
+            return [
+                'status' => 'ready',
+                'status_label' => 'Ready',
+                'detail' => 'WhatsApp Flow context can be generated for this case.',
+            ];
+        }
+
+        return [
+            'status' => OperationsHealthStatus::NotConfigured->value,
+            'status_label' => OperationsHealthStatus::NotConfigured->label(),
+            'detail' => 'Schedule a support appointment to prepare WhatsApp Flow.',
         ];
     }
 

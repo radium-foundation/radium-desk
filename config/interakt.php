@@ -15,6 +15,7 @@ return [
         'INTERAKT_CUSTOMER_PROFILE_URL_TEMPLATE',
         '{app_url}/contacts?search={phone}',
     ),
+    'flow_token_ttl_hours' => (int) env('INTERAKT_FLOW_TOKEN_TTL_HOURS', 24),
     'templates' => [
         'request_serial_number' => [
             'name' => env('INTERAKT_TEMPLATE_REQUEST_SERIAL'),

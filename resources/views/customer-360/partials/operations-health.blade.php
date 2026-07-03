@@ -54,5 +54,10 @@
             <strong class="customer-360-ops-health-value">{{ $health['appointments']['status_label'] ?? 'Healthy' }}</strong>
             <span class="customer-360-ops-health-detail">{{ $health['appointments']['detail'] ?? '' }}</span>
         </div>
+        <div class="customer-360-ops-health-card">
+            <span class="customer-360-ops-health-label">WhatsApp Flow</span>
+            <strong class="customer-360-ops-health-value">{{ $health['whatsapp_flow']['status_label'] ?? 'Not Configured' }}</strong>
+            <span class="customer-360-ops-health-detail">{{ $health['whatsapp_flow']['detail'] ?? '' }}</span>
+        </div>
     </div>
 </section>

@@ -189,6 +189,15 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('6 / 6 templates configured', false);
     }
 
+    public function test_operations_dashboard_shows_meta_flow_integration_card(): void
+    {
+        $this->actingAs($this->createAdminUser('admin-ops-meta-flow@test.com'))
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('Meta Flow', false)
+            ->assertSee('Not Configured', false);
+    }
+
     public function test_admin_can_refresh_operations_dashboard_live_payload(): void
     {
         $admin = $this->createAdminUser('admin-ops-live@test.com');

@@ -29,6 +29,7 @@ class OperationsIntegrationHealthService
             $this->cashfreeCard($snapshot),
             $this->interaktCard($snapshot),
             $this->interaktTemplateConfigurationCard(),
+            $this->metaFlowCard(),
             $this->zeptomailCard($snapshot),
             $this->telegramCard($snapshot),
         ];
@@ -117,6 +118,19 @@ class OperationsIntegrationHealthService
             'configured_count' => $summary['configured_count'],
             'total_count' => $summary['total_count'],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaFlowCard(): array
+    {
+        return $this->integrationCard(
+            'meta_flow',
+            'Meta Flow',
+            OperationsHealthStatus::NotConfigured,
+            'Meta WhatsApp Flow integration is not yet configured.',
+        );
     }
 
     /**

@@ -89,7 +89,7 @@ class Customer360Service
             'timeline' => $timeline,
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'timelineRefreshUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
-            'operationsHealth' => $this->operationsHealthService->forOrder($order),
+            'operationsHealth' => $this->operationsHealthService->forIncident($incident),
             'slaMetrics' => $this->slaMetricsService->forOrder($order),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
             'waitingStateCard' => $waitingStateCard,
