@@ -7,6 +7,8 @@ use App\Models\OutboxEvent;
 use App\Models\InteraktWebhookLog;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
+use App\Services\Interakt\InteraktFlowWebhookOutboxWriter;
+use App\Services\Interakt\InteraktFlowWebhookProcessorService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\InteraktOutboundProcessorService;
 use App\Services\Interakt\InteraktWebhookOutboxWriter;
@@ -29,6 +31,7 @@ class OutboxProcessorService
     public function __construct(
         private readonly CashfreeWebhookDeferredOperationsService $cashfreeDeferredOperationsService,
         private readonly InteraktWebhookProcessorService $interaktWebhookProcessorService,
+        private readonly InteraktFlowWebhookProcessorService $interaktFlowWebhookProcessorService,
         private readonly InteraktOutboundProcessorService $interaktOutboundProcessorService,
     ) {}
 
@@ -146,6 +149,7 @@ class OutboxProcessorService
         match ($event->event_type) {
             CashfreeWebhookOutboxWriter::EVENT_TYPE => $this->dispatchCashfreeDeferredOperation($event),
             InteraktWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktWebhookProcessing($event),
+            InteraktFlowWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktFlowWebhookProcessing($event),
             InteraktOutboundOutboxWriter::EVENT_TYPE => $this->dispatchInteraktTemplateSend($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
@@ -167,6 +171,24 @@ class OutboxProcessorService
         }
 
         $this->interaktWebhookProcessorService->process($webhookLog);
+    }
+
+    private function dispatchInteraktFlowWebhookProcessing(OutboxEvent $event): void
+    {
+        $payload = $event->payload ?? [];
+        $webhookLogId = (int) ($payload['webhook_log_id'] ?? 0);
+
+        if ($webhookLogId <= 0) {
+            throw new RuntimeException('Interakt flow outbox event is missing webhook_log_id.');
+        }
+
+        $webhookLog = InteraktWebhookLog::query()->find($webhookLogId);
+
+        if ($webhookLog === null) {
+            throw new RuntimeException('Interakt webhook log not found: '.$webhookLogId);
+        }
+
+        $this->interaktFlowWebhookProcessorService->process($webhookLog);
     }
 
     private function dispatchInteraktTemplateSend(OutboxEvent $event): void

@@ -312,6 +312,78 @@ trait InteractsWithInteraktWebhooks
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $responseJson
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    protected function officialFlowResponsePayload(
+        array $responseJson,
+        array $overrides = [],
+        bool $encodeResponseJson = false,
+    ): array {
+        $messagePayload = [
+            'type' => 'nfm_reply',
+            'nfm_reply' => [
+                'response_json' => $encodeResponseJson
+                    ? json_encode($responseJson, JSON_THROW_ON_ERROR)
+                    : $responseJson,
+                'body' => 'Sent',
+                'name' => 'flow',
+            ],
+        ];
+
+        return array_replace_recursive([
+            'version' => '1.0',
+            'timestamp' => now()->toIso8601String(),
+            'type' => 'message_api_flow_response',
+            'data' => [
+                'customer' => [
+                    'id' => '52918eb3-bd00-4331-a51d-c4dcffee48d6',
+                    'channel_phone_number' => '919876543210',
+                    'phone_number' => '9876543210',
+                    'country_code' => '+91',
+                    'traits' => [
+                        'name' => 'Flow Customer',
+                    ],
+                ],
+                'message' => [
+                    'id' => 'flow-msg-'.uniqid(),
+                    'chat_message_type' => 'CustomerMessage',
+                    'message_content_type' => 'InteractiveFlowReply',
+                    'received_at_utc' => now()->utc()->format('Y-m-d\TH:i:s.u000'),
+                    'message' => $messagePayload,
+                    'meta_data' => [],
+                ],
+                'flow_id' => (int) config('interakt.flow_id', 2559716037790863),
+            ],
+        ], $overrides);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function postSignedInteraktFlowWebhook(array $payload, ?string $secret = null): TestResponse
+    {
+        /** @var TestCase $this */
+        $rawBody = json_encode($payload, JSON_THROW_ON_ERROR);
+        $secret ??= $this->interaktWebhookSecret();
+        $signature = 'sha256='.hash_hmac('sha256', $rawBody, $secret);
+
+        return $this->call(
+            'POST',
+            '/api/webhooks/interakt/flow',
+            [],
+            [],
+            [],
+            [
+                'HTTP_Interakt-Signature' => $signature,
+                'CONTENT_TYPE' => 'application/json',
+            ],
+            $rawBody,
+        );
+    }
+
     /** @deprecated Use officialIncomingMessagePayload() */
     protected function incomingMessagePayload(
         string $messageId = '60076f05-da52-4dd1-b813-36223c1eded7',
