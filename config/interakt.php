@@ -61,5 +61,13 @@ return [
             'display_name' => env('INTERAKT_TEMPLATE_AMC_REMINDER_DISPLAY', 'AMC Reminder'),
             'purpose' => 'AMC Reminder',
         ],
+        'support_appointment_booked' => [
+            'name' => env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED'),
+            'language_code' => env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED_DISPLAY', 'Support Appointment Booked'),
+            'purpose' => 'Support Appointment Booked',
+            'internal_note' => 'Confirms support appointment booking with preferred date and time slot.',
+        ],
     ],
 ];

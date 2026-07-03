@@ -93,7 +93,7 @@ class InteraktTemplateConfigurationValidatorTest extends TestCase
         $summary = $this->validator->healthSummary();
 
         $this->assertSame(OperationsHealthStatus::Healthy, $summary['status']);
-        $this->assertSame('6 / 6 templates configured', $summary['detail']);
+        $this->assertSame('7 / 7 templates configured', $summary['detail']);
         $this->assertSame([], $summary['warnings']);
         $this->assertSame([], $summary['errors']);
     }
@@ -174,6 +174,11 @@ class InteraktTemplateConfigurationValidatorTest extends TestCase
             ],
             'amc_reminder' => [
                 'name' => 'amc_reminder',
+                'language_code' => 'en_US',
+                'language_code_is_default' => false,
+            ],
+            'support_appointment_booked' => [
+                'name' => 'support_appointment_booked',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,
             ],

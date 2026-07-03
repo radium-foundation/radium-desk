@@ -14,6 +14,7 @@ class DesktopChannel implements NotificationChannel
     {
         return match ($type) {
             NotificationType::RequestSerialNumber => true,
+            default => false,
         };
     }
 

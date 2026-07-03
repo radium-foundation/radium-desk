@@ -47,8 +47,10 @@ class InteraktOutboundProcessorService
             'languageCode' => $configuration->languageCode,
         ];
 
-        if ($configuration->bodyParameters !== []) {
-            $templatePayload['bodyValues'] = $configuration->bodyParameters;
+        $bodyValues = $this->resolveBodyValues($dispatch, $configuration->bodyParameters);
+
+        if ($bodyValues !== []) {
+            $templatePayload['bodyValues'] = $bodyValues;
         }
 
         if ($configuration->headerParameters !== []) {
@@ -71,6 +73,32 @@ class InteraktOutboundProcessorService
             $result->errorMessage ?? 'Interakt rejected the template request.',
             $request,
         );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $configuredBodyParameters
+     * @return list<string>
+     */
+    private function resolveBodyValues(WhatsAppTemplateDispatch $dispatch, array $configuredBodyParameters): array
+    {
+        $context = $dispatch->context ?? [];
+        $contextBodyValues = $context['body_values'] ?? null;
+
+        if (is_array($contextBodyValues) && $contextBodyValues !== []) {
+            return array_values(array_map(
+                fn (mixed $value): string => trim((string) $value),
+                $contextBodyValues,
+            ));
+        }
+
+        if ($configuredBodyParameters === []) {
+            return [];
+        }
+
+        return array_values(array_map(
+            fn (mixed $value): string => is_scalar($value) ? trim((string) $value) : '',
+            $configuredBodyParameters,
+        ));
     }
 
     private function callbackData(WhatsAppTemplateDispatch $dispatch): string

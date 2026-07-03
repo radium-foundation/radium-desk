@@ -174,6 +174,7 @@ class OperationsDashboardTest extends TestCase
             'ready_for_dispatch' => 'ready_for_dispatch',
             'refund_update' => 'refund_update',
             'amc_reminder' => 'amc_reminder',
+            'support_appointment_booked' => 'support_appointment_booked',
         ] as $templateKey => $templateName) {
             config([
                 'interakt.templates.'.$templateKey.'.name' => $templateName,
@@ -186,7 +187,7 @@ class OperationsDashboardTest extends TestCase
             ->get(route('admin.operations.index'))
             ->assertOk()
             ->assertSee('Interakt Template Configuration', false)
-            ->assertSee('6 / 6 templates configured', false);
+            ->assertSee('7 / 7 templates configured', false);
     }
 
     public function test_operations_dashboard_shows_meta_flow_integration_card(): void

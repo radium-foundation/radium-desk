@@ -2,6 +2,7 @@
 
 namespace App\Services\Interakt;
 
+use App\Enums\SupportAppointmentBookingSource;
 use App\Models\InteraktWebhookLog;
 use App\Services\Interakt\Exceptions\InteraktFlowWebhookProcessingException;
 use App\Services\Interakt\Exceptions\WhatsAppFlowTokenException;
@@ -50,6 +51,7 @@ class InteraktFlowWebhookProcessorService
                 $this->appointmentService->book(
                     incident: $incident,
                     data: $this->payloadParser->bookingData($responseJson),
+                    bookingSource: SupportAppointmentBookingSource::WhatsAppFlow,
                 );
 
                 $this->markProcessed($webhookLog);

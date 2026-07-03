@@ -20,7 +20,8 @@ class WhatsAppChannel implements NotificationChannel
     public function supports(NotificationType $type): bool
     {
         return match ($type) {
-            NotificationType::RequestSerialNumber => true,
+            NotificationType::RequestSerialNumber,
+            NotificationType::SupportAppointmentBooked => true,
         };
     }
 
@@ -65,6 +66,7 @@ class WhatsAppChannel implements NotificationChannel
     {
         return match ($type) {
             NotificationType::RequestSerialNumber => WhatsAppTemplate::RequestSerialNumber,
+            NotificationType::SupportAppointmentBooked => WhatsAppTemplate::SupportAppointmentBooked,
         };
     }
 

@@ -41,6 +41,10 @@ class InteraktTemplateConfigurationValidator
             'name' => 'INTERAKT_TEMPLATE_AMC_REMINDER',
             'language' => 'INTERAKT_TEMPLATE_AMC_REMINDER_LANGUAGE',
         ],
+        'support_appointment_booked' => [
+            'name' => 'INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED',
+            'language' => 'INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED_LANGUAGE',
+        ],
     ];
 
     /**

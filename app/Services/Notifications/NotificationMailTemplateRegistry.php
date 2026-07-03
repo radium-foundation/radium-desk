@@ -21,6 +21,11 @@ class NotificationMailTemplateRegistry
                 view: 'emails.notifications.request-serial-number',
                 requiredVariables: ['customer_name', 'booking_url'],
             ),
+            NotificationType::SupportAppointmentBooked => new NotificationMailTemplateDefinition(
+                subject: 'Your Support Appointment Is Confirmed',
+                view: 'emails.notifications.support-appointment-booked',
+                requiredVariables: ['customer_name', 'order_id', 'preferred_date', 'preferred_time_slot'],
+            ),
         };
     }
 
@@ -33,6 +38,12 @@ class NotificationMailTemplateRegistry
             NotificationType::RequestSerialNumber => [
                 'customer_name' => $this->resolveCustomerName($message),
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
+            ],
+            NotificationType::SupportAppointmentBooked => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'order_id' => (string) ($message->variables['order_id'] ?? ''),
+                'preferred_date' => (string) ($message->variables['preferred_date'] ?? ''),
+                'preferred_time_slot' => (string) ($message->variables['preferred_time_slot'] ?? ''),
             ],
         };
 

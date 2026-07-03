@@ -10,6 +10,7 @@ enum WhatsAppTemplate: string
     case ReadyForDispatch = 'ready_for_dispatch';
     case RefundUpdate = 'refund_update';
     case AmcReminder = 'amc_reminder';
+    case SupportAppointmentBooked = 'support_appointment_booked';
 
     public function purposeLabel(): string
     {
@@ -20,6 +21,7 @@ enum WhatsAppTemplate: string
             self::ReadyForDispatch => 'Ready for Dispatch',
             self::RefundUpdate => 'Refund Update',
             self::AmcReminder => 'AMC Reminder',
+            self::SupportAppointmentBooked => 'Support Appointment Booked',
         };
     }
 }

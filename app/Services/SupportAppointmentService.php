@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SupportAppointmentBookingSource;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
@@ -29,14 +30,21 @@ class SupportAppointmentService
     /**
      * @param  array<string, mixed>  $data
      */
-    public function book(Incident $incident, array $data): SupportAppointment
-    {
+    public function book(
+        Incident $incident,
+        array $data,
+        SupportAppointmentBookingSource $bookingSource = SupportAppointmentBookingSource::Web,
+    ): SupportAppointment {
         $validated = $this->validateBookingData($data);
 
-        return SupportAppointment::query()->create([
+        $appointment = SupportAppointment::query()->create([
             'incident_id' => $incident->id,
             ...$validated,
         ]);
+
+        app(SupportAppointmentConfirmationNotificationService::class)->send($appointment, $bookingSource);
+
+        return $appointment;
     }
 
     public function confirm(SupportAppointment $appointment): SupportAppointment
