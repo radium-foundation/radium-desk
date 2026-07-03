@@ -6,6 +6,7 @@ use App\Enums\SupportAppointmentTimeSlot;
 use App\Http\Requests\StoreSupportAppointmentRequest;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
+use App\Services\SupportAppointmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
@@ -13,6 +14,10 @@ use Illuminate\View\View;
 
 class SupportAppointmentController extends Controller
 {
+    public function __construct(
+        private readonly SupportAppointmentService $supportAppointmentService,
+    ) {}
+
     public function create(Request $request, Incident $incident): View
     {
         $incident->loadMissing('order');
@@ -31,10 +36,7 @@ class SupportAppointmentController extends Controller
 
     public function store(StoreSupportAppointmentRequest $request, Incident $incident): RedirectResponse
     {
-        $appointment = SupportAppointment::query()->create([
-            'incident_id' => $incident->id,
-            ...$request->validated(),
-        ]);
+        $appointment = $this->supportAppointmentService->book($incident, $request->validated());
 
         return redirect()->to(
             URL::temporarySignedRoute(

@@ -2,9 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\SupportAppointmentTimeSlot;
+use App\Services\SupportAppointmentService;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreSupportAppointmentRequest extends FormRequest
 {
@@ -18,12 +17,7 @@ class StoreSupportAppointmentRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'preferred_date' => ['required', 'date', 'after_or_equal:today'],
-            'preferred_time_slot' => ['required', Rule::enum(SupportAppointmentTimeSlot::class)],
-            'phone_number' => ['required', 'string', 'max:20', 'regex:/^[0-9+\-\s()]{7,20}$/'],
-            'additional_notes' => ['nullable', 'string', 'max:2000'],
-        ];
+        return app(SupportAppointmentService::class)->bookingValidationRules();
     }
 
     /**
