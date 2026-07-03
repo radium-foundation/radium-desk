@@ -219,8 +219,7 @@ class IncidentWaitingStateTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertDontSee('data-customer-360-section="waiting-state"', false)
-            ->assertDontSee('Waiting for Customer', false);
+            ->assertDontSee('data-customer-360-section="waiting-state"', false);
     }
 
     public function test_sla_status_returns_paused_when_active_waiting_state_pauses_sla(): void
@@ -370,7 +369,7 @@ class IncidentWaitingStateTest extends TestCase
 
         $response->assertOk()
             ->assertSee('data-customer-360-section="waiting-state"', false)
-            ->assertDontSee('Next Action', false);
+            ->assertDontSee('<dt>Next Action</dt>', false);
     }
 
     /**

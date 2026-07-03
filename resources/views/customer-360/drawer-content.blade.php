@@ -68,9 +68,12 @@
          class="customer-360-tab-pane d-none"
          role="tabpanel"
          data-customer-360-tab-pane="timeline">
-        @include('customer-360.partials.timeline', [
-            'timeline' => $timeline,
-            'timelineLoadMoreUrl' => $timelineLoadMoreUrl ?? null,
+        @include('customer-360.partials.operations-health', ['health' => $operationsHealth ?? []])
+        @include('customer-360.partials.sla-metrics', ['slaMetrics' => $slaMetrics ?? null])
+        @include('customer-360.partials.timeline-section', [
+            'viewModel' => $timeline,
+            'loadMoreUrl' => $timelineLoadMoreUrl ?? null,
+            'timelineRefreshUrl' => $timelineRefreshUrl ?? ($timelineLoadMoreUrl ?? null),
         ])
     </div>
 

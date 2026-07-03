@@ -7,7 +7,11 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Services\AutomationIdentityService;
 use App\Services\OrderActivityTimelineService;
+use App\Services\Timeline\Sources\AppointmentTimelineEventSource;
+use App\Services\Timeline\Sources\NotificationTimelineEventSource;
 use App\Services\Timeline\Sources\OrderCustomerTimelineSource;
+use App\Services\Timeline\Sources\RadiumBoxSyncTimelineEventSource;
+use App\Services\Timeline\Sources\ServiceCaseLifecycleTimelineEventSource;
 use App\Services\Timeline\Sources\WhatsAppTemplateDispatchTimelineSource;
 use App\Services\Timeline\Sources\WhatsAppTimelineEventSource;
 
@@ -55,6 +59,18 @@ class Customer360TimelineService
                 new WhatsAppTemplateDispatchTimelineSource(
                     order: $order,
                 ),
+                app()->makeWith(NotificationTimelineEventSource::class, [
+                    'order' => $order,
+                ]),
+                app()->makeWith(RadiumBoxSyncTimelineEventSource::class, [
+                    'order' => $order,
+                ]),
+                app()->makeWith(AppointmentTimelineEventSource::class, [
+                    'order' => $order,
+                ]),
+                app()->makeWith(ServiceCaseLifecycleTimelineEventSource::class, [
+                    'order' => $order,
+                ]),
             ],
             offset: $offset,
             limit: $pageSize,

@@ -19,6 +19,9 @@ enum TimelineEventType: string
     case Replacement = 'replacement';
     case Automation = 'automation';
     case AiSummary = 'ai_summary';
+    case Synchronization = 'synchronization';
+    case Appointment = 'appointment';
+    case Notification = 'notification';
 
     public function label(): string
     {
@@ -36,6 +39,9 @@ enum TimelineEventType: string
             self::Replacement => 'Replacement',
             self::Automation => 'Automation',
             self::AiSummary => 'IRA AI Analysis',
+            self::Synchronization => 'Synchronization',
+            self::Appointment => 'Appointment',
+            self::Notification => 'Notification',
         };
     }
 
@@ -49,12 +55,15 @@ enum TimelineEventType: string
             self::AuditEvent => 'bi-journal-text',
             self::WhatsApp,
             self::WhatsAppTemplateSent => 'bi-whatsapp',
-            self::Email => 'bi-envelope',
+            self::Email,
+            self::Notification => 'bi-envelope',
             self::IvrCall => 'bi-telephone',
             self::Dispatch => 'bi-truck',
             self::Replacement => 'bi-arrow-repeat',
             self::Automation => 'bi-robot',
             self::AiSummary => 'bi-stars',
+            self::Synchronization => 'bi-arrow-repeat',
+            self::Appointment => 'bi-calendar-check',
         };
     }
 
@@ -67,7 +76,12 @@ enum TimelineEventType: string
             self::InternalNote,
             self::AuditEvent,
             self::WhatsApp,
-            self::WhatsAppTemplateSent => true,
+            self::WhatsAppTemplateSent,
+            self::Email,
+            self::Notification,
+            self::Synchronization,
+            self::Appointment,
+            self::Automation => true,
             default => false,
         };
     }
@@ -76,13 +90,18 @@ enum TimelineEventType: string
     {
         return match ($this) {
             self::WhatsApp,
-            self::WhatsAppTemplateSent => 'whatsapp',
+            self::WhatsAppTemplateSent => 'notifications',
+            self::Email,
+            self::Notification => 'notifications',
             self::Payment => 'payments',
-            self::ServiceCaseCreated => 'repairs',
-            self::InternalNote => 'notes',
-            self::Assignment => 'assignments',
-            self::AuditEvent => 'audit',
-            default => 'audit',
+            self::ServiceCaseCreated,
+            self::Assignment,
+            self::InternalNote => 'support',
+            self::Synchronization => 'synchronization',
+            self::Appointment => 'appointments',
+            self::Automation => 'system',
+            self::AuditEvent => 'support',
+            default => 'system',
         };
     }
 }

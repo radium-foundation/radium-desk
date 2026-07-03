@@ -2,6 +2,7 @@
 
 namespace App\Services\RadiumBox;
 
+use App\Data\RadiumBox\RadiumBoxBatchRecoveryResult;
 use App\Data\RadiumBox\RadiumBoxSyncRecoveryResult;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Models\Order;
@@ -83,6 +84,60 @@ class RadiumBoxSyncRecoveryService
 
         return new RadiumBoxSyncRecoveryResult(
             scanned: $scanned,
+            recovered: $recovered,
+            skipped: $skipped,
+            recoveredOrderIds: $recoveredOrderIds,
+            skippedOrderIds: $skippedOrderIds,
+        );
+    }
+
+    /**
+     * @param  list<int>  $orderIds
+     */
+    public function recoverOrders(array $orderIds): RadiumBoxBatchRecoveryResult
+    {
+        $recovered = 0;
+        $skipped = 0;
+        $recoveredOrderIds = [];
+        $skippedOrderIds = [];
+
+        if ($orderIds === []) {
+            return new RadiumBoxBatchRecoveryResult(
+                requested: 0,
+                recovered: 0,
+                skipped: 0,
+            );
+        }
+
+        $orders = Order::query()
+            ->whereIn('id', $orderIds)
+            ->get();
+
+        foreach ($orders as $order) {
+            if (! $this->isSafeToRecover($order)) {
+                $skipped++;
+                $skippedOrderIds[] = $order->id;
+
+                continue;
+            }
+
+            $previousStatus = $this->syncStore->status($order->id)->value;
+            $this->enrichmentService->retryOrderEnrichment($order);
+            $this->syncAuditService->recordSchedulerRecovery($order, $previousStatus);
+
+            Log::info('RadiumBox batch recovery dispatched.', [
+                'order_id' => $order->order_id,
+                'order_db_id' => $order->id,
+                'previous_sync_status' => $previousStatus,
+                'sync_source' => 'scheduler',
+            ]);
+
+            $recovered++;
+            $recoveredOrderIds[] = $order->id;
+        }
+
+        return new RadiumBoxBatchRecoveryResult(
+            requested: count($orderIds),
             recovered: $recovered,
             skipped: $skipped,
             recoveredOrderIds: $recoveredOrderIds,

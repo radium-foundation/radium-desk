@@ -54,6 +54,7 @@ const copyTextToClipboard = async (text) => {
 
 const COPY_SUCCESS_MS = 1500;
 const DEVICE_SYNC_POLL_MS = 10000;
+const TIMELINE_POLL_MS = 30000;
 
 const showInlineCopySuccess = (button) => {
     const icon = button.querySelector('[data-customer-360-copy-icon]');
@@ -124,6 +125,16 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     let fetchController = null;
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
+    let timelinePollTimer = null;
+
+    const stopTimelinePolling = () => {
+        if (timelinePollTimer === null) {
+            return;
+        }
+
+        clearInterval(timelinePollTimer);
+        timelinePollTimer = null;
+    };
 
     const stopDeviceSyncPolling = () => {
         if (devicePollTimer === null) {
@@ -201,6 +212,52 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         devicePollTimer = setInterval(() => {
             refreshDeviceSection(refreshUrl);
         }, DEVICE_SYNC_POLL_MS);
+    };
+
+    const refreshTimelineSection = async (refreshUrl) => {
+        if (!refreshUrl) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`${refreshUrl}?offset=0`, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                logCustomer360Failure(refreshUrl, response.status, 'timeline-refresh');
+
+                return;
+            }
+
+            const payload = await response.json();
+            const section = contentHost.querySelector('[data-customer-360-timeline-section]');
+
+            if (section && payload.html) {
+                section.outerHTML = payload.html;
+                initUnifiedTimeline(contentHost);
+            }
+        } catch (error) {
+            logCustomer360Failure(refreshUrl, null, 'timeline-refresh', error);
+        }
+    };
+
+    const configureTimelinePolling = () => {
+        stopTimelinePolling();
+
+        const section = contentHost.querySelector('[data-customer-360-timeline-section]');
+        const refreshUrl = section?.dataset.timelineRefreshUrl?.trim() ?? '';
+
+        if (refreshUrl === '') {
+            return;
+        }
+
+        timelinePollTimer = setInterval(() => {
+            refreshTimelineSection(refreshUrl);
+        }, TIMELINE_POLL_MS);
     };
 
     const setLoading = (isLoading) => {
@@ -710,6 +767,11 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
                     if (payload.device_html) {
                         replaceDeviceSection(payload.device_html);
+                        const timelineSection = contentHost.querySelector('[data-customer-360-timeline-section]');
+
+                        if (timelineSection?.dataset.timelineRefreshUrl) {
+                            await refreshTimelineSection(timelineSection.dataset.timelineRefreshUrl);
+                        }
                     } else if (payload.html) {
                         contentHost.innerHTML = payload.html;
                         finalizeDrawerContent();
@@ -745,7 +807,9 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             bindWorkbenchActions();
             syncTabState();
             initUnifiedTimeline(contentHost);
+            initUnifiedTimeline(contentHost);
             configureDeviceSyncPolling();
+            configureTimelinePolling();
         } catch (error) {
             logCustomer360Failure(null, null, 'drawer-init', error);
         }

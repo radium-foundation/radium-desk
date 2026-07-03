@@ -29,11 +29,36 @@ readonly class TimelineEvent
         public array $summaryFields = [],
         public ?string $actionLabel = null,
         public ?string $actionUrl = null,
+        /** @var list<string> */
+        public array $filterTags = [],
     ) {}
 
     public function filterCategory(): string
     {
         return $this->type->filterCategory();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function allFilterTags(): array
+    {
+        $tags = array_values(array_unique(array_filter([
+            $this->filterCategory(),
+            $this->actor->actorFilterTag(),
+            ...$this->filterTags,
+        ])));
+
+        return $tags;
+    }
+
+    public function matchesFilter(string $filterKey): bool
+    {
+        if ($filterKey === 'all') {
+            return true;
+        }
+
+        return in_array($filterKey, $this->allFilterTags(), true);
     }
 
     public function iconClass(): string

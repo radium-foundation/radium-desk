@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\RadiumBoxBatchRecoveryRequest;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Operations\OperationsDashboardService;
+use App\Services\RadiumBox\RadiumBoxSyncRecoveryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -13,6 +15,7 @@ class OperationsDashboardController extends Controller
     public function __construct(
         private readonly OperationsDashboardService $dashboardService,
         private readonly OperationsAdvisorService $advisorService,
+        private readonly RadiumBoxSyncRecoveryService $radiumBoxRecoveryService,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless($request->user()?->can('operations-dashboard.view'), 403);
@@ -63,6 +66,32 @@ class OperationsDashboardController extends Controller
                 ])->render(),
                 'recent_automation_activity' => view('admin.operations.partials.recent-automation-activity', [
                     'activities' => $dashboard->recentAutomationActivity,
+                ])->render(),
+            ],
+        ]);
+    }
+
+    public function batchRecoverRadiumBox(RadiumBoxBatchRecoveryRequest $request): JsonResponse
+    {
+        $orderIds = array_map('intval', $request->validated('order_ids'));
+        $result = $this->radiumBoxRecoveryService->recoverOrders($orderIds);
+        $dashboard = $this->dashboardService->dashboardData(useCache: false);
+
+        return response()->json([
+            'success' => true,
+            'message' => sprintf(
+                'Recovery dispatched for %d order(s). %d skipped.',
+                $result->recovered,
+                $result->skipped,
+            ),
+            'result' => [
+                'requested' => $result->requested,
+                'recovered' => $result->recovered,
+                'skipped' => $result->skipped,
+            ],
+            'html' => [
+                'radiumbox_health' => view('admin.operations.partials.radiumbox-health', [
+                    'health' => $dashboard->radiumBoxHealth,
                 ])->render(),
             ],
         ]);

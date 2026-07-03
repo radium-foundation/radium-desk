@@ -4500,6 +4500,48 @@ a:focus-visible .stat-card {
     font-weight: 600;
 }
 
+.customer-360-operations-health-grid,
+.customer-360-sla-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+}
+
+.customer-360-ops-health-card,
+.customer-360-sla-metric-card {
+    padding: 0.75rem;
+    border: 1px solid var(--dashboard-color-border, rgba(0, 0, 0, 0.08));
+    border-radius: 0.5rem;
+    background: var(--dashboard-color-surface, #fff);
+}
+
+.customer-360-ops-health-label,
+.customer-360-sla-metric-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--dashboard-color-muted);
+    margin-bottom: 0.25rem;
+}
+
+.customer-360-ops-health-value {
+    display: block;
+    font-size: 0.9375rem;
+}
+
+.customer-360-ops-health-detail,
+.customer-360-sla-metric-values {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--dashboard-color-muted);
+    margin-top: 0.25rem;
+}
+
+.customer-360-sla-metric-values {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
 .customer-360-copyable-value {
     display: inline-flex;
     align-items: center;

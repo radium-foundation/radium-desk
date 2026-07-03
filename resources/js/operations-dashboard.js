@@ -54,6 +54,8 @@ const refreshOperationsDashboard = async (pageRoot) => {
         replaceSectionHtml('operations-recent-notification-failures', html.recent_notification_failures);
         replaceSectionHtml('operations-recent-automation-activity', html.recent_automation_activity);
 
+        bindBatchRecoveryForms(pageRoot);
+
         const generatedAtElement = document.getElementById('operations-dashboard-generated-at');
 
         if (generatedAtElement && payload.generated_at) {
@@ -76,12 +78,72 @@ const startPolling = (pageRoot, intervalMs) => {
     }, intervalMs);
 };
 
+const bindBatchRecoveryForms = (pageRoot) => {
+    pageRoot.querySelectorAll('[data-radiumbox-batch-recovery-form]').forEach((form) => {
+        if (form.dataset.batchRecoveryBound === 'true') {
+            return;
+        }
+
+        form.dataset.batchRecoveryBound = 'true';
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const recoveryUrl = form.dataset.batchRecoveryUrl?.trim() ?? '';
+            const selectedIds = Array.from(form.querySelectorAll('[data-radiumbox-batch-order]:checked'))
+                .map((input) => Number.parseInt(input.value, 10))
+                .filter((value) => !Number.isNaN(value));
+
+            if (recoveryUrl === '' || selectedIds.length === 0) {
+                return;
+            }
+
+            const button = form.querySelector('[data-radiumbox-batch-recover-btn]');
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            if (button instanceof HTMLButtonElement) {
+                button.disabled = true;
+            }
+
+            try {
+                const response = await fetch(recoveryUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                    },
+                    body: JSON.stringify({ order_ids: selectedIds }),
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const payload = await response.json();
+
+                if (payload.html?.radiumbox_health) {
+                    replaceSectionHtml('operations-radiumbox-health', payload.html.radiumbox_health);
+                    bindBatchRecoveryForms(pageRoot);
+                }
+            } finally {
+                if (button instanceof HTMLButtonElement) {
+                    button.disabled = false;
+                }
+            }
+        });
+    });
+};
+
 const initOperationsDashboard = () => {
     const pageRoot = document.getElementById('operations-dashboard-root');
 
     if (!pageRoot) {
         return;
     }
+
+    bindBatchRecoveryForms(pageRoot);
 
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
     startPolling(pageRoot, intervalMs);

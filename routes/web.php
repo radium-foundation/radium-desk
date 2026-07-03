@@ -146,6 +146,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.operations.index');
     Route::get('/admin/operations/live', [OperationsDashboardController::class, 'live'])
         ->name('admin.operations.live');
+    Route::post('/admin/operations/radiumbox/batch-recover', [OperationsDashboardController::class, 'batchRecoverRadiumBox'])
+        ->name('admin.operations.radiumbox.batch-recover');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');

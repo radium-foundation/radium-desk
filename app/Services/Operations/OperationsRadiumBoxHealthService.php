@@ -100,6 +100,7 @@ class OperationsRadiumBoxHealthService
             ->limit(5)
             ->get(['id', 'order_id'])
             ->map(fn (Order $order): array => [
+                'id' => $order->id,
                 'order_id' => $order->order_id,
                 'url' => route('orders.show', $order),
             ])

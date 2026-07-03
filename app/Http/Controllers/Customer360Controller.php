@@ -10,7 +10,6 @@ use App\Services\AI\AIWorkbenchAuditService;
 use App\Services\AI\IRAExecutiveSummaryTranslationService;
 use App\Services\Customer360Service;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
-use App\Services\Timeline\Customer360TimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,7 +18,6 @@ class Customer360Controller extends Controller
 {
     public function __construct(
         private readonly Customer360Service $customer360Service,
-        private readonly Customer360TimelineService $customer360TimelineService,
         private readonly AIWorkbenchAuditService $workbenchAuditService,
         private readonly IRAExecutiveSummaryTranslationService $executiveSummaryTranslationService,
         private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
@@ -166,15 +164,23 @@ class Customer360Controller extends Controller
         );
     }
 
-    public function timeline(Incident $incident, Request $request): Response
+    public function timeline(Incident $incident, Request $request): Response|JsonResponse
     {
         $this->authorize('view', $incident);
 
         $offset = max(0, (int) $request->query('offset', 0));
-        $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
+        $payload = $this->customer360Service->timelinePayload($incident, $offset);
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'html' => $payload['html'],
+                'has_more' => $payload['timeline']->hasMore,
+                'loaded_count' => $payload['timeline']->loadedCount,
+            ]);
+        }
 
         $html = view('customer-360.partials.timeline-page', [
-            'viewModel' => $viewModel,
+            'viewModel' => $payload['timeline'],
             'loadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
         ])->render();
 

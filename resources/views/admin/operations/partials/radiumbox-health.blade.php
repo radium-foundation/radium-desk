@@ -72,11 +72,25 @@
                     </div>
                     <div class="col-md-6">
                         <h3 class="h6">Failed Orders</h3>
-                        @forelse($health['failed_orders'] ?? [] as $order)
-                            <div><a href="{{ $order['url'] }}" class="small">{{ $order['order_id'] }}</a></div>
-                        @empty
-                            <p class="text-muted small mb-0">No failed synchronizations.</p>
-                        @endforelse
+                        <form data-radiumbox-batch-recovery-form
+                              data-batch-recovery-url="{{ route('admin.operations.radiumbox.batch-recover') }}">
+                            @forelse($health['failed_orders'] ?? [] as $order)
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <input type="checkbox"
+                                           name="order_ids[]"
+                                           value="{{ $order['id'] }}"
+                                           data-radiumbox-batch-order>
+                                    <a href="{{ $order['url'] }}" class="small">{{ $order['order_id'] }}</a>
+                                </div>
+                            @empty
+                                <p class="text-muted small mb-0">No failed synchronizations.</p>
+                            @endforelse
+                            @if(count($health['failed_orders'] ?? []) > 0)
+                                <button type="submit" class="btn btn-sm btn-outline-primary mt-2" data-radiumbox-batch-recover-btn>
+                                    Retry Selected
+                                </button>
+                            @endif
+                        </form>
                     </div>
                 </div>
             @endif

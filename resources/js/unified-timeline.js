@@ -1,11 +1,12 @@
 export const TIMELINE_FILTER_EMPTY_MESSAGES = {
     all: 'No customer activity recorded yet.',
-    whatsapp: 'No WhatsApp activity',
-    payments: 'No Payments',
-    repairs: 'No Repairs',
-    notes: 'No Notes',
-    assignments: 'No Assignments',
-    audit: 'No Audit Events',
+    system: 'No system events',
+    customer: 'No customer events',
+    support: 'No support events',
+    notifications: 'No notification events',
+    synchronization: 'No synchronization events',
+    appointments: 'No appointment events',
+    payments: 'No payment events',
 };
 
 const parseFilterEmptyMessages = (timeline) => {
@@ -30,8 +31,11 @@ export const applyTimelineFilter = (timeline, filterKey, emptyMessages) => {
     let visibleCount = 0;
 
     events.forEach((eventNode) => {
-        const eventFilter = eventNode.dataset.timelineFilter ?? '';
-        const isVisible = filterKey === 'all' || eventFilter === filterKey;
+        const filterTags = (eventNode.dataset.timelineFilter ?? '')
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter((tag) => tag !== '');
+        const isVisible = filterKey === 'all' || filterTags.includes(filterKey);
 
         eventNode.classList.toggle('is-filter-hidden', !isVisible);
         eventNode.hidden = !isVisible;

@@ -20,7 +20,7 @@
     ])
          role="listitem"
          data-timeline-event
-         data-timeline-filter="{{ $event->filterCategory() }}">
+         data-timeline-filter="{{ implode(',', $event->allFilterTags()) }}">
     <div class="unified-timeline-item-header">
         <div class="unified-timeline-icon unified-timeline-icon--{{ $event->type->value }}" aria-hidden="true">
             <i class="bi {{ $event->iconClass() }}"></i>

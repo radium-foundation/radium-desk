@@ -11,7 +11,7 @@ describe('unified timeline filters', () => {
             <div data-unified-timeline>
                 <div data-timeline-filters>
                     <button type="button" data-timeline-filter-chip="all" class="is-active">All</button>
-                    <button type="button" data-timeline-filter-chip="whatsapp">WhatsApp</button>
+                    <button type="button" data-timeline-filter-chip="notifications">Notifications</button>
                     <button type="button" data-timeline-filter-chip="payments">Payments</button>
                 </div>
                 <div data-timeline-filter-empty hidden class="d-none"></div>
@@ -19,8 +19,8 @@ describe('unified timeline filters', () => {
                 <div data-timeline-list>
                     <section data-timeline-group="today">
                         <div class="unified-timeline-group-items">
-                            <article data-timeline-event data-timeline-filter="whatsapp"></article>
-                            <article data-timeline-event data-timeline-filter="payments"></article>
+                            <article data-timeline-event data-timeline-filter="notifications,system"></article>
+                            <article data-timeline-event data-timeline-filter="payments,support"></article>
                         </div>
                     </section>
                 </div>
@@ -34,7 +34,7 @@ describe('unified timeline filters', () => {
     it('hides non-matching events for a selected filter', () => {
         const timeline = setupTimeline();
 
-        applyTimelineFilter(timeline, 'whatsapp', TIMELINE_FILTER_EMPTY_MESSAGES);
+        applyTimelineFilter(timeline, 'notifications', TIMELINE_FILTER_EMPTY_MESSAGES);
 
         const events = timeline.querySelectorAll('[data-timeline-event]');
         expect(events[0].hidden).toBe(false);
@@ -45,10 +45,10 @@ describe('unified timeline filters', () => {
         const timeline = setupTimeline();
         const emptyState = timeline.querySelector('[data-timeline-filter-empty]');
 
-        applyTimelineFilter(timeline, 'notes', TIMELINE_FILTER_EMPTY_MESSAGES);
+        applyTimelineFilter(timeline, 'customer', TIMELINE_FILTER_EMPTY_MESSAGES);
 
         expect(emptyState.hidden).toBe(false);
-        expect(emptyState.textContent).toBe('No Notes');
+        expect(emptyState.textContent).toBe('No customer events');
         expect(timeline.querySelector('[data-timeline-list]').hidden).toBe(true);
     });
 

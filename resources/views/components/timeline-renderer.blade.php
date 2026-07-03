@@ -13,12 +13,13 @@
     /** @var \App\Data\TimelineViewModel $viewModel */
     $filterEmptyMessages = [
         'all' => $emptyMessage,
-        'whatsapp' => 'No WhatsApp activity',
-        'payments' => 'No Payments',
-        'repairs' => 'No Repairs',
-        'notes' => 'No Notes',
-        'assignments' => 'No Assignments',
-        'audit' => 'No Audit Events',
+        'system' => 'No system events',
+        'customer' => 'No customer events',
+        'support' => 'No support events',
+        'notifications' => 'No notification events',
+        'synchronization' => 'No synchronization events',
+        'appointments' => 'No appointment events',
+        'payments' => 'No payment events',
     ];
 @endphp
 
@@ -39,12 +40,13 @@
         <div class="unified-timeline-filters" role="toolbar" aria-label="Timeline filters" data-timeline-filters>
             @foreach([
                 'all' => 'All',
-                'whatsapp' => 'WhatsApp',
+                'system' => 'System',
+                'customer' => 'Customer',
+                'support' => 'Support',
+                'notifications' => 'Notifications',
+                'synchronization' => 'Synchronization',
+                'appointments' => 'Appointments',
                 'payments' => 'Payments',
-                'repairs' => 'Repairs',
-                'notes' => 'Notes',
-                'assignments' => 'Assignments',
-                'audit' => 'Audit',
             ] as $filterKey => $filterLabel)
                 <button type="button"
                         @class([

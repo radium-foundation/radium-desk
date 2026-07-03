@@ -13,6 +13,8 @@ use App\Services\AI\AIService;
 use App\Services\AI\AIWorkbenchService;
 use App\Services\AI\CustomerScopeQueryCache;
 use App\Services\AI\IRAExecutiveSummaryService;
+use App\Services\Customer360\Customer360OperationsHealthService;
+use App\Services\Customer360\Customer360SlaMetricsService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -37,6 +39,8 @@ class Customer360Service
         private readonly OperationsAdvisorService $operationsAdvisorService,
         private readonly AIWorkbenchService $aiWorkbenchService,
         private readonly IRAExecutiveSummaryService $executiveSummaryService,
+        private readonly Customer360OperationsHealthService $operationsHealthService,
+        private readonly Customer360SlaMetricsService $slaMetricsService,
     ) {}
 
     /**
@@ -84,6 +88,9 @@ class Customer360Service
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary, $timeline),
             'timeline' => $timeline,
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
+            'timelineRefreshUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
+            'operationsHealth' => $this->operationsHealthService->forOrder($order),
+            'slaMetrics' => $this->slaMetricsService->forOrder($order),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
             'waitingStateCard' => $waitingStateCard,
             'supportAppointments' => $incident->supportAppointments,
@@ -105,6 +112,23 @@ class Customer360Service
         $bundle = $this->aiService->buildBundle($incident);
 
         return $this->aiWorkbenchService->buildFromBundle($incident, $bundle);
+    }
+
+    /**
+     * @return array{timeline: \App\Data\TimelineViewModel, html: string}
+     */
+    public function timelinePayload(Incident $incident, int $offset = 0): array
+    {
+        $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
+
+        return [
+            'timeline' => $viewModel,
+            'html' => view('customer-360.partials.timeline-section', [
+                'viewModel' => $viewModel,
+                'loadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
+                'timelineRefreshUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
+            ])->render(),
+        ];
     }
 
     /**
