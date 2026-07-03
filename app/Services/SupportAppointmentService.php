@@ -7,10 +7,12 @@ use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use LogicException;
+use Throwable;
 
 class SupportAppointmentService
 {
@@ -42,7 +44,17 @@ class SupportAppointmentService
             ...$validated,
         ]);
 
-        app(SupportAppointmentConfirmationNotificationService::class)->send($appointment, $bookingSource);
+        try {
+            app(SupportAppointmentConfirmationNotificationService::class)->send($appointment, $bookingSource);
+        } catch (Throwable $exception) {
+            Log::error('support_appointment.book.confirmation_unhandled', [
+                'appointment_id' => $appointment->id,
+                'incident_id' => $incident->id,
+                'booking_source' => $bookingSource->value,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+        }
 
         return $appointment;
     }

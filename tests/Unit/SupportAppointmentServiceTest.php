@@ -10,11 +10,14 @@ use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\SupportAppointmentConfirmationNotificationService;
 use App\Services\SupportAppointmentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use LogicException;
+use RuntimeException;
 use Tests\TestCase;
 
 class SupportAppointmentServiceTest extends TestCase
@@ -89,6 +92,37 @@ class SupportAppointmentServiceTest extends TestCase
             'preferred_time_slot' => 'invalid-slot',
             'phone_number' => '9876543210',
         ]);
+    }
+
+    public function test_book_succeeds_when_confirmation_notification_throws(): void
+    {
+        Log::spy();
+
+        $this->mock(SupportAppointmentConfirmationNotificationService::class, function ($mock): void {
+            $mock->shouldReceive('send')
+                ->once()
+                ->andThrow(new RuntimeException('Confirmation service unavailable'));
+        });
+
+        $incident = $this->createIncident();
+
+        $appointment = app(SupportAppointmentService::class)->book($incident, [
+            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ]);
+
+        $this->assertInstanceOf(SupportAppointment::class, $appointment);
+        $this->assertDatabaseHas('support_appointments', [
+            'id' => $appointment->id,
+            'incident_id' => $incident->id,
+        ]);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->with('support_appointment.book.confirmation_unhandled', \Mockery::on(function (array $context): bool {
+                return ($context['message'] ?? '') === 'Confirmation service unavailable';
+            }));
     }
 
     public function test_unimplemented_lifecycle_methods_throw_logic_exception(): void

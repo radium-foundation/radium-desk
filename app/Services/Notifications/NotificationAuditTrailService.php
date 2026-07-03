@@ -6,6 +6,7 @@ use App\Data\NotificationDispatchResult;
 use App\Data\NotificationMessage;
 use App\Models\AuditLog;
 use App\Services\AuditLogService;
+use Throwable;
 
 class NotificationAuditTrailService
 {
@@ -14,6 +15,21 @@ class NotificationAuditTrailService
     public function __construct(
         private readonly AuditLogService $auditLogService,
     ) {}
+
+    public function recordUnhandledFailure(
+        NotificationMessage $message,
+        Throwable $exception,
+    ): AuditLog {
+        return $this->record(
+            message: $message,
+            dispatchResult: new NotificationDispatchResult(
+                success: false,
+                results: [],
+                message: 'Notification dispatch failed: '.$exception->getMessage(),
+            ),
+            channelRecords: [],
+        );
+    }
 
     /**
      * @param  array<int, array{

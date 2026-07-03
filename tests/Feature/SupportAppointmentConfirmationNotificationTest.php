@@ -14,12 +14,15 @@ use App\Models\WhatsAppTemplateDispatch;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\WhatsAppFlowService;
 use App\Services\Notifications\NotificationAuditTrailService;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Services\ServiceCaseActivityTimelineService;
 use App\Services\SystemSettingsService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use RuntimeException;
 use Tests\Support\InteractsWithInteraktWebhooks;
 use Tests\TestCase;
 
@@ -177,6 +180,121 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
             'event' => NotificationAuditTrailService::EVENT_DISPATCHED,
         ]);
         $this->assertSame(0, WhatsAppTemplateDispatch::query()->count());
+    }
+
+    public function test_web_booking_succeeds_when_whatsapp_template_is_not_configured(): void
+    {
+        config(['interakt.templates.support_appointment_booked.name' => '']);
+
+        $this->enableNotificationChannels([
+            'notifications.whatsapp.enabled' => true,
+            'notifications.email.enabled' => false,
+            'notifications.desktop.enabled' => false,
+            'notifications.telegram.enabled' => false,
+            'whatsapp.api_enabled' => true,
+            'email.api_enabled' => true,
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $this->bookViaWeb($incident);
+
+        $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertDatabaseHas('support_appointments', [
+            'incident_id' => $incident->id,
+        ]);
+
+        $auditLog = AuditLog::query()
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->first();
+
+        $this->assertNotNull($auditLog);
+        $this->assertSame('support_appointment_booked', $auditLog->new_values['notification_type'] ?? null);
+        $this->assertFalse($auditLog->new_values['aggregate_success'] ?? true);
+    }
+
+    public function test_web_booking_succeeds_when_confirmation_notification_throws(): void
+    {
+        Log::spy();
+
+        $this->mock(NotificationDispatcher::class, function ($mock): void {
+            $mock->shouldReceive('send')
+                ->once()
+                ->andThrow(new RuntimeException('Notification dispatch unavailable'));
+        });
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $this->bookViaWeb($incident);
+
+        $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertDatabaseHas('support_appointments', [
+            'incident_id' => $incident->id,
+        ]);
+
+        $auditLog = AuditLog::query()
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->first();
+
+        $this->assertNotNull($auditLog);
+        $this->assertFalse($auditLog->new_values['aggregate_success'] ?? true);
+        $this->assertStringContainsString(
+            'Notification dispatch unavailable',
+            (string) ($auditLog->new_values['aggregate_message'] ?? ''),
+        );
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->with('support_appointment.confirmation.failed', \Mockery::on(function (array $context): bool {
+                return ($context['message'] ?? '') === 'Notification dispatch unavailable';
+            }));
+    }
+
+    public function test_whatsapp_flow_booking_succeeds_when_confirmation_notification_fails(): void
+    {
+        config(['interakt.templates.support_appointment_booked.name' => '']);
+
+        $this->enableNotificationChannels([
+            'notifications.whatsapp.enabled' => true,
+            'notifications.email.enabled' => false,
+            'notifications.desktop.enabled' => false,
+            'notifications.telegram.enabled' => false,
+            'whatsapp.api_enabled' => true,
+            'email.api_enabled' => true,
+        ]);
+
+        [$incident, $flowToken] = $this->createIncidentWithFlowToken();
+
+        $payload = $this->officialFlowResponsePayload([
+            'flow_token' => $flowToken,
+            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ]);
+
+        $this->postSignedInteraktFlowWebhook($payload)
+            ->assertOk()
+            ->assertExactJson(['status' => 'ok']);
+
+        $this->assertDatabaseHas('support_appointments', [
+            'incident_id' => $incident->id,
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'event' => NotificationAuditTrailService::EVENT_DISPATCHED,
+        ]);
     }
 
     private function bookViaWeb(Incident $incident): void
