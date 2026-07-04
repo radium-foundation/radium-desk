@@ -66,9 +66,10 @@ copy_public() {
         "${SSH_USER}@${SSH_HOST}:${REMOTE_PUBLIC}/"
 }
 
-# Verify deployed HTML references the same hashed assets as public/build/manifest.json.
+# Verify deployed Vite build: manifest exists, all manifest assets are on disk,
+# and /login responds with at least one current manifest asset referenced.
 verify_vite_assets() {
-    local app_url manifest_remote html_assets manifest_assets
+    local app_url manifest_remote manifest_assets asset missing_count http_status html_assets overlap
 
     app_url="$(ssh_exec "grep '^APP_URL=' '$REMOTE_PROJECT/.env' 2>/dev/null | cut -d= -f2- | tr -d '\"'" || true)"
     app_url="${app_url%/}"
@@ -84,27 +85,54 @@ verify_vite_assets() {
         return 1
     fi
 
-    html_assets="$(ssh_exec "curl -s --max-time 30 '${app_url}/login' | grep -oE 'build/assets/[^\"]+\\.(css|js)' | sed 's|^build/||' | sort -u" || true)"
-    manifest_assets="$(ssh_exec "grep -oE 'assets/[^\"]+\\.(css|js)' '$manifest_remote' | sort -u" || true)"
-
-    if [[ -z "$html_assets" ]]; then
-        print_error "Could not extract Vite asset URLs from ${app_url}/login"
-        return 1
-    fi
+    manifest_assets="$(ssh_exec "grep -oE '\"file\": \"assets/[^\"]+\"' '$manifest_remote'" \
+        | sed -E 's/"file": "//;s/"$//' \
+        | sort -u \
+        || true)"
 
     if [[ -z "$manifest_assets" ]]; then
         print_error "Could not extract asset paths from ${manifest_remote}"
         return 1
     fi
 
-    if [[ "$html_assets" != "$manifest_assets" ]]; then
-        print_error "HTML asset URLs do not match Laravel manifest.json"
-        printf '  HTML:     %s\n' "$(echo "$html_assets" | tr '\n' ' ')" >&2
-        printf '  Manifest: %s\n' "$(echo "$manifest_assets" | tr '\n' ' ')" >&2
+    missing_count=0
+    while IFS= read -r asset; do
+        [[ -z "$asset" ]] && continue
+        if ! ssh_exec "test -f '${REMOTE_PUBLIC}/build/${asset}'"; then
+            print_error "Missing Vite asset on public_html: build/${asset}"
+            missing_count=$((missing_count + 1))
+        fi
+    done <<< "$manifest_assets"
+
+    if [[ "$missing_count" -gt 0 ]]; then
+        print_error "Vite asset verification failed (${missing_count} missing file(s) in ${REMOTE_PUBLIC}/build/)"
         return 1
     fi
 
-    print_success "Vite assets verified (HTML matches ${manifest_remote})"
+    print_success "Vite manifest assets verified on ${REMOTE_PUBLIC}/build/"
+
+    http_status="$(ssh_exec "curl -s -o /dev/null -w '%{http_code}' --max-time 30 '${app_url}/login'" || true)"
+    if [[ "$http_status" != "200" && "$http_status" != "302" ]]; then
+        print_error "Login page check failed (${app_url}/login, HTTP ${http_status:-unknown})"
+        return 1
+    fi
+
+    html_assets="$(ssh_exec "curl -s --max-time 30 '${app_url}/login' | grep -oE 'build/assets/[^\"]+' | sed 's|^build/||' | sort -u" || true)"
+    overlap=0
+    while IFS= read -r asset; do
+        [[ -z "$asset" ]] && continue
+        if echo "$html_assets" | grep -Fxq "$asset"; then
+            overlap=1
+            break
+        fi
+    done <<< "$manifest_assets"
+
+    if [[ "$overlap" -ne 1 ]]; then
+        print_error "Login page does not reference any current Vite manifest assets (${app_url}/login)"
+        return 1
+    fi
+
+    print_success "Login page smoke check passed (${app_url}/login, HTTP ${http_status})"
     return 0
 }
 

@@ -13,7 +13,7 @@
 #   3. Sync Vite build to public_html and Laravel public/build, then other public assets
 #   4. Clear and rebuild Laravel caches (after manifest is in place)
 #   5. Generate shared-hosting index.php and validate bootstrap paths
-#   6. Verify HTML asset URLs match manifest.json, then run health check
+#   6. Verify Vite manifest assets on disk, then run health check
 
 set -euo pipefail
 
