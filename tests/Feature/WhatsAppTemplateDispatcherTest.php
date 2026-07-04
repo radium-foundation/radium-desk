@@ -75,6 +75,12 @@ class WhatsAppTemplateDispatcherTest extends TestCase
             'assigned_to_user_id' => $agent->id,
         ]);
 
+        $this->enableNotificationChannels([
+            'notifications.whatsapp.enabled' => true,
+            'notifications.email.enabled' => false,
+            'whatsapp.api_enabled' => true,
+        ]);
+
         Http::fake([
             'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-template-001'], 200),
         ]);
@@ -121,11 +127,11 @@ class WhatsAppTemplateDispatcherTest extends TestCase
         ]);
     }
 
-    public function test_manual_request_serial_sends_order_confirm_template_variables_to_interakt(): void
+    public function test_manual_request_serial_sends_support_schedule_template_variables_to_interakt(): void
     {
         config([
-            'interakt.templates.request_serial_number.name' => 'order_confirm_manual_schedule',
-            'interakt.templates.request_serial_number.language_code' => 'en_US',
+            'interakt.templates.request_serial_number.name' => 'support_schedule',
+            'interakt.templates.request_serial_number.language_code' => 'en',
             'interakt.templates.request_serial_number.language_code_is_default' => false,
             'mail.enabled' => true,
             'mail.default' => 'array',
@@ -167,7 +173,7 @@ class WhatsAppTemplateDispatcherTest extends TestCase
         ]);
 
         Http::fake([
-            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-order-confirm-001'], 200),
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-support-schedule-001'], 200),
         ]);
 
         $this->actingAs($agent)->postJson(
@@ -177,12 +183,21 @@ class WhatsAppTemplateDispatcherTest extends TestCase
 
         Http::assertSent(function (\Illuminate\Http\Client\Request $request): bool {
             $payload = json_decode($request->body(), true);
+            $buttonToken = $payload['template']['buttonValues']['0'][0] ?? null;
 
-            return ($payload['template']['name'] ?? null) === 'order_confirm_manual_schedule'
-                && ($payload['template']['languageCode'] ?? null) === 'en_US'
-                && ($payload['template']['headerValues'] ?? null) === ['RD3437991']
-                && ($payload['template']['bodyValues'] ?? null) === ['Jane Doe', 'RD3437991'];
+            return ($payload['template']['name'] ?? null) === 'support_schedule'
+                && ($payload['template']['languageCode'] ?? null) === 'en'
+                && ! array_key_exists('headerValues', $payload['template'] ?? [])
+                && ($payload['template']['bodyValues'] ?? null) === ['Jane Doe', 'RD3437991']
+                && is_string($buttonToken)
+                && strlen($buttonToken) >= 32;
         });
+
+        $this->assertDatabaseHas('notification_link_tokens', [
+            'incident_id' => $incident->id,
+            'order_id' => $order->id,
+            'source' => 'whatsapp',
+        ]);
     }
 
     public function test_timeline_shows_whatsapp_template_sent_event_without_message_body(): void

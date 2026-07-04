@@ -10,8 +10,10 @@ use App\Enums\NotificationType;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Order;
+use App\Enums\NotificationLinkSource;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
 use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
+use App\Services\Notifications\NotificationLinkTrackingService;
 
 class WhatsAppChannel implements NotificationChannel
 {
@@ -20,6 +22,7 @@ class WhatsAppChannel implements NotificationChannel
     public function __construct(
         private readonly WhatsAppAutomationDispatcher $automationDispatcher,
         private readonly WhatsAppTemplateConfigurationResolver $templateConfigurationResolver,
+        private readonly NotificationLinkTrackingService $linkTrackingService,
     ) {}
 
     public function supports(NotificationType $type): bool
@@ -122,9 +125,10 @@ class WhatsAppChannel implements NotificationChannel
     }
 
     /**
-     * order_confirm_manual_schedule expects header {{1}} = order ID and two body variables.
+     * support_schedule: static header; body {{1}} = customer name, {{2}} = order ID;
+     * CTA button {{1}} = tracked schedule token for /support/schedule/{token}.
      *
-     * @return array{header_values: list<string>, body_values: list<string>}
+     * @return array{body_values: list<string>, button_values: array<string, list<string>>}
      */
     private function requestSerialTemplateVariables(NotificationMessage $message): array
     {
@@ -138,10 +142,16 @@ class WhatsAppChannel implements NotificationChannel
         $customerName = trim((string) ($order->customer_name ?? ''));
         $customerName = $customerName !== '' ? $customerName : 'Customer';
         $orderId = trim((string) ($order->order_id ?? ''));
+        $linkToken = $this->linkTrackingService->issueToken(
+            incident: $message->incident,
+            source: NotificationLinkSource::WhatsApp,
+        );
 
         return [
-            'header_values' => [$orderId],
             'body_values' => [$customerName, $orderId],
+            'button_values' => [
+                '0' => [$linkToken->token],
+            ],
         ];
     }
 

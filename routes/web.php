@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\SupportAppointmentController;
+use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\OperationalSystemSettingsController;
 use App\Http\Controllers\Customer360Controller;
@@ -41,6 +42,9 @@ use App\Http\Controllers\WorkspaceComponentController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
+
+Route::get('support/schedule/{token}', SupportScheduleRedirectController::class)
+    ->name('support.schedule.track');
 
 Route::middleware('signed')->group(function () {
     Route::get('support-appointments/{incident}/book', [SupportAppointmentController::class, 'create'])

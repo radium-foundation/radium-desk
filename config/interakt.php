@@ -25,7 +25,9 @@ return [
             'display_name' => env('INTERAKT_TEMPLATE_REQUEST_SERIAL_DISPLAY', 'Order Update'),
             'purpose' => 'Request Serial Number',
             'internal_note' => 'Requested serial number from customer via approved WhatsApp template.',
-            // order_confirm_manual_schedule (en_US): header {{1}} = order ID; body {{1}} = customer name; body {{2}} = order ID.
+            // support_schedule (en): static header "Order Update"; body {{1}} = customer name; body {{2}} = order ID;
+            // CTA "Book Support" dynamic URL /support/schedule/{{1}}?source=whatsapp with tracked token in {{1}}.
+            // Rollback template: order_confirm_manual_schedule (header {{1}} = order ID; body {{1}}/{{2}} as above).
             // Values are supplied at dispatch time by WhatsAppChannel for RequestSerialNumber notifications.
         ],
         'repair_started' => [

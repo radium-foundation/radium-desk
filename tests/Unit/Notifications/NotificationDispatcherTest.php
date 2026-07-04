@@ -116,6 +116,7 @@ class NotificationDispatcherTest extends TestCase
                 new WhatsAppChannel(
                     $automationDispatcher,
                     app(WhatsAppTemplateConfigurationResolver::class),
+                    app(\App\Services\Notifications\NotificationLinkTrackingService::class),
                 ),
                 app(EmailChannel::class),
                 app(DesktopChannel::class),
@@ -157,6 +158,7 @@ class NotificationDispatcherTest extends TestCase
                 new WhatsAppChannel(
                     $automationDispatcher,
                     app(WhatsAppTemplateConfigurationResolver::class),
+                    app(\App\Services\Notifications\NotificationLinkTrackingService::class),
                 ),
                 app(EmailChannel::class),
             ],
@@ -228,6 +230,7 @@ class NotificationDispatcherTest extends TestCase
             [new WhatsAppChannel(
                 $automationDispatcher,
                 app(WhatsAppTemplateConfigurationResolver::class),
+                app(\App\Services\Notifications\NotificationLinkTrackingService::class),
             )],
             app(NotificationAuditTrailService::class),
         );

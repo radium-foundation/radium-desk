@@ -62,9 +62,13 @@ class WhatsAppChannelTest extends TestCase
                 WhatsAppTemplateTriggerSource::Manual,
                 $message->actor,
                 Mockery::on(function (array $context) use ($order): bool {
+                    $buttonToken = $context['button_values']['0'][0] ?? null;
+
                     return ($context['source'] ?? null) === 'customer360'
-                        && ($context['header_values'] ?? null) === [(string) $order->order_id]
-                        && ($context['body_values'] ?? null) === ['Customer', (string) $order->order_id];
+                        && ! array_key_exists('header_values', $context)
+                        && ($context['body_values'] ?? null) === ['Customer', (string) $order->order_id]
+                        && is_string($buttonToken)
+                        && strlen($buttonToken) >= 32;
                 }),
                 $message->httpRequest,
             )
@@ -76,6 +80,7 @@ class WhatsAppChannelTest extends TestCase
         $channel = new WhatsAppChannel(
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
+            app(\App\Services\Notifications\NotificationLinkTrackingService::class),
         );
         $result = $channel->send($message);
 
@@ -99,6 +104,7 @@ class WhatsAppChannelTest extends TestCase
         $channel = new WhatsAppChannel(
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
+            app(\App\Services\Notifications\NotificationLinkTrackingService::class),
         );
         $result = $channel->send($message);
 
@@ -121,6 +127,7 @@ class WhatsAppChannelTest extends TestCase
         $channel = new WhatsAppChannel(
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
+            app(\App\Services\Notifications\NotificationLinkTrackingService::class),
         );
         $result = $channel->send($message);
 
@@ -145,6 +152,7 @@ class WhatsAppChannelTest extends TestCase
         $channel = new WhatsAppChannel(
             $automationDispatcher,
             app(WhatsAppTemplateConfigurationResolver::class),
+            app(\App\Services\Notifications\NotificationLinkTrackingService::class),
         );
         $result = $channel->send($message);
 

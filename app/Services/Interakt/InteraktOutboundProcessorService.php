@@ -59,6 +59,12 @@ class InteraktOutboundProcessorService
             $templatePayload['headerValues'] = $headerValues;
         }
 
+        $buttonValues = $this->resolveButtonValues($dispatch);
+
+        if ($buttonValues !== []) {
+            $templatePayload['buttonValues'] = $buttonValues;
+        }
+
         $result = $this->interaktService->sendTemplateMessage(
             countryCode: $phone['country_code'],
             phoneNumber: $phone['phone_number'],
@@ -131,6 +137,34 @@ class InteraktOutboundProcessorService
             fn (mixed $value): string => is_scalar($value) ? trim((string) $value) : '',
             $configuredBodyParameters,
         ));
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function resolveButtonValues(WhatsAppTemplateDispatch $dispatch): array
+    {
+        $context = $dispatch->context ?? [];
+        $contextButtonValues = $context['button_values'] ?? null;
+
+        if (! is_array($contextButtonValues) || $contextButtonValues === []) {
+            return [];
+        }
+
+        $buttonValues = [];
+
+        foreach ($contextButtonValues as $index => $values) {
+            if (! is_array($values) || $values === []) {
+                continue;
+            }
+
+            $buttonValues[(string) $index] = array_values(array_map(
+                fn (mixed $value): string => trim((string) $value),
+                $values,
+            ));
+        }
+
+        return $buttonValues;
     }
 
     private function callbackData(WhatsAppTemplateDispatch $dispatch): string
