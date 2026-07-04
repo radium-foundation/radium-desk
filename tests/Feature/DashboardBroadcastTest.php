@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\IncidentSource;
+use App\Enums\OrderStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -49,12 +51,19 @@ class DashboardBroadcastTest extends TestCase
 
         $this->actingAs($actor);
 
-        app(QuickServiceRequestService::class)->create(
+        $order = Order::query()->create([
+            'order_id' => 'INQ-BROADCAST-1',
+            'serial_number' => '7881960',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => OrderStatus::Active,
+            'created_by' => $actor->id,
+        ]);
+
+        app(QuickServiceRequestService::class)->createForOrder(
             user: $actor,
-            orderId: 'ORD-BROADCAST-1',
-            serialNumber: '7881960',
-            product: 'MFS 110',
-            source: \App\Enums\IncidentSource::Call,
+            order: $order,
+            source: IncidentSource::Call,
             notes: 'Broadcast test',
         );
 

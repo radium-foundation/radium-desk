@@ -11,7 +11,7 @@ import { initBatchTransactionForm } from './dashboard-batch-transaction';
 import { initLiveNotifications } from './live-notifications';
 import { createServiceCaseRowReplacer } from './service-case-row';
 import { initServiceCaseShow } from './service-case-show';
-import { initOrderWorkspace } from './order-workspace';
+import { initOrderWorkspace, setOrderWorkspaceLegacyVerificationModal } from './order-workspace';
 import { initTooltips } from './tooltips';
 import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
@@ -21,7 +21,7 @@ import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
 import { initOperationsDashboard } from './operations-dashboard';
-import { initCustomerIntake, initLegacyVerificationModal } from './customer-intake';
+import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from './customer-intake';
 
 window.bootstrap = bootstrap;
 
@@ -403,9 +403,11 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
         };
 
         if (requiresLegacyVerification && legacyVerificationUrl && legacyVerificationModal) {
-            legacyVerificationModal.requestVerification({
-                verificationUrl: legacyVerificationUrl,
-                onVerified: performSave,
+            guardServiceReferenceAssignment({
+                requiresLegacyVerification: true,
+                legacyVerificationUrl,
+                legacyVerificationModal,
+                onProceed: performSave,
             });
 
             return;
@@ -579,6 +581,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const legacyVerificationModal = initLegacyVerificationModal();
+    setOrderWorkspaceLegacyVerificationModal(legacyVerificationModal);
 
     dashboardTransactionsRef.current = initDashboardTransactions({
         pageRoot,

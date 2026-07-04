@@ -1,3 +1,11 @@
+import { guardServiceReferenceAssignment } from './customer-intake';
+
+let legacyVerificationModal = null;
+
+export const setOrderWorkspaceLegacyVerificationModal = (modal) => {
+    legacyVerificationModal = modal;
+};
+
 export function initOrderWorkspace() {
     const root = document.querySelector('[data-order-workspace]');
 
@@ -64,4 +72,35 @@ export function initOrderWorkspace() {
 
         observer.observe(stickySentinel);
     }
+
+    initOrderWorkspaceTransactionGuard();
 }
+
+const initOrderWorkspaceTransactionGuard = () => {
+    const form = document.querySelector('[data-order-workspace-transaction-form="true"]');
+
+    if (!form) {
+        return;
+    }
+
+    form.addEventListener('submit', (event) => {
+        const requiresLegacyVerification = form.dataset.requiresLegacyVerification === 'true';
+        const legacyVerificationUrl = form.dataset.legacyVerificationUrl;
+
+        if (!requiresLegacyVerification || !legacyVerificationUrl || !legacyVerificationModal) {
+            return;
+        }
+
+        event.preventDefault();
+
+        guardServiceReferenceAssignment({
+            requiresLegacyVerification: true,
+            legacyVerificationUrl,
+            legacyVerificationModal,
+            onProceed: () => {
+                form.dataset.legacyVerificationComplete = 'true';
+                form.submit();
+            },
+        });
+    });
+};

@@ -21,4 +21,8 @@
             @include('orders.workspace.partials.agent-assistant', ['order' => $order])
         </div>
     </div>
+
+    @can('assignTransaction', $order)
+        @include('partials.legacy-verification-modal')
+    @endcan
 @endsection

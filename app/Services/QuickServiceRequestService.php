@@ -29,6 +29,9 @@ class QuickServiceRequestService
             ->first();
     }
 
+    /**
+     * @deprecated Agent-facing intake must use CustomerIntakeService. Reserved for explicit internal callers.
+     */
     public function create(
         User $user,
         string $orderId,
@@ -37,7 +40,20 @@ class QuickServiceRequestService
         IncidentSource $source,
         ?string $notes,
         bool $highPriority = false,
+        bool $allowManualOrderIdentityCreation = false,
     ): Incident {
+        if (! $allowManualOrderIdentityCreation) {
+            throw ValidationException::withMessages([
+                'order_id' => 'Manual order identity creation is disabled. Use customer intake instead.',
+            ]);
+        }
+
+        if (filled($orderId) && ! Order::isInquiryOrderId($orderId)) {
+            throw ValidationException::withMessages([
+                'order_id' => 'Manual RD-style order identity creation is no longer permitted.',
+            ]);
+        }
+
         return DB::transaction(function () use ($user, $orderId, $serialNumber, $product, $source, $notes, $highPriority): Incident {
             $originalSerial = strtoupper(trim($serialNumber));
             $validation = $this->serialValidationService->assertValid($originalSerial, $product);

@@ -356,3 +356,19 @@ export const initLegacyVerificationModal = () => {
 export const setPendingLegacyVerification = (context) => {
     pendingLegacyVerification = context;
 };
+
+export const guardServiceReferenceAssignment = async ({
+    requiresLegacyVerification,
+    legacyVerificationUrl,
+    legacyVerificationModal,
+    onProceed,
+}) => {
+    if (requiresLegacyVerification && legacyVerificationUrl && legacyVerificationModal) {
+        return legacyVerificationModal.requestVerification({
+            verificationUrl: legacyVerificationUrl,
+            onVerified: onProceed,
+        });
+    }
+
+    return onProceed();
+};
