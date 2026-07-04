@@ -13,6 +13,7 @@ use App\Models\InteraktMessage;
 use App\Models\Order;
 use App\Models\OutboxEvent;
 use App\Models\Remark;
+use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\IncidentReferenceService;
@@ -118,6 +119,70 @@ class WhatsAppTemplateDispatcherTest extends TestCase
             'auditable_id' => $incident->id,
             'event' => 'whatsapp.template_sent',
         ]);
+    }
+
+    public function test_manual_request_serial_sends_order_confirm_template_variables_to_interakt(): void
+    {
+        config([
+            'interakt.templates.request_serial_number.name' => 'order_confirm_manual_schedule',
+            'interakt.templates.request_serial_number.language_code' => 'en_US',
+            'interakt.templates.request_serial_number.language_code_is_default' => false,
+            'mail.enabled' => true,
+            'mail.default' => 'array',
+        ]);
+
+        $this->enableNotificationChannels([
+            'notifications.whatsapp.enabled' => true,
+            'notifications.email.enabled' => true,
+            'whatsapp.api_enabled' => true,
+            'email.api_enabled' => true,
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3437991',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Jane Doe',
+            'customer_phone' => '9876543210',
+            'customer_email' => 'customer@example.com',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Request serial template variables',
+            'description' => 'Request serial template variables.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-order-confirm-001'], 200),
+        ]);
+
+        $this->actingAs($agent)->postJson(
+            route('incidents.workspace.request-serial', $incident),
+            ['workspace_context' => 'customer'],
+        )->assertOk();
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request): bool {
+            $payload = json_decode($request->body(), true);
+
+            return ($payload['template']['name'] ?? null) === 'order_confirm_manual_schedule'
+                && ($payload['template']['languageCode'] ?? null) === 'en_US'
+                && ($payload['template']['headerValues'] ?? null) === ['RD3437991']
+                && ($payload['template']['bodyValues'] ?? null) === ['Jane Doe', 'RD3437991'];
+        });
     }
 
     public function test_timeline_shows_whatsapp_template_sent_event_without_message_body(): void
@@ -418,5 +483,20 @@ class WhatsAppTemplateDispatcherTest extends TestCase
             ->assertSee('Send Request', false)
             ->assertSee('Channels', false)
             ->assertSee('Clear photo of device back label', false);
+    }
+
+    /**
+     * @param  array<string, bool>  $channels
+     */
+    private function enableNotificationChannels(array $channels): void
+    {
+        foreach ($channels as $key => $enabled) {
+            SystemSetting::query()->updateOrCreate(
+                ['key' => $key],
+                ['value' => $enabled ? '1' : '0'],
+            );
+
+            app(\App\Services\SystemSettingsService::class)->forget($key);
+        }
     }
 }

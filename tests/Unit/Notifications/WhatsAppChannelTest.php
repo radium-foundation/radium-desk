@@ -51,6 +51,7 @@ class WhatsAppChannelTest extends TestCase
     public function test_send_delegates_to_whatsapp_automation_dispatcher(): void
     {
         [$message, $dispatch] = $this->makeMessage();
+        $order = $message->customer;
 
         $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
         $automationDispatcher->shouldReceive('dispatch')
@@ -60,7 +61,11 @@ class WhatsAppChannelTest extends TestCase
                 $message->incident,
                 WhatsAppTemplateTriggerSource::Manual,
                 $message->actor,
-                $message->metadata,
+                Mockery::on(function (array $context) use ($order): bool {
+                    return ($context['source'] ?? null) === 'customer360'
+                        && ($context['header_values'] ?? null) === [(string) $order->order_id]
+                        && ($context['body_values'] ?? null) === ['Customer', (string) $order->order_id];
+                }),
                 $message->httpRequest,
             )
             ->andReturn(WhatsAppTemplateDispatchResult::success(

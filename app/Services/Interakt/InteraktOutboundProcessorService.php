@@ -53,8 +53,10 @@ class InteraktOutboundProcessorService
             $templatePayload['bodyValues'] = $bodyValues;
         }
 
-        if ($configuration->headerParameters !== []) {
-            $templatePayload['headerValues'] = $configuration->headerParameters;
+        $headerValues = $this->resolveHeaderValues($dispatch, $configuration->headerParameters);
+
+        if ($headerValues !== []) {
+            $templatePayload['headerValues'] = $headerValues;
         }
 
         $result = $this->interaktService->sendTemplateMessage(
@@ -73,6 +75,36 @@ class InteraktOutboundProcessorService
             $result->errorMessage ?? 'Interakt rejected the template request.',
             $request,
         );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $configuredBodyParameters
+     * @return list<string>
+     */
+    /**
+     * @param  list<array<string, mixed>>  $configuredHeaderParameters
+     * @return list<string>
+     */
+    private function resolveHeaderValues(WhatsAppTemplateDispatch $dispatch, array $configuredHeaderParameters): array
+    {
+        $context = $dispatch->context ?? [];
+        $contextHeaderValues = $context['header_values'] ?? null;
+
+        if (is_array($contextHeaderValues) && $contextHeaderValues !== []) {
+            return array_values(array_map(
+                fn (mixed $value): string => trim((string) $value),
+                $contextHeaderValues,
+            ));
+        }
+
+        if ($configuredHeaderParameters === []) {
+            return [];
+        }
+
+        return array_values(array_map(
+            fn (mixed $value): string => is_scalar($value) ? trim((string) $value) : '',
+            $configuredHeaderParameters,
+        ));
     }
 
     /**

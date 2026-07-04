@@ -9,6 +9,7 @@ use App\Enums\NotificationChannelType;
 use App\Enums\NotificationType;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
+use App\Models\Order;
 use App\Services\Interakt\WhatsAppAutomationDispatcher;
 use App\Services\Interakt\WhatsAppTemplateConfigurationResolver;
 
@@ -44,7 +45,7 @@ class WhatsAppChannel implements NotificationChannel
             incident: $message->incident,
             triggerSource: $triggerSource,
             actor: $message->actor,
-            context: $message->metadata,
+            context: $this->whatsappDispatchContext($message),
             request: $message->httpRequest,
         );
 
@@ -104,6 +105,44 @@ class WhatsAppChannel implements NotificationChannel
         }
 
         return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function whatsappDispatchContext(NotificationMessage $message): array
+    {
+        $context = $message->metadata;
+
+        if ($message->type !== NotificationType::RequestSerialNumber) {
+            return $context;
+        }
+
+        return array_merge($context, $this->requestSerialTemplateVariables($message));
+    }
+
+    /**
+     * order_confirm_manual_schedule expects header {{1}} = order ID and two body variables.
+     *
+     * @return array{header_values: list<string>, body_values: list<string>}
+     */
+    private function requestSerialTemplateVariables(NotificationMessage $message): array
+    {
+        $message->incident->loadMissing('order');
+        $order = $message->incident->order;
+
+        if (! $order instanceof Order) {
+            return [];
+        }
+
+        $customerName = trim((string) ($order->customer_name ?? ''));
+        $customerName = $customerName !== '' ? $customerName : 'Customer';
+        $orderId = trim((string) ($order->order_id ?? ''));
+
+        return [
+            'header_values' => [$orderId],
+            'body_values' => [$customerName, $orderId],
+        ];
     }
 
     private function skippedTemplateResult(
