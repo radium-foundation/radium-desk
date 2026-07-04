@@ -182,7 +182,8 @@ class WhatsAppTemplateDispatcherTest extends TestCase
         )->assertOk();
 
         Http::assertSent(function (\Illuminate\Http\Client\Request $request): bool {
-            $payload = json_decode($request->body(), true);
+            $rawBody = (string) $request->body();
+            $payload = json_decode($rawBody, true);
             $buttonToken = $payload['template']['buttonValues']['0'][0] ?? null;
 
             return ($payload['template']['name'] ?? null) === 'support_schedule'
@@ -190,7 +191,8 @@ class WhatsAppTemplateDispatcherTest extends TestCase
                 && ! array_key_exists('headerValues', $payload['template'] ?? [])
                 && ($payload['template']['bodyValues'] ?? null) === ['Jane Doe', 'RD3437991']
                 && is_string($buttonToken)
-                && strlen($buttonToken) >= 32;
+                && strlen($buttonToken) >= 32
+                && str_contains($rawBody, '"buttonValues":{"0":');
         });
 
         $this->assertDatabaseHas('notification_link_tokens', [

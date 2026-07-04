@@ -62,7 +62,8 @@ class InteraktOutboundProcessorService
         $buttonValues = $this->resolveButtonValues($dispatch);
 
         if ($buttonValues !== []) {
-            $templatePayload['buttonValues'] = $buttonValues;
+            // PHP json_encode treats ["0" => [...]] as a JSON array; Interakt requires an object keyed by button index.
+            $templatePayload['buttonValues'] = (object) $buttonValues;
         }
 
         $result = $this->interaktService->sendTemplateMessage(
