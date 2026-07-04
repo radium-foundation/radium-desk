@@ -41,6 +41,7 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             'serial_number' => "SN-BATCH-WS-{$suffix}",
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => "cf_batch_ws_{$suffix}",
             'status' => 'active',
             'created_by' => $creator->id,
         ]);
@@ -84,12 +85,41 @@ class WorkspaceBatchTransactionActionTest extends TestCase
     public function test_batch_success_returns_refresh_payload_and_closes_modal(): void
     {
         $admin = $this->createAdmin();
-        $first = $this->createPendingCase($admin, '1');
-        $second = $this->createPendingCase($admin, '2');
+        $sharedOrder = Order::query()->create([
+            'order_id' => 'RD-BATCH-WS-SHARED',
+            'serial_number' => 'SN-BATCH-WS-SHARED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_batch_ws_shared',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $firstIncident = Incident::query()->create([
+            'order_id' => $sharedOrder->id,
+            'reference_no' => 'SC-BATCH-WS-1',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Batch workspace 1',
+            'description' => 'Batch workspace 1.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+        ]);
+
+        $secondIncident = Incident::query()->create([
+            'order_id' => $sharedOrder->id,
+            'reference_no' => 'SC-BATCH-WS-2',
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Batch workspace 2',
+            'description' => 'Batch workspace 2.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $admin->id,
+        ]);
 
         $response = $this->actingAs($admin)
             ->postJson(route('dashboard.workspace.batch-transaction'), [
-                'incident_ids' => [$first['incident']->id, $second['incident']->id],
+                'incident_ids' => [$firstIncident->id, $secondIncident->id],
                 'transaction_id' => 'TX-BATCH-WS',
                 'workspace_context' => WorkspaceContext::Dashboard->value,
             ])
@@ -111,8 +141,7 @@ class WorkspaceBatchTransactionActionTest extends TestCase
                 ],
             ]);
 
-        $this->assertSame('TX-BATCH-WS', $first['order']->fresh()->transaction_id);
-        $this->assertSame('TX-BATCH-WS', $second['order']->fresh()->transaction_id);
+        $this->assertSame('TX-BATCH-WS', $sharedOrder->fresh()->transaction_id);
         $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
     }
 

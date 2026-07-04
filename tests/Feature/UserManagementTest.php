@@ -282,6 +282,7 @@ class UserManagementTest extends TestCase
             'serial_number' => 'SN-NOTIFY-1',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_user_mgmt_notify',
             'status' => 'active',
             'created_by' => $admin->id,
         ]);

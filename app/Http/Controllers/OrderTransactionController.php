@@ -71,12 +71,21 @@ class OrderTransactionController extends Controller
 
         $count = $result['count'];
         $transactionId = $result['transaction_id'];
+        $failedCount = count($result['failed_incidents']);
+        $totalSelected = count($request->input('incident_ids'));
+
+        if ($count > 0 && $failedCount > 0) {
+            $message = "Transaction {$transactionId} applied to {$count} of {$totalSelected} selected service cases.";
+        } else {
+            $message = "Transaction {$transactionId} applied to {$count} service ".($count === 1 ? 'case' : 'cases').'.';
+        }
 
         return response()->json([
-            'message' => "Transaction {$transactionId} applied to {$count} service ".($count === 1 ? 'case' : 'cases').'.',
+            'message' => $message,
             'count' => $count,
             'transaction_id' => $transactionId,
             'rows' => $result['rows'],
+            'failed_incidents' => $result['failed_incidents'],
             'kpi_strip_html' => $this->kpiStripHtmlFor($request->user()),
         ]);
     }

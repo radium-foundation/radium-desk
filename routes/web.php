@@ -23,6 +23,7 @@ use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\OrderDeviceModelController;
+use App\Http\Controllers\OrderLegacyVerificationController;
 use App\Http\Controllers\OrderSerialController;
 use App\Http\Controllers\OrderTransactionController;
 use App\Http\Controllers\ProfileController;
@@ -90,6 +91,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.components.batch-device-model');
     Route::post('dashboard/workspace/batch-device-model', [DashboardWorkspaceDeviceModelController::class, 'batchAssign'])
         ->name('dashboard.workspace.batch-device-model');
+    Route::post('service-requests/intake/search', [QuickServiceRequestController::class, 'search'])
+        ->name('service-requests.intake.search');
     Route::post('service-requests/quick', [QuickServiceRequestController::class, 'store'])
         ->name('service-requests.quick.store');
     Route::get('orders/lookup', [OrderController::class, 'lookup'])->name('orders.lookup');
@@ -98,6 +101,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('orders/{order}/service-cases', [OrderController::class, 'storeServiceCase'])
         ->name('orders.service-cases.store');
     Route::post('orders/{order}/transaction', [OrderTransactionController::class, 'store'])->name('orders.transaction.store');
+    Route::post('orders/{order}/legacy-verification', [OrderLegacyVerificationController::class, 'store'])
+        ->name('orders.legacy-verification.store');
     Route::delete('orders/{order}/transaction', [OrderTransactionController::class, 'destroy'])->name('orders.transaction.destroy');
     Route::post('orders/{order}/serial', [OrderSerialController::class, 'store'])->name('orders.serial.store');
     Route::post('orders/{order}/device-model', [OrderDeviceModelController::class, 'store'])->name('orders.device-model.store');

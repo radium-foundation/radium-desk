@@ -22,6 +22,15 @@ class OrderTransactionTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    private function verifyLegacyOrder(User $admin, Order $order): void
+    {
+        $this->actingAs($admin)
+            ->postJson(route('orders.legacy-verification.store', $order), [
+                'confirmed' => true,
+            ])
+            ->assertOk();
+    }
+
     public function test_admin_can_assign_transaction_id_and_lock_order(): void
     {
         $admin = User::factory()->create();
@@ -35,6 +44,8 @@ class OrderTransactionTest extends TestCase
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
+
+        $this->verifyLegacyOrder($admin, $order);
 
         $this->actingAs($admin)
             ->post(route('orders.transaction.store', $order), [
@@ -68,6 +79,8 @@ class OrderTransactionTest extends TestCase
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
+
+        $this->verifyLegacyOrder($admin, $order);
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
@@ -108,6 +121,8 @@ class OrderTransactionTest extends TestCase
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
+
+        $this->verifyLegacyOrder($admin, $order);
 
         $first = Incident::query()->create([
             'order_id' => $order->id,
@@ -172,6 +187,8 @@ class OrderTransactionTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
+        $this->verifyLegacyOrder($admin, $order);
+
         $incident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => 'SC-TXN-RESOLVED',
@@ -212,6 +229,8 @@ class OrderTransactionTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
+        $this->verifyLegacyOrder($admin, $order);
+
         $incident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => 'SC-AJAX-1',
@@ -244,16 +263,17 @@ class OrderTransactionTest extends TestCase
         $admin = User::factory()->create(['name' => 'Bulk Admin']);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $incidents = collect(range(1, 3))->map(function (int $index) use ($admin) {
-            $order = Order::query()->create([
-                'order_id' => "RD-BULK-{$index}",
-                'serial_number' => "SN-BULK-{$index}",
-                'product_name' => 'MFS 110',
-                'device_model' => 'MFS 110',
-                'status' => 'active',
-                'created_by' => $admin->id,
-            ]);
+        $order = Order::query()->create([
+            'order_id' => 'RD-BULK-SHARED',
+            'serial_number' => 'SN-BULK-SHARED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_bulk_shared',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
 
+        $incidents = collect(range(1, 3))->map(function (int $index) use ($admin, $order) {
             return Incident::query()->create([
                 'order_id' => $order->id,
                 'reference_no' => "SC-BULK-{$index}",
@@ -288,7 +308,13 @@ class OrderTransactionTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        $incidentIds = $incidents->pluck('id')->push($completedIncident->id)->all();
+        $incidentIds = [];
+
+        foreach ($incidents as $incident) {
+            $incidentIds[] = $incident->id;
+        }
+
+        $incidentIds[] = $completedIncident->id;
 
         $response = $this->actingAs($admin)
             ->postJson(route('dashboard.transactions.bulk'), [
@@ -301,7 +327,7 @@ class OrderTransactionTest extends TestCase
             ->assertJsonStructure(['rows', 'kpi_strip_html']);
 
         $this->assertStringContainsString(
-            'Transaction TX123456 applied to 3 service cases.',
+            'Transaction TX123456 applied to 3 of 4 selected service cases.',
             $response->json('message')
         );
 
@@ -315,6 +341,66 @@ class OrderTransactionTest extends TestCase
         }
 
         $this->assertSame('TX-OLD', $alreadyCompletedOrder->fresh()->transaction_id);
+    }
+
+    public function test_bulk_assign_blocks_duplicate_service_reference_across_unrelated_orders(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $firstOrder = Order::query()->create([
+            'order_id' => 'RD-BULK-DUP-1',
+            'serial_number' => 'SN-BULK-DUP-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_bulk_dup_1',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $secondOrder = Order::query()->create([
+            'order_id' => 'RD-BULK-DUP-2',
+            'serial_number' => 'SN-BULK-DUP-2',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_bulk_dup_2',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $firstIncident = Incident::query()->create([
+            'order_id' => $firstOrder->id,
+            'reference_no' => 'SC-BULK-DUP-1',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Bulk duplicate guard 1',
+            'description' => 'Bulk duplicate guard 1.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $secondIncident = Incident::query()->create([
+            'order_id' => $secondOrder->id,
+            'reference_no' => 'SC-BULK-DUP-2',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Bulk duplicate guard 2',
+            'description' => 'Bulk duplicate guard 2.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.transactions.bulk'), [
+                'incident_ids' => [$firstIncident->id, $secondIncident->id],
+                'transaction_id' => 'TX-DUP-GUARD',
+            ])
+            ->assertOk()
+            ->assertJsonPath('count', 1);
+
+        $this->assertSame('TX-DUP-GUARD', $firstOrder->fresh()->transaction_id);
+        $this->assertNull($secondOrder->fresh()->transaction_id);
+        $this->assertStringContainsString('1 of 2', $response->json('message'));
     }
 
     public function test_agent_cannot_bulk_assign_transactions(): void

@@ -2,8 +2,10 @@
 
 namespace App\Infrastructure\DataQuality;
 
+use App\Models\AuditLog;
 use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
+use App\Services\ServiceReferenceIntegrityService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -17,6 +19,7 @@ class DataQualityEngine
 {
     public function __construct(
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
+        private readonly ServiceReferenceIntegrityService $serviceReferenceIntegrityService,
     ) {}
 
     public function missingSerial(): DataQualityMetricResult
@@ -151,6 +154,65 @@ class DataQualityEngine
         );
     }
 
+    public function unverifiedCompletedCases(): DataQualityMetricResult
+    {
+        $verifiedOrderIds = AuditLog::query()
+            ->where('event', 'legacy.verification_completed')
+            ->where('auditable_type', (new Order)->getMorphClass())
+            ->pluck('auditable_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        $orderIds = Order::query()
+            ->whereNotNull('transaction_id')
+            ->where('transaction_id', '!=', '')
+            ->where(function (Builder $query): void {
+                $query->whereNull('cashfree_payment_id')
+                    ->orWhere('cashfree_payment_id', '');
+            })
+            ->when($verifiedOrderIds !== [], fn (Builder $query) => $query->whereNotIn('id', $verifiedOrderIds))
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        return new DataQualityMetricResult(
+            metric: DataQualityMetric::UnverifiedCompletedCase,
+            count: count($orderIds),
+            orderIds: $orderIds,
+        );
+    }
+
+    public function duplicateServiceReferences(): DataQualityMetricResult
+    {
+        $groups = $this->serviceReferenceIntegrityService->duplicateReferenceGroups();
+        $orderIds = collect($groups)
+            ->flatMap(fn (array $group): array => $group['order_ids'])
+            ->unique()
+            ->values()
+            ->all();
+
+        return new DataQualityMetricResult(
+            metric: DataQualityMetric::DuplicateServiceReference,
+            count: count($orderIds),
+            orderIds: $orderIds,
+        );
+    }
+
+    public function manualInquiryRecords(): DataQualityMetricResult
+    {
+        $orderIds = Order::query()
+            ->where('order_id', 'like', 'INQ-%')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        return new DataQualityMetricResult(
+            metric: DataQualityMetric::ManualInquiryRecord,
+            count: count($orderIds),
+            orderIds: $orderIds,
+        );
+    }
+
     /**
      * @return array<string, DataQualityMetricResult>
      */
@@ -163,6 +225,9 @@ class DataQualityEngine
             DataQualityMetric::MissingActivation->value => $this->missingActivation(),
             DataQualityMetric::MissingCustomerContact->value => $this->missingCustomerContact(),
             DataQualityMetric::DuplicateSerial->value => $this->duplicateSerial(),
+            DataQualityMetric::UnverifiedCompletedCase->value => $this->unverifiedCompletedCases(),
+            DataQualityMetric::DuplicateServiceReference->value => $this->duplicateServiceReferences(),
+            DataQualityMetric::ManualInquiryRecord->value => $this->manualInquiryRecords(),
         ];
     }
 

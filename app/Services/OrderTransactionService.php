@@ -18,6 +18,8 @@ class OrderTransactionService
         private readonly ServiceCaseStatusService $serviceCaseStatusService,
         private readonly DashboardService $dashboardService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly CustomerVerificationService $customerVerificationService,
+        private readonly ServiceReferenceIntegrityService $serviceReferenceIntegrityService,
     ) {}
 
     public function assignTransactionId(Order $order, string $transactionId, User $actor, bool $broadcast = true): Order
@@ -36,6 +38,9 @@ class OrderTransactionService
             ]);
         }
 
+        $this->serviceReferenceIntegrityService->assertNotAlreadyAssigned($transactionId, $order);
+        $this->customerVerificationService->assertCanCompleteService($order, $actor);
+
         return DB::transaction(function () use ($order, $transactionId, $actor, $broadcast): Order {
             $oldValues = [
                 'transaction_id' => $order->transaction_id,
@@ -50,6 +55,17 @@ class OrderTransactionService
             ]);
 
             $freshOrder = $order->fresh(['transactionAssigner']);
+
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: 'service_reference.assigned',
+                auditable: $freshOrder,
+                oldValues: $oldValues,
+                newValues: [
+                    'transaction_id' => $freshOrder->transaction_id,
+                    'completed_at' => $freshOrder->completed_at?->toIso8601String(),
+                ],
+            );
 
             $this->auditLogService->log(
                 userId: $actor->id,
@@ -129,7 +145,8 @@ class OrderTransactionService
         $ordersToUpdate = $pendingIncidents
             ->pluck('order.id')
             ->unique()
-            ->values();
+            ->values()
+            ->all();
 
         foreach ($ordersToUpdate as $orderId) {
             $order = Order::query()->find($orderId);
@@ -138,7 +155,11 @@ class OrderTransactionService
                 continue;
             }
 
-            $this->assignTransactionId($order, $transactionId, $actor, broadcast: false);
+            try {
+                $this->assignTransactionId($order, $transactionId, $actor, broadcast: false);
+            } catch (ValidationException $exception) {
+                // Allow partial bulk success; per-incident failure details are resolved below.
+            }
         }
 
         $refreshedIncidents = Incident::query()
@@ -210,6 +231,32 @@ class OrderTransactionService
                 $failedIncidents[] = [
                     'incident_id' => $incidentId,
                     'message' => 'This action is unauthorized.',
+                ];
+
+                continue;
+            }
+
+            $conflictingOrder = $this->serviceReferenceIntegrityService->findConflictingOrder(
+                $transactionId,
+                $incident->order->id,
+            );
+
+            if ($conflictingOrder !== null) {
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => sprintf(
+                        'This service reference is already linked to order %s.',
+                        $conflictingOrder->order_id,
+                    ),
+                ];
+
+                continue;
+            }
+
+            if (! $this->customerVerificationService->canCompleteService($incident->order)) {
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => 'Customer verification required before completing service.',
                 ];
 
                 continue;

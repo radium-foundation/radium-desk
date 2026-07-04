@@ -10,4 +10,7 @@ enum DataQualityMetric: string
     case MissingActivation = 'missing_activation';
     case MissingCustomerContact = 'missing_customer_contact';
     case DuplicateSerial = 'duplicate_serial';
+    case UnverifiedCompletedCase = 'unverified_completed_case';
+    case DuplicateServiceReference = 'duplicate_service_reference';
+    case ManualInquiryRecord = 'manual_inquiry_record';
 }

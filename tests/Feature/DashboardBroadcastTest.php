@@ -74,6 +74,7 @@ class DashboardBroadcastTest extends TestCase
             'serial_number' => 'SN-TXN-1',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_broadcast_txn',
             'status' => 'active',
             'created_by' => $actor->id,
             'transaction_id' => null,

@@ -289,7 +289,8 @@ class ServiceCaseAssignmentTest extends TestCase
         $creator->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $response = $this->actingAs($creator)->post(route('service-requests.quick.store'), [
-            'order_id' => 'RD-ASSIGN-1',
+            'action' => 'new_contact',
+            'intent' => \App\Enums\NewContactIntent::ExistingDeviceService->value,
             'serial_number' => '7881960',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,

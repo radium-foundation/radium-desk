@@ -21,6 +21,7 @@ import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
 import { initOperationsDashboard } from './operations-dashboard';
+import { initCustomerIntake, initLegacyVerificationModal } from './customer-intake';
 
 window.bootstrap = bootstrap;
 
@@ -262,7 +263,7 @@ const showAppToast = (message, variant = 'success') => {
     toast.show();
 };
 
-const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = {}) => {
+const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, legacyVerificationModal } = {}) => {
     const card = document.querySelector('.dashboard-service-cases-card');
 
     if (!card) {
@@ -335,6 +336,8 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = 
         const storeUrl = cell.dataset.storeUrl;
         const incidentId = cell.dataset.incidentId;
         const transactionId = input?.value.trim() ?? '';
+        const requiresLegacyVerification = cell.dataset.requiresLegacyVerification === 'true';
+        const legacyVerificationUrl = cell.dataset.legacyVerificationUrl;
 
         if (!storeUrl || !input || transactionId === '') {
             input?.classList.add('is-invalid');
@@ -346,56 +349,69 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated } = 
             return;
         }
 
-        input.disabled = true;
+        const performSave = async () => {
+            input.disabled = true;
 
-        try {
-            const response = await fetch(storeUrl, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({
-                    transaction_id: transactionId,
-                    incident_id: Number(incidentId),
-                }),
-            });
+            try {
+                const response = await fetch(storeUrl, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({
+                        transaction_id: transactionId,
+                        incident_id: Number(incidentId),
+                    }),
+                });
 
-            const data = await response.json();
+                const data = await response.json();
 
-            if (!response.ok) {
-                const message = data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save service reference.';
+                if (!response.ok) {
+                    const message = data.errors?.transaction_id?.[0] ?? data.message ?? 'Unable to save service reference.';
+                    input.classList.add('is-invalid');
+
+                    if (error) {
+                        error.textContent = message;
+                    }
+
+                    return;
+                }
+
+                if (data.row_html && data.incident_id) {
+                    getWorkspaceSession().release('inline-transaction');
+                    replaceServiceCaseRow(data.incident_id, data.row_html);
+                    batchSession.updateToolbar();
+                }
+
+                if (data.kpi_strip_html !== undefined) {
+                    applyKpis(data.kpi_strip_html);
+                }
+
+                showAppToast(data.message ?? 'Service reference saved.');
+            } catch (saveError) {
                 input.classList.add('is-invalid');
 
                 if (error) {
-                    error.textContent = message;
+                    error.textContent = 'Unable to save service reference.';
                 }
-
-                return;
+            } finally {
+                input.disabled = false;
             }
+        };
 
-            if (data.row_html && data.incident_id) {
-                getWorkspaceSession().release('inline-transaction');
-                replaceServiceCaseRow(data.incident_id, data.row_html);
-                batchSession.updateToolbar();
-            }
+        if (requiresLegacyVerification && legacyVerificationUrl && legacyVerificationModal) {
+            legacyVerificationModal.requestVerification({
+                verificationUrl: legacyVerificationUrl,
+                onVerified: performSave,
+            });
 
-            if (data.kpi_strip_html !== undefined) {
-                applyKpis(data.kpi_strip_html);
-            }
-
-            showAppToast(data.message ?? 'Service reference saved.');
-        } catch (saveError) {
-            input.classList.add('is-invalid');
-
-            if (error) {
-                error.textContent = 'Unable to save service reference.';
-            }
-        } finally {
-            input.disabled = false;
+            return;
         }
+
+        await performSave();
     };
 
     card.addEventListener('click', (event) => {
@@ -562,8 +578,11 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     });
 
+    const legacyVerificationModal = initLegacyVerificationModal();
+
     dashboardTransactionsRef.current = initDashboardTransactions({
         pageRoot,
+        legacyVerificationModal,
         openBatchModal: (incidentIds) => {
             workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
         },
@@ -634,59 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initMentionTextareas(document.querySelector('[data-service-case-show]') ?? document);
     initOrderWorkspace();
 
-    const quickCreateModalElement = document.getElementById('quickCreateModal');
-
-    if (quickCreateModalElement) {
-        const quickCreateModal = bootstrap.Modal.getOrCreateInstance(quickCreateModalElement);
-        const quickCreateForm = quickCreateModalElement.querySelector('form');
-
-        const resetQuickCreateForm = () => {
-            if (!quickCreateForm) {
-                return;
-            }
-
-            quickCreateForm.reset();
-
-            const productField = quickCreateForm.querySelector('#quick_product');
-            if (productField) {
-                productField.value = 'MFS 110';
-            }
-
-            const sourceField = quickCreateForm.querySelector('#quick_source');
-            if (sourceField) {
-                sourceField.value = 'call';
-            }
-
-            quickCreateForm.querySelectorAll('.is-invalid').forEach((field) => {
-                field.classList.remove('is-invalid');
-            });
-        };
-
-        quickCreateModalElement.addEventListener('show.bs.modal', () => {
-            getWorkspaceSession().acquire('quick-create');
-
-            if (quickCreateModalElement.dataset.resetOnShow === 'true') {
-                resetQuickCreateForm();
-            }
-        });
-
-        const shouldReopenQuickCreate = quickCreateModalElement.dataset.showOnLoad === 'true'
-            || pageRoot?.dataset.reopenQuickCreate === 'true';
-
-        if (shouldReopenQuickCreate) {
-            window.setTimeout(() => {
-                quickCreateModal.show();
-            }, 0);
-        }
-
-        quickCreateModalElement.addEventListener('hidden.bs.modal', () => {
-            getWorkspaceSession().release('quick-create');
-
-            quickCreateModalElement.querySelectorAll('.is-invalid').forEach((field) => {
-                field.classList.remove('is-invalid');
-            });
-        });
-    }
+    initCustomerIntake();
 
     dashboardSerialRef.current = initDashboardSerialNumbers({
         replaceServiceCaseRow: (...args) => (

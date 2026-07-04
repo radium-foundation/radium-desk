@@ -145,12 +145,19 @@ class DashboardService
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ]);
 
+        $order = $serviceCase->order;
+        $verificationService = app(CustomerVerificationService::class);
+
         return [
             'serviceCase' => $serviceCase,
             'canManageTransactions' => $canManageTransactions,
             'canSelectRows' => $canManageTransactions,
             'canReassignServiceCases' => $canManageTransactions,
             'canCreateRemarks' => $user->can('create', Remark::class),
+            'requiresLegacyVerification' => $order !== null && $verificationService->requiresLegacyVerification($order),
+            'legacyVerificationUrl' => $order !== null
+                ? route('orders.legacy-verification.store', $order)
+                : null,
         ];
     }
 

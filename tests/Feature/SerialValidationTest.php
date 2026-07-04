@@ -142,7 +142,8 @@ class SerialValidationTest extends TestCase
 
         $this->actingAs($agent)
             ->post(route('service-requests.quick.store'), [
-                'order_id' => 'RD-IRA-QC',
+                'action' => 'new_contact',
+                'intent' => \App\Enums\NewContactIntent::ExistingDeviceService->value,
                 'serial_number' => 'NOT-VALID',
                 'product' => 'MFS 110',
                 'source' => IncidentSource::Call->value,

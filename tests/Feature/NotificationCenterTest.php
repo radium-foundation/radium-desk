@@ -64,7 +64,8 @@ class NotificationCenterTest extends TestCase
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
-            'order_id' => 'RD-NOTIFY-HP',
+            'action' => 'new_contact',
+            'intent' => \App\Enums\NewContactIntent::ExistingDeviceService->value,
             'serial_number' => '7881961',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
@@ -139,6 +140,7 @@ class NotificationCenterTest extends TestCase
             'serial_number' => 'SN-NOTIFY-TXN',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_notify_txn',
             'status' => 'active',
             'created_by' => $agent->id,
         ]);

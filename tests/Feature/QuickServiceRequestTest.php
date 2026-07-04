@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
+use App\Enums\NewContactIntent;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -39,13 +40,15 @@ class QuickServiceRequestTest extends TestCase
         ]);
     }
 
-    public function test_quick_create_creates_order_and_service_case_with_sc_reference(): void
+    public function test_existing_device_service_intake_creates_verification_needed_case(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
-            'order_id' => 'RD3421021',
+            'action' => 'new_contact',
+            'intent' => NewContactIntent::ExistingDeviceService->value,
+            'phone' => '9876543210',
             'serial_number' => '7881953',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
@@ -60,15 +63,10 @@ class QuickServiceRequestTest extends TestCase
         $response->assertSessionHas('service_case_reference', 'SC00001');
         $response->assertSessionHas('reopen_quick_create', true);
 
-        $this->assertDatabaseHas('orders', [
-            'order_id' => 'RD3421021',
-            'serial_number' => '7881953',
-            'product_name' => 'MFS 110',
-        ]);
-
-        $this->assertSame('SC00001', $incident->reference_no);
+        $this->assertTrue(Order::isInquiryOrderId($incident->order->order_id));
+        $this->assertSame('7881953', $incident->order->serial_number);
+        $this->assertSame('Service', $incident->category);
         $this->assertSame(IncidentSource::Call, $incident->source);
-        $this->assertFalse($incident->high_priority);
     }
 
     public function test_quick_create_allows_optional_comment_and_high_priority(): void
@@ -77,9 +75,9 @@ class QuickServiceRequestTest extends TestCase
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->actingAs($agent)->post(route('service-requests.quick.store'), [
-            'order_id' => 'RD-HP-001',
-            'serial_number' => '7881954',
-            'product' => 'MFS 110',
+            'action' => 'new_contact',
+            'intent' => NewContactIntent::GeneralSupport->value,
+            'phone' => '9876543211',
             'source' => IncidentSource::Call->value,
             'high_priority' => '1',
         ])->assertRedirect();
@@ -144,7 +142,7 @@ class QuickServiceRequestTest extends TestCase
             ->assertSee('data-reset-on-show="true"', false);
     }
 
-    public function test_quick_create_rejects_serial_mismatch_for_existing_order(): void
+    public function test_existing_order_intake_rejects_serial_mismatch(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -161,9 +159,9 @@ class QuickServiceRequestTest extends TestCase
         $this->actingAs($agent)
             ->from(route('dashboard'))
             ->post(route('service-requests.quick.store'), [
-                'order_id' => 'RD3421021',
+                'action' => 'existing_order',
+                'matched_order_id' => $order->id,
                 'serial_number' => '9999999',
-                'product' => 'MFS 110',
                 'source' => IncidentSource::Email->value,
             ])
             ->assertRedirect(route('dashboard'))
@@ -172,7 +170,7 @@ class QuickServiceRequestTest extends TestCase
         $this->assertSame(0, Incident::query()->where('order_id', $order->id)->count());
     }
 
-    public function test_quick_create_redirects_to_order_page_for_existing_order_without_creating_service_case(): void
+    public function test_existing_order_open_only_redirects_without_creating_service_case(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -187,9 +185,10 @@ class QuickServiceRequestTest extends TestCase
         ]);
 
         $this->actingAs($agent)->post(route('service-requests.quick.store'), [
-            'order_id' => 'RD3421021',
+            'action' => 'existing_order',
+            'matched_order_id' => $order->id,
+            'open_only' => '1',
             'serial_number' => '7881953',
-            'product' => 'MFS 110',
             'source' => IncidentSource::WhatsApp->value,
         ])
             ->assertRedirect(route('orders.show', $order))

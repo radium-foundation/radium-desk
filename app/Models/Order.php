@@ -86,6 +86,22 @@ class Order extends Model
         return filled($this->transaction_id);
     }
 
+    public static function isInquiryOrderId(?string $orderId): bool
+    {
+        if ($orderId === null) {
+            return false;
+        }
+
+        return str_starts_with(strtoupper(trim($orderId)), 'INQ-');
+    }
+
+    public static function inquiryOrderIdFromReference(string $reference): string
+    {
+        $normalized = strtoupper(trim($reference));
+
+        return 'INQ-'.$normalized;
+    }
+
     public function isSerialLocked(): bool
     {
         return filled($this->serial_number);
