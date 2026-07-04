@@ -16,7 +16,7 @@
                 Thank you! Our technical support team will call you at the scheduled time.
             </p>
 
-            <dl class="support-appointment-summary text-start mb-0">
+            <dl class="support-appointment-summary text-start mb-4">
                 <div class="support-appointment-summary-item">
                     <dt>Preferred date</dt>
                     <dd>{{ AppDateFormatter::date($appointment->preferred_date) }}</dd>
@@ -42,6 +42,24 @@
                     </div>
                 @endif
             </dl>
+
+            <button type="button"
+                    class="btn btn-outline-primary w-100"
+                    data-support-appointment-close>
+                Back to WhatsApp
+            </button>
         </div>
     </div>
+
+    <script>
+        document.querySelector('[data-support-appointment-close]')?.addEventListener('click', () => {
+            window.close();
+
+            window.setTimeout(() => {
+                if (window.history.length > 1) {
+                    window.history.back();
+                }
+            }, 150);
+        });
+    </script>
 @endsection

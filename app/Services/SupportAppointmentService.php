@@ -16,6 +16,10 @@ use Throwable;
 
 class SupportAppointmentService
 {
+    public function __construct(
+        private readonly SupportScheduleAvailabilityService $availabilityService,
+    ) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -38,6 +42,12 @@ class SupportAppointmentService
         SupportAppointmentBookingSource $bookingSource = SupportAppointmentBookingSource::Web,
     ): SupportAppointment {
         $validated = $this->validateBookingData($data);
+
+        $existingAppointment = $this->findExistingBooking($incident, $validated);
+
+        if ($existingAppointment !== null) {
+            return $existingAppointment;
+        }
 
         $appointment = SupportAppointment::query()->create([
             'incident_id' => $incident->id,
@@ -104,10 +114,58 @@ class SupportAppointmentService
             ],
         );
 
+        $validator->after(function ($validator) use ($data): void {
+            $preferredDate = $data['preferred_date'] ?? null;
+
+            if (! is_string($preferredDate) || $preferredDate === '') {
+                return;
+            }
+
+            $dateMessage = $this->availabilityService->dateUnavailableMessage($preferredDate);
+
+            if ($dateMessage !== null) {
+                $validator->errors()->add('preferred_date', $dateMessage);
+
+                return;
+            }
+
+            $timeSlotValue = $data['preferred_time_slot'] ?? null;
+
+            if (! is_string($timeSlotValue) || $timeSlotValue === '') {
+                return;
+            }
+
+            $timeSlot = SupportAppointmentTimeSlot::tryFrom($timeSlotValue);
+
+            if ($timeSlot === null) {
+                return;
+            }
+
+            $slotMessage = $this->availabilityService->timeSlotUnavailableMessage($preferredDate, $timeSlot);
+
+            if ($slotMessage !== null) {
+                $validator->errors()->add('preferred_time_slot', $slotMessage);
+            }
+        });
+
         if ($validator->fails()) {
             throw new ValidationException($validator);
         }
 
         return $validator->validated();
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     */
+    private function findExistingBooking(Incident $incident, array $validated): ?SupportAppointment
+    {
+        return SupportAppointment::query()
+            ->where('incident_id', $incident->id)
+            ->whereDate('preferred_date', $validated['preferred_date'])
+            ->where('preferred_time_slot', $validated['preferred_time_slot'])
+            ->where('phone_number', $validated['phone_number'])
+            ->latest('id')
+            ->first();
     }
 }

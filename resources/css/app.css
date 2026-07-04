@@ -4284,6 +4284,20 @@ a:focus-visible .stat-card {
     color: #212529;
 }
 
+.support-appointment-date-input:invalid {
+    color: #6c757d;
+}
+
+.support-appointment-date-input:valid,
+.support-appointment-date-input:focus {
+    color: #212529;
+}
+
+.support-appointment-date-field .input-group-text {
+    color: #6c757d;
+    background-color: #fff;
+}
+
 .customer-360-quick-actions--secondary {
     margin-top: 0.5rem;
     padding-top: 0.5rem;

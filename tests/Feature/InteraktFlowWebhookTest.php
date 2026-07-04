@@ -17,6 +17,7 @@ use App\Services\Interakt\InteraktFlowWebhookOutboxWriter;
 use App\Services\Interakt\InteraktFlowWebhookProcessorService;
 use App\Services\Interakt\InteraktWebhookSignatureVerifier;
 use App\Services\Interakt\WhatsAppFlowService;
+use App\Services\SupportScheduleAvailabilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\InteractsWithInteraktWebhooks;
@@ -47,7 +48,7 @@ class InteraktFlowWebhookTest extends TestCase
 
         $payload = $this->officialFlowResponsePayload([
             'flow_token' => $flowToken,
-            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
             'phone_number' => '9876543210',
             'additional_notes' => 'Booked via WhatsApp Flow.',
@@ -106,7 +107,7 @@ class InteraktFlowWebhookTest extends TestCase
     {
         $payload = $this->officialFlowResponsePayload([
             'flow_token' => 'invalid-token',
-            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
             'phone_number' => '9876543210',
         ]);
@@ -135,7 +136,7 @@ class InteraktFlowWebhookTest extends TestCase
     {
         $payload = $this->officialFlowResponsePayload([
             'flow_token' => 'not-a-valid-token',
-            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
             'phone_number' => '9876543210',
         ]);

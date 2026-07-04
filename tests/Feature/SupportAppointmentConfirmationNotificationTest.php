@@ -16,9 +16,11 @@ use App\Services\Interakt\WhatsAppFlowService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\ServiceCaseActivityTimelineService;
+use App\Services\SupportScheduleAvailabilityService;
 use App\Services\SystemSettingsService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
@@ -63,6 +65,84 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
         ]);
     }
 
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_duplicate_web_booking_does_not_send_second_confirmation_notification(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $storeUrl = URL::temporarySignedRoute(
+            'support-appointments.store',
+            now()->addDays(30),
+            ['incident' => $incident->id],
+        );
+
+        $payload = [
+            'preferred_date' => '2026-07-07',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ];
+
+        $this->post($storeUrl, $payload)->assertRedirect();
+        $this->post($storeUrl, $payload)->assertRedirect();
+
+        $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->count());
+        $this->assertSame(1, AuditLog::query()
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->count());
+        Http::assertSentCount(1);
+    }
+
+    public function test_duplicate_web_booking_with_different_notes_does_not_send_second_confirmation_notification(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $storeUrl = URL::temporarySignedRoute(
+            'support-appointments.store',
+            now()->addDays(30),
+            ['incident' => $incident->id],
+        );
+
+        $basePayload = [
+            'preferred_date' => '2026-07-07',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ];
+
+        $this->post($storeUrl, [
+            ...$basePayload,
+            'additional_notes' => 'Need help with fingerprint setup.',
+        ])->assertRedirect();
+
+        $this->post($storeUrl, [
+            ...$basePayload,
+            'additional_notes' => 'Updated notes after double click.',
+        ])->assertRedirect();
+
+        $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->count());
+        $this->assertSame(1, AuditLog::query()
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->count());
+        Http::assertSentCount(1);
+    }
+
     public function test_web_booking_sends_confirmation_notification(): void
     {
         $agent = User::factory()->create();
@@ -76,7 +156,7 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
             ['incident' => $incident->id],
         );
 
-        $preferredDate = now()->addDay()->toDateString();
+        $preferredDate = app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString();
 
         $this->post($storeUrl, [
             'preferred_date' => $preferredDate,
@@ -97,7 +177,7 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
     {
         [$incident, $flowToken, $order] = $this->createIncidentWithFlowToken();
 
-        $preferredDate = now()->addDay()->toDateString();
+        $preferredDate = app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString();
 
         $payload = $this->officialFlowResponsePayload([
             'flow_token' => $flowToken,
@@ -340,7 +420,7 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
 
         $payload = $this->officialFlowResponsePayload([
             'flow_token' => $flowToken,
-            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
             'phone_number' => '9876543210',
         ]);
@@ -369,7 +449,7 @@ class SupportAppointmentConfirmationNotificationTest extends TestCase
         );
 
         $this->post($storeUrl, [
-            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
             'phone_number' => '9876543210',
         ])->assertRedirect();

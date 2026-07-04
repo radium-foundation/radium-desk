@@ -7,7 +7,7 @@
 
     <title>@yield('title', 'Radium Box Support')</title>
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite(['resources/css/app.css', 'resources/js/customer-portal.js'])
 </head>
 <body class="bg-light">
     <div class="min-vh-100 d-flex align-items-center justify-content-center p-3">

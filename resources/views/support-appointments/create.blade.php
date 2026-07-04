@@ -29,20 +29,31 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ $formAction }}" class="support-appointment-form">
+            <form method="POST"
+                  action="{{ $formAction }}"
+                  class="support-appointment-form"
+                  data-support-appointment-form>
                 @csrf
 
-                <div class="mb-3">
+                <script type="application/json" data-support-appointment-availability>@json($availabilityConfig)</script>
+
+                <div class="mb-3 support-appointment-date-field">
                     <label for="preferred_date" class="form-label">Preferred date</label>
-                    <input type="date"
-                           id="preferred_date"
-                           name="preferred_date"
-                           class="form-control @error('preferred_date') is-invalid @enderror"
-                           value="{{ old('preferred_date') }}"
-                           min="{{ now()->toDateString() }}"
-                           required>
+                    <div class="input-group">
+                        <input type="date"
+                               id="preferred_date"
+                               name="preferred_date"
+                               class="form-control support-appointment-date-input @error('preferred_date') is-invalid @enderror"
+                               value="{{ old('preferred_date') }}"
+                               min="{{ now()->toDateString() }}"
+                               placeholder="Select preferred date"
+                               required>
+                        <span class="input-group-text" aria-hidden="true">
+                            <i class="bi bi-calendar3"></i>
+                        </span>
+                    </div>
                     @error('preferred_date')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
                     @enderror
                 </div>
 
@@ -52,9 +63,14 @@
                             name="preferred_time_slot"
                             class="form-select @error('preferred_time_slot') is-invalid @enderror"
                             required>
-                        <option value="" disabled {{ old('preferred_time_slot') ? '' : 'selected' }}>Select a time slot</option>
+                        <option value="" disabled {{ old('preferred_time_slot') ? '' : 'selected' }}>Select preferred time slot</option>
                         @foreach ($timeSlots as $slot)
-                            <option value="{{ $slot->value }}" @selected(old('preferred_time_slot') === $slot->value)>
+                            @php
+                                $isAvailableToday = in_array($slot, $todayAvailableSlots, true);
+                            @endphp
+                            <option value="{{ $slot->value }}"
+                                    @selected(old('preferred_time_slot') === $slot->value)
+                                    @if (! $isAvailableToday) data-unavailable-today="true" @endif>
                                 {{ $slot->label() }}
                             </option>
                         @endforeach

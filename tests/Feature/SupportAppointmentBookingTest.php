@@ -11,8 +11,10 @@ use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\SupportAppointmentUrlService;
+use App\Services\SupportScheduleAvailabilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
@@ -25,6 +27,13 @@ class SupportAppointmentBookingTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_customer_can_book_support_appointment_via_signed_url(): void
@@ -49,7 +58,7 @@ class SupportAppointmentBookingTest extends TestCase
         );
 
         $response = $this->post($storeUrl, [
-            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
             'phone_number' => '9876543210',
             'additional_notes' => 'Need help with fingerprint setup.',
@@ -116,7 +125,7 @@ class SupportAppointmentBookingTest extends TestCase
         $response->assertOk();
         $response->assertSee('data-customer-360-section="support-appointments"', false);
         $response->assertSee('Scheduled Support', false);
-        $response->assertSee('Afternoon (12 PM – 4 PM)', false);
+        $response->assertSee('Afternoon (12 PM – 3 PM)', false);
         $response->assertSee('9123456789', false);
         $response->assertSee('Device not connecting to RD Service.', false);
     }
@@ -133,6 +142,140 @@ class SupportAppointmentBookingTest extends TestCase
         $response->assertOk();
         $response->assertDontSee('data-customer-360-section="support-appointments"', false);
         $response->assertDontSee('Scheduled Support', false);
+    }
+
+    public function test_booking_form_shows_preferred_placeholders_and_calendar_icon(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $bookingUrl = app(SupportAppointmentUrlService::class)->bookingUrl($incident);
+
+        $this->get($bookingUrl)
+            ->assertOk()
+            ->assertSee('Select preferred time slot', false)
+            ->assertSee('placeholder="Select preferred date"', false)
+            ->assertSee('bi-calendar3', false);
+    }
+
+    public function test_booking_rejects_sunday_preferred_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-04 10:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $storeUrl = URL::temporarySignedRoute(
+            'support-appointments.store',
+            now()->addDays(30),
+            ['incident' => $incident->id],
+        );
+
+        $this->post($storeUrl, [
+            'preferred_date' => '2026-07-05',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ])->assertSessionHasErrors('preferred_date');
+
+        $this->assertDatabaseCount('support_appointments', 0);
+    }
+
+    public function test_booking_rejects_same_day_slot_after_cutoff(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 11:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $storeUrl = URL::temporarySignedRoute(
+            'support-appointments.store',
+            now()->addDays(30),
+            ['incident' => $incident->id],
+        );
+
+        $this->post($storeUrl, [
+            'preferred_date' => '2026-07-06',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ])->assertSessionHasErrors('preferred_time_slot');
+
+        $this->assertDatabaseCount('support_appointments', 0);
+    }
+
+    public function test_duplicate_submit_returns_existing_confirmation_without_second_appointment(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $storeUrl = URL::temporarySignedRoute(
+            'support-appointments.store',
+            now()->addDays(30),
+            ['incident' => $incident->id],
+        );
+
+        $payload = [
+            'preferred_date' => '2026-07-07',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+            'additional_notes' => 'Need help with fingerprint setup.',
+        ];
+
+        $firstResponse = $this->post($storeUrl, $payload);
+        $firstResponse->assertRedirect();
+
+        $appointment = SupportAppointment::query()->first();
+        $this->assertNotNull($appointment);
+
+        $secondResponse = $this->post($storeUrl, $payload);
+        $secondResponse->assertRedirect(
+            URL::temporarySignedRoute(
+                'support-appointments.confirmation',
+                now()->addHour(),
+                [
+                    'incident' => $incident->id,
+                    'appointment' => $appointment->id,
+                ],
+            ),
+        );
+
+        $this->assertDatabaseCount('support_appointments', 1);
+    }
+
+    public function test_confirmation_page_shows_back_to_whatsapp_action(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $storeUrl = URL::temporarySignedRoute(
+            'support-appointments.store',
+            now()->addDays(30),
+            ['incident' => $incident->id],
+        );
+
+        $response = $this->post($storeUrl, [
+            'preferred_date' => '2026-07-07',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ]);
+
+        $this->followingRedirects()->get($response->headers->get('Location'))
+            ->assertOk()
+            ->assertSee('Back to WhatsApp', false)
+            ->assertSee('data-support-appointment-close', false);
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Http\Requests\StoreSupportAppointmentRequest;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
 use App\Services\SupportAppointmentService;
+use App\Services\SupportScheduleAvailabilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
@@ -16,6 +17,7 @@ class SupportAppointmentController extends Controller
 {
     public function __construct(
         private readonly SupportAppointmentService $supportAppointmentService,
+        private readonly SupportScheduleAvailabilityService $availabilityService,
     ) {}
 
     public function create(Request $request, Incident $incident): View
@@ -26,6 +28,10 @@ class SupportAppointmentController extends Controller
             'incident' => $incident,
             'order' => $incident->order,
             'timeSlots' => SupportAppointmentTimeSlot::cases(),
+            'availabilityConfig' => $this->availabilityService->frontendAvailabilityConfig(),
+            'todayAvailableSlots' => $this->availabilityService->availableTimeSlots(
+                $this->availabilityService->now(),
+            ),
             'formAction' => URL::temporarySignedRoute(
                 'support-appointments.store',
                 now()->addDays(30),
