@@ -11,8 +11,9 @@ use App\Models\Incident;
 use App\Models\Remark;
 use App\Models\User;
 use App\Services\DeviceModelSettingsService;
-use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
+use App\Services\Interakt\RequestSerialCommunicationHistoryService;
+use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -25,6 +26,7 @@ class WorkspaceComponentService
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
         private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
+        private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -144,6 +146,12 @@ class WorkspaceComponentService
                 ->diagnosticsFor(WhatsAppTemplate::RequestSerialNumber),
             'hasActiveSerialWaitingState' => $incident->activeWaitingState !== null
                 && $incident->activeWaitingState->waiting_reason === \App\Enums\WaitingReason::SerialNumber,
+            'communicationHistory' => $order !== null
+                ? $this->requestSerialCommunicationHistoryService->forOrder($order)
+                : [
+                    'whatsapp' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],
+                    'email' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],
+                ],
         ];
     }
 

@@ -4,14 +4,21 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\WhatsAppTemplateDispatchStatus;
+use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Models\WhatsAppTemplateDispatch;
+use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
+use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\SystemSettingsService;
+use App\Support\AppDateFormatter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class RequestSerialDialogTest extends TestCase
@@ -124,6 +131,81 @@ class RequestSerialDialogTest extends TestCase
             ->assertSee('Email unavailable', false)
             ->assertSee('Email notifications disabled.', false)
             ->assertSee('WhatsApp will still be used.', false);
+    }
+
+    public function test_request_serial_dialog_shows_whatsapp_communication_timestamp(): void
+    {
+        [$agent, $incident] = $this->createIncidentWithoutSerial();
+        $sentAt = Carbon::parse('2026-07-05 14:30:00', AppDateFormatter::timezone());
+
+        WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $incident->id,
+            'order_id' => $incident->order_id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => 'request_serial_number',
+            'template_name' => 'order_update_request_serial',
+            'template_display_name' => 'Order Update',
+            'template_purpose' => 'Request Serial Number',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'status' => WhatsAppTemplateDispatchStatus::Sent,
+            'customer_phone' => '9123456780',
+            'interakt_message_id' => 'msg-request-serial-dialog',
+            'dispatched_at' => $sentAt,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [$incident, 'request-serial']).'?workspace_context=customer')
+            ->assertOk()
+            ->assertSee('SENT', false)
+            ->assertSee('Last sent: '.AppDateFormatter::datetime($sentAt), false);
+    }
+
+    public function test_request_serial_dialog_shows_email_communication_timestamp(): void
+    {
+        [$agent, $incident] = $this->createIncidentWithoutSerial();
+        $sentAt = Carbon::parse('2026-07-04 09:15:00', AppDateFormatter::timezone());
+
+        app(AuditLogService::class)->log(
+            userId: $agent->id,
+            event: NotificationAuditTrailService::EVENT_DISPATCHED,
+            auditable: $incident,
+            newValues: [
+                'notification_type' => 'request_serial_number',
+                'source' => 'customer360',
+                'trigger_source' => 'manual',
+                'aggregate_success' => true,
+                'aggregate_message' => 'Notification sent',
+                'channel_results' => [
+                    [
+                        'channel' => 'email',
+                        'status' => 'sent',
+                        'success' => true,
+                        'retryable' => false,
+                        'message' => 'Email notification sent successfully.',
+                        'timestamp' => $sentAt->toIso8601String(),
+                        'duration_ms' => 45,
+                    ],
+                ],
+            ],
+        );
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [$incident, 'request-serial']).'?workspace_context=customer')
+            ->assertOk()
+            ->assertSee('SENT', false)
+            ->assertSee('Last sent: '.AppDateFormatter::datetime($sentAt), false);
+    }
+
+    public function test_request_serial_dialog_shows_not_sent_when_no_communication_history(): void
+    {
+        [$agent, $incident] = $this->createIncidentWithoutSerial();
+
+        $response = $this->actingAs($agent)
+            ->get(route('incidents.components.show', [$incident, 'request-serial']).'?workspace_context=customer');
+
+        $response->assertOk();
+
+        $this->assertSame(2, substr_count($response->getContent(), 'NOT SENT'));
     }
 
     /**

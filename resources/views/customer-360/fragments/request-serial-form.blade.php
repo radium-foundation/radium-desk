@@ -39,6 +39,9 @@
             @php
                 $whatsapp = $channelAvailability['whatsapp'] ?? ['available' => false];
                 $email = $channelAvailability['email'] ?? ['available' => false];
+                $communicationHistory = $communicationHistory ?? [];
+                $whatsappCommunication = $communicationHistory['whatsapp'] ?? [];
+                $emailCommunication = $communicationHistory['email'] ?? [];
             @endphp
 
             <ul class="request-serial-dialog-channel-list">
@@ -89,6 +92,10 @@
                             </div>
                         </div>
                     @endif
+
+                    @include('customer-360.partials.request-serial-channel-communication', [
+                        'communication' => $whatsappCommunication,
+                    ])
                 </li>
                 <li class="request-serial-dialog-channel-item">
                     @if($email['available'] ?? false)
@@ -108,6 +115,10 @@
                             <div class="request-serial-dialog-channel-note">{{ $email['fallback_note'] }}</div>
                         @endif
                     @endif
+
+                    @include('customer-360.partials.request-serial-channel-communication', [
+                        'communication' => $emailCommunication,
+                    ])
                 </li>
             </ul>
         </section>
