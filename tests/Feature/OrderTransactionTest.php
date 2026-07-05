@@ -258,12 +258,12 @@ class OrderTransactionTest extends TestCase
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
-    public function test_inline_assignment_returns_json_validation_error_for_duplicate_reference(): void
+    public function test_inline_assignment_allows_shared_service_reference(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $existingOrder = Order::query()->create([
+        Order::query()->create([
             'order_id' => 'RD-INLINE-DUP-EXISTING',
             'serial_number' => 'SN-INLINE-DUP-EXISTING',
             'product_name' => 'MFS 110',
@@ -290,8 +290,8 @@ class OrderTransactionTest extends TestCase
             'reference_no' => 'SC05662',
             'category' => 'General',
             'source' => \App\Enums\IncidentSource::Call,
-            'title' => 'Inline duplicate guard',
-            'description' => 'Inline duplicate guard.',
+            'title' => 'Inline shared reference',
+            'description' => 'Inline shared reference.',
             'status' => 'open',
             'created_by' => $admin->id,
         ]);
@@ -301,14 +301,10 @@ class OrderTransactionTest extends TestCase
                 'transaction_id' => '1708741',
                 'incident_id' => $targetIncident->id,
             ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['transaction_id'])
-            ->assertJsonPath(
-                'errors.transaction_id.0',
-                'This service reference is already linked to order '.$existingOrder->order_id.'.',
-            );
+            ->assertOk()
+            ->assertJsonPath('order_id', $targetOrder->id);
 
-        $this->assertNull($targetOrder->fresh()->transaction_id);
+        $this->assertSame('1708741', $targetOrder->fresh()->transaction_id);
     }
 
     public function test_inline_resubmitting_same_order_reference_is_idempotent(): void
@@ -534,7 +530,7 @@ class OrderTransactionTest extends TestCase
         }
     }
 
-    public function test_later_unrelated_service_reference_reuse_is_blocked(): void
+    public function test_later_unrelated_service_reference_reuse_is_allowed(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -593,22 +589,18 @@ class OrderTransactionTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        $response = $this->actingAs($admin)
+        $this->actingAs($admin)
             ->postJson(route('dashboard.transactions.bulk'), [
                 'incident_ids' => [$unrelatedIncident->id],
                 'transaction_id' => 'REF123',
             ])
             ->assertOk()
-            ->assertJsonPath('count', 0);
+            ->assertJsonPath('count', 1);
 
-        $this->assertNull($unrelatedOrder->fresh()->transaction_id);
-        $this->assertStringContainsString(
-            'already linked to order RD-BULK-LATER-1',
-            (string) $response->json('failed_incidents.0.message'),
-        );
+        $this->assertSame('REF123', $unrelatedOrder->fresh()->transaction_id);
     }
 
-    public function test_single_assignment_duplicate_service_reference_is_blocked(): void
+    public function test_single_assignment_allows_shared_service_reference(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -643,17 +635,17 @@ class OrderTransactionTest extends TestCase
             ->post(route('orders.transaction.store', $secondOrder), [
                 'transaction_id' => 'TXN-SINGLE-DUP',
             ])
-            ->assertSessionHasErrors('transaction_id');
+            ->assertRedirect(route('orders.show', $secondOrder));
 
-        $this->assertNull($secondOrder->fresh()->transaction_id);
+        $this->assertSame('TXN-SINGLE-DUP', $secondOrder->fresh()->transaction_id);
     }
 
-    public function test_bulk_assign_blocks_duplicate_service_reference_outside_selected_batch(): void
+    public function test_bulk_assign_allows_shared_service_reference_outside_selected_batch(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $existingOrder = Order::query()->create([
+        Order::query()->create([
             'order_id' => 'RD-BULK-EXISTING',
             'serial_number' => 'SN-BULK-EXISTING',
             'product_name' => 'MFS 110',
@@ -707,21 +699,16 @@ class OrderTransactionTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        $response = $this->actingAs($admin)
+        $this->actingAs($admin)
             ->postJson(route('dashboard.transactions.bulk'), [
                 'incident_ids' => [$firstIncident->id, $secondIncident->id],
                 'transaction_id' => 'TX-DUP-GUARD',
             ])
             ->assertOk()
-            ->assertJsonPath('count', 0);
+            ->assertJsonPath('count', 2);
 
-        $this->assertNull($firstOrder->fresh()->transaction_id);
-        $this->assertNull($secondOrder->fresh()->transaction_id);
-        $this->assertSame('TX-DUP-GUARD', $existingOrder->fresh()->transaction_id);
-        $this->assertStringContainsString(
-            'already linked to order RD-BULK-EXISTING',
-            (string) $response->json('failed_incidents.0.message'),
-        );
+        $this->assertSame('TX-DUP-GUARD', $firstOrder->fresh()->transaction_id);
+        $this->assertSame('TX-DUP-GUARD', $secondOrder->fresh()->transaction_id);
     }
 
     public function test_agent_cannot_bulk_assign_transactions(): void

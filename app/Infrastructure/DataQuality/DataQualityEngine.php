@@ -184,7 +184,7 @@ class DataQualityEngine
 
     public function duplicateServiceReferences(): DataQualityMetricResult
     {
-        $groups = $this->serviceReferenceIntegrityService->duplicateReferenceGroups();
+        $groups = $this->serviceReferenceIntegrityService->sharedReferenceGroups();
         $orderIds = collect($groups)
             ->flatMap(fn (array $group): array => $group['order_ids'])
             ->unique()

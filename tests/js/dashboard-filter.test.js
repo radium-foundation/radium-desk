@@ -100,6 +100,35 @@ describe('applyDashboardQuickFilter', () => {
         expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(true);
     });
 
+    it('matches progressive device model tokens including compact model names', () => {
+        document.body.innerHTML = '';
+        buildDashboardCard({ loaded: 2, total: 2 });
+        initServiceCasePaginationState();
+
+        document.getElementById('service-case-row-1')?.setAttribute(
+            'data-search-text',
+            'ord-100 sc00001 john 9876543210 sn-1 fm 220',
+        );
+        document.getElementById('service-case-row-2')?.setAttribute(
+            'data-search-text',
+            'ord-200 sc00002 jane 9123456780 sn-2 fm 200',
+        );
+
+        const card = document.querySelector('.dashboard-service-cases-card');
+
+        applyDashboardQuickFilter({ card, query: 'fm' });
+        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
+        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
+
+        applyDashboardQuickFilter({ card, query: 'fm 2' });
+        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
+        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
+
+        applyDashboardQuickFilter({ card, query: 'fm 22' });
+        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
+        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(true);
+    });
+
     it('shows the quick-filter empty row when nothing matches', () => {
         const card = document.querySelector('.dashboard-service-cases-card');
 

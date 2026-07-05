@@ -204,7 +204,7 @@ class CustomerIntakeVerificationTest extends TestCase
             ->assertSessionHasErrors('transaction_id');
     }
 
-    public function test_duplicate_service_reference_assignment_is_blocked(): void
+    public function test_shared_service_reference_assignment_is_allowed(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -239,9 +239,9 @@ class CustomerIntakeVerificationTest extends TestCase
             ->post(route('orders.transaction.store', $secondOrder), [
                 'transaction_id' => 'TXN-DUP-SHARED',
             ])
-            ->assertSessionHasErrors('transaction_id');
+            ->assertRedirect(route('orders.show', $secondOrder));
 
-        $this->assertNull($secondOrder->fresh()->transaction_id);
+        $this->assertSame('TXN-DUP-SHARED', $secondOrder->fresh()->transaction_id);
     }
 
     public function test_intake_search_classifies_cashfree_and_legacy_matches(): void

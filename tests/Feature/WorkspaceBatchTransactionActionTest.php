@@ -266,7 +266,7 @@ class WorkspaceBatchTransactionActionTest extends TestCase
         $this->assertSame('TX-BATCH-SHARED', $third['order']->fresh()->transaction_id);
     }
 
-    public function test_batch_blocks_later_unrelated_service_reference_reuse(): void
+    public function test_batch_allows_later_unrelated_service_reference_reuse(): void
     {
         $admin = $this->createAdmin();
         $first = $this->createPendingCase($admin, 'REUSE-1');
@@ -283,22 +283,17 @@ class WorkspaceBatchTransactionActionTest extends TestCase
 
         $unrelated = $this->createPendingCase($admin, 'REUSE-9');
 
-        $response = $this->actingAs($admin)
+        $this->actingAs($admin)
             ->postJson(route('dashboard.workspace.batch-transaction'), [
                 'incident_ids' => [$unrelated['incident']->id],
                 'transaction_id' => 'TX-BATCH-REUSE',
                 'workspace_context' => WorkspaceContext::Dashboard->value,
             ])
-            ->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('ui.close_workspace_host', false);
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('ui.close_workspace_host', true);
 
-        $this->assertNull($unrelated['order']->fresh()->transaction_id);
-        $this->assertCount(1, $response->json('extensions.failed_incidents'));
-        $this->assertStringContainsString(
-            'already linked to order',
-            $response->json('extensions.failed_incidents.0.message')
-        );
+        $this->assertSame('TX-BATCH-REUSE', $unrelated['order']->fresh()->transaction_id);
     }
 
     public function test_service_case_page_is_unaffected_by_batch_workspace_routes(): void

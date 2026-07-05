@@ -33,8 +33,8 @@ class UniversalSearchServiceTest extends TestCase
         $order = Order::query()->create([
             'order_id' => $orderAttributes['order_id'] ?? 'RD-'.uniqid(),
             'serial_number' => $orderAttributes['serial_number'] ?? 'SN-'.uniqid(),
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'product_name' => $orderAttributes['product_name'] ?? 'MFS 110',
+            'device_model' => $orderAttributes['device_model'] ?? 'MFS 110',
             'transaction_id' => $orderAttributes['transaction_id'] ?? null,
             'customer_name' => $orderAttributes['customer_name'] ?? null,
             'customer_email' => $orderAttributes['customer_email'] ?? null,
@@ -124,5 +124,36 @@ class UniversalSearchServiceTest extends TestCase
         $results = app(UniversalSearchService::class)->search($user, '7700000');
 
         $this->assertCount(UniversalSearchService::RESULT_LIMIT, $results);
+    }
+
+    public function test_progressive_device_model_search_matches_each_token(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $fm220 = $this->createServiceCase($user, [
+            'device_model' => 'FM 220',
+            'product_name' => 'FM 220',
+        ], [
+            'reference_no' => 'SC-FM-220',
+        ]);
+
+        $fm200 = $this->createServiceCase($user, [
+            'device_model' => 'FM200',
+            'product_name' => 'FM200',
+        ], [
+            'reference_no' => 'SC-FM-200',
+        ]);
+
+        $service = app(UniversalSearchService::class);
+
+        $fmResults = $service->search($user, 'fm')->pluck('id')->all();
+        $this->assertEqualsCanonicalizing([$fm220->id, $fm200->id], $fmResults);
+
+        $fmTwoResults = $service->search($user, 'fm 2')->pluck('id')->all();
+        $this->assertEqualsCanonicalizing([$fm220->id, $fm200->id], $fmTwoResults);
+
+        $fmTwentyTwoResults = $service->search($user, 'fm 22')->pluck('id')->all();
+        $this->assertSame([$fm220->id], $fmTwentyTwoResults);
     }
 }

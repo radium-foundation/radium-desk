@@ -27,14 +27,21 @@ class UniversalSearchService
             return collect();
         }
 
-        $like = '%'.$query.'%';
-        $prefix = $query.'%';
+        $tokens = $this->searchTokens($query);
+
+        if ($tokens === []) {
+            return collect();
+        }
 
         $builder = Incident::query()
-            ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee'])
-            ->where(function (Builder $incidentQuery) use ($query, $like): void {
-                $incidentQuery->where(function (Builder $referenceQuery) use ($query): void {
-                    $referenceQuery->matchingReference($query);
+            ->with(['order.deviceModel', 'order.transactionAssigner', 'creator', 'assignee']);
+
+        foreach ($tokens as $token) {
+            $like = '%'.$token.'%';
+
+            $builder->where(function (Builder $incidentQuery) use ($token, $like): void {
+                $incidentQuery->where(function (Builder $referenceQuery) use ($token): void {
+                    $referenceQuery->matchingReference($token);
                 })->orWhereHas('order', fn (Builder $orderQuery) => $this->applyOrderSearchFilters($orderQuery, $like))
                     ->orWhereHas('closeExceptions', fn (Builder $exceptionQuery) => $exceptionQuery
                         ->where('exception_id', 'like', $like));
@@ -56,8 +63,10 @@ class UniversalSearchService
                             })));
                 }
             });
+        }
 
         $referenceExactMatches = $this->referenceExactMatchBindings($query);
+        $prefix = $query.'%';
 
         return $builder
             ->orderByRaw(
@@ -123,6 +132,20 @@ class UniversalSearchService
     /**
      * @return list<string>
      */
+    public function searchTokens(string $query): array
+    {
+        $tokens = preg_split('/\s+/u', trim($query));
+
+        if ($tokens === false) {
+            return [];
+        }
+
+        return array_values(array_filter($tokens, fn (string $token): bool => $token !== ''));
+    }
+
+    /**
+     * @return list<string>
+     */
     private function referenceExactMatchBindings(string $query): array
     {
         $sequence = Incident::parseReferenceSequence($query);
@@ -168,6 +191,13 @@ class UniversalSearchService
                 $applied ? $builder->orWhere('customer_email', 'like', $like) : $builder->where('customer_email', 'like', $like);
                 $applied = true;
             }
+
+            $applied ? $builder->orWhere('device_model', 'like', $like) : $builder->where('device_model', 'like', $like);
+            $applied = true;
+
+            $builder->orWhere('product_name', 'like', $like);
+            $builder->orWhereHas('deviceModel', fn (Builder $deviceModelQuery) => $deviceModelQuery
+                ->where('name', 'like', $like));
 
             if (! $applied) {
                 $builder->whereRaw('0 = 1');

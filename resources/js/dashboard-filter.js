@@ -12,6 +12,22 @@ const LOCAL_DEBOUNCE_MS = 150;
 
 const normalizeQuery = (value) => value.trim().toLowerCase();
 
+const tokenizeQuery = (value) => normalizeQuery(value).split(/\s+/).filter(Boolean);
+
+const rowMatchesQuery = (searchText, normalizedQuery) => {
+    if (!normalizedQuery) {
+        return true;
+    }
+
+    const tokens = tokenizeQuery(normalizedQuery);
+
+    if (tokens.length === 0) {
+        return true;
+    }
+
+    return tokens.every((token) => searchText.includes(token));
+};
+
 const getDataRows = (tbody) => Array.from(
     tbody.querySelectorAll('tr[id^="service-case-row-"]'),
 );
@@ -33,7 +49,7 @@ const rowShouldStayVisible = (row, normalizedQuery, lockedIncidentIds) => {
 
     const searchText = row.dataset.searchText ?? '';
 
-    return searchText.includes(normalizedQuery);
+    return rowMatchesQuery(searchText, normalizedQuery);
 };
 
 const getTableColumnCount = (tbody) => {
