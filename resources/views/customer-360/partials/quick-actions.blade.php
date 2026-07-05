@@ -51,11 +51,14 @@
                     class="btn btn-outline-secondary btn-sm customer-360-quick-action customer-360-quick-action--serial-requested"
                     disabled
                     title="Serial number request already sent">
-                <span aria-hidden="true">✓</span>
-                <span>Serial Requested</span>
-                @if(filled($serialRequestState['requested_at_label'] ?? null))
-                    <span class="customer-360-serial-requested-at">{{ $serialRequestState['requested_at_label'] }}</span>
-                @endif
+                <span class="customer-360-serial-requested-content">
+                    <span class="customer-360-serial-requested-label">
+                        <span aria-hidden="true">✓</span> Serial Requested
+                    </span>
+                    @if(filled($serialRequestState['requested_at_label'] ?? null))
+                        <span class="customer-360-serial-requested-at">{{ $serialRequestState['requested_at_label'] }}</span>
+                    @endif
+                </span>
             </button>
         @elseif($canRequestSerialNumber ?? false)
             <button type="button"
