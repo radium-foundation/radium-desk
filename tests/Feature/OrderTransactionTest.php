@@ -343,10 +343,184 @@ class OrderTransactionTest extends TestCase
         $this->assertSame('TX-OLD', $alreadyCompletedOrder->fresh()->transaction_id);
     }
 
-    public function test_bulk_assign_blocks_duplicate_service_reference_across_unrelated_orders(): void
+    public function test_bulk_selected_cases_can_share_service_reference(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $orders = collect(['1', '2', '3'])->map(function (string $suffix) use ($admin) {
+            return Order::query()->create([
+                'order_id' => "RD-BULK-SHARE-{$suffix}",
+                'serial_number' => "SN-BULK-SHARE-{$suffix}",
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'cashfree_payment_id' => "cf_bulk_share_{$suffix}",
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+        });
+
+        $incidents = $orders->map(function (Order $order, int $index) use ($admin) {
+            return Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => 'SC-BULK-SHARE-'.($index + 1),
+                'category' => 'General',
+                'source' => \App\Enums\IncidentSource::Call,
+                'title' => 'Bulk share case '.($index + 1),
+                'description' => 'Bulk share case '.($index + 1).'.',
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        });
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.transactions.bulk'), [
+                'incident_ids' => $incidents->pluck('id')->all(),
+                'transaction_id' => 'REF123',
+            ])
+            ->assertOk()
+            ->assertJsonPath('count', 3);
+
+        $this->assertStringContainsString(
+            'Transaction REF123 applied to 3 service cases.',
+            $response->json('message')
+        );
+
+        foreach ($orders as $order) {
+            $this->assertSame('REF123', $order->fresh()->transaction_id);
+        }
+    }
+
+    public function test_later_unrelated_service_reference_reuse_is_blocked(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $bulkOrders = collect(['1', '2', '3'])->map(function (string $suffix) use ($admin) {
+            return Order::query()->create([
+                'order_id' => "RD-BULK-LATER-{$suffix}",
+                'serial_number' => "SN-BULK-LATER-{$suffix}",
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'cashfree_payment_id' => "cf_bulk_later_{$suffix}",
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+        });
+
+        $bulkIncidents = $bulkOrders->map(function (Order $order, int $index) use ($admin) {
+            return Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => 'SC-BULK-LATER-'.($index + 1),
+                'category' => 'General',
+                'source' => \App\Enums\IncidentSource::Call,
+                'title' => 'Bulk later case '.($index + 1),
+                'description' => 'Bulk later case '.($index + 1).'.',
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        });
+
+        $this->actingAs($admin)
+            ->postJson(route('dashboard.transactions.bulk'), [
+                'incident_ids' => $bulkIncidents->pluck('id')->all(),
+                'transaction_id' => 'REF123',
+            ])
+            ->assertOk()
+            ->assertJsonPath('count', 3);
+
+        $unrelatedOrder = Order::query()->create([
+            'order_id' => 'RD-BULK-LATER-9',
+            'serial_number' => 'SN-BULK-LATER-9',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_bulk_later_9',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $unrelatedIncident = Incident::query()->create([
+            'order_id' => $unrelatedOrder->id,
+            'reference_no' => 'SC-BULK-LATER-9',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Unrelated later case',
+            'description' => 'Unrelated later case.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.transactions.bulk'), [
+                'incident_ids' => [$unrelatedIncident->id],
+                'transaction_id' => 'REF123',
+            ])
+            ->assertOk()
+            ->assertJsonPath('count', 0);
+
+        $this->assertNull($unrelatedOrder->fresh()->transaction_id);
+        $this->assertStringContainsString(
+            'already linked to order RD-BULK-LATER-1',
+            (string) $response->json('failed_incidents.0.message'),
+        );
+    }
+
+    public function test_single_assignment_duplicate_service_reference_is_blocked(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $firstOrder = Order::query()->create([
+            'order_id' => 'RD-SINGLE-DUP-1',
+            'serial_number' => 'SN-SINGLE-DUP-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_single_dup_1',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $secondOrder = Order::query()->create([
+            'order_id' => 'RD-SINGLE-DUP-2',
+            'serial_number' => 'SN-SINGLE-DUP-2',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_single_dup_2',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('orders.transaction.store', $firstOrder), [
+                'transaction_id' => 'TXN-SINGLE-DUP',
+            ])
+            ->assertRedirect(route('orders.show', $firstOrder));
+
+        $this->actingAs($admin)
+            ->post(route('orders.transaction.store', $secondOrder), [
+                'transaction_id' => 'TXN-SINGLE-DUP',
+            ])
+            ->assertSessionHasErrors('transaction_id');
+
+        $this->assertNull($secondOrder->fresh()->transaction_id);
+    }
+
+    public function test_bulk_assign_blocks_duplicate_service_reference_outside_selected_batch(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $existingOrder = Order::query()->create([
+            'order_id' => 'RD-BULK-EXISTING',
+            'serial_number' => 'SN-BULK-EXISTING',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_bulk_existing',
+            'transaction_id' => 'TX-DUP-GUARD',
+            'completed_at' => now(),
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
 
         $firstOrder = Order::query()->create([
             'order_id' => 'RD-BULK-DUP-1',
@@ -396,11 +570,15 @@ class OrderTransactionTest extends TestCase
                 'transaction_id' => 'TX-DUP-GUARD',
             ])
             ->assertOk()
-            ->assertJsonPath('count', 1);
+            ->assertJsonPath('count', 0);
 
-        $this->assertSame('TX-DUP-GUARD', $firstOrder->fresh()->transaction_id);
+        $this->assertNull($firstOrder->fresh()->transaction_id);
         $this->assertNull($secondOrder->fresh()->transaction_id);
-        $this->assertStringContainsString('1 of 2', $response->json('message'));
+        $this->assertSame('TX-DUP-GUARD', $existingOrder->fresh()->transaction_id);
+        $this->assertStringContainsString(
+            'already linked to order RD-BULK-EXISTING',
+            (string) $response->json('failed_incidents.0.message'),
+        );
     }
 
     public function test_agent_cannot_bulk_assign_transactions(): void

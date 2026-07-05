@@ -7,15 +7,25 @@ use Illuminate\Validation\ValidationException;
 
 class ServiceReferenceIntegrityService
 {
-    public function assertNotAlreadyAssigned(string $transactionId, ?Order $targetOrder = null): void
-    {
+    /**
+     * @param  list<int>  $batchOrderIds  Order IDs in the current bulk selection; duplicates within this set are allowed.
+     */
+    public function assertNotAlreadyAssigned(
+        string $transactionId,
+        ?Order $targetOrder = null,
+        array $batchOrderIds = [],
+    ): void {
         $transactionId = trim($transactionId);
 
         if ($transactionId === '') {
             return;
         }
 
-        $conflictingOrder = $this->findConflictingOrder($transactionId, $targetOrder?->id);
+        $conflictingOrder = $this->findConflictingOrder(
+            $transactionId,
+            $targetOrder?->id,
+            $batchOrderIds,
+        );
 
         if ($conflictingOrder === null) {
             return;
@@ -29,20 +39,36 @@ class ServiceReferenceIntegrityService
         ]);
     }
 
-    public function findConflictingOrder(string $transactionId, ?int $excludeOrderId = null): ?Order
-    {
+    /**
+     * @param  list<int>  $batchOrderIds  Order IDs in the current bulk selection; duplicates within this set are allowed.
+     */
+    public function findConflictingOrder(
+        string $transactionId,
+        ?int $excludeOrderId = null,
+        array $batchOrderIds = [],
+    ): ?Order {
         $transactionId = trim($transactionId);
 
         if ($transactionId === '') {
             return null;
         }
 
+        $excludedOrderIds = collect($batchOrderIds)
+            ->map(fn ($id): int => (int) $id)
+            ->when(
+                $excludeOrderId !== null,
+                fn ($ids) => $ids->push((int) $excludeOrderId),
+            )
+            ->unique()
+            ->values()
+            ->all();
+
         $query = Order::query()
             ->where('transaction_id', $transactionId)
             ->whereNotNull('transaction_id');
 
-        if ($excludeOrderId !== null) {
-            $query->whereKeyNot($excludeOrderId);
+        if ($excludedOrderIds !== []) {
+            $query->whereNotIn('id', $excludedOrderIds);
         }
 
         return $query->first();

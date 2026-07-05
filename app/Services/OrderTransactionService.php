@@ -22,8 +22,16 @@ class OrderTransactionService
         private readonly ServiceReferenceIntegrityService $serviceReferenceIntegrityService,
     ) {}
 
-    public function assignTransactionId(Order $order, string $transactionId, User $actor, bool $broadcast = true): Order
-    {
+    /**
+     * @param  list<int>  $batchOrderIds  Order IDs in the current bulk selection; duplicates within this set are allowed.
+     */
+    public function assignTransactionId(
+        Order $order,
+        string $transactionId,
+        User $actor,
+        bool $broadcast = true,
+        array $batchOrderIds = [],
+    ): Order {
         if ($order->isTransactionLocked()) {
             throw ValidationException::withMessages([
                 'transaction_id' => 'This order is already completed and locked.',
@@ -38,7 +46,11 @@ class OrderTransactionService
             ]);
         }
 
-        $this->serviceReferenceIntegrityService->assertNotAlreadyAssigned($transactionId, $order);
+        $this->serviceReferenceIntegrityService->assertNotAlreadyAssigned(
+            $transactionId,
+            $order,
+            $batchOrderIds,
+        );
         $this->customerVerificationService->assertCanCompleteService($order, $actor);
 
         return DB::transaction(function () use ($order, $transactionId, $actor, $broadcast): Order {
@@ -142,6 +154,13 @@ class OrderTransactionService
             fn (Incident $incident): bool => $incident->order !== null && ! $incident->order->isTransactionLocked()
         );
 
+        $batchOrderIds = $incidents
+            ->filter(fn (Incident $incident): bool => $incident->order !== null)
+            ->pluck('order.id')
+            ->unique()
+            ->values()
+            ->all();
+
         $ordersToUpdate = $pendingIncidents
             ->pluck('order.id')
             ->unique()
@@ -156,7 +175,13 @@ class OrderTransactionService
             }
 
             try {
-                $this->assignTransactionId($order, $transactionId, $actor, broadcast: false);
+                $this->assignTransactionId(
+                    $order,
+                    $transactionId,
+                    $actor,
+                    broadcast: false,
+                    batchOrderIds: $batchOrderIds,
+                );
             } catch (ValidationException $exception) {
                 // Allow partial bulk success; per-incident failure details are resolved below.
             }
@@ -239,6 +264,7 @@ class OrderTransactionService
             $conflictingOrder = $this->serviceReferenceIntegrityService->findConflictingOrder(
                 $transactionId,
                 $incident->order->id,
+                $batchOrderIds,
             );
 
             if ($conflictingOrder !== null) {
