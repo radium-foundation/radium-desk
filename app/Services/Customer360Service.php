@@ -16,6 +16,7 @@ use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\Customer360\Customer360OperationsHealthService;
 use App\Services\Customer360\Customer360SlaMetricsService;
 use App\Services\Operations\OperationsAdvisorService;
+use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
@@ -34,6 +35,7 @@ class Customer360Service
         private readonly RadiumBoxSyncTimelineService $syncTimelineService,
         private readonly RadiumBoxSyncErrorFormatter $syncErrorFormatter,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
+        private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly AIService $aiService,
         private readonly OperationsAdvisorService $operationsAdvisorService,
@@ -298,9 +300,9 @@ class Customer360Service
     ): array {
         $events = $timeline->events();
         $lastPaymentEvent = $events->first(fn ($event) => $event->type === TimelineEventType::Payment);
-        $lastWhatsAppEvent = $events->first(fn ($event) => $event->type === TimelineEventType::WhatsApp);
         $lastInteraction = $events->first();
         $warranty = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
+        $communication = $this->requestSerialCommunicationHistoryService->forCustomerPhone($order->customer_phone);
 
         return [
             'name' => $customer['name'],
@@ -309,10 +311,10 @@ class Customer360Service
             'warranty_status' => $warranty,
             'active_service_cases' => $summary['open_cases'] ?? 0,
             'last_payment' => $this->resolveLastPayment($order, $lastPaymentEvent),
-            'last_whatsapp_status' => $lastWhatsAppEvent?->statusLabel,
+            'last_whatsapp' => $communication['whatsapp'],
+            'last_email' => $communication['email'],
             'last_interaction_at' => $lastInteraction?->occurredAt,
             'last_call' => null,
-            'last_email' => null,
         ];
     }
 
@@ -369,6 +371,8 @@ class Customer360Service
      */
     private function emptyDrawerData(Incident $incident): array
     {
+        $emptyCommunication = $this->requestSerialCommunicationHistoryService->forCustomerPhone(null);
+
         return [
             'incident' => $incident,
             'order' => null,
@@ -408,10 +412,10 @@ class Customer360Service
                 'warranty_status' => 'Not Available',
                 'active_service_cases' => 0,
                 'last_payment' => null,
-                'last_whatsapp_status' => null,
+                'last_whatsapp' => $emptyCommunication['whatsapp'],
+                'last_email' => $emptyCommunication['email'],
                 'last_interaction_at' => null,
                 'last_call' => null,
-                'last_email' => null,
             ],
             'timeline' => new TimelineViewModel(
                 groups: collect(),

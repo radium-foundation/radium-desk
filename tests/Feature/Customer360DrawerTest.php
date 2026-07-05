@@ -4,12 +4,20 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\WhatsAppTemplateDispatchStatus;
+use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Models\WhatsAppTemplateDispatch;
+use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
+use App\Services\Interakt\RequestSerialCommunicationHistoryService;
+use App\Services\Notifications\NotificationAuditTrailService;
+use App\Support\AppDateFormatter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class Customer360DrawerTest extends TestCase
@@ -72,9 +80,151 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('data-customer-360-copy="serial"', false);
         $response->assertSee('data-customer-360-copy="order-id"', false);
         $response->assertSee('aria-label="Copy Customer Phone"', false);
+        $response->assertSee('Last Call', false);
         $response->assertSee('Coming soon', false);
+        $response->assertSee('Not available', false);
         $response->assertSee('timeline-actor-badge', false);
         $response->assertSee('unified-timeline-filter-chip', false);
+    }
+
+    public function test_customer_360_health_card_shows_whatsapp_communication_timestamp(): void
+    {
+        [$agent, $incident] = $this->createHealthCardIncident();
+        $sentAt = Carbon::parse('2026-07-05 22:15:00', AppDateFormatter::timezone());
+
+        WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $incident->id,
+            'order_id' => $incident->order_id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => 'request_serial_number',
+            'template_name' => 'order_update_request_serial',
+            'template_display_name' => 'Order Update',
+            'template_purpose' => 'Request Serial Number',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'status' => WhatsAppTemplateDispatchStatus::Sent,
+            'customer_phone' => '9123456780',
+            'interakt_message_id' => 'msg-health-card-whatsapp',
+            'dispatched_at' => $sentAt,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('Last WhatsApp', false)
+            ->assertSee('SENT', false)
+            ->assertSee(AppDateFormatter::format(
+                $sentAt,
+                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ), false);
+    }
+
+    public function test_customer_360_health_card_shows_email_communication_timestamp(): void
+    {
+        [$agent, $incident] = $this->createHealthCardIncident();
+        $sentAt = Carbon::parse('2026-07-05 22:16:00', AppDateFormatter::timezone());
+
+        app(AuditLogService::class)->log(
+            userId: $agent->id,
+            event: NotificationAuditTrailService::EVENT_DISPATCHED,
+            auditable: $incident,
+            newValues: [
+                'notification_type' => 'request_serial_number',
+                'source' => 'customer360',
+                'trigger_source' => 'manual',
+                'aggregate_success' => true,
+                'aggregate_message' => 'Notification sent',
+                'channel_results' => [
+                    [
+                        'channel' => 'email',
+                        'status' => 'sent',
+                        'success' => true,
+                        'retryable' => false,
+                        'message' => 'Email notification sent successfully.',
+                        'timestamp' => $sentAt->toIso8601String(),
+                        'duration_ms' => 45,
+                    ],
+                ],
+            ],
+        );
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('Last Email', false)
+            ->assertSee('SENT', false)
+            ->assertSee(AppDateFormatter::format(
+                $sentAt,
+                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ), false);
+    }
+
+    public function test_customer_360_health_card_shows_failed_whatsapp_status(): void
+    {
+        [$agent, $incident] = $this->createHealthCardIncident();
+
+        WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $incident->id,
+            'order_id' => $incident->order_id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => 'request_serial_number',
+            'template_name' => 'order_update_request_serial',
+            'template_display_name' => 'Order Update',
+            'template_purpose' => 'Request Serial Number',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'status' => WhatsAppTemplateDispatchStatus::Failed,
+            'customer_phone' => '9123456780',
+            'error_message' => 'Interakt rejected the template.',
+        ]);
+
+        $html = $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Last WhatsApp', $html);
+        $this->assertSame(1, substr_count($html, 'FAILED'));
+    }
+
+    public function test_customer_360_health_card_uses_customer_scope_communication_history(): void
+    {
+        [$agent, $incident] = $this->createHealthCardIncident();
+        $sharedPhone = '9123456780';
+        $sentAt = Carbon::parse('2026-07-05 22:15:00', AppDateFormatter::timezone());
+
+        $otherOrder = Order::query()->create([
+            'order_id' => 'RD-360-OTHER',
+            'serial_number' => 'SN-360-OTHER',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Drawer Customer',
+            'customer_email' => 'drawer@example.com',
+            'customer_phone' => $sharedPhone,
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $incident->id,
+            'order_id' => $otherOrder->id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => 'request_serial_number',
+            'template_name' => 'order_update_request_serial',
+            'template_display_name' => 'Order Update',
+            'template_purpose' => 'Request Serial Number',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'status' => WhatsAppTemplateDispatchStatus::Sent,
+            'customer_phone' => $sharedPhone,
+            'interakt_message_id' => 'msg-health-card-other-order',
+            'dispatched_at' => $sentAt,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee(AppDateFormatter::format(
+                $sentAt,
+                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ), false);
     }
 
     public function test_customer_360_endpoint_requires_authentication(): void
@@ -117,5 +267,42 @@ class Customer360DrawerTest extends TestCase
             ->assertOk()
             ->assertSee('data-customer-360-drawer', false)
             ->assertSee('data-customer-360-url', false);
+    }
+
+    /**
+     * @return array{0: User, 1: Incident}
+     */
+    private function createHealthCardIncident(): array
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-360-HEALTH',
+            'serial_number' => 'SN-360-HEALTH',
+            'product_name' => 'MFS 110 E3',
+            'device_model' => 'MFS 110 E3',
+            'transaction_id' => 'TXN-HEALTH',
+            'customer_name' => 'Drawer Customer',
+            'customer_email' => 'drawer@example.com',
+            'customer_phone' => '9123456780',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Health card case',
+            'description' => 'Health card case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        return [$agent, $incident];
     }
 }

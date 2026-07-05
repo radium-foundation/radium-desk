@@ -113,7 +113,8 @@ class Customer360ServiceTest extends TestCase
         $this->assertSame('Active', $data['healthCard']['warranty_status']);
         $this->assertSame(1, $data['healthCard']['active_service_cases']);
         $this->assertNull($data['healthCard']['last_call']);
-        $this->assertNull($data['healthCard']['last_email']);
+        $this->assertSame('not_sent', $data['healthCard']['last_whatsapp']['status']);
+        $this->assertSame('not_sent', $data['healthCard']['last_email']['status']);
 
         $this->assertInstanceOf(\App\Data\TimelineViewModel::class, $data['timeline']);
         $this->assertLessThanOrEqual(8, $data['timeline']->events()->count());

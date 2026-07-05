@@ -60,13 +60,9 @@
         <div class="customer-360-health-item">
             <dt><i class="bi bi-whatsapp" aria-hidden="true"></i> Last WhatsApp</dt>
             <dd>
-                @if(filled($healthCard['last_whatsapp_status'] ?? null))
-                    <span class="timeline-status-chip timeline-status-chip--{{ strtolower($healthCard['last_whatsapp_status']) }}">
-                        {{ $healthCard['last_whatsapp_status'] }}
-                    </span>
-                @else
-                    No activity
-                @endif
+                @include('customer-360.partials.health-card-communication', [
+                    'communication' => $healthCard['last_whatsapp'] ?? [],
+                ])
             </dd>
         </div>
         <div class="customer-360-health-item">
@@ -86,9 +82,13 @@
             <dt><i class="bi bi-telephone-outbound" aria-hidden="true"></i> Last Call</dt>
             <dd><span class="customer-360-health-placeholder">Coming soon</span></dd>
         </div>
-        <div class="customer-360-health-item customer-360-health-item--placeholder">
+        <div class="customer-360-health-item">
             <dt><i class="bi bi-envelope-open" aria-hidden="true"></i> Last Email</dt>
-            <dd><span class="customer-360-health-placeholder">Coming soon</span></dd>
+            <dd>
+                @include('customer-360.partials.health-card-communication', [
+                    'communication' => $healthCard['last_email'] ?? [],
+                ])
+            </dd>
         </div>
     </dl>
 </section>

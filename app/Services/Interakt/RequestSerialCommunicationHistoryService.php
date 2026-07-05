@@ -13,6 +13,7 @@ use App\Models\WhatsAppTemplateDispatch;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Support\AppDateFormatter;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Collection;
 
 class RequestSerialCommunicationHistoryService
 {
@@ -26,19 +27,69 @@ class RequestSerialCommunicationHistoryService
      */
     public function forOrder(Order $order): array
     {
+        return $this->forOrderIds(collect([$order->id]));
+    }
+
+    /**
+     * @return array{
+     *     whatsapp: array<string, mixed>,
+     *     email: array<string, mixed>,
+     * }
+     */
+    public function forCustomerPhone(?string $customerPhone): array
+    {
+        if (! filled($customerPhone)) {
+            return $this->emptyHistory();
+        }
+
+        $orderIds = Order::query()
+            ->where('customer_phone', $customerPhone)
+            ->pluck('id');
+
+        if ($orderIds->isEmpty()) {
+            return $this->emptyHistory();
+        }
+
+        return $this->forOrderIds($orderIds);
+    }
+
+    /**
+     * @param  Collection<int, int>  $orderIds
+     * @return array{
+     *     whatsapp: array<string, mixed>,
+     *     email: array<string, mixed>,
+     * }
+     */
+    private function forOrderIds(Collection $orderIds): array
+    {
         return [
-            'whatsapp' => $this->whatsappHistory($order),
-            'email' => $this->emailHistory($order),
+            'whatsapp' => $this->whatsappHistory($orderIds),
+            'email' => $this->emailHistory($orderIds),
         ];
     }
 
     /**
+     * @return array{
+     *     whatsapp: array<string, mixed>,
+     *     email: array<string, mixed>,
+     * }
+     */
+    private function emptyHistory(): array
+    {
+        return [
+            'whatsapp' => $this->notSentState(),
+            'email' => $this->notSentState(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, int>  $orderIds
      * @return array<string, mixed>
      */
-    private function whatsappHistory(Order $order): array
+    private function whatsappHistory(Collection $orderIds): array
     {
         $lastSent = WhatsAppTemplateDispatch::query()
-            ->where('order_id', $order->id)
+            ->whereIn('order_id', $orderIds)
             ->where('template_key', WhatsAppTemplate::RequestSerialNumber->value)
             ->where('status', WhatsAppTemplateDispatchStatus::Sent)
             ->orderByDesc('dispatched_at')
@@ -50,7 +101,7 @@ class RequestSerialCommunicationHistoryService
         }
 
         $lastFailed = WhatsAppTemplateDispatch::query()
-            ->where('order_id', $order->id)
+            ->whereIn('order_id', $orderIds)
             ->where('template_key', WhatsAppTemplate::RequestSerialNumber->value)
             ->where('status', WhatsAppTemplateDispatchStatus::Failed)
             ->orderByDesc('id')
@@ -64,12 +115,14 @@ class RequestSerialCommunicationHistoryService
     }
 
     /**
+     * @param  Collection<int, int>  $orderIds
      * @return array<string, mixed>
      */
-    private function emailHistory(Order $order): array
+    private function emailHistory(Collection $orderIds): array
     {
-        $order->loadMissing('incidents');
-        $incidentIds = $order->incidents->pluck('id');
+        $incidentIds = Incident::query()
+            ->whereIn('order_id', $orderIds)
+            ->pluck('id');
 
         if ($incidentIds->isEmpty()) {
             return $this->notSentState();
