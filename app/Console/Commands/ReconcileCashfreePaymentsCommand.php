@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Data\CashfreeMissingPaidOrderRecord;
 use App\Enums\CashfreeHistoricalRecoveryDisposition;
+use App\Enums\CashfreeWebhookFailureCategory;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -22,12 +23,38 @@ class ReconcileCashfreePaymentsCommand extends Command
     public function handle(): int
     {
         $report = $this->integrityService->reconcile();
+        $classification = $this->integrityService->classifyFailedWebhooks();
 
         $this->line('Successful Cashfree payments: '.$report->successfulCashfreePayments);
         $this->line('Desk orders: '.$report->deskOrders);
         $this->line('Missing orders: '.$report->missingOrdersCount);
         $this->line('Failed processing: '.$report->failedProcessing);
         $this->line('Paid without Desk order: '.$report->paidWithoutDeskOrderCount);
+        $this->line('Active failed webhooks: '.$classification->activeFailedWebhooks);
+        $this->line('Historical resolved failures: '.$classification->historicalResolvedFailures);
+
+        $this->newLine();
+        $this->info('Failed webhook classification');
+
+        foreach (CashfreeWebhookFailureCategory::cases() as $category) {
+            $this->line(sprintf(
+                '- %s: %d',
+                $category->label(),
+                $classification->countsByCategory[$category->value] ?? 0,
+            ));
+        }
+
+        if ($classification->oldestFailedAt !== null || $classification->newestFailedAt !== null) {
+            $this->line(sprintf(
+                'Failed webhook window: %s to %s',
+                $classification->oldestFailedAt?->toDateTimeString() ?? 'unknown',
+                $classification->newestFailedAt?->toDateTimeString() ?? 'unknown',
+            ));
+        }
+
+        if ($classification->affectedOrderIds !== []) {
+            $this->line('Affected order IDs: '.implode(', ', $classification->affectedOrderIds));
+        }
 
         if ($report->missingOrders !== []) {
             $this->newLine();

@@ -15,6 +15,7 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
         private readonly IraBriefingFormatter $briefingFormatter,
         private readonly OperationsCashfreeDeviceEnrichmentService $cashfreeDeviceEnrichmentService,
         private readonly OperationsMissingSerialAutomationService $missingSerialAutomationService,
+        private readonly OperationsCashfreeHealthService $cashfreeHealthService,
     ) {}
 
     public function name(): string
@@ -138,6 +139,29 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
             $highlights[] = $warning === 1
                 ? '1 case being monitored'
                 : "{$warning} cases being monitored";
+        }
+
+        $cashfreeHealth = $this->cashfreeHealthService->widget();
+
+        if (($cashfreeHealth['is_healthy'] ?? false) === true) {
+            if (($cashfreeHealth['historical_resolved_failures'] ?? 0) > 0) {
+                $highlights[] = sprintf(
+                    'Cashfree healthy. %d historical failure(s) archived.',
+                    $cashfreeHealth['historical_resolved_failures'],
+                );
+            }
+        } else {
+            if (($cashfreeHealth['paid_without_desk_order'] ?? 0) > 0) {
+                $highlights[] = sprintf(
+                    '%d paid Cashfree payment(s) missing Desk orders.',
+                    $cashfreeHealth['paid_without_desk_order'],
+                );
+            } elseif (($cashfreeHealth['active_failed_webhooks'] ?? 0) > 0) {
+                $highlights[] = sprintf(
+                    '%d actionable Cashfree webhook failure(s) require recovery.',
+                    $cashfreeHealth['active_failed_webhooks'],
+                );
+            }
         }
 
         $deviceQuality = $this->cashfreeDeviceEnrichmentService->qualitySummary();

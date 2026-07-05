@@ -114,6 +114,7 @@ const refreshOperationsDashboard = async (pageRoot) => {
         replaceSectionHtml('operations-queue-metrics', html.queue_metrics);
         replaceSectionHtml('operations-integration-health', html.integration_health);
         replaceSectionHtml('operations-radiumbox-health', html.radiumbox_health);
+        replaceSectionHtml('operations-cashfree-health', html.cashfree_health);
         replaceSectionHtml('operations-recent-notification-failures', html.recent_notification_failures);
         replaceSectionHtml('operations-recent-automation-activity', html.recent_automation_activity);
         replaceSectionHtml('operations-recent-ira-messages', html.recent_ira_messages);

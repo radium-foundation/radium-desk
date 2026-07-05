@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Enums\OperationsHealthStatus;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Models\AuditLog;
+use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\SystemSettingsService;
@@ -16,6 +17,7 @@ class OperationsIntegrationHealthService
 {
     public function __construct(
         private readonly CashfreeIntegrationHealthProbe $cashfreeProbe,
+        private readonly CashfreePaymentIntegrityService $cashfreePaymentIntegrityService,
         private readonly SystemSettingsService $systemSettings,
         private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
     ) {}
@@ -42,7 +44,29 @@ class OperationsIntegrationHealthService
     {
         $probeSnapshot = $snapshot?->cashfreeIntegrationSnapshot()
             ?? $this->cashfreeProbe->probe();
-        $status = $this->mapConnectionStatus($probeSnapshot->connectionStatus);
+        $classification = $this->cashfreePaymentIntegrityService->classifyFailedWebhooks();
+        $paidWithoutDeskOrder = $this->cashfreePaymentIntegrityService->paidWithoutDeskOrderCount();
+        $requiresAlert = $this->cashfreePaymentIntegrityService->requiresCashfreeHealthAlert();
+
+        $status = $requiresAlert
+            ? OperationsHealthStatus::Failed
+            : OperationsHealthStatus::Healthy;
+
+        $detail = match (true) {
+            $paidWithoutDeskOrder > 0 => sprintf(
+                '%d paid payment(s) missing Desk orders.',
+                $paidWithoutDeskOrder,
+            ),
+            $classification->activeFailedWebhooks > 0 => sprintf(
+                '%d actionable webhook failure(s) require recovery.',
+                $classification->activeFailedWebhooks,
+            ),
+            $classification->historicalResolvedFailures > 0 => sprintf(
+                'Cashfree healthy. %d historical failure(s) archived.',
+                $classification->historicalResolvedFailures,
+            ),
+            default => 'Payment webhooks are healthy.',
+        };
 
         return [
             'key' => 'cashfree',
@@ -53,7 +77,10 @@ class OperationsIntegrationHealthService
             'last_success_at' => $probeSnapshot->lastSuccessAt,
             'last_failure_at' => $probeSnapshot->lastFailureAt,
             'retry_count' => $probeSnapshot->retryCount,
-            'detail' => $probeSnapshot->lastErrorMessage ?? 'Payment webhook integration.',
+            'detail' => $detail,
+            'paid_without_desk_order' => $paidWithoutDeskOrder,
+            'active_failed_webhooks' => $classification->activeFailedWebhooks,
+            'historical_resolved_failures' => $classification->historicalResolvedFailures,
         ];
     }
 

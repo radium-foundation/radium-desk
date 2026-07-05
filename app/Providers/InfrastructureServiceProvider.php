@@ -16,7 +16,7 @@ class InfrastructureServiceProvider extends ServiceProvider
         $this->app->singleton(IntegrationHealthRegistry::class, function (): IntegrationHealthRegistry {
             $registry = new IntegrationHealthRegistry;
 
-            $registry->register(new CashfreeIntegrationHealthProbe);
+            $registry->register($this->app->make(CashfreeIntegrationHealthProbe::class));
             $registry->register(new RadiumBoxIntegrationHealthProbe);
             $registry->register(new PlaceholderIntegrationHealthProbe('whatsapp', 'WhatsApp'));
             $registry->register(new PlaceholderIntegrationHealthProbe('email', 'Email'));

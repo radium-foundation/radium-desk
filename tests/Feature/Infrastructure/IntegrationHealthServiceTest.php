@@ -5,6 +5,7 @@ namespace Tests\Feature\Infrastructure;
 use App\Infrastructure\IntegrationHealth\IntegrationHealthService;
 use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Models\CashfreeWebhookLog;
+use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
@@ -27,10 +28,22 @@ class IntegrationHealthServiceTest extends TestCase
 
     public function test_cashfree_health_details_include_webhook_metrics(): void
     {
+        $successfulPayload = [
+            'type' => 'PAYMENT_SUCCESS_WEBHOOK',
+            'data' => [
+                'order' => ['order_id' => 'RD-HEALTH-ACTIVE'],
+                'payment' => [
+                    'cf_payment_id' => '5900000001',
+                    'payment_status' => 'SUCCESS',
+                ],
+            ],
+        ];
+
         CashfreeWebhookLog::query()->create([
             'webhook_version' => '2023-08-01',
+            'cf_payment_id' => '5900000001',
             'request_headers' => [],
-            'request_payload' => ['type' => 'PAYMENT_SUCCESS'],
+            'request_payload' => $successfulPayload,
             'raw_body' => '{}',
             'received_at' => now()->subHour(),
             'source_ip' => '127.0.0.1',
@@ -39,16 +52,33 @@ class IntegrationHealthServiceTest extends TestCase
             'processed_at' => now()->subMinutes(30),
         ]);
 
+        Order::query()->create([
+            'order_id' => 'RD-HEALTH-ACTIVE',
+            'cashfree_payment_id' => '5900000001',
+            'status' => 'active',
+            'created_by' => User::factory()->create()->id,
+        ]);
+
         CashfreeWebhookLog::query()->create([
             'webhook_version' => '2023-08-01',
+            'cf_payment_id' => '5900000002',
             'request_headers' => [],
-            'request_payload' => ['type' => 'PAYMENT_SUCCESS'],
+            'request_payload' => [
+                'type' => 'PAYMENT_SUCCESS_WEBHOOK',
+                'data' => [
+                    'order' => ['order_id' => 'RD-HEALTH-ACTIVE-FAIL'],
+                    'payment' => [
+                        'cf_payment_id' => '5900000002',
+                        'payment_status' => 'SUCCESS',
+                    ],
+                ],
+            ],
             'raw_body' => '{}',
             'received_at' => now(),
             'source_ip' => '127.0.0.1',
             'user_agent' => 'test',
             'processing_status' => CashfreeWebhookProcessorService::STATUS_FAILED,
-            'processing_error' => 'Signature invalid',
+            'processing_error' => 'Order persistence failed',
             'processed_at' => now(),
         ]);
 
@@ -57,6 +87,77 @@ class IntegrationHealthServiceTest extends TestCase
         $this->assertNotNull($details->lastWebhookAt);
         $this->assertNotNull($details->lastSuccessfulWebhookAt);
         $this->assertSame(1, $details->failedWebhooks);
+        $this->assertSame(1, $details->activeFailedWebhooks);
+        $this->assertSame(0, $details->historicalResolvedFailures);
+        $this->assertSame(1, $details->paidWithoutDeskOrderCount);
+        $this->assertFalse($details->isHealthy());
+    }
+
+    public function test_cashfree_health_treats_recovered_duplicate_failure_as_historical(): void
+    {
+        $agent = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RD-HEALTH-DUP',
+            'cashfree_payment_id' => '5900000100',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'INC-HEALTH-DUP',
+            'category' => 'General',
+            'source' => 'call',
+            'title' => 'Health duplicate test',
+            'description' => 'Health duplicate test.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+        ]);
+
+        $payload = [
+            'type' => 'PAYMENT_SUCCESS_WEBHOOK',
+            'data' => [
+                'order' => ['order_id' => 'RD-HEALTH-DUP'],
+                'payment' => [
+                    'cf_payment_id' => '5900000100',
+                    'payment_status' => 'SUCCESS',
+                ],
+            ],
+        ];
+
+        CashfreeWebhookLog::query()->create([
+            'webhook_version' => '2023-08-01',
+            'cf_payment_id' => '5900000100',
+            'request_headers' => [],
+            'request_payload' => $payload,
+            'raw_body' => '{}',
+            'received_at' => now()->subHour(),
+            'source_ip' => '127.0.0.1',
+            'user_agent' => 'test',
+            'processing_status' => CashfreeWebhookProcessorService::STATUS_PROCESSED,
+            'processed_at' => now()->subMinutes(30),
+            'incident_id' => $incident->id,
+        ]);
+
+        CashfreeWebhookLog::query()->create([
+            'webhook_version' => '2023-08-01',
+            'cf_payment_id' => '5900000100',
+            'request_headers' => [],
+            'request_payload' => $payload,
+            'raw_body' => '{}',
+            'received_at' => now(),
+            'source_ip' => '127.0.0.1',
+            'user_agent' => 'test',
+            'processing_status' => CashfreeWebhookProcessorService::STATUS_FAILED,
+            'processing_error' => 'Duplicate attempt failed before idempotency guard',
+            'processed_at' => now(),
+        ]);
+
+        $details = app(IntegrationHealthService::class)->cashfree();
+
+        $this->assertSame(1, $details->failedWebhooks);
+        $this->assertSame(0, $details->activeFailedWebhooks);
+        $this->assertSame(1, $details->historicalResolvedFailures);
+        $this->assertTrue($details->isHealthy());
     }
 
     public function test_radiumbox_health_details_include_sync_counts(): void
@@ -126,6 +227,8 @@ class IntegrationHealthServiceTest extends TestCase
         $this->assertArrayHasKey('radiumbox', $payload);
         $this->assertArrayHasKey('queue', $payload);
         $this->assertArrayHasKey('failed_webhooks', $payload['cashfree']);
+        $this->assertArrayHasKey('active_failed_webhooks', $payload['cashfree']);
+        $this->assertArrayHasKey('historical_resolved_failures', $payload['cashfree']);
         $this->assertArrayHasKey('pending_syncs', $payload['radiumbox']);
         $this->assertArrayHasKey('oldest_pending_job_at', $payload['queue']);
     }

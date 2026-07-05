@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\CashfreeHistoricalRecoveryDisposition;
+use App\Enums\CashfreeWebhookFailureCategory;
 use App\Enums\OutboxEventStatus;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\CashfreeWebhookLog;
@@ -10,6 +11,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\OutboxEvent;
 use App\Models\User;
+use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
@@ -17,7 +19,8 @@ use App\Services\Cashfree\CashfreeWebhookReliabilityMetrics;
 use App\Services\DashboardBroadcastService;
 use App\Services\Outbox\OutboxProcessorService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
-use App\Services\ServiceCaseAutomationMonitorService;
+use App\Services\Operations\OperationsCashfreeHealthService;
+use App\Services\Operations\OperationsIntegrationHealthService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -253,5 +256,121 @@ class CashfreePaymentIntegrityTest extends TestCase
         $log = CashfreeWebhookLog::query()->firstOrFail();
         $this->assertSame(CashfreeWebhookProcessorService::STATUS_FAILED, $log->processing_status);
         $this->assertSame(0, Order::query()->count());
+    }
+
+    public function test_recovered_failed_webhook_is_not_counted_as_active(): void
+    {
+        $payload = $this->successfulPayload('5900000200', 'RD-RECOVERED-1');
+
+        Order::query()->create([
+            'order_id' => 'RD-RECOVERED-1',
+            'cashfree_payment_id' => '5900000200',
+            'status' => 'active',
+            'created_by' => User::query()->firstOrFail()->id,
+        ]);
+
+        $this->createFailedLog('5900000200', 'RD-RECOVERED-1', 'Historical processing failure');
+
+        $classification = app(CashfreePaymentIntegrityService::class)->classifyFailedWebhooks();
+
+        $this->assertSame(1, $classification->totalFailed);
+        $this->assertSame(0, $classification->activeFailedWebhooks);
+        $this->assertSame(1, $classification->historicalResolvedFailures);
+        $this->assertSame(CashfreeWebhookFailureCategory::PaymentExistsInDesk, $classification->records[0]->category);
+    }
+
+    public function test_duplicate_failed_webhook_is_counted_as_historical(): void
+    {
+        $payload = $this->successfulPayload('5900000201', 'RD-DUP-1');
+        $agent = User::query()->firstOrFail();
+        $order = Order::query()->create([
+            'order_id' => 'RD-DUP-PROCESSED',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'INC-DUP-1',
+            'category' => 'General',
+            'source' => 'call',
+            'title' => 'Duplicate webhook test',
+            'description' => 'Duplicate webhook test.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+        ]);
+
+        CashfreeWebhookLog::query()->create([
+            'cf_payment_id' => '5900000201',
+            'request_payload' => $payload,
+            'request_headers' => [],
+            'raw_body' => json_encode($payload),
+            'received_at' => now()->subMinute(),
+            'processing_status' => CashfreeWebhookProcessorService::STATUS_PROCESSED,
+            'processed_at' => now()->subMinute(),
+            'incident_id' => $incident->id,
+        ]);
+
+        $this->createFailedLog('5900000201', 'RD-DUP-1', 'Duplicate webhook attempt failed');
+
+        $classification = app(CashfreePaymentIntegrityService::class)->classifyFailedWebhooks();
+
+        $this->assertSame(0, $classification->activeFailedWebhooks);
+        $this->assertSame(1, $classification->historicalResolvedFailures);
+        $this->assertSame(CashfreeWebhookFailureCategory::DuplicateSucceeded, $classification->records[0]->category);
+    }
+
+    public function test_paid_missing_order_is_counted_as_active_failure(): void
+    {
+        $this->createFailedLog(
+            cfPaymentId: '5900000202',
+            orderId: 'RD-MISSING-1',
+            error: 'Cashfree system user is not configured or inactive.',
+        );
+
+        $classification = app(CashfreePaymentIntegrityService::class)->classifyFailedWebhooks();
+
+        $this->assertSame(1, $classification->activeFailedWebhooks);
+        $this->assertSame(1, app(CashfreePaymentIntegrityService::class)->paidWithoutDeskOrderCount());
+        $this->assertTrue(app(CashfreePaymentIntegrityService::class)->requiresCashfreeHealthAlert());
+        $this->assertSame(CashfreeWebhookFailureCategory::Unresolved, $classification->records[0]->category);
+    }
+
+    public function test_dashboard_shows_healthy_cashfree_when_only_historical_failures_remain(): void
+    {
+        Order::query()->create([
+            'order_id' => 'RD-RECOVERED-DASH',
+            'cashfree_payment_id' => '5900000210',
+            'status' => 'active',
+            'created_by' => User::query()->firstOrFail()->id,
+        ]);
+
+        $this->createFailedLog('5900000210', 'RD-RECOVERED-DASH', 'Historical processing failure');
+
+        $health = app(OperationsCashfreeHealthService::class)->widget(useCache: false);
+        $cashfreeCard = collect(app(OperationsIntegrationHealthService::class)->cards())
+            ->firstWhere('key', 'cashfree');
+
+        $this->assertTrue($health['is_healthy']);
+        $this->assertSame(0, $health['active_failed_webhooks']);
+        $this->assertSame(1, $health['historical_resolved_failures']);
+        $this->assertSame('healthy', $cashfreeCard['status']);
+        $this->assertStringContainsString('historical failure(s) archived', (string) $cashfreeCard['detail']);
+    }
+
+    public function test_dashboard_alerts_when_paid_order_is_missing(): void
+    {
+        $this->createFailedLog(
+            cfPaymentId: '5900000203',
+            orderId: 'RD-MISSING-2',
+            error: 'Historical bug blocked order creation',
+        );
+
+        $health = app(OperationsCashfreeHealthService::class)->widget(useCache: false);
+        $cashfreeCard = collect(app(OperationsIntegrationHealthService::class)->cards())
+            ->firstWhere('key', 'cashfree');
+
+        $this->assertFalse($health['is_healthy']);
+        $this->assertSame(1, $health['paid_without_desk_order']);
+        $this->assertSame('failed', $cashfreeCard['status']);
     }
 }

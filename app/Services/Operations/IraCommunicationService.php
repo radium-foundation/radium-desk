@@ -648,7 +648,7 @@ class IraCommunicationService
         foreach ($this->integrationHealthService->cards() as $card) {
             $status = OperationsHealthStatus::tryFrom((string) ($card['status'] ?? ''));
 
-            if ($status !== OperationsHealthStatus::Warning) {
+            if ($status !== OperationsHealthStatus::Failed) {
                 continue;
             }
 

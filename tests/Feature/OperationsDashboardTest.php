@@ -276,6 +276,7 @@ class OperationsDashboardTest extends TestCase
                 ...$valid->radiumBoxHealth,
                 'last_successful_sync_at' => new \stdClass(),
             ],
+            cashfreeHealth: $valid->cashfreeHealth,
             recentNotificationFailures: $valid->recentNotificationFailures,
             recentAutomationActivity: $valid->recentAutomationActivity,
             recentIraMessages: $valid->recentIraMessages,

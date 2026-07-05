@@ -2,9 +2,12 @@
 
 namespace App\Services\Cashfree;
 
+use App\Data\CashfreeFailedWebhookClassificationReport;
+use App\Data\CashfreeFailedWebhookRecord;
 use App\Data\CashfreeMissingPaidOrderRecord;
 use App\Data\CashfreePaymentReconciliationReport;
 use App\Enums\CashfreeHistoricalRecoveryDisposition;
+use App\Enums\CashfreeWebhookFailureCategory;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Order;
 use Illuminate\Support\Carbon;
@@ -41,6 +44,91 @@ class CashfreePaymentIntegrityService
     public function paidWithoutDeskOrderCount(): int
     {
         return $this->missingPaidOrders($this->successfulPaymentLogsByCfPaymentId())->count();
+    }
+
+    public function activeFailedWebhookCount(): int
+    {
+        return $this->classifyFailedWebhooks()->activeFailedWebhooks;
+    }
+
+    public function historicalResolvedFailureCount(): int
+    {
+        return $this->classifyFailedWebhooks()->historicalResolvedFailures;
+    }
+
+    public function classifyFailedWebhooks(): CashfreeFailedWebhookClassificationReport
+    {
+        $records = CashfreeWebhookLog::query()
+            ->where('processing_status', CashfreeWebhookLog::STATUS_FAILED)
+            ->orderBy('processed_at')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (CashfreeWebhookLog $log): CashfreeFailedWebhookRecord => $this->classifyFailedLog($log))
+            ->values();
+
+        $countsByCategory = [];
+
+        foreach (CashfreeWebhookFailureCategory::cases() as $category) {
+            $countsByCategory[$category->value] = 0;
+        }
+
+        foreach ($records as $record) {
+            $countsByCategory[$record->category->value]++;
+        }
+
+        $affectedOrderIds = $records
+            ->map(fn (CashfreeFailedWebhookRecord $record): ?string => $record->orderId)
+            ->filter(fn (?string $orderId): bool => filled($orderId))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        $failedAtTimestamps = $records
+            ->map(fn (CashfreeFailedWebhookRecord $record): Carbon => $record->failedAt);
+
+        return new CashfreeFailedWebhookClassificationReport(
+            totalFailed: $records->count(),
+            activeFailedWebhooks: $countsByCategory[CashfreeWebhookFailureCategory::Unresolved->value],
+            historicalResolvedFailures: $countsByCategory[CashfreeWebhookFailureCategory::DuplicateSucceeded->value]
+                + $countsByCategory[CashfreeWebhookFailureCategory::PaymentExistsInDesk->value],
+            invalidEventFailures: $countsByCategory[CashfreeWebhookFailureCategory::InvalidEvent->value],
+            countsByCategory: $countsByCategory,
+            oldestFailedAt: $failedAtTimestamps->first(),
+            newestFailedAt: $failedAtTimestamps->last(),
+            affectedOrderIds: $affectedOrderIds,
+            records: $records->all(),
+        );
+    }
+
+    public function classifyFailedLog(CashfreeWebhookLog $log): CashfreeFailedWebhookRecord
+    {
+        $payload = $log->request_payload ?? [];
+
+        if (! $this->payloadParser->isSuccessfulPayment($payload)) {
+            return $this->failedWebhookRecord(
+                $log,
+                CashfreeWebhookFailureCategory::InvalidEvent,
+                'payment_not_success',
+            );
+        }
+
+        $assessment = $this->assessLog($log);
+
+        $category = match ($assessment['reason']) {
+            'cashfree_payment_id_exists', 'order_id_exists' => CashfreeWebhookFailureCategory::PaymentExistsInDesk,
+            'processed_webhook_exists' => CashfreeWebhookFailureCategory::DuplicateSucceeded,
+            'payment_not_success' => CashfreeWebhookFailureCategory::InvalidEvent,
+            default => CashfreeWebhookFailureCategory::Unresolved,
+        };
+
+        return $this->failedWebhookRecord($log, $category, $assessment['reason']);
+    }
+
+    public function requiresCashfreeHealthAlert(): bool
+    {
+        return $this->paidWithoutDeskOrderCount() > 0
+            || $this->activeFailedWebhookCount() > 0;
     }
 
     /**
@@ -174,5 +262,22 @@ class CashfreePaymentIntegrityService
         $payload = $log->request_payload ?? [];
 
         return $this->payloadParser->cfPaymentId($payload) ?? $log->cf_payment_id;
+    }
+
+    private function failedWebhookRecord(
+        CashfreeWebhookLog $log,
+        CashfreeWebhookFailureCategory $category,
+        string $reason,
+    ): CashfreeFailedWebhookRecord {
+        $payload = $log->request_payload ?? [];
+
+        return new CashfreeFailedWebhookRecord(
+            webhookLogId: $log->id,
+            category: $category,
+            reason: $reason,
+            orderId: $this->payloadParser->orderId($payload),
+            cfPaymentId: $this->resolveCfPaymentId($log),
+            failedAt: $log->processed_at ?? $log->received_at ?? now(),
+        );
     }
 }

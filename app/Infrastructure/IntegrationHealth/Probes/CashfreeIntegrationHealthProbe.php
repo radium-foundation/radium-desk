@@ -5,11 +5,16 @@ namespace App\Infrastructure\IntegrationHealth\Probes;
 use App\Infrastructure\IntegrationHealth\Contracts\IntegrationHealthProbe;
 use App\Infrastructure\IntegrationHealth\IntegrationHealthSnapshot;
 use App\Models\CashfreeWebhookLog;
+use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use Illuminate\Support\Facades\Schema;
 
 class CashfreeIntegrationHealthProbe implements IntegrationHealthProbe
 {
+    public function __construct(
+        private readonly CashfreePaymentIntegrityService $integrityService,
+    ) {}
+
     public function key(): string
     {
         return 'cashfree';
@@ -31,21 +36,27 @@ class CashfreeIntegrationHealthProbe implements IntegrationHealthProbe
             ->latest('processed_at')
             ->value('processed_at');
 
-        $lastFailure = CashfreeWebhookLog::query()
+        $activeFailure = CashfreeWebhookLog::query()
             ->where('processing_status', CashfreeWebhookProcessorService::STATUS_FAILED)
-            ->latest('processed_at')
-            ->value('processed_at');
+            ->get()
+            ->first(fn (CashfreeWebhookLog $log): bool => $this->integrityService
+                ->classifyFailedLog($log)
+                ->category
+                ->isActionable());
 
-        $retryCount = (int) CashfreeWebhookLog::query()
+        $lastFailure = $activeFailure?->processed_at;
+
+        $retryCount = CashfreeWebhookLog::query()
             ->where('processing_status', CashfreeWebhookProcessorService::STATUS_FAILED)
             ->where('processed_at', '>=', now()->subDay())
+            ->get()
+            ->filter(fn (CashfreeWebhookLog $log): bool => $this->integrityService
+                ->classifyFailedLog($log)
+                ->category
+                ->isActionable())
             ->count();
 
-        $lastError = CashfreeWebhookLog::query()
-            ->where('processing_status', CashfreeWebhookProcessorService::STATUS_FAILED)
-            ->whereNotNull('processing_error')
-            ->latest('processed_at')
-            ->value('processing_error');
+        $lastError = $activeFailure?->processing_error;
 
         $connectionStatus = $this->resolveConnectionStatus($lastSuccess, $lastFailure);
 

@@ -24,13 +24,18 @@ class CashfreeWebhookReliabilityMetrics
 
     public function snapshot(): CashfreeWebhookReliabilitySnapshot
     {
+        $integrityService = app(CashfreePaymentIntegrityService::class);
+        $classification = $integrityService->classifyFailedWebhooks();
+
         return new CashfreeWebhookReliabilitySnapshot(
             ordersCreated: $this->counterValue(self::KEY_ORDERS_CREATED),
             outboxPending: $this->outboxPendingCount(),
             outboxFailed: $this->outboxFailedCount(),
             outboxCompletedToday: $this->outboxCompletedTodayCount(),
             outboxRetryCount: $this->outboxRetryCount(),
-            paidWithoutDeskOrderCount: app(CashfreePaymentIntegrityService::class)->paidWithoutDeskOrderCount(),
+            paidWithoutDeskOrderCount: $integrityService->paidWithoutDeskOrderCount(),
+            activeFailedWebhooks: $classification->activeFailedWebhooks,
+            historicalResolvedFailures: $classification->historicalResolvedFailures,
             lastOrderCreatedAt: $this->cachedTimestamp(self::KEY_LAST_ORDER_CREATED_AT),
             capturedAt: now(),
         );

@@ -7,6 +7,7 @@ use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Infrastructure\Queue\QueueMetricsService;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Order;
+use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Illuminate\Support\Facades\Schema;
@@ -20,6 +21,7 @@ class IntegrationHealthService
         private readonly RadiumBoxIntegrationHealthProbe $radiumBoxProbe,
         private readonly QueueMetricsService $queueMetricsService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
+        private readonly CashfreePaymentIntegrityService $cashfreePaymentIntegrityService,
     ) {}
 
     public function cashfree(): CashfreeHealthDetails
@@ -29,6 +31,9 @@ class IntegrationHealthService
                 lastWebhookAt: null,
                 lastSuccessfulWebhookAt: null,
                 failedWebhooks: 0,
+                activeFailedWebhooks: 0,
+                historicalResolvedFailures: 0,
+                paidWithoutDeskOrderCount: 0,
             );
         }
 
@@ -41,14 +46,15 @@ class IntegrationHealthService
             ->latest('processed_at')
             ->value('processed_at');
 
-        $failedWebhooks = (int) CashfreeWebhookLog::query()
-            ->where('processing_status', CashfreeWebhookProcessorService::STATUS_FAILED)
-            ->count();
+        $classification = $this->cashfreePaymentIntegrityService->classifyFailedWebhooks();
 
         return new CashfreeHealthDetails(
             lastWebhookAt: $lastWebhook,
             lastSuccessfulWebhookAt: $lastSuccessful,
-            failedWebhooks: $failedWebhooks,
+            failedWebhooks: $classification->totalFailed,
+            activeFailedWebhooks: $classification->activeFailedWebhooks,
+            historicalResolvedFailures: $classification->historicalResolvedFailures,
+            paidWithoutDeskOrderCount: $this->cashfreePaymentIntegrityService->paidWithoutDeskOrderCount(),
         );
     }
 

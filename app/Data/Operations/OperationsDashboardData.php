@@ -13,6 +13,7 @@ readonly class OperationsDashboardData
      * @param  array<string, mixed>  $queueMetrics
      * @param  list<array<string, mixed>>  $integrationHealth
      * @param  array<string, mixed>  $radiumBoxHealth
+     * @param  array<string, mixed>  $cashfreeHealth
      * @param  list<array<string, mixed>>  $recentNotificationFailures
      * @param  list<array<string, mixed>>  $recentAutomationActivity
      * @param  list<array<string, mixed>>  $recentIraMessages
@@ -29,6 +30,7 @@ readonly class OperationsDashboardData
         public array $queueMetrics,
         public array $integrationHealth,
         public array $radiumBoxHealth,
+        public array $cashfreeHealth,
         public array $recentNotificationFailures,
         public array $recentAutomationActivity,
         public array $recentIraMessages,
@@ -52,6 +54,7 @@ readonly class OperationsDashboardData
             'queue_metrics' => $this->queueMetrics,
             'integration_health' => $this->integrationHealth,
             'radiumbox_health' => $this->radiumBoxHealth,
+            'cashfree_health' => $this->cashfreeHealth,
             'recent_notification_failures' => $this->recentNotificationFailures,
             'recent_automation_activity' => $this->recentAutomationActivity,
             'recent_ira_messages' => $this->recentIraMessages,
