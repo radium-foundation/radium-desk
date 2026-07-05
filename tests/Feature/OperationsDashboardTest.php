@@ -12,13 +12,16 @@ use App\Models\AutomationExecution;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
+use App\Data\Operations\OperationsDashboardData;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
+use App\Services\Operations\OperationsDashboardService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class OperationsDashboardTest extends TestCase
@@ -243,5 +246,38 @@ class OperationsDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Operations')
             ->assertSee(route('admin.operations.index'), false);
+    }
+
+    public function test_stale_invalid_cached_dashboard_payload_does_not_crash_dashboard(): void
+    {
+        $valid = app(OperationsDashboardService::class)->build();
+
+        $invalid = new OperationsDashboardData(
+            systemHealth: $valid->systemHealth,
+            notificationMetrics: $valid->notificationMetrics,
+            automationMetrics: $valid->automationMetrics,
+            queueMetrics: $valid->queueMetrics,
+            integrationHealth: $valid->integrationHealth,
+            radiumBoxHealth: [
+                ...$valid->radiumBoxHealth,
+                'last_successful_sync_at' => new \stdClass(),
+            ],
+            recentNotificationFailures: $valid->recentNotificationFailures,
+            recentAutomationActivity: $valid->recentAutomationActivity,
+            recentIraMessages: $valid->recentIraMessages,
+            teamAvailability: $valid->teamAvailability,
+            teamTelegramStatus: $valid->teamTelegramStatus,
+            cashfreeDeviceEnrichmentQuality: $valid->cashfreeDeviceEnrichmentQuality,
+            missingSerialAutomationQuality: $valid->missingSerialAutomationQuality,
+            generatedAt: $valid->generatedAt,
+        );
+
+        Cache::put('operations:dashboard:latest:v2', $invalid, now()->addMinute());
+
+        $this->actingAs($this->createAdminUser('admin-ops-stale-cache@test.com'))
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('RadiumBox Health', false)
+            ->assertSee('Operations Control Center');
     }
 }

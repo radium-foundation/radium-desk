@@ -5,6 +5,8 @@ namespace App\Services\Operations;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Models\Order;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 class OperationsRadiumBoxHealthService
@@ -26,12 +28,12 @@ class OperationsRadiumBoxHealthService
             $cached = Cache::get(self::CACHE_KEY);
 
             if (is_array($cached)) {
-                return $cached;
+                return $this->hydrateWidgetFromCache($cached);
             }
         }
 
         $widget = $this->build();
-        Cache::put(self::CACHE_KEY, $widget, now()->addSeconds(self::CACHE_TTL_SECONDS));
+        Cache::put(self::CACHE_KEY, $this->toCacheArray($widget), now()->addSeconds(self::CACHE_TTL_SECONDS));
 
         return $widget;
     }
@@ -58,6 +60,44 @@ class OperationsRadiumBoxHealthService
             'last_successful_sync_at' => $probeSnapshot->lastSuccessAt,
             'pending_orders' => $this->orderLinks(RadiumBoxEnrichmentSyncStatus::Pending),
             'failed_orders' => $this->orderLinks(RadiumBoxEnrichmentSyncStatus::Failed),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $widget
+     * @return array<string, mixed>
+     */
+    private function toCacheArray(array $widget): array
+    {
+        $lastSuccessfulSyncAt = $widget['last_successful_sync_at'] ?? null;
+
+        return [
+            ...$widget,
+            'last_successful_sync_at' => $lastSuccessfulSyncAt instanceof CarbonInterface
+                ? $lastSuccessfulSyncAt->toIso8601String()
+                : null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $cached
+     * @return array<string, mixed>
+     */
+    private function hydrateWidgetFromCache(array $cached): array
+    {
+        $lastSuccessfulSyncAt = $cached['last_successful_sync_at'] ?? null;
+
+        if ($lastSuccessfulSyncAt instanceof CarbonInterface) {
+            $hydratedLastSuccess = $lastSuccessfulSyncAt;
+        } elseif (is_string($lastSuccessfulSyncAt) && $lastSuccessfulSyncAt !== '') {
+            $hydratedLastSuccess = Carbon::parse($lastSuccessfulSyncAt);
+        } else {
+            $hydratedLastSuccess = null;
+        }
+
+        return [
+            ...$cached,
+            'last_successful_sync_at' => $hydratedLastSuccess,
         ];
     }
 

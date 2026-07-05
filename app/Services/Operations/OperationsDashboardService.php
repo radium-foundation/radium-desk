@@ -5,11 +5,12 @@ namespace App\Services\Operations;
 use App\Data\Operations\OperationsDashboardData;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Infrastructure\Queue\QueueMetricsService;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Cache;
 
 class OperationsDashboardService
 {
-    private const CACHE_KEY = 'operations:dashboard:latest';
+    private const CACHE_KEY = 'operations:dashboard:latest:v2';
 
     private const CACHE_TTL_SECONDS = 30;
 
@@ -38,8 +39,12 @@ class OperationsDashboardService
         if ($useCache) {
             $cached = Cache::get(self::CACHE_KEY);
 
-            if ($cached instanceof OperationsDashboardData) {
+            if ($cached instanceof OperationsDashboardData && $this->isCachedDashboardValid($cached)) {
                 return $cached;
+            }
+
+            if ($cached !== null) {
+                Cache::forget(self::CACHE_KEY);
             }
         }
 
@@ -78,5 +83,25 @@ class OperationsDashboardService
             $this->infrastructureQueueMetrics,
             $this->cashfreeProbe,
         );
+    }
+
+    private function isCachedDashboardValid(OperationsDashboardData $cached): bool
+    {
+        if (! $cached->generatedAt instanceof CarbonInterface) {
+            return false;
+        }
+
+        $lastSuccessfulSyncAt = $cached->radiumBoxHealth['last_successful_sync_at'] ?? null;
+
+        return $this->isValidRuntimeDate($lastSuccessfulSyncAt);
+    }
+
+    private function isValidRuntimeDate(mixed $value): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+
+        return $value instanceof CarbonInterface;
     }
 }
