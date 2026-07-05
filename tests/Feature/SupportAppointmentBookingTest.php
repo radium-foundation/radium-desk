@@ -107,7 +107,11 @@ class SupportAppointmentBookingTest extends TestCase
 
     public function test_customer_360_displays_scheduled_support_appointment(): void
     {
-        $agent = User::factory()->create();
+        $agent = User::factory()->create([
+            'first_name' => 'Shipra',
+            'last_name' => 'Kumari',
+            'name' => 'Shipra Kumari',
+        ]);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         [$incident] = $this->createIncident($agent);
@@ -125,8 +129,10 @@ class SupportAppointmentBookingTest extends TestCase
         $response->assertOk();
         $response->assertSee('data-customer-360-section="support-appointments"', false);
         $response->assertSee('Scheduled Support', false);
+        $response->assertSee('Assigned To', false);
+        $response->assertSee('Shipra', false);
         $response->assertSee('Afternoon (12 PM – 3 PM)', false);
-        $response->assertSee('9123456789', false);
+        $response->assertDontSee('9123456789', false);
         $response->assertSee('Device not connecting to RD Service.', false);
     }
 

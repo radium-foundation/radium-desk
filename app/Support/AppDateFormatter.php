@@ -78,4 +78,19 @@ class AppDateFormatter
 
         return $localized?->diffForHumans();
     }
+
+    public static function waitingDuration(?CarbonInterface $startedAt): ?string
+    {
+        $localized = self::inAppTimezone($startedAt);
+
+        if ($localized === null) {
+            return null;
+        }
+
+        return $localized->diffForHumans(now(self::timezone()), [
+            'syntax' => CarbonInterface::DIFF_ABSOLUTE,
+            'parts' => 1,
+            'short' => false,
+        ]);
+    }
 }

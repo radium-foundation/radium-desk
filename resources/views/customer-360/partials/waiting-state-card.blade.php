@@ -18,15 +18,23 @@
                 <dt>Reason</dt>
                 <dd>{{ $waitingStateCard['reason_label'] }}</dd>
             </div>
-            <div class="customer-360-waiting-item">
-                <dt>Waiting Since</dt>
-                <dd>
-                    <time datetime="{{ $waitingStateCard['started_at']->toIso8601String() }}"
-                          title="{{ AppDateFormatter::datetime($waitingStateCard['started_at']) }}">
-                        {{ AppDateFormatter::date($waitingStateCard['started_at']) }}
-                    </time>
-                </dd>
-            </div>
+            @if(filled($waitingStateCard['waiting_duration_label'] ?? null))
+                <div class="customer-360-waiting-item">
+                    <dt>Waiting</dt>
+                    <dd>{{ $waitingStateCard['waiting_duration_label'] }}</dd>
+                </div>
+            @endif
+            @if(filled($waitingStateCard['requested_at_label'] ?? null))
+                <div class="customer-360-waiting-item">
+                    <dt>Requested</dt>
+                    <dd>
+                        <time datetime="{{ $waitingStateCard['started_at']->toIso8601String() }}"
+                              title="{{ AppDateFormatter::datetime($waitingStateCard['started_at']) }}">
+                            {{ $waitingStateCard['requested_at_label'] }}
+                        </time>
+                    </dd>
+                </div>
+            @endif
             <div class="customer-360-waiting-item">
                 <dt>SLA</dt>
                 <dd>{{ ($waitingStateCard['sla_paused'] ?? false) ? 'Paused' : 'Active' }}</dd>

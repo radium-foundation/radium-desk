@@ -53,6 +53,7 @@ class Customer360Service
         $incident->loadMissing([
             'order.deviceModel',
             'activeWaitingState',
+            'assignee',
             'supportAppointments' => fn ($query) => $query->latest('preferred_date')->latest('id'),
         ]);
         $order = $incident->order;
@@ -94,6 +95,7 @@ class Customer360Service
             'operationsHealth' => $this->operationsHealthService->forIncident($incident),
             'slaMetrics' => $this->slaMetricsService->forOrder($order),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
+            'serialRequestState' => $this->serialRequestState($order),
             'waitingStateCard' => $waitingStateCard,
             'supportAppointments' => $incident->supportAppointments,
             'aiAssistant' => $aiBundle->response,
@@ -367,6 +369,55 @@ class Customer360Service
     }
 
     /**
+     * @return array{
+     *     requested: bool,
+     *     requested_at: \Illuminate\Support\Carbon|null,
+     *     requested_at_label: string|null,
+     * }
+     */
+    private function serialRequestState(Order $order): array
+    {
+        $history = $this->requestSerialCommunicationHistoryService->forOrder($order);
+        $whatsappSent = ($history['whatsapp']['status'] ?? null) === 'sent';
+        $emailSent = ($history['email']['status'] ?? null) === 'sent';
+
+        if (! $whatsappSent && ! $emailSent) {
+            return [
+                'requested' => false,
+                'requested_at' => null,
+                'requested_at_label' => null,
+            ];
+        }
+
+        $requestedAt = $this->latestSerialRequestTimestamp(
+            $whatsappSent ? ($history['whatsapp']['last_sent_at'] ?? null) : null,
+            $emailSent ? ($history['email']['last_sent_at'] ?? null) : null,
+        );
+
+        return [
+            'requested' => true,
+            'requested_at' => $requestedAt,
+            'requested_at_label' => AppDateFormatter::format(
+                $requestedAt,
+                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ),
+        ];
+    }
+
+    private function latestSerialRequestTimestamp(?Carbon $whatsappAt, ?Carbon $emailAt): ?Carbon
+    {
+        if ($whatsappAt === null) {
+            return $emailAt;
+        }
+
+        if ($emailAt === null) {
+            return $whatsappAt;
+        }
+
+        return $whatsappAt->greaterThan($emailAt) ? $whatsappAt : $emailAt;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function emptyDrawerData(Incident $incident): array
@@ -427,6 +478,11 @@ class Customer360Service
             ),
             'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => false,
+            'serialRequestState' => [
+                'requested' => false,
+                'requested_at' => null,
+                'requested_at_label' => null,
+            ],
             'waitingStateCard' => null,
             'supportAppointments' => collect(),
             'aiAssistant' => ($bundle = $this->aiService->buildBundle($incident))->response,

@@ -269,6 +269,60 @@ class Customer360DrawerTest extends TestCase
             ->assertSee('data-customer-360-url', false);
     }
 
+    public function test_customer_360_shows_disabled_serial_requested_action_when_already_sent(): void
+    {
+        config(['interakt.templates.request_serial_number.name' => 'order_update_request_serial']);
+
+        [$agent, $incident] = $this->createHealthCardIncident();
+        $sentAt = Carbon::parse('2026-07-05 21:45:00', AppDateFormatter::timezone());
+
+        $order = $incident->order;
+        $order->update(['serial_number' => null]);
+
+        WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $incident->id,
+            'order_id' => $incident->order_id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => 'request_serial_number',
+            'template_name' => 'order_update_request_serial',
+            'template_display_name' => 'Order Update',
+            'template_purpose' => 'Request Serial Number',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'status' => WhatsAppTemplateDispatchStatus::Sent,
+            'customer_phone' => '9123456780',
+            'interakt_message_id' => 'msg-serial-requested-action',
+            'dispatched_at' => $sentAt,
+        ]);
+
+        $html = $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Serial Requested', $html);
+        $this->assertStringContainsString(
+            AppDateFormatter::format($sentAt, RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT),
+            $html,
+        );
+        $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
+    }
+
+    public function test_customer_360_shows_active_request_serial_action_when_not_yet_sent(): void
+    {
+        config(['interakt.templates.request_serial_number.name' => 'order_update_request_serial']);
+
+        [$agent, $incident] = $this->createHealthCardIncident();
+
+        $incident->order->update(['serial_number' => null]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('data-workspace-trigger="request-serial"', false)
+            ->assertSee('Request Serial Number', false)
+            ->assertDontSee('Serial Requested', false);
+    }
+
     /**
      * @return array{0: User, 1: Incident}
      */

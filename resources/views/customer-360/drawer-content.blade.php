@@ -48,6 +48,8 @@
         @include('customer-360.partials.health-card', ['healthCard' => $healthCard])
         @include('customer-360.partials.support-appointments', [
             'supportAppointments' => $supportAppointments ?? collect(),
+            'incident' => $incident,
+            'profilePhone' => $healthCard['phone'] ?? null,
         ])
         @include('customer-360.partials.waiting-state-card', ['waitingStateCard' => $waitingStateCard ?? null])
         @include('customer-360.partials.quick-actions', [
@@ -56,6 +58,7 @@
             'customer' => $customer,
             'device' => $device,
             'canRequestSerialNumber' => $canRequestSerialNumber ?? false,
+            'serialRequestState' => $serialRequestState ?? ['requested' => false, 'requested_at' => null, 'requested_at_label' => null],
         ])
         @include('customer-360.partials.device-section', [
             'device' => $device,

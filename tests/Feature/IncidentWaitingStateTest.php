@@ -191,6 +191,8 @@ class IncidentWaitingStateTest extends TestCase
 
     public function test_customer360_renders_waiting_state_card_when_active(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-05 21:45:00', AppDateFormatter::timezone()));
+
         [$agent, $incident] = $this->createOpenIncidentWithoutSerial();
 
         Http::fake([
@@ -208,8 +210,14 @@ class IncidentWaitingStateTest extends TestCase
             ->assertSee('data-customer-360-section="waiting-state"', false)
             ->assertSee('Waiting for Customer', false)
             ->assertSee('Serial Number', false)
+            ->assertSee('Waiting', false)
+            ->assertSee('Requested', false)
+            ->assertSee('05 Jul, 09:45 PM', false)
+            ->assertDontSee('Waiting Since', false)
             ->assertSee('Paused', false)
             ->assertSee('Serial Number Default', false);
+
+        Carbon::setTestNow();
     }
 
     public function test_customer360_hides_waiting_state_card_when_none_active(): void

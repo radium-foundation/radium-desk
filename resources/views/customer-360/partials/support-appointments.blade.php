@@ -1,5 +1,7 @@
 @php
     use App\Support\AppDateFormatter;
+
+    $showAppointmentPhone = ! filled($profilePhone ?? null);
 @endphp
 
 @if ($supportAppointments->isNotEmpty())
@@ -30,10 +32,18 @@
                             <dt>Time slot</dt>
                             <dd>{{ $appointment->preferred_time_slot->label() }}</dd>
                         </div>
-                        <div class="customer-360-support-appointment-field">
-                            <dt>Phone</dt>
-                            <dd>{{ $appointment->phone_number }}</dd>
-                        </div>
+                        @if (filled($incident->assignee?->firstName()))
+                            <div class="customer-360-support-appointment-field">
+                                <dt>Assigned To</dt>
+                                <dd>{{ $incident->assignee->firstName() }}</dd>
+                            </div>
+                        @endif
+                        @if ($showAppointmentPhone)
+                            <div class="customer-360-support-appointment-field">
+                                <dt>Phone</dt>
+                                <dd>{{ $appointment->phone_number }}</dd>
+                            </div>
+                        @endif
                         @if (filled($appointment->additional_notes))
                             <div class="customer-360-support-appointment-field customer-360-support-appointment-field--full">
                                 <dt>Notes</dt>

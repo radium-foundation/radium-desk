@@ -7,6 +7,8 @@ use App\Exceptions\ActiveWaitingStateExistsException;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\User;
+use App\Services\Interakt\RequestSerialCommunicationHistoryService;
+use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -99,6 +101,11 @@ class IncidentWaitingStateService
         return [
             'reason_label' => $waitingState->waiting_reason->label(),
             'started_at' => $waitingState->started_at,
+            'waiting_duration_label' => AppDateFormatter::waitingDuration($waitingState->started_at),
+            'requested_at_label' => AppDateFormatter::format(
+                $waitingState->started_at,
+                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ),
             'sla_paused' => $waitingState->sla_paused,
             'reminder_policy_label' => $waitingState->reminderPolicyLabel(),
             'next_action_at' => $waitingState->next_action_at,
