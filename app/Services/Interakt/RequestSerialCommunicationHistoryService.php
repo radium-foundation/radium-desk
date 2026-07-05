@@ -16,6 +16,8 @@ use Carbon\CarbonInterface;
 
 class RequestSerialCommunicationHistoryService
 {
+    public const LAST_SENT_DISPLAY_FORMAT = 'd M, h:i A';
+
     /**
      * @return array{
      *     whatsapp: array<string, mixed>,
@@ -154,9 +156,14 @@ class RequestSerialCommunicationHistoryService
             'status' => 'sent',
             'status_label' => 'SENT',
             'last_sent_at' => $sentAt,
-            'last_sent_label' => AppDateFormatter::datetime($sentAt),
+            'last_sent_label' => $this->formatLastSentLabel($sentAt),
             'failure_reason' => null,
         ];
+    }
+
+    private function formatLastSentLabel(?CarbonInterface $sentAt): ?string
+    {
+        return AppDateFormatter::format($sentAt, self::LAST_SENT_DISPLAY_FORMAT);
     }
 
     /**

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
+use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\SystemSettingsService;
 use App\Support\AppDateFormatter;
@@ -157,7 +158,10 @@ class RequestSerialDialogTest extends TestCase
             ->get(route('incidents.components.show', [$incident, 'request-serial']).'?workspace_context=customer')
             ->assertOk()
             ->assertSee('SENT', false)
-            ->assertSee('Last sent: '.AppDateFormatter::datetime($sentAt), false);
+            ->assertSee('Last sent: '.AppDateFormatter::format(
+                $sentAt,
+                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ), false);
     }
 
     public function test_request_serial_dialog_shows_email_communication_timestamp(): void
@@ -193,7 +197,10 @@ class RequestSerialDialogTest extends TestCase
             ->get(route('incidents.components.show', [$incident, 'request-serial']).'?workspace_context=customer')
             ->assertOk()
             ->assertSee('SENT', false)
-            ->assertSee('Last sent: '.AppDateFormatter::datetime($sentAt), false);
+            ->assertSee('Last sent: '.AppDateFormatter::format(
+                $sentAt,
+                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ), false);
     }
 
     public function test_request_serial_dialog_shows_not_sent_when_no_communication_history(): void
