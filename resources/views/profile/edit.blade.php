@@ -86,6 +86,24 @@
             <div class="col-lg-6">
                 @include('profile.partials.team-availability', ['availability' => $availability ?? []])
             </div>
+            @can('create', \App\Models\LeaveRequest::class)
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white">
+                            <h2 class="h6 mb-0">Leave Requests</h2>
+                        </div>
+                        <div class="card-body d-flex flex-column">
+                            <p class="text-muted small">
+                                Submit official leave for operations approval. Approved leave blocks smart assignment.
+                            </p>
+                            <div class="mt-auto d-flex flex-wrap gap-2">
+                                <a href="{{ route('leave-requests.create') }}" class="btn btn-primary">Request Leave</a>
+                                <a href="{{ route('leave-requests.index') }}" class="btn btn-outline-secondary">View Requests</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endcan
         @endif
     </div>
 @endsection

@@ -4,7 +4,10 @@ use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\SupportAppointmentController;
 use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
+use App\Http\Controllers\TeamWorkScheduleController;
 use App\Http\Controllers\AutomationOperationsController;
+use App\Http\Controllers\CompanyHolidayController;
+use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\OperationalSystemSettingsController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\AuditLogController;
@@ -158,6 +161,21 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.operations.live');
     Route::post('/admin/operations/radiumbox/batch-recover', [OperationsDashboardController::class, 'batchRecoverRadiumBox'])
         ->name('admin.operations.radiumbox.batch-recover');
+
+    Route::resource('leave-requests', LeaveRequestController::class)->except(['edit', 'update', 'destroy']);
+    Route::post('leave-requests/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])
+        ->name('leave-requests.approve');
+    Route::post('leave-requests/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])
+        ->name('leave-requests.reject');
+
+    Route::prefix('admin/workforce')->name('admin.workforce.')->group(function () {
+        Route::get('holidays', [CompanyHolidayController::class, 'index'])->name('holidays.index');
+        Route::post('holidays', [CompanyHolidayController::class, 'store'])->name('holidays.store');
+        Route::delete('holidays/{holiday}', [CompanyHolidayController::class, 'destroy'])->name('holidays.destroy');
+    });
+
+    Route::put('users/{user}/work-schedule', [TeamWorkScheduleController::class, 'update'])
+        ->name('users.work-schedule.update');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');

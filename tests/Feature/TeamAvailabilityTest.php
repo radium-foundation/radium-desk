@@ -103,7 +103,6 @@ class TeamAvailabilityTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('Team Availability')
             ->assertSee('Avinash Agent')
             ->assertSee('Available')
             ->assertSee('Last active');

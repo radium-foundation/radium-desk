@@ -10,6 +10,7 @@ class TeamAvailabilityOverviewService
 {
     public function __construct(
         private readonly TeamAvailabilityService $availabilityService,
+        private readonly WorkCalendarService $workCalendarService,
         private readonly TeamMemberActivityService $activityService,
         private readonly OperationsRoleService $roleService,
     ) {}
@@ -33,7 +34,7 @@ class TeamAvailabilityOverviewService
     private function teamMembers(): Collection
     {
         return User::query()
-            ->with('roles')
+            ->with(['roles', 'workSchedule'])
             ->where('is_active', true)
             ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->operationalRoleSlugs()))
             ->orderBy('first_name')
@@ -47,6 +48,7 @@ class TeamAvailabilityOverviewService
     private function memberRow(User $user, int $openWorkCount): array
     {
         $availability = $this->availabilityService->snapshotFor($user);
+        $workCalendar = $this->workCalendarService->todayStatusFor($user);
         $activity = $this->activityService->snapshotFor($user);
         $workActivity = $this->activityService->primaryWorkActivity($user);
 
@@ -55,6 +57,7 @@ class TeamAvailabilityOverviewService
             'name' => $user->name,
             'role_label' => $user->primaryRoleLabel(),
             'availability' => $availability,
+            'work_calendar' => $workCalendar,
             'last_active_at' => $user->last_active_at,
             'last_active_relative' => $user->last_active_at !== null
                 ? display_app_timeline_relative($user->last_active_at)

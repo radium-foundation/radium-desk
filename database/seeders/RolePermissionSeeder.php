@@ -55,6 +55,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            'leave-requests.view',
+            'leave-requests.create',
         ],
         self::ROLE_SUPPORT_SPECIALIST => [
             'orders.view',
@@ -66,6 +68,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            'leave-requests.view',
+            'leave-requests.create',
         ],
         self::ROLE_CUSTOMER_COORDINATOR => [
             'orders.view',
@@ -77,6 +81,8 @@ class RolePermissionSeeder extends Seeder
             'approvals.view',
             'refunds.view',
             'refunds.create',
+            'leave-requests.view',
+            'leave-requests.create',
         ],
         self::ROLE_HARDWARE_TEAM => [
             'dashboard.hardware.view',
@@ -86,6 +92,8 @@ class RolePermissionSeeder extends Seeder
             'incidents.update',
             'remarks.view',
             'remarks.create',
+            'leave-requests.view',
+            'leave-requests.create',
         ],
         self::ROLE_ADMIN => [
             'dashboard.hardware.view',
@@ -110,6 +118,10 @@ class RolePermissionSeeder extends Seeder
             'cashfree-webhook-logs.view',
             'users.view',
             'users.manage',
+            'leave-requests.view',
+            'leave-requests.create',
+            'leave-requests.review',
+            'workforce-calendar.manage',
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -134,6 +146,10 @@ class RolePermissionSeeder extends Seeder
             'cashfree-webhook-logs.view',
             'users.view',
             'users.manage',
+            'leave-requests.view',
+            'leave-requests.create',
+            'leave-requests.review',
+            'workforce-calendar.manage',
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -163,6 +179,10 @@ class RolePermissionSeeder extends Seeder
             'cashfree-webhook-logs.view',
             'users.view',
             'users.manage',
+            'leave-requests.view',
+            'leave-requests.create',
+            'leave-requests.review',
+            'workforce-calendar.manage',
         ],
     ];
 

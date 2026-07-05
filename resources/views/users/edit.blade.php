@@ -33,6 +33,13 @@
                 @endcan
             </div>
         </div>
+
+        @if($showsWorkSchedule ?? false)
+            @include('users.partials.work-schedule', [
+                'user' => $user,
+                'schedule' => $workSchedule ?? [],
+            ])
+        @endif
     </div>
 
     <div class="row g-4">

@@ -50,9 +50,21 @@
                     <span class="nav-label">Refunds</span>
                 </a>
             </li>
+            <li class="nav-item">
+                @can('viewAny', App\Models\LeaveRequest::class)
+                    <a @class(['nav-link', 'active' => request()->routeIs('leave-requests.*')]) href="{{ route('leave-requests.index') }}" title="Leave Requests">
+                        <i class="bi bi-calendar-x nav-icon me-2"></i>
+                        <span class="nav-label">Leave Requests</span>
+                    </a>
+                @endcan
+            </li>
         </ul>
 
-        @if(auth()->user()?->hasAnyRole([RolePermissionSeeder::ROLE_ADMIN, RolePermissionSeeder::ROLE_SUPERADMIN]))
+        @if(auth()->user()?->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ]))
             <div class="nav-section"><span class="nav-label">Administration</span></div>
             <ul class="nav flex-column">
                 <li class="nav-item">
@@ -92,6 +104,14 @@
                         <a @class(['nav-link', 'active' => request()->routeIs('users.*')]) href="{{ route('users.index') }}" title="Users">
                             <i class="bi bi-people nav-icon me-2"></i>
                             <span class="nav-label">Users</span>
+                        </a>
+                    @endcan
+                </li>
+                <li class="nav-item">
+                    @can('viewAny', App\Models\CompanyHoliday::class)
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.holidays.*')]) href="{{ route('admin.workforce.holidays.index') }}" title="Company Holidays">
+                            <i class="bi bi-calendar-event nav-icon me-2"></i>
+                            <span class="nav-label">Holidays</span>
                         </a>
                     @endcan
                 </li>

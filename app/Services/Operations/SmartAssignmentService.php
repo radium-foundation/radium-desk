@@ -16,6 +16,7 @@ class SmartAssignmentService
 {
     public function __construct(
         private readonly TeamAvailabilityService $availabilityService,
+        private readonly WorkCalendarService $workCalendarService,
         private readonly TeamMemberActivityService $activityService,
         private readonly OperationsQueueClassifier $queueClassifier,
     ) {}
@@ -67,6 +68,10 @@ class SmartAssignmentService
     public function isEligible(User $user, ?Carbon $at = null): bool
     {
         if (! $user->is_active || $user->trashed()) {
+            return false;
+        }
+
+        if (! $this->workCalendarService->isEligibleForAssignment($user, $at)) {
             return false;
         }
 

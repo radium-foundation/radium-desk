@@ -105,10 +105,16 @@ class UserController extends Controller
         /** @var User $actor */
         $actor = auth()->user();
 
+        $operationsRoleService = app(\App\Services\Operations\OperationsRoleService::class);
+        $workSchedule = app(\App\Services\Operations\TeamWorkScheduleService::class)->snapshotFor($user);
+
         return view('users.edit', [
             'user' => $user,
             'roles' => $this->userManagementService->assignableRoles($actor),
             'currentRole' => $user->roles->first()?->name,
+            'showsWorkSchedule' => $operationsRoleService->isTeamMember($user)
+                && $actor->can('workforce-calendar.manage'),
+            'workSchedule' => $workSchedule,
         ]);
     }
 
