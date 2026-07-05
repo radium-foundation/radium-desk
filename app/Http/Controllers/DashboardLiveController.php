@@ -61,7 +61,7 @@ class DashboardLiveController extends Controller
             $stats = $this->dashboardService->statsFor($user);
 
             return response()->json([
-                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
+                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats, $user),
                 'online_count' => $stats['online_count'],
                 'online_users' => $this->dashboardService->onlineUsersPayload($stats),
                 'service_case_filter_counts' => $filterCounts,

@@ -4,7 +4,6 @@ namespace Tests\Unit;
 
 use App\Models\User;
 use App\Services\DashboardPersonalizationService;
-use App\Services\Operations\OperationsRoleService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -21,6 +20,18 @@ class DashboardPersonalizationServiceTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->service = app(DashboardPersonalizationService::class);
+    }
+
+    public function test_system_context_uses_safe_default_view_and_queue(): void
+    {
+        $this->assertSame(
+            DashboardPersonalizationService::VIEW_ALL,
+            $this->service->defaultViewFor(null),
+        );
+        $this->assertSame(
+            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            $this->service->defaultQueueFor(null),
+        );
     }
 
     public function test_default_queues_follow_role_personalization(): void

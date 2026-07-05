@@ -4,7 +4,7 @@
 
 @php
     $items = [];
-    $currentUser = auth()->user();
+    $currentUser = $viewer ?? auth()->user();
 
     if ($currentUser?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_AGENT)) {
         $items[] = [

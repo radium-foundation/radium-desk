@@ -37,7 +37,7 @@ class WorkspaceRefreshRenderer
         if ($effects->refreshKpis) {
             $stats = $this->dashboardService->statsFor($user);
             $refresh['kpis_html'] = [
-                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
+                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats, $user),
             ];
         }
 
@@ -206,7 +206,7 @@ class WorkspaceRefreshRenderer
         if ($effects->refreshKpis) {
             $stats = $this->dashboardService->statsFor($user);
             $refresh['kpis_html'] = [
-                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
+                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats, $user),
             ];
         }
 

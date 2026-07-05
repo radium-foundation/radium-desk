@@ -3,15 +3,15 @@
 namespace App\Services;
 
 use App\Enums\OperationQueue;
-use App\Services\Dashboard\DashboardKpiAggregator;
-use App\Services\Dashboard\DashboardSnapshot;
-use App\Services\Operations\OperationsRoleService;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
 use App\Models\User;
+use App\Services\Dashboard\DashboardKpiAggregator;
+use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\Operations\OperationsRoleService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -378,7 +378,7 @@ class DashboardService
     /**
      * @return array{
      *     rows: list<array{incident_id: int, html: string}>,
-     *     incident_ids: \Illuminate\Support\Collection<int, int>,
+     *     incident_ids: Collection<int, int>,
      *     service_cases_empty: bool,
      *     service_cases_empty_html: string,
      *     total_count: int,
@@ -508,8 +508,10 @@ class DashboardService
     /**
      * @param  array<string, int>  $stats
      */
-    public function renderKpiStrip(array $stats): string
+    public function renderKpiStrip(array $stats, ?User $viewer = null): string
     {
-        return view('dashboard.partials.kpi-strip', compact('stats'))->render();
+        $viewer ??= auth()->user();
+
+        return view('dashboard.partials.kpi-strip', compact('stats', 'viewer'))->render();
     }
 }

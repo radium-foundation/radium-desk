@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\OperationQueue;
 use App\Models\User;
 use App\Services\Operations\OperationsRoleService;
 use Database\Seeders\RolePermissionSeeder;
@@ -49,8 +48,12 @@ class DashboardPersonalizationService
         private readonly OperationsRoleService $operationsRoles,
     ) {}
 
-    public function defaultQueueFor(User $user): string
+    public function defaultQueueFor(?User $user): string
     {
+        if ($user === null) {
+            return self::QUEUE_ACTION_REQUIRED;
+        }
+
         if ($this->operationsRoles->isHardwareTeam($user)) {
             return self::QUEUE_HARDWARE;
         }
@@ -222,7 +225,11 @@ class DashboardPersonalizationService
 
     public function showsServiceCasesPanel(string $queue): bool
     {
-        return $queue !== self::QUEUE_HARDWARE || ! $this->operationsRoles->isHardwareTeam(auth()->user());
+        $user = auth()->user();
+
+        return $queue !== self::QUEUE_HARDWARE
+            || $user === null
+            || ! $this->operationsRoles->isHardwareTeam($user);
     }
 
     public function canViewHardwareOrders(User $user): bool
@@ -230,8 +237,12 @@ class DashboardPersonalizationService
         return $user->can(self::PERMISSION_HARDWARE_VIEW);
     }
 
-    public function defaultViewFor(User $user): string
+    public function defaultViewFor(?User $user): string
     {
+        if ($user === null) {
+            return self::VIEW_ALL;
+        }
+
         if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
             return self::VIEW_ALL;
         }

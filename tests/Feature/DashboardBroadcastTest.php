@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\DashboardBroadcastService;
+use App\Services\DashboardService;
 use App\Services\OrderTransactionService;
 use App\Services\QuickServiceRequestService;
 use App\Services\SettingService;
@@ -94,7 +95,7 @@ class DashboardBroadcastTest extends TestCase
             'order_id' => $order->id,
             'reference_no' => 'SC-BROADCAST-1',
             'category' => 'General',
-            'source' => \App\Enums\IncidentSource::Call,
+            'source' => IncidentSource::Call,
             'title' => 'Test incident',
             'description' => 'Test',
             'status' => 'open',
@@ -110,5 +111,49 @@ class DashboardBroadcastTest extends TestCase
         );
 
         $broadcastSpy->shouldHaveReceived('transactionAssigned')->atLeast()->once();
+    }
+
+    public function test_kpi_strip_renders_with_authenticated_user(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin);
+
+        $html = app(DashboardService::class)->renderKpiStrip(
+            app(DashboardService::class)->statsFor($admin),
+        );
+
+        $this->assertStringContainsString('dashboard-kpi-strip', $html);
+        $this->assertStringContainsString('Open', $html);
+    }
+
+    public function test_kpi_strip_renders_from_queue_context_using_recipient_viewer(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        auth()->logout();
+
+        $html = app(DashboardService::class)->renderKpiStrip(
+            app(DashboardService::class)->statsFor($admin),
+            $admin,
+        );
+
+        $this->assertStringContainsString('dashboard-kpi-strip', $html);
+        $this->assertStringContainsString('Open', $html);
+        $this->assertStringNotContainsString('My Active Work', $html);
+    }
+
+    public function test_dashboard_broadcast_does_not_throw_when_auth_user_is_null(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        auth()->logout();
+
+        app(DashboardBroadcastService::class)->kpisUpdated(null);
+
+        $this->assertTrue(true);
     }
 }

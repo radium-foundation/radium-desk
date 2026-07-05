@@ -135,6 +135,7 @@ class DashboardBroadcastService
                 recipient: $recipient,
                 kpiStripHtml: $this->dashboardService->renderKpiStrip(
                     $this->dashboardService->statsFor($recipient),
+                    $recipient,
                 ),
             ));
         }

@@ -106,6 +106,7 @@ class OrderTransactionController extends Controller
     {
         return $this->dashboardService->renderKpiStrip(
             $this->dashboardService->statsFor($user),
+            $user,
         );
     }
 
