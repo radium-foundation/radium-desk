@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
+use App\Services\Operations\IraCommunicationService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -408,6 +409,7 @@ class ServiceCaseAssignmentService
                 assignee: $assignee,
                 actor: $actor,
                 event: $event,
+                extraNewValues: $extraNewValues,
             );
 
             if ($event === 'service_case.reassigned') {
@@ -426,6 +428,7 @@ class ServiceCaseAssignmentService
         User $assignee,
         User $actor,
         string $event,
+        array $extraNewValues = [],
     ): void {
         if (! $this->settingService->getBool('notifications.assignment_enabled', true)) {
             return;
@@ -441,6 +444,62 @@ class ServiceCaseAssignmentService
 
         if ($event === 'service_case.reassigned') {
             $assignee->notify(new ServiceCaseReassignedNotification($incident, $actor));
+        }
+
+        $this->sendAssignmentTelegramNotification(
+            incident: $incident,
+            assignee: $assignee,
+            event: $event,
+            extraNewValues: $extraNewValues,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $extraNewValues
+     */
+    private function sendAssignmentTelegramNotification(
+        Incident $incident,
+        User $assignee,
+        string $event,
+        array $extraNewValues = [],
+    ): void {
+        if (($extraNewValues['assignment_method'] ?? null) === 'smart') {
+            return;
+        }
+
+        $incident = $incident->loadMissing(['order', 'supportAppointments']);
+        $order = $incident->order;
+        $appointment = $incident->supportAppointments->sortByDesc('preferred_date')->first();
+
+        $context = [
+            'incident_id' => $incident->id,
+            'appointment_id' => $appointment?->id,
+        ];
+
+        $communicationService = app(IraCommunicationService::class);
+
+        if ($event === 'service_case.reassigned') {
+            $communicationService->sendReassignment(
+                assignee: $assignee,
+                customer: $order?->customer_name ?? 'Unknown',
+                device: $order?->device_model ?? $order?->product_name ?? 'Unknown',
+                time: $appointment?->preferred_time_slot?->label() ?? 'Unscheduled',
+                caseReference: $incident->reference_no,
+                context: $context,
+            );
+
+            return;
+        }
+
+        if ($event === 'service_case.assigned') {
+            $communicationService->sendManualAssignment(
+                assignee: $assignee,
+                customer: $order?->customer_name ?? 'Unknown',
+                device: $order?->device_model ?? $order?->product_name ?? 'Unknown',
+                time: $appointment?->preferred_time_slot?->label() ?? 'Unscheduled',
+                caseReference: $incident->reference_no,
+                context: $context,
+            );
         }
     }
 

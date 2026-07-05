@@ -108,6 +108,9 @@ class OperationsDashboardController extends Controller
                 'team_availability' => view('admin.operations.partials.team-availability', [
                     'members' => $dashboard->teamAvailability,
                 ])->render(),
+                'team_telegram_status' => view('admin.operations.partials.team-telegram-status', [
+                    'members' => $dashboard->teamTelegramStatus,
+                ])->render(),
             ],
         ]);
     }

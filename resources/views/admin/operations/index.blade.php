@@ -132,6 +132,10 @@
                         <div id="operations-team-availability">
                             @include('admin.operations.partials.team-availability', ['members' => $dashboard->teamAvailability])
                         </div>
+
+                        <div id="operations-team-telegram-status" class="mt-4">
+                            @include('admin.operations.partials.team-telegram-status', ['members' => $dashboard->teamTelegramStatus])
+                        </div>
                     </div>
 
                     <div

@@ -17,6 +17,7 @@ readonly class OperationsDashboardData
      * @param  list<array<string, mixed>>  $recentAutomationActivity
      * @param  list<array<string, mixed>>  $recentIraMessages
      * @param  list<array<string, mixed>>  $teamAvailability
+     * @param  list<array<string, mixed>>  $teamTelegramStatus
      * @param  array<string, int>  $cashfreeDeviceEnrichmentQuality
      * @param  array<string, int>  $missingSerialAutomationQuality
      */
@@ -31,6 +32,7 @@ readonly class OperationsDashboardData
         public array $recentAutomationActivity,
         public array $recentIraMessages,
         public array $teamAvailability,
+        public array $teamTelegramStatus,
         public array $cashfreeDeviceEnrichmentQuality,
         public array $missingSerialAutomationQuality,
         public Carbon $generatedAt,
@@ -52,6 +54,7 @@ readonly class OperationsDashboardData
             'recent_automation_activity' => $this->recentAutomationActivity,
             'recent_ira_messages' => $this->recentIraMessages,
             'team_availability' => $this->teamAvailability,
+            'team_telegram_status' => $this->teamTelegramStatus,
             'cashfree_device_enrichment_quality' => $this->cashfreeDeviceEnrichmentQuality,
             'missing_serial_automation_quality' => $this->missingSerialAutomationQuality,
             'generated_at' => $this->generatedAt->toIso8601String(),

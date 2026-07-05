@@ -106,6 +106,7 @@ const refreshOperationsDashboard = async (pageRoot) => {
         replaceSectionHtml('operations-immediate-risks', html.immediate_risks);
         replaceSectionHtml('operations-advisor-insights', html.advisor_insights);
         replaceSectionHtml('operations-team-availability', html.team_availability);
+        replaceSectionHtml('operations-team-telegram-status', html.team_telegram_status);
         replaceSectionHtml('operations-system-health', html.system_health);
         replaceSectionHtml('operations-notification-metrics', html.notification_metrics);
         replaceSectionHtml('operations-automation-metrics', html.automation_metrics);

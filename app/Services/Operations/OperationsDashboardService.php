@@ -30,6 +30,7 @@ class OperationsDashboardService
         private readonly TeamAvailabilityOverviewService $teamAvailabilityOverviewService,
         private readonly OperationsCashfreeDeviceEnrichmentService $cashfreeDeviceEnrichmentService,
         private readonly OperationsMissingSerialAutomationService $missingSerialAutomationService,
+        private readonly OperationsTeamTelegramStatusService $teamTelegramStatusService,
     ) {}
 
     public function dashboardData(bool $useCache = true): OperationsDashboardData
@@ -64,6 +65,7 @@ class OperationsDashboardService
             recentAutomationActivity: $this->recentAutomationActivityService->recent(limit: 15),
             recentIraMessages: $this->recentIraMessagesService->recent(limit: 15),
             teamAvailability: $this->teamAvailabilityOverviewService->members(),
+            teamTelegramStatus: $this->teamTelegramStatusService->members(),
             cashfreeDeviceEnrichmentQuality: $this->cashfreeDeviceEnrichmentService->qualitySummary()->toArray(),
             missingSerialAutomationQuality: $this->missingSerialAutomationService->qualitySummary()->toArray(),
             generatedAt: now(),

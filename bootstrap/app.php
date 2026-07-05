@@ -78,6 +78,18 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-risk-alerts.log'));
 
+        $schedule->command('team-telegram:send-daily-briefings')
+            ->everyFifteenMinutes()
+            ->when(fn (): bool => (bool) config('team_telegram.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/team-telegram-daily-briefings.log'));
+
+        $schedule->command('team-telegram:send-slot-reminders')
+            ->hourly()
+            ->when(fn (): bool => (bool) config('team_telegram.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/team-telegram-slot-reminders.log'));
+
         $schedule->command('automation:run')
             ->hourly()
             ->when(fn (): bool => app(SystemSettingsService::class)->getBool('automation.scheduler.enabled', false))
