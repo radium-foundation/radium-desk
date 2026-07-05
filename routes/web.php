@@ -23,6 +23,7 @@ use App\Http\Controllers\DashboardWorkspaceComponentController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
+use App\Http\Controllers\IraOperationsBrainController;
 use App\Http\Controllers\OperationsDashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
@@ -162,6 +163,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.operations.index');
     Route::get('/admin/operations/live', [OperationsDashboardController::class, 'live'])
         ->name('admin.operations.live');
+    Route::post('/admin/operations/ira/feedback', [IraOperationsBrainController::class, 'feedback'])
+        ->name('admin.operations.ira.feedback');
     Route::post('/admin/operations/radiumbox/batch-recover', [OperationsDashboardController::class, 'batchRecoverRadiumBox'])
         ->name('admin.operations.radiumbox.batch-recover');
 

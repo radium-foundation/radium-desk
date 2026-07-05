@@ -44,6 +44,7 @@ const refreshOperationsDashboard = async (pageRoot) => {
         const payload = await response.json();
         const html = payload.html ?? {};
 
+        replaceSectionHtml('operations-ira-briefing', html.ira_briefing);
         replaceSectionHtml('operations-advisor-insights', html.advisor_insights);
         replaceSectionHtml('operations-team-availability', html.team_availability);
         replaceSectionHtml('operations-system-health', html.system_health);

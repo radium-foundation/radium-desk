@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\AI\AIProvider;
+use App\Contracts\Operations\IraReasoningProvider;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
 use App\Listeners\Operations\DispatchSupportAssignmentTelegramNotification;
@@ -15,6 +16,8 @@ use App\Policies\DashboardPolicy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Services\AI\Providers\NullAIProvider;
+use App\Services\Operations\OpenAIReasoningProvider;
+use App\Services\Operations\RuleBasedReasoningProvider;
 use App\Services\Automation\AutomationIdempotencyKeyGenerator;
 use App\Services\Automation\AutomationRuntime;
 use App\Services\Automation\Handlers\NotificationActionHandler;
@@ -47,6 +50,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(RadiumBoxRequestCache::class);
         $this->app->singleton(Customer360TimelineRequestCache::class);
+
+        $this->app->singleton(IraReasoningProvider::class, function ($app): IraReasoningProvider {
+            return match (config('ira.reasoning_provider')) {
+                'openai' => $app->make(OpenAIReasoningProvider::class),
+                default => $app->make(RuleBasedReasoningProvider::class),
+            };
+        });
 
         $this->app->singleton(AIProvider::class, function ($app): AIProvider {
             return match (config('ai.provider')) {

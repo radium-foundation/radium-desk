@@ -18,6 +18,13 @@
             </div>
         </div>
 
+        <div id="operations-ira-briefing" class="mb-4">
+            @include('admin.operations.partials.ira-briefing', [
+                'briefing' => $iraBriefing ?? null,
+                'reasoningProvider' => $iraReasoningProvider ?? 'rule_based',
+            ])
+        </div>
+
         <div id="operations-advisor-insights" class="mb-4">
             @include('admin.operations.partials.advisor-insights', ['insights' => $advisorInsights ?? []])
         </div>

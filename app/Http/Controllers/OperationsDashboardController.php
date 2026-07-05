@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\RadiumBoxBatchRecoveryRequest;
+use App\Services\Operations\IraOperationsBrainService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Operations\OperationsDashboardService;
 use App\Services\RadiumBox\RadiumBoxSyncRecoveryService;
@@ -15,6 +16,7 @@ class OperationsDashboardController extends Controller
     public function __construct(
         private readonly OperationsDashboardService $dashboardService,
         private readonly OperationsAdvisorService $advisorService,
+        private readonly IraOperationsBrainService $iraBrainService,
         private readonly RadiumBoxSyncRecoveryService $radiumBoxRecoveryService,
     ) {
         $this->middleware(function ($request, $next) {
@@ -29,6 +31,8 @@ class OperationsDashboardController extends Controller
         return view('admin.operations.index', [
             'dashboard' => $this->dashboardService->dashboardData(),
             'advisorInsights' => $this->advisorService->platformInsights(),
+            'iraBriefing' => $this->iraBrainService->briefing(),
+            'iraReasoningProvider' => $this->iraBrainService->reasoningProviderName(),
         ]);
     }
 
@@ -36,10 +40,15 @@ class OperationsDashboardController extends Controller
     {
         $dashboard = $this->dashboardService->dashboardData();
         $advisorInsights = $this->advisorService->platformInsights();
+        $iraBriefing = $this->iraBrainService->briefing();
 
         return response()->json([
             'generated_at' => $dashboard->generatedAt->toIso8601String(),
             'html' => [
+                'ira_briefing' => view('admin.operations.partials.ira-briefing', [
+                    'briefing' => $iraBriefing,
+                    'reasoningProvider' => $this->iraBrainService->reasoningProviderName(),
+                ])->render(),
                 'advisor_insights' => view('admin.operations.partials.advisor-insights', [
                     'insights' => $advisorInsights,
                 ])->render(),

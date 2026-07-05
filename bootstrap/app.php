@@ -63,6 +63,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/presence-timeouts.log'));
 
+        $schedule->command('ira:capture-memory-snapshot')
+            ->dailyAt('00:05')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ira-memory-snapshot.log'));
+
         $schedule->command('automation:run')
             ->hourly()
             ->when(fn (): bool => app(SystemSettingsService::class)->getBool('automation.scheduler.enabled', false))
