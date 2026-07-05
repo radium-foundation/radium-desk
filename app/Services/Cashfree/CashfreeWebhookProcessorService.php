@@ -15,7 +15,9 @@ use App\Services\Outbox\OutboxProcessorService;
 use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Throwable;
 
 class CashfreeWebhookProcessorService
 {
@@ -45,53 +47,87 @@ class CashfreeWebhookProcessorService
         }
 
         try {
-            $deferredContext = DB::transaction(function () use ($webhookLog, $payload): ?CashfreeWebhookDeferredContext {
-                $cfPaymentId = $this->payloadParser->cfPaymentId($payload);
-
-                if ($cfPaymentId === null) {
-                    throw new RuntimeException('Cashfree webhook payload is missing cf_payment_id.');
-                }
-
-                $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
-
-                if ($existingIncident !== null) {
-                    $this->markProcessed($webhookLog, $existingIncident);
-
-                    return null;
-                }
-
-                $systemUser = $this->resolveSystemUser();
-                $order = $this->createOrder($payload, $cfPaymentId, $systemUser);
-                $incident = $this->createServiceRequest($order, $payload, $systemUser);
-
-                $this->markProcessed($webhookLog, $incident);
-                $this->reliabilityMetrics->recordOrderCreated();
-
-                $deferredContext = new CashfreeWebhookDeferredContext(
-                    orderId: $order->id,
-                    incidentId: $incident->id,
-                    actorId: $systemUser->id,
-                );
-
-                $this->outboxWriter->writeDeferredOperations($deferredContext);
-
-                return $deferredContext;
-            });
-
-            if ($deferredContext !== null) {
-                $this->outboxProcessorService->process();
-            }
-
-            return $webhookLog->fresh(['incident']);
-        } catch (\Throwable $exception) {
-            $webhookLog->update([
-                'processing_status' => self::STATUS_FAILED,
-                'processing_error' => $exception->getMessage(),
-                'processed_at' => now(),
-            ]);
+            $deferredContext = $this->persistSuccessfulPayment($webhookLog, $payload);
+        } catch (Throwable $exception) {
+            $this->markWebhookFailed($webhookLog, $exception);
 
             return $webhookLog->fresh();
         }
+
+        if ($deferredContext !== null) {
+            $this->dispatchDeferredOperationsSafely($webhookLog, $deferredContext);
+        }
+
+        return $webhookLog->fresh(['incident']);
+    }
+
+    /**
+     * Persist order, incident, webhook status, and pending outbox events in one transaction.
+     * Secondary operations must run only after this commits successfully.
+     */
+    private function persistSuccessfulPayment(
+        CashfreeWebhookLog $webhookLog,
+        array $payload,
+    ): ?CashfreeWebhookDeferredContext {
+        return DB::transaction(function () use ($webhookLog, $payload): ?CashfreeWebhookDeferredContext {
+            $cfPaymentId = $this->payloadParser->cfPaymentId($payload);
+
+            if ($cfPaymentId === null) {
+                throw new RuntimeException('Cashfree webhook payload is missing cf_payment_id.');
+            }
+
+            $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
+
+            if ($existingIncident !== null) {
+                $this->markProcessed($webhookLog, $existingIncident);
+
+                return null;
+            }
+
+            $systemUser = $this->resolveSystemUser();
+            $order = $this->createOrder($payload, $cfPaymentId, $systemUser);
+            $incident = $this->createServiceRequest($order, $payload, $systemUser);
+
+            $this->markProcessed($webhookLog, $incident);
+            $this->reliabilityMetrics->recordOrderCreated();
+
+            $deferredContext = new CashfreeWebhookDeferredContext(
+                orderId: $order->id,
+                incidentId: $incident->id,
+                actorId: $systemUser->id,
+            );
+
+            $this->outboxWriter->writeDeferredOperations($deferredContext);
+
+            return $deferredContext;
+        });
+    }
+
+    private function dispatchDeferredOperationsSafely(
+        CashfreeWebhookLog $webhookLog,
+        CashfreeWebhookDeferredContext $deferredContext,
+    ): void {
+        try {
+            $this->outboxProcessorService->process();
+        } catch (Throwable $exception) {
+            Log::error('[Cashfree Webhook] Deferred operation dispatch failed after payment commit.', [
+                'webhook_log_id' => $webhookLog->id,
+                'cf_payment_id' => $webhookLog->cf_payment_id,
+                'order_id' => $deferredContext->orderId,
+                'incident_id' => $deferredContext->incidentId,
+                'message' => $exception->getMessage(),
+                'exception' => $exception::class,
+            ]);
+        }
+    }
+
+    private function markWebhookFailed(CashfreeWebhookLog $webhookLog, Throwable $exception): void
+    {
+        $webhookLog->update([
+            'processing_status' => self::STATUS_FAILED,
+            'processing_error' => $exception->getMessage(),
+            'processed_at' => now(),
+        ]);
     }
 
     private function findExistingIncidentForPayment(string $cfPaymentId): ?Incident

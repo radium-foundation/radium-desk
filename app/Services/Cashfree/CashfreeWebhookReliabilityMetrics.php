@@ -30,9 +30,15 @@ class CashfreeWebhookReliabilityMetrics
             outboxFailed: $this->outboxFailedCount(),
             outboxCompletedToday: $this->outboxCompletedTodayCount(),
             outboxRetryCount: $this->outboxRetryCount(),
+            paidWithoutDeskOrderCount: app(CashfreePaymentIntegrityService::class)->paidWithoutDeskOrderCount(),
             lastOrderCreatedAt: $this->cachedTimestamp(self::KEY_LAST_ORDER_CREATED_AT),
             capturedAt: now(),
         );
+    }
+
+    public function paidWithoutDeskOrderCount(): int
+    {
+        return app(CashfreePaymentIntegrityService::class)->paidWithoutDeskOrderCount();
     }
 
     /**

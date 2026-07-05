@@ -315,5 +315,6 @@ class CashfreeWebhookReliabilityTest extends TestCase
         $this->assertSame(0, $counts['cashfree_outbox_pending']);
         $this->assertSame(0, $counts['cashfree_outbox_failed']);
         $this->assertSame(3, $counts['cashfree_outbox_completed_today']);
+        $this->assertSame(0, $counts['cashfree_paid_without_desk_order']);
     }
 }

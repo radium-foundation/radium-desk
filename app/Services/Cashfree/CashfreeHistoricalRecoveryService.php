@@ -5,7 +5,6 @@ namespace App\Services\Cashfree;
 use App\Data\CashfreeHistoricalRecoveryResult;
 use App\Enums\CashfreeHistoricalRecoveryDisposition;
 use App\Models\CashfreeWebhookLog;
-use App\Models\Order;
 use Illuminate\Support\Collection;
 
 class CashfreeHistoricalRecoveryService
@@ -13,6 +12,7 @@ class CashfreeHistoricalRecoveryService
     public function __construct(
         private readonly CashfreeWebhookProcessorService $webhookProcessorService,
         private readonly CashfreeWebhookPayloadParser $payloadParser,
+        private readonly CashfreePaymentIntegrityService $integrityService,
     ) {}
 
     public function recover(bool $dryRun = false, ?int $singleLogId = null): CashfreeHistoricalRecoveryResult
@@ -84,7 +84,7 @@ class CashfreeHistoricalRecoveryService
 
         return $earliestByPayment
             ->values()
-            ->map(fn (CashfreeWebhookLog $log): array => $this->assessLog($log))
+            ->map(fn (CashfreeWebhookLog $log): array => $this->integrityService->assessLog($log))
             ->values();
     }
 
@@ -99,84 +99,18 @@ class CashfreeHistoricalRecoveryService
             return collect();
         }
 
-        return collect([$this->assessLog($log)]);
-    }
-
-    /**
-     * @return array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}
-     */
-    private function assessLog(CashfreeWebhookLog $log): array
-    {
-        $payload = $log->request_payload ?? [];
-
-        if (! $this->payloadParser->isSuccessfulPayment($payload)) {
-            return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::Unsafe, 'payment_not_success');
-        }
-
-        $cfPaymentId = $this->resolveCfPaymentId($log);
-
-        if ($cfPaymentId === null) {
-            return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::Unsafe, 'missing_cf_payment_id');
-        }
-
-        if (Order::query()->where('cashfree_payment_id', $cfPaymentId)->exists()) {
-            return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::AlreadyExists, 'cashfree_payment_id_exists');
-        }
-
-        $businessOrderId = $this->payloadParser->orderId($payload);
-
-        if ($businessOrderId !== null && Order::query()->where('order_id', $businessOrderId)->exists()) {
-            return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::AlreadyExists, 'order_id_exists');
-        }
-
-        $processedSibling = CashfreeWebhookLog::query()
-            ->where('cf_payment_id', $cfPaymentId)
-            ->where('id', '!=', $log->id)
-            ->where('processing_status', CashfreeWebhookProcessorService::STATUS_PROCESSED)
-            ->whereNotNull('incident_id')
-            ->exists();
-
-        if ($processedSibling) {
-            return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::AlreadyExists, 'processed_webhook_exists');
-        }
-
-        if ($businessOrderId === null) {
-            return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::Unsafe, 'missing_order_id');
-        }
-
-        return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::Recoverable, 'ready');
-    }
-
-    /**
-     * @return array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}
-     */
-    private function assessment(
-        CashfreeWebhookLog $log,
-        CashfreeHistoricalRecoveryDisposition $disposition,
-        string $reason,
-    ): array {
-        return [
-            'log' => $log,
-            'disposition' => $disposition,
-            'reason' => $reason,
-        ];
+        return collect([$this->integrityService->assessLog($log)]);
     }
 
     private function groupKeyForLog(CashfreeWebhookLog $log): string
     {
-        $cfPaymentId = $this->resolveCfPaymentId($log);
+        $payload = $log->request_payload ?? [];
+        $cfPaymentId = $this->payloadParser->cfPaymentId($payload) ?? $log->cf_payment_id;
 
         if ($cfPaymentId !== null) {
             return 'cf:'.$cfPaymentId;
         }
 
         return 'log:'.$log->id;
-    }
-
-    private function resolveCfPaymentId(CashfreeWebhookLog $log): ?string
-    {
-        $payload = $log->request_payload ?? [];
-
-        return $this->payloadParser->cfPaymentId($payload) ?? $log->cf_payment_id;
     }
 }
