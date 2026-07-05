@@ -49,6 +49,17 @@ class OperationsDashboardController extends Controller
                     'briefing' => $iraBriefing,
                     'reasoningProvider' => $this->iraBrainService->reasoningProviderName(),
                 ])->render(),
+                'overview_cards' => view('admin.operations.partials.overview-cards', [
+                    'briefing' => $iraBriefing,
+                    'members' => $dashboard->teamAvailability,
+                    'insights' => $advisorInsights,
+                ])->render(),
+                'ira_briefing_details' => view('admin.operations.partials.ira-briefing-details', [
+                    'briefing' => $iraBriefing,
+                ])->render(),
+                'immediate_risks' => view('admin.operations.partials.immediate-risks', [
+                    'briefing' => $iraBriefing,
+                ])->render(),
                 'advisor_insights' => view('admin.operations.partials.advisor-insights', [
                     'insights' => $advisorInsights,
                 ])->render(),

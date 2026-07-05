@@ -2,7 +2,7 @@
     'insights' => [],
 ])
 
-<section class="mb-4" id="operations-advisor-insights" aria-labelledby="operations-advisor-heading">
+<section class="mb-4" aria-labelledby="operations-advisor-heading">
     <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
         <h2 id="operations-advisor-heading" class="h5 mb-0">IRA Advisor</h2>
         <span class="badge text-bg-light border">Recommendations only</span>

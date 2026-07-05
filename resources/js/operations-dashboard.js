@@ -22,6 +22,62 @@ const formatGeneratedAt = (isoString) => {
     return date.toLocaleString();
 };
 
+const bindOperationsTabShortcuts = (pageRoot) => {
+    pageRoot.querySelectorAll('[data-operations-tab-target]').forEach((trigger) => {
+        if (trigger.dataset.operationsTabBound === 'true') {
+            return;
+        }
+
+        trigger.dataset.operationsTabBound = 'true';
+
+        trigger.addEventListener('click', () => {
+            const targetSelector = trigger.dataset.operationsTabTarget;
+
+            if (!targetSelector) {
+                return;
+            }
+
+            const tabButton = pageRoot.querySelector(targetSelector);
+
+            if (!tabButton || !window.bootstrap?.Tab) {
+                return;
+            }
+
+            window.bootstrap.Tab.getOrCreateInstance(tabButton).show();
+            tabButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+    });
+};
+
+const bindIraInsightToggleLabels = (pageRoot) => {
+    pageRoot.querySelectorAll('[data-operations-view-all-label]').forEach((trigger) => {
+        if (trigger.dataset.operationsInsightToggleBound === 'true') {
+            return;
+        }
+
+        trigger.dataset.operationsInsightToggleBound = 'true';
+
+        const viewAllLabel = trigger.dataset.operationsViewAllLabel ?? 'View all insights';
+        const viewLessLabel = trigger.dataset.operationsViewLessLabel ?? 'Show fewer insights';
+        const targetSelector = trigger.dataset.bsTarget;
+        const collapseTarget = targetSelector ? pageRoot.querySelector(targetSelector) : null;
+
+        if (!collapseTarget) {
+            return;
+        }
+
+        collapseTarget.addEventListener('show.bs.collapse', () => {
+            trigger.textContent = viewLessLabel;
+            trigger.setAttribute('aria-expanded', 'true');
+        });
+
+        collapseTarget.addEventListener('hide.bs.collapse', () => {
+            trigger.textContent = viewAllLabel;
+            trigger.setAttribute('aria-expanded', 'false');
+        });
+    });
+};
+
 const refreshOperationsDashboard = async (pageRoot) => {
     const liveUrl = pageRoot.dataset.liveUrl;
 
@@ -45,6 +101,9 @@ const refreshOperationsDashboard = async (pageRoot) => {
         const html = payload.html ?? {};
 
         replaceSectionHtml('operations-ira-briefing', html.ira_briefing);
+        replaceSectionHtml('operations-overview-cards', html.overview_cards);
+        replaceSectionHtml('operations-ira-briefing-details', html.ira_briefing_details);
+        replaceSectionHtml('operations-immediate-risks', html.immediate_risks);
         replaceSectionHtml('operations-advisor-insights', html.advisor_insights);
         replaceSectionHtml('operations-team-availability', html.team_availability);
         replaceSectionHtml('operations-system-health', html.system_health);
@@ -57,6 +116,8 @@ const refreshOperationsDashboard = async (pageRoot) => {
         replaceSectionHtml('operations-recent-automation-activity', html.recent_automation_activity);
 
         bindBatchRecoveryForms(pageRoot);
+        bindOperationsTabShortcuts(pageRoot);
+        bindIraInsightToggleLabels(pageRoot);
 
         const generatedAtElement = document.getElementById('operations-dashboard-generated-at');
 
@@ -146,6 +207,8 @@ const initOperationsDashboard = () => {
     }
 
     bindBatchRecoveryForms(pageRoot);
+    bindOperationsTabShortcuts(pageRoot);
+    bindIraInsightToggleLabels(pageRoot);
 
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
     startPolling(pageRoot, intervalMs);

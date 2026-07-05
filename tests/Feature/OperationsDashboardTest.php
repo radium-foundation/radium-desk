@@ -146,8 +146,12 @@ class OperationsDashboardTest extends TestCase
             ->get(route('admin.operations.index'))
             ->assertOk()
             ->assertSee('Operations Control Center')
+            ->assertSee('Ira Today')
             ->assertSee('IRA Advisor')
             ->assertSee('Recommendations only')
+            ->assertSee('Team Presence')
+            ->assertSee('Immediate Risks')
+            ->assertSee('Need Action')
             ->assertSee('System Health')
             ->assertSee('Notification Metrics')
             ->assertSee('Automation Metrics')
@@ -160,7 +164,11 @@ class OperationsDashboardTest extends TestCase
             ->assertSee($incident->display_reference)
             ->assertSee('Open Incident')
             ->assertSee('Automation Runtime')
-            ->assertSee('Cashfree');
+            ->assertSee('Cashfree')
+            ->assertSee('id="operations-dashboard-tabs"', false)
+            ->assertSee('operations-tab-team', false)
+            ->assertSee('operations-tab-performance', false)
+            ->assertSee('operations-tab-system', false);
     }
 
     public function test_operations_dashboard_shows_interakt_template_configuration_health(): void
@@ -210,12 +218,18 @@ class OperationsDashboardTest extends TestCase
             ->assertJsonStructure([
                 'generated_at',
                 'html' => [
+                    'ira_briefing',
+                    'overview_cards',
+                    'ira_briefing_details',
+                    'immediate_risks',
                     'advisor_insights',
+                    'team_availability',
                     'system_health',
                     'notification_metrics',
                     'automation_metrics',
                     'queue_metrics',
                     'integration_health',
+                    'radiumbox_health',
                     'recent_notification_failures',
                     'recent_automation_activity',
                 ],

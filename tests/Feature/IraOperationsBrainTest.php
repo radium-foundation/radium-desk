@@ -264,7 +264,7 @@ class IraOperationsBrainTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('Ira Briefing')
+            ->assertSee('Ira Today')
             ->assertSee('Good morning');
     }
 
