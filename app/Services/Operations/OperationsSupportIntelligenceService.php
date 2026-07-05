@@ -18,6 +18,7 @@ class OperationsSupportIntelligenceService
         private readonly OperationsMissingSerialAutomationService $missingSerialAutomationService,
         private readonly TeamWorkBriefingService $teamWorkBriefingService,
         private readonly SmartAssignmentService $smartAssignmentService,
+        private readonly OperationsQueueClassifier $queueClassifier,
     ) {}
 
     public function summary(?Carbon $at = null): SupportIntelligenceSummary
@@ -83,7 +84,36 @@ class OperationsSupportIntelligenceService
         return SupportAppointment::query()
             ->whereDate('preferred_date', '<', $today->toDateString())
             ->whereHas('incident', fn ($query) => $query->whereIn('status', IncidentStatus::operationallyActive()))
+            ->with(['incident.order', 'incident.supportAppointments'])
+            ->get()
+            ->filter(fn (SupportAppointment $appointment): bool => $this->isMissedOverdueAppointment($appointment, $today))
             ->count();
+    }
+
+    private function isMissedOverdueAppointment(SupportAppointment $appointment, Carbon $today): bool
+    {
+        if ($appointment->preferred_date === null || ! $appointment->preferred_date->lt($today)) {
+            return false;
+        }
+
+        $incident = $appointment->incident;
+
+        if ($this->queueClassifier->isCompleted($incident)) {
+            return false;
+        }
+
+        return ! $this->hasSupersedingAppointment($appointment);
+    }
+
+    private function hasSupersedingAppointment(SupportAppointment $appointment): bool
+    {
+        $incident = $appointment->incident;
+
+        return $incident->supportAppointments->contains(
+            fn (SupportAppointment $other): bool => $other->id !== $appointment->id
+                && $other->preferred_date !== null
+                && $other->preferred_date->greaterThan($appointment->preferred_date),
+        );
     }
 
     /**

@@ -389,6 +389,72 @@ class OperationsDashboardTest extends TestCase
         $this->assertSame(1, $otherWorkload['pending']);
     }
 
+    public function test_support_intelligence_does_not_count_completed_old_appointments_as_missed(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createSupportAgent('Shipra');
+        $creator = User::factory()->create();
+
+        $this->createScheduledAppointment(
+            $agent,
+            $creator,
+            'RD-SI-COMPLETED-PAST',
+            '2026-07-05',
+            transactionId: 'TXN-SI-COMPLETED-PAST',
+        );
+
+        $summary = app(OperationsSupportIntelligenceService::class)->summary();
+
+        $this->assertSame(0, $summary->missedOverdue);
+    }
+
+    public function test_support_intelligence_counts_past_incomplete_appointments_as_missed(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createSupportAgent('Shipra');
+        $creator = User::factory()->create();
+
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-MISSED-1', '2026-07-05');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-MISSED-2', '2026-07-04');
+
+        $summary = app(OperationsSupportIntelligenceService::class)->summary();
+
+        $this->assertSame(2, $summary->missedOverdue);
+    }
+
+    public function test_support_intelligence_completed_pending_and_missed_totals_reconcile(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createSupportAgent('Shipra');
+        $creator = User::factory()->create();
+
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-TODAY-PENDING-1', '2026-07-06');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-TODAY-PENDING-2', '2026-07-06');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-TODAY-DONE-1', '2026-07-06', transactionId: 'TXN-SI-TODAY-1');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-TODAY-DONE-2', '2026-07-06', transactionId: 'TXN-SI-TODAY-2');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-TODAY-DONE-3', '2026-07-06', transactionId: 'TXN-SI-TODAY-3');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-PAST-MISSED-1', '2026-07-05');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-PAST-MISSED-2', '2026-07-04');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-PAST-DONE-1', '2026-07-05', transactionId: 'TXN-SI-PAST-1');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-PAST-DONE-2', '2026-07-04', transactionId: 'TXN-SI-PAST-2');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-PAST-DONE-3', '2026-07-03', transactionId: 'TXN-SI-PAST-3');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-PAST-DONE-4', '2026-07-02', transactionId: 'TXN-SI-PAST-4');
+
+        $summary = app(OperationsSupportIntelligenceService::class)->summary();
+
+        $this->assertSame(5, $summary->scheduledToday);
+        $this->assertSame(2, $summary->pendingToday);
+        $this->assertSame(3, $summary->completedToday);
+        $this->assertSame(2, $summary->missedOverdue);
+        $this->assertSame(
+            $summary->scheduledToday,
+            $summary->completedToday + $summary->pendingToday,
+        );
+    }
+
     private function createSupportAgent(string $name): User
     {
         $user = User::factory()->create([
@@ -416,6 +482,7 @@ class OperationsDashboardTest extends TestCase
         User $creator,
         string $orderId,
         string $preferredDate,
+        ?string $transactionId = null,
     ): Incident {
         $order = Order::query()->create([
             'order_id' => $orderId,
@@ -425,6 +492,7 @@ class OperationsDashboardTest extends TestCase
             'customer_name' => 'Support Customer',
             'status' => 'active',
             'created_by' => $creator->id,
+            'transaction_id' => $transactionId,
         ]);
 
         $incident = Incident::query()->create([
