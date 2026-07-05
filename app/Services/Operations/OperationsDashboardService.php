@@ -31,6 +31,7 @@ class OperationsDashboardService
         private readonly TeamAvailabilityOverviewService $teamAvailabilityOverviewService,
         private readonly OperationsCashfreeDeviceEnrichmentService $cashfreeDeviceEnrichmentService,
         private readonly OperationsMissingSerialAutomationService $missingSerialAutomationService,
+        private readonly OperationsSupportIntelligenceService $supportIntelligenceService,
         private readonly OperationsTeamTelegramStatusService $teamTelegramStatusService,
     ) {}
 
@@ -73,6 +74,7 @@ class OperationsDashboardService
             teamTelegramStatus: $this->teamTelegramStatusService->members(),
             cashfreeDeviceEnrichmentQuality: $this->cashfreeDeviceEnrichmentService->qualitySummary()->toArray(),
             missingSerialAutomationQuality: $this->missingSerialAutomationService->qualitySummary()->toArray(),
+            supportIntelligence: $this->supportIntelligenceService->summary()->toArray(),
             generatedAt: now(),
         );
     }

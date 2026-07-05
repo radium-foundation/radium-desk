@@ -20,6 +20,7 @@ readonly class OperationsDashboardData
      * @param  list<array<string, mixed>>  $teamTelegramStatus
      * @param  array<string, int>  $cashfreeDeviceEnrichmentQuality
      * @param  array<string, int>  $missingSerialAutomationQuality
+     * @param  array<string, mixed>  $supportIntelligence
      */
     public function __construct(
         public array $systemHealth,
@@ -35,6 +36,7 @@ readonly class OperationsDashboardData
         public array $teamTelegramStatus,
         public array $cashfreeDeviceEnrichmentQuality,
         public array $missingSerialAutomationQuality,
+        public array $supportIntelligence,
         public Carbon $generatedAt,
     ) {}
 
@@ -57,6 +59,7 @@ readonly class OperationsDashboardData
             'team_telegram_status' => $this->teamTelegramStatus,
             'cashfree_device_enrichment_quality' => $this->cashfreeDeviceEnrichmentQuality,
             'missing_serial_automation_quality' => $this->missingSerialAutomationQuality,
+            'support_intelligence' => $this->supportIntelligence,
             'generated_at' => $this->generatedAt->toIso8601String(),
         ];
     }

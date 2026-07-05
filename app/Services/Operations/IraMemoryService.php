@@ -23,6 +23,7 @@ class IraMemoryService
         private readonly OperationsRoleService $roleService,
         private readonly WorkCalendarService $workCalendarService,
         private readonly TeamAvailabilityService $availabilityService,
+        private readonly OperationsSupportIntelligenceService $supportIntelligenceService,
     ) {}
 
     public function capture(?Carbon $at = null): IraOperationalMemorySnapshot
@@ -82,6 +83,7 @@ class IraMemoryService
             'warning' => $slaCounts['warning_cases'] ?? 0,
             'action_required' => $queueCounts[OperationQueue::ActionRequired->value] ?? 0,
             'attention' => $queueCounts[OperationQueue::Attention->value] ?? 0,
+            'support' => $this->supportIntelligenceService->summary($at)->toArray(),
         ];
 
         $teamMembers = $this->teamMembers();

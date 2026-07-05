@@ -102,6 +102,7 @@ const refreshOperationsDashboard = async (pageRoot) => {
 
         replaceSectionHtml('operations-ira-briefing', html.ira_briefing);
         replaceSectionHtml('operations-overview-cards', html.overview_cards);
+        replaceSectionHtml('operations-support-intelligence', html.support_intelligence);
         replaceSectionHtml('operations-ira-briefing-details', html.ira_briefing_details);
         replaceSectionHtml('operations-immediate-risks', html.immediate_risks);
         replaceSectionHtml('operations-advisor-insights', html.advisor_insights);

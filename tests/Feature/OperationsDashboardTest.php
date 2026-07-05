@@ -6,6 +6,7 @@ use App\Enums\AutomationExecutionStatus;
 use App\Enums\AutomationPolicyActionType;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\WaitingReason;
 use App\Models\AuditLog;
 use App\Models\AutomationExecution;
@@ -13,14 +14,18 @@ use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Data\Operations\OperationsDashboardData;
+use App\Models\SupportAppointment;
+use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Operations\OperationsDashboardService;
+use App\Services\Operations\OperationsSupportIntelligenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
@@ -34,6 +39,13 @@ class OperationsDashboardTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     private function createAdminUser(string $email = 'admin-ops-dashboard@test.com'): User
@@ -159,6 +171,7 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('Notification Metrics')
             ->assertSee('Automation Metrics')
             ->assertSee('Queue Metrics')
+            ->assertSee('Support Intelligence')
             ->assertSee('Integration Health')
             ->assertSee('Recent Notification Failures')
             ->assertSee('Recent Automation Activity')
@@ -233,6 +246,7 @@ class OperationsDashboardTest extends TestCase
                     'queue_metrics',
                     'integration_health',
                     'radiumbox_health',
+                    'support_intelligence',
                     'recent_notification_failures',
                     'recent_automation_activity',
                 ],
@@ -269,6 +283,7 @@ class OperationsDashboardTest extends TestCase
             teamTelegramStatus: $valid->teamTelegramStatus,
             cashfreeDeviceEnrichmentQuality: $valid->cashfreeDeviceEnrichmentQuality,
             missingSerialAutomationQuality: $valid->missingSerialAutomationQuality,
+            supportIntelligence: $valid->supportIntelligence,
             generatedAt: $valid->generatedAt,
         );
 
@@ -279,5 +294,159 @@ class OperationsDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('RadiumBox Health', false)
             ->assertSee('Operations Control Center');
+    }
+
+    public function test_operations_dashboard_renders_support_intelligence(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $this->actingAs($this->createAdminUser('admin-support-intelligence@test.com'))
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('Support Intelligence')
+            ->assertSee('Upcoming Support')
+            ->assertSee('Customer Response')
+            ->assertSee('Team Workload');
+    }
+
+    public function test_support_intelligence_counts_todays_appointments_correctly(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createSupportAgent('Shipra');
+        $creator = User::factory()->create();
+
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-1', '2026-07-06');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-2', '2026-07-06');
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-3', '2026-07-07');
+
+        $summary = app(OperationsSupportIntelligenceService::class)->summary();
+
+        $this->assertSame(2, $summary->scheduledToday);
+        $this->assertSame(2, $summary->pendingToday);
+        $this->assertSame(0, $summary->completedToday);
+        $this->assertSame(1, $summary->tomorrow);
+    }
+
+    public function test_support_intelligence_counts_waiting_serial_customers_correctly(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $creator = User::factory()->create();
+
+        Order::query()->create([
+            'order_id' => 'RD-SERIAL-WAIT-1',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Waiting Customer',
+            'status' => 'active',
+            'created_by' => $creator->id,
+            'missing_serial_first_requested_at' => now()->subHour(),
+        ]);
+
+        Order::query()->create([
+            'order_id' => 'RD-SERIAL-WAIT-2',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Replied Customer',
+            'status' => 'active',
+            'created_by' => $creator->id,
+            'missing_serial_first_requested_at' => now()->subHours(2),
+            'serial_entered_at' => now()->subHour(),
+        ]);
+
+        $summary = app(OperationsSupportIntelligenceService::class)->summary();
+
+        $this->assertSame(2, $summary->serialRequested);
+        $this->assertSame(1, $summary->serialReceived);
+        $this->assertSame(1, $summary->serialStillWaiting);
+    }
+
+    public function test_support_intelligence_counts_team_workload_correctly(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $shipra = $this->createSupportAgent('Shipra');
+        $otherAgent = $this->createSupportAgent('Other Agent');
+        $creator = User::factory()->create();
+
+        $this->createScheduledAppointment($shipra, $creator, 'RD-WL-1', '2026-07-06');
+        $this->createScheduledAppointment($shipra, $creator, 'RD-WL-2', '2026-07-06');
+        $this->createScheduledAppointment($shipra, $creator, 'RD-WL-3', '2026-07-07');
+        $this->createScheduledAppointment($otherAgent, $creator, 'RD-WL-4', '2026-07-07');
+
+        $summary = app(OperationsSupportIntelligenceService::class)->summary();
+        $shipraWorkload = collect($summary->teamWorkload)->firstWhere('name', 'Shipra');
+        $otherWorkload = collect($summary->teamWorkload)->firstWhere('name', 'Other Agent');
+
+        $this->assertNotNull($shipraWorkload);
+        $this->assertSame(2, $shipraWorkload['today']);
+        $this->assertSame(3, $shipraWorkload['pending']);
+        $this->assertNotNull($otherWorkload);
+        $this->assertSame(0, $otherWorkload['today']);
+        $this->assertSame(1, $otherWorkload['pending']);
+    }
+
+    private function createSupportAgent(string $name): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'is_active' => true,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+
+        TeamMemberWorkSchedule::query()->create([
+            'user_id' => $user->id,
+            'work_start_time' => '09:00:00',
+            'work_end_time' => '18:00:00',
+            'lunch_start_time' => '13:30:00',
+            'lunch_end_time' => '14:00:00',
+            'short_break_count' => 2,
+            'short_break_minutes' => 10,
+            'weekly_off_days' => [Carbon::SUNDAY],
+        ]);
+
+        return $user->fresh(['workSchedule']);
+    }
+
+    private function createScheduledAppointment(
+        User $assignee,
+        User $creator,
+        string $orderId,
+        string $preferredDate,
+    ): Incident {
+        $order = Order::query()->create([
+            'order_id' => $orderId,
+            'serial_number' => 'SN-'.$orderId,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Support Customer',
+            'status' => 'active',
+            'created_by' => $creator->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Support intelligence case',
+            'description' => 'Support intelligence case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $creator->id,
+            'updated_by' => $creator->id,
+            'assigned_to_user_id' => $assignee->id,
+        ]);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => $preferredDate,
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876543210',
+        ]);
+
+        return $incident;
     }
 }

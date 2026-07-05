@@ -96,6 +96,9 @@ class OperationsDashboardController extends Controller
                 'missing_serial_automation_quality' => view('admin.operations.partials.missing-serial-automation-quality', [
                     'quality' => $dashboard->missingSerialAutomationQuality,
                 ])->render(),
+                'support_intelligence' => view('admin.operations.partials.support-intelligence', [
+                    'intelligence' => $dashboard->supportIntelligence,
+                ])->render(),
                 'recent_notification_failures' => view('admin.operations.partials.recent-notification-failures', [
                     'failures' => $dashboard->recentNotificationFailures,
                 ])->render(),

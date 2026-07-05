@@ -106,6 +106,12 @@
                         aria-labelledby="operations-tab-today"
                         tabindex="0"
                     >
+                        <div id="operations-support-intelligence" class="mb-4">
+                            @include('admin.operations.partials.support-intelligence', [
+                                'intelligence' => $dashboard->supportIntelligence,
+                            ])
+                        </div>
+
                         <div id="operations-ira-briefing-details" class="mb-4">
                             @include('admin.operations.partials.ira-briefing-details', [
                                 'briefing' => $iraBriefing ?? null,
