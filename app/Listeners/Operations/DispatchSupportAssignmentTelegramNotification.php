@@ -9,6 +9,17 @@ use App\Services\Notifications\NotificationDispatcher;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
+/**
+ * Legacy NotificationDispatcher hook for smart-assignment Telegram delivery.
+ *
+ * @deprecated Superseded by {@see DispatchIraSmartAssignmentNotification} and
+ *             {@see \App\Services\Operations\IraCommunicationService}. This listener
+ *             is intentionally not registered in {@see \App\Providers\AppServiceProvider}
+ *             to avoid duplicate Telegram messages on {@see SupportAppointmentSmartAssigned}.
+ *
+ * Retained for reference and unit-test compatibility. Do not re-register without
+ * first removing the Ira communication path.
+ */
 class DispatchSupportAssignmentTelegramNotification
 {
     public function __construct(

@@ -6,7 +6,7 @@ use App\Contracts\AI\AIProvider;
 use App\Contracts\Operations\IraReasoningProvider;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
-use App\Listeners\Operations\DispatchSupportAssignmentTelegramNotification;
+use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
 use App\Models\DeviceModel;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
@@ -103,7 +103,10 @@ class AppServiceProvider extends ServiceProvider
         $this->validateInteraktTemplateConfiguration();
 
         Event::listen(NotificationSent::class, BroadcastNotificationCreated::class);
-        Event::listen(SupportAppointmentSmartAssigned::class, DispatchSupportAssignmentTelegramNotification::class);
+        // Ira operational Telegram (assignments, risks, briefings) is owned by
+        // DispatchIraSmartAssignmentNotification + IraCommunicationService.
+        // DispatchSupportAssignmentTelegramNotification is intentionally not registered.
+        Event::listen(SupportAppointmentSmartAssigned::class, DispatchIraSmartAssignmentNotification::class);
 
         Gate::define('viewDashboardHardware', fn (User $user): bool => app(DashboardPolicy::class)->viewHardware($user));
 

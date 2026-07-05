@@ -105,5 +105,9 @@
                 </div>
             @endcan
         @endif
+
+        <div class="col-lg-6">
+            @include('profile.partials.telegram-notifications', ['user' => $user])
+        </div>
     </div>
 @endsection

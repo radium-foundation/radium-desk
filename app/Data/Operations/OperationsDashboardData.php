@@ -15,6 +15,7 @@ readonly class OperationsDashboardData
      * @param  array<string, mixed>  $radiumBoxHealth
      * @param  list<array<string, mixed>>  $recentNotificationFailures
      * @param  list<array<string, mixed>>  $recentAutomationActivity
+     * @param  list<array<string, mixed>>  $recentIraMessages
      * @param  list<array<string, mixed>>  $teamAvailability
      */
     public function __construct(
@@ -26,6 +27,7 @@ readonly class OperationsDashboardData
         public array $radiumBoxHealth,
         public array $recentNotificationFailures,
         public array $recentAutomationActivity,
+        public array $recentIraMessages,
         public array $teamAvailability,
         public Carbon $generatedAt,
     ) {}
@@ -44,6 +46,7 @@ readonly class OperationsDashboardData
             'radiumbox_health' => $this->radiumBoxHealth,
             'recent_notification_failures' => $this->recentNotificationFailures,
             'recent_automation_activity' => $this->recentAutomationActivity,
+            'recent_ira_messages' => $this->recentIraMessages,
             'team_availability' => $this->teamAvailability,
             'generated_at' => $this->generatedAt->toIso8601String(),
         ];

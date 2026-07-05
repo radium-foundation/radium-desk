@@ -17,4 +17,9 @@ return [
         'long_waiting_days' => 7,
         'idle_capacity_minutes' => 15,
     ],
+
+    'communication' => [
+        'cooldown_minutes' => (int) env('IRA_NOTIFICATION_COOLDOWN_MINUTES', 60),
+        'daily_briefing_time' => env('IRA_DAILY_BRIEFING_TIME', '08:00'),
+    ],
 ];

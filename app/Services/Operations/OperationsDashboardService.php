@@ -26,6 +26,7 @@ class OperationsDashboardService
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
         private readonly OperationsRecentNotificationFailuresService $recentNotificationFailuresService,
         private readonly OperationsRecentAutomationActivityService $recentAutomationActivityService,
+        private readonly OperationsRecentIraMessagesService $recentIraMessagesService,
         private readonly TeamAvailabilityOverviewService $teamAvailabilityOverviewService,
     ) {}
 
@@ -59,6 +60,7 @@ class OperationsDashboardService
             radiumBoxHealth: $this->radiumBoxHealthService->widget(),
             recentNotificationFailures: $this->recentNotificationFailuresService->recent(limit: 15),
             recentAutomationActivity: $this->recentAutomationActivityService->recent(limit: 15),
+            recentIraMessages: $this->recentIraMessagesService->recent(limit: 15),
             teamAvailability: $this->teamAvailabilityOverviewService->members(),
             generatedAt: now(),
         );

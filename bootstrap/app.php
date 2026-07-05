@@ -68,6 +68,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-memory-snapshot.log'));
 
+        $schedule->command('ira:send-daily-briefing')
+            ->dailyAt(config('ira.communication.daily_briefing_time', '08:00'))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ira-daily-briefing.log'));
+
+        $schedule->command('ira:send-risk-alerts')
+            ->hourly()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ira-risk-alerts.log'));
+
         $schedule->command('automation:run')
             ->hourly()
             ->when(fn (): bool => app(SystemSettingsService::class)->getBool('automation.scheduler.enabled', false))

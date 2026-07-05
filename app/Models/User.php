@@ -22,6 +22,8 @@ use Spatie\Permission\Traits\HasRoles;
     'email',
     'password',
     'is_active',
+    'telegram_chat_id',
+    'telegram_notifications_enabled',
     'availability_status',
     'availability_updated_at',
     'leave_start_date',
@@ -43,6 +45,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'telegram_notifications_enabled' => 'boolean',
             'availability_status' => TeamAvailabilityStatus::class,
             'availability_updated_at' => 'datetime',
             'leave_start_date' => 'date',
@@ -120,6 +123,11 @@ class User extends Authenticatable
     public function telegramNotifications(): HasMany
     {
         return $this->hasMany(TelegramNotification::class);
+    }
+
+    public function iraNotifications(): HasMany
+    {
+        return $this->hasMany(IraNotification::class);
     }
 
     public function assignedIncidents(): HasMany

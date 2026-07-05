@@ -186,6 +186,10 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div id="operations-recent-ira-messages" class="mt-4">
+                            @include('admin.operations.partials.recent-ira-messages', ['messages' => $dashboard->recentIraMessages])
+                        </div>
                     </div>
                 </div>
             </div>

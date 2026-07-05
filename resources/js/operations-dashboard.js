@@ -114,6 +114,7 @@ const refreshOperationsDashboard = async (pageRoot) => {
         replaceSectionHtml('operations-radiumbox-health', html.radiumbox_health);
         replaceSectionHtml('operations-recent-notification-failures', html.recent_notification_failures);
         replaceSectionHtml('operations-recent-automation-activity', html.recent_automation_activity);
+        replaceSectionHtml('operations-recent-ira-messages', html.recent_ira_messages);
 
         bindBatchRecoveryForms(pageRoot);
         bindOperationsTabShortcuts(pageRoot);

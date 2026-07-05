@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ProfileTelegramUpdateRequest;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\Operations\TeamAvailabilityService;
@@ -46,6 +47,20 @@ class ProfileController extends Controller
         $request->user()->save();
 
         return Redirect::route('profile.edit')->with('status', 'profile-updated');
+    }
+
+    public function updateTelegram(ProfileTelegramUpdateRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+        $user = $request->user();
+
+        $user->fill([
+            'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
+            'telegram_notifications_enabled' => (bool) ($validated['telegram_notifications_enabled'] ?? false),
+        ]);
+        $user->save();
+
+        return Redirect::route('profile.edit')->with('status', 'telegram-updated');
     }
 
     /**
