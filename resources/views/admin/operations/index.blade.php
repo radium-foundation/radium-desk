@@ -162,6 +162,12 @@
                         <div id="operations-radiumbox-health">
                             @include('admin.operations.partials.radiumbox-health', ['health' => $dashboard->radiumBoxHealth])
                         </div>
+
+                        <div id="operations-cashfree-device-enrichment-quality" class="mt-4">
+                            @include('admin.operations.partials.cashfree-device-enrichment-quality', [
+                                'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,
+                            ])
+                        </div>
                     </div>
 
                     <div

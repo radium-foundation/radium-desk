@@ -13,6 +13,7 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
 {
     public function __construct(
         private readonly IraBriefingFormatter $briefingFormatter,
+        private readonly OperationsCashfreeDeviceEnrichmentService $cashfreeDeviceEnrichmentService,
     ) {}
 
     public function name(): string
@@ -136,6 +137,17 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
             $highlights[] = $warning === 1
                 ? '1 case being monitored'
                 : "{$warning} cases being monitored";
+        }
+
+        $deviceQuality = $this->cashfreeDeviceEnrichmentService->qualitySummary();
+
+        if ($deviceQuality->paidOrdersMissingDeviceInfo > 0) {
+            $highlights[] = sprintf(
+                '%d paid order(s) missing device info (%d recovered from RadiumBox, %d need customer contact)',
+                $deviceQuality->paidOrdersMissingDeviceInfo,
+                $deviceQuality->recoveredFromRadiumBox,
+                $deviceQuality->needCustomerContact,
+            );
         }
 
         if ($yesterday !== null) {

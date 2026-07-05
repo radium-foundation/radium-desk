@@ -40,6 +40,43 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
         $this->assertSame('Expired', $enrichment->amc);
     }
 
+    public function test_it_maps_device_data_when_radiumbox_payment_status_is_pending(): void
+    {
+        $enrichment = $this->mapper->map([
+            'status' => 200,
+            'data' => [
+                'rd_order' => [
+                    'order_id' => 'RD3433380',
+                    'payment_status' => 'pending',
+                    'order_status' => 'pending',
+                    'serial_no' => '9655721',
+                    'product_name' => 'MFS 110',
+                ],
+            ],
+        ], 'RD3433380');
+
+        $this->assertSame('9655721', $enrichment->serialNumber);
+        $this->assertSame('MFS 110', $enrichment->deviceModel);
+        $this->assertTrue($enrichment->hasPendingRadiumBoxPaymentStatus());
+        $this->assertSame('true', $enrichment->supplementalMetadata()['radiumbox_payment_status_ignored'] ?? null);
+    }
+
+    public function test_it_rejects_non_matching_order_id_in_rd_order_payload(): void
+    {
+        $this->expectException(RadiumBoxOrderNotFoundException::class);
+
+        $this->mapper->map([
+            'status' => 200,
+            'data' => [
+                'rd_order' => [
+                    'order_id' => 'RD-OTHER',
+                    'serial_no' => '9655721',
+                    'product_name' => 'MFS 110',
+                ],
+            ],
+        ], 'RD3433380');
+    }
+
     public function test_it_throws_when_order_is_not_found(): void
     {
         $this->expectException(RadiumBoxOrderNotFoundException::class);

@@ -90,6 +90,9 @@ class OperationsDashboardController extends Controller
                 'radiumbox_health' => view('admin.operations.partials.radiumbox-health', [
                     'health' => $dashboard->radiumBoxHealth,
                 ])->render(),
+                'cashfree_device_enrichment_quality' => view('admin.operations.partials.cashfree-device-enrichment-quality', [
+                    'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,
+                ])->render(),
                 'recent_notification_failures' => view('admin.operations.partials.recent-notification-failures', [
                     'failures' => $dashboard->recentNotificationFailures,
                 ])->render(),

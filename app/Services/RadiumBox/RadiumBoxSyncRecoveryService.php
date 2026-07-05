@@ -73,6 +73,7 @@ class RadiumBoxSyncRecoveryService
                         'new_sync_status' => RadiumBoxEnrichmentSyncStatus::Pending->value,
                         'sync_source' => 'scheduler',
                         'attempt' => $this->syncStore->attemptCount($order->id),
+                        'cashfree_verified' => $order->isCashfreeVerified(),
                     ]);
 
                     $recovered++;
@@ -130,6 +131,7 @@ class RadiumBoxSyncRecoveryService
                 'order_db_id' => $order->id,
                 'previous_sync_status' => $previousStatus,
                 'sync_source' => 'scheduler',
+                'cashfree_verified' => $order->isCashfreeVerified(),
             ]);
 
             $recovered++;
@@ -147,7 +149,9 @@ class RadiumBoxSyncRecoveryService
 
     public function isSafeToRecover(Order $order): bool
     {
-        if (! filled($order->order_id) || ! $this->radiumBoxService->needsEnrichment($order)) {
+        if (! filled($order->order_id)
+            || ! $order->isCashfreeVerified()
+            || ! $this->radiumBoxService->needsEnrichment($order)) {
             return false;
         }
 
@@ -167,6 +171,16 @@ class RadiumBoxSyncRecoveryService
 
         if ($status === RadiumBoxEnrichmentSyncStatus::Pending) {
             return $this->isStalePending($order);
+        }
+
+        if (in_array($status, [
+            RadiumBoxEnrichmentSyncStatus::Synced,
+            RadiumBoxEnrichmentSyncStatus::NotSynced,
+        ], true)) {
+            return $this->retryPolicy->hasRetryIntervalElapsed(
+                $order,
+                $this->syncStore->lastAttemptAt($order->id),
+            );
         }
 
         return false;
@@ -194,25 +208,14 @@ class RadiumBoxSyncRecoveryService
         }
 
         return Order::query()
-            ->whereNotNull('cashfree_payment_id')
-            ->where('cashfree_payment_id', '!=', '')
+            ->cashfreeVerified()
+            ->missingDeviceEnrichment()
             ->whereIn('radiumbox_sync_status', [
                 RadiumBoxEnrichmentSyncStatus::Failed->value,
                 RadiumBoxEnrichmentSyncStatus::Pending->value,
-            ])
-            ->where(function (Builder $query): void {
-                $query->where(function (Builder $serialQuery): void {
-                    $serialQuery->whereNull('serial_number')
-                        ->orWhere('serial_number', '');
-                })->orWhere(function (Builder $deviceModelQuery): void {
-                    $deviceModelQuery
-                        ->where(function (Builder $textQuery): void {
-                            $textQuery->whereNull('device_model')
-                                ->orWhere('device_model', '');
-                        })
-                        ->whereNull('device_model_id');
-                });
-            });
+                RadiumBoxEnrichmentSyncStatus::Synced->value,
+                RadiumBoxEnrichmentSyncStatus::NotSynced->value,
+            ]);
     }
 
     private function resolvePendingReferenceAt(Order $order): ?Carbon

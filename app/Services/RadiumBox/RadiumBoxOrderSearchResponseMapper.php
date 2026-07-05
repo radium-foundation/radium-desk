@@ -7,7 +7,7 @@ use App\Services\RadiumBox\Exceptions\RadiumBoxOrderNotFoundException;
 
 class RadiumBoxOrderSearchResponseMapper
 {
-    public function map(array $payload): RadiumBoxOrderEnrichment
+    public function map(array $payload, ?string $expectedOrderId = null): RadiumBoxOrderEnrichment
     {
         $status = $payload['status'] ?? null;
 
@@ -33,6 +33,10 @@ class RadiumBoxOrderSearchResponseMapper
             throw new RadiumBoxInvalidResponseException('RadiumBox response is missing rd_order data.');
         }
 
+        if ($expectedOrderId !== null) {
+            $this->assertOrderIdMatches($rdOrder, $expectedOrderId);
+        }
+
         return new RadiumBoxOrderEnrichment(
             serialNumber: $this->normalizeSerialNumber(data_get($rdOrder, 'serial_no')),
             deviceModel: $this->normalizeDeviceModel(data_get($rdOrder, 'product_name')),
@@ -50,7 +54,36 @@ class RadiumBoxOrderSearchResponseMapper
                 data_get($rdOrder, 'amc')
                     ?? data_get($rdOrder, 'amc_status'),
             ),
+            radiumboxPaymentStatus: $this->normalizeOptionalString(
+                data_get($rdOrder, 'payment_status')
+                    ?? data_get($rdOrder, 'pay_status')
+                    ?? data_get($rdOrder, 'paymentStatus'),
+            ),
+            radiumboxOrderStatus: $this->normalizeOptionalString(
+                data_get($rdOrder, 'order_status')
+                    ?? data_get($rdOrder, 'status'),
+            ),
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $rdOrder
+     */
+    private function assertOrderIdMatches(array $rdOrder, string $expectedOrderId): void
+    {
+        $responseOrderId = data_get($rdOrder, 'order_id')
+            ?? data_get($rdOrder, 'orderid')
+            ?? data_get($rdOrder, 'order_no');
+
+        if (! is_string($responseOrderId) || trim($responseOrderId) === '') {
+            return;
+        }
+
+        if (strcasecmp(trim($responseOrderId), trim($expectedOrderId)) !== 0) {
+            throw new RadiumBoxOrderNotFoundException(
+                'RadiumBox returned data for a different order.',
+            );
+        }
     }
 
     private function normalizeSerialNumber(mixed $value): ?string

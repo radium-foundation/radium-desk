@@ -28,6 +28,7 @@ class OperationsDashboardService
         private readonly OperationsRecentAutomationActivityService $recentAutomationActivityService,
         private readonly OperationsRecentIraMessagesService $recentIraMessagesService,
         private readonly TeamAvailabilityOverviewService $teamAvailabilityOverviewService,
+        private readonly OperationsCashfreeDeviceEnrichmentService $cashfreeDeviceEnrichmentService,
     ) {}
 
     public function dashboardData(bool $useCache = true): OperationsDashboardData
@@ -62,6 +63,7 @@ class OperationsDashboardService
             recentAutomationActivity: $this->recentAutomationActivityService->recent(limit: 15),
             recentIraMessages: $this->recentIraMessagesService->recent(limit: 15),
             teamAvailability: $this->teamAvailabilityOverviewService->members(),
+            cashfreeDeviceEnrichmentQuality: $this->cashfreeDeviceEnrichmentService->qualitySummary()->toArray(),
             generatedAt: now(),
         );
     }

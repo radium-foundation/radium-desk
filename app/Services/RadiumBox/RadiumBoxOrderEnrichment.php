@@ -10,6 +10,8 @@ readonly class RadiumBoxOrderEnrichment
         public ?string $activationYear = null,
         public ?string $warranty = null,
         public ?string $amc = null,
+        public ?string $radiumboxPaymentStatus = null,
+        public ?string $radiumboxOrderStatus = null,
     ) {}
 
     public function hasData(): bool
@@ -26,10 +28,35 @@ readonly class RadiumBoxOrderEnrichment
      */
     public function supplementalMetadata(): array
     {
-        return array_filter([
+        $metadata = array_filter([
             'activation_year' => $this->activationYear,
             'warranty' => $this->warranty,
             'amc' => $this->amc,
+            'radiumbox_payment_status' => $this->radiumboxPaymentStatus,
+            'radiumbox_order_status' => $this->radiumboxOrderStatus,
         ], fn (?string $value): bool => filled($value));
+
+        if ($this->hasPendingRadiumBoxPaymentStatus()) {
+            $metadata['radiumbox_payment_status_ignored'] = 'true';
+        }
+
+        return $metadata;
+    }
+
+    public function hasPendingRadiumBoxPaymentStatus(): bool
+    {
+        foreach ([$this->radiumboxPaymentStatus, $this->radiumboxOrderStatus] as $status) {
+            if ($status === null) {
+                continue;
+            }
+
+            $normalized = strtolower(trim($status));
+
+            if (in_array($normalized, ['pending', 'unpaid', 'payment_pending', 'awaiting_payment'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

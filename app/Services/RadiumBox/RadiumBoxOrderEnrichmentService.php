@@ -53,7 +53,7 @@ class RadiumBoxOrderEnrichmentService
         ]);
 
         try {
-            $result = $this->runSyncAttempt($order, $attemptNumber);
+            $result = $this->runSyncAttempt($order, $attemptNumber, RadiumBoxSyncSource::Manual);
             $fetchResult = $result['fetch_result'];
             $durationMs = $this->durationMs($startedAt);
             $newStatus = $this->syncStore->status($order->id);
@@ -66,6 +66,14 @@ class RadiumBoxOrderEnrichmentService
 
                 $this->syncStore->markFailed($order->id, $errorMessage, $failureMetadata);
                 $newStatus = RadiumBoxEnrichmentSyncStatus::Failed;
+
+                $this->syncAuditService->recordEnrichmentFailed(
+                    $order,
+                    RadiumBoxSyncSource::Manual->value,
+                    $attemptNumber,
+                    $errorMessage,
+                    $failureMetadata,
+                );
 
                 $friendlyMessage = $this->syncErrorFormatter->friendlyMessage(
                     $errorMessage,
@@ -105,6 +113,14 @@ class RadiumBoxOrderEnrichmentService
             $this->syncStore->markSynced($order->id, $result['metadata']);
             $this->evaluateAssignmentEligibility($order->fresh());
             $newStatus = RadiumBoxEnrichmentSyncStatus::Synced;
+
+            $this->recordEnrichmentOutcome(
+                $order,
+                RadiumBoxSyncSource::Manual,
+                $attemptNumber,
+                $result,
+                $fetchResult,
+            );
 
             $freshOrder = $order->fresh();
             $serialApplied = $result['outcome']['persistence']->serialApplied;
@@ -159,6 +175,13 @@ class RadiumBoxOrderEnrichmentService
             $errorMessage = $exception->getMessage();
 
             $this->syncStore->markFailed($order->id, $errorMessage);
+
+            $this->syncAuditService->recordEnrichmentFailed(
+                $order,
+                RadiumBoxSyncSource::Manual->value,
+                $attemptNumber,
+                $errorMessage,
+            );
 
             $this->syncAuditService->recordManualSync(
                 $order,
@@ -224,6 +247,14 @@ class RadiumBoxOrderEnrichmentService
             $this->syncStore->markSynced($order->id, $result['metadata']);
             $this->evaluateAssignmentEligibility($order->fresh());
 
+            $this->recordEnrichmentOutcome(
+                $order,
+                RadiumBoxSyncSource::Background,
+                $attempt,
+                $result,
+                $fetchResult,
+            );
+
             $this->logAttempt(
                 orderId: $order->id,
                 attempt: $attempt,
@@ -271,6 +302,15 @@ class RadiumBoxOrderEnrichmentService
 
         $order = Order::query()->find($orderId);
 
+        if ($order !== null) {
+            $this->syncAuditService->recordEnrichmentFailed(
+                $order,
+                RadiumBoxSyncSource::Background->value,
+                $this->syncStore->attemptCount($orderId),
+                $errorMessage,
+            );
+        }
+
         Log::warning('RadiumBox enrichment retry failed.', [
             'order_id' => $order?->order_id,
             'order_db_id' => $orderId,
@@ -291,9 +331,18 @@ class RadiumBoxOrderEnrichmentService
      *     metadata: array<string, mixed>,
      * }
      */
-    private function runSyncAttempt(Order $order, int $attempt): array
+    private function runSyncAttempt(Order $order, int $attempt, RadiumBoxSyncSource $syncSource = RadiumBoxSyncSource::Background): array
     {
         $this->syncStore->recordProcessingAttempt($order->id);
+
+        $this->syncAuditService->recordEnrichmentStarted(
+            $order,
+            $syncSource->value,
+            $attempt,
+            [
+                'radiumbox_sync_status' => $this->syncStore->status($order->id)->value,
+            ],
+        );
 
         $outcome = $this->radiumBoxService->enrichOrderFromBackgroundSync($order);
         $fetchResult = $outcome['fetch_result'];
@@ -331,6 +380,70 @@ class RadiumBoxOrderEnrichmentService
             'fetch_result' => $fetchResult,
             'metadata' => $metadata,
         ];
+    }
+
+    /**
+     * @param  array{
+     *     outcome: array{
+     *         applied: bool,
+     *         enrichment: ?RadiumBoxOrderEnrichment,
+     *         fetch_result: RadiumBoxOrderEnrichmentFetchResult,
+     *         persistence: \App\Data\EnrichmentPersistenceResult,
+     *     },
+     *     fetch_result: RadiumBoxOrderEnrichmentFetchResult,
+     *     metadata: array<string, mixed>,
+     * }  $result
+     */
+    private function recordEnrichmentOutcome(
+        Order $order,
+        RadiumBoxSyncSource $syncSource,
+        int $attempt,
+        array $result,
+        RadiumBoxOrderEnrichmentFetchResult $fetchResult,
+    ): void {
+        if ($result['outcome']['applied']) {
+            $this->syncAuditService->recordEnrichmentCompleted(
+                $order,
+                $syncSource->value,
+                $attempt,
+                $result['outcome']['persistence']->fieldsApplied,
+                $result['metadata'],
+            );
+
+            return;
+        }
+
+        if ($fetchResult->isNotFound()) {
+            $this->syncAuditService->recordEnrichmentFailed(
+                $order,
+                $syncSource->value,
+                $attempt,
+                $fetchResult->errorMessage,
+                $result['metadata'],
+            );
+
+            return;
+        }
+
+        if (($result['outcome']['enrichment'] ?? null)?->hasData() === true) {
+            $this->syncAuditService->recordEnrichmentCompleted(
+                $order,
+                $syncSource->value,
+                $attempt,
+                $result['outcome']['persistence']->fieldsApplied,
+                $result['metadata'],
+            );
+
+            return;
+        }
+
+        $this->syncAuditService->recordEnrichmentCompleted(
+            $order,
+            $syncSource->value,
+            $attempt,
+            $result['outcome']['persistence']->fieldsApplied,
+            $result['metadata'],
+        );
     }
 
     private function evaluateAssignmentEligibility(Order $order): void

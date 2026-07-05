@@ -113,9 +113,56 @@ class Order extends Model
         return 'INQ-'.$normalized;
     }
 
+    public function isCashfreeVerified(): bool
+    {
+        return filled($this->cashfree_payment_id);
+    }
+
     public function isSerialLocked(): bool
     {
         return filled($this->serial_number);
+    }
+
+    public function isMissingSerialNumber(): bool
+    {
+        return ! filled($this->serial_number);
+    }
+
+    public function isMissingDeviceModel(): bool
+    {
+        if ($this->hasDeviceModelAssigned()) {
+            return false;
+        }
+
+        return ! filled($this->device_model);
+    }
+
+    public function isMissingDeviceEnrichment(): bool
+    {
+        return $this->isMissingSerialNumber() || $this->isMissingDeviceModel();
+    }
+
+    public function scopeCashfreeVerified(Builder $query): void
+    {
+        $query->whereNotNull('cashfree_payment_id')
+            ->where('cashfree_payment_id', '!=', '');
+    }
+
+    public function scopeMissingDeviceEnrichment(Builder $query): void
+    {
+        $query->where(function (Builder $builder): void {
+            $builder->where(function (Builder $serialQuery): void {
+                $serialQuery->whereNull('serial_number')
+                    ->orWhere('serial_number', '');
+            })->orWhere(function (Builder $deviceModelQuery): void {
+                $deviceModelQuery
+                    ->where(function (Builder $textQuery): void {
+                        $textQuery->whereNull('device_model')
+                            ->orWhere('device_model', '');
+                    })
+                    ->whereNull('device_model_id');
+            });
+        });
     }
 
     /**

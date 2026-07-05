@@ -86,7 +86,7 @@ class RadiumBoxClient
                 );
             }
 
-            $enrichment = $this->responseMapper->map($payload);
+            $enrichment = $this->responseMapper->map($payload, $orderId);
 
             return new RadiumBoxOrderEnrichmentFetchResult(
                 retriable: false,
