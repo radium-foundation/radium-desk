@@ -3,7 +3,6 @@
 
     $displayValue = fn (?string $value) => filled($value) ? $value : 'Not Available';
     $lastPayment = $healthCard['last_payment'] ?? null;
-    $lastInteractionAt = $healthCard['last_interaction_at'] ?? null;
 @endphp
 
 <section class="customer-360-health-card" data-customer-360-section="health-card" aria-labelledby="customer-360-health-heading">
@@ -39,8 +38,12 @@
             <dd>{{ $displayValue($healthCard['warranty_status'] ?? null) }}</dd>
         </div>
         <div class="customer-360-health-item">
-            <dt><i class="bi bi-tools" aria-hidden="true"></i> Active Cases</dt>
-            <dd>{{ $healthCard['active_service_cases'] ?? 0 }}</dd>
+            <dt><i class="bi bi-whatsapp" aria-hidden="true"></i> Last WhatsApp</dt>
+            <dd>
+                @include('customer-360.partials.health-card-communication', [
+                    'communication' => $healthCard['last_whatsapp'] ?? [],
+                ])
+            </dd>
         </div>
         <div class="customer-360-health-item">
             <dt><i class="bi bi-credit-card" aria-hidden="true"></i> Last Payment</dt>
@@ -58,37 +61,20 @@
             </dd>
         </div>
         <div class="customer-360-health-item">
-            <dt><i class="bi bi-whatsapp" aria-hidden="true"></i> Last WhatsApp</dt>
-            <dd>
-                @include('customer-360.partials.health-card-communication', [
-                    'communication' => $healthCard['last_whatsapp'] ?? [],
-                ])
-            </dd>
-        </div>
-        <div class="customer-360-health-item">
-            <dt><i class="bi bi-clock-history" aria-hidden="true"></i> Last Interaction</dt>
-            <dd>
-                @if($lastInteractionAt)
-                    <time datetime="{{ $lastInteractionAt->toIso8601String() }}"
-                          title="{{ AppDateFormatter::timelineDatetime($lastInteractionAt) }}">
-                        {{ AppDateFormatter::timelineRelative($lastInteractionAt) }}
-                    </time>
-                @else
-                    Not Available
-                @endif
-            </dd>
-        </div>
-        <div class="customer-360-health-item customer-360-health-item--placeholder">
-            <dt><i class="bi bi-telephone-outbound" aria-hidden="true"></i> Last Call</dt>
-            <dd><span class="customer-360-health-placeholder">Coming soon</span></dd>
-        </div>
-        <div class="customer-360-health-item">
             <dt><i class="bi bi-envelope-open" aria-hidden="true"></i> Last Email</dt>
             <dd>
                 @include('customer-360.partials.health-card-communication', [
                     'communication' => $healthCard['last_email'] ?? [],
                 ])
             </dd>
+        </div>
+        <div class="customer-360-health-item">
+            <dt><i class="bi bi-tools" aria-hidden="true"></i> Active Cases</dt>
+            <dd>{{ $healthCard['active_service_cases'] ?? 0 }}</dd>
+        </div>
+        <div class="customer-360-health-item customer-360-health-item--placeholder">
+            <dt><i class="bi bi-telephone-outbound" aria-hidden="true"></i> Last Call</dt>
+            <dd><span class="customer-360-health-placeholder">No calls yet</span></dd>
         </div>
     </dl>
 </section>

@@ -4119,6 +4119,16 @@ a:focus-visible .stat-card {
     cursor: help;
 }
 
+.customer-360-health-communication-inline .customer-360-health-meta {
+    display: inline;
+    margin-top: 0;
+}
+
+.customer-360-health-communication-separator {
+    color: var(--dashboard-color-muted);
+    font-weight: 400;
+}
+
 .customer-360-health-placeholder {
     font-size: 0.75rem;
     font-weight: 500;
