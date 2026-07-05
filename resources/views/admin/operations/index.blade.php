@@ -21,6 +21,7 @@
         <div id="operations-ira-briefing" class="mb-3">
             @include('admin.operations.partials.ira-briefing', [
                 'briefing' => $iraBriefing ?? null,
+                'formatted' => $iraBriefingFormatted ?? null,
                 'reasoningProvider' => $iraReasoningProvider ?? 'rule_based',
             ])
         </div>
@@ -28,6 +29,7 @@
         <div id="operations-overview-cards" class="mb-4">
             @include('admin.operations.partials.overview-cards', [
                 'briefing' => $iraBriefing ?? null,
+                'formatted' => $iraBriefingFormatted ?? null,
                 'members' => $dashboard->teamAvailability,
                 'insights' => $advisorInsights ?? [],
             ])
@@ -105,7 +107,10 @@
                         tabindex="0"
                     >
                         <div id="operations-ira-briefing-details" class="mb-4">
-                            @include('admin.operations.partials.ira-briefing-details', ['briefing' => $iraBriefing ?? null])
+                            @include('admin.operations.partials.ira-briefing-details', [
+                                'briefing' => $iraBriefing ?? null,
+                                'formatted' => $iraBriefingFormatted ?? null,
+                            ])
                         </div>
 
                         <div id="operations-advisor-insights" class="mb-4">

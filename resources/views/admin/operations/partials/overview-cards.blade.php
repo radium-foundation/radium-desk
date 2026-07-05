@@ -1,48 +1,48 @@
 @props([
     'briefing' => null,
+    'formatted' => null,
     'members' => [],
     'insights' => [],
 ])
 
 @php
     $operations = $briefing?->snapshot->operations ?? [];
-    $teamSnapshot = $briefing?->snapshot->team ?? [];
-
-    $activeCount = (int) ($teamSnapshot['available'] ?? collect($members)->filter(
-        fn (array $member): bool => ! ($member['availability']['on_leave'] ?? false),
-    )->count());
-
-    $leaveCount = (int) ($teamSnapshot['leave'] ?? collect($members)->filter(
-        fn (array $member): bool => (bool) ($member['availability']['on_leave'] ?? false),
-    )->count());
 
     $needAction = (int) ($operations['action_required'] ?? collect($members)->sum('open_work_count'));
     $scheduled = (int) ($operations['scheduled'] ?? 0);
     $waitingCustomers = (int) ($operations['waiting'] ?? 0);
 
-    $iraRiskCount = count($briefing?->risks ?? []);
-    $advisorRiskCount = collect($insights)->filter(
-        fn ($insight): bool => in_array($insight->severity->value, ['high', 'medium'], true),
-    )->count();
-    $riskCount = $iraRiskCount + $advisorRiskCount;
+    $criticalCount = $formatted?->criticalRiskCount ?? 0;
+    $attentionCount = $formatted?->attentionRiskCount ?? 0;
+    $monitoringCount = $formatted?->monitoringRiskCount ?? 0;
+    $riskCount = $criticalCount + $attentionCount;
 
     if ($riskCount === 0) {
         $riskCount = (int) ($operations['attention'] ?? 0) + (int) ($operations['overdue'] ?? 0);
     }
 
+    $teamLines = $formatted?->teamPresenceCollecting
+        ? [['value' => '—', 'suffix' => 'Collecting']]
+        : array_map(
+            fn (string $line): array => [
+                'value' => (string) (preg_match('/^(\d+)/', $line, $matches) ? $matches[1] : '0'),
+                'suffix' => str_contains($line, 'leave') ? 'On Leave' : 'Working',
+            ],
+            $formatted?->teamLines ?? [],
+        );
+
     $cards = [
         [
             'label' => 'Team',
-            'lines' => [
-                ['value' => $activeCount, 'suffix' => 'Active'],
-                ['value' => $leaveCount, 'suffix' => 'Leave'],
+            'lines' => $teamLines !== [] ? $teamLines : [
+                ['value' => '—', 'suffix' => 'Collecting'],
             ],
             'tone' => 'primary',
         ],
         [
             'label' => 'Workload',
             'lines' => [
-                ['value' => $needAction, 'suffix' => 'Need Action'],
+                ['value' => $needAction, 'suffix' => 'Action Required'],
                 ['value' => $scheduled, 'suffix' => 'Scheduled'],
             ],
             'tone' => 'warning',
@@ -56,10 +56,15 @@
         ],
         [
             'label' => 'Risk',
-            'lines' => [
-                ['value' => $riskCount, 'suffix' => 'Need Attention'],
-            ],
-            'tone' => $riskCount > 0 ? 'danger' : 'success',
+            'lines' => $criticalCount > 0 || $monitoringCount > 0
+                ? array_values(array_filter([
+                    $criticalCount > 0 ? ['value' => $criticalCount, 'suffix' => 'Require Action'] : null,
+                    $monitoringCount > 0 ? ['value' => $monitoringCount, 'suffix' => 'Monitored'] : null,
+                ]))
+                : [
+                    ['value' => $riskCount, 'suffix' => 'Need Attention'],
+                ],
+            'tone' => $riskCount > 0 || $criticalCount > 0 ? 'danger' : 'success',
         ],
     ];
 @endphp
@@ -75,7 +80,7 @@
                         <div class="operations-overview-card-label">{{ $card['label'] }}</div>
                         @foreach($card['lines'] as $line)
                             <div class="operations-overview-card-line">
-                                <span class="operations-overview-card-value">{{ number_format($line['value']) }}</span>
+                                <span class="operations-overview-card-value">{{ is_numeric($line['value']) ? number_format($line['value']) : $line['value'] }}</span>
                                 <span class="operations-overview-card-suffix">{{ $line['suffix'] }}</span>
                             </div>
                         @endforeach

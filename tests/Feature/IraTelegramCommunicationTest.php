@@ -137,8 +137,11 @@ class IraTelegramCommunicationTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
         $this->assertStringContainsString('Good morning Ravi', $results[0]->message);
-        $this->assertStringContainsString('Operations:', $results[0]->message);
-        $this->assertStringContainsString('Team:', $results[0]->message);
+        $this->assertStringContainsString('📊 Operations', $results[0]->message);
+        $this->assertStringContainsString('👥 Team', $results[0]->message);
+        $this->assertStringNotContainsString('0 active', $results[0]->message);
+        $this->assertStringNotContainsString('SLA risks', $results[0]->message);
+        $this->assertLessThanOrEqual(900, strlen($results[0]->message));
         $this->assertStringContainsString('Good morning', $briefing->greeting);
 
         $this->mock(IraOperationsBrainService::class, function ($mock) use ($briefing): void {

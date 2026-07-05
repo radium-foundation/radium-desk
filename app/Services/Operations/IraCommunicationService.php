@@ -45,6 +45,7 @@ class IraCommunicationService
         private readonly TelegramBotService $telegramBot,
         private readonly OperationsRoleService $roleService,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
+        private readonly IraBriefingFormatter $briefingFormatter,
     ) {}
 
     /**
@@ -127,7 +128,7 @@ class IraCommunicationService
             event: IraNotificationType::DailyBriefing,
             context: [
                 'user_id' => $user->id,
-                'briefing' => $briefing->toArray(),
+                'briefing' => $briefing,
                 'dedupe_key' => 'daily:'.$briefing->snapshot->date,
             ],
         ));
@@ -329,40 +330,18 @@ class IraCommunicationService
      */
     private function formatDailyBriefing(User $user, IraCommunicationInput $input): array
     {
-        $briefingData = $input->context['briefing'] ?? [];
-        $snapshot = $briefingData['snapshot'] ?? [];
-        $operations = $snapshot['operations'] ?? [];
-        $team = $snapshot['team'] ?? [];
-        $risks = $briefingData['risks'] ?? [];
+        $briefing = $input->context['briefing'] ?? null;
 
-        $slaRiskCount = (int) ($operations['overdue'] ?? 0) + (int) ($operations['warning'] ?? 0);
-        $firstName = $user->firstName() ?: 'there';
-        $hour = (int) now()->format('G');
-        $greeting = match (true) {
-            $hour < 12 => 'Good morning',
-            $hour < 17 => 'Good afternoon',
-            default => 'Good evening',
-        };
+        if (! $briefing instanceof IraMorningBriefing) {
+            return ['Daily Ira Briefing', 'Ira briefing is unavailable.'];
+        }
 
-        $message = implode("\n", array_filter([
-            "{$greeting} {$firstName}.",
-            '',
-            'Operations:',
-            'Open: '.(int) ($operations['open_cases'] ?? 0),
-            'Scheduled: '.(int) ($operations['scheduled'] ?? 0),
-            'Waiting: '.(int) ($operations['waiting'] ?? 0),
-            '',
-            'Team:',
-            ((int) ($team['available'] ?? 0)).' active',
-            ((int) ($team['leave'] ?? 0)).' leave',
-            '',
-            $slaRiskCount > 0 ? 'Needs attention:' : null,
-            $slaRiskCount > 0 ? "{$slaRiskCount} SLA risks" : null,
-            count($risks) > 0 && $slaRiskCount === 0 ? 'Needs attention:' : null,
-            count($risks) > 0 && $slaRiskCount === 0 ? count($risks).' operational risk(s)' : null,
-        ]));
+        $formatted = $this->briefingFormatter->format(
+            briefing: $briefing,
+            recipientFirstName: $user->firstName() ?: null,
+        );
 
-        return ['Daily Ira Briefing', $message];
+        return ['Daily Ira Briefing', $formatted->telegramMessage];
     }
 
     /**
@@ -413,11 +392,17 @@ class IraCommunicationService
      */
     private function buildPayload(IraCommunicationInput $input): array
     {
+        $context = $input->context;
+
+        if (($context['briefing'] ?? null) instanceof IraMorningBriefing) {
+            $context['briefing'] = $context['briefing']->toArray();
+        }
+
         return array_filter([
             'event' => $input->event->value,
             'insight' => $input->insight?->toArray(),
             'recommendation' => $input->recommendation?->toArray(),
-            'context' => $input->context,
+            'context' => $context,
         ]);
     }
 

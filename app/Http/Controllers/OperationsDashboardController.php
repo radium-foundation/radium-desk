@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\RadiumBoxBatchRecoveryRequest;
+use App\Services\Operations\IraBriefingFormatter;
 use App\Services\Operations\IraOperationsBrainService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Operations\OperationsDashboardService;
@@ -17,6 +18,7 @@ class OperationsDashboardController extends Controller
         private readonly OperationsDashboardService $dashboardService,
         private readonly OperationsAdvisorService $advisorService,
         private readonly IraOperationsBrainService $iraBrainService,
+        private readonly IraBriefingFormatter $iraBriefingFormatter,
         private readonly RadiumBoxSyncRecoveryService $radiumBoxRecoveryService,
     ) {
         $this->middleware(function ($request, $next) {
@@ -28,10 +30,13 @@ class OperationsDashboardController extends Controller
 
     public function index(): View
     {
+        $iraBriefing = $this->iraBrainService->briefing();
+
         return view('admin.operations.index', [
             'dashboard' => $this->dashboardService->dashboardData(),
             'advisorInsights' => $this->advisorService->platformInsights(),
-            'iraBriefing' => $this->iraBrainService->briefing(),
+            'iraBriefing' => $iraBriefing,
+            'iraBriefingFormatted' => $this->iraBriefingFormatter->format($iraBriefing),
             'iraReasoningProvider' => $this->iraBrainService->reasoningProviderName(),
         ]);
     }
@@ -41,21 +46,25 @@ class OperationsDashboardController extends Controller
         $dashboard = $this->dashboardService->dashboardData();
         $advisorInsights = $this->advisorService->platformInsights();
         $iraBriefing = $this->iraBrainService->briefing();
+        $iraBriefingFormatted = $this->iraBriefingFormatter->format($iraBriefing);
 
         return response()->json([
             'generated_at' => $dashboard->generatedAt->toIso8601String(),
             'html' => [
                 'ira_briefing' => view('admin.operations.partials.ira-briefing', [
                     'briefing' => $iraBriefing,
+                    'formatted' => $iraBriefingFormatted,
                     'reasoningProvider' => $this->iraBrainService->reasoningProviderName(),
                 ])->render(),
                 'overview_cards' => view('admin.operations.partials.overview-cards', [
                     'briefing' => $iraBriefing,
+                    'formatted' => $iraBriefingFormatted,
                     'members' => $dashboard->teamAvailability,
                     'insights' => $advisorInsights,
                 ])->render(),
                 'ira_briefing_details' => view('admin.operations.partials.ira-briefing-details', [
                     'briefing' => $iraBriefing,
+                    'formatted' => $iraBriefingFormatted,
                 ])->render(),
                 'immediate_risks' => view('admin.operations.partials.immediate-risks', [
                     'briefing' => $iraBriefing,

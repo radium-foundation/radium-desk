@@ -11,6 +11,10 @@ use Illuminate\Support\Carbon;
 
 class RuleBasedReasoningProvider implements IraReasoningProvider
 {
+    public function __construct(
+        private readonly IraBriefingFormatter $briefingFormatter,
+    ) {}
+
     public function name(): string
     {
         return 'rule_based';
@@ -28,10 +32,10 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
         ?Carbon $at = null,
     ): IraMorningBriefing {
         $at ??= now();
-        $greeting = $this->greeting($at);
+        $greeting = $this->briefingFormatter->greeting(at: $at);
         $highlights = $this->highlights($snapshot, $yesterday, $at);
         $healthStatus = $this->healthStatus($risks);
-        $summary = $this->summary($healthStatus, $risks, $recommendations);
+        $summary = $this->summary($healthStatus, $risks, $recommendations, $snapshot);
 
         return new IraMorningBriefing(
             greeting: $greeting,
@@ -45,17 +49,56 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
         );
     }
 
-    private function greeting(Carbon $at): string
-    {
-        $hour = (int) $at->format('G');
+    /**
+     * @param  list<IraOperationalRisk>  $risks
+     * @param  list<IraOperationalRecommendation>  $recommendations
+     */
+    private function summary(
+        string $healthStatus,
+        array $risks,
+        array $recommendations,
+        IraOperationalSnapshotData $snapshot,
+    ): string {
+        $riskCounts = $this->briefingFormatter->classifyRisks($risks, $snapshot);
 
-        $timeGreeting = match (true) {
-            $hour < 12 => 'Good morning',
-            $hour < 17 => 'Good afternoon',
-            default => 'Good evening',
+        $healthMessage = match ($healthStatus) {
+            'healthy' => 'Operations look healthy today.',
+            'critical' => 'Operations need immediate attention.',
+            default => 'Operations are manageable with some risks to watch.',
         };
 
-        return "{$timeGreeting}.";
+        $riskParts = [];
+
+        if ($riskCounts['critical'] > 0) {
+            $riskParts[] = $riskCounts['critical'] === 1
+                ? '1 requires action'
+                : "{$riskCounts['critical']} require action";
+        }
+
+        if ($riskCounts['monitoring'] > 0) {
+            $riskParts[] = $riskCounts['monitoring'] === 1
+                ? '1 being monitored'
+                : "{$riskCounts['monitoring']} being monitored";
+        }
+
+        if ($riskCounts['attention'] > 0) {
+            $riskParts[] = $riskCounts['attention'] === 1
+                ? '1 should review'
+                : "{$riskCounts['attention']} should review";
+        }
+
+        if ($riskParts === []) {
+            return $healthMessage;
+        }
+
+        $summary = "{$healthMessage} ".implode(', ', $riskParts).'.';
+        $suggestion = $this->briefingFormatter->selectSuggestion($recommendations, $risks);
+
+        if ($suggestion !== null) {
+            $summary .= ' '.$suggestion;
+        }
+
+        return $summary;
     }
 
     /**
@@ -71,8 +114,8 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
         $attention = (int) ($snapshot->operations['attention'] ?? 0);
         $casesNeedAction = $actionRequired + $attention;
         $scheduled = (int) ($snapshot->operations['scheduled'] ?? 0);
-        $slaRisk = (int) ($snapshot->operations['overdue'] ?? 0)
-            + (int) ($snapshot->operations['warning'] ?? 0);
+        $overdue = (int) ($snapshot->operations['overdue'] ?? 0);
+        $warning = (int) ($snapshot->operations['warning'] ?? 0);
 
         $highlights[] = "{$casesNeedAction} case(s) need action today";
         $highlights[] = "{$scheduled} appointment(s) scheduled";
@@ -83,8 +126,16 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
             $highlights[] = "{$name} is on leave";
         }
 
-        if ($slaRisk > 0) {
-            $highlights[] = "{$slaRisk} case(s) risk SLA breach";
+        if ($overdue > 0) {
+            $highlights[] = $overdue === 1
+                ? '1 case requires action'
+                : "{$overdue} cases require action";
+        }
+
+        if ($warning > 0) {
+            $highlights[] = $warning === 1
+                ? '1 case being monitored'
+                : "{$warning} cases being monitored";
         }
 
         if ($yesterday !== null) {
@@ -118,35 +169,6 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
         }
 
         return 'attention_needed';
-    }
-
-    /**
-     * @param  list<IraOperationalRisk>  $risks
-     * @param  list<IraOperationalRecommendation>  $recommendations
-     */
-    private function summary(string $healthStatus, array $risks, array $recommendations): string
-    {
-        $riskCount = count($risks);
-
-        $healthMessage = match ($healthStatus) {
-            'healthy' => 'Operations look healthy today.',
-            'critical' => 'Operations need immediate attention.',
-            default => 'Operations are manageable with some risks to watch.',
-        };
-
-        if ($riskCount === 0) {
-            return $healthMessage;
-        }
-
-        $riskLabel = $riskCount === 1 ? '1 risk needs' : "{$riskCount} risks need";
-
-        $summary = "{$healthMessage} {$riskLabel} attention.";
-
-        if ($recommendations !== []) {
-            $summary .= ' '.$recommendations[0]->message;
-        }
-
-        return $summary;
     }
 
     /**

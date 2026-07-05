@@ -151,7 +151,7 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('Recommendations only')
             ->assertSee('Team Presence')
             ->assertSee('Immediate Risks')
-            ->assertSee('Need Action')
+            ->assertSee('Action Required')
             ->assertSee('System Health')
             ->assertSee('Notification Metrics')
             ->assertSee('Automation Metrics')
