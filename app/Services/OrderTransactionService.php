@@ -33,6 +33,10 @@ class OrderTransactionService
         array $batchOrderIds = [],
     ): Order {
         if ($order->isTransactionLocked()) {
+            if (trim($transactionId) === trim($order->transaction_id ?? '')) {
+                return $order->fresh(['transactionAssigner']);
+            }
+
             throw ValidationException::withMessages([
                 'transaction_id' => 'This order is already completed and locked.',
             ]);

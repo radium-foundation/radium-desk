@@ -258,6 +258,149 @@ class OrderTransactionTest extends TestCase
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
+    public function test_inline_assignment_returns_json_validation_error_for_duplicate_reference(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $existingOrder = Order::query()->create([
+            'order_id' => 'RD-INLINE-DUP-EXISTING',
+            'serial_number' => 'SN-INLINE-DUP-EXISTING',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_inline_dup_existing',
+            'transaction_id' => '1708741',
+            'completed_at' => now(),
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $targetOrder = Order::query()->create([
+            'order_id' => 'RD3440734',
+            'serial_number' => 'SN-INLINE-DUP-TARGET',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_inline_dup_target',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $targetIncident = Incident::query()->create([
+            'order_id' => $targetOrder->id,
+            'reference_no' => 'SC05662',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Inline duplicate guard',
+            'description' => 'Inline duplicate guard.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('orders.transaction.store', $targetOrder), [
+                'transaction_id' => '1708741',
+                'incident_id' => $targetIncident->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['transaction_id'])
+            ->assertJsonPath(
+                'errors.transaction_id.0',
+                'This service reference is already linked to order '.$existingOrder->order_id.'.',
+            );
+
+        $this->assertNull($targetOrder->fresh()->transaction_id);
+    }
+
+    public function test_inline_resubmitting_same_order_reference_is_idempotent(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-INLINE-IDEMPOTENT',
+            'serial_number' => 'SN-INLINE-IDEMPOTENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_inline_idempotent',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-INLINE-IDEMPOTENT',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Inline idempotent retry',
+            'description' => 'Inline idempotent retry.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('orders.transaction.store', $order), [
+                'transaction_id' => '1708741',
+                'incident_id' => $incident->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('order_id', $order->id);
+
+        $this->actingAs($admin)
+            ->postJson(route('orders.transaction.store', $order), [
+                'transaction_id' => '1708741',
+                'incident_id' => $incident->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('order_id', $order->id)
+            ->assertJsonStructure(['row_html', 'kpi_strip_html']);
+
+        $order->refresh();
+        $this->assertSame('1708741', $order->transaction_id);
+        $this->assertSame(1, AuditLog::query()
+            ->where('event', 'transaction.assigned')
+            ->where('auditable_type', $order->getMorphClass())
+            ->where('auditable_id', $order->id)
+            ->count());
+    }
+
+    public function test_inline_assignment_works_when_reference_is_unused(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-INLINE-UNUSED',
+            'serial_number' => 'SN-INLINE-UNUSED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_inline_unused',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-INLINE-UNUSED',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call,
+            'title' => 'Inline unused reference',
+            'description' => 'Inline unused reference.',
+            'status' => 'open',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('orders.transaction.store', $order), [
+                'transaction_id' => '1708741',
+                'incident_id' => $incident->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('incident_id', $incident->id)
+            ->assertJsonStructure(['row_html', 'kpi_strip_html']);
+
+        $this->assertSame('1708741', $order->fresh()->transaction_id);
+    }
+
     public function test_admin_can_bulk_assign_transaction_to_multiple_service_cases(): void
     {
         $admin = User::factory()->create(['name' => 'Bulk Admin']);

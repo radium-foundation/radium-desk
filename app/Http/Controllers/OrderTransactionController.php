@@ -12,6 +12,7 @@ use App\Services\DashboardService;
 use App\Services\OrderTransactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\ValidationException;
 
 class OrderTransactionController extends Controller
 {
@@ -22,11 +23,22 @@ class OrderTransactionController extends Controller
 
     public function store(UpdateOrderTransactionRequest $request, Order $order): RedirectResponse|JsonResponse
     {
-        $order = $this->orderTransactionService->assignTransactionId(
-            order: $order,
-            transactionId: $request->string('transaction_id')->trim()->toString(),
-            actor: $request->user(),
-        );
+        try {
+            $order = $this->orderTransactionService->assignTransactionId(
+                order: $order,
+                transactionId: $request->string('transaction_id')->trim()->toString(),
+                actor: $request->user(),
+            );
+        } catch (ValidationException $exception) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'errors' => $exception->errors(),
+                ], 422);
+            }
+
+            throw $exception;
+        }
 
         if ($request->wantsJson()) {
             $order->load('transactionAssigner');

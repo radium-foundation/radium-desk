@@ -40,7 +40,19 @@ class OrderPolicy
 
     public function assignTransaction(User $user, Order $order): bool
     {
-        return $user->can('orders.update') && ! $order->isTransactionLocked();
+        if (! $user->can('orders.update')) {
+            return false;
+        }
+
+        if (! $order->isTransactionLocked()) {
+            return true;
+        }
+
+        $pendingReference = request()->input('transaction_id');
+
+        return is_string($pendingReference)
+            && trim($pendingReference) !== ''
+            && trim($pendingReference) === trim($order->transaction_id ?? '');
     }
 
     public function unlockTransaction(User $user, Order $order): bool
