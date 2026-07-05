@@ -4,6 +4,8 @@ use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\SupportAppointmentController;
 use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
+use App\Http\Controllers\TeamPerformanceController;
+use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\TeamWorkScheduleController;
 use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\CompanyHolidayController;
@@ -173,7 +175,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('holidays', [CompanyHolidayController::class, 'index'])->name('holidays.index');
         Route::post('holidays', [CompanyHolidayController::class, 'store'])->name('holidays.store');
         Route::delete('holidays/{holiday}', [CompanyHolidayController::class, 'destroy'])->name('holidays.destroy');
+        Route::get('performance', [TeamPerformanceController::class, 'index'])->name('performance.index');
     });
+
+    Route::get('/my-performance', [MyPerformanceController::class, 'index'])->name('my-performance.index');
 
     Route::put('users/{user}/work-schedule', [TeamWorkScheduleController::class, 'update'])
         ->name('users.work-schedule.update');

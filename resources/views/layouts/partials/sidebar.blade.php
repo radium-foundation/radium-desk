@@ -58,6 +58,14 @@
                     </a>
                 @endcan
             </li>
+            <li class="nav-item">
+                @if(auth()->user()?->hasAnyRole(\Database\Seeders\RolePermissionSeeder::SUPPORT_TEAM_ROLES) || auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_HARDWARE_TEAM))
+                    <a @class(['nav-link', 'active' => request()->routeIs('my-performance.*')]) href="{{ route('my-performance.index') }}" title="Your Performance">
+                        <i class="bi bi-bar-chart nav-icon me-2"></i>
+                        <span class="nav-label">Your Performance</span>
+                    </a>
+                @endif
+            </li>
         </ul>
 
         @if(auth()->user()?->hasAnyRole([
@@ -104,6 +112,14 @@
                         <a @class(['nav-link', 'active' => request()->routeIs('users.*')]) href="{{ route('users.index') }}" title="Users">
                             <i class="bi bi-people nav-icon me-2"></i>
                             <span class="nav-label">Users</span>
+                        </a>
+                    @endcan
+                </li>
+                <li class="nav-item">
+                    @can('team-performance.view')
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.performance.*')]) href="{{ route('admin.workforce.performance.index') }}" title="Team Performance">
+                            <i class="bi bi-graph-up nav-icon me-2"></i>
+                            <span class="nav-label">Team Performance</span>
                         </a>
                     @endcan
                 </li>
