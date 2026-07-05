@@ -81,4 +81,19 @@ return [
 
     'automation_grace_period_enabled' => env('SERVICE_CASE_AUTOMATION_GRACE_PERIOD_ENABLED', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Hardware (RDE) Product Order Assignment
+    |--------------------------------------------------------------------------
+    |
+    | Product orders whose order_id starts with the hardware prefix (RDE) are
+    | routed to this assignee before round-robin or smart workload balancing.
+    | Assignee is resolved by email — do not hardcode names in application code.
+    |
+    */
+
+    'hardware_order' => [
+        'assignee_email' => env('SERVICE_CASE_HARDWARE_ORDER_ASSIGNEE_EMAIL', 'sumit@radiumbox.com'),
+    ],
+
 ];

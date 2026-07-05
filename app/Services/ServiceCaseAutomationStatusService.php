@@ -78,6 +78,10 @@ class ServiceCaseAutomationStatusService
 
     private function isWaitingForCustomerSerial(Order $order): bool
     {
+        if ($order->isProductOrder()) {
+            return false;
+        }
+
         return ! filled(trim((string) $order->serial_number))
             || $this->placeholderService->isPlaceholder((string) $order->serial_number);
     }

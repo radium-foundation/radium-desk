@@ -356,6 +356,10 @@ class IncidentAIContextBuilder
 
     private function isSerialMissing(Order $order): bool
     {
+        if ($order->isProductOrder()) {
+            return false;
+        }
+
         $serial = trim((string) $order->serial_number);
 
         return $serial === '' || $this->serialPlaceholderService->isPlaceholder($serial);

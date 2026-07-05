@@ -200,6 +200,10 @@ class MissingSerialAutomationService
             return 'Automation tracking is unavailable.';
         }
 
+        if ($order->isProductOrder()) {
+            return 'Product orders are excluded from missing serial automation.';
+        }
+
         if (! $order->isCashfreeVerified()) {
             return 'Order is not Cashfree verified.';
         }
@@ -261,6 +265,10 @@ class MissingSerialAutomationService
             ->cashfreeVerified()
             ->whereSerialMissing()
             ->where('status', OrderStatus::Active->value)
+            ->where(function (Builder $query): void {
+                $prefix = strtoupper((string) config('operations.hardware_order_prefix', 'RDE'));
+                $query->where('order_id', 'not like', $prefix.'%');
+            })
             ->where(function (Builder $query): void {
                 $query->where('radiumbox_sync_attempts', '>', 0)
                     ->orWhere('radiumbox_sync_status', '!=', RadiumBoxEnrichmentSyncStatus::NotSynced->value)

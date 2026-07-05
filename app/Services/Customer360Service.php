@@ -377,6 +377,14 @@ class Customer360Service
      */
     private function serialRequestState(Order $order): array
     {
+        if ($order->isProductOrder()) {
+            return [
+                'requested' => false,
+                'requested_at' => null,
+                'requested_at_label' => null,
+            ];
+        }
+
         $history = $this->requestSerialCommunicationHistoryService->forOrder($order);
         $whatsappSent = ($history['whatsapp']['status'] ?? null) === 'sent';
         $emailSent = ($history['email']['status'] ?? null) === 'sent';

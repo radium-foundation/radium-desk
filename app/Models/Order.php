@@ -113,6 +113,16 @@ class Order extends Model
         return str_starts_with(strtoupper(trim($orderId)), $prefix);
     }
 
+    public static function isProductOrderId(?string $orderId): bool
+    {
+        return self::isHardwareOrderId($orderId);
+    }
+
+    public function isProductOrder(): bool
+    {
+        return self::isProductOrderId($this->order_id);
+    }
+
     public static function inquiryOrderIdFromReference(string $reference): string
     {
         $normalized = strtoupper(trim($reference));

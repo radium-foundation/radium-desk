@@ -22,6 +22,7 @@ class ServiceCaseAssignmentService
         private readonly AuditLogService $auditLogService,
         private readonly SettingService $settingService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly ServiceCaseOrderAssignmentRoutingService $orderRoutingService,
     ) {}
 
     public function resolveAssignee(?Carbon $at = null): User
@@ -70,6 +71,12 @@ class ServiceCaseAssignmentService
             return $incident->fresh(['assignee']);
         }
 
+        $routed = $this->tryAssignViaOrderRouting($incident, $actor, $at);
+
+        if ($routed !== null) {
+            return $routed;
+        }
+
         if (config('service_case_assignment.automation_grace_period_enabled', true)) {
             return app(ServiceCaseAutomationGraceService::class)->beginGracePeriod($incident, $actor, $at);
         }
@@ -86,6 +93,12 @@ class ServiceCaseAssignmentService
 
         if ($incident->assigned_to_user_id !== null) {
             return $incident;
+        }
+
+        $routed = $this->tryAssignViaOrderRouting($incident, $actor, $at);
+
+        if ($routed !== null) {
+            return $routed;
         }
 
         $assignee = $this->resolveAssigneeOrNull($at);
@@ -111,6 +124,12 @@ class ServiceCaseAssignmentService
         }
 
         $incident = $this->clearAutomationPending($incident, $actor);
+
+        $routed = $this->tryAssignViaOrderRouting($incident, $actor);
+
+        if ($routed !== null) {
+            return $routed;
+        }
 
         if (! config('service_case_assignment.round_robin_enabled', true)) {
             return $this->applyAssignment(
@@ -237,7 +256,7 @@ class ServiceCaseAssignmentService
             return $incident;
         }
 
-        $assignee = $this->resolveAssigneeOrNull($at);
+        $assignee = $this->resolveAssigneeForIncident($incident, $at);
 
         if ($assignee === null) {
             return $incident;
@@ -256,6 +275,36 @@ class ServiceCaseAssignmentService
                 'reason' => ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON,
             ],
         );
+    }
+
+    private function tryAssignViaOrderRouting(Incident $incident, User $actor, ?Carbon $at = null): ?Incident
+    {
+        $incident = $incident->fresh(['order', 'assignee']);
+        $assignee = $this->orderRoutingService->resolveAssignee($incident);
+
+        if ($assignee === null) {
+            return null;
+        }
+
+        return $this->applyAssignment(
+            incident: $this->clearAutomationPending($incident, $actor),
+            assignee: $assignee,
+            actor: $actor,
+            event: 'service_case.assigned',
+            extraNewValues: [
+                'assignment_method' => 'order_routing',
+                'assignment_rule' => 'hardware_order',
+                'order_id' => $incident->order?->order_id,
+            ],
+        );
+    }
+
+    private function resolveAssigneeForIncident(Incident $incident, ?Carbon $at = null): ?User
+    {
+        $incident = $incident->fresh(['order']);
+
+        return $this->orderRoutingService->resolveAssignee($incident)
+            ?? $this->resolveAssigneeOrNull($at);
     }
 
     /**
@@ -509,6 +558,7 @@ class ServiceCaseAssignmentService
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
             RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
         ])) {
             throw ValidationException::withMessages([
                 'assigned_to_user_id' => 'The selected user must be an active admin or agent.',

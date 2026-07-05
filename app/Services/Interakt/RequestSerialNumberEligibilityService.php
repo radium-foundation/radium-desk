@@ -35,6 +35,10 @@ class RequestSerialNumberEligibilityService
             return 'Service case is not linked to an order.';
         }
 
+        if ($order->isProductOrder()) {
+            return 'Product orders do not require serial number requests.';
+        }
+
         if (! filled($order->customer_phone)) {
             return 'Customer phone number is not available.';
         }

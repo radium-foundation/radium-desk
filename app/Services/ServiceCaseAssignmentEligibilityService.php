@@ -20,6 +20,7 @@ class ServiceCaseAssignmentEligibilityService
 
     public function __construct(
         private readonly ServiceCaseAssignmentService $assignmentService,
+        private readonly ServiceCaseOrderAssignmentRoutingService $orderRoutingService,
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
@@ -93,7 +94,10 @@ class ServiceCaseAssignmentEligibilityService
 
             $assignee = $incident->assignee;
 
-            if ($assignee !== null && $this->isAdminUser($assignee)) {
+            if ($assignee !== null && (
+                $this->isAdminUser($assignee)
+                || $this->orderRoutingService->isDesignatedAssignee($incident, $assignee)
+            )) {
                 return;
             }
 
