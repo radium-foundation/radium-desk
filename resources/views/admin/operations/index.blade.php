@@ -168,6 +168,12 @@
                                 'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,
                             ])
                         </div>
+
+                        <div id="operations-missing-serial-automation-quality" class="mt-4">
+                            @include('admin.operations.partials.missing-serial-automation-quality', [
+                                'quality' => $dashboard->missingSerialAutomationQuality,
+                            ])
+                        </div>
                     </div>
 
                     <div

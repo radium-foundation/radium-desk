@@ -8,6 +8,7 @@ use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
 use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
 use App\Models\DeviceModel;
+use App\Models\Order;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
 use App\Models\SystemSetting;
@@ -16,6 +17,7 @@ use App\Policies\DashboardPolicy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Services\AI\Providers\NullAIProvider;
+use App\Services\MissingSerial\MissingSerialAutomationService;
 use App\Services\Operations\OpenAIReasoningProvider;
 use App\Services\Operations\RuleBasedReasoningProvider;
 use App\Services\Automation\AutomationIdempotencyKeyGenerator;
@@ -107,6 +109,15 @@ class AppServiceProvider extends ServiceProvider
         // DispatchIraSmartAssignmentNotification + IraCommunicationService.
         // DispatchSupportAssignmentTelegramNotification is intentionally not registered.
         Event::listen(SupportAppointmentSmartAssigned::class, DispatchIraSmartAssignmentNotification::class);
+
+        Order::updated(function (Order $order): void {
+            if ($order->wasChanged('serial_number') && $order->isSerialLocked()) {
+                app(MissingSerialAutomationService::class)->markCompletedIfApplicable(
+                    $order->fresh(),
+                    'serial_resolved',
+                );
+            }
+        });
 
         Gate::define('viewDashboardHardware', fn (User $user): bool => app(DashboardPolicy::class)->viewHardware($user));
 

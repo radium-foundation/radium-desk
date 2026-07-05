@@ -90,6 +90,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/radiumbox-recovery.log'));
 
+        $schedule->command('missing-serial:process')
+            ->cron(sprintf('*/%d * * * *', max(1, (int) config('missing_serial.schedule_interval_minutes', 15))))
+            ->when(fn (): bool => (bool) config('missing_serial.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/missing-serial-automation.log'));
+
         // Legacy backfill remains available for manual/admin use.
         // $schedule->command('radiumbox:backfill-orders --limit=50')
         //     ->hourly()

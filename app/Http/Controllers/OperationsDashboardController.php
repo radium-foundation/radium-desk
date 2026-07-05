@@ -93,6 +93,9 @@ class OperationsDashboardController extends Controller
                 'cashfree_device_enrichment_quality' => view('admin.operations.partials.cashfree-device-enrichment-quality', [
                     'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,
                 ])->render(),
+                'missing_serial_automation_quality' => view('admin.operations.partials.missing-serial-automation-quality', [
+                    'quality' => $dashboard->missingSerialAutomationQuality,
+                ])->render(),
                 'recent_notification_failures' => view('admin.operations.partials.recent-notification-failures', [
                     'failures' => $dashboard->recentNotificationFailures,
                 ])->render(),

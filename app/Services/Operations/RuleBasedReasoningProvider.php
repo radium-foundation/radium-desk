@@ -14,6 +14,7 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
     public function __construct(
         private readonly IraBriefingFormatter $briefingFormatter,
         private readonly OperationsCashfreeDeviceEnrichmentService $cashfreeDeviceEnrichmentService,
+        private readonly OperationsMissingSerialAutomationService $missingSerialAutomationService,
     ) {}
 
     public function name(): string
@@ -147,6 +148,18 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
                 $deviceQuality->paidOrdersMissingDeviceInfo,
                 $deviceQuality->recoveredFromRadiumBox,
                 $deviceQuality->needCustomerContact,
+            );
+        }
+
+        $missingSerialQuality = $this->missingSerialAutomationService->qualitySummary();
+
+        if ($missingSerialQuality->needSerial > 0) {
+            $highlights[] = sprintf(
+                'Missing serial automation: %d need serial (%d auto requested, %d customer replied, %d coordinator follow-up)',
+                $missingSerialQuality->needSerial,
+                $missingSerialQuality->autoRequested,
+                $missingSerialQuality->customerReplied,
+                $missingSerialQuality->coordinatorFollowUp,
             );
         }
 

@@ -18,6 +18,7 @@ readonly class OperationsDashboardData
      * @param  list<array<string, mixed>>  $recentIraMessages
      * @param  list<array<string, mixed>>  $teamAvailability
      * @param  array<string, int>  $cashfreeDeviceEnrichmentQuality
+     * @param  array<string, int>  $missingSerialAutomationQuality
      */
     public function __construct(
         public array $systemHealth,
@@ -31,6 +32,7 @@ readonly class OperationsDashboardData
         public array $recentIraMessages,
         public array $teamAvailability,
         public array $cashfreeDeviceEnrichmentQuality,
+        public array $missingSerialAutomationQuality,
         public Carbon $generatedAt,
     ) {}
 
@@ -51,6 +53,7 @@ readonly class OperationsDashboardData
             'recent_ira_messages' => $this->recentIraMessages,
             'team_availability' => $this->teamAvailability,
             'cashfree_device_enrichment_quality' => $this->cashfreeDeviceEnrichmentQuality,
+            'missing_serial_automation_quality' => $this->missingSerialAutomationQuality,
             'generated_at' => $this->generatedAt->toIso8601String(),
         ];
     }

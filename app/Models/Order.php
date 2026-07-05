@@ -32,6 +32,10 @@ class Order extends Model
         'serial_number',
         'serial_entered_at',
         'serial_entered_by_user_id',
+        'missing_serial_automation_status',
+        'missing_serial_first_requested_at',
+        'missing_serial_last_contacted_at',
+        'missing_serial_escalated_at',
         'radiumbox_sync_status',
         'radiumbox_last_sync_at',
         'radiumbox_last_sync_error',
@@ -65,6 +69,9 @@ class Order extends Model
             'status' => OrderStatus::class,
             'completed_at' => 'datetime',
             'serial_entered_at' => 'datetime',
+            'missing_serial_first_requested_at' => 'datetime',
+            'missing_serial_last_contacted_at' => 'datetime',
+            'missing_serial_escalated_at' => 'datetime',
             'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::class,
             'radiumbox_last_sync_at' => 'datetime',
             'radiumbox_sync_attempts' => 'integer',
@@ -212,6 +219,15 @@ class Order extends Model
         static $supported = null;
 
         $supported ??= Schema::hasColumn('orders', 'radiumbox_sync_status');
+
+        return $supported;
+    }
+
+    public static function supportsMissingSerialAutomationTracking(): bool
+    {
+        static $supported = null;
+
+        $supported ??= Schema::hasColumn('orders', 'missing_serial_automation_status');
 
         return $supported;
     }
