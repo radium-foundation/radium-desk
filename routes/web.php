@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\SupportAppointmentController;
 use App\Http\Controllers\SupportScheduleRedirectController;
+use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\OperationalSystemSettingsController;
 use App\Http\Controllers\Customer360Controller;
@@ -192,6 +193,7 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile/availability', [TeamAvailabilityController::class, 'update'])->name('profile.availability.update');
     Route::put('/password', [PasswordController::class, 'update'])->name('password.update');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

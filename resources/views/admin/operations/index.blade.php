@@ -22,6 +22,10 @@
             @include('admin.operations.partials.advisor-insights', ['insights' => $advisorInsights ?? []])
         </div>
 
+        <div id="operations-team-availability" class="mb-4">
+            @include('admin.operations.partials.team-availability', ['members' => $dashboard->teamAvailability])
+        </div>
+
         <div id="operations-system-health">
             @include('admin.operations.partials.system-health', ['components' => $dashboard->systemHealth])
         </div>

@@ -48,6 +48,31 @@ class TeamAvailabilityService
         return true;
     }
 
+    public function updateStatus(
+        User $user,
+        TeamAvailabilityStatus $status,
+        ?Carbon $leaveStartDate = null,
+        ?Carbon $leaveEndDate = null,
+    ): User {
+        $attributes = [
+            'availability_status' => $status,
+            'availability_updated_at' => now(),
+        ];
+
+        if ($status === TeamAvailabilityStatus::OnLeave) {
+            $attributes['leave_start_date'] = $leaveStartDate?->toDateString();
+            $attributes['leave_end_date'] = $leaveEndDate?->toDateString();
+        } else {
+            $attributes['leave_start_date'] = null;
+            $attributes['leave_end_date'] = null;
+        }
+
+        $user->fill($attributes);
+        $user->save();
+
+        return $user->fresh();
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -58,6 +83,7 @@ class TeamAvailabilityService
         return [
             'status' => $status->value,
             'label' => $status->label(),
+            'badge_class' => $status->badgeClass(),
             'updated_at' => $user->availability_updated_at?->toIso8601String(),
             'leave_start_date' => $user->leave_start_date?->toDateString(),
             'leave_end_date' => $user->leave_end_date?->toDateString(),

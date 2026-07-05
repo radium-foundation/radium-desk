@@ -81,5 +81,11 @@
                 </div>
             </div>
         </div>
+
+        @if($showsTeamAvailability ?? false)
+            <div class="col-lg-6">
+                @include('profile.partials.team-availability', ['availability' => $availability ?? []])
+            </div>
+        @endif
     </div>
 @endsection

@@ -20,7 +20,7 @@ class TrackTeamMemberActivity
         $user = $request->user();
 
         if ($user !== null && $request->isMethodSafe()) {
-            $this->activityService->recordActive($user);
+            $this->activityService->recordSystemActivity($user);
         }
 
         return $response;

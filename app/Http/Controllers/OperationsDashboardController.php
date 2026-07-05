@@ -67,6 +67,9 @@ class OperationsDashboardController extends Controller
                 'recent_automation_activity' => view('admin.operations.partials.recent-automation-activity', [
                     'activities' => $dashboard->recentAutomationActivity,
                 ])->render(),
+                'team_availability' => view('admin.operations.partials.team-availability', [
+                    'members' => $dashboard->teamAvailability,
+                ])->render(),
             ],
         ]);
     }

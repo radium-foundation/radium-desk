@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\Operations\OperationsRoleService;
+use App\Services\Operations\TeamAvailabilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,13 +13,22 @@ use Illuminate\View\View;
 
 class ProfileController extends Controller
 {
+    public function __construct(
+        private readonly TeamAvailabilityService $availabilityService,
+        private readonly OperationsRoleService $roleService,
+    ) {}
+
     /**
      * Display the user's profile form.
      */
     public function edit(Request $request): View
     {
+        $user = $request->user();
+
         return view('profile.edit', [
-            'user' => $request->user(),
+            'user' => $user,
+            'showsTeamAvailability' => $this->roleService->isTeamMember($user),
+            'availability' => $this->availabilityService->snapshotFor($user),
         ]);
     }
 

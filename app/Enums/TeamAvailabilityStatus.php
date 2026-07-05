@@ -19,6 +19,16 @@ enum TeamAvailabilityStatus: string
         };
     }
 
+    public function badgeClass(): string
+    {
+        return match ($this) {
+            self::Available => 'success',
+            self::Busy => 'warning',
+            self::OnLeave => 'info',
+            self::Offline => 'secondary',
+        };
+    }
+
     /**
      * @return list<string>
      */

@@ -26,6 +26,7 @@ class OperationsDashboardService
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
         private readonly OperationsRecentNotificationFailuresService $recentNotificationFailuresService,
         private readonly OperationsRecentAutomationActivityService $recentAutomationActivityService,
+        private readonly TeamAvailabilityOverviewService $teamAvailabilityOverviewService,
     ) {}
 
     public function dashboardData(bool $useCache = true): OperationsDashboardData
@@ -58,6 +59,7 @@ class OperationsDashboardService
             radiumBoxHealth: $this->radiumBoxHealthService->widget(),
             recentNotificationFailures: $this->recentNotificationFailuresService->recent(limit: 15),
             recentAutomationActivity: $this->recentAutomationActivityService->recent(limit: 15),
+            teamAvailability: $this->teamAvailabilityOverviewService->members(),
             generatedAt: now(),
         );
     }

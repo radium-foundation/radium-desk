@@ -16,6 +16,7 @@ class WhatsAppTemplateDispatchCompletionService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly RemarkService $remarkService,
+        private readonly \App\Services\Operations\TeamMemberActivityService $activityService,
     ) {}
 
     public function markSent(
@@ -56,6 +57,10 @@ class WhatsAppTemplateDispatchCompletionService
                     body: $configuration->internalNote,
                     request: $request,
                 );
+            }
+
+            if ($dispatch->triggeredBy !== null) {
+                $this->activityService->recordCustomerCommunication($dispatch->triggeredBy);
             }
 
             return $dispatch->fresh();

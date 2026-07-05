@@ -18,6 +18,7 @@ class EmailChannel implements NotificationChannel
         private readonly NotificationMailTemplateRegistry $templateRegistry,
         private readonly NotificationCustomerContactResolver $contactResolver,
         private readonly NotificationMailSender $mailSender,
+        private readonly \App\Services\Operations\TeamMemberActivityService $activityService,
     ) {}
 
     public function supports(NotificationType $type): bool
@@ -101,6 +102,10 @@ class EmailChannel implements NotificationChannel
                     'error' => $sendResult['error'],
                 ]),
             );
+        }
+
+        if ($message->actor !== null) {
+            $this->activityService->recordCustomerCommunication($message->actor);
         }
 
         return NotificationResult::success(

@@ -1,0 +1,291 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
+use App\Enums\NotificationChannelType;
+use App\Enums\NotificationType;
+use App\Enums\TeamAvailabilityStatus;
+use App\Models\Incident;
+use App\Models\Order;
+use App\Models\User;
+use App\Data\NotificationMessage;
+use App\Services\IncidentReferenceService;
+use App\Services\Interakt\InteraktOutboundOutboxWriter;
+use App\Services\Interakt\WhatsAppTemplateDispatcher;
+use App\Services\Notifications\Channels\EmailChannel;
+use App\Services\Operations\TeamAvailabilityService;
+use App\Services\Operations\TeamMemberActivityService;
+use App\Services\RemarkService;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+class TeamAvailabilityTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolePermissionSeeder::class);
+    }
+
+    public function test_team_member_can_update_availability(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->patch(route('profile.availability.update'), [
+                'availability_status' => TeamAvailabilityStatus::Busy->value,
+            ])
+            ->assertRedirect(route('profile.edit'))
+            ->assertSessionHas('status', 'availability-updated');
+
+        $agent->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::Busy, $agent->availability_status);
+        $this->assertNotNull($agent->availability_updated_at);
+        $this->assertNull($agent->leave_start_date);
+        $this->assertNull($agent->leave_end_date);
+    }
+
+    public function test_on_leave_user_stores_leave_dates(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->patch(route('profile.availability.update'), [
+                'availability_status' => TeamAvailabilityStatus::OnLeave->value,
+                'leave_start_date' => '2026-07-10',
+                'leave_end_date' => '2026-07-20',
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $agent->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::OnLeave, $agent->availability_status);
+        $this->assertSame('2026-07-10', $agent->leave_start_date?->toDateString());
+        $this->assertSame('2026-07-20', $agent->leave_end_date?->toDateString());
+        $this->assertTrue(app(TeamAvailabilityService::class)->isOnLeave($agent));
+    }
+
+    public function test_non_team_member_cannot_update_availability(): void
+    {
+        $viewer = User::factory()->create();
+
+        $this->actingAs($viewer)
+            ->patch(route('profile.availability.update'), [
+                'availability_status' => TeamAvailabilityStatus::Available->value,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_view_team_availability_on_operations_dashboard(): void
+    {
+        $admin = User::factory()->create(['name' => 'Ops Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agent = User::factory()->create(['name' => 'Avinash Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        app(TeamAvailabilityService::class)->updateStatus(
+            user: $agent,
+            status: TeamAvailabilityStatus::Available,
+        );
+        $agent->forceFill(['last_active_at' => now()->subMinutes(5)])->save();
+
+        $this->actingAs($admin)
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('Team Availability')
+            ->assertSee('Avinash Agent')
+            ->assertSee('Available')
+            ->assertSee('Last active');
+    }
+
+    public function test_whatsapp_dispatch_updates_customer_communication_timestamp(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-05 12:00:00'));
+
+        config([
+            'interakt.api_key' => 'test-interakt-key',
+            'interakt.base_url' => 'https://api.interakt.ai',
+            'interakt.templates.request_serial_number.name' => 'order_update_request_serial',
+            'interakt.templates.request_serial_number.display_name' => 'Order Update',
+            'interakt.templates.request_serial_number.language_code' => 'en',
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TA-WA',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'WhatsApp activity case',
+            'description' => 'WhatsApp activity case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-team-availability-001'], 200),
+        ]);
+
+        app(WhatsAppTemplateDispatcher::class)->dispatch(
+            template: \App\Enums\WhatsAppTemplate::RequestSerialNumber,
+            incident: $incident,
+            actor: $agent,
+            triggerSource: \App\Enums\WhatsAppTemplateTriggerSource::Manual,
+        );
+
+        $agent->refresh();
+
+        $this->assertNotNull($agent->last_customer_communication_at);
+        $this->assertSame(
+            '2026-07-05T12:00:00+05:30',
+            $agent->last_customer_communication_at->toIso8601String(),
+        );
+
+        Carbon::setTestNow();
+    }
+
+    public function test_email_notification_updates_customer_communication_timestamp(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-05 13:00:00'));
+
+        config([
+            'mail.enabled' => true,
+            'mail.default' => 'array',
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TA-EMAIL',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'customer_email' => 'customer@example.com',
+            'customer_name' => 'Jane Doe',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Email activity case',
+            'description' => 'Email activity case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $message = new NotificationMessage(
+            type: NotificationType::RequestSerialNumber,
+            customer: $order,
+            incident: $incident,
+            actor: $agent,
+        );
+
+        $result = app(EmailChannel::class)->send($message);
+
+        $this->assertTrue($result->success);
+        $this->assertSame(NotificationChannelType::Email, $result->channel);
+
+        $agent->refresh();
+
+        $this->assertNotNull($agent->last_customer_communication_at);
+        $this->assertSame(
+            '2026-07-05T13:00:00+05:30',
+            $agent->last_customer_communication_at->toIso8601String(),
+        );
+
+        Carbon::setTestNow();
+    }
+
+    public function test_existing_case_action_activity_tracking_still_works(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-05 14:00:00'));
+
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-TA-ACT',
+            'serial_number' => 'SN-TA-ACT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Activity tracking case',
+            'description' => 'Activity tracking case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $actor->id,
+            'updated_by' => $actor->id,
+            'assigned_to_user_id' => $actor->id,
+        ]);
+
+        app(RemarkService::class)->createForRemarkable(
+            $incident,
+            $actor,
+            'Followed up with customer.',
+        );
+
+        $actor->refresh();
+
+        $this->assertNotNull($actor->last_case_action_at);
+        $this->assertNotNull($actor->last_active_at);
+
+        $snapshot = app(TeamMemberActivityService::class)->snapshotFor($actor);
+        $this->assertNotNull($snapshot['last_case_action_at']);
+        $this->assertNotNull($snapshot['last_work_activity_at']);
+        $this->assertSame('Last case action', $snapshot['primary_work_activity_label']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_profile_shows_team_availability_form_for_operational_users(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Team Availability')
+            ->assertSee('Update availability');
+    }
+}
