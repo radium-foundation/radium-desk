@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Data\NotificationMessage;
 use App\Data\Workspace\WorkspaceActionResponse;
 use App\Data\Workspace\WorkspaceRequestContext;
+use App\Enums\MissingSerialAutomationStatus;
 use App\Enums\NotificationType;
 use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
@@ -92,6 +94,8 @@ class WorkspaceRequestSerialActionService
                 ->build();
         }
 
+        $this->syncMissingSerialAutomationTrackingAfterManualSend($incident->order);
+
         $waitingStateSuffix = 'Waiting state started.';
 
         if ($this->waitingStateService->activeFor($incident) === null) {
@@ -134,5 +138,28 @@ class WorkspaceRequestSerialActionService
         );
 
         return $hasFailure ? 'warning' : 'success';
+    }
+
+    private function syncMissingSerialAutomationTrackingAfterManualSend(?Order $order): void
+    {
+        if ($order === null || ! Order::supportsMissingSerialAutomationTracking()) {
+            return;
+        }
+
+        if (! $order->isMissingSerialNumber()) {
+            return;
+        }
+
+        if ($order->missing_serial_automation_status !== null) {
+            return;
+        }
+
+        $now = now();
+
+        $order->update([
+            'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+            'missing_serial_first_requested_at' => $now,
+            'missing_serial_last_contacted_at' => $now,
+        ]);
     }
 }

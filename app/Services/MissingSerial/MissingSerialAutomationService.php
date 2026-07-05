@@ -14,10 +14,12 @@ use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\RefundStatus;
 use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
+use App\Enums\WhatsAppTemplateDispatchStatus;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Models\WhatsAppTemplateDispatch;
 use App\Services\AutomationIdentityService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
@@ -301,6 +303,12 @@ class MissingSerialAutomationService
             );
         }
 
+        $priorContactSkip = $this->skipInitialRequestIfPriorContactExists($order, $action);
+
+        if ($priorContactSkip !== null) {
+            return $priorContactSkip;
+        }
+
         $channels = $this->channelAvailabilityService->forRequestSerialNumber($order);
         $channelBlockReason = $this->channelAvailabilityService->unavailableReason($channels);
 
@@ -518,5 +526,64 @@ class MissingSerialAutomationService
     private function escalationDelayHours(): int
     {
         return max(1, (int) config('missing_serial.escalation_delay_hours', 72));
+    }
+
+    private function skipInitialRequestIfPriorContactExists(
+        Order $order,
+        MissingSerialAutomationAction $action,
+    ): ?MissingSerialAutomationOrderResult {
+        if ($action !== MissingSerialAutomationAction::Request) {
+            return null;
+        }
+
+        $existingDispatch = $this->findSuccessfulRequestSerialDispatch($order);
+
+        if ($existingDispatch === null) {
+            return null;
+        }
+
+        $this->syncRequestTrackingFromPriorContact($order, $existingDispatch);
+
+        return new MissingSerialAutomationOrderResult(
+            orderId: $order->id,
+            action: $action,
+            outcome: 'skipped',
+            message: 'Initial request already sent.',
+        );
+    }
+
+    private function findSuccessfulRequestSerialDispatch(Order $order): ?WhatsAppTemplateDispatch
+    {
+        return WhatsAppTemplateDispatch::query()
+            ->where('order_id', $order->id)
+            ->where('template_key', WhatsAppTemplate::RequestSerialNumber->value)
+            ->where('status', WhatsAppTemplateDispatchStatus::Sent->value)
+            ->orderBy('id')
+            ->first();
+    }
+
+    private function syncRequestTrackingFromPriorContact(
+        Order $order,
+        WhatsAppTemplateDispatch $dispatch,
+    ): void {
+        $contactedAt = $dispatch->dispatched_at ?? $dispatch->created_at ?? now();
+
+        $updates = [];
+
+        if ($order->missing_serial_automation_status === null) {
+            $updates['missing_serial_automation_status'] = MissingSerialAutomationStatus::Requested->value;
+        }
+
+        if ($order->missing_serial_first_requested_at === null) {
+            $updates['missing_serial_first_requested_at'] = $contactedAt;
+        }
+
+        if ($order->missing_serial_last_contacted_at === null) {
+            $updates['missing_serial_last_contacted_at'] = $contactedAt;
+        }
+
+        if ($updates !== []) {
+            $order->update($updates);
+        }
     }
 }

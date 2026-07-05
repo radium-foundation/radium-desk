@@ -6,6 +6,8 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\MissingSerialAutomationStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Enums\WhatsAppTemplateDispatchStatus;
+use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -85,6 +87,97 @@ class MissingSerialAutomationTest extends TestCase
         ]);
 
         $this->assertSame(1, WhatsAppTemplateDispatch::query()->where('order_id', $order->id)->count());
+    }
+
+    public function test_manual_request_serial_prevents_scheduler_duplicate(): void
+    {
+        $this->enableNotificationChannels();
+
+        $order = $this->createEligibleOrder(paymentMinutesAgo: 60);
+        $incident = $order->latestIncident();
+        $agent = User::query()->findOrFail($order->created_by);
+
+        $this->actingAs($agent)->postJson(
+            route('incidents.workspace.request-serial', $incident),
+            ['workspace_context' => 'customer'],
+        )->assertOk()
+            ->assertJsonPath('success', true);
+
+        $order->refresh();
+
+        $this->assertSame(MissingSerialAutomationStatus::Requested->value, $order->missing_serial_automation_status);
+        $this->assertNotNull($order->missing_serial_first_requested_at);
+        $this->assertNotNull($order->missing_serial_last_contacted_at);
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->where('order_id', $order->id)->count());
+
+        Artisan::call('missing-serial:process');
+
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->where('order_id', $order->id)->count());
+        $this->assertDatabaseMissing('audit_logs', [
+            'auditable_id' => $order->id,
+            'event' => MissingSerialAutomationAuditService::EVENT_REQUEST_SENT,
+        ]);
+    }
+
+    public function test_existing_whatsapp_dispatch_prevents_automation_duplicate(): void
+    {
+        $this->enableNotificationChannels();
+
+        $order = $this->createEligibleOrder(paymentMinutesAgo: 60);
+        $incident = $order->latestIncident();
+        $agent = User::query()->findOrFail($order->created_by);
+        $priorContactAt = now()->subHours(2);
+
+        WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $incident->id,
+            'order_id' => $order->id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => 'request_serial_number',
+            'template_name' => 'order_update_request_serial',
+            'template_display_name' => 'Order Update',
+            'template_purpose' => 'Request Serial Number',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'status' => WhatsAppTemplateDispatchStatus::Sent,
+            'customer_phone' => '9876543210',
+            'interakt_message_id' => 'msg-prior-contact',
+            'dispatched_at' => $priorContactAt,
+            'created_at' => $priorContactAt,
+            'updated_at' => $priorContactAt,
+        ]);
+
+        Artisan::call('missing-serial:process');
+
+        $order->refresh();
+
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->where('order_id', $order->id)->count());
+        $this->assertSame(MissingSerialAutomationStatus::Requested->value, $order->missing_serial_automation_status);
+        $this->assertTrue($order->missing_serial_first_requested_at->equalTo($priorContactAt));
+        $this->assertDatabaseMissing('audit_logs', [
+            'auditable_id' => $order->id,
+            'event' => MissingSerialAutomationAuditService::EVENT_REQUEST_SENT,
+        ]);
+    }
+
+    public function test_untouched_paid_missing_serial_order_still_receives_automation_request(): void
+    {
+        $this->enableNotificationChannels();
+
+        $order = $this->createEligibleOrder(paymentMinutesAgo: 46);
+
+        $this->assertNull($order->missing_serial_automation_status);
+        $this->assertSame(0, WhatsAppTemplateDispatch::query()->where('order_id', $order->id)->count());
+
+        Artisan::call('missing-serial:process');
+
+        $order->refresh();
+
+        $this->assertSame(MissingSerialAutomationStatus::Requested->value, $order->missing_serial_automation_status);
+        $this->assertNotNull($order->missing_serial_first_requested_at);
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->where('order_id', $order->id)->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_id' => $order->id,
+            'event' => MissingSerialAutomationAuditService::EVENT_REQUEST_SENT,
+        ]);
     }
 
     public function test_does_not_send_before_45_minutes(): void
