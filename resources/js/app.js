@@ -598,6 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     dashboardQuickFilter = initDashboardQuickFilter({
         pageRoot,
+        loadMoreUrl: pageRoot.dataset.dashboardLoadMoreUrl,
+        onRestoreDashboard: () => refreshDashboard(pageRoot),
         onFilterApplied: () => {
             dashboardTransactions?.batchSession.updateToolbar();
         },

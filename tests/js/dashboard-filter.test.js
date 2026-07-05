@@ -2,16 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     applyDashboardQuickFilter,
     initDashboardQuickFilter,
+    rowMatchesQuery,
 } from '../../resources/js/dashboard-filter';
-import { initServiceCasePaginationState } from '../../resources/js/dashboard-service-case-state';
+import { initServiceCasePaginationState, setServiceCaseSearchQuery } from '../../resources/js/dashboard-service-case-state';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
 
-const buildDashboardCard = ({ loaded = 2, total = 2 } = {}) => {
+const buildDashboardCard = ({ loaded = 2, total = 2, loadMoreUrl = '/dashboard/service-cases/more' } = {}) => {
     document.body.innerHTML = `
-        <div id="dashboard-page">
+        <div id="dashboard-page"
+             data-live-filter="pending_admin"
+             data-dashboard-load-more-url="${loadMoreUrl}">
             <div class="dashboard-service-cases-card"
                  data-service-cases-loaded="${loaded}"
-                 data-service-case-filter-total="${total}">
+                 data-service-case-filter-total="${total}"
+                 data-service-case-filter="pending_admin">
                 <div class="dashboard-quick-filter" data-dashboard-quick-filter>
                     <button type="button"
                             data-dashboard-quick-filter-trigger
@@ -38,6 +42,9 @@ const buildDashboardCard = ({ loaded = 2, total = 2 } = {}) => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                <div data-dashboard-load-more-wrap>
+                    <button type="button" data-dashboard-load-more>Load More</button>
                 </div>
             </div>
         </div>
@@ -101,32 +108,12 @@ describe('applyDashboardQuickFilter', () => {
     });
 
     it('matches progressive device model tokens including compact model names', () => {
-        document.body.innerHTML = '';
-        buildDashboardCard({ loaded: 2, total: 2 });
-        initServiceCasePaginationState();
-
-        document.getElementById('service-case-row-1')?.setAttribute(
-            'data-search-text',
-            'ord-100 sc00001 john 9876543210 sn-1 fm 220',
-        );
-        document.getElementById('service-case-row-2')?.setAttribute(
-            'data-search-text',
-            'ord-200 sc00002 jane 9123456780 sn-2 fm 200',
-        );
-
-        const card = document.querySelector('.dashboard-service-cases-card');
-
-        applyDashboardQuickFilter({ card, query: 'fm' });
-        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
-        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
-
-        applyDashboardQuickFilter({ card, query: 'fm 2' });
-        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
-        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
-
-        applyDashboardQuickFilter({ card, query: 'fm 22' });
-        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
-        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(true);
+        expect(rowMatchesQuery('ord-100 sc00001 john sn-1 fm 220', 'fm')).toBe(true);
+        expect(rowMatchesQuery('ord-200 sc00002 jane sn-2 fm 200', 'fm')).toBe(true);
+        expect(rowMatchesQuery('ord-100 sc00001 john sn-1 fm 220', 'fm 2')).toBe(true);
+        expect(rowMatchesQuery('ord-200 sc00002 jane sn-2 fm 200', 'fm 2')).toBe(true);
+        expect(rowMatchesQuery('ord-100 sc00001 john sn-1 fm 220', 'fm 22')).toBe(true);
+        expect(rowMatchesQuery('ord-200 sc00002 jane sn-2 fm 200', 'fm 22')).toBe(false);
     });
 
     it('shows the quick-filter empty row when nothing matches', () => {
@@ -204,6 +191,7 @@ describe('initDashboardQuickFilter', () => {
         resetWorkspaceSession();
         buildDashboardCard();
         initServiceCasePaginationState();
+        setServiceCaseSearchQuery('');
         vi.useFakeTimers();
         global.fetch = vi.fn();
     });
@@ -214,7 +202,7 @@ describe('initDashboardQuickFilter', () => {
         vi.restoreAllMocks();
     });
 
-    it('filters rows locally without calling the server', () => {
+    it('filters rows locally without calling the server when the query is empty', () => {
         const pageRoot = document.getElementById('dashboard-page');
         const onFilterApplied = vi.fn();
 
@@ -227,19 +215,84 @@ describe('initDashboardQuickFilter', () => {
         filter.classList.add('dashboard-quick-filter--expanded');
         pageRoot.querySelector('[data-dashboard-quick-filter-control]')?.classList.remove('d-none');
 
-        input.value = 'o';
+        input.value = '';
         input.dispatchEvent(new Event('input', { bubbles: true }));
 
         vi.advanceTimersByTime(150);
 
         expect(global.fetch).not.toHaveBeenCalled();
         expect(onFilterApplied).toHaveBeenCalledTimes(1);
-        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
-        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
+        expect(document.querySelectorAll('.dashboard-case-row--filtered-out')).toHaveLength(0);
     });
 
-    it('applies the local filter immediately when Enter is pressed', () => {
+    it('searches the full result set on the server instead of only loaded rows', async () => {
         const pageRoot = document.getElementById('dashboard-page');
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                rows: [{
+                    incident_id: 99,
+                    html: '<tr id="service-case-row-99" data-incident-id="99" data-search-text="fm 220"><td>FM 220</td></tr>',
+                }],
+                service_cases_empty: false,
+                loaded_count: 1,
+                total_count: 1,
+            }),
+        });
+
+        const filter = initDashboardQuickFilter({ pageRoot });
+        const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
+
+        filter.open();
+        input.value = 'FM 220';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+
+        await vi.advanceTimersByTimeAsync(250);
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(String(global.fetch.mock.calls[0]?.[0])).toContain('/dashboard/service-cases/more');
+        expect(String(global.fetch.mock.calls[0]?.[0])).toContain('q=fm+220');
+        expect(String(global.fetch.mock.calls[0]?.[0])).toContain('offset=0');
+        expect(document.getElementById('service-case-row-99')).not.toBeNull();
+        expect(document.querySelector('[data-dashboard-filter-count]')?.textContent).toBe('1 of 1 Showing');
+        expect(document.querySelector('[data-dashboard-load-more-wrap]')?.classList.contains('d-none')).toBe(true);
+    });
+
+    it('restores the dashboard when the quick filter is cleared after a server search', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const onRestoreDashboard = vi.fn().mockResolvedValue(undefined);
+
+        setServiceCaseSearchQuery('fm 220');
+
+        const filter = initDashboardQuickFilter({ pageRoot, onRestoreDashboard });
+        const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
+
+        filter.open();
+        input.value = '';
+        filter.reapply();
+
+        await vi.waitFor(() => {
+            expect(onRestoreDashboard).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    it('applies the server search immediately when Enter is pressed', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                rows: [{
+                    incident_id: 1,
+                    html: '<tr id="service-case-row-1" data-incident-id="1" data-search-text="ord-100"><td>ORD-100</td></tr>',
+                }],
+                service_cases_empty: false,
+                loaded_count: 1,
+                total_count: 1,
+            }),
+        });
+
         const filter = initDashboardQuickFilter({ pageRoot });
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
 
@@ -248,9 +301,9 @@ describe('initDashboardQuickFilter', () => {
         input.value = 'ord-100';
         input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
-        expect(global.fetch).not.toHaveBeenCalled();
-        expect(document.getElementById('service-case-row-1')?.classList.contains('dashboard-case-row--filtered-out')).toBe(false);
-        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(true);
+        await vi.waitFor(() => {
+            expect(document.getElementById('service-case-row-2')).toBeNull();
+        });
     });
 
     it('clears the filter from the empty-state action', () => {
@@ -284,19 +337,37 @@ describe('initDashboardQuickFilter', () => {
         expect(document.activeElement).toBe(input);
     });
 
-    it('collapses on Esc without clearing an active filter', () => {
+    it('collapses on Esc without clearing an active filter', async () => {
         const pageRoot = document.getElementById('dashboard-page');
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                rows: [{
+                    incident_id: 1,
+                    html: '<tr id="service-case-row-1" data-incident-id="1" data-search-text="ord-100"><td>ORD-100</td></tr>',
+                }],
+                service_cases_empty: false,
+                loaded_count: 1,
+                total_count: 1,
+            }),
+        });
+
         const filter = initDashboardQuickFilter({ pageRoot });
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
 
         filter.open();
         input.value = 'ord-100';
-        filter.reapply();
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('service-case-row-2')).toBeNull();
+        });
+
         input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
         expect(filter.isExpanded()).toBe(false);
         expect(input.value).toBe('ord-100');
-        expect(document.getElementById('service-case-row-2')?.classList.contains('dashboard-case-row--filtered-out')).toBe(true);
     });
 
     it('collapses on empty blur and click outside', () => {

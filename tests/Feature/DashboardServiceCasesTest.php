@@ -1120,4 +1120,191 @@ class DashboardServiceCasesTest extends TestCase
             ->assertJsonCount(1, 'rows')
             ->assertJsonPath('incident_ids.0', Incident::query()->first()->id);
     }
+
+    public function test_load_more_hides_when_all_records_are_loaded(): void
+    {
+        config([
+            'dashboard.service_cases_page_size' => 10,
+            'dashboard.service_cases_load_more_size' => 10,
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        for ($index = 1; $index <= 15; $index++) {
+            $order = Order::query()->create([
+                'order_id' => "RD-HIDE-{$index}",
+                'serial_number' => "SN-HIDE-{$index}",
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+
+            Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => sprintf('SC-HIDE-%02d', $index),
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => "Hide load more {$index}",
+                'description' => "Hide load more {$index}.",
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->assertOk()
+            ->assertSee('10 of 15 Showing')
+            ->assertSee('Load More');
+
+        $finalLoadMore = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 10,
+            ]));
+
+        $finalLoadMore->assertOk()
+            ->assertJsonCount(5, 'rows')
+            ->assertJsonPath('loaded_count', 15)
+            ->assertJsonPath('total_count', 15)
+            ->assertJsonPath('has_more', false);
+    }
+
+    public function test_quick_filter_search_finds_records_beyond_initial_page(): void
+    {
+        config([
+            'dashboard.service_cases_page_size' => 10,
+            'dashboard.service_cases_load_more_size' => 10,
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        for ($index = 1; $index <= 20; $index++) {
+            $order = Order::query()->create([
+                'order_id' => "RD-MODEL-{$index}",
+                'serial_number' => "SN-MODEL-{$index}",
+                'product_name' => $index <= 5 ? 'FM 220' : 'MFS 110',
+                'device_model' => $index <= 5 ? 'FM 220' : 'MFS 110',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+
+            Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => sprintf('SC-MODEL-%02d', $index),
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => "Model search {$index}",
+                'description' => "Model search {$index}.",
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $searchResponse = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 0,
+                'q' => 'FM 220',
+            ]));
+
+        $searchResponse->assertOk()
+            ->assertJsonCount(5, 'rows')
+            ->assertJsonPath('total_count', 5)
+            ->assertJsonPath('loaded_count', 5)
+            ->assertJsonPath('has_more', false);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'pending_admin']))
+            ->assertOk()
+            ->assertSee('10 of 20 Showing');
+    }
+
+    public function test_quick_filter_search_paginates_filtered_results(): void
+    {
+        config([
+            'dashboard.service_cases_page_size' => 35,
+            'dashboard.service_cases_load_more_size' => 25,
+        ]);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        for ($index = 1; $index <= 90; $index++) {
+            $order = Order::query()->create([
+                'order_id' => "RD-FILTER-{$index}",
+                'serial_number' => "SN-FILTER-{$index}",
+                'product_name' => 'FM 220',
+                'device_model' => 'FM 220',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ]);
+
+            Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => sprintf('SC-FILTER-%02d', $index),
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => "Filtered search {$index}",
+                'description' => "Filtered search {$index}.",
+                'status' => 'open',
+                'created_by' => $admin->id,
+            ]);
+        }
+
+        $initialSearch = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 0,
+                'q' => 'FM 220',
+            ]));
+
+        $initialSearch->assertOk()
+            ->assertJsonCount(35, 'rows')
+            ->assertJsonPath('total_count', 90)
+            ->assertJsonPath('loaded_count', 35)
+            ->assertJsonPath('has_more', true);
+
+        $secondPage = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 35,
+                'q' => 'FM 220',
+            ]));
+
+        $secondPage->assertOk()
+            ->assertJsonCount(25, 'rows')
+            ->assertJsonPath('loaded_count', 60)
+            ->assertJsonPath('total_count', 90)
+            ->assertJsonPath('has_more', true);
+
+        $finalPage = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 60,
+                'q' => 'FM 220',
+            ]));
+
+        $finalPage->assertOk()
+            ->assertJsonCount(25, 'rows')
+            ->assertJsonPath('loaded_count', 85)
+            ->assertJsonPath('total_count', 90)
+            ->assertJsonPath('has_more', true);
+
+        $lastPage = $this->actingAs($admin)
+            ->getJson(route('dashboard.service-cases.load-more', [
+                'filter' => 'pending_admin',
+                'offset' => 85,
+                'q' => 'FM 220',
+            ]));
+
+        $lastPage->assertOk()
+            ->assertJsonCount(5, 'rows')
+            ->assertJsonPath('loaded_count', 90)
+            ->assertJsonPath('total_count', 90)
+            ->assertJsonPath('has_more', false);
+    }
 }

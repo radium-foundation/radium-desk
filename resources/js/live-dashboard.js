@@ -2,7 +2,7 @@ import { mergeServiceCaseRows } from './live-dashboard-merge';
 import { initTooltips } from './tooltips';
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
-import { setServiceCasePagination } from './dashboard-service-case-state';
+import { isDashboardQuickFilterActive, setServiceCasePagination } from './dashboard-service-case-state';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -144,7 +144,7 @@ const removeRows = (incidentIds, lockedIncidentIds) => {
 
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
-        if (isDashboardSearchActive()) {
+        if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
             resolve();
 
             return;
@@ -178,7 +178,7 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
 
 const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
-        if (isDashboardSearchActive()) {
+        if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
             resolve();
 
             return;
@@ -232,7 +232,7 @@ const refreshDashboard = async (pageRoot) => {
     const filter = pageRoot.dataset.liveFilter ?? 'pending_admin';
     const view = pageRoot.dataset.liveView ?? 'all';
 
-    if (!liveUrl || document.hidden || refreshInFlight || isDashboardSearchActive()) {
+    if (!liveUrl || document.hidden || refreshInFlight || isDashboardSearchActive() || isDashboardQuickFilterActive()) {
         return;
     }
 

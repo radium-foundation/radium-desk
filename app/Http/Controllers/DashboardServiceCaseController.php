@@ -95,8 +95,11 @@ class DashboardServiceCaseController extends Controller
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
-        $pageSize = $this->dashboardService->serviceCaseLoadMoreSize();
+        $searchQuery = trim($request->string('q')->toString());
         $offset = max(0, $request->integer('offset', 0));
+        $pageSize = $offset === 0 && $searchQuery !== ''
+            ? $this->dashboardService->serviceCasePageSize()
+            : $this->dashboardService->serviceCaseLoadMoreSize();
 
         $payload = $this->dashboardService->serviceCasesPayload(
             $user,
@@ -105,6 +108,7 @@ class DashboardServiceCaseController extends Controller
             $prioritizeRecentAssignments,
             $pageSize,
             $offset,
+            searchQuery: $searchQuery !== '' ? $searchQuery : null,
         );
 
         return response()->json($payload);

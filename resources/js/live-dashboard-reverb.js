@@ -13,6 +13,7 @@ import {
     configureLiveDashboard,
 } from './live-dashboard';
 import { isDashboardSearchActive } from './dashboard-search-mode';
+import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
 import { getWorkspaceSession } from './workspace/session';
 
 const SERVICE_CASE_EVENTS = [
@@ -37,7 +38,7 @@ const shouldRemoveRowForFilter = (pageRoot, payload) => {
 };
 
 const handleServiceCaseEvent = async (pageRoot, payload) => {
-    if (isDashboardSearchActive()) {
+    if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
         return;
     }
 
@@ -65,7 +66,7 @@ const handleServiceCaseEvent = async (pageRoot, payload) => {
 };
 
 const handleKpisUpdated = async (payload) => {
-    if (isDashboardSearchActive()) {
+    if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
         return;
     }
 

@@ -211,18 +211,16 @@ class DashboardService
         ?User $assignedTo = null,
         bool $prioritizeRecentAssignments = false,
         int $offset = 0,
+        ?string $searchQuery = null,
     ): Collection {
         $limit ??= $this->serviceCasePageSize();
 
-        $incidents = $this->snapshot()->incidentsForFilter($filter, $assignedTo);
-
-        $incidents = match ($filter) {
-            'overdue' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Overdue),
-            'warning' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Warning),
-            default => $incidents,
-        };
-
-        $sorted = $this->sortIncidentsForDashboard($incidents, $prioritizeRecentAssignments);
+        $sorted = $this->sortedIncidentsForFilter(
+            $filter,
+            $assignedTo,
+            $prioritizeRecentAssignments,
+            $searchQuery,
+        );
 
         if ($offset > 0) {
             $sorted = $sorted->slice($offset, $limit);
@@ -231,6 +229,108 @@ class DashboardService
         }
 
         return $sorted->values();
+    }
+
+    public function serviceCaseSearchText(Incident $incident): string
+    {
+        $order = $incident->order;
+        $parts = array_filter([
+            $order?->order_id,
+            $incident->display_reference,
+            $order?->customer_name,
+            $order?->customer_email,
+            $order?->customer_phone,
+            $order?->serial_number,
+            $order?->displayDeviceModelName(),
+        ], fn ($value): bool => filled($value));
+
+        return strtolower(implode(' ', $parts));
+    }
+
+    public function incidentMatchesQuickSearch(Incident $incident, string $query): bool
+    {
+        $query = trim($query);
+
+        if ($query === '') {
+            return true;
+        }
+
+        $tokens = preg_split('/\s+/u', strtolower($query));
+
+        if ($tokens === false) {
+            return true;
+        }
+
+        $tokens = array_values(array_filter($tokens, fn (string $token): bool => $token !== ''));
+
+        if ($tokens === []) {
+            return true;
+        }
+
+        $searchText = $this->serviceCaseSearchText($incident);
+
+        foreach ($tokens as $token) {
+            if (! str_contains($searchText, $token)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidents
+     * @return Collection<int, Incident>
+     */
+    public function filterIncidentsByQuickSearch(Collection $incidents, string $query): Collection
+    {
+        $query = trim($query);
+
+        if ($query === '') {
+            return $incidents->values();
+        }
+
+        return $incidents
+            ->filter(fn (Incident $incident): bool => $this->incidentMatchesQuickSearch($incident, $query))
+            ->values();
+    }
+
+    public function matchingServiceCaseCount(
+        string $filter,
+        ?User $assignedTo,
+        bool $prioritizeRecentAssignments,
+        string $searchQuery,
+    ): int {
+        return $this->sortedIncidentsForFilter(
+            $filter,
+            $assignedTo,
+            $prioritizeRecentAssignments,
+            $searchQuery,
+        )->count();
+    }
+
+    /**
+     * @return Collection<int, Incident>
+     */
+    private function sortedIncidentsForFilter(
+        string $filter,
+        ?User $assignedTo,
+        bool $prioritizeRecentAssignments,
+        ?string $searchQuery = null,
+    ): Collection {
+        $incidents = $this->snapshot()->incidentsForFilter($filter, $assignedTo);
+
+        $incidents = match ($filter) {
+            'overdue' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Overdue),
+            'warning' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Warning),
+            default => $incidents,
+        };
+
+        if ($searchQuery !== null && trim($searchQuery) !== '') {
+            $incidents = $this->filterIncidentsByQuickSearch($incidents, $searchQuery);
+        }
+
+        return $this->sortIncidentsForDashboard($incidents, $prioritizeRecentAssignments);
     }
 
     /**
@@ -270,17 +370,32 @@ class DashboardService
         int $limit,
         int $offset = 0,
         ?array $filterCounts = null,
+        ?string $searchQuery = null,
     ): array {
+        $normalizedSearchQuery = $searchQuery !== null ? trim($searchQuery) : null;
+        $hasSearchQuery = $normalizedSearchQuery !== null && $normalizedSearchQuery !== '';
+
         $cases = $this->recentServiceCases(
             $filter,
             $limit,
             $assignedTo,
             $prioritizeRecentAssignments,
             $offset,
+            $hasSearchQuery ? $normalizedSearchQuery : null,
         );
 
-        $filterCounts ??= $this->serviceCaseFilterCounts($assignedTo, $user);
-        $totalCount = $filterCounts[$filter] ?? $cases->count();
+        if ($hasSearchQuery) {
+            $totalCount = $this->matchingServiceCaseCount(
+                $filter,
+                $assignedTo,
+                $prioritizeRecentAssignments,
+                $normalizedSearchQuery,
+            );
+        } else {
+            $filterCounts ??= $this->serviceCaseFilterCounts($assignedTo, $user);
+            $totalCount = $filterCounts[$filter] ?? $cases->count();
+        }
+
         $loadedCount = $offset + $cases->count();
 
         return [

@@ -4,6 +4,7 @@ import { isDashboardSearchActive } from './dashboard-search-mode';
 import {
     appendServiceCaseLoadedCount,
     getServiceCaseLoadedCount,
+    getServiceCaseSearchQuery,
     setServiceCasePagination,
 } from './dashboard-service-case-state';
 
@@ -36,6 +37,12 @@ export const initDashboardLoadMore = ({
                 filter,
                 offset: String(getServiceCaseLoadedCount()),
             });
+
+            const searchQuery = getServiceCaseSearchQuery();
+
+            if (searchQuery) {
+                query.set('q', searchQuery);
+            }
 
             if (view && view !== 'all') {
                 query.set('view', view);

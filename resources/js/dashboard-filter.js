@@ -1,6 +1,13 @@
+import { mergeServiceCaseRows } from './live-dashboard-merge';
+import { initTooltips } from './tooltips';
 import { getWorkspaceSession } from './workspace/session';
 import {
     getServiceCaseFilterTotal,
+    getServiceCaseLoadedCount,
+    getServiceCaseSearchQuery,
+    isDashboardQuickFilterActive,
+    setServiceCasePagination,
+    setServiceCaseSearchQuery,
     updateServiceCaseCountDisplay,
     formatServiceCaseCount,
 } from './dashboard-service-case-state';
@@ -9,12 +16,13 @@ const FILTERED_OUT_CLASS = 'dashboard-case-row--filtered-out';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
 const EMPTY_ROW_ID = 'dashboard-quick-filter-empty-row';
 const LOCAL_DEBOUNCE_MS = 150;
+const SERVER_DEBOUNCE_MS = 250;
 
-const normalizeQuery = (value) => value.trim().toLowerCase();
+export const normalizeQuery = (value) => value.trim().toLowerCase();
 
-const tokenizeQuery = (value) => normalizeQuery(value).split(/\s+/).filter(Boolean);
+export const tokenizeQuery = (value) => normalizeQuery(value).split(/\s+/).filter(Boolean);
 
-const rowMatchesQuery = (searchText, normalizedQuery) => {
+export const rowMatchesQuery = (searchText, normalizedQuery) => {
     if (!normalizedQuery) {
         return true;
     }
@@ -32,7 +40,7 @@ const getDataRows = (tbody) => Array.from(
     tbody.querySelectorAll('tr[id^="service-case-row-"]'),
 );
 
-const rowShouldStayVisible = (row, normalizedQuery, lockedIncidentIds) => {
+export const rowShouldStayVisible = (row, normalizedQuery, lockedIncidentIds) => {
     if (!normalizedQuery) {
         return true;
     }
@@ -103,14 +111,6 @@ const updateEmptyRow = (tbody, show) => {
     emptyRow.classList.toggle('d-none', ! show);
 };
 
-const updateCounter = (countElement, visibleCount) => {
-    if (!countElement) {
-        return;
-    }
-
-    countElement.textContent = formatServiceCaseCount(visibleCount, getServiceCaseFilterTotal());
-};
-
 const clearSearchMatchHighlight = (card) => {
     card?.querySelectorAll(`.${SEARCH_MATCH_CLASS}`).forEach((row) => {
         row.classList.remove(SEARCH_MATCH_CLASS);
@@ -151,7 +151,18 @@ const highlightSingleMatch = (card) => {
     }
 };
 
-export const applyDashboardQuickFilter = ({
+const clearLocalFilterState = (card) => {
+    const tbody = card?.querySelector('#dashboard-service-cases-body');
+
+    getDataRows(tbody).forEach((row) => {
+        row.classList.remove(FILTERED_OUT_CLASS);
+    });
+
+    updateEmptyRow(tbody, false);
+    clearSearchMatchHighlight(card);
+};
+
+const applyLocalQuickFilterPresentation = ({
     card,
     query = '',
     countElement = null,
@@ -178,7 +189,12 @@ export const applyDashboardQuickFilter = ({
         }
     });
 
-    updateCounter(countElement, visibleCount);
+    if (countElement) {
+        countElement.textContent = formatServiceCaseCount(visibleCount, getServiceCaseFilterTotal());
+    } else {
+        updateServiceCaseCountDisplay({ visibleCount });
+    }
+
     updateEmptyRow(tbody, normalizedQuery !== '' && rows.length > 0 && visibleCount === 0);
 
     if (! skipHighlight) {
@@ -192,9 +208,13 @@ export const applyDashboardQuickFilter = ({
     return { visibleCount, totalCount: getServiceCaseFilterTotal() };
 };
 
+export const applyDashboardQuickFilter = applyLocalQuickFilterPresentation;
+
 export const initDashboardQuickFilter = ({
     pageRoot = document,
     onFilterApplied = null,
+    loadMoreUrl = null,
+    onRestoreDashboard = null,
 } = {}) => {
     const card = pageRoot.querySelector('.dashboard-service-cases-card');
     const container = pageRoot.querySelector('[data-dashboard-quick-filter]');
@@ -202,12 +222,15 @@ export const initDashboardQuickFilter = ({
     const countElement = pageRoot.querySelector('[data-dashboard-filter-count]');
     const trigger = pageRoot.querySelector('[data-dashboard-quick-filter-trigger]');
     const control = pageRoot.querySelector('[data-dashboard-quick-filter-control]');
+    const resolvedLoadMoreUrl = loadMoreUrl ?? pageRoot.dataset.dashboardLoadMoreUrl ?? '';
 
     if (!card || !input || !container) {
         return null;
     }
 
     let debounceTimer = null;
+    let searchRequestId = 0;
+    let searchAbortController = null;
 
     const isExpanded = () => container.classList.contains('dashboard-quick-filter--expanded');
 
@@ -242,17 +265,143 @@ export const initDashboardQuickFilter = ({
         control?.classList.add('d-none');
     };
 
-    const reapply = ({ immediate = false } = {}) => {
-        const run = () => {
-            const result = applyDashboardQuickFilter({
-                card,
-                query: input.value,
-                countElement,
+    const applyServerSearchResults = (data) => {
+        const rows = data.rows ?? [];
+
+        mergeServiceCaseRows(
+            card,
+            rows,
+            Boolean(data.service_cases_empty),
+            data.service_cases_empty_html ?? '',
+            initTooltips,
+            {
+                lockedIncidentIds: getWorkspaceSession().getLockedIncidentIds(),
+                onRowsUpdated: () => {},
+            },
+        );
+
+        clearLocalFilterState(card);
+
+        setServiceCasePagination({
+            loaded: data.loaded_count ?? rows.length,
+            total: data.total_count ?? rows.length,
+        });
+
+        updateEmptyRow(
+            card.querySelector('#dashboard-service-cases-body'),
+            rows.length === 0,
+        );
+
+        highlightSingleMatch(card);
+
+        const result = {
+            visibleCount: data.loaded_count ?? rows.length,
+            totalCount: data.total_count ?? rows.length,
+        };
+
+        onFilterApplied?.(result);
+
+        return result;
+    };
+
+    const fetchServerQuickFilter = async (query) => {
+        if (!resolvedLoadMoreUrl) {
+            return applyLocalQuickFilterPresentation({ card, query, countElement });
+        }
+
+        const normalizedQuery = normalizeQuery(query);
+        const requestId = ++searchRequestId;
+
+        searchAbortController?.abort();
+        searchAbortController = new AbortController();
+
+        setServiceCaseSearchQuery(normalizedQuery);
+
+        const filter = pageRoot.dataset.liveFilter ?? card.dataset.serviceCaseFilter ?? 'pending_admin';
+        const view = pageRoot.dataset.liveView ?? 'all';
+        const params = new URLSearchParams({
+            filter,
+            offset: '0',
+            q: normalizedQuery,
+        });
+
+        if (view && view !== 'all') {
+            params.set('view', view);
+        }
+
+        try {
+            const response = await fetch(`${resolvedLoadMoreUrl}?${params.toString()}`, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                signal: searchAbortController.signal,
             });
 
-            onFilterApplied?.(result);
+            if (requestId !== searchRequestId || !response.ok) {
+                return null;
+            }
 
-            return result;
+            return applyServerSearchResults(await response.json());
+        } catch (error) {
+            if (error?.name === 'AbortError') {
+                return null;
+            }
+
+            return null;
+        }
+    };
+
+    const restoreDashboard = async () => {
+        setServiceCaseSearchQuery('');
+        clearLocalFilterState(card);
+        document.getElementById(EMPTY_ROW_ID)?.classList.add('d-none');
+
+        if (onRestoreDashboard) {
+            await onRestoreDashboard();
+        }
+
+        const result = {
+            visibleCount: getServiceCaseLoadedCount(),
+            totalCount: getServiceCaseFilterTotal(),
+        };
+
+        updateServiceCaseCountDisplay({ countElement, visibleCount: result.visibleCount });
+        onFilterApplied?.(result);
+
+        return result;
+    };
+
+    const reapply = ({ immediate = false, skipFetch = false } = {}) => {
+        const query = input.value;
+        const normalizedQuery = normalizeQuery(query);
+
+        const run = () => {
+            if (normalizedQuery === '') {
+                if (isDashboardQuickFilterActive()) {
+                    return restoreDashboard();
+                }
+
+                const emptyResult = applyLocalQuickFilterPresentation({ card, query, countElement });
+                onFilterApplied?.(emptyResult);
+
+                return emptyResult;
+            }
+
+            if (skipFetch && normalizedQuery === getServiceCaseSearchQuery()) {
+                const result = {
+                    visibleCount: getServiceCaseLoadedCount(),
+                    totalCount: getServiceCaseFilterTotal(),
+                };
+
+                updateServiceCaseCountDisplay({ countElement, visibleCount: result.visibleCount });
+                highlightSingleMatch(card);
+                onFilterApplied?.(result);
+
+                return result;
+            }
+
+            return fetchServerQuickFilter(query);
         };
 
         clearTimeout(debounceTimer);
@@ -261,7 +410,7 @@ export const initDashboardQuickFilter = ({
             return run();
         }
 
-        debounceTimer = setTimeout(run, LOCAL_DEBOUNCE_MS);
+        debounceTimer = setTimeout(run, normalizedQuery === '' ? LOCAL_DEBOUNCE_MS : SERVER_DEBOUNCE_MS);
     };
 
     const clearFilter = () => {
@@ -325,7 +474,7 @@ export const initDashboardQuickFilter = ({
     reapply({ immediate: true });
 
     return {
-        reapply: () => reapply({ immediate: true }),
+        reapply: () => reapply({ immediate: true, skipFetch: true }),
         clearFilter,
         getQuery: () => input.value,
         open: openQuickFilter,

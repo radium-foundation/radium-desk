@@ -2,6 +2,7 @@ const formatServiceCaseCount = (visibleCount, totalCount) => `${visibleCount} of
 
 let loadedCount = 0;
 let filterTotal = 0;
+let searchQuery = '';
 
 const getCard = () => document.querySelector('.dashboard-service-cases-card');
 
@@ -31,11 +32,22 @@ export const initServiceCasePaginationState = (pageRoot = document) => {
 
     loadedCount = Number(card?.dataset.serviceCasesLoaded ?? 0);
     filterTotal = Number(card?.dataset.serviceCaseFilterTotal ?? loadedCount);
+    searchQuery = '';
+
+    updateLoadMoreVisibility();
 };
 
 export const getServiceCaseLoadedCount = () => loadedCount;
 
 export const getServiceCaseFilterTotal = () => filterTotal;
+
+export const getServiceCaseSearchQuery = () => searchQuery;
+
+export const isDashboardQuickFilterActive = () => searchQuery.trim() !== '';
+
+export const setServiceCaseSearchQuery = (query = '') => {
+    searchQuery = query.trim();
+};
 
 export const setServiceCasePagination = ({ loaded, total } = {}) => {
     if (loaded !== undefined) {
@@ -68,9 +80,13 @@ export const updateServiceCaseCountDisplay = ({
         return;
     }
 
-    const visible = visibleCount ?? document.querySelectorAll(
-        'tr[id^="service-case-row-"]:not(.dashboard-case-row--filtered-out)',
-    ).length;
+    const visible = visibleCount ?? (
+        isDashboardQuickFilterActive()
+            ? loadedCount
+            : document.querySelectorAll(
+                'tr[id^="service-case-row-"]:not(.dashboard-case-row--filtered-out)',
+            ).length
+    );
 
     element.textContent = formatServiceCaseCount(visible, filterTotal);
 };
