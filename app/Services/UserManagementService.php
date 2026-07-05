@@ -168,14 +168,22 @@ class UserManagementService
         if ($actor->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
             return [
                 RolePermissionSeeder::ROLE_AGENT,
+                RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
+                RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+                RolePermissionSeeder::ROLE_HARDWARE_TEAM,
                 RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
                 RolePermissionSeeder::ROLE_SUPERADMIN,
             ];
         }
 
         return [
             RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
+            RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
             RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ];
     }
 

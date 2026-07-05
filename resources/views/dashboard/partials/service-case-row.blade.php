@@ -81,7 +81,7 @@
     </td>
     <td class="case-meta-cell dashboard-owner-cell dashboard-user-cell d-none d-md-table-cell">
         @if($serviceCase->assignee)
-            <x-dashboard-user-avatar :user="$serviceCase->assignee" aria-prefix="Owner" />
+            <x-dashboard-user-avatar :user="$serviceCase->assignee" aria-prefix="Assigned To" />
         @else
             —
         @endif

@@ -268,7 +268,7 @@ class OperationsAdvisorService
                     ServiceCaseSlaStatus::Warning,
                 ]),
                 supportingMetrics: $counts,
-                actionUrl: route('dashboard', ['filter' => $counts['overdue_cases'] > 0 ? 'overdue' : 'warning']),
+                actionUrl: route('dashboard', ['queue' => $counts['overdue_cases'] > 0 ? 'attention' : 'attention']),
             );
         }
 
@@ -299,7 +299,7 @@ class OperationsAdvisorService
                     'long_waiting_count' => $longWaiting->count(),
                     'minimum_days' => 3,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'needs_attention']),
+                actionUrl: route('dashboard', ['queue' => 'attention']),
             );
         }
 
@@ -342,7 +342,7 @@ class OperationsAdvisorService
                 supportingMetrics: [
                     'repeat_customer_count' => $count,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'high_priority']),
+                actionUrl: route('dashboard', ['queue' => 'attention']),
             );
         }
 
@@ -380,7 +380,7 @@ class OperationsAdvisorService
                     'premium_waiting_count' => $premiumWaiting->count(),
                     'longest_wait_days' => $waitingDays,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'pending_admin']),
+                actionUrl: route('dashboard', ['queue' => 'action_required']),
             );
         }
 
@@ -628,7 +628,7 @@ class OperationsAdvisorService
                     'team_average' => $average,
                     'overload_threshold' => $threshold,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'my_cases']),
+                actionUrl: route('dashboard', ['queue' => 'my_work']),
             );
         }
 
@@ -659,7 +659,7 @@ class OperationsAdvisorService
                     'stale_assignment_count' => $staleAssignments->count(),
                     'stale_days' => 5,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'needs_attention']),
+                actionUrl: route('dashboard', ['queue' => 'attention']),
             );
         }
 
@@ -702,7 +702,7 @@ class OperationsAdvisorService
                 supportingMetrics: [
                     'amc_opportunity_count' => $count,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'pending_admin']),
+                actionUrl: route('dashboard', ['queue' => 'action_required']),
             );
         }
 
@@ -730,7 +730,7 @@ class OperationsAdvisorService
                 supportingMetrics: [
                     'expired_warranty_open_cases' => $expiredWarrantyCount,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'pending_admin']),
+                actionUrl: route('dashboard', ['queue' => 'action_required']),
             );
         }
 
@@ -762,7 +762,7 @@ class OperationsAdvisorService
                 supportingMetrics: [
                     'repeat_repair_customer_count' => $count,
                 ],
-                actionUrl: route('dashboard', ['filter' => 'needs_attention']),
+                actionUrl: route('dashboard', ['queue' => 'attention']),
             );
         }
 

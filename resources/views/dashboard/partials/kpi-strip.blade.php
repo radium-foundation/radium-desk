@@ -6,15 +6,7 @@
     $items = [];
     $dashboardPersonalization = app(\App\Services\DashboardPersonalizationService::class);
     $currentUser = auth()->user();
-    $resolvedDashboardView = request()->query('view') ?: $dashboardPersonalization->defaultViewFor($currentUser);
-    $defaultDashboardView = $dashboardPersonalization->defaultViewFor($currentUser);
-    $openCasesParams = ['filter' => 'all'];
-
-    if ($resolvedDashboardView !== $defaultDashboardView) {
-        $openCasesParams['view'] = $resolvedDashboardView;
-    }
-
-    $openCasesHref = route('dashboard', $openCasesParams).'#dashboard-service-cases-panel';
+    $openCasesHref = route('dashboard', ['queue' => 'action_required']).'#dashboard-service-cases-panel';
 
     if (auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_AGENT)) {
         $items[] = [
@@ -29,14 +21,14 @@
             'value' => $stats['waiting_for_admin'],
             'icon' => 'bi-hourglass-split',
             'color' => 'warning',
-            'href' => route('dashboard', ['filter' => 'pending_admin']),
+            'href' => route('dashboard', ['queue' => 'action_required']),
         ];
         $items[] = [
             'label' => 'High Priority',
             'value' => $stats['high_priority_cases'],
             'icon' => 'bi-flag-fill',
             'color' => 'danger',
-            'href' => route('dashboard', ['filter' => 'high_priority']),
+            'href' => route('dashboard', ['queue' => 'attention']),
         ];
         $items[] = [
             'label' => 'Total Active Cases',
@@ -82,7 +74,7 @@
             'value' => $stats['overdue_cases'],
             'icon' => 'bi-exclamation-octagon-fill',
             'color' => 'danger',
-            'href' => route('dashboard', ['filter' => 'overdue']),
+            'href' => route('dashboard', ['queue' => 'attention']),
         ];
     }
 
@@ -92,7 +84,7 @@
             'value' => $stats['warning_cases'],
             'icon' => 'bi-exclamation-triangle-fill',
             'color' => 'warning',
-            'href' => route('dashboard', ['filter' => 'warning']),
+            'href' => route('dashboard', ['queue' => 'attention']),
         ];
     }
 

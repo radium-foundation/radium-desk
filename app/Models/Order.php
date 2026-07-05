@@ -95,6 +95,17 @@ class Order extends Model
         return str_starts_with(strtoupper(trim($orderId)), 'INQ-');
     }
 
+    public static function isHardwareOrderId(?string $orderId): bool
+    {
+        if ($orderId === null || trim($orderId) === '') {
+            return false;
+        }
+
+        $prefix = strtoupper((string) config('operations.hardware_order_prefix', 'RDE'));
+
+        return str_starts_with(strtoupper(trim($orderId)), $prefix);
+    }
+
     public static function inquiryOrderIdFromReference(string $reference): string
     {
         $normalized = strtoupper(trim($reference));

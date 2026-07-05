@@ -15,6 +15,32 @@ class RolePermissionSeeder extends Seeder
 
     public const ROLE_AGENT = 'agent';
 
+    public const ROLE_OPERATIONS_ADMIN = 'operations_admin';
+
+    public const ROLE_SUPPORT_SPECIALIST = 'support_specialist';
+
+    public const ROLE_CUSTOMER_COORDINATOR = 'customer_coordinator';
+
+    public const ROLE_HARDWARE_TEAM = 'hardware_team';
+
+    /**
+     * @var list<string>
+     */
+    public const SUPPORT_TEAM_ROLES = [
+        self::ROLE_AGENT,
+        self::ROLE_SUPPORT_SPECIALIST,
+        self::ROLE_CUSTOMER_COORDINATOR,
+    ];
+
+    /**
+     * @var list<string>
+     */
+    public const ADMIN_TEAM_ROLES = [
+        self::ROLE_ADMIN,
+        self::ROLE_OPERATIONS_ADMIN,
+        self::ROLE_SUPERADMIN,
+    ];
+
     /**
      * @var array<string, list<string>>
      */
@@ -30,7 +56,62 @@ class RolePermissionSeeder extends Seeder
             'refunds.view',
             'refunds.create',
         ],
+        self::ROLE_SUPPORT_SPECIALIST => [
+            'orders.view',
+            'incidents.view',
+            'incidents.create',
+            'incidents.update',
+            'remarks.view',
+            'remarks.create',
+            'approvals.view',
+            'refunds.view',
+            'refunds.create',
+        ],
+        self::ROLE_CUSTOMER_COORDINATOR => [
+            'orders.view',
+            'incidents.view',
+            'incidents.create',
+            'incidents.update',
+            'remarks.view',
+            'remarks.create',
+            'approvals.view',
+            'refunds.view',
+            'refunds.create',
+        ],
+        self::ROLE_HARDWARE_TEAM => [
+            'dashboard.hardware.view',
+            'orders.view',
+            'orders.update',
+            'incidents.view',
+            'incidents.update',
+            'remarks.view',
+            'remarks.create',
+        ],
         self::ROLE_ADMIN => [
+            'dashboard.hardware.view',
+            'orders.view',
+            'orders.create',
+            'orders.update',
+            'incidents.view',
+            'incidents.create',
+            'incidents.update',
+            'remarks.view',
+            'remarks.create',
+            'approvals.view',
+            'approvals.create',
+            'approvals.link',
+            'refunds.view',
+            'refunds.create',
+            'refunds.review',
+            'audit-logs.view',
+            'automation-operations.view',
+            'operations-dashboard.view',
+            'system-settings.manage',
+            'cashfree-webhook-logs.view',
+            'users.view',
+            'users.manage',
+        ],
+        self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
             'orders.view',
             'orders.create',

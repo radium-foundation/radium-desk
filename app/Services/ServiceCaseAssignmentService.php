@@ -393,6 +393,9 @@ class ServiceCaseAssignmentService
                 $this->dashboardBroadcastService->serviceCaseAssigned($freshIncident, $actor);
             }
 
+            app(\App\Services\Operations\TeamMemberActivityService::class)->recordCaseAction($actor);
+            app(\App\Services\Operations\TeamMemberActivityService::class)->recordStatusChange($assignee);
+
             return $freshIncident;
         });
     }

@@ -8,7 +8,7 @@
         ['label' => 'Waiting for Customer Serial', 'key' => 'waiting_for_customer_serial', 'icon' => 'bi-keyboard', 'color' => 'info'],
         ['label' => 'Validation Failed', 'key' => 'validation_failed', 'icon' => 'bi-exclamation-circle', 'color' => 'danger'],
         ['label' => 'Waiting RadiumBox', 'key' => 'radiumbox_pending', 'icon' => 'bi-cloud-arrow-down', 'color' => 'secondary'],
-        ['label' => 'Assigned to Agent', 'key' => 'assigned_to_agent', 'icon' => 'bi-person-check', 'color' => 'primary'],
+        ['label' => 'Assigned To', 'key' => 'assigned_to_agent', 'icon' => 'bi-person-check', 'color' => 'primary'],
         ['label' => 'Assigned to Admin', 'key' => 'assigned_to_admin', 'icon' => 'bi-shield-check', 'color' => 'primary'],
         ['label' => 'Unassigned', 'key' => 'unassigned', 'icon' => 'bi-person-dash', 'color' => 'secondary'],
         ['label' => 'Grace Expired', 'key' => 'grace_expired', 'icon' => 'bi-clock-history', 'color' => 'danger'],

@@ -19,7 +19,7 @@ enum ServiceCaseAutomationStatus: string
             self::WaitingRadiumbox => 'Waiting for RadiumBox',
             self::WaitingForCustomerSerial => 'Waiting for Customer Serial',
             self::ValidationFailed => 'Validation failed',
-            self::AssignedToAgent => 'Assigned to agent',
+            self::AssignedToAgent => 'Assigned to team member',
             self::AssignedToAdmin => 'Assigned to admin',
             self::Completed => 'Completed',
         };

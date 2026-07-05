@@ -14,7 +14,7 @@ enum TimelineActorKind: string
         return match ($this) {
             self::System => 'System',
             self::Customer => 'Customer',
-            self::Agent => 'Agent',
+            self::Agent => 'Team Member',
             self::Automation => 'Automation',
         };
     }

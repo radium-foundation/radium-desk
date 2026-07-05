@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\TrackTeamMemberActivity;
 use App\Services\SystemSettingsService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
@@ -26,6 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
+
+        $middleware->appendToGroup('web', TrackTeamMemberActivity::class);
     })
     ->withSchedule(function (Schedule $schedule): void {
         $schedule->command('queue:work --stop-when-empty --max-time=55')

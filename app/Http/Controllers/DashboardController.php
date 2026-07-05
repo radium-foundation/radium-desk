@@ -18,26 +18,23 @@ class DashboardController extends Controller
     public function index(Request $request): View|RedirectResponse
     {
         $user = $request->user();
-        $viewResolution = $this->dashboardPersonalization->resolveView(
+        $legacyView = $request->query('view');
+        $legacyFilter = $request->query('filter');
+        $requestedQueue = $request->query('queue');
+
+        $queueResolution = $this->dashboardPersonalization->resolveQueue(
             $user,
-            $request->query('view'),
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
         );
-        $dashboardView = $viewResolution['view'];
+        $operationQueue = $queueResolution['queue'];
 
-        $defaultFilter = $this->dashboardPersonalization->defaultFilterFor($user, $dashboardView);
-        $filter = $request->string('filter')->toString() ?: $defaultFilter;
-        $availableFilters = $this->dashboardPersonalization->availableFiltersFor($user);
-
-        if (! in_array($filter, $availableFilters, true)) {
-            $filter = $defaultFilter;
-        }
-
-        if ($viewResolution['redirect']) {
-            $redirect = $this->dashboardPersonalization->redirectToResolvedView(
+        if ($queueResolution['redirect']) {
+            $redirect = $this->dashboardPersonalization->redirectToResolvedQueue(
                 $request,
                 $user,
-                $dashboardView,
-                $filter,
+                $operationQueue,
             );
 
             if ($redirect !== null) {
@@ -45,19 +42,17 @@ class DashboardController extends Controller
             }
         }
 
-        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
-        $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
+        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
+        $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
 
         $serviceCaseFilterCounts = $user->can('incidents.view')
-            && $this->dashboardPersonalization->showsServiceCasesPanel($dashboardView)
             ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
             : [];
 
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $recentServiceCases = $user->can('incidents.view')
-            && $this->dashboardPersonalization->showsServiceCasesPanel($dashboardView)
             ? $this->dashboardService->recentServiceCases(
-                $filter,
+                $operationQueue,
                 $pageSize,
                 $assignedTo,
                 $prioritizeRecentAssignments,
@@ -67,6 +62,7 @@ class DashboardController extends Controller
         $canManageTransactions = $user->hasAnyRole([
             \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
             \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ]);
 
         $reopenQuickCreate = (bool) session('reopen_quick_create', false);
@@ -76,18 +72,18 @@ class DashboardController extends Controller
             'reopenQuickCreate' => $reopenQuickCreate,
             'recentServiceCases' => $recentServiceCases,
             'serviceCaseFilterCounts' => $serviceCaseFilterCounts,
-            'serviceCaseTotalCount' => $serviceCaseFilterCounts[$filter] ?? $recentServiceCases->count(),
-            'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$filter] ?? $recentServiceCases->count()),
+            'serviceCaseTotalCount' => $serviceCaseFilterCounts[$operationQueue] ?? $recentServiceCases->count(),
+            'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$operationQueue] ?? $recentServiceCases->count()),
             'recentActivity' => $user->can('audit-logs.view')
                 ? $this->dashboardService->recentActivity()
                 : collect(),
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
-            'serviceCaseFilter' => $filter,
-            'dashboardView' => $dashboardView,
-            'dashboardModules' => $this->dashboardPersonalization->availableModulesFor($user),
-            'showsModuleNavigation' => $this->dashboardPersonalization->showsModuleNavigation($user),
-            'serviceCasePanelTitle' => $this->dashboardPersonalization->serviceCasePanelTitle($dashboardView),
-            'availableServiceCaseFilters' => $availableFilters,
+            'serviceCaseFilter' => $operationQueue,
+            'operationQueue' => $operationQueue,
+            'operationQueues' => $this->dashboardPersonalization->queueMetaFor($user),
+            'availableOperationQueues' => $this->dashboardPersonalization->availableQueuesFor($user),
+            'showsQueueNavigation' => $this->dashboardPersonalization->showsQueueNavigation($user),
+            'serviceCasePanelTitle' => $this->dashboardPersonalization->serviceCasePanelTitle($operationQueue),
             'assignedToScope' => $assignedTo,
             'canManageTransactions' => $canManageTransactions,
             'canReassignServiceCases' => $user->can('incidents.update'),
@@ -95,6 +91,7 @@ class DashboardController extends Controller
             'canShowServiceCaseActions' => $user->hasAnyRole([
                 \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
                 \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+                \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
             ]) || $user->can('create', \App\Models\Remark::class) || $user->can('incidents.update'),
             'enabledProducts' => app(\App\Services\SettingService::class)->enabledProductNames(),
             'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),

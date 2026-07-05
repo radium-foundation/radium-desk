@@ -2,11 +2,12 @@
 
 namespace App\Services\Dashboard;
 
-use App\Enums\IncidentStatus;
+use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Operations\OperationsQueueClassifier;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -15,23 +16,16 @@ class DashboardSnapshot
     /** @var Collection<int, Incident> */
     private Collection $activeIncidents;
 
-    /** @var Collection<int, Incident>|null */
-    private ?Collection $pendingAdminIncidents = null;
-
-    /** @var Collection<int, Incident>|null */
-    private ?Collection $completedIncidents = null;
-
-    /** @var Collection<int, Incident>|null */
-    private ?Collection $unassignedIncidents = null;
-
     /** @var array{overdue_cases: int, warning_cases: int}|null */
     private ?array $slaCounts = null;
 
-    /**
-     * @param  Collection<int, Incident>  $activeIncidents
-     */
-    public function __construct(Collection $activeIncidents)
-    {
+    /** @var array<string, Collection<int, Incident>>|null */
+    private ?array $queueIncidents = null;
+
+    public function __construct(
+        Collection $activeIncidents,
+        private readonly OperationsQueueClassifier $queueClassifier,
+    ) {
         $this->activeIncidents = $activeIncidents;
     }
 
@@ -45,9 +39,11 @@ class DashboardSnapshot
                     'creator',
                     'assignee.roles',
                     'activeWaitingState',
+                    'supportAppointments',
                 ])
-                ->whereIn('status', IncidentStatus::operationallyActive())
+                ->whereIn('status', \App\Enums\IncidentStatus::operationallyActive())
                 ->get(),
+            app(OperationsQueueClassifier::class),
         );
     }
 
@@ -57,72 +53,6 @@ class DashboardSnapshot
     public function activeIncidents(): Collection
     {
         return $this->activeIncidents;
-    }
-
-    /**
-     * @return Collection<int, Incident>
-     */
-    public function pendingAdmin(): Collection
-    {
-        if ($this->pendingAdminIncidents !== null) {
-            return $this->pendingAdminIncidents;
-        }
-
-        return $this->pendingAdminIncidents = $this->activeIncidents
-            ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin())
-            ->values();
-    }
-
-    /**
-     * @return Collection<int, Incident>
-     */
-    public function completed(): Collection
-    {
-        if ($this->completedIncidents !== null) {
-            return $this->completedIncidents;
-        }
-
-        return $this->completedIncidents = $this->activeIncidents
-            ->filter(fn (Incident $incident): bool => $incident->order !== null && $incident->order->isTransactionLocked())
-            ->values();
-    }
-
-    /**
-     * @return Collection<int, Incident>
-     */
-    public function unassigned(): Collection
-    {
-        if ($this->unassignedIncidents !== null) {
-            return $this->unassignedIncidents;
-        }
-
-        return $this->unassignedIncidents = $this->activeIncidents
-            ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === null)
-            ->values();
-    }
-
-    /**
-     * @return Collection<int, Incident>
-     */
-    public function overdue(?Carbon $now = null): Collection
-    {
-        $now ??= now();
-
-        return $this->pendingAdmin()
-            ->filter(fn (Incident $incident): bool => $incident->slaStatus($now) === ServiceCaseSlaStatus::Overdue)
-            ->values();
-    }
-
-    /**
-     * @return Collection<int, Incident>
-     */
-    public function warning(?Carbon $now = null): Collection
-    {
-        $now ??= now();
-
-        return $this->pendingAdmin()
-            ->filter(fn (Incident $incident): bool => $incident->slaStatus($now) === ServiceCaseSlaStatus::Warning)
-            ->values();
     }
 
     /**
@@ -143,22 +73,65 @@ class DashboardSnapshot
     }
 
     /**
+     * @return Collection<int, Incident>
+     */
+    public function overdue(?Carbon $now = null): Collection
+    {
+        $now ??= now();
+
+        return $this->activeIncidents
+            ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin()
+                && $incident->slaStatus($now) === ServiceCaseSlaStatus::Overdue)
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, Incident>
+     */
+    public function warning(?Carbon $now = null): Collection
+    {
+        $now ??= now();
+
+        return $this->activeIncidents
+            ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin()
+                && $incident->slaStatus($now) === ServiceCaseSlaStatus::Warning)
+            ->values();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function queueCounts(?User $scopeUser = null): array
+    {
+        return collect(OperationQueue::cases())
+            ->mapWithKeys(fn (OperationQueue $queue): array => [
+                $queue->value => $this->incidentsForQueue($queue->value, $scopeUser)->count(),
+            ])
+            ->all();
+    }
+
+    /**
      * @return array<string, int>
      */
     public function filterCounts(?User $assignedTo = null, ?User $user = null): array
     {
-        return collect(['all', 'pending_admin', 'completed', 'high_priority', 'needs_attention', 'my_cases', 'pending_support'])
-            ->mapWithKeys(fn (string $key): array => [
-                $key => $this->incidentsForFilter(
-                    $key,
-                    match ($key) {
-                        'my_cases' => $user,
-                        'pending_support' => null,
-                        default => $assignedTo,
-                    },
-                )->count(),
-            ])
-            ->all();
+        return $this->queueCounts($assignedTo);
+    }
+
+    /**
+     * @return Collection<int, Incident>
+     */
+    public function incidentsForQueue(string $queue, ?User $scopeUser = null): Collection
+    {
+        $cached = $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] ?? null;
+
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        return $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] = $this->activeIncidents
+            ->filter(fn (Incident $incident): bool => $this->queueClassifier->matchesQueue($incident, $queue, $scopeUser))
+            ->values();
     }
 
     /**
@@ -166,51 +139,64 @@ class DashboardSnapshot
      */
     public function incidentsForFilter(string $filter, ?User $assignmentScope): Collection
     {
-        if ($filter === 'pending_support') {
-            return $this->applyFilter($filter, $this->unassigned());
+        $queue = $this->mapLegacyFilterToQueue($filter);
+
+        if ($filter === 'my_cases') {
+            return $this->incidentsForQueue(OperationQueue::MyWork->value, $assignmentScope);
         }
 
-        $incidents = $this->applyAssignmentScope($this->activeIncidents, $assignmentScope);
+        if (in_array($filter, ['overdue', 'warning'], true)) {
+            return $this->incidentsForQueue(OperationQueue::Attention->value, $assignmentScope)
+                ->filter(fn (Incident $incident): bool => $incident->slaStatus(now()) === match ($filter) {
+                    'overdue' => ServiceCaseSlaStatus::Overdue,
+                    default => ServiceCaseSlaStatus::Warning,
+                })
+                ->values();
+        }
 
-        return $this->applyFilter($filter, $incidents);
+        if ($filter === 'high_priority') {
+            return $this->incidentsForQueue(OperationQueue::Attention->value, $assignmentScope)
+                ->filter(fn (Incident $incident): bool => (bool) $incident->high_priority)
+                ->values();
+        }
+
+        if ($filter === 'all') {
+            return $this->activeIncidents
+                ->filter(fn (Incident $incident): bool => ! $this->queueClassifier->isCompleted($incident))
+                ->values();
+        }
+
+        if ($assignmentScope !== null && $queue !== OperationQueue::MyWork->value) {
+            return $this->incidentsForQueue($queue, $assignmentScope)
+                ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $assignmentScope->id)
+                ->values();
+        }
+
+        return $this->incidentsForQueue($queue, $this->scopeUserForQueue($queue, $assignmentScope));
     }
 
-    /**
-     * @param  Collection<int, Incident>  $incidents
-     * @return Collection<int, Incident>
-     */
-    private function applyAssignmentScope(Collection $incidents, ?User $assignmentScope): Collection
+    private function scopeUserForQueue(string $queue, ?User $assignmentScope): ?User
     {
-        if ($assignmentScope === null) {
-            return $incidents;
+        if ($queue === OperationQueue::MyWork->value) {
+            return $assignmentScope;
         }
 
-        return $incidents
-            ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $assignmentScope->id)
-            ->values();
+        return null;
     }
 
-    /**
-     * @param  Collection<int, Incident>  $incidents
-     * @return Collection<int, Incident>
-     */
-    private function applyFilter(string $filter, Collection $incidents): Collection
+    private function queueCacheKey(string $queue, ?User $scopeUser): string
+    {
+        return $queue.':'.($scopeUser?->id ?? 'all');
+    }
+
+    private function mapLegacyFilterToQueue(string $filter): string
     {
         return match ($filter) {
-            'pending_admin', 'overdue', 'warning' => $incidents
-                ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin())
-                ->values(),
-            'completed' => $incidents
-                ->filter(fn (Incident $incident): bool => $incident->order !== null && $incident->order->isTransactionLocked())
-                ->values(),
-            'high_priority' => $incidents
-                ->filter(fn (Incident $incident): bool => (bool) $incident->high_priority)
-                ->values(),
-            'needs_attention' => $incidents
-                ->filter(fn (Incident $incident): bool => $this->orderSerialMissing($incident->order))
-                ->values(),
-            'pending_support' => $incidents,
-            default => $incidents,
+            'completed' => OperationQueue::Completed->value,
+            'pending_support', 'needs_attention', 'overdue', 'warning', 'high_priority' => OperationQueue::Attention->value,
+            'pending_admin' => OperationQueue::ActionRequired->value,
+            'my_cases' => OperationQueue::MyWork->value,
+            default => OperationQueue::ActionRequired->value,
         };
     }
 

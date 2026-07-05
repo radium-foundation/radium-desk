@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\OperationQueue;
 use App\Models\User;
+use App\Services\Operations\OperationsRoleService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +19,20 @@ class DashboardPersonalizationService
 
     public const VIEW_HARDWARE_ORDERS = 'hardware_orders';
 
+    public const QUEUE_ACTION_REQUIRED = 'action_required';
+
+    public const QUEUE_SCHEDULED = 'scheduled';
+
+    public const QUEUE_WAITING_CUSTOMER = 'waiting_customer';
+
+    public const QUEUE_ATTENTION = 'attention';
+
+    public const QUEUE_HARDWARE = 'hardware';
+
+    public const QUEUE_COMPLETED = 'completed';
+
+    public const QUEUE_MY_WORK = 'my_work';
+
     public const PERMISSION_HARDWARE_VIEW = 'dashboard.hardware.view';
 
     /**
@@ -29,17 +45,184 @@ class DashboardPersonalizationService
         'dispatch',
     ];
 
-    public function defaultViewFor(User $user): string
+    public function __construct(
+        private readonly OperationsRoleService $operationsRoles,
+    ) {}
+
+    public function defaultQueueFor(User $user): string
     {
-        if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
-            return self::VIEW_ALL;
+        if ($this->operationsRoles->isHardwareTeam($user)) {
+            return self::QUEUE_HARDWARE;
         }
 
-        if ($user->hasRole(RolePermissionSeeder::ROLE_ADMIN)) {
-            return self::VIEW_TEAM;
+        if ($this->operationsRoles->usesAdminQueues($user)) {
+            return self::QUEUE_ACTION_REQUIRED;
         }
 
-        return self::VIEW_MY_WORK;
+        return self::QUEUE_MY_WORK;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function availableQueuesFor(User $user): array
+    {
+        if ($this->operationsRoles->usesAdminQueues($user)) {
+            $queues = [
+                self::QUEUE_ACTION_REQUIRED,
+                self::QUEUE_SCHEDULED,
+                self::QUEUE_WAITING_CUSTOMER,
+                self::QUEUE_ATTENTION,
+            ];
+
+            if ($this->canViewHardwareOrders($user)) {
+                $queues[] = self::QUEUE_HARDWARE;
+            }
+
+            $queues[] = self::QUEUE_COMPLETED;
+
+            return $queues;
+        }
+
+        if ($this->operationsRoles->isHardwareTeam($user)) {
+            return [
+                self::QUEUE_HARDWARE,
+                self::QUEUE_MY_WORK,
+                self::QUEUE_COMPLETED,
+            ];
+        }
+
+        return [
+            self::QUEUE_MY_WORK,
+            self::QUEUE_SCHEDULED,
+            self::QUEUE_WAITING_CUSTOMER,
+            self::QUEUE_COMPLETED,
+        ];
+    }
+
+    /**
+     * @return array<string, array{label: string, icon: string, tone: string}>
+     */
+    public function queueMetaFor(User $user): array
+    {
+        $meta = config('operations.queues', []);
+        $available = $this->availableQueuesFor($user);
+        $filtered = [];
+
+        foreach ($available as $queueKey) {
+            if (isset($meta[$queueKey])) {
+                $filtered[$queueKey] = $meta[$queueKey];
+            }
+        }
+
+        return $filtered;
+    }
+
+    public function showsQueueNavigation(User $user): bool
+    {
+        return $this->availableQueuesFor($user) !== [];
+    }
+
+    /**
+     * @return array{queue: string, redirect: bool}
+     */
+    public function resolveQueue(User $user, ?string $requestedQueue, ?string $legacyView = null, ?string $legacyFilter = null): array
+    {
+        $defaultQueue = $this->defaultQueueFor($user);
+        $availableQueues = $this->availableQueuesFor($user);
+        $normalized = $this->normalizeRequestedQueue($requestedQueue);
+
+        if ($normalized === null && ($legacyView !== null || $legacyFilter !== null)) {
+            $mapped = $this->mapLegacyNavigation($user, $legacyView, $legacyFilter);
+
+            if ($mapped !== null) {
+                $needsRedirect = $requestedQueue === null
+                    && ($legacyView !== null || ($legacyFilter !== null && $legacyFilter !== $this->legacyFilterForQueue($defaultQueue)));
+
+                return ['queue' => $mapped, 'redirect' => $needsRedirect];
+            }
+        }
+
+        if ($normalized === self::QUEUE_HARDWARE && ! $this->canViewHardwareOrders($user)) {
+            return ['queue' => $defaultQueue, 'redirect' => true];
+        }
+
+        if ($normalized === null) {
+            return ['queue' => $defaultQueue, 'redirect' => false];
+        }
+
+        if (! in_array($normalized, $availableQueues, true)) {
+            return ['queue' => $defaultQueue, 'redirect' => true];
+        }
+
+        return ['queue' => $normalized, 'redirect' => false];
+    }
+
+    public function normalizeRequestedQueue(?string $requestedQueue): ?string
+    {
+        if ($requestedQueue === null || $requestedQueue === '') {
+            return null;
+        }
+
+        if (in_array($requestedQueue, self::HARDWARE_VIEW_ALIASES, true)) {
+            return self::QUEUE_HARDWARE;
+        }
+
+        return $requestedQueue;
+    }
+
+    public function redirectToResolvedQueue(Request $request, User $user, string $queue): ?RedirectResponse
+    {
+        $params = [];
+
+        if ($queue !== $this->defaultQueueFor($user)) {
+            $params['queue'] = $queue;
+        }
+
+        $currentParams = array_filter([
+            'queue' => $request->query('queue'),
+            'view' => $request->query('view'),
+            'filter' => $request->query('filter'),
+        ], fn (mixed $value): bool => filled($value));
+
+        if ($params === [] && $currentParams === []) {
+            return null;
+        }
+
+        if ($params === [] && $currentParams !== []) {
+            return redirect()->route('dashboard');
+        }
+
+        if (($currentParams['queue'] ?? null) === ($params['queue'] ?? null) && ! isset($currentParams['view'], $currentParams['filter'])) {
+            return null;
+        }
+
+        return redirect()->route('dashboard', $params);
+    }
+
+    public function resolveAssignedToScope(User $user, string $queue): ?User
+    {
+        if ($queue === self::QUEUE_MY_WORK) {
+            return $user;
+        }
+
+        return null;
+    }
+
+    public function prioritizesRecentAssignments(string $queue): bool
+    {
+        return $queue === self::QUEUE_MY_WORK;
+    }
+
+    public function serviceCasePanelTitle(string $queue): string
+    {
+        return config("operations.queues.{$queue}.panel_title")
+            ?? config("operations.queues.{$queue}.label", 'Service Cases');
+    }
+
+    public function showsServiceCasesPanel(string $queue): bool
+    {
+        return $queue !== self::QUEUE_HARDWARE || ! $this->operationsRoles->isHardwareTeam(auth()->user());
     }
 
     public function canViewHardwareOrders(User $user): bool
@@ -47,37 +230,43 @@ class DashboardPersonalizationService
         return $user->can(self::PERMISSION_HARDWARE_VIEW);
     }
 
+    public function defaultViewFor(User $user): string
+    {
+        if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
+            return self::VIEW_ALL;
+        }
+
+        if ($user->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES)) {
+            return self::VIEW_TEAM;
+        }
+
+        return self::VIEW_MY_WORK;
+    }
+
+    public function defaultFilterFor(User $user, string $view): string
+    {
+        return $this->legacyFilterForQueue($this->defaultQueueFor($user));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function availableFiltersFor(User $user): array
+    {
+        return $this->availableQueuesFor($user);
+    }
+
     /**
      * @return array<string, array{label: string, icon: string}>
      */
     public function availableModulesFor(User $user): array
     {
-        $modules = config('ui.dashboard.modules', []);
-
-        if ($user->hasRole(RolePermissionSeeder::ROLE_AGENT)) {
-            $allowed = [self::VIEW_MY_WORK, self::VIEW_TEAM];
-
-            return $this->filterModules($modules, $allowed, $user);
-        }
-
-        if ($user->hasRole(RolePermissionSeeder::ROLE_ADMIN)) {
-            $allowed = [self::VIEW_MY_WORK, self::VIEW_TEAM, self::VIEW_HARDWARE_ORDERS];
-
-            return $this->filterModules($modules, $allowed, $user);
-        }
-
-        if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
-            $allowed = [self::VIEW_ALL, self::VIEW_TEAM, self::VIEW_HARDWARE_ORDERS];
-
-            return $this->filterModules($modules, $allowed, $user);
-        }
-
         return [];
     }
 
     public function showsModuleNavigation(User $user): bool
     {
-        return $this->availableModulesFor($user) !== [];
+        return false;
     }
 
     public function normalizeRequestedView(?string $requestedView): ?string
@@ -98,100 +287,22 @@ class DashboardPersonalizationService
      */
     public function resolveView(User $user, ?string $requestedView): array
     {
-        $normalized = $this->normalizeRequestedView($requestedView);
-        $defaultView = $this->defaultViewFor($user);
-        $availableViews = array_keys($this->availableModulesFor($user));
+        $queueResolution = $this->resolveQueue($user, null, $requestedView, null);
 
-        if ($normalized === self::VIEW_HARDWARE_ORDERS && ! $this->canViewHardwareOrders($user)) {
-            return ['view' => $defaultView, 'redirect' => true];
-        }
-
-        if ($normalized === null) {
-            return ['view' => $defaultView, 'redirect' => false];
-        }
-
-        if ($normalized === self::VIEW_HARDWARE_ORDERS) {
-            return ['view' => self::VIEW_HARDWARE_ORDERS, 'redirect' => false];
-        }
-
-        if (! in_array($normalized, $availableViews, true)) {
-            return ['view' => $defaultView, 'redirect' => true];
-        }
-
-        return ['view' => $normalized, 'redirect' => false];
+        return [
+            'view' => $this->legacyViewForQueue($queueResolution['queue']),
+            'redirect' => $queueResolution['redirect'],
+        ];
     }
 
     public function redirectToResolvedView(Request $request, User $user, string $view, string $filter): ?RedirectResponse
     {
-        $params = [];
+        $queue = $this->mapLegacyNavigation($user, $view, $filter) ?? $this->defaultQueueFor($user);
 
-        if ($view !== $this->defaultViewFor($user)) {
-            $params['view'] = $view;
-        }
-
-        if ($filter !== $this->defaultFilterFor($user, $view)) {
-            $params['filter'] = $filter;
-        }
-
-        if ($params === [] && $request->query() === []) {
-            return null;
-        }
-
-        if ($params === [] && $request->query() !== []) {
-            return redirect()->route('dashboard');
-        }
-
-        $currentParams = array_filter([
-            'view' => $request->query('view'),
-            'filter' => $request->query('filter'),
-        ], fn (mixed $value): bool => filled($value));
-
-        if ($currentParams === $params) {
-            return null;
-        }
-
-        return redirect()->route('dashboard', $params);
+        return $this->redirectToResolvedQueue($request, $user, $queue);
     }
 
-    public function defaultFilterFor(User $user, string $view): string
-    {
-        if ($user->hasRole(RolePermissionSeeder::ROLE_AGENT)) {
-            return 'pending_admin';
-        }
-
-        if ($view === self::VIEW_ALL) {
-            return 'all';
-        }
-
-        return 'pending_admin';
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function availableFiltersFor(User $user): array
-    {
-        if ($user->hasRole(RolePermissionSeeder::ROLE_AGENT)) {
-            return ['pending_admin', 'pending_support', 'high_priority', 'needs_attention', 'all', 'my_cases'];
-        }
-
-        return ['all', 'pending_admin', 'pending_support', 'completed', 'high_priority', 'needs_attention', 'my_cases', 'overdue', 'warning'];
-    }
-
-    public function resolveAssignedToScope(User $user, string $view, string $filter): ?User
-    {
-        if ($filter === 'my_cases') {
-            return $user;
-        }
-
-        if ($filter === 'pending_support') {
-            return null;
-        }
-
-        return $this->scopesServiceCasesToAssignee($view) ? $user : null;
-    }
-
-    public function serviceCasePanelTitle(string $view): string
+    public function serviceCasePanelTitleForView(string $view): string
     {
         return match ($view) {
             self::VIEW_MY_WORK => 'My Work',
@@ -206,14 +317,14 @@ class DashboardPersonalizationService
         return $view === self::VIEW_MY_WORK;
     }
 
-    public function prioritizesRecentAssignments(string $view): bool
+    public function prioritizesRecentAssignmentsForView(string $view): bool
     {
         return $view === self::VIEW_MY_WORK;
     }
 
-    public function showsServiceCasesPanel(string $view): bool
+    public function showsServiceCasesPanelForView(string $view): bool
     {
-        return in_array($view, [self::VIEW_ALL, self::VIEW_TEAM, self::VIEW_MY_WORK], true);
+        return $view !== self::VIEW_HARDWARE_ORDERS;
     }
 
     public function showsHardwareOrdersPanel(string $view): bool
@@ -221,25 +332,53 @@ class DashboardPersonalizationService
         return $view === self::VIEW_HARDWARE_ORDERS;
     }
 
-    /**
-     * @param  array<string, array{label: string, icon: string}>  $modules
-     * @param  list<string>  $allowed
-     * @return array<string, array{label: string, icon: string}>
-     */
-    private function filterModules(array $modules, array $allowed, User $user): array
+    private function mapLegacyNavigation(User $user, ?string $legacyView, ?string $legacyFilter): ?string
     {
-        $filtered = [];
+        $view = $this->normalizeRequestedView($legacyView);
+        $filter = filled($legacyFilter) ? $legacyFilter : null;
 
-        foreach ($allowed as $moduleKey) {
-            if ($moduleKey === self::VIEW_HARDWARE_ORDERS && ! $this->canViewHardwareOrders($user)) {
-                continue;
-            }
-
-            if (isset($modules[$moduleKey])) {
-                $filtered[$moduleKey] = $modules[$moduleKey];
-            }
+        if ($view === self::VIEW_HARDWARE_ORDERS || in_array((string) $legacyView, self::HARDWARE_VIEW_ALIASES, true)) {
+            return self::QUEUE_HARDWARE;
         }
 
-        return $filtered;
+        if ($filter === 'completed') {
+            return self::QUEUE_COMPLETED;
+        }
+
+        if (in_array($filter, ['needs_attention', 'overdue', 'warning', 'high_priority', 'pending_support'], true)) {
+            return self::QUEUE_ATTENTION;
+        }
+
+        if ($view === self::VIEW_MY_WORK || $filter === 'my_cases') {
+            return self::QUEUE_MY_WORK;
+        }
+
+        if ($filter === 'pending_admin' || $filter === 'all' || $view === self::VIEW_ALL || $view === self::VIEW_TEAM) {
+            return $this->operationsRoles->usesAdminQueues($user)
+                ? self::QUEUE_ACTION_REQUIRED
+                : self::QUEUE_MY_WORK;
+        }
+
+        return null;
+    }
+
+    private function legacyFilterForQueue(string $queue): string
+    {
+        return match ($queue) {
+            self::QUEUE_COMPLETED => 'completed',
+            self::QUEUE_ATTENTION => 'needs_attention',
+            self::QUEUE_MY_WORK => 'my_cases',
+            self::QUEUE_HARDWARE => 'all',
+            default => 'pending_admin',
+        };
+    }
+
+    private function legacyViewForQueue(string $queue): string
+    {
+        return match ($queue) {
+            self::QUEUE_HARDWARE => self::VIEW_HARDWARE_ORDERS,
+            self::QUEUE_MY_WORK => self::VIEW_MY_WORK,
+            default => self::VIEW_ALL,
+        };
     }
 }

@@ -317,16 +317,15 @@ export const initDashboardQuickFilter = ({
 
         setServiceCaseSearchQuery(normalizedQuery);
 
-        const filter = pageRoot.dataset.liveFilter ?? card.dataset.serviceCaseFilter ?? 'pending_admin';
-        const view = pageRoot.dataset.liveView ?? 'all';
+        const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? card.dataset.serviceCaseFilter ?? 'action_required';
         const params = new URLSearchParams({
-            filter,
+            queue,
             offset: '0',
             q: normalizedQuery,
         });
 
-        if (view && view !== 'all') {
-            params.set('view', view);
+        if (! pageRoot.dataset.liveQueue && pageRoot.dataset.liveFilter) {
+            params.set('filter', pageRoot.dataset.liveFilter);
         }
 
         try {

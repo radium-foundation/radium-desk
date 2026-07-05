@@ -21,7 +21,7 @@
                                 <th>Order</th>
                                 <th>Customer</th>
                                 <th>Product</th>
-                                <th>Current Agent</th>
+                                <th>Assigned To</th>
                                 <th>Age</th>
                             </tr>
                         </thead>

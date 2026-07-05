@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\OperationQueue;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Enums\ServiceCaseSlaStatus;
@@ -318,7 +319,10 @@ class DashboardService
         bool $prioritizeRecentAssignments,
         ?string $searchQuery = null,
     ): Collection {
-        $incidents = $this->snapshot()->incidentsForFilter($filter, $assignedTo);
+        $snapshot = $this->snapshot();
+        $incidents = OperationQueue::tryFrom($filter) !== null
+            ? $snapshot->incidentsForQueue($filter, $assignedTo)
+            : $snapshot->incidentsForFilter($filter, $assignedTo);
 
         $incidents = match ($filter) {
             'overdue' => $this->filterIncidentsBySlaStatus($incidents, ServiceCaseSlaStatus::Overdue),

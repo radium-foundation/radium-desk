@@ -30,11 +30,13 @@ const shouldRemoveRowForFilter = (pageRoot, payload) => {
         return false;
     }
 
-    const filter = pageRoot.dataset.liveFilter ?? 'pending_admin';
+    const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? 'action_required';
 
-    return filter === 'pending_admin'
-        || filter === 'overdue'
-        || filter === 'warning';
+    return queue === 'action_required'
+        || queue === 'attention'
+        || queue === 'pending_admin'
+        || queue === 'overdue'
+        || queue === 'warning';
 };
 
 const handleServiceCaseEvent = async (pageRoot, payload) => {

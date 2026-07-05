@@ -168,7 +168,9 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
         setServiceCasePagination({
             loaded: data.loaded_count ?? (data.rows?.length ?? 0),
             total: data.total_count ?? data.service_case_filter_counts?.[
-                document.getElementById('dashboard-page')?.dataset.liveFilter ?? 'pending_admin'
+                document.getElementById('dashboard-page')?.dataset.liveQueue
+                    ?? document.getElementById('dashboard-page')?.dataset.liveFilter
+                    ?? 'action_required'
             ],
         });
 
@@ -229,8 +231,7 @@ const flushPendingDashboardRefresh = async () => {
 
 const refreshDashboard = async (pageRoot) => {
     const liveUrl = pageRoot.dataset.liveUrl;
-    const filter = pageRoot.dataset.liveFilter ?? 'pending_admin';
-    const view = pageRoot.dataset.liveView ?? 'all';
+    const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? 'action_required';
 
     if (!liveUrl || document.hidden || refreshInFlight || isDashboardSearchActive() || isDashboardQuickFilterActive()) {
         return;
@@ -239,17 +240,17 @@ const refreshDashboard = async (pageRoot) => {
     refreshInFlight = true;
 
     try {
-        const query = new URLSearchParams({ filter });
+        const query = new URLSearchParams({ queue });
+
+        if (! pageRoot.dataset.liveQueue && pageRoot.dataset.liveFilter) {
+            query.set('filter', pageRoot.dataset.liveFilter);
+        }
         const loadedCount = Number(
             pageRoot.querySelector('.dashboard-service-cases-card')?.dataset.serviceCasesLoaded ?? 0,
         );
 
         if (loadedCount > 0) {
             query.set('limit', String(loadedCount));
-        }
-
-        if (view && view !== 'all') {
-            query.set('view', view);
         }
 
         const response = await fetch(`${liveUrl}?${query.toString()}`, {

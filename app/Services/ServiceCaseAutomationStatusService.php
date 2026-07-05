@@ -98,12 +98,17 @@ class ServiceCaseAutomationStatusService
         return $user->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ]);
     }
 
     private function isAgentUser(\App\Models\User $user): bool
     {
-        return $user->hasRole(RolePermissionSeeder::ROLE_AGENT)
+        return $user->hasAnyRole([
+            RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
+            RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+        ])
             && ! $this->isAdminUser($user);
     }
 }

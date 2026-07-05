@@ -6,7 +6,7 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
         <div>
             <h1 class="h3 mb-1">Users</h1>
-            <p class="text-muted mb-0">Manage agents, admins, and account access.</p>
+            <p class="text-muted mb-0">Manage team members, admins, and account access.</p>
         </div>
         @can('create', App\Models\User::class)
             <a href="{{ route('users.create') }}" class="btn btn-primary">
@@ -92,7 +92,7 @@
                                     <td>{{ $user->email }}</td>
                                     <td>
                                         @foreach($user->roles as $role)
-                                            <span class="badge text-bg-secondary">{{ ucfirst($role->name) }}</span>
+                                            <span class="badge text-bg-secondary">{{ app(\App\Services\Operations\OperationsRoleService::class)->displayLabel($role->name) }}</span>
                                         @endforeach
                                     </td>
                                     <td>

@@ -19,7 +19,7 @@
                         <th>Issue Summary</th>
                         <th>Status</th>
                         <th>Created</th>
-                        <th>Assigned Agent</th>
+                        <th>Assigned To</th>
                     </tr>
                 </thead>
                 <tbody>

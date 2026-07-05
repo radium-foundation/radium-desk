@@ -4,12 +4,12 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Enums\WorkspaceContext;
-use App\Services\IncidentReferenceService;
 use App\Services\DashboardPersonalizationService;
+use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -44,7 +44,7 @@ class DashboardTest extends TestCase
         $response->assertSee('Dashboard');
     }
 
-    public function test_agent_dashboard_shows_my_work_and_team_tabs_without_hardware_orders(): void
+    public function test_agent_dashboard_shows_operation_queues_without_module_tabs(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -57,34 +57,32 @@ class DashboardTest extends TestCase
             ->assertSee('Pending Refunds')
             ->assertSee('Pending Approvals')
             ->assertSee('My Work')
-            ->assertSee('dashboard-module-nav', false)
-            ->assertSee('>My Work<', false)
-            ->assertSee('>Team<', false)
-            ->assertDontSee(route('dashboard', ['view' => 'hardware_orders']), false)
-            ->assertDontSee('>Warehouse<', false)
-            ->assertDontSee('>Dispatch<', false);
+            ->assertSee('Waiting Customer')
+            ->assertSee('dashboard-operation-queues', false)
+            ->assertDontSee('dashboard-module-nav', false)
+            ->assertDontSee('>Team<', false)
+            ->assertDontSee('>Hardware Orders<', false);
     }
 
-    public function test_agent_can_switch_to_team_view(): void
+    public function test_agent_can_open_waiting_customer_queue(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['view' => 'team']))
+            ->get(route('dashboard', ['queue' => 'waiting_customer']))
             ->assertOk()
-            ->assertSee('Team Service Cases')
-            ->assertSee('>Team<', false)
+            ->assertSee('Waiting Customer')
             ->assertSee('aria-selected="true"', false);
     }
 
-    public function test_agent_is_redirected_from_unauthorized_hardware_view(): void
+    public function test_agent_is_redirected_from_unauthorized_hardware_queue(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['view' => 'hardware']))
+            ->get(route('dashboard', ['queue' => 'hardware']))
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasNoErrors();
 
@@ -93,7 +91,7 @@ class DashboardTest extends TestCase
             ->assertRedirect(route('dashboard'));
     }
 
-    public function test_admin_dashboard_defaults_to_team_view_with_personalization_tabs(): void
+    public function test_admin_dashboard_defaults_to_action_required_queue(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -101,16 +99,15 @@ class DashboardTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('dashboard-module-nav', false)
-            ->assertSee('Team Service Cases')
-            ->assertSee('>My Work<', false)
-            ->assertSee('>Team<', false)
-            ->assertSee('>Hardware Orders<', false)
+            ->assertSee('Action Required')
+            ->assertSee('Attention')
+            ->assertSee('Hardware')
+            ->assertDontSee('dashboard-module-nav', false)
             ->assertSee('aria-selected="true"', false)
-            ->assertSee('>Team<', false);
+            ->assertSee('>Action Required<', false);
     }
 
-    public function test_superadmin_dashboard_defaults_to_all_work(): void
+    public function test_superadmin_dashboard_uses_admin_operation_queues(): void
     {
         $superadmin = User::factory()->create();
         $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
@@ -118,23 +115,21 @@ class DashboardTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('All Service Cases')
-            ->assertSee('>All<', false)
-            ->assertSee('>Team<', false)
-            ->assertSee('>Hardware Orders<', false);
+            ->assertSee('Action Required')
+            ->assertSee('Hardware')
+            ->assertDontSee('>Team<', false);
     }
 
-    public function test_admin_can_open_hardware_orders_view_with_permission(): void
+    public function test_admin_can_open_hardware_queue_with_permission(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['view' => 'hardware_orders']))
+            ->get(route('dashboard', ['queue' => 'hardware']))
             ->assertOk()
-            ->assertSee('Order fulfillment stages such as warehouse and dispatch will be managed here.')
-            ->assertDontSee('Team Service Cases')
-            ->assertDontSee('dashboard-cases-title', false);
+            ->assertSee('Hardware')
+            ->assertSee('aria-selected="true"', false);
     }
 
     public function test_hardware_view_permission_is_assigned_by_role_not_username(): void
@@ -153,7 +148,7 @@ class DashboardTest extends TestCase
         ]);
     }
 
-    public function test_agent_dashboard_only_shows_cases_assigned_to_them(): void
+    public function test_agent_dashboard_only_shows_cases_assigned_to_them_in_my_work_queue(): void
     {
         $agent = User::factory()->create(['name' => 'Jayram Agent']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -207,21 +202,17 @@ class DashboardTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dashboard_legacy_warehouse_view_maps_to_hardware_orders_for_admin(): void
+    public function test_dashboard_legacy_warehouse_view_redirects_to_hardware_queue_for_admin(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $this->actingAs($admin)
             ->get(route('dashboard', ['view' => 'warehouse']))
-            ->assertOk()
-            ->assertSee('Order fulfillment stages such as warehouse and dispatch will be managed here.')
-            ->assertDontSee('Team Service Cases')
-            ->assertSee('aria-selected="true"', false)
-            ->assertSee('>Hardware Orders<', false);
+            ->assertRedirect(route('dashboard', ['queue' => 'hardware']));
     }
 
-    public function test_user_without_hardware_permission_is_redirected_from_hardware_view(): void
+    public function test_user_without_hardware_permission_is_redirected_from_hardware_queue(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -229,7 +220,7 @@ class DashboardTest extends TestCase
             ->revokePermissionTo(DashboardPersonalizationService::PERMISSION_HARDWARE_VIEW);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['view' => 'hardware']))
+            ->get(route('dashboard', ['queue' => 'hardware']))
             ->assertRedirect(route('dashboard'));
     }
 

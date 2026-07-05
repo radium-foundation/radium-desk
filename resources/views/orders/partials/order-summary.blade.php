@@ -1,6 +1,6 @@
 @php
     $latestIncident = $order->latestIncident();
-    $assignedAgent = $activeIncident?->assignee?->firstName()
+    $assignedTeamMember = $activeIncident?->assignee?->firstName()
         ?? $latestIncident?->assignee?->firstName()
         ?? '—';
 @endphp
@@ -43,8 +43,8 @@
                         <div class="fw-semibold">{{ $latestIncident ? display_app_date($latestIncident->created_at) : '—' }}</div>
                     </div>
                     <div class="col-6">
-                        <span class="text-muted">Assigned Agent</span>
-                        <div class="fw-semibold">{{ $assignedAgent }}</div>
+                        <span class="text-muted">Assigned To</span>
+                        <div class="fw-semibold">{{ $assignedTeamMember }}</div>
                     </div>
                 </div>
             </div>

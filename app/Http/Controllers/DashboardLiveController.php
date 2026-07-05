@@ -18,41 +18,24 @@ class DashboardLiveController extends Controller
     public function refresh(Request $request): JsonResponse
     {
         $user = $request->user();
-        $viewResolution = $this->dashboardPersonalization->resolveView(
+        $legacyView = $request->query('view');
+        $legacyFilter = $request->query('filter');
+        $requestedQueue = $request->query('queue');
+
+        $queueResolution = $this->dashboardPersonalization->resolveQueue(
             $user,
-            $request->query('view'),
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
         );
-        $dashboardView = $viewResolution['view'];
+        $operationQueue = $queueResolution['queue'];
 
-        if ($this->dashboardPersonalization->showsHardwareOrdersPanel($dashboardView)) {
-            $stats = $this->dashboardService->statsFor($user);
-
-            return response()->json([
-                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats),
-                'online_count' => $stats['online_count'],
-                'online_users' => $this->dashboardService->onlineUsersPayload($stats),
-                'service_case_filter_counts' => [],
-                'service_cases_empty' => true,
-                'service_cases_empty_html' => '',
-                'rows' => [],
-                'incident_ids' => [],
-            ]);
-        }
-
-        $defaultFilter = $this->dashboardPersonalization->defaultFilterFor($user, $dashboardView);
-        $filter = $request->string('filter')->toString() ?: $defaultFilter;
-        $availableFilters = $this->dashboardPersonalization->availableFiltersFor($user);
-
-        if (! in_array($filter, $availableFilters, true)) {
-            $filter = $defaultFilter;
-        }
-
-        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
-        $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
+        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
+        $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
-        return DB::transaction(function () use ($user, $filter, $assignedTo, $prioritizeRecentAssignments, $limit): JsonResponse {
+        return DB::transaction(function () use ($user, $operationQueue, $assignedTo, $prioritizeRecentAssignments, $limit): JsonResponse {
             $filterCounts = $user->can('incidents.view')
                 ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
                 : [];
@@ -60,7 +43,7 @@ class DashboardLiveController extends Controller
             $serviceCasesPayload = $user->can('incidents.view')
                 ? $this->dashboardService->serviceCasesPayload(
                     $user,
-                    $filter,
+                    $operationQueue,
                     $assignedTo,
                     $prioritizeRecentAssignments,
                     $limit,

@@ -80,21 +80,20 @@ class DashboardServiceCaseController extends Controller
             ]);
         }
 
-        $viewResolution = $this->dashboardPersonalization->resolveView(
+        $legacyView = $request->query('view');
+        $legacyFilter = $request->query('filter');
+        $requestedQueue = $request->query('queue');
+
+        $queueResolution = $this->dashboardPersonalization->resolveQueue(
             $user,
-            $request->query('view'),
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
         );
-        $dashboardView = $viewResolution['view'];
-        $defaultFilter = $this->dashboardPersonalization->defaultFilterFor($user, $dashboardView);
-        $filter = $request->string('filter')->toString() ?: $defaultFilter;
-        $availableFilters = $this->dashboardPersonalization->availableFiltersFor($user);
+        $operationQueue = $queueResolution['queue'];
 
-        if (! in_array($filter, $availableFilters, true)) {
-            $filter = $defaultFilter;
-        }
-
-        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $dashboardView, $filter);
-        $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($dashboardView);
+        $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
+        $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
         $searchQuery = trim($request->string('q')->toString());
         $offset = max(0, $request->integer('offset', 0));
         $pageSize = $offset === 0 && $searchQuery !== ''
@@ -103,7 +102,7 @@ class DashboardServiceCaseController extends Controller
 
         $payload = $this->dashboardService->serviceCasesPayload(
             $user,
-            $filter,
+            $operationQueue,
             $assignedTo,
             $prioritizeRecentAssignments,
             $pageSize,

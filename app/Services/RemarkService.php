@@ -49,6 +49,7 @@ class RemarkService
 
         if ($remarkable instanceof \App\Models\Incident) {
             $this->dashboardBroadcastService->serviceCaseRemarked($remarkable, $actor);
+            app(\App\Services\Operations\TeamMemberActivityService::class)->recordCaseAction($actor);
         }
 
         return $remark;

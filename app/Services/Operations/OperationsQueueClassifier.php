@@ -1,0 +1,154 @@
+<?php
+
+namespace App\Services\Operations;
+
+use App\Enums\OperationQueue;
+use App\Enums\ServiceCaseAutomationStatus;
+use App\Enums\ServiceCaseSlaStatus;
+use App\Models\Incident;
+use App\Models\Order;
+use App\Models\User;
+use App\Services\ServiceCaseAutomationStatusService;
+
+class OperationsQueueClassifier
+{
+    public function __construct(
+        private readonly ServiceCaseAutomationStatusService $automationStatusService,
+    ) {}
+
+    public function classify(Incident $incident): OperationQueue
+    {
+        if ($this->isCompleted($incident)) {
+            return OperationQueue::Completed;
+        }
+
+        if ($this->isHardware($incident)) {
+            return OperationQueue::Hardware;
+        }
+
+        if ($this->isWaitingCustomer($incident)) {
+            return OperationQueue::WaitingCustomer;
+        }
+
+        if ($this->isScheduled($incident)) {
+            return OperationQueue::Scheduled;
+        }
+
+        if ($this->isAttention($incident)) {
+            return OperationQueue::Attention;
+        }
+
+        return OperationQueue::ActionRequired;
+    }
+
+    public function matchesQueue(Incident $incident, OperationQueue|string $queue, ?User $scopeUser = null): bool
+    {
+        $queueValue = $queue instanceof OperationQueue ? $queue->value : $queue;
+
+        if ($queueValue === OperationQueue::MyWork->value) {
+            if ($scopeUser === null || $incident->assigned_to_user_id !== $scopeUser->id) {
+                return false;
+            }
+
+            return $this->classify($incident) === OperationQueue::ActionRequired;
+        }
+
+        return $this->classify($incident)->value === $queueValue;
+    }
+
+    public function isCompleted(Incident $incident): bool
+    {
+        if (! $incident->isActive()) {
+            return true;
+        }
+
+        return $incident->order !== null && $incident->order->isTransactionLocked();
+    }
+
+    public function isHardware(Incident $incident): bool
+    {
+        return Order::isHardwareOrderId($incident->order?->order_id);
+    }
+
+    public function isWaitingCustomer(Incident $incident): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        $waitingState = $incident->relationLoaded('activeWaitingState')
+            ? $incident->activeWaitingState
+            : $incident->activeWaitingState()->first();
+
+        if ($waitingState !== null && $waitingState->isActive()) {
+            return true;
+        }
+
+        if ($incident->order === null) {
+            return false;
+        }
+
+        return $this->automationStatusService->statusFor($incident) === ServiceCaseAutomationStatus::WaitingForCustomerSerial;
+    }
+
+    public function isScheduled(Incident $incident): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        $appointments = $incident->relationLoaded('supportAppointments')
+            ? $incident->supportAppointments
+            : $incident->supportAppointments()->get();
+
+        if ($appointments->isEmpty()) {
+            return false;
+        }
+
+        $today = now()->startOfDay();
+
+        return $appointments->contains(
+            fn ($appointment): bool => $appointment->preferred_date !== null
+                && $appointment->preferred_date->greaterThanOrEqualTo($today),
+        );
+    }
+
+    public function isAttention(Incident $incident): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        if ($this->isWaitingCustomer($incident)) {
+            return false;
+        }
+
+        $now = now();
+        $slaStatus = $incident->slaStatus($now);
+
+        if (in_array($slaStatus, [ServiceCaseSlaStatus::Overdue, ServiceCaseSlaStatus::Warning], true)) {
+            return true;
+        }
+
+        $automationStatus = $this->automationStatusService->statusFor($incident);
+
+        if ($incident->assigned_to_user_id === null) {
+            if (in_array($automationStatus, [
+                ServiceCaseAutomationStatus::ValidationFailed,
+                ServiceCaseAutomationStatus::AutomationPending,
+            ], true)) {
+                return true;
+            }
+
+            if ($incident->high_priority) {
+                return true;
+            }
+        }
+
+        if ($automationStatus === ServiceCaseAutomationStatus::ValidationFailed) {
+            return true;
+        }
+
+        return false;
+    }
+}

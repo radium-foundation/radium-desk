@@ -31,10 +31,9 @@ export const initDashboardLoadMore = ({
         button.disabled = true;
 
         try {
-            const filter = pageRoot.dataset.liveFilter ?? card.dataset.serviceCaseFilter ?? 'pending_admin';
-            const view = pageRoot.dataset.liveView ?? 'all';
+            const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? card.dataset.serviceCaseFilter ?? 'action_required';
             const query = new URLSearchParams({
-                filter,
+                queue,
                 offset: String(getServiceCaseLoadedCount()),
             });
 
@@ -44,8 +43,8 @@ export const initDashboardLoadMore = ({
                 query.set('q', searchQuery);
             }
 
-            if (view && view !== 'all') {
-                query.set('view', view);
+            if (! pageRoot.dataset.liveQueue && pageRoot.dataset.liveFilter) {
+                query.set('filter', pageRoot.dataset.liveFilter);
             }
 
             const response = await fetch(`${loadMoreUrl}?${query.toString()}`, {

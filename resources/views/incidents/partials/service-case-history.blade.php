@@ -16,7 +16,7 @@
                         <th>{{ config('ui.service_case.reference_short') }}</th>
                         <th>Issue Summary</th>
                         <th>Status</th>
-                        <th>Assigned Agent</th>
+                        <th>Assigned To</th>
                         <th>Created</th>
                     </tr>
                 </thead>

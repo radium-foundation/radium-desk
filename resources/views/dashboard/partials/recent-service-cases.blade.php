@@ -1,34 +1,21 @@
 @php
     use App\Services\DashboardPersonalizationService;
 
-    $activeFilter = $serviceCaseFilter ?? 'pending_admin';
+    $activeQueue = $operationQueue ?? $serviceCaseFilter ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
     $serviceCaseFilterCounts = $serviceCaseFilterCounts ?? [];
     $renderedServiceCaseCount = $recentServiceCases->count();
-    $totalServiceCaseCount = $serviceCaseTotalCount ?? ($serviceCaseFilterCounts[$activeFilter] ?? $renderedServiceCaseCount);
+    $totalServiceCaseCount = $serviceCaseTotalCount ?? ($serviceCaseFilterCounts[$activeQueue] ?? $renderedServiceCaseCount);
     $serviceCaseHasMore = $serviceCaseHasMore ?? ($renderedServiceCaseCount < $totalServiceCaseCount);
-    $availableServiceCaseFilters = $availableServiceCaseFilters ?? ['all', 'pending_admin', 'completed', 'high_priority'];
-    $dashboardView = $dashboardView ?? DashboardPersonalizationService::VIEW_ALL;
+    $availableOperationQueues = $availableOperationQueues ?? [];
+    $operationQueues = $operationQueues ?? config('operations.queues', []);
     $personalization = app(DashboardPersonalizationService::class);
-    $defaultView = $personalization->defaultViewFor(auth()->user());
-    $serviceCaseFilterMeta = [
-        'all' => ['label' => 'All', 'icon' => 'bi-grid-3x3-gap-fill', 'tone' => 'primary'],
-        'pending_admin' => ['label' => 'Pending Admin', 'icon' => 'bi-clock', 'tone' => 'warning'],
-        'pending_support' => ['label' => 'Unassigned', 'icon' => 'bi-headset', 'tone' => 'warning'],
-        'completed' => ['label' => 'Completed', 'icon' => 'bi-check-circle-fill', 'tone' => 'success'],
-        'high_priority' => ['label' => 'High Priority', 'icon' => 'bi-flag-fill', 'tone' => 'danger'],
-        'needs_attention' => ['label' => 'Needs Attention', 'icon' => 'bi-exclamation-triangle-fill', 'tone' => 'warning'],
-        'my_cases' => ['label' => 'My Cases', 'icon' => 'bi-person-fill', 'tone' => 'primary'],
-    ];
+    $defaultQueue = $personalization->defaultQueueFor(auth()->user());
 
-    $filterUrl = function (string $filterKey) use ($dashboardView, $defaultView): string {
+    $queueUrl = function (string $queueKey) use ($defaultQueue): string {
         $params = [];
 
-        if ($dashboardView !== $defaultView) {
-            $params['view'] = $dashboardView;
-        }
-
-        if ($filterKey !== app(DashboardPersonalizationService::class)->defaultFilterFor(auth()->user(), $dashboardView)) {
-            $params['filter'] = $filterKey;
+        if ($queueKey !== $defaultQueue) {
+            $params['queue'] = $queueKey;
         }
 
         return route('dashboard', $params);
@@ -39,7 +26,8 @@
      id="dashboard-service-cases-panel"
      data-service-cases-loaded="{{ $renderedServiceCaseCount }}"
      data-service-case-filter-total="{{ $totalServiceCaseCount }}"
-     data-service-case-filter="{{ $activeFilter }}">
+     data-service-case-filter="{{ $activeQueue }}"
+     data-operation-queue="{{ $activeQueue }}">
     <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
             <div class="dashboard-cases-header__title-row">
@@ -47,7 +35,7 @@
                     <span class="dashboard-cases-header__icon" aria-hidden="true">
                         <i class="bi bi-clipboard-data"></i>
                     </span>
-                    <h2 class="dashboard-cases-title mb-0">{{ $serviceCasePanelTitle ?? 'Recent Service Cases' }}</h2>
+                    <h2 class="dashboard-cases-title mb-0">{{ $serviceCasePanelTitle ?? 'Service Cases' }}</h2>
                 </div>
                 @can('viewAny', App\Models\Incident::class)
                     <a href="{{ route('incidents.index') }}"
@@ -86,25 +74,29 @@
                     </div>
                 @endif
 
-                <div class="dashboard-case-filters"
-                     role="group"
-                     aria-label="Service case filters">
-                    @foreach($serviceCaseFilterMeta as $filterKey => $filterMeta)
-                        @continue(! in_array($filterKey, $availableServiceCaseFilters, true))
-                        <a href="{{ $filterUrl($filterKey) }}"
-                           @class([
-                               'dashboard-case-filter-chip',
-                               'dashboard-case-filter-chip--' . $filterMeta['tone'],
-                               'is-active' => $activeFilter === $filterKey,
-                           ])
-                           @if($activeFilter === $filterKey) aria-current="page" @endif>
-                            <i class="bi {{ $filterMeta['icon'] }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
-                            <span class="dashboard-case-filter-chip__label">{{ $filterMeta['label'] }}</span>
-                            <span class="dashboard-case-filter-chip__count"
-                                  data-dashboard-case-filter-count="{{ $filterKey }}">({{ $serviceCaseFilterCounts[$filterKey] }})</span>
-                        </a>
-                    @endforeach
-                </div>
+                @if($showsQueueNavigation ?? true)
+                    <div class="dashboard-case-filters dashboard-operation-queues"
+                         role="tablist"
+                         aria-label="Operational queues">
+                        @foreach($operationQueues as $queueKey => $queueMeta)
+                            @continue(! in_array($queueKey, $availableOperationQueues, true))
+                            <a href="{{ $queueUrl($queueKey) }}"
+                               @class([
+                                   'dashboard-case-filter-chip',
+                                   'dashboard-case-filter-chip--' . ($queueMeta['tone'] ?? 'primary'),
+                                   'is-active' => $activeQueue === $queueKey,
+                               ])
+                               role="tab"
+                               @if($activeQueue === $queueKey) aria-selected="true" @else aria-selected="false" @endif
+                               @if($activeQueue === $queueKey) aria-current="page" @endif>
+                                <i class="bi {{ $queueMeta['icon'] ?? 'bi-inbox' }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
+                                <span class="dashboard-case-filter-chip__label">{{ $queueMeta['label'] ?? $queueKey }}</span>
+                                <span class="dashboard-case-filter-chip__count"
+                                      data-dashboard-case-filter-count="{{ $queueKey }}">({{ $serviceCaseFilterCounts[$queueKey] ?? 0 }})</span>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
 
                 <div class="dashboard-quick-filter" data-dashboard-quick-filter>
                     <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
@@ -175,7 +167,7 @@
                             <th class="sla-cell">SLA</th>
                             <th>Ref.</th>
                             <th class="d-none d-md-table-cell">Source</th>
-                            <th class="d-none d-md-table-cell">Owner</th>
+                            <th class="d-none d-md-table-cell">Assigned To</th>
                             <th class="d-none d-md-table-cell">Logged By</th>
                             <th class="d-none d-lg-table-cell">Created</th>
                             <th class="d-none d-lg-table-cell">Updated</th>
@@ -202,7 +194,7 @@
                             @endphp
                             <tr id="dashboard-service-cases-empty-row">
                                 <td colspan="{{ $tableColumnCount }}" class="dashboard-cases-empty">
-                                    No service cases match this filter.
+                                    No service cases match this queue.
                                 </td>
                             </tr>
                         @endforelse

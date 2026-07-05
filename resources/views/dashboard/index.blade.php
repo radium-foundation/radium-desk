@@ -4,16 +4,17 @@
 
 @section('content')
     @php
-        $showServiceCasesPanel = ($dashboardView ?? 'all') !== 'hardware_orders';
-        $showHardwareOrdersPanel = ($dashboardView ?? 'all') === 'hardware_orders';
+        use App\Services\DashboardPersonalizationService;
+
+        $operationQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
     @endphp
 
     <div class="app-content-compact"
          id="dashboard-page"
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
-         data-live-filter="{{ $serviceCaseFilter ?? 'pending_admin' }}"
-         data-live-view="{{ $dashboardView ?? 'all' }}"
+         data-live-queue="{{ $operationQueue }}"
+         data-live-filter="{{ $operationQueue }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
          data-user-id="{{ auth()->id() }}"
@@ -43,55 +44,38 @@
             @include('dashboard.partials.kpi-strip', ['stats' => $stats])
         </div>
 
-        @if($showsModuleNavigation ?? false)
-            @include('dashboard.partials.module-nav', [
-                'dashboardModules' => $dashboardModules ?? [],
-                'dashboardView' => $dashboardView ?? 'all',
-            ])
-        @endif
-
-        @if($showServiceCasesPanel && ($recentServiceCases->isNotEmpty() || auth()->user()?->can('incidents.view')))
+        @if(auth()->user()?->can('incidents.view'))
             <div class="dashboard-primary-panel mb-1">
                 @include('dashboard.partials.recent-service-cases', [
                     'recentServiceCases' => $recentServiceCases,
-                    'serviceCaseFilter' => $serviceCaseFilter ?? 'pending_admin',
-                    'dashboardView' => $dashboardView ?? 'all',
-                    'serviceCasePanelTitle' => $serviceCasePanelTitle ?? 'Recent Service Cases',
-                    'availableServiceCaseFilters' => $availableServiceCaseFilters ?? ['all', 'pending_admin', 'completed', 'high_priority'],
-                    'assignedToScope' => $assignedToScope ?? null,
+                    'serviceCaseFilter' => $operationQueue,
+                    'operationQueue' => $operationQueue,
+                    'operationQueues' => $operationQueues ?? [],
+                    'availableOperationQueues' => $availableOperationQueues ?? [],
+                    'showsQueueNavigation' => $showsQueueNavigation ?? true,
+                    'serviceCasePanelTitle' => $serviceCasePanelTitle ?? 'Service Cases',
                     'serviceCaseFilterCounts' => $serviceCaseFilterCounts ?? [],
                     'serviceCaseTotalCount' => $serviceCaseTotalCount ?? 0,
                     'serviceCaseHasMore' => $serviceCaseHasMore ?? false,
                     'canManageTransactions' => $canManageTransactions ?? false,
                     'canReassignServiceCases' => $canReassignServiceCases ?? false,
+                    'canShowServiceCaseActions' => $canShowServiceCaseActions ?? false,
                 ])
             </div>
         @endif
-
-        @can('viewDashboardHardware')
-            @if($showHardwareOrdersPanel)
-                <div class="dashboard-primary-panel mb-1">
-                    @include('dashboard.partials.hardware-orders-placeholder')
-                </div>
-            @endif
-        @endcan
 
         @if($recentActivity->isNotEmpty())
             @include('dashboard.partials.recent-activity-feed', ['recentActivity' => $recentActivity])
         @endif
 
-        @if(auth()->user()?->hasAnyRole([\Database\Seeders\RolePermissionSeeder::ROLE_ADMIN, \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN]))
-            @include('dashboard.partials.automation-health-card', [
-                'automationHealth' => $stats['automation_health'] ?? [],
+        @if($canQuickCreate)
+            @include('dashboard.partials.quick-create-form', [
+                'enabledProducts' => $enabledProducts ?? [],
+                'enabledSources' => $enabledSources ?? [],
             ])
-            @include('dashboard.partials.admin-metrics-strip', ['stats' => $stats])
         @endif
+
+        @include('dashboard.partials.customer-360-drawer-host')
+        @include('dashboard.partials.serial-number-modal')
     </div>
-
-    @if($canQuickCreate)
-        @include('dashboard.partials.quick-create-form', ['reopenQuickCreate' => $reopenQuickCreate ?? false])
-    @endif
-
-    @include('dashboard.partials.serial-number-modal')
-    @include('dashboard.partials.customer-360-drawer-host')
 @endsection

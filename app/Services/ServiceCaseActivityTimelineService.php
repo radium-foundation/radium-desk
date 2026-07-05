@@ -302,7 +302,7 @@ class ServiceCaseActivityTimelineService
             type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
             actor: $actor,
             title: $isRoundRobinAgent
-                ? 'Assigned to Agent (Round Robin)'
+                ? 'Assigned To (Round Robin)'
                 : 'Assigned to '.$this->assigneeFirstName($assigneeId, $incident),
             body: null,
             remark: null,
