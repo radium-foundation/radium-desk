@@ -137,6 +137,11 @@ class User extends Authenticatable
         return $this->hasMany(LeaveRequest::class);
     }
 
+    public function workSessions(): HasMany
+    {
+        return $this->hasMany(WorkSession::class);
+    }
+
     public function firstName(): string
     {
         $firstName = trim((string) $this->first_name);

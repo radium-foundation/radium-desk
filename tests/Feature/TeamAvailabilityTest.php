@@ -105,7 +105,7 @@ class TeamAvailabilityTest extends TestCase
             ->assertOk()
             ->assertSee('Avinash Agent')
             ->assertSee('Available')
-            ->assertSee('Last active');
+            ->assertSee('Team Presence');
     }
 
     public function test_whatsapp_dispatch_updates_customer_communication_timestamp(): void

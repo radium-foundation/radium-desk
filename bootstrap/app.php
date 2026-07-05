@@ -58,6 +58,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/outbox-processor.log'));
 
+        $schedule->command('presence:process-timeouts')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/presence-timeouts.log'));
+
         $schedule->command('automation:run')
             ->hourly()
             ->when(fn (): bool => app(SystemSettingsService::class)->getBool('automation.scheduler.enabled', false))

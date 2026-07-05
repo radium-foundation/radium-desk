@@ -12,6 +12,7 @@ class TeamAvailabilityOverviewService
         private readonly TeamAvailabilityService $availabilityService,
         private readonly WorkCalendarService $workCalendarService,
         private readonly TeamMemberActivityService $activityService,
+        private readonly PresenceEngineService $presenceEngine,
         private readonly OperationsRoleService $roleService,
     ) {}
 
@@ -49,6 +50,7 @@ class TeamAvailabilityOverviewService
     {
         $availability = $this->availabilityService->snapshotFor($user);
         $workCalendar = $this->workCalendarService->todayStatusFor($user);
+        $presence = $this->presenceEngine->snapshotFor($user);
         $activity = $this->activityService->snapshotFor($user);
         $workActivity = $this->activityService->primaryWorkActivity($user);
 
@@ -58,6 +60,7 @@ class TeamAvailabilityOverviewService
             'role_label' => $user->primaryRoleLabel(),
             'availability' => $availability,
             'work_calendar' => $workCalendar,
+            'presence' => $presence,
             'last_active_at' => $user->last_active_at,
             'last_active_relative' => $user->last_active_at !== null
                 ? display_app_timeline_relative($user->last_active_at)

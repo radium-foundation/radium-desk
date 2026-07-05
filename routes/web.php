@@ -30,6 +30,7 @@ use App\Http\Controllers\OrderDeviceModelController;
 use App\Http\Controllers\OrderLegacyVerificationController;
 use App\Http\Controllers\OrderSerialController;
 use App\Http\Controllers\OrderTransactionController;
+use App\Http\Controllers\PresenceHeartbeatController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuickServiceRequestController;
 use App\Http\Controllers\RefundRequestController;
@@ -212,6 +213,9 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::patch('/profile/availability', [TeamAvailabilityController::class, 'update'])->name('profile.availability.update');
+    Route::post('/presence/heartbeat', [PresenceHeartbeatController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('presence.heartbeat');
     Route::put('/password', [PasswordController::class, 'update'])->name('password.update');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

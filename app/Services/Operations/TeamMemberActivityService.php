@@ -2,11 +2,16 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\PresenceActivityType;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
 class TeamMemberActivityService
 {
+    public function __construct(
+        private readonly PresenceEngineService $presenceEngine,
+    ) {}
+
     public function recordSystemActivity(User $user): void
     {
         $this->touch($user, 'last_active_at');
@@ -15,24 +20,28 @@ class TeamMemberActivityService
     public function recordActive(User $user): void
     {
         $this->recordSystemActivity($user);
+        $this->presenceEngine->recordActivity($user, PresenceActivityType::System);
     }
 
     public function recordCaseAction(User $user): void
     {
         $this->touch($user, 'last_case_action_at');
         $this->recordSystemActivity($user);
+        $this->presenceEngine->recordActivity($user, PresenceActivityType::CaseAction);
     }
 
     public function recordCustomerCommunication(User $user): void
     {
         $this->touch($user, 'last_customer_communication_at');
         $this->recordSystemActivity($user);
+        $this->presenceEngine->recordActivity($user, PresenceActivityType::CustomerCommunication);
     }
 
     public function recordStatusChange(User $user): void
     {
         $this->touch($user, 'last_status_change_at');
         $this->recordCaseAction($user);
+        $this->presenceEngine->recordActivity($user, PresenceActivityType::StatusChange);
     }
 
     public function lastWorkActivityAt(User $user): ?Carbon
@@ -53,7 +62,7 @@ class TeamMemberActivityService
     {
         $candidates = collect([
             [
-                'label' => 'Last customer follow-up',
+                'label' => 'Customer email',
                 'at' => $user->last_customer_communication_at,
             ],
             [

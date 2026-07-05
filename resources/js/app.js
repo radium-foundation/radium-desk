@@ -21,6 +21,7 @@ import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
 import { initOperationsDashboard } from './operations-dashboard';
+import { initPresenceHeartbeat } from './presence-heartbeat';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from './customer-intake';
 
 window.bootstrap = bootstrap;
@@ -678,4 +679,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initOperationsDashboard();
+    initPresenceHeartbeat();
 });

@@ -22,7 +22,16 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script type="application/json" id="workspace-context-slugs">@json(config('workspace.contexts'))</script>
 </head>
-<body>
+<body
+    @auth
+        @if(app(\App\Services\Operations\OperationsRoleService::class)->isTeamMember(auth()->user()))
+            data-presence-heartbeat="true"
+            data-presence-heartbeat-enabled="{{ config('presence.heartbeat_enabled') ? 'true' : 'false' }}"
+            data-presence-heartbeat-url="{{ route('presence.heartbeat') }}"
+            data-presence-heartbeat-interval="{{ config('presence.heartbeat_interval_seconds', 120) }}"
+        @endif
+    @endauth
+>
     <div class="app-wrapper">
         @include('layouts.partials.sidebar')
 
