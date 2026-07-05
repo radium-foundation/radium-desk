@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Contracts\AI\AIProvider;
+use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
+use App\Listeners\Operations\DispatchSupportAssignmentTelegramNotification;
 use App\Models\DeviceModel;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
@@ -91,6 +93,7 @@ class AppServiceProvider extends ServiceProvider
         $this->validateInteraktTemplateConfiguration();
 
         Event::listen(NotificationSent::class, BroadcastNotificationCreated::class);
+        Event::listen(SupportAppointmentSmartAssigned::class, DispatchSupportAssignmentTelegramNotification::class);
 
         Gate::define('viewDashboardHardware', fn (User $user): bool => app(DashboardPolicy::class)->viewHardware($user));
 

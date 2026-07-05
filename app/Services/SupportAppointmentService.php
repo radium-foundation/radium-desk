@@ -7,6 +7,7 @@ use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
 use App\Models\User;
+use App\Services\Operations\SupportAppointmentSmartAssignmentService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -58,6 +59,21 @@ class SupportAppointmentService
             app(SupportAppointmentConfirmationNotificationService::class)->send($appointment, $bookingSource);
         } catch (Throwable $exception) {
             Log::error('support_appointment.book.confirmation_unhandled', [
+                'appointment_id' => $appointment->id,
+                'incident_id' => $incident->id,
+                'booking_source' => $bookingSource->value,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        try {
+            app(SupportAppointmentSmartAssignmentService::class)->assignAfterBooking(
+                incident: $incident,
+                appointment: $appointment,
+            );
+        } catch (Throwable $exception) {
+            Log::error('support_appointment.book.smart_assignment_unhandled', [
                 'appointment_id' => $appointment->id,
                 'incident_id' => $incident->id,
                 'booking_source' => $bookingSource->value,

@@ -50,7 +50,10 @@ class OperationsQueueClassifier
                 return false;
             }
 
-            return $this->classify($incident) === OperationQueue::ActionRequired;
+            return in_array($this->classify($incident), [
+                OperationQueue::ActionRequired,
+                OperationQueue::Scheduled,
+            ], true);
         }
 
         return $this->classify($incident)->value === $queueValue;

@@ -290,21 +290,41 @@ class ServiceCaseActivityTimelineService
     ): ServiceCaseTimelineEntry {
         $assigneeId = $auditLog->new_values['assigned_to_user_id'] ?? null;
         $assignee = $assigneeId ? User::query()->find($assigneeId) : null;
-        $isRoundRobinAgent = $assignee !== null
+        $assignmentMethod = $auditLog->new_values['assignment_method'] ?? null;
+        $isSmartAssignment = $assignmentMethod === 'smart';
+        $isRoundRobinAgent = ! $isSmartAssignment
+            && $assignee !== null
             && $assignee->hasRole(RolePermissionSeeder::ROLE_AGENT)
             && ! $assignee->hasAnyRole([
                 RolePermissionSeeder::ROLE_ADMIN,
                 RolePermissionSeeder::ROLE_SUPERADMIN,
             ]);
 
+        $title = match (true) {
+            $isSmartAssignment => 'Assigned to '.$this->assigneeFirstName($assigneeId, $incident).' (Smart Assignment)',
+            $isRoundRobinAgent => 'Assigned To (Round Robin)',
+            default => 'Assigned to '.$this->assigneeFirstName($assigneeId, $incident),
+        };
+
+        $body = null;
+
+        if ($isSmartAssignment) {
+            $factors = $auditLog->new_values['assignment_reason']['factors'] ?? [];
+
+            if ($factors !== []) {
+                $body = 'Reason:'."\n".implode("\n", array_map(
+                    fn (string $factor): string => '• '.$factor,
+                    $factors,
+                ));
+            }
+        }
+
         return new ServiceCaseTimelineEntry(
             occurredAt: $occurredAt,
             type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
             actor: $actor,
-            title: $isRoundRobinAgent
-                ? 'Assigned To (Round Robin)'
-                : 'Assigned to '.$this->assigneeFirstName($assigneeId, $incident),
-            body: null,
+            title: $title,
+            body: $body,
             remark: null,
             dedupeKey: "audit:{$auditLog->id}",
         );

@@ -205,6 +205,27 @@ class ServiceCaseAssignmentService
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $auditContext
+     */
+    public function assignWithAuditContext(
+        Incident $incident,
+        User $assignee,
+        User $actor,
+        array $auditContext,
+        string $event = 'service_case.assigned',
+    ): Incident {
+        $this->ensureValidAssignee($assignee);
+
+        return $this->applyAssignment(
+            incident: $incident,
+            assignee: $assignee,
+            actor: $actor,
+            event: $event,
+            extraNewValues: $auditContext,
+        );
+    }
+
     public function reassignToShiftAdminAfterValidation(Incident $incident, User $actor, ?Carbon $at = null): Incident
     {
         $incident = $incident->fresh(['assignee']);

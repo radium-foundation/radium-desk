@@ -13,7 +13,8 @@ class TelegramChannel implements NotificationChannel
     public function supports(NotificationType $type): bool
     {
         return match ($type) {
-            NotificationType::RequestSerialNumber => true,
+            NotificationType::RequestSerialNumber,
+            NotificationType::SupportAppointmentAssigned => true,
             default => false,
         };
     }
