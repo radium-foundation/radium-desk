@@ -22,6 +22,9 @@ class DashboardSnapshot
     /** @var array<string, Collection<int, Incident>>|null */
     private ?array $queueIncidents = null;
 
+    /** @var array<string, array{open_cases: int, waiting_cases: int}> */
+    private array $operationalKpiCounts = [];
+
     public function __construct(
         Collection $activeIncidents,
         private readonly OperationsQueueClassifier $queueClassifier,
@@ -95,6 +98,67 @@ class DashboardSnapshot
         return $this->activeIncidents
             ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin()
                 && $incident->slaStatus($now) === ServiceCaseSlaStatus::Warning)
+            ->values();
+    }
+
+    /**
+     * @return array{open_cases: int, waiting_cases: int}
+     */
+    public function operationalKpiCounts(?User $scopeUser = null): array
+    {
+        $cacheKey = (string) ($scopeUser?->id ?? 'all');
+
+        if (isset($this->operationalKpiCounts[$cacheKey])) {
+            return $this->operationalKpiCounts[$cacheKey];
+        }
+
+        return $this->operationalKpiCounts[$cacheKey] = [
+            'open_cases' => $this->openCount($scopeUser),
+            'waiting_cases' => $this->waitingCount(),
+        ];
+    }
+
+    public function openCount(?User $scopeUser = null): int
+    {
+        if ($scopeUser !== null) {
+            return $this->openIncidents($scopeUser)->count();
+        }
+
+        $counts = $this->queueCounts();
+
+        return ($counts[OperationQueue::ActionRequired->value] ?? 0)
+            + ($counts[OperationQueue::Scheduled->value] ?? 0)
+            + ($counts[OperationQueue::Attention->value] ?? 0);
+    }
+
+    public function waitingCount(): int
+    {
+        return $this->queueCounts()[OperationQueue::WaitingCustomer->value] ?? 0;
+    }
+
+    /**
+     * @return Collection<int, Incident>
+     */
+    public function openIncidents(?User $scopeUser = null): Collection
+    {
+        return $this->activeIncidents
+            ->filter(function (Incident $incident) use ($scopeUser): bool {
+                $queue = $this->queueClassifier->classify($incident);
+
+                if (in_array($queue, [
+                    OperationQueue::WaitingCustomer,
+                    OperationQueue::Completed,
+                    OperationQueue::Hardware,
+                ], true)) {
+                    return false;
+                }
+
+                if ($scopeUser !== null && $incident->assigned_to_user_id !== $scopeUser->id) {
+                    return false;
+                }
+
+                return true;
+            })
             ->values();
     }
 

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\OperationQueue;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\Operations\OperationsRoleService;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -31,15 +32,19 @@ class DashboardService
     public function statsFor(User $user): array
     {
         $onlineUsers = $this->onlineUsers();
-        $activeIncidents = $this->snapshot()->activeIncidents();
+        $snapshot = $this->snapshot();
+        $activeIncidents = $snapshot->activeIncidents();
         $activeKpis = $this->kpiAggregator->activeIncidentKpis($activeIncidents, $user);
         $incidentStatusCounts = $this->kpiAggregator->incidentStatusCounts();
+        $operationalKpis = $snapshot->operationalKpiCounts($this->resolveKpiScopeUser($user));
 
         $stats = [
             'online_count' => $onlineUsers->count(),
             'online_users' => $onlineUsers,
             'total_orders' => Order::query()->count(),
-            'open_incidents' => $activeKpis['open_incidents'],
+            'open_cases' => $operationalKpis['open_cases'],
+            'waiting_cases' => $operationalKpis['waiting_cases'],
+            'open_incidents' => $operationalKpis['open_cases'],
             'resolved_incidents' => $incidentStatusCounts['resolved'],
             'closed_incidents' => $incidentStatusCounts['closed'],
             'my_active_cases' => $activeKpis['my_active_cases'],
@@ -74,11 +79,26 @@ class DashboardService
         if ($user->can('incidents.view')) {
             $stats = [
                 ...$stats,
-                ...$this->snapshot()->slaCounts(),
+                ...$snapshot->slaCounts(),
             ];
         }
 
         return $stats;
+    }
+
+    private function resolveKpiScopeUser(User $user): ?User
+    {
+        $roles = app(OperationsRoleService::class);
+
+        if ($roles->usesAdminQueues($user)) {
+            return null;
+        }
+
+        if ($roles->usesSupportQueues($user)) {
+            return $user;
+        }
+
+        return null;
     }
 
     /**

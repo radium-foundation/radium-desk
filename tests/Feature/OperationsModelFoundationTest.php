@@ -12,6 +12,7 @@ use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\DashboardPersonalizationService;
+use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\Operations\OperationsRoleService;
@@ -20,6 +21,7 @@ use App\Services\RemarkService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OperationsModelFoundationTest extends TestCase
@@ -246,6 +248,120 @@ class OperationsModelFoundationTest extends TestCase
         $this->assertContains('hardware', $personalization->availableQueuesFor($admin));
         $this->assertSame('my_work', $personalization->defaultQueueFor($agent));
         $this->assertContains('waiting_customer', $personalization->availableQueuesFor($agent));
+    }
+
+    public function test_open_kpi_excludes_waiting_customer_completed_and_hardware_cases(): void
+    {
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $waitingCase = $this->createIncident('RD-OPEN-WAIT', $creator, $creator);
+        IncidentWaitingState::query()->create([
+            'incident_id' => $waitingCase->id,
+            'waiting_reason' => WaitingReason::SerialNumber,
+            'started_at' => now(),
+            'sla_paused' => true,
+            'created_by' => $creator->id,
+        ]);
+
+        $this->createIncident('RD-OPEN-ACTION', $creator, $creator);
+        $this->createIncident('RDE-OPEN-HW', $creator, $creator);
+
+        $closedOrder = Order::query()->create([
+            'order_id' => 'RD-OPEN-CLOSED',
+            'serial_number' => 'SN-CLOSED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $creator->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $closedOrder->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Closed operations case',
+            'description' => 'Closed operations case.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $creator->id,
+            'updated_by' => $creator->id,
+            'assigned_to_user_id' => $creator->id,
+        ]);
+
+        $snapshot = DashboardSnapshot::load();
+        $queueCounts = $snapshot->queueCounts();
+        $operationalKpis = $snapshot->operationalKpiCounts();
+
+        $this->assertSame(1, $operationalKpis['open_cases']);
+        $this->assertSame(1, $queueCounts['waiting_customer']);
+        $this->assertSame($queueCounts['waiting_customer'], $operationalKpis['waiting_cases']);
+    }
+
+    public function test_support_user_open_kpi_is_scoped_to_assigned_work(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->createIncident('RD-SCOPE-1', $admin, $agent);
+        $this->createIncident('RD-SCOPE-2', $admin, $admin);
+
+        $agentStats = app(DashboardService::class)->statsFor($agent);
+        $adminStats = app(DashboardService::class)->statsFor($admin);
+
+        $this->assertSame(1, $agentStats['open_cases']);
+        $this->assertSame(2, $adminStats['open_cases']);
+    }
+
+    public function test_operational_kpi_counts_do_not_issue_queries_after_snapshot_load(): void
+    {
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createIncident('RD-KPI-QUERY-1', $creator, $creator);
+
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $snapshot = DashboardSnapshot::load();
+        $snapshot->queueCounts();
+        $queriesAfterWarmup = count(DB::getQueryLog());
+
+        $snapshot->operationalKpiCounts();
+        $snapshot->slaCounts();
+
+        $this->assertSame($queriesAfterWarmup, count(DB::getQueryLog()));
+
+        DB::disableQueryLog();
+    }
+
+    public function test_dashboard_kpi_stats_preserve_pending_refund_count(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        \App\Models\RefundRequest::query()->create([
+            'order_id' => Order::query()->create([
+                'order_id' => 'RD-REF-KPI',
+                'serial_number' => 'SN-REF',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+                'created_by' => $admin->id,
+            ])->id,
+            'reference_no' => 'REF-'.now()->format('Y').'-000099',
+            'amount' => 100,
+            'reason' => 'Test refund',
+            'status' => \App\Enums\RefundStatus::Pending,
+            'requested_by' => $admin->id,
+        ]);
+
+        $stats = app(DashboardService::class)->statsFor($admin);
+
+        $this->assertSame(1, $stats['pending_refunds']);
     }
 
     private function createIncident(string $orderId, User $creator, ?User $assignee): Incident

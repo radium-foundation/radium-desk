@@ -1068,18 +1068,23 @@ class DashboardServiceCasesTest extends TestCase
             ->assertJsonPath('has_more', true);
     }
 
-    public function test_open_cases_kpi_links_to_dashboard_all_filter(): void
+    public function test_open_cases_kpi_links_to_action_required_queue(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $expectedHref = route('dashboard', ['filter' => 'all']).'#dashboard-service-cases-panel';
+        $expectedHref = route('dashboard', ['queue' => 'action_required']).'#dashboard-service-cases-panel';
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee($expectedHref, false)
-            ->assertSee('data-dashboard-kpi-action="focus-service-cases-all"', false)
+            ->assertSee('>Open<', false)
+            ->assertSee('>Waiting<', false)
+            ->assertSee('>Refunds<', false)
+            ->assertDontSee('>Pending Approvals<', false)
+            ->assertDontSee('>Warning<', false)
+            ->assertDontSee('>Open Cases<', false)
             ->assertSee('id="dashboard-service-cases-panel"', false);
     }
 
