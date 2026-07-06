@@ -5523,6 +5523,58 @@ body.customer-360-drawer-open {
     background: rgba(0, 0, 0, 0.02);
 }
 
+.operations-critical-alerts-clear .card-body {
+    background: rgba(25, 135, 84, 0.06);
+}
+
+.operations-health-accordion .accordion-item {
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.operations-health-accordion-button {
+    display: grid;
+    grid-template-columns: minmax(5rem, auto) 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+
+.operations-health-accordion-button:not(.collapsed) {
+    box-shadow: none;
+}
+
+.operations-health-accordion-title {
+    font-weight: 600;
+}
+
+.operations-health-accordion-summary {
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.operations-support-intelligence-summary .card-body {
+    background: rgba(0, 0, 0, 0.015);
+}
+
+@media (max-width: 767.98px) {
+    .operations-health-accordion-button {
+        grid-template-columns: 1fr auto;
+    }
+
+    .operations-health-accordion-summary {
+        grid-column: 1 / -1;
+        white-space: normal;
+    }
+
+    .operations-overview-grid .col-6 {
+        min-width: 0;
+    }
+}
+
 #operations-dashboard-root {
     max-width: 100%;
     overflow-x: hidden;

@@ -7,31 +7,40 @@
         id="operations-dashboard-root"
         data-live-url="{{ route('admin.operations.live') }}"
         data-live-interval="30000"
+        data-live-full-interval="120000"
     >
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
             <div>
                 <h1 class="h3 mb-1">Operations Control Center</h1>
-                <p class="text-muted mb-0">Executive operations dashboard for Radium Desk administrators.</p>
+                <p class="text-muted mb-0">Command center for live operational health, support load, and team status.</p>
             </div>
             <div class="text-muted small" id="operations-dashboard-generated-at">
                 Updated {{ display_app_datetime_seconds($dashboard->generatedAt) }}
             </div>
         </div>
 
-        <div id="operations-ira-briefing" class="mb-3">
-            @include('admin.operations.partials.ira-briefing', [
+        <div id="operations-critical-alerts" class="mb-3">
+            @include('admin.operations.partials.critical-alerts', [
+                'dashboard' => $dashboard,
                 'briefing' => $iraBriefing ?? null,
-                'formatted' => $iraBriefingFormatted ?? null,
-                'reasoningProvider' => $iraReasoningProvider ?? 'rule_based',
             ])
         </div>
 
-        <div id="operations-overview-cards" class="mb-4">
+        <div id="operations-overview-cards" class="mb-3">
             @include('admin.operations.partials.overview-cards', [
                 'briefing' => $iraBriefing ?? null,
                 'formatted' => $iraBriefingFormatted ?? null,
                 'members' => $dashboard->teamAvailability,
                 'insights' => $advisorInsights ?? [],
+                'intelligence' => $dashboard->supportIntelligence,
+            ])
+        </div>
+
+        <div id="operations-health-status" class="mb-4">
+            @include('admin.operations.partials.health-status-compact', [
+                'cashfreeHealth' => $dashboard->cashfreeHealth,
+                'radiumBoxHealth' => $dashboard->radiumBoxHealth,
+                'teamTelegramStatus' => $dashboard->teamTelegramStatus,
             ])
         </div>
 
@@ -44,6 +53,7 @@
                             id="operations-tab-today"
                             data-bs-toggle="tab"
                             data-bs-target="#operations-pane-today"
+                            data-operations-live-group="today"
                             type="button"
                             role="tab"
                             aria-controls="operations-pane-today"
@@ -58,6 +68,7 @@
                             id="operations-tab-team"
                             data-bs-toggle="tab"
                             data-bs-target="#operations-pane-team"
+                            data-operations-live-group="team"
                             type="button"
                             role="tab"
                             aria-controls="operations-pane-team"
@@ -72,6 +83,7 @@
                             id="operations-tab-performance"
                             data-bs-toggle="tab"
                             data-bs-target="#operations-pane-performance"
+                            data-operations-live-group="performance"
                             type="button"
                             role="tab"
                             aria-controls="operations-pane-performance"
@@ -86,6 +98,7 @@
                             id="operations-tab-system"
                             data-bs-toggle="tab"
                             data-bs-target="#operations-pane-system"
+                            data-operations-live-group="system"
                             type="button"
                             role="tab"
                             aria-controls="operations-pane-system"
@@ -106,6 +119,14 @@
                         aria-labelledby="operations-tab-today"
                         tabindex="0"
                     >
+                        <div id="operations-ira-briefing" class="mb-4">
+                            @include('admin.operations.partials.ira-briefing', [
+                                'briefing' => $iraBriefing ?? null,
+                                'formatted' => $iraBriefingFormatted ?? null,
+                                'reasoningProvider' => $iraReasoningProvider ?? 'rule_based',
+                            ])
+                        </div>
+
                         <div id="operations-support-intelligence" class="mb-4">
                             @include('admin.operations.partials.support-intelligence', [
                                 'intelligence' => $dashboard->supportIntelligence,
@@ -137,10 +158,6 @@
                     >
                         <div id="operations-team-availability">
                             @include('admin.operations.partials.team-availability', ['members' => $dashboard->teamAvailability])
-                        </div>
-
-                        <div id="operations-team-telegram-status" class="mt-4">
-                            @include('admin.operations.partials.team-telegram-status', ['members' => $dashboard->teamTelegramStatus])
                         </div>
                     </div>
 

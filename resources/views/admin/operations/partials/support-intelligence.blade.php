@@ -20,11 +20,47 @@
 @endphp
 
 <section class="mb-0" aria-labelledby="support-intelligence-heading">
-    <h3 id="support-intelligence-heading" class="h6 mb-3">Support Intelligence</h3>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h3 id="support-intelligence-heading" class="h6 mb-0">Support Intelligence</h3>
+        <button
+            class="btn btn-sm btn-outline-secondary"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#operations-support-intelligence-details"
+            aria-expanded="{{ ($missedOverdue > 0 || $stillWaiting > 0) ? 'true' : 'false' }}"
+            aria-controls="operations-support-intelligence-details"
+        >
+            {{ ($missedOverdue > 0 || $stillWaiting > 0) ? 'Hide details' : 'Show details' }}
+        </button>
+    </div>
 
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <div class="row g-4">
+    <div class="operations-support-intelligence-summary card border-0 shadow-sm mb-2">
+        <div class="card-body py-2 px-3">
+            <div class="row g-2 small">
+                <div class="col-6 col-md-3">
+                    <span class="text-muted">Today</span>
+                    <strong class="d-block">{{ number_format($scheduledToday) }} scheduled · {{ number_format($pendingToday) }} pending</strong>
+                </div>
+                <div class="col-6 col-md-3">
+                    <span class="text-muted">Upcoming</span>
+                    <strong class="d-block">{{ number_format($tomorrow) }} tomorrow · {{ number_format($nextSevenDays) }} next 7 days</strong>
+                </div>
+                <div class="col-6 col-md-3">
+                    <span class="text-muted">Customer response</span>
+                    <strong class="d-block">{{ number_format($stillWaiting) }} still waiting</strong>
+                </div>
+                <div class="col-6 col-md-3">
+                    <span class="text-muted">Overdue</span>
+                    <strong @class(['d-block', 'text-danger' => $missedOverdue > 0])>{{ number_format($missedOverdue) }}</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="operations-support-intelligence-details" @class(['collapse', 'show' => ($missedOverdue > 0 || $stillWaiting > 0)])>
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="row g-4">
                 <div class="col-md-6 col-xl-3">
                     <p class="text-uppercase text-muted small fw-semibold mb-2">Today's Support</p>
                     <dl class="row mb-0 small">
@@ -85,5 +121,6 @@
                 </div>
             </div>
         </div>
+    </div>
     </div>
 </section>

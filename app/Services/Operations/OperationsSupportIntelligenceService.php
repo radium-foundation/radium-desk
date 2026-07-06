@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Data\Operations\MissingSerialAutomationQualitySummary;
 use App\Data\Operations\SupportIntelligenceSummary;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
@@ -21,15 +22,18 @@ class OperationsSupportIntelligenceService
         private readonly OperationsQueueClassifier $queueClassifier,
     ) {}
 
-    public function summary(?Carbon $at = null): SupportIntelligenceSummary
-    {
+    public function summary(
+        ?Carbon $at = null,
+        ?MissingSerialAutomationQualitySummary $serialQuality = null,
+    ): SupportIntelligenceSummary {
         $at ??= now();
         $today = $at->copy()->startOfDay();
         $tomorrow = $today->copy()->addDay();
         $sevenDaysOut = $today->copy()->addDays(7);
+        $snapshot = DashboardSnapshot::load();
 
         $scheduledToday = $this->appointmentsOnDate($today)->count();
-        $pendingToday = $this->pendingAppointmentsOnDate($today);
+        $pendingToday = $this->pendingAppointmentsOnDate($today, $snapshot);
         $completedToday = max(0, $scheduledToday - $pendingToday);
         $missedOverdue = $this->missedOverdueCount($today);
 
@@ -45,7 +49,7 @@ class OperationsSupportIntelligenceService
             ->whereDate('preferred_date', '<=', $sevenDaysOut->toDateString())
             ->count();
 
-        $serialSummary = $this->missingSerialAutomationService->qualitySummary();
+        $serialSummary = $serialQuality ?? $this->missingSerialAutomationService->qualitySummary();
 
         return new SupportIntelligenceSummary(
             scheduledToday: $scheduledToday,
@@ -57,13 +61,12 @@ class OperationsSupportIntelligenceService
             serialRequested: $serialSummary->autoRequested,
             serialReceived: $serialSummary->customerReplied,
             serialStillWaiting: $this->serialStillWaitingCount(),
-            teamWorkload: $this->teamWorkload($at),
+            teamWorkload: $this->teamWorkload($at, $snapshot),
         );
     }
 
-    private function pendingAppointmentsOnDate(Carbon $date): int
+    private function pendingAppointmentsOnDate(Carbon $date, DashboardSnapshot $snapshot): int
     {
-        $snapshot = DashboardSnapshot::load();
         $count = 0;
 
         $snapshot->incidentsForQueue(OperationQueue::Scheduled->value)
@@ -139,9 +142,8 @@ class OperationsSupportIntelligenceService
     /**
      * @return list<array{name: string, today: int, pending: int}>
      */
-    private function teamWorkload(Carbon $at): array
+    private function teamWorkload(Carbon $at, DashboardSnapshot $snapshot): array
     {
-        $snapshot = DashboardSnapshot::load();
         $today = $at->copy()->startOfDay();
         $workload = [];
 

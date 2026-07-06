@@ -57,28 +57,46 @@ class OperationsDashboardService
         return $data;
     }
 
-    public function build(): OperationsDashboardData
+    public function build(?OperationsDashboardBuildProfiler $profiler = null): OperationsDashboardData
     {
         $snapshot = $this->snapshot();
+        $missingSerialQuality = $profiler !== null
+            ? $profiler->measure('missing_serial_automation', fn () => $this->missingSerialAutomationService->qualitySummary())
+            : $this->missingSerialAutomationService->qualitySummary();
+
+        $measure = fn (string $label, callable $callback) => $profiler !== null
+            ? $profiler->measure($label, $callback)
+            : $callback();
 
         return new OperationsDashboardData(
-            systemHealth: $this->systemHealthService->components($snapshot),
-            notificationMetrics: $this->notificationMetricsService->metrics($snapshot->auditAggregator()),
-            automationMetrics: $this->automationMetricsService->metrics($snapshot),
-            queueMetrics: $this->queueMetricsService->metrics($snapshot),
-            integrationHealth: $this->integrationHealthService->cards($snapshot),
-            radiumBoxHealth: $this->radiumBoxHealthService->widget(),
-            cashfreeHealth: $this->cashfreeHealthService->widget(),
-            recentNotificationFailures: $this->recentNotificationFailuresService->recent(limit: 15),
-            recentAutomationActivity: $this->recentAutomationActivityService->recent(limit: 15),
-            recentIraMessages: $this->recentIraMessagesService->recent(limit: 15),
-            teamAvailability: $this->teamAvailabilityOverviewService->members(),
-            teamTelegramStatus: $this->teamTelegramStatusService->members(),
-            cashfreeDeviceEnrichmentQuality: $this->cashfreeDeviceEnrichmentService->qualitySummary()->toArray(),
-            missingSerialAutomationQuality: $this->missingSerialAutomationService->qualitySummary()->toArray(),
-            supportIntelligence: $this->supportIntelligenceService->summary()->toArray(),
+            systemHealth: $measure('system_health', fn () => $this->systemHealthService->components($snapshot)),
+            notificationMetrics: $measure('notification_metrics', fn () => $this->notificationMetricsService->metrics($snapshot->auditAggregator())),
+            automationMetrics: $measure('automation_metrics', fn () => $this->automationMetricsService->metrics($snapshot)),
+            queueMetrics: $measure('queue_metrics', fn () => $this->queueMetricsService->metrics($snapshot)),
+            integrationHealth: $measure('integration_health', fn () => $this->integrationHealthService->cards($snapshot)),
+            radiumBoxHealth: $measure('radiumbox_health', fn () => $this->radiumBoxHealthService->widget()),
+            cashfreeHealth: $measure('cashfree_health', fn () => $this->cashfreeHealthService->widget()),
+            recentNotificationFailures: $measure('recent_notification_failures', fn () => $this->recentNotificationFailuresService->recent(limit: 15)),
+            recentAutomationActivity: $measure('recent_automation_activity', fn () => $this->recentAutomationActivityService->recent(limit: 15)),
+            recentIraMessages: $measure('recent_ira_messages', fn () => $this->recentIraMessagesService->recent(limit: 15)),
+            teamAvailability: $measure('team_availability', fn () => $this->teamAvailabilityOverviewService->members()),
+            teamTelegramStatus: $measure('team_telegram_status', fn () => $this->teamTelegramStatusService->members()),
+            cashfreeDeviceEnrichmentQuality: $measure('cashfree_device_enrichment', fn () => $this->cashfreeDeviceEnrichmentService->qualitySummary()->toArray()),
+            missingSerialAutomationQuality: $missingSerialQuality->toArray(),
+            supportIntelligence: $measure('support_intelligence', fn () => $this->supportIntelligenceService->summary(serialQuality: $missingSerialQuality)->toArray()),
             generatedAt: now(),
         );
+    }
+
+    public function buildProfiled(): array
+    {
+        $profiler = new OperationsDashboardBuildProfiler;
+
+        return [
+            'data' => $this->build($profiler),
+            'profile' => $profiler->timings(),
+            'total_ms' => $profiler->totalMs(),
+        ];
     }
 
     public function snapshot(): OperationsDashboardSnapshot

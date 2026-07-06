@@ -1,3 +1,36 @@
+const SECTION_TARGETS = {
+    critical_alerts: 'operations-critical-alerts',
+    overview_cards: 'operations-overview-cards',
+    health_status: 'operations-health-status',
+    support_intelligence: 'operations-support-intelligence',
+    ira_briefing: 'operations-ira-briefing',
+    ira_briefing_details: 'operations-ira-briefing-details',
+    immediate_risks: 'operations-immediate-risks',
+    advisor_insights: 'operations-advisor-insights',
+    team_availability: 'operations-team-availability',
+    team_telegram_status: 'operations-team-telegram-status',
+    system_health: 'operations-system-health',
+    notification_metrics: 'operations-notification-metrics',
+    automation_metrics: 'operations-automation-metrics',
+    queue_metrics: 'operations-queue-metrics',
+    integration_health: 'operations-integration-health',
+    radiumbox_health: 'operations-radiumbox-health',
+    cashfree_health: 'operations-cashfree-health',
+    cashfree_device_enrichment_quality: 'operations-cashfree-device-enrichment-quality',
+    missing_serial_automation_quality: 'operations-missing-serial-automation-quality',
+    recent_notification_failures: 'operations-recent-notification-failures',
+    recent_automation_activity: 'operations-recent-automation-activity',
+    recent_ira_messages: 'operations-recent-ira-messages',
+};
+
+const ALWAYS_REFRESH_GROUPS = ['critical', 'summary', 'health'];
+const TAB_GROUP_BY_PANE = {
+    'operations-pane-today': 'today',
+    'operations-pane-team': 'team',
+    'operations-pane-performance': 'performance',
+    'operations-pane-system': 'system',
+};
+
 const replaceSectionHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
 
@@ -6,6 +39,16 @@ const replaceSectionHtml = (elementId, html) => {
     }
 
     element.innerHTML = html;
+};
+
+const applyLiveHtml = (html) => {
+    Object.entries(html ?? {}).forEach(([sectionKey, sectionHtml]) => {
+        const elementId = SECTION_TARGETS[sectionKey];
+
+        if (elementId) {
+            replaceSectionHtml(elementId, sectionHtml);
+        }
+    });
 };
 
 const formatGeneratedAt = (isoString) => {
@@ -20,6 +63,31 @@ const formatGeneratedAt = (isoString) => {
     }
 
     return date.toLocaleString();
+};
+
+const getActiveTabGroup = (pageRoot) => {
+    const activePane = pageRoot.querySelector('.tab-pane.active');
+
+    if (!activePane?.id) {
+        return null;
+    }
+
+    return TAB_GROUP_BY_PANE[activePane.id] ?? null;
+};
+
+const buildLiveGroups = (pageRoot, forceFullRefresh) => {
+    if (forceFullRefresh) {
+        return null;
+    }
+
+    const groups = [...ALWAYS_REFRESH_GROUPS];
+    const activeGroup = getActiveTabGroup(pageRoot);
+
+    if (activeGroup) {
+        groups.push(activeGroup);
+    }
+
+    return groups;
 };
 
 const bindOperationsTabShortcuts = (pageRoot) => {
@@ -40,6 +108,15 @@ const bindOperationsTabShortcuts = (pageRoot) => {
             const tabButton = pageRoot.querySelector(targetSelector);
 
             if (!tabButton || !window.bootstrap?.Tab) {
+                if (targetSelector.startsWith('#operations-health-trigger-')) {
+                    const healthTrigger = pageRoot.querySelector(targetSelector);
+
+                    if (healthTrigger) {
+                        healthTrigger.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                        healthTrigger.click();
+                    }
+                }
+
                 return;
             }
 
@@ -78,15 +155,20 @@ const bindIraInsightToggleLabels = (pageRoot) => {
     });
 };
 
-const refreshOperationsDashboard = async (pageRoot) => {
+const refreshOperationsDashboard = async (pageRoot, { forceFullRefresh = false } = {}) => {
     const liveUrl = pageRoot.dataset.liveUrl;
 
     if (!liveUrl) {
         return;
     }
 
+    const groups = buildLiveGroups(pageRoot, forceFullRefresh);
+    const requestUrl = groups === null
+        ? liveUrl
+        : `${liveUrl}?groups=${groups.join(',')}`;
+
     try {
-        const response = await fetch(liveUrl, {
+        const response = await fetch(requestUrl, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -98,26 +180,8 @@ const refreshOperationsDashboard = async (pageRoot) => {
         }
 
         const payload = await response.json();
-        const html = payload.html ?? {};
 
-        replaceSectionHtml('operations-ira-briefing', html.ira_briefing);
-        replaceSectionHtml('operations-overview-cards', html.overview_cards);
-        replaceSectionHtml('operations-support-intelligence', html.support_intelligence);
-        replaceSectionHtml('operations-ira-briefing-details', html.ira_briefing_details);
-        replaceSectionHtml('operations-immediate-risks', html.immediate_risks);
-        replaceSectionHtml('operations-advisor-insights', html.advisor_insights);
-        replaceSectionHtml('operations-team-availability', html.team_availability);
-        replaceSectionHtml('operations-team-telegram-status', html.team_telegram_status);
-        replaceSectionHtml('operations-system-health', html.system_health);
-        replaceSectionHtml('operations-notification-metrics', html.notification_metrics);
-        replaceSectionHtml('operations-automation-metrics', html.automation_metrics);
-        replaceSectionHtml('operations-queue-metrics', html.queue_metrics);
-        replaceSectionHtml('operations-integration-health', html.integration_health);
-        replaceSectionHtml('operations-radiumbox-health', html.radiumbox_health);
-        replaceSectionHtml('operations-cashfree-health', html.cashfree_health);
-        replaceSectionHtml('operations-recent-notification-failures', html.recent_notification_failures);
-        replaceSectionHtml('operations-recent-automation-activity', html.recent_automation_activity);
-        replaceSectionHtml('operations-recent-ira-messages', html.recent_ira_messages);
+        applyLiveHtml(payload.html ?? {});
 
         bindBatchRecoveryForms(pageRoot);
         bindOperationsTabShortcuts(pageRoot);
@@ -134,15 +198,30 @@ const refreshOperationsDashboard = async (pageRoot) => {
 };
 
 let pollIntervalId = null;
+let pollCount = 0;
 
-const startPolling = (pageRoot, intervalMs) => {
+const startPolling = (pageRoot, intervalMs, fullRefreshIntervalMs) => {
     if (pollIntervalId !== null) {
         return;
     }
 
     pollIntervalId = window.setInterval(() => {
-        refreshOperationsDashboard(pageRoot);
+        pollCount += 1;
+        const shouldForceFullRefresh = fullRefreshIntervalMs > 0
+            && pollCount * intervalMs >= fullRefreshIntervalMs;
+
+        refreshOperationsDashboard(pageRoot, { forceFullRefresh: shouldForceFullRefresh });
+
+        if (shouldForceFullRefresh) {
+            pollCount = 0;
+        }
     }, intervalMs);
+
+    pageRoot.querySelectorAll('[data-operations-live-group]').forEach((tabButton) => {
+        tabButton.addEventListener('shown.bs.tab', () => {
+            refreshOperationsDashboard(pageRoot);
+        });
+    });
 };
 
 const bindBatchRecoveryForms = (pageRoot) => {
@@ -190,10 +269,9 @@ const bindBatchRecoveryForms = (pageRoot) => {
 
                 const payload = await response.json();
 
-                if (payload.html?.radiumbox_health) {
-                    replaceSectionHtml('operations-radiumbox-health', payload.html.radiumbox_health);
-                    bindBatchRecoveryForms(pageRoot);
-                }
+                applyLiveHtml(payload.html ?? {});
+                bindBatchRecoveryForms(pageRoot);
+                bindOperationsTabShortcuts(pageRoot);
             } finally {
                 if (button instanceof HTMLButtonElement) {
                     button.disabled = false;
@@ -215,7 +293,8 @@ const initOperationsDashboard = () => {
     bindIraInsightToggleLabels(pageRoot);
 
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
-    startPolling(pageRoot, intervalMs);
+    const fullRefreshIntervalMs = Number(pageRoot.dataset.liveFullInterval ?? 120000);
+    startPolling(pageRoot, intervalMs, fullRefreshIntervalMs);
 };
 
 export { refreshOperationsDashboard, initOperationsDashboard };

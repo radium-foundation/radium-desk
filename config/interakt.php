@@ -19,6 +19,7 @@ return [
     'flow_id' => env('INTERAKT_FLOW_ID'),
     'templates' => [
         'request_serial_number' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_REQUEST_SERIAL_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_REQUEST_SERIAL'),
             'language_code' => env('INTERAKT_TEMPLATE_REQUEST_SERIAL_LANGUAGE', 'en'),
             'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REQUEST_SERIAL_LANGUAGE')),
@@ -31,6 +32,7 @@ return [
             // Values are supplied at dispatch time by WhatsAppChannel for RequestSerialNumber notifications.
         ],
         'repair_started' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_REPAIR_STARTED_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_REPAIR_STARTED'),
             'language_code' => env('INTERAKT_TEMPLATE_REPAIR_STARTED_LANGUAGE', 'en'),
             'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REPAIR_STARTED_LANGUAGE')),
@@ -38,6 +40,7 @@ return [
             'purpose' => 'Repair Started',
         ],
         'repair_completed' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_REPAIR_COMPLETED_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_REPAIR_COMPLETED'),
             'language_code' => env('INTERAKT_TEMPLATE_REPAIR_COMPLETED_LANGUAGE', 'en'),
             'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REPAIR_COMPLETED_LANGUAGE')),
@@ -45,6 +48,7 @@ return [
             'purpose' => 'Repair Completed',
         ],
         'ready_for_dispatch' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH'),
             'language_code' => env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH_LANGUAGE', 'en'),
             'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_READY_FOR_DISPATCH_LANGUAGE')),
@@ -52,6 +56,7 @@ return [
             'purpose' => 'Ready for Dispatch',
         ],
         'refund_update' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_REFUND_UPDATE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_REFUND_UPDATE'),
             'language_code' => env('INTERAKT_TEMPLATE_REFUND_UPDATE_LANGUAGE', 'en'),
             'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REFUND_UPDATE_LANGUAGE')),
@@ -59,6 +64,7 @@ return [
             'purpose' => 'Refund Update',
         ],
         'amc_reminder' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_AMC_REMINDER_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_AMC_REMINDER'),
             'language_code' => env('INTERAKT_TEMPLATE_AMC_REMINDER_LANGUAGE', 'en'),
             'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_AMC_REMINDER_LANGUAGE')),
@@ -66,6 +72,7 @@ return [
             'purpose' => 'AMC Reminder',
         ],
         'support_appointment_booked' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED'),
             'language_code' => env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED_LANGUAGE', 'en'),
             'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_SUPPORT_APPOINTMENT_BOOKED_LANGUAGE')),

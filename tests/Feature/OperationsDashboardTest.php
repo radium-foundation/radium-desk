@@ -161,12 +161,18 @@ class OperationsDashboardTest extends TestCase
             ->get(route('admin.operations.index'))
             ->assertOk()
             ->assertSee('Operations Control Center')
+            ->assertSee('Critical Alerts')
+            ->assertSee('Operations Summary')
+            ->assertSee('Integration Health')
             ->assertSee('Ira Today')
             ->assertSee('IRA Advisor')
             ->assertSee('Recommendations only')
             ->assertSee('Team Presence')
             ->assertSee('Immediate Risks')
-            ->assertSee('Action Required')
+            ->assertSee('Cases Needing Action')
+            ->assertSee('Support Today')
+            ->assertSee('Customer Waiting')
+            ->assertSee('Team Workload')
             ->assertSee('System Health')
             ->assertSee('Notification Metrics')
             ->assertSee('Automation Metrics')
@@ -201,6 +207,7 @@ class OperationsDashboardTest extends TestCase
             'support_appointment_booked' => 'support_appointment_booked',
         ] as $templateKey => $templateName) {
             config([
+                'interakt.templates.'.$templateKey.'.enabled' => true,
                 'interakt.templates.'.$templateKey.'.name' => $templateName,
                 'interakt.templates.'.$templateKey.'.language_code' => 'en_US',
                 'interakt.templates.'.$templateKey.'.language_code_is_default' => false,
@@ -233,9 +240,12 @@ class OperationsDashboardTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure([
                 'generated_at',
+                'groups',
                 'html' => [
-                    'ira_briefing',
+                    'critical_alerts',
                     'overview_cards',
+                    'health_status',
+                    'ira_briefing',
                     'ira_briefing_details',
                     'immediate_risks',
                     'advisor_insights',
@@ -246,6 +256,7 @@ class OperationsDashboardTest extends TestCase
                     'queue_metrics',
                     'integration_health',
                     'radiumbox_health',
+                    'cashfree_health',
                     'support_intelligence',
                     'recent_notification_failures',
                     'recent_automation_activity',

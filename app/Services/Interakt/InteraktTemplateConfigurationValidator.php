@@ -75,7 +75,22 @@ class InteraktTemplateConfigurationValidator
                 templateName: null,
                 languageCode: null,
                 valid: false,
+                enabled: true,
                 error: 'Template configuration is missing.',
+            );
+        }
+
+        $enabled = $this->isTemplateEnabled($config);
+
+        if (! $enabled) {
+            $templateName = trim((string) ($config['name'] ?? ''));
+
+            return new TemplateConfigurationStatus(
+                templateKey: $templateKey,
+                templateName: $templateName !== '' ? $templateName : null,
+                languageCode: trim((string) ($config['language_code'] ?? '')) ?: self::DEFAULT_LANGUAGE,
+                valid: true,
+                enabled: false,
             );
         }
 
@@ -101,6 +116,7 @@ class InteraktTemplateConfigurationValidator
             templateName: $templateName !== '' ? $templateName : null,
             languageCode: $languageCode !== '' ? $languageCode : null,
             valid: $valid,
+            enabled: true,
             warning: $warning,
             error: $error,
         );
@@ -120,9 +136,13 @@ class InteraktTemplateConfigurationValidator
     public function healthSummary(): array
     {
         $statuses = $this->validateAll();
-        $totalCount = count($statuses);
-        $configuredCount = count(array_filter(
+        $enabledStatuses = array_values(array_filter(
             $statuses,
+            fn (TemplateConfigurationStatus $status): bool => $status->enabled,
+        ));
+        $totalCount = count($enabledStatuses);
+        $configuredCount = count(array_filter(
+            $enabledStatuses,
             fn (TemplateConfigurationStatus $status): bool => filled($status->templateName),
         ));
         $warnings = [];
@@ -132,7 +152,7 @@ class InteraktTemplateConfigurationValidator
             $errors[] = 'Interakt API key is not configured';
         }
 
-        foreach ($statuses as $status) {
+        foreach ($enabledStatuses as $status) {
             if ($status->error !== null) {
                 $errors[] = $this->formatIssue($status, $status->error);
             }
@@ -214,7 +234,7 @@ class InteraktTemplateConfigurationValidator
 
         Log::info('Interakt template configuration validated', [
             'configured_templates' => collect($statuses)
-                ->filter(fn (TemplateConfigurationStatus $status): bool => filled($status->templateName))
+                ->filter(fn (TemplateConfigurationStatus $status): bool => $status->enabled && filled($status->templateName))
                 ->mapWithKeys(fn (TemplateConfigurationStatus $status): array => [
                     $status->templateKey => [
                         'template_name' => $status->templateName,
@@ -227,6 +247,14 @@ class InteraktTemplateConfigurationValidator
         ]);
 
         Cache::forever($cacheKey, true);
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    private function isTemplateEnabled(array $config): bool
+    {
+        return (bool) ($config['enabled'] ?? false);
     }
 
     /**

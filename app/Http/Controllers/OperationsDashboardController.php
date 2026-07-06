@@ -6,6 +6,7 @@ use App\Http\Requests\RadiumBoxBatchRecoveryRequest;
 use App\Services\Operations\IraBriefingFormatter;
 use App\Services\Operations\IraOperationsBrainService;
 use App\Services\Operations\OperationsAdvisorService;
+use App\Services\Operations\OperationsDashboardLiveRenderer;
 use App\Services\Operations\OperationsDashboardService;
 use App\Services\RadiumBox\RadiumBoxSyncRecoveryService;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +20,7 @@ class OperationsDashboardController extends Controller
         private readonly OperationsAdvisorService $advisorService,
         private readonly IraOperationsBrainService $iraBrainService,
         private readonly IraBriefingFormatter $iraBriefingFormatter,
+        private readonly OperationsDashboardLiveRenderer $liveRenderer,
         private readonly RadiumBoxSyncRecoveryService $radiumBoxRecoveryService,
     ) {
         $this->middleware(function ($request, $next) {
@@ -43,81 +45,29 @@ class OperationsDashboardController extends Controller
 
     public function live(Request $request): JsonResponse
     {
+        $groups = $this->resolveLiveGroups($request);
+        $sections = OperationsDashboardLiveRenderer::resolveSections($groups);
+        $needsIra = $this->sectionsNeedIra($sections);
+        $needsAdvisor = $this->sectionsNeedAdvisor($sections);
+
         $dashboard = $this->dashboardService->dashboardData();
-        $advisorInsights = $this->advisorService->platformInsights();
-        $iraBriefing = $this->iraBrainService->briefing();
-        $iraBriefingFormatted = $this->iraBriefingFormatter->format($iraBriefing);
+        $iraBriefing = $needsIra ? $this->iraBrainService->briefing() : null;
+        $iraBriefingFormatted = $needsIra && $iraBriefing !== null
+            ? $this->iraBriefingFormatter->format($iraBriefing)
+            : null;
+        $advisorInsights = $needsAdvisor ? $this->advisorService->platformInsights() : [];
 
         return response()->json([
             'generated_at' => $dashboard->generatedAt->toIso8601String(),
-            'html' => [
-                'ira_briefing' => view('admin.operations.partials.ira-briefing', [
-                    'briefing' => $iraBriefing,
-                    'formatted' => $iraBriefingFormatted,
-                    'reasoningProvider' => $this->iraBrainService->reasoningProviderName(),
-                ])->render(),
-                'overview_cards' => view('admin.operations.partials.overview-cards', [
-                    'briefing' => $iraBriefing,
-                    'formatted' => $iraBriefingFormatted,
-                    'members' => $dashboard->teamAvailability,
-                    'insights' => $advisorInsights,
-                ])->render(),
-                'ira_briefing_details' => view('admin.operations.partials.ira-briefing-details', [
-                    'briefing' => $iraBriefing,
-                    'formatted' => $iraBriefingFormatted,
-                ])->render(),
-                'immediate_risks' => view('admin.operations.partials.immediate-risks', [
-                    'briefing' => $iraBriefing,
-                ])->render(),
-                'advisor_insights' => view('admin.operations.partials.advisor-insights', [
-                    'insights' => $advisorInsights,
-                ])->render(),
-                'system_health' => view('admin.operations.partials.system-health', [
-                    'components' => $dashboard->systemHealth,
-                ])->render(),
-                'notification_metrics' => view('admin.operations.partials.notification-metrics', [
-                    'metrics' => $dashboard->notificationMetrics,
-                ])->render(),
-                'automation_metrics' => view('admin.operations.partials.automation-metrics', [
-                    'metrics' => $dashboard->automationMetrics,
-                ])->render(),
-                'queue_metrics' => view('admin.operations.partials.queue-metrics', [
-                    'metrics' => $dashboard->queueMetrics,
-                ])->render(),
-                'integration_health' => view('admin.operations.partials.integration-health', [
-                    'cards' => $dashboard->integrationHealth,
-                ])->render(),
-                'radiumbox_health' => view('admin.operations.partials.radiumbox-health', [
-                    'health' => $dashboard->radiumBoxHealth,
-                ])->render(),
-                'cashfree_health' => view('admin.operations.partials.cashfree-health', [
-                    'health' => $dashboard->cashfreeHealth,
-                ])->render(),
-                'cashfree_device_enrichment_quality' => view('admin.operations.partials.cashfree-device-enrichment-quality', [
-                    'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,
-                ])->render(),
-                'missing_serial_automation_quality' => view('admin.operations.partials.missing-serial-automation-quality', [
-                    'quality' => $dashboard->missingSerialAutomationQuality,
-                ])->render(),
-                'support_intelligence' => view('admin.operations.partials.support-intelligence', [
-                    'intelligence' => $dashboard->supportIntelligence,
-                ])->render(),
-                'recent_notification_failures' => view('admin.operations.partials.recent-notification-failures', [
-                    'failures' => $dashboard->recentNotificationFailures,
-                ])->render(),
-                'recent_automation_activity' => view('admin.operations.partials.recent-automation-activity', [
-                    'activities' => $dashboard->recentAutomationActivity,
-                ])->render(),
-                'recent_ira_messages' => view('admin.operations.partials.recent-ira-messages', [
-                    'messages' => $dashboard->recentIraMessages,
-                ])->render(),
-                'team_availability' => view('admin.operations.partials.team-availability', [
-                    'members' => $dashboard->teamAvailability,
-                ])->render(),
-                'team_telegram_status' => view('admin.operations.partials.team-telegram-status', [
-                    'members' => $dashboard->teamTelegramStatus,
-                ])->render(),
-            ],
+            'groups' => $groups,
+            'html' => $this->liveRenderer->renderSections(
+                $sections,
+                $dashboard,
+                $iraBriefing,
+                $iraBriefingFormatted,
+                $this->iraBrainService->reasoningProviderName(),
+                $advisorInsights,
+            ),
         ]);
     }
 
@@ -143,7 +93,60 @@ class OperationsDashboardController extends Controller
                 'radiumbox_health' => view('admin.operations.partials.radiumbox-health', [
                     'health' => $dashboard->radiumBoxHealth,
                 ])->render(),
+                'health_status' => view('admin.operations.partials.health-status-compact', [
+                    'cashfreeHealth' => $dashboard->cashfreeHealth,
+                    'radiumBoxHealth' => $dashboard->radiumBoxHealth,
+                    'teamTelegramStatus' => $dashboard->teamTelegramStatus,
+                ])->render(),
+                'critical_alerts' => view('admin.operations.partials.critical-alerts', [
+                    'dashboard' => $dashboard,
+                    'briefing' => $this->iraBrainService->briefing(),
+                ])->render(),
             ],
         ]);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function resolveLiveGroups(Request $request): ?array
+    {
+        $groups = $request->query('groups');
+
+        if (! is_string($groups) || trim($groups) === '') {
+            return null;
+        }
+
+        return collect(explode(',', $groups))
+            ->map(fn (string $group): string => trim($group))
+            ->filter(fn (string $group): bool => $group !== '')
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $sections
+     */
+    private function sectionsNeedIra(array $sections): bool
+    {
+        return collect($sections)->contains(fn (string $section): bool => in_array($section, [
+            'critical_alerts',
+            'overview_cards',
+            'ira_briefing',
+            'ira_briefing_details',
+            'immediate_risks',
+        ], true));
+    }
+
+    /**
+     * @param  list<string>  $sections
+     */
+    private function sectionsNeedAdvisor(array $sections): bool
+    {
+        return collect($sections)->contains(fn (string $section): bool => in_array($section, [
+            'overview_cards',
+            'advisor_insights',
+        ], true));
     }
 }

@@ -9,6 +9,7 @@ readonly class TemplateConfigurationStatus
         public ?string $templateName,
         public ?string $languageCode,
         public bool $valid,
+        public bool $enabled = true,
         public ?string $warning = null,
         public ?string $error = null,
     ) {}
@@ -23,6 +24,7 @@ readonly class TemplateConfigurationStatus
             'template_name' => $this->templateName,
             'language_code' => $this->languageCode,
             'valid' => $this->valid,
+            'enabled' => $this->enabled,
             'warning' => $this->warning,
             'error' => $this->error,
         ];

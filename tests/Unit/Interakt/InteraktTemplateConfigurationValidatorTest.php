@@ -86,6 +86,7 @@ class InteraktTemplateConfigurationValidatorTest extends TestCase
     public function test_health_summary_reports_all_templates_configured_when_valid(): void
     {
         foreach (array_keys($this->templateDefaults()) as $templateKey) {
+            Config::set('interakt.templates.'.$templateKey.'.enabled', true);
             Config::set('interakt.templates.'.$templateKey.'.language_code', 'en_US');
             Config::set('interakt.templates.'.$templateKey.'.language_code_is_default', false);
         }
@@ -96,6 +97,47 @@ class InteraktTemplateConfigurationValidatorTest extends TestCase
         $this->assertSame('7 / 7 templates configured', $summary['detail']);
         $this->assertSame([], $summary['warnings']);
         $this->assertSame([], $summary['errors']);
+    }
+
+    public function test_disabled_template_without_name_does_not_create_health_alert(): void
+    {
+        Config::set('interakt.templates.repair_started.enabled', false);
+        Config::set('interakt.templates.repair_started.name', '');
+
+        $status = $this->validator->validateTemplate('repair_started');
+        $summary = $this->validator->healthSummary();
+
+        $this->assertFalse($status->enabled);
+        $this->assertTrue($status->valid);
+        $this->assertNull($status->error);
+        $this->assertSame(OperationsHealthStatus::Healthy, $summary['status']);
+        $this->assertSame([], $summary['errors']);
+    }
+
+    public function test_enabled_template_missing_name_creates_health_alert(): void
+    {
+        Config::set('interakt.templates.repair_started.enabled', true);
+        Config::set('interakt.templates.repair_started.name', '');
+
+        $summary = $this->validator->healthSummary();
+
+        $this->assertSame(OperationsHealthStatus::Failed, $summary['status']);
+        $this->assertContains('Template "repair_started": Template name missing', $summary['errors']);
+    }
+
+    public function test_configured_enabled_template_passes_validation(): void
+    {
+        Config::set('interakt.templates.repair_started.enabled', true);
+        Config::set('interakt.templates.repair_started.name', 'repair_started');
+        Config::set('interakt.templates.repair_started.language_code', 'en_US');
+        Config::set('interakt.templates.repair_started.language_code_is_default', false);
+
+        $status = $this->validator->validateTemplate('repair_started');
+
+        $this->assertTrue($status->enabled);
+        $this->assertTrue($status->valid);
+        $this->assertSame('repair_started', $status->templateName);
+        $this->assertNull($status->error);
     }
 
     public function test_health_summary_reports_warning_for_fallback_language(): void
@@ -142,42 +184,49 @@ class InteraktTemplateConfigurationValidatorTest extends TestCase
     }
 
     /**
-     * @return array<string, array{name: string, language_code: string, language_code_is_default: bool}>
+     * @return array<string, array{enabled: bool, name: string, language_code: string, language_code_is_default: bool}>
      */
     private function templateDefaults(): array
     {
         return [
             'request_serial_number' => [
+                'enabled' => true,
                 'name' => 'order_update_request_serial',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,
             ],
             'repair_started' => [
+                'enabled' => true,
                 'name' => 'repair_started',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,
             ],
             'repair_completed' => [
+                'enabled' => true,
                 'name' => 'repair_completed',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,
             ],
             'ready_for_dispatch' => [
+                'enabled' => true,
                 'name' => 'ready_for_dispatch',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,
             ],
             'refund_update' => [
+                'enabled' => true,
                 'name' => 'refund_update',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,
             ],
             'amc_reminder' => [
+                'enabled' => true,
                 'name' => 'amc_reminder',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,
             ],
             'support_appointment_booked' => [
+                'enabled' => true,
                 'name' => 'support_appointment_booked',
                 'language_code' => 'en_US',
                 'language_code_is_default' => false,

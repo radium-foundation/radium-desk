@@ -3,14 +3,22 @@
     'formatted' => null,
     'members' => [],
     'insights' => [],
+    'intelligence' => [],
 ])
 
 @php
     $operations = $briefing?->snapshot->operations ?? [];
+    $supportToday = $intelligence['today'] ?? [];
+    $teamWorkload = $intelligence['team_workload'] ?? [];
 
     $needAction = (int) ($operations['action_required'] ?? collect($members)->sum('open_work_count'));
     $scheduled = (int) ($operations['scheduled'] ?? 0);
     $waitingCustomers = (int) ($operations['waiting'] ?? 0);
+    $supportScheduledToday = (int) ($supportToday['scheduled'] ?? 0);
+    $supportPendingToday = (int) ($supportToday['pending'] ?? 0);
+    $teamMembersWithWork = collect($teamWorkload)
+        ->filter(fn (array $member): bool => ($member['today'] ?? 0) > 0 || ($member['pending'] ?? 0) > 0)
+        ->count();
 
     $criticalCount = $formatted?->criticalRiskCount ?? 0;
     $attentionCount = $formatted?->attentionRiskCount ?? 0;
@@ -21,56 +29,43 @@
         $riskCount = (int) ($operations['attention'] ?? 0) + (int) ($operations['overdue'] ?? 0);
     }
 
-    $teamLines = $formatted?->teamPresenceCollecting
-        ? [['value' => '—', 'suffix' => 'Collecting']]
-        : array_map(
-            fn (string $line): array => [
-                'value' => (string) (preg_match('/^(\d+)/', $line, $matches) ? $matches[1] : '0'),
-                'suffix' => str_contains($line, 'leave') ? 'On Leave' : 'Working',
-            ],
-            $formatted?->teamLines ?? [],
-        );
-
     $cards = [
         [
-            'label' => 'Team',
-            'lines' => $teamLines !== [] ? $teamLines : [
-                ['value' => '—', 'suffix' => 'Collecting'],
-            ],
-            'tone' => 'primary',
-        ],
-        [
-            'label' => 'Workload',
+            'label' => 'Cases Needing Action',
             'lines' => [
-                ['value' => $needAction, 'suffix' => 'Action Required'],
+                ['value' => $needAction, 'suffix' => 'Open work'],
                 ['value' => $scheduled, 'suffix' => 'Scheduled'],
             ],
-            'tone' => 'warning',
+            'tone' => $needAction > 0 ? 'warning' : 'success',
         ],
         [
-            'label' => 'Customer',
+            'label' => 'Support Today',
+            'lines' => [
+                ['value' => $supportScheduledToday, 'suffix' => 'Scheduled'],
+                ['value' => $supportPendingToday, 'suffix' => 'Pending'],
+            ],
+            'tone' => $supportPendingToday > 0 ? 'warning' : 'primary',
+        ],
+        [
+            'label' => 'Customer Waiting',
             'lines' => [
                 ['value' => $waitingCustomers, 'suffix' => 'Waiting'],
             ],
-            'tone' => 'info',
+            'tone' => $waitingCustomers > 0 ? 'info' : 'success',
         ],
         [
-            'label' => 'Risk',
-            'lines' => $criticalCount > 0 || $monitoringCount > 0
-                ? array_values(array_filter([
-                    $criticalCount > 0 ? ['value' => $criticalCount, 'suffix' => 'Require Action'] : null,
-                    $monitoringCount > 0 ? ['value' => $monitoringCount, 'suffix' => 'Monitored'] : null,
-                ]))
-                : [
-                    ['value' => $riskCount, 'suffix' => 'Need Attention'],
-                ],
-            'tone' => $riskCount > 0 || $criticalCount > 0 ? 'danger' : 'success',
+            'label' => 'Team Workload',
+            'lines' => [
+                ['value' => $teamMembersWithWork, 'suffix' => 'Members active'],
+                ['value' => collect($teamWorkload)->sum('pending'), 'suffix' => 'Pending cases'],
+            ],
+            'tone' => 'primary',
         ],
     ];
 @endphp
 
 <section class="operations-overview-section mb-4" aria-labelledby="operations-overview-heading">
-    <h2 id="operations-overview-heading" class="visually-hidden">Operations overview</h2>
+    <h2 id="operations-overview-heading" class="h6 mb-3 text-uppercase text-muted fw-semibold">Today&apos;s Operations Summary</h2>
 
     <div class="row g-3 operations-overview-grid">
         @foreach($cards as $card)
