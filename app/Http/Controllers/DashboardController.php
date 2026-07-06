@@ -91,6 +91,7 @@ class DashboardController extends Controller
             'showsQueueNavigation' => $this->dashboardPersonalization->showsQueueNavigation($user),
             'serviceCasePanelTitle' => match ($serviceCaseFilter) {
                 'needs_attention' => 'Needs Attention',
+                'my_attention' => 'My Attention',
                 default => $this->dashboardPersonalization->serviceCasePanelTitle($operationQueue),
             },
             'assignedToScope' => $assignedTo,

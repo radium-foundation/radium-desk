@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\DashboardPersonalizationService;
+use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -237,6 +238,103 @@ class AgentDashboardOwnershipTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_agent_my_attention_count_is_scoped_to_assigned_cases(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agentA = $this->createAgent('Agent A');
+        $agentB = $this->createAgent('Agent B');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        for ($index = 1; $index <= 2; $index++) {
+            $this->createOverdueAttentionCase("RD-A-ATT-{$index}", $creator, $agentA);
+        }
+
+        for ($index = 1; $index <= 3; $index++) {
+            $this->createOverdueAttentionCase("RD-B-ATT-{$index}", $creator, $agentB);
+        }
+
+        $this->createUnassignedAttentionCase('RD-UNASSIGNED-ATT', $creator);
+
+        $stats = app(DashboardService::class)->statsFor($agentA);
+
+        $this->assertSame(2, $stats['my_attention']);
+        $this->assertSame(3, app(DashboardService::class)->statsFor($agentB)['my_attention']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_agent_my_attention_drilldown_shows_same_assigned_cases(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agentA = $this->createAgent('Drilldown Agent A');
+        $agentB = $this->createAgent('Drilldown Agent B');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createOverdueAttentionCase('RD-A-DRILL-1', $creator, $agentA);
+        $this->createOverdueAttentionCase('RD-A-DRILL-2', $creator, $agentA);
+        $this->createOverdueAttentionCase('RD-B-DRILL-1', $creator, $agentB);
+        $this->createUnassignedAttentionCase('RD-UNASSIGNED-DRILL', $creator);
+
+        $expectedHref = route('dashboard', ['filter' => 'my_attention']).'#dashboard-service-cases-panel';
+
+        $this->actingAs($agentA)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee($expectedHref, false);
+
+        $this->actingAs($agentA)
+            ->get(route('dashboard', ['filter' => 'my_attention']))
+            ->assertOk()
+            ->assertSee('My Attention')
+            ->assertSee('RD-A-DRILL-1')
+            ->assertSee('RD-A-DRILL-2')
+            ->assertDontSee('RD-B-DRILL-1')
+            ->assertDontSee('RD-UNASSIGNED-DRILL');
+
+        $filterCounts = app(DashboardService::class)->serviceCaseFilterCounts($agentA, $agentA);
+
+        $this->assertSame(2, $filterCounts['my_attention']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_admin_attention_queue_remains_global(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $agentA = $this->createAgent('Global Agent A');
+        $agentB = $this->createAgent('Global Agent B');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createOverdueAttentionCase('RD-GLOBAL-A-1', $creator, $agentA);
+        $this->createOverdueAttentionCase('RD-GLOBAL-A-2', $creator, $agentA);
+        $this->createOverdueAttentionCase('RD-GLOBAL-B-1', $creator, $agentB);
+        $this->createOverdueAttentionCase('RD-GLOBAL-B-2', $creator, $agentB);
+        $this->createOverdueAttentionCase('RD-GLOBAL-B-3', $creator, $agentB);
+        $unassignedCase = $this->createUnassignedAttentionCase('RD-GLOBAL-UNASSIGNED', $creator);
+
+        $attentionCount = DashboardSnapshot::load()->incidentsForQueue('attention')->count();
+
+        $this->assertSame(6, $attentionCount);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'attention']))
+            ->assertOk()
+            ->assertSee('RD-GLOBAL-A-1')
+            ->assertSee('RD-GLOBAL-B-3')
+            ->assertSee('RD-GLOBAL-UNASSIGNED')
+            ->assertSee($unassignedCase->reference_no);
+
+        Carbon::setTestNow();
+    }
+
     public function test_my_work_quick_search_filters_by_order_id(): void
     {
         $agent = $this->createAgent('Search Agent');
@@ -255,6 +353,29 @@ class AgentDashboardOwnershipTest extends TestCase
             ->assertJsonPath('total_count', 1)
             ->assertJsonCount(1, 'rows')
             ->assertSee('RD-SEARCH-ME', false);
+    }
+
+    private function createOverdueAttentionCase(string $orderId, User $creator, User $assignee): Incident
+    {
+        $incident = $this->createIncident($orderId, $creator, $assignee);
+        $incident->forceFill([
+            'created_at' => now()->subHours(72),
+            'updated_at' => now()->subHours(72),
+        ])->save();
+
+        return $incident->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
+    }
+
+    private function createUnassignedAttentionCase(string $orderId, User $creator): Incident
+    {
+        $incident = $this->createIncident($orderId, $creator, null);
+        $incident->forceFill([
+            'high_priority' => true,
+            'created_at' => now()->subHour(),
+            'updated_at' => now()->subHour(),
+        ])->save();
+
+        return $incident->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
     }
 
     private function createAgent(string $name): User

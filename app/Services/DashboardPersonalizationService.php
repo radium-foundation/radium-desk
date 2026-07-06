@@ -380,8 +380,10 @@ class DashboardPersonalizationService
             return self::QUEUE_COMPLETED;
         }
 
-        if (in_array($filter, ['needs_attention', 'overdue', 'warning', 'high_priority', 'pending_support'], true)) {
-            return self::QUEUE_ATTENTION;
+        if (in_array($filter, ['needs_attention', 'my_attention', 'overdue', 'warning', 'high_priority', 'pending_support'], true)) {
+            return $this->operationsRoles->usesSupportQueues($user)
+                ? self::QUEUE_MY_WORK
+                : self::QUEUE_ATTENTION;
         }
 
         if ($view === self::VIEW_MY_WORK || $filter === 'my_cases') {

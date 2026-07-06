@@ -273,6 +273,7 @@ class DashboardSnapshot
         return [
             'pending_admin',
             'needs_attention',
+            'my_attention',
             'high_priority',
             'overdue',
             'warning',
@@ -346,8 +347,27 @@ class DashboardSnapshot
                 ->values();
         }
 
+        if ($filter === 'my_attention') {
+            $attention = $this->incidentsForQueue(OperationQueue::Attention->value);
+
+            if ($assignmentScope === null) {
+                return $attention;
+            }
+
+            return $attention
+                ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $assignmentScope->id)
+                ->values();
+        }
+
         if (in_array($filter, ['overdue', 'warning'], true)) {
-            return $this->incidentsForQueue(OperationQueue::Attention->value, $assignmentScope)
+            $attention = $this->incidentsForQueue(OperationQueue::Attention->value);
+
+            if ($assignmentScope !== null) {
+                $attention = $attention
+                    ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $assignmentScope->id);
+            }
+
+            return $attention
                 ->filter(fn (Incident $incident): bool => $incident->slaStatus(now()) === match ($filter) {
                     'overdue' => ServiceCaseSlaStatus::Overdue,
                     default => ServiceCaseSlaStatus::Warning,
@@ -394,7 +414,7 @@ class DashboardSnapshot
     {
         return match ($filter) {
             'completed' => OperationQueue::Completed->value,
-            'pending_support', 'needs_attention', 'overdue', 'warning', 'high_priority' => OperationQueue::Attention->value,
+            'pending_support', 'needs_attention', 'my_attention', 'overdue', 'warning', 'high_priority' => OperationQueue::Attention->value,
             'pending_admin' => OperationQueue::ActionRequired->value,
             'my_cases' => OperationQueue::MyWork->value,
             default => OperationQueue::ActionRequired->value,

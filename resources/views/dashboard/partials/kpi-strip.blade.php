@@ -24,7 +24,7 @@
             'value' => $stats['my_attention'] ?? 0,
             'icon' => 'bi-exclamation-triangle-fill',
             'color' => 'danger',
-            'href' => route('dashboard', ['queue' => 'my_work']).'#dashboard-service-cases-panel',
+            'href' => route('dashboard', ['filter' => 'my_attention']).'#dashboard-service-cases-panel',
         ];
         $items[] = [
             'label' => 'My Scheduled Today',
