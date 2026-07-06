@@ -32,11 +32,11 @@ class DashboardOnlineUsersTest extends TestCase
 
         $this->seedActiveSession($user);
 
-        $this->actingAs($user)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('Online Users')
-            ->assertSee('<span class="dashboard-kpi-value-number">1</span>', false);
+        $stats = app(DashboardService::class)->statsFor($user);
+
+        $this->assertSame(1, $stats['online_count']);
+        $this->assertCount(1, $stats['online_users']);
+        $this->assertSame($user->id, $stats['online_users']->first()->id);
     }
 
     public function test_online_users_counts_distinct_users_with_recent_sessions(): void

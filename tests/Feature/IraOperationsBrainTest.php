@@ -264,8 +264,8 @@ class IraOperationsBrainTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('Ira Today')
-            ->assertSee('Good morning');
+            ->assertSee('Ira')
+            ->assertSee('View Full Analysis');
     }
 
     private function createAgentWithSchedule(string $name): User

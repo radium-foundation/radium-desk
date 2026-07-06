@@ -215,7 +215,7 @@ class IncidentWaitingStateTest extends TestCase
             ->assertSee('05 Jul, 09:45 PM', false)
             ->assertDontSee('Waiting Since', false)
             ->assertSee('Paused', false)
-            ->assertSee('Serial Number Default', false);
+            ->assertSee('Customer Waiting Default', false);
 
         Carbon::setTestNow();
     }

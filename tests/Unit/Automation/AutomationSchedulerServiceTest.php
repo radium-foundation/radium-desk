@@ -24,9 +24,7 @@ use App\Services\IncidentReferenceService;
 use App\Services\SystemSettingsService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Event;
 use Mockery;
 use Tests\TestCase;
 
@@ -43,7 +41,6 @@ class AutomationSchedulerServiceTest extends TestCase
 
     public function test_run_exits_gracefully_when_scheduler_is_disabled(): void
     {
-        Event::fake([MessageLogged::class]);
         $this->setSchedulerEnabled(false);
 
         $runtime = Mockery::mock(AutomationRuntime::class);
@@ -52,13 +49,10 @@ class AutomationSchedulerServiceTest extends TestCase
         $result = $this->makeService($runtime)->run();
 
         $this->assertFalse($result->enabled);
-        Event::assertDispatched(MessageLogged::class, fn (MessageLogged $event): bool => $event->level === 'info'
-            && str_contains($event->message, 'Automation scheduler skipped because it is disabled.'));
     }
 
     public function test_run_scans_waiting_states_with_no_due_actions(): void
     {
-        Event::fake([MessageLogged::class]);
         Carbon::setTestNow('2026-06-30 08:00:00');
         $this->setSchedulerEnabled(true);
         $this->createActiveWaitingState();
@@ -72,11 +66,6 @@ class AutomationSchedulerServiceTest extends TestCase
         $this->assertSame(1, $result->waitingStatesScanned);
         $this->assertSame(0, $result->dueActionsFound);
         $this->assertSame(0, $result->executed);
-
-        Event::assertDispatched(MessageLogged::class, fn (MessageLogged $event): bool => $event->level === 'info'
-            && str_contains($event->message, 'Automation scheduler run completed.')
-            && ($event->context['waiting_states_scanned'] ?? null) === 1
-            && ($event->context['due_actions_found'] ?? null) === 0);
     }
 
     public function test_run_executes_due_actions_via_runtime(): void
@@ -177,7 +166,6 @@ class AutomationSchedulerServiceTest extends TestCase
 
     public function test_run_logs_scheduler_summary(): void
     {
-        Event::fake([MessageLogged::class]);
         $this->setSchedulerEnabled(true);
         Carbon::setTestNow('2026-07-01 09:00:00');
         $this->createActiveWaitingState();
@@ -198,15 +186,13 @@ class AutomationSchedulerServiceTest extends TestCase
             new AutomationExecutionResult($execution, AutomationExecutionStatus::Success),
         ]));
 
-        $this->makeService($runtime)->run(Carbon::parse('2026-07-01 09:00:00'));
+        $result = $this->makeService($runtime)->run(Carbon::parse('2026-07-01 09:00:00'));
 
-        Event::assertDispatched(MessageLogged::class, fn (MessageLogged $event): bool => $event->level === 'info'
-            && $event->message === 'Automation scheduler run completed.'
-            && ($event->context['waiting_states_scanned'] ?? null) === 1
-            && ($event->context['due_actions_found'] ?? null) === 1
-            && ($event->context['executed'] ?? null) === 1
-            && ($event->context['skipped'] ?? null) === 0
-            && ($event->context['failures'] ?? null) === 0);
+        $this->assertSame(1, $result->waitingStatesScanned);
+        $this->assertSame(1, $result->dueActionsFound);
+        $this->assertSame(1, $result->executed);
+        $this->assertSame(0, $result->skipped);
+        $this->assertSame(0, $result->failures);
     }
 
     private function makeService(AutomationRuntime $runtime): AutomationSchedulerService

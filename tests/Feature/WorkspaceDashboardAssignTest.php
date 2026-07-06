@@ -63,6 +63,7 @@ class WorkspaceDashboardAssignTest extends TestCase
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createOpenIncident($admin);
+        $incident->update(['assigned_to_user_id' => $admin->id]);
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
@@ -122,7 +123,8 @@ class WorkspaceDashboardAssignTest extends TestCase
     public function test_live_dashboard_rows_include_action_trigger_for_admin(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
-        $this->createOpenIncident($admin);
+        $incident = $this->createOpenIncident($admin);
+        $incident->update(['assigned_to_user_id' => $admin->id]);
 
         $response = $this->actingAs($admin)
             ->getJson(route('dashboard.live'))

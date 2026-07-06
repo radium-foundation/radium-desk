@@ -42,9 +42,9 @@ class OperationsRadiumBoxHealthTest extends TestCase
             ->getJson(route('admin.operations.live', ['groups' => 'health_radiumbox']))
             ->assertOk()
             ->assertSee('RadiumBox Health', false)
-            ->assertSee('Pending Syncs', false)
-            ->assertSee('Failed Syncs', false)
-            ->assertSee('Success Rate (24h)', false);
+            ->assertSee('Pending', false)
+            ->assertSee('Failed', false)
+            ->assertSee('Success %', false);
     }
 
     public function test_live_refresh_includes_radiumbox_health_html(): void

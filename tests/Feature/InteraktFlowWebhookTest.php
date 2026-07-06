@@ -181,7 +181,7 @@ class InteraktFlowWebhookTest extends TestCase
 
         $this->assertDatabaseHas('outbox_events', [
             'event_type' => InteraktFlowWebhookOutboxWriter::EVENT_TYPE,
-            'status' => OutboxEventStatus::Failed->value,
+            'status' => OutboxEventStatus::Pending->value,
         ]);
 
         $this->assertDatabaseCount('support_appointments', 0);

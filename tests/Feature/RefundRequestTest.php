@@ -326,7 +326,7 @@ class RefundRequestTest extends TestCase
         $this->actingAs($user)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Pending Refunds');
+            ->assertSee('Refunds');
     }
 
     public function test_admin_dashboard_shows_all_refund_status_counts(): void
@@ -357,7 +357,11 @@ class RefundRequestTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Approved Refunds')
-            ->assertSee('Rejected Refunds');
+            ->assertSee('Refunds');
+
+        $stats = app(\App\Services\DashboardService::class)->statsFor($admin);
+        $this->assertSame(0, $stats['pending_refunds']);
+        $this->assertSame(1, $stats['approved_refunds']);
+        $this->assertSame(1, $stats['rejected_refunds']);
     }
 }

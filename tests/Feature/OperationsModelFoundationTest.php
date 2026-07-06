@@ -314,7 +314,7 @@ class OperationsModelFoundationTest extends TestCase
         $agentStats = app(DashboardService::class)->statsFor($agent);
         $adminStats = app(DashboardService::class)->statsFor($admin);
 
-        $this->assertSame(1, $agentStats['open_cases']);
+        $this->assertSame(1, $agentStats['my_active_work']);
         $this->assertSame(2, $adminStats['open_cases']);
     }
 

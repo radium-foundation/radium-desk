@@ -142,6 +142,10 @@ class DashboardPersonalizationService
             $mapped = $this->mapLegacyNavigation($user, $legacyView, $legacyFilter);
 
             if ($mapped !== null) {
+                if ($mapped === self::QUEUE_HARDWARE && ! $this->canViewHardwareOrders($user)) {
+                    return ['queue' => $defaultQueue, 'redirect' => true];
+                }
+
                 $needsRedirect = $requestedQueue === null
                     && $legacyView !== null
                     && ! filled($legacyFilter);

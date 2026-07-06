@@ -14,7 +14,7 @@ class TimelineActorTest extends TestCase
         $this->assertSame('Customer', (new TimelineActor('Customer'))->roleLabel());
         $this->assertSame('Automation', (new TimelineActor('Ira', 'IRA AI', true))->roleLabel());
         $this->assertSame('System', (new TimelineActor('System', kind: TimelineActorKind::System))->roleLabel());
-        $this->assertSame('Agent', (new TimelineActor('Priya'))->roleLabel());
+        $this->assertSame('Team Member', (new TimelineActor('Priya'))->roleLabel());
     }
 
     public function test_filter_categories(): void

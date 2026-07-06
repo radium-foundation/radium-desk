@@ -298,9 +298,9 @@ class AutomationMonitoringTest extends TestCase
         $admin = $this->createAdminUser('admin-widget@test.com', 'Widget Admin');
 
         $this->actingAs($admin)
-            ->get(route('dashboard'))
+            ->get(route('admin.automation.index'))
             ->assertOk()
             ->assertSee('Automation Health')
-            ->assertSee('Repair Needed');
+            ->assertSee('Automation Pending');
     }
 }

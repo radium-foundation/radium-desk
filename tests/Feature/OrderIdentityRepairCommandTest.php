@@ -178,7 +178,7 @@ class OrderIdentityRepairCommandTest extends TestCase
         $order = $incident->order->fresh();
         $this->assertNull($order->serial_number);
         $this->assertNull($order->device_model);
-        $this->assertNull(app(RadiumBoxOrderEnrichmentSyncStore::class)->status($order->id));
+        $this->assertSame(RadiumBoxEnrichmentSyncStatus::NotSynced, app(RadiumBoxOrderEnrichmentSyncStore::class)->status($order->id));
 
         $this->assertSame(0, AuditLog::query()->where('event', OrderIdentityRepairService::AUDIT_EVENT)->count());
     }

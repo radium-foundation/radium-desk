@@ -107,7 +107,7 @@ class DashboardGlobalSearchTest extends TestCase
         ]);
 
         $this->actingAs($agent)
-            ->get(route('dashboard', ['view' => 'my_work']))
+            ->get(route('dashboard', ['queue' => 'my_work']))
             ->assertOk()
             ->assertDontSee('RD-OTHER-AGENT-001');
 
