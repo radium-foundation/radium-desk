@@ -69,8 +69,13 @@ const TAB_SECTION_KEYS = {
 };
 
 const FETCH_TIMEOUT_MS = 30000;
+const LAZY_LOAD_GUARD_MS = FETCH_TIMEOUT_MS;
 
 const LAZY_PLACEHOLDER_SELECTOR = '.operations-lazy-placeholder';
+
+const SECTIONS_ALLOW_NESTED_LAZY_MARKERS = new Set([
+    'health_status',
+]);
 
 const replaceSectionHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -104,9 +109,16 @@ const showLazyLoadError = (elementId, message, retryHandler) => {
     element.querySelector('[data-operations-lazy-retry]')?.addEventListener('click', retryHandler);
 };
 
-const isLazyPlaceholderHtml = (html) => (
-    typeof html === 'string' && html.includes('operations-lazy-placeholder')
-);
+const isLazyPlaceholderHtml = (html) => {
+    if (typeof html !== 'string') {
+        return false;
+    }
+
+    const trimmed = html.trim();
+
+    return trimmed.includes('operations-lazy-placeholder')
+        && /class="[^"]*operations-lazy-placeholder/.test(trimmed);
+};
 
 const isIraLoadingPlaceholder = (element) => (
     element instanceof HTMLElement
@@ -118,7 +130,7 @@ const validateSectionHtml = (sectionKey, html) => {
         throw new Error(`Missing ${sectionKey} content from operations live refresh.`);
     }
 
-    if (isLazyPlaceholderHtml(html)) {
+    if (!SECTIONS_ALLOW_NESTED_LAZY_MARKERS.has(sectionKey) && isLazyPlaceholderHtml(html)) {
         throw new Error(`${sectionKey} content is still loading.`);
     }
 };
@@ -140,6 +152,10 @@ const findStaleLazySectionTargets = (pageRoot) => {
     }
 
     pageRoot.querySelectorAll(LAZY_PLACEHOLDER_SELECTOR).forEach((placeholder) => {
+        if (placeholder.closest('[data-operations-lazy-section]')) {
+            return;
+        }
+
         const target = placeholder.closest('[id]');
 
         if (target?.id) {
@@ -405,6 +421,19 @@ const loadHealthDetail = async (pageRoot, collapseElement, { force = false } = {
         return true;
     }
 
+    const targetElement = document.getElementById(targetId);
+
+    if (targetElement && !targetElement.querySelector(LAZY_PLACEHOLDER_SELECTOR)) {
+        targetElement.innerHTML = `
+            <div class="operations-lazy-placeholder card border-0 shadow-sm">
+                <div class="card-body py-4 text-center text-muted">
+                    <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+                    <span>Loading integration details…</span>
+                </div>
+            </div>
+        `;
+    }
+
     try {
         const payload = await fetchLiveGroups(pageRoot, [group]);
         const sectionHtml = payload.html?.[section];
@@ -435,13 +464,54 @@ const loadHealthDetail = async (pageRoot, collapseElement, { force = false } = {
     }
 };
 
-const rehydrateExpandedHealthDetails = async (pageRoot) => {
-    const expandedSections = pageRoot.querySelectorAll('[data-operations-lazy-section].show');
+const captureLoadedHealthDetails = (pageRoot) => (
+    [...pageRoot.querySelectorAll('[data-operations-lazy-section].show')]
+        .filter((collapseElement) => collapseElement.dataset.operationsLazyLoaded === 'true')
+        .map((collapseElement) => {
+            const section = collapseElement.dataset.operationsLazySection;
+            const targetId = HEALTH_DETAIL_TARGETS[section];
 
-    await Promise.all([...expandedSections].map(async (collapseElement) => {
-        collapseElement.dataset.operationsLazyLoaded = 'false';
-        await loadHealthDetail(pageRoot, collapseElement, { force: true });
-    }));
+            if (!section || !targetId) {
+                return null;
+            }
+
+            const target = document.getElementById(targetId);
+
+            if (!target) {
+                return null;
+            }
+
+            return {
+                collapseId: collapseElement.id,
+                section,
+                targetId,
+                html: target.innerHTML,
+            };
+        })
+        .filter((entry) => entry !== null)
+);
+
+const restoreLoadedHealthDetails = (pageRoot, capturedDetails) => {
+    capturedDetails.forEach(({ collapseId, section, targetId, html }) => {
+        const collapseElement = document.getElementById(collapseId);
+        const target = document.getElementById(targetId);
+        const trigger = pageRoot.querySelector(`[data-bs-target="#${collapseId}"]`);
+
+        if (!collapseElement || !target) {
+            return;
+        }
+
+        collapseElement.classList.add('show');
+        collapseElement.dataset.operationsLazyLoaded = 'true';
+
+        if (trigger) {
+            trigger.classList.remove('collapsed');
+            trigger.setAttribute('aria-expanded', 'true');
+        }
+
+        target.innerHTML = html;
+        collapseElement.dataset.operationsHealthLazyBound = 'false';
+    });
 };
 
 const bindHealthAccordionLazyLoad = (pageRoot) => {
@@ -455,10 +525,6 @@ const bindHealthAccordionLazyLoad = (pageRoot) => {
         collapseElement.addEventListener('show.bs.collapse', () => {
             loadHealthDetail(pageRoot, collapseElement);
         });
-
-        if (collapseElement.classList.contains('show')) {
-            loadHealthDetail(pageRoot, collapseElement);
-        }
     });
 };
 
@@ -525,17 +591,21 @@ const refreshOperationsDashboard = async (
     { forceFullRefresh = false, extraGroups = [], surfaceErrors = false } = {},
 ) => {
     const groups = buildLiveGroups(pageRoot, forceFullRefresh, extraGroups);
+    const loadedHealthDetails = surfaceErrors ? [] : captureLoadedHealthDetails(pageRoot);
 
     try {
         const payload = await fetchLiveGroups(pageRoot, groups);
 
         applyLiveHtml(pageRoot, payload.html ?? {}, { validate: surfaceErrors });
 
+        if (loadedHealthDetails.length > 0) {
+            restoreLoadedHealthDetails(pageRoot, loadedHealthDetails);
+        }
+
         bindBatchRecoveryForms(pageRoot);
         bindOperationsTabShortcuts(pageRoot);
         bindIraInsightToggleLabels(pageRoot);
         bindHealthAccordionLazyLoad(pageRoot);
-        await rehydrateExpandedHealthDetails(pageRoot);
 
         const generatedAtElement = document.getElementById('operations-dashboard-generated-at');
 
@@ -652,7 +722,6 @@ const bindBatchRecoveryForms = (pageRoot) => {
                 bindBatchRecoveryForms(pageRoot);
                 bindOperationsTabShortcuts(pageRoot);
                 bindHealthAccordionLazyLoad(pageRoot);
-                await rehydrateExpandedHealthDetails(pageRoot);
             } finally {
                 if (button instanceof HTMLButtonElement) {
                     button.disabled = false;
@@ -662,6 +731,54 @@ const bindBatchRecoveryForms = (pageRoot) => {
     });
 };
 
+const guardAgainstStaleLazyPlaceholders = (pageRoot) => {
+    window.setTimeout(() => {
+        pageRoot.querySelectorAll(LAZY_PLACEHOLDER_SELECTOR).forEach((placeholder) => {
+            if (placeholder.closest('[data-operations-lazy-section]:not(.show)')) {
+                return;
+            }
+
+            const target = placeholder.closest('[id]');
+
+            if (!target?.id || target.querySelector('.operations-lazy-error')) {
+                return;
+            }
+
+            const healthCollapse = placeholder.closest('[data-operations-lazy-section]');
+            const retryHandler = healthCollapse
+                ? () => {
+                    replaceSectionHtml(
+                        target.id,
+                        '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
+                    );
+                    loadHealthDetail(pageRoot, healthCollapse, { force: true });
+                }
+                : () => {
+                    const group = Object.entries(TAB_CONTENT_TARGETS)
+                        .find(([, targetId]) => targetId === target.id)?.[0];
+
+                    if (!group) {
+                        retryInitialOperationsLoad(pageRoot);
+
+                        return;
+                    }
+
+                    replaceSectionHtml(
+                        target.id,
+                        '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
+                    );
+                    loadLazyTab(pageRoot, group, { force: true });
+                };
+
+            showLazyLoadError(
+                target.id,
+                'This section took too long to load.',
+                retryHandler,
+            );
+        });
+    }, LAZY_LOAD_GUARD_MS);
+};
+
 const initOperationsDashboard = async () => {
     const pageRoot = document.getElementById('operations-dashboard-root');
 
@@ -669,7 +786,7 @@ const initOperationsDashboard = async () => {
         return;
     }
 
-    console.info('Operations dashboard JS version P06-07-016 loaded');
+    console.info('Operations dashboard JS version P06-07-020 loaded');
 
     bindBatchRecoveryForms(pageRoot);
     bindOperationsTabShortcuts(pageRoot);
@@ -685,16 +802,20 @@ const initOperationsDashboard = async () => {
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
     const fullRefreshIntervalMs = Number(pageRoot.dataset.liveFullInterval ?? 120000);
     startPolling(pageRoot, intervalMs, fullRefreshIntervalMs);
+    guardAgainstStaleLazyPlaceholders(pageRoot);
 };
 
 export {
+    captureLoadedHealthDetails,
     fetchLiveGroups,
     findStaleLazySectionTargets,
+    guardAgainstStaleLazyPlaceholders,
     initOperationsDashboard,
     isLazyPlaceholderHtml,
     loadHealthDetail,
     loadLazyTab,
     refreshOperationsDashboard,
+    restoreLoadedHealthDetails,
     showLazyLoadError,
     validateSectionHtml,
 };

@@ -5,7 +5,7 @@ namespace App\Data\Operations;
 readonly class SupportIntelligenceSummary
 {
     /**
-     * @param  list<array{name: string, today: int, pending: int}>  $teamWorkload
+     * @param  list<array{name: string, today: int, pending: int, active_cases: int}>  $teamWorkload
      */
     public function __construct(
         public int $scheduledToday,

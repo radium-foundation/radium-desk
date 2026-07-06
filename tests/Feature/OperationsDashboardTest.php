@@ -277,6 +277,56 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('operations-critical-alerts', false);
     }
 
+    public function test_critical_alerts_render_as_actionable_cards(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createSupportAgent('Shipra');
+        $creator = User::factory()->create();
+        $this->createScheduledAppointment($agent, $creator, 'RD-ALERT-1', '2026-07-05');
+
+        $this->actingAs($this->createAdminUser('admin-critical-alert-cards@test.com'))
+            ->getJson(route('admin.operations.live', ['groups' => 'critical']))
+            ->assertOk()
+            ->assertSee('operations-critical-alert-card', false)
+            ->assertSee('operations-critical-alert-metric', false)
+            ->assertSee('Overdue support appointments', false)
+            ->assertDontSee('alert alert-danger mb-0', false);
+    }
+
+    public function test_health_status_shell_does_not_include_lazy_placeholders(): void
+    {
+        $response = $this->actingAs($this->createAdminUser('admin-health-shell@test.com'))
+            ->getJson(route('admin.operations.live', ['groups' => 'health']))
+            ->assertOk();
+
+        $html = (string) $response->json('html.health_status');
+
+        $this->assertStringNotContainsString('operations-lazy-placeholder', $html);
+        $this->assertStringContainsString('Expand to load Cashfree details', $html);
+        $this->assertStringContainsString('accordion-button collapsed', $html);
+    }
+
+    public function test_support_intelligence_renders_workload_cards(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createSupportAgent('Shipra');
+        $creator = User::factory()->create();
+
+        $this->createScheduledAppointment($agent, $creator, 'RD-WL-CARD-1', '2026-07-06');
+        $this->createScheduledAppointment($agent, $creator, 'RD-WL-CARD-2', '2026-07-07');
+
+        $this->actingAs($this->createAdminUser('admin-workload-cards@test.com'))
+            ->getJson(route('admin.operations.live', ['groups' => 'today']))
+            ->assertOk()
+            ->assertSee('operations-workload-card', false)
+            ->assertSee('operations-support-intelligence-summary', false)
+            ->assertSee('Show details', false)
+            ->assertSee('Shipra', false)
+            ->assertSee('Active cases', false);
+    }
+
     public function test_live_endpoint_lazy_loads_tab_and_health_details(): void
     {
         $admin = $this->createAdminUser('admin-lazy-load@test.com');
@@ -541,6 +591,7 @@ class OperationsDashboardTest extends TestCase
         $this->assertNotNull($shipraWorkload);
         $this->assertSame(2, $shipraWorkload['today']);
         $this->assertSame(3, $shipraWorkload['pending']);
+        $this->assertArrayHasKey('active_cases', $shipraWorkload);
         $this->assertNotNull($otherWorkload);
         $this->assertSame(0, $otherWorkload['today']);
         $this->assertSame(1, $otherWorkload['pending']);

@@ -140,7 +140,7 @@ class OperationsSupportIntelligenceService
     }
 
     /**
-     * @return list<array{name: string, today: int, pending: int}>
+     * @return list<array{name: string, today: int, pending: int, active_cases: int}>
      */
     private function teamWorkload(Carbon $at, DashboardSnapshot $snapshot): array
     {
@@ -148,10 +148,13 @@ class OperationsSupportIntelligenceService
         $workload = [];
 
         foreach ($this->teamWorkBriefingService->recipients() as $user) {
+            $metrics = $this->smartAssignmentService->workloadMetrics($user, $snapshot);
+
             $workload[] = [
                 'name' => $user->name,
                 'today' => $this->todayAppointmentsFor($user, $snapshot, $today),
-                'pending' => $this->smartAssignmentService->workloadMetrics($user, $snapshot)['scheduled_cases'],
+                'pending' => $metrics['scheduled_cases'],
+                'active_cases' => $metrics['open_cases'],
             ];
         }
 

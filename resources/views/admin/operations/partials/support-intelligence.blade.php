@@ -17,6 +17,32 @@
     $serialRequested = (int) ($customerResponse['serial_requested'] ?? 0);
     $serialReceived = (int) ($customerResponse['serial_received'] ?? 0);
     $stillWaiting = (int) ($customerResponse['still_waiting'] ?? 0);
+    $showDetails = $missedOverdue > 0 || $stillWaiting > 0;
+
+    $workloadCards = collect($teamWorkload)
+        ->map(function (array $member): array {
+            $todayCount = (int) ($member['today'] ?? 0);
+            $pendingCount = (int) ($member['pending'] ?? 0);
+            $activeCases = (int) ($member['active_cases'] ?? 0);
+            $totalLoad = $todayCount + $pendingCount;
+            $loadPercent = min(100, (int) round(($totalLoad / max(1, 8)) * 100));
+            $isOverloaded = $loadPercent >= 85;
+
+            return [
+                'name' => $member['name'] ?? 'Unknown',
+                'today' => $todayCount,
+                'pending' => $pendingCount,
+                'active_cases' => $activeCases,
+                'load_percent' => $loadPercent,
+                'is_overloaded' => $isOverloaded,
+                'tone' => $isOverloaded ? 'danger' : 'success',
+            ];
+        })
+        ->filter(fn (array $member): bool => $member['today'] > 0
+            || $member['pending'] > 0
+            || $member['active_cases'] > 0)
+        ->values()
+        ->all();
 @endphp
 
 <section class="mb-0" aria-labelledby="support-intelligence-heading">
@@ -27,10 +53,12 @@
             type="button"
             data-bs-toggle="collapse"
             data-bs-target="#operations-support-intelligence-details"
-            aria-expanded="{{ ($missedOverdue > 0 || $stillWaiting > 0) ? 'true' : 'false' }}"
+            data-operations-view-all-label="Show details"
+            data-operations-view-less-label="Hide details"
+            aria-expanded="{{ $showDetails ? 'true' : 'false' }}"
             aria-controls="operations-support-intelligence-details"
         >
-            {{ ($missedOverdue > 0 || $stillWaiting > 0) ? 'Hide details' : 'Show details' }}
+            {{ $showDetails ? 'Hide details' : 'Show details' }}
         </button>
     </div>
 
@@ -57,70 +85,104 @@
         </div>
     </div>
 
-    <div id="operations-support-intelligence-details" @class(['collapse', 'show' => ($missedOverdue > 0 || $stillWaiting > 0)])>
+    <div id="operations-support-intelligence-details" @class(['collapse', 'show' => $showDetails])>
         <div class="card border-0 shadow-sm">
             <div class="card-body">
                 <div class="row g-4">
-                <div class="col-md-6 col-xl-3">
-                    <p class="text-uppercase text-muted small fw-semibold mb-2">Today's Support</p>
-                    <dl class="row mb-0 small">
-                        <dt class="col-7">Scheduled</dt>
-                        <dd class="col-5 text-end mb-1">{{ number_format($scheduledToday) }}</dd>
-                        <dt class="col-7">Completed</dt>
-                        <dd class="col-5 text-end mb-1">{{ number_format($completedToday) }}</dd>
-                        <dt class="col-7">Pending</dt>
-                        <dd class="col-5 text-end mb-1">{{ number_format($pendingToday) }}</dd>
-                        @if ($missedOverdue > 0)
-                            <dt class="col-7">Missed / overdue</dt>
-                            <dd class="col-5 text-end mb-0 text-danger fw-semibold">{{ number_format($missedOverdue) }}</dd>
+                    <div class="col-md-6 col-xl-3">
+                        <p class="text-uppercase text-muted small fw-semibold mb-2">Today's Support</p>
+                        <dl class="row mb-0 small">
+                            <dt class="col-7">Scheduled</dt>
+                            <dd class="col-5 text-end mb-1">{{ number_format($scheduledToday) }}</dd>
+                            <dt class="col-7">Completed</dt>
+                            <dd class="col-5 text-end mb-1">{{ number_format($completedToday) }}</dd>
+                            <dt class="col-7">Pending</dt>
+                            <dd class="col-5 text-end mb-1">{{ number_format($pendingToday) }}</dd>
+                            @if ($missedOverdue > 0)
+                                <dt class="col-7">Missed / overdue</dt>
+                                <dd class="col-5 text-end mb-0 text-danger fw-semibold">{{ number_format($missedOverdue) }}</dd>
+                            @endif
+                        </dl>
+                    </div>
+
+                    <div class="col-md-6 col-xl-3">
+                        <p class="text-uppercase text-muted small fw-semibold mb-2">Upcoming Support</p>
+                        <dl class="row mb-0 small">
+                            <dt class="col-7">Tomorrow</dt>
+                            <dd class="col-5 text-end mb-1">{{ number_format($tomorrow) }}</dd>
+                            <dt class="col-7">Next 7 days</dt>
+                            <dd class="col-5 text-end mb-0">{{ number_format($nextSevenDays) }}</dd>
+                        </dl>
+                    </div>
+
+                    <div class="col-md-6 col-xl-3">
+                        <p class="text-uppercase text-muted small fw-semibold mb-2">Customer Response</p>
+                        <dl class="row mb-0 small">
+                            <dt class="col-7">Serial requested</dt>
+                            <dd class="col-5 text-end mb-1">{{ number_format($serialRequested) }}</dd>
+                            <dt class="col-7">Serial received</dt>
+                            <dd class="col-5 text-end mb-1">{{ number_format($serialReceived) }}</dd>
+                            <dt class="col-7">Still waiting</dt>
+                            <dd class="col-5 text-end mb-0">{{ number_format($stillWaiting) }}</dd>
+                        </dl>
+                    </div>
+
+                    <div class="col-md-12 col-xl-3">
+                        <p class="text-uppercase text-muted small fw-semibold mb-2">Team Workload</p>
+                        @if ($workloadCards === [])
+                            <p class="text-muted small mb-0">No active support workload right now.</p>
+                        @else
+                            <div class="d-flex flex-column gap-2">
+                                @foreach ($workloadCards as $member)
+                                    <div @class([
+                                        'card border-0 shadow-sm operations-workload-card',
+                                        'operations-workload-card--overloaded' => $member['is_overloaded'],
+                                    ])>
+                                        <div class="card-body py-2 px-3">
+                                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                                <strong class="operations-workload-card-name">{{ $member['name'] }}</strong>
+                                                @if ($member['is_overloaded'])
+                                                    <span class="badge text-bg-danger">Overloaded</span>
+                                                @endif
+                                            </div>
+                                            <div class="operations-workload-card-metrics small">
+                                                <div class="d-flex justify-content-between gap-2">
+                                                    <span class="text-muted">Active cases</span>
+                                                    <strong>{{ number_format($member['active_cases']) }}</strong>
+                                                </div>
+                                                <div class="d-flex justify-content-between gap-2">
+                                                    <span class="text-muted">Today</span>
+                                                    <strong>{{ number_format($member['today']) }}</strong>
+                                                </div>
+                                                <div class="d-flex justify-content-between gap-2">
+                                                    <span class="text-muted">Pending</span>
+                                                    <strong>{{ number_format($member['pending']) }}</strong>
+                                                </div>
+                                            </div>
+                                            <div class="operations-workload-card-meter mt-2">
+                                                <div class="d-flex justify-content-between small text-muted mb-1">
+                                                    <span>Load</span>
+                                                    <span>{{ number_format($member['load_percent']) }}%</span>
+                                                </div>
+                                                <div class="progress operations-command-progress" style="height: 6px;">
+                                                    <div
+                                                        class="progress-bar bg-{{ $member['tone'] }}"
+                                                        role="progressbar"
+                                                        style="width: {{ $member['load_percent'] }}%;"
+                                                        aria-valuenow="{{ $member['load_percent'] }}"
+                                                        aria-valuemin="0"
+                                                        aria-valuemax="100"
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
                         @endif
-                    </dl>
-                </div>
-
-                <div class="col-md-6 col-xl-3">
-                    <p class="text-uppercase text-muted small fw-semibold mb-2">Upcoming Support</p>
-                    <dl class="row mb-0 small">
-                        <dt class="col-7">Tomorrow</dt>
-                        <dd class="col-5 text-end mb-1">{{ number_format($tomorrow) }}</dd>
-                        <dt class="col-7">Next 7 days</dt>
-                        <dd class="col-5 text-end mb-0">{{ number_format($nextSevenDays) }}</dd>
-                    </dl>
-                </div>
-
-                <div class="col-md-6 col-xl-3">
-                    <p class="text-uppercase text-muted small fw-semibold mb-2">Customer Response</p>
-                    <dl class="row mb-0 small">
-                        <dt class="col-7">Serial requested</dt>
-                        <dd class="col-5 text-end mb-1">{{ number_format($serialRequested) }}</dd>
-                        <dt class="col-7">Serial received</dt>
-                        <dd class="col-5 text-end mb-1">{{ number_format($serialReceived) }}</dd>
-                        <dt class="col-7">Still waiting</dt>
-                        <dd class="col-5 text-end mb-0">{{ number_format($stillWaiting) }}</dd>
-                    </dl>
-                </div>
-
-                <div class="col-md-6 col-xl-3">
-                    <p class="text-uppercase text-muted small fw-semibold mb-2">Team Workload</p>
-                    @if ($teamWorkload === [])
-                        <p class="text-muted small mb-0">No support team members configured.</p>
-                    @else
-                        <ul class="list-unstyled mb-0 small">
-                            @foreach ($teamWorkload as $member)
-                                @if (($member['today'] ?? 0) > 0 || ($member['pending'] ?? 0) > 0)
-                                    <li class="d-flex justify-content-between gap-2 mb-1">
-                                        <span class="text-truncate">{{ $member['name'] ?? 'Unknown' }}</span>
-                                        <span class="text-nowrap text-muted">
-                                            Today: {{ number_format((int) ($member['today'] ?? 0)) }},
-                                            Pending: {{ number_format((int) ($member['pending'] ?? 0)) }}
-                                        </span>
-                                    </li>
-                                @endif
-                            @endforeach
-                        </ul>
-                    @endif
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
     </div>
 </section>

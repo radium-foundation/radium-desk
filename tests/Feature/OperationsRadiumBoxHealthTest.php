@@ -34,6 +34,13 @@ class OperationsRadiumBoxHealthTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
+            ->assertSee('operations-health-trigger-radiumbox', false)
+            ->assertSee('Expand to load RadiumBox details', false)
+            ->assertSee('RadiumBox', false);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'health_radiumbox']))
+            ->assertOk()
             ->assertSee('RadiumBox Health', false)
             ->assertSee('Pending Syncs', false)
             ->assertSee('Failed Syncs', false)

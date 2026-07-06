@@ -69,16 +69,15 @@
         @foreach ($systems as $system)
             @php
                 $collapseId = 'operations-health-'.$system['id'];
-                $isExpanded = ! $system['healthy'];
             @endphp
             <div class="accordion-item border-0 shadow-sm mb-2">
                 <h3 class="accordion-header" id="operations-health-heading-{{ $system['id'] }}">
                     <button
-                        class="accordion-button operations-health-accordion-button {{ $isExpanded ? '' : 'collapsed' }}"
+                        class="accordion-button operations-health-accordion-button collapsed"
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#{{ $collapseId }}"
-                        aria-expanded="{{ $isExpanded ? 'true' : 'false' }}"
+                        aria-expanded="false"
                         aria-controls="{{ $collapseId }}"
                         id="operations-health-trigger-{{ $system['id'] }}"
                     >
@@ -89,16 +88,14 @@
                 </h3>
                 <div
                     id="{{ $collapseId }}"
-                    class="accordion-collapse collapse {{ $isExpanded ? 'show' : '' }}"
+                    class="accordion-collapse collapse"
                     aria-labelledby="operations-health-heading-{{ $system['id'] }}"
                     data-bs-parent="#operations-health-accordion"
                     data-operations-lazy-section="{{ $system['lazy_section'] }}"
-                    data-operations-lazy-loaded="{{ $isExpanded ? 'false' : 'false' }}"
+                    data-operations-lazy-loaded="false"
                 >
                     <div class="accordion-body pt-0" id="operations-health-detail-{{ $system['id'] }}">
-                        @unless ($isExpanded)
-                            <p class="text-muted small mb-0 operations-health-collapsed-hint">Expand to load {{ $system['label'] }} details.</p>
-                        @endunless
+                        <p class="text-muted small mb-0 operations-health-collapsed-hint">Expand to load {{ $system['label'] }} details.</p>
                     </div>
                 </div>
             </div>

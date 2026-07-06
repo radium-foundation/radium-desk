@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadHealthDetail, loadLazyTab, showLazyLoadError } from '../../resources/js/operations-dashboard';
+import {
+    guardAgainstStaleLazyPlaceholders,
+    loadHealthDetail,
+    loadLazyTab,
+    showLazyLoadError,
+    validateSectionHtml,
+} from '../../resources/js/operations-dashboard';
 
 describe('operations-dashboard lazy loading', () => {
     beforeEach(() => {
@@ -10,6 +16,7 @@ describe('operations-dashboard lazy loading', () => {
         document.body.innerHTML = '';
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
+        vi.useRealTimers();
     });
 
     const mountTodayTab = () => {
@@ -35,22 +42,17 @@ describe('operations-dashboard lazy loading', () => {
         return document.getElementById('operations-dashboard-root');
     };
 
-    const mountHealthDetail = () => {
+    const mountHealthDetail = ({ expanded = true, loaded = false } = {}) => {
         document.body.innerHTML = `
             <div id="operations-dashboard-root" data-live-url="/admin/operations/live">
                 <div
                     id="operations-health-radiumbox"
-                    class="accordion-collapse collapse show"
+                    class="accordion-collapse collapse ${expanded ? 'show' : ''}"
                     data-operations-lazy-section="health_radiumbox"
-                    data-operations-lazy-loaded="false"
+                    data-operations-lazy-loaded="${loaded ? 'true' : 'false'}"
                 >
                     <div class="accordion-body pt-0" id="operations-health-detail-radiumbox">
-                        <div class="operations-lazy-placeholder card border-0 shadow-sm">
-                            <div class="card-body py-4 text-center text-muted">
-                                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-                                <span>Loading RadiumBox details…</span>
-                            </div>
-                        </div>
+                        <p class="operations-health-collapsed-hint">Expand to load RadiumBox details.</p>
                     </div>
                 </div>
             </div>
@@ -94,6 +96,69 @@ describe('operations-dashboard lazy loading', () => {
         expect(content.querySelector('.operations-lazy-placeholder')).toBeNull();
         expect(content.querySelector('.operations-lazy-error')).not.toBeNull();
         expect(content.textContent).toContain('Missing health_radiumbox content');
+    });
+
+    it('does not fetch health details for expanded accordions until user expands', async () => {
+        mountHealthDetail({ expanded: true, loaded: false });
+
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('loads health details when loadHealthDetail is invoked after expand', async () => {
+        const { pageRoot, collapseElement } = mountHealthDetail({ expanded: false, loaded: false });
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                html: {
+                    health_radiumbox: '<section>RadiumBox Health details</section>',
+                },
+            }),
+        });
+
+        await loadHealthDetail(pageRoot, collapseElement, { force: true });
+
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(document.getElementById('operations-health-detail-radiumbox').textContent)
+            .toContain('RadiumBox Health details');
+        expect(collapseElement.dataset.operationsLazyLoaded).toBe('true');
+    });
+
+    it('allows health_status shells that only mention nested lazy sections', () => {
+        const shellHtml = `
+            <section id="operations-health-status">
+                <div data-operations-lazy-section="health_radiumbox"></div>
+            </section>
+        `;
+
+        expect(() => validateSectionHtml('health_status', shellHtml)).not.toThrow();
+    });
+
+    it('rejects sections that are still placeholder markup', () => {
+        const placeholderHtml = `
+            <div class="operations-lazy-placeholder card border-0 shadow-sm">
+                <div class="card-body">Loading…</div>
+            </div>
+        `;
+
+        expect(() => validateSectionHtml('today_tab', placeholderHtml))
+            .toThrow('today_tab content is still loading.');
+    });
+
+    it('replaces stale lazy placeholders with timeout fallback UI', async () => {
+        vi.useFakeTimers();
+
+        const pageRoot = mountTodayTab();
+
+        guardAgainstStaleLazyPlaceholders(pageRoot);
+
+        await vi.advanceTimersByTimeAsync(30000);
+
+        const content = document.getElementById('operations-tab-today-content');
+
+        expect(content.querySelector('.operations-lazy-placeholder')).toBeNull();
+        expect(content.querySelector('.operations-lazy-error')).not.toBeNull();
+        expect(content.textContent).toContain('This section took too long to load.');
     });
 
     it('showLazyLoadError replaces placeholder content', () => {
