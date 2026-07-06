@@ -338,6 +338,33 @@ class OperationsDashboardTest extends TestCase
             ]);
     }
 
+    public function test_lazy_live_groups_return_rendered_content_not_loading_placeholders(): void
+    {
+        $admin = $this->createAdminUser('admin-lazy-content@test.com');
+
+        $lazyGroups = [
+            'ira_compact' => ['ira_briefing_compact', 'critical_alerts'],
+            'health_radiumbox' => ['radiumbox_health'],
+            'health_telegram' => ['team_telegram_status'],
+            'today' => ['today_tab'],
+        ];
+
+        foreach ($lazyGroups as $group => $sectionKeys) {
+            $response = $this->actingAs($admin)
+                ->getJson(route('admin.operations.live', ['groups' => $group]))
+                ->assertOk();
+
+            foreach ($sectionKeys as $sectionKey) {
+                $html = (string) $response->json("html.{$sectionKey}");
+
+                $this->assertNotSame('', trim($html), "Expected {$sectionKey} HTML for group {$group}");
+                $this->assertStringNotContainsString('operations-lazy-placeholder', $html);
+                $this->assertStringNotContainsString('Loading recommendations', $html);
+                $this->assertDoesNotMatchRegularExpression('/Loading .+(?:…|\.\.\.)/', $html);
+            }
+        }
+    }
+
     public function test_live_refresh_still_returns_core_command_center_sections(): void
     {
         $admin = $this->createAdminUser('admin-live-refresh@test.com');
