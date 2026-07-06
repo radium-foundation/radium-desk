@@ -75,7 +75,7 @@ class EmailChannel implements NotificationChannel
         }
 
         $variables = $this->templateRegistry->variablesFor($message);
-        $subject = $message->subject ?? $template->subject;
+        $subject = $message->subject ?? $this->templateRegistry->subjectFor($message->type, $message);
 
         $sendResult = $this->mailSender->send(
             recipientEmail: $recipientEmail,

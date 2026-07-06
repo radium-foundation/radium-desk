@@ -47,6 +47,10 @@ class CustomerWaitingLifecycleTest extends TestCase
             'interakt.templates.request_serial_number.display_name' => 'Order Update',
             'interakt.templates.request_serial_number.language_code' => 'en',
             'interakt.templates.request_serial_number.internal_note' => 'Requested serial number from customer via approved WhatsApp template.',
+            'interakt.templates.customer_waiting_followup.name' => 'support_schedule_followup',
+            'interakt.templates.customer_waiting_followup.display_name' => 'Support Reminder',
+            'interakt.templates.customer_waiting_followup.language_code' => 'en',
+            'interakt.templates.customer_waiting_followup.internal_note' => 'Reminder that support is paused until the customer shares requested details.',
             'mail.enabled' => true,
             'mail.default' => 'array',
         ]);

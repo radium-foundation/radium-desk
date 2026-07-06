@@ -80,5 +80,16 @@ return [
             'purpose' => 'Support Appointment Booked',
             'internal_note' => 'Confirms support appointment booking with preferred date and time slot.',
         ],
+        'customer_waiting_followup' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_CUSTOMER_WAITING_FOLLOWUP_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_CUSTOMER_WAITING_FOLLOWUP', 'support_schedule_followup'),
+            'language_code' => env('INTERAKT_TEMPLATE_CUSTOMER_WAITING_FOLLOWUP_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_CUSTOMER_WAITING_FOLLOWUP_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_CUSTOMER_WAITING_FOLLOWUP_DISPLAY', 'Support Reminder'),
+            'purpose' => 'Customer Waiting Follow-up',
+            'internal_note' => 'Reminder that support is paused until the customer shares requested details.',
+            // support_schedule_followup (en): static header "Support Reminder"; body {{1}} = customer name; body {{2}} = support request reference;
+            // CTA "Book Support" dynamic URL /support/schedule/{{1}}?source=whatsapp with tracked token in {{1}}.
+        ],
     ],
 ];

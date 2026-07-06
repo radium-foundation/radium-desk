@@ -80,7 +80,7 @@ class WhatsAppChannel implements NotificationChannel
     {
         return match ($type) {
             NotificationType::RequestSerialNumber => WhatsAppTemplate::RequestSerialNumber,
-            NotificationType::CustomerWaitingFollowup => WhatsAppTemplate::RequestSerialNumber,
+            NotificationType::CustomerWaitingFollowup => WhatsAppTemplate::CustomerWaitingFollowup,
             NotificationType::SupportAppointmentBooked => WhatsAppTemplate::SupportAppointmentBooked,
         };
     }
@@ -123,7 +123,41 @@ class WhatsAppChannel implements NotificationChannel
             return $context;
         }
 
-        return array_merge($context, $this->requestSerialTemplateVariables($message));
+        return array_merge($context, match ($message->type) {
+            NotificationType::CustomerWaitingFollowup => $this->customerWaitingFollowupTemplateVariables($message),
+            default => $this->requestSerialTemplateVariables($message),
+        });
+    }
+
+    /**
+     * support_schedule_followup: static header; body {{1}} = customer name, {{2}} = support request reference;
+     * CTA button {{1}} = tracked schedule token for /support/schedule/{token}.
+     *
+     * @return array{body_values: list<string>, button_values: array<string, list<string>>}
+     */
+    private function customerWaitingFollowupTemplateVariables(NotificationMessage $message): array
+    {
+        $message->incident->loadMissing('order');
+        $order = $message->incident->order;
+
+        if (! $order instanceof Order) {
+            return [];
+        }
+
+        $customerName = trim((string) ($order->customer_name ?? ''));
+        $customerName = $customerName !== '' ? $customerName : 'Customer';
+        $reference = trim((string) ($message->incident->reference_no ?? ''));
+        $linkToken = $this->linkTrackingService->issueToken(
+            incident: $message->incident,
+            source: NotificationLinkSource::WhatsApp,
+        );
+
+        return [
+            'body_values' => [$customerName, $reference],
+            'button_values' => [
+                '0' => [$linkToken->token],
+            ],
+        ];
     }
 
     /**

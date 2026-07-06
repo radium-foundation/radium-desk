@@ -1,37 +1,39 @@
 @extends('emails.layouts.master')
 
-@section('title', 'Reminder: We Still Need Your Information')
+@section('title', 'Support Reminder')
 
-@section('preheader', 'We are still waiting for the information needed to continue your service request.')
+@section('preheader', 'We are waiting for the details requested earlier to continue your support.')
 
-@section('email_title', 'Reminder: We Still Need Your Information')
+@section('email_title', 'Support Reminder')
 
 @section('greeting')
-Dear {{ $customer_name }},
+Hi {{ $customer_name }},
 @endsection
 
 @section('content')
     <p style="margin: 0 0 16px;">
-        This is a friendly reminder that we are still waiting for the information needed to continue your service request.
+        This is a reminder regarding your support request {{ $reference }}.
     </p>
 
     <p style="margin: 0 0 16px;">
-        Please reply with the requested details, upload the required photo, or schedule a convenient time for us to call you between 9:00 AM and 6:00 PM.
+        We are waiting for the details requested earlier to continue your support.
     </p>
 
     <p style="margin: 0;">
-        If we do not hear back within 24 hours, we may close this request automatically while preserving your full service history.
+        Need assistance?
     </p>
 @endsection
 
 @section('cta_url', $booking_url ?? '')
 
-@section('cta_label', 'Schedule Technical Support')
-
-@section('contact_email', 'support@radiumbox.com')
-
-@section('contact_phone', '+91 XXXXX XXXXX')
+@section('cta_label', 'Book Support')
 
 @section('signature')
-Team Radium Box
+    <span style="display: block; margin: 0 0 16px;">
+        This request is paused until we receive your details.<br>
+        You can continue anytime by sharing the required information.
+    </span>
+
+    Thank you,<br>
+    Radium Support Desk
 @endsection

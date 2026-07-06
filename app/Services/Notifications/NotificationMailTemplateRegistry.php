@@ -22,9 +22,9 @@ class NotificationMailTemplateRegistry
                 requiredVariables: ['customer_name', 'booking_url'],
             ),
             NotificationType::CustomerWaitingFollowup => new NotificationMailTemplateDefinition(
-                subject: 'Reminder: We Still Need Your Information',
+                subject: 'Support Reminder: Request {reference} waiting for your response',
                 view: 'emails.notifications.customer-waiting-followup',
-                requiredVariables: ['customer_name', 'booking_url'],
+                requiredVariables: ['customer_name', 'reference', 'booking_url'],
             ),
             NotificationType::SupportAppointmentBooked => new NotificationMailTemplateDefinition(
                 subject: 'Your Support Appointment Is Confirmed',
@@ -46,6 +46,7 @@ class NotificationMailTemplateRegistry
             ],
             NotificationType::CustomerWaitingFollowup => [
                 'customer_name' => $this->resolveCustomerName($message),
+                'reference' => trim((string) ($message->incident->reference_no ?? '')),
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
             ],
             NotificationType::SupportAppointmentBooked => [
@@ -57,6 +58,23 @@ class NotificationMailTemplateRegistry
         };
 
         return array_merge($defaults, $message->variables);
+    }
+
+    public function subjectFor(NotificationType $type, NotificationMessage $message): string
+    {
+        $template = $this->resolve($type);
+
+        if ($template === null) {
+            return '';
+        }
+
+        $subject = $template->subject;
+
+        foreach ($this->variablesFor($message) as $key => $value) {
+            $subject = str_replace('{'.$key.'}', (string) $value, $subject);
+        }
+
+        return $subject;
     }
 
     private function resolveCustomerName(NotificationMessage $message): string
