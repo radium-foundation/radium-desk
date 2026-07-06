@@ -671,6 +671,8 @@ const initOperationsDashboard = async () => {
         return;
     }
 
+    console.info('Operations dashboard JS version P06-07-016 loaded');
+
     bindBatchRecoveryForms(pageRoot);
     bindOperationsTabShortcuts(pageRoot);
     bindIraInsightToggleLabels(pageRoot);
