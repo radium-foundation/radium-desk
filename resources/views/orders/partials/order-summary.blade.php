@@ -24,7 +24,12 @@
                     </div>
                     <div class="col-sm-6 col-xl-4">
                         <span class="text-muted">Serial Number</span>
-                        <div class="fw-semibold">{{ $order->serial_number ?: '—' }}</div>
+                        <div class="fw-semibold d-flex flex-wrap align-items-center gap-2">
+                            <span>{{ $order->serial_number ?: '—' }}</span>
+                            @if($order->serial_number)
+                                @include('orders.partials.serial-validation-badge', ['order' => $order])
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>

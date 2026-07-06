@@ -140,7 +140,8 @@ class DashboardPersonalizationService
 
             if ($mapped !== null) {
                 $needsRedirect = $requestedQueue === null
-                    && ($legacyView !== null || ($legacyFilter !== null && $legacyFilter !== $this->legacyFilterForQueue($defaultQueue)));
+                    && $legacyView !== null
+                    && ! filled($legacyFilter);
 
                 return ['queue' => $mapped, 'redirect' => $needsRedirect];
             }
@@ -159,6 +160,29 @@ class DashboardPersonalizationService
         }
 
         return ['queue' => $normalized, 'redirect' => false];
+    }
+
+    public function resolveServiceCaseFilter(
+        User $user,
+        ?string $requestedQueue,
+        ?string $legacyView = null,
+        ?string $legacyFilter = null,
+    ): string {
+        if (filled($legacyFilter)) {
+            return $legacyFilter;
+        }
+
+        $normalized = $this->normalizeRequestedQueue($requestedQueue);
+
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        if ($this->operationsRoles->usesAdminQueues($user)) {
+            return 'pending_admin';
+        }
+
+        return $this->defaultQueueFor($user);
     }
 
     public function normalizeRequestedQueue(?string $requestedQueue): ?string

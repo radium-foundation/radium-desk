@@ -59,9 +59,15 @@ class ProductSerialValidatorTest extends TestCase
     }
 
     #[DataProvider('msoE3Examples')]
-    public function test_mso_e3_validator(string $serial, bool $valid, ?string $expectedSerial = null): void
+    public function test_mso_e3_validator(string $serial, bool $valid, ?string $expectedSerial = null, ?string $expectedSeverity = null): void
     {
         $result = app(MsoE3SerialValidator::class)->validate($serial);
+
+        if ($expectedSeverity === 'warning') {
+            $this->assertTrue($result->isWarning(), $result->reason ?? 'unexpected result');
+
+            return;
+        }
 
         $this->assertSame($valid, $result->isValid(), $result->reason ?? 'unexpected result');
 
@@ -87,7 +93,7 @@ class ProductSerialValidatorTest extends TestCase
             'invalid prefix 17' => ['1705I002878', false],
             'invalid prefix 18' => ['1823I016089', false],
             'invalid prefix 19' => ['1941I013227', false],
-            'invalid prefix 20' => ['2024I023017', false],
+            'warning prefix 20' => ['2024I023017', false, null, 'warning'],
             'invalid prefix 21' => ['2125I022416', false],
             'invalid prefix 22' => ['2206I010321', false],
             'invalid wrong length' => ['2526I05794', false],
@@ -119,9 +125,15 @@ class ProductSerialValidatorTest extends TestCase
     }
 
     #[DataProvider('fm220Examples')]
-    public function test_fm220_validator(string $serial, bool $valid): void
+    public function test_fm220_validator(string $serial, bool $valid, ?string $expectedSeverity = null): void
     {
         $result = app(Fm220SerialValidator::class)->validate($serial);
+
+        if ($expectedSeverity === 'warning') {
+            $this->assertTrue($result->isWarning(), $result->reason ?? 'unexpected result');
+
+            return;
+        }
 
         $this->assertSame($valid, $result->isValid(), $result->reason ?? 'unexpected result');
         $this->assertSame('FM 220', $result->product);
@@ -133,9 +145,11 @@ class ProductSerialValidatorTest extends TestCase
             'valid radiumbox serial' => ['M250546898', true],
             'valid P25 prefix' => ['P250546898', true],
             'valid M22 prefix' => ['M220546898', true],
+            'valid M26 prefix' => ['M260779805', true],
             'invalid wrong model code' => ['M210546898', false],
             'invalid wrong first character' => ['A250546898', false],
             'invalid 9 characters' => ['M25054689', false],
+            'warning B47 nine character pattern' => ['B47C11929', false, 'warning'],
             'invalid numeric only' => ['1234567890', false],
         ];
     }
@@ -161,9 +175,15 @@ class ProductSerialValidatorTest extends TestCase
     }
 
     #[DataProvider('marc11Examples')]
-    public function test_marc11_validator(string $serial, bool $valid): void
+    public function test_marc11_validator(string $serial, bool $valid, ?string $expectedSeverity = null): void
     {
         $result = app(Marc11SerialValidator::class)->validate($serial);
+
+        if ($expectedSeverity === 'warning') {
+            $this->assertTrue($result->isWarning(), $result->reason ?? 'unexpected result');
+
+            return;
+        }
 
         $this->assertSame($valid, $result->isValid(), $result->reason ?? 'unexpected result');
         $this->assertSame('MARC 11', $result->product);
@@ -174,6 +194,7 @@ class ProductSerialValidatorTest extends TestCase
         return [
             'valid 7 digits starting with 7' => ['7881953', true],
             'valid 10 digits starting with 8' => ['8123456789', true],
+            'warning 10 digits starting with 25' => ['2503102880', false, 'warning'],
             'invalid 7 digits starting with 1' => ['1234567', false],
             'invalid 8 digits' => ['81234567', false],
             'invalid 12 digits' => ['812345678901', false],
@@ -183,10 +204,12 @@ class ProductSerialValidatorTest extends TestCase
     public function test_validation_result_helpers(): void
     {
         $valid = SerialValidationResult::valid('1234567', 'MFS 110');
+        $warning = SerialValidationResult::warning('B47C11929', 'FM 220', 'Needs review.');
         $invalid = SerialValidationResult::invalid('bad', 'MFS 110', 'Invalid serial.');
         $unsupported = SerialValidationResult::unsupported('1234567', 'AST 300');
 
         $this->assertSame(SerialValidationStatus::Valid, $valid->status);
+        $this->assertSame(SerialValidationStatus::Warning, $warning->status);
         $this->assertSame(SerialValidationStatus::Invalid, $invalid->status);
         $this->assertSame(SerialValidationStatus::Unsupported, $unsupported->status);
         $this->assertTrue($unsupported->requiresRadiumBoxVerification);

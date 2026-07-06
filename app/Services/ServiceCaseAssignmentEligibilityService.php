@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Enums\SerialValidationSeverity;
 use App\Enums\SerialValidationStatus;
 use App\Models\Incident;
 use App\Models\Order;
@@ -58,7 +59,7 @@ class ServiceCaseAssignmentEligibilityService
             $order,
         );
 
-        if ($validation->status === SerialValidationStatus::Invalid) {
+        if ($validation->severity === SerialValidationSeverity::Fail) {
             return false;
         }
 
@@ -66,11 +67,31 @@ class ServiceCaseAssignmentEligibilityService
             return false;
         }
 
-        if ($validation->status === SerialValidationStatus::Valid) {
-            return $this->radiumBoxVerificationSucceeded($order);
+        return $this->radiumBoxVerificationSucceeded($order);
+    }
+
+    public function validationSeverityForOrder(Order $order): ?SerialValidationSeverity
+    {
+        if (! filled(trim((string) $order->serial_number))) {
+            return null;
         }
 
-        return $this->radiumBoxVerificationSucceeded($order);
+        if ($this->placeholderService->isPlaceholder((string) $order->serial_number)) {
+            return null;
+        }
+
+        if (! $this->hasModelIdentity($order)) {
+            return null;
+        }
+
+        return $this->serialValidationService
+            ->validateForOrder((string) $order->serial_number, $order)
+            ->severity;
+    }
+
+    public function hasValidationWarning(Order $order): bool
+    {
+        return $this->validationSeverityForOrder($order) === SerialValidationSeverity::Warning;
     }
 
     private function evaluateSingleIncident(int $incidentId, User $actor): void

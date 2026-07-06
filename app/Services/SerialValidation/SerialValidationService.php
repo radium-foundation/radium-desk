@@ -106,7 +106,7 @@ class SerialValidationService
     {
         $result = $this->validateForOrder($serial, $order);
 
-        if ($result->isInvalid() || $result->isPending()) {
+        if ($result->isFail() || $result->isPending()) {
             throw ValidationException::withMessages([
                 'serial_number' => $result->reason ?? 'The serial number is invalid for this product.',
             ]);
@@ -122,7 +122,7 @@ class SerialValidationService
     {
         $result = $this->validate($serial, $product);
 
-        if ($result->isInvalid() || $result->isPending()) {
+        if ($result->isFail() || $result->isPending()) {
             throw ValidationException::withMessages([
                 'serial_number' => $result->reason ?? 'The serial number is invalid for this product.',
             ]);

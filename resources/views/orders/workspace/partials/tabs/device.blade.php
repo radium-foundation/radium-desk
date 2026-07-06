@@ -16,7 +16,10 @@
         <dt>Serial Number</dt>
         <dd>
             @if($order->serial_number)
-                <span class="font-monospace">{{ $order->serial_number }}</span>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="font-monospace">{{ $order->serial_number }}</span>
+                    @include('orders.partials.serial-validation-badge', ['order' => $order])
+                </div>
             @else
                 —
             @endif

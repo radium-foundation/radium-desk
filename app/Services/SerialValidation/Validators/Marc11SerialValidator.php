@@ -34,6 +34,13 @@ class Marc11SerialValidator extends AbstractProductSerialValidator
 
         $firstDigit = $normalized[0];
 
+        if ($firstDigit === '2' && str_starts_with($normalized, '25')) {
+            return $this->warning(
+                $normalized,
+                'MARC 11 serial numbers with a 25 prefix need review.',
+            );
+        }
+
         if ($firstDigit !== '7' && $firstDigit !== '8') {
             return $this->invalid(
                 $normalized,

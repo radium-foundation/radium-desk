@@ -2,12 +2,14 @@
 
 namespace App\Data;
 
+use App\Enums\SerialValidationSeverity;
 use App\Enums\SerialValidationStatus;
 
 readonly class SerialValidationResult
 {
     public function __construct(
         public SerialValidationStatus $status,
+        public SerialValidationSeverity $severity,
         public string $normalizedSerial,
         public bool $corrected,
         public bool $requiresRadiumBoxVerification,
@@ -20,6 +22,11 @@ readonly class SerialValidationResult
         return $this->status->isValid();
     }
 
+    public function isWarning(): bool
+    {
+        return $this->status->isWarning();
+    }
+
     public function isInvalid(): bool
     {
         return $this->status->isInvalid();
@@ -28,6 +35,16 @@ readonly class SerialValidationResult
     public function isPending(): bool
     {
         return $this->status->isPending();
+    }
+
+    public function isFail(): bool
+    {
+        return $this->severity->isFail();
+    }
+
+    public function allowsWorkflow(): bool
+    {
+        return $this->severity->allowsWorkflow();
     }
 
     public static function valid(
@@ -39,9 +56,23 @@ readonly class SerialValidationResult
     ): self {
         return new self(
             status: SerialValidationStatus::Valid,
+            severity: SerialValidationSeverity::Pass,
             normalizedSerial: $normalizedSerial,
             corrected: $corrected,
             requiresRadiumBoxVerification: $requiresRadiumBoxVerification,
+            reason: $reason,
+            product: $product,
+        );
+    }
+
+    public static function warning(string $normalizedSerial, string $product, string $reason): self
+    {
+        return new self(
+            status: SerialValidationStatus::Warning,
+            severity: SerialValidationSeverity::Warning,
+            normalizedSerial: $normalizedSerial,
+            corrected: false,
+            requiresRadiumBoxVerification: true,
             reason: $reason,
             product: $product,
         );
@@ -51,6 +82,7 @@ readonly class SerialValidationResult
     {
         return new self(
             status: SerialValidationStatus::Invalid,
+            severity: SerialValidationSeverity::Fail,
             normalizedSerial: $normalizedSerial,
             corrected: false,
             requiresRadiumBoxVerification: false,
@@ -63,6 +95,7 @@ readonly class SerialValidationResult
     {
         return new self(
             status: SerialValidationStatus::Unsupported,
+            severity: SerialValidationSeverity::Pass,
             normalizedSerial: $normalizedSerial,
             corrected: false,
             requiresRadiumBoxVerification: true,
@@ -75,6 +108,7 @@ readonly class SerialValidationResult
     {
         return new self(
             status: SerialValidationStatus::Pending,
+            severity: SerialValidationSeverity::Fail,
             normalizedSerial: '',
             corrected: false,
             requiresRadiumBoxVerification: false,

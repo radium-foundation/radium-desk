@@ -46,17 +46,55 @@ class OperationsQueueClassifier
         $queueValue = $queue instanceof OperationQueue ? $queue->value : $queue;
 
         if ($queueValue === OperationQueue::MyWork->value) {
-            if ($scopeUser === null || $incident->assigned_to_user_id !== $scopeUser->id) {
-                return false;
-            }
-
-            return in_array($this->classify($incident), [
-                OperationQueue::ActionRequired,
-                OperationQueue::Scheduled,
-            ], true);
+            return $this->matchesMyWork($incident, $scopeUser);
         }
 
         return $this->classify($incident)->value === $queueValue;
+    }
+
+    public function matchesMyWork(Incident $incident, ?User $scopeUser): bool
+    {
+        if ($scopeUser === null || $incident->assigned_to_user_id !== $scopeUser->id) {
+            return false;
+        }
+
+        if ($this->isCompleted($incident)) {
+            return false;
+        }
+
+        $queue = $this->classify($incident);
+
+        if ($queue === OperationQueue::WaitingCustomer) {
+            return $this->isWaitingFollowUpDue($incident);
+        }
+
+        if ($queue === OperationQueue::Hardware) {
+            return true;
+        }
+
+        return in_array($queue, [
+            OperationQueue::ActionRequired,
+            OperationQueue::Scheduled,
+            OperationQueue::Attention,
+        ], true);
+    }
+
+    public function isWaitingFollowUpDue(Incident $incident): bool
+    {
+        if (! $this->isWaitingCustomer($incident)) {
+            return false;
+        }
+
+        $waitingState = $incident->relationLoaded('activeWaitingState')
+            ? $incident->activeWaitingState
+            : $incident->activeWaitingState()->first();
+
+        if ($waitingState === null || ! $waitingState->isActive()) {
+            return false;
+        }
+
+        return $waitingState->next_action_at !== null
+            && $waitingState->next_action_at->lessThanOrEqualTo(now());
     }
 
     public function isCompleted(Incident $incident): bool

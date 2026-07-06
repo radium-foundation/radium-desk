@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\ServiceCaseAutomationStatus;
+use App\Enums\SerialValidationSeverity;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -52,12 +53,24 @@ class ServiceCaseAutomationStatusService
             return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::AssignedToAdmin;
         }
 
-        $passesValidation = $incident->order !== null
-            && $this->eligibilityService->passesValidationForOrder($incident->order);
-
         if ($incident->order !== null && $this->isWaitingForCustomerSerial($incident->order)) {
             return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::WaitingForCustomerSerial;
         }
+
+        $validationSeverity = $incident->order !== null
+            ? $this->eligibilityService->validationSeverityForOrder($incident->order)
+            : null;
+
+        if ($validationSeverity === SerialValidationSeverity::Fail) {
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::ValidationFailed;
+        }
+
+        if ($validationSeverity === SerialValidationSeverity::Warning) {
+            return $this->statusCache[$incident->id] = ServiceCaseAutomationStatus::ValidationWarning;
+        }
+
+        $passesValidation = $incident->order !== null
+            && $this->eligibilityService->passesValidationForOrder($incident->order);
 
         if ($assignee !== null && $this->isAgentUser($assignee)) {
             return $this->statusCache[$incident->id] = $passesValidation

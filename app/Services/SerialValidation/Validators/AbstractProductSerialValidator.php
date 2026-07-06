@@ -21,6 +21,15 @@ abstract class AbstractProductSerialValidator implements ProductSerialValidator
         );
     }
 
+    protected function warning(string $normalizedSerial, string $reason): SerialValidationResult
+    {
+        return SerialValidationResult::warning(
+            normalizedSerial: $normalizedSerial,
+            product: $this->product(),
+            reason: $reason,
+        );
+    }
+
     protected function valid(
         string $normalizedSerial,
         bool $corrected = false,

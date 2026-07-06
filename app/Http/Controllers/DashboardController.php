@@ -29,6 +29,12 @@ class DashboardController extends Controller
             is_string($legacyFilter) ? $legacyFilter : null,
         );
         $operationQueue = $queueResolution['queue'];
+        $serviceCaseFilter = $this->dashboardPersonalization->resolveServiceCaseFilter(
+            $user,
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
+        );
 
         if ($queueResolution['redirect']) {
             $redirect = $this->dashboardPersonalization->redirectToResolvedQueue(
@@ -52,7 +58,7 @@ class DashboardController extends Controller
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $recentServiceCases = $user->can('incidents.view')
             ? $this->dashboardService->recentServiceCases(
-                $operationQueue,
+                $serviceCaseFilter,
                 $pageSize,
                 $assignedTo,
                 $prioritizeRecentAssignments,
@@ -72,18 +78,21 @@ class DashboardController extends Controller
             'reopenQuickCreate' => $reopenQuickCreate,
             'recentServiceCases' => $recentServiceCases,
             'serviceCaseFilterCounts' => $serviceCaseFilterCounts,
-            'serviceCaseTotalCount' => $serviceCaseFilterCounts[$operationQueue] ?? $recentServiceCases->count(),
-            'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$operationQueue] ?? $recentServiceCases->count()),
+            'serviceCaseTotalCount' => $serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count(),
+            'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count()),
             'recentActivity' => $user->can('audit-logs.view')
                 ? $this->dashboardService->recentActivity()
                 : collect(),
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
-            'serviceCaseFilter' => $operationQueue,
+            'serviceCaseFilter' => $serviceCaseFilter,
             'operationQueue' => $operationQueue,
             'operationQueues' => $this->dashboardPersonalization->queueMetaFor($user),
             'availableOperationQueues' => $this->dashboardPersonalization->availableQueuesFor($user),
             'showsQueueNavigation' => $this->dashboardPersonalization->showsQueueNavigation($user),
-            'serviceCasePanelTitle' => $this->dashboardPersonalization->serviceCasePanelTitle($operationQueue),
+            'serviceCasePanelTitle' => match ($serviceCaseFilter) {
+                'needs_attention' => 'Needs Attention',
+                default => $this->dashboardPersonalization->serviceCasePanelTitle($operationQueue),
+            },
             'assignedToScope' => $assignedTo,
             'canManageTransactions' => $canManageTransactions,
             'canReassignServiceCases' => $user->can('incidents.update'),

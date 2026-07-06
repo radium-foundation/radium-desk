@@ -12,7 +12,6 @@ use App\Enums\IncidentStatus;
 use App\Enums\OrderIdentityRepairFailureCategory;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\ServiceCaseAutomationStatus;
-use App\Enums\SerialValidationStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -810,7 +809,7 @@ class OrderIdentityRepairService
 
         return $this->serialValidationService
             ->validateForOrder((string) $order->serial_number, $order)
-            ->status === SerialValidationStatus::Invalid;
+            ->isFail();
     }
 
     private function isDeviceModelMissing(Order $order): bool
@@ -931,7 +930,7 @@ class OrderIdentityRepairService
         $originalSerial = (string) $order->serial_number;
         $validation = $this->serialValidationService->validateForOrder($originalSerial, $order);
 
-        if ($validation->isInvalid()) {
+        if ($validation->isFail()) {
             return;
         }
 

@@ -14,10 +14,13 @@
         data-store-url="{{ route('orders.serial.store', $order) }}"
     @endif>
     @if($isLocked && $order?->serial_number)
-        <span class="serial-display-value dashboard-u-serial-value"
-              data-bs-toggle="tooltip"
-              data-bs-placement="top"
-              data-bs-title="{{ $order->serial_number }}">{{ $order->serial_number }}</span>
+        <div class="d-flex flex-wrap align-items-center gap-1">
+            <span class="serial-display-value dashboard-u-serial-value"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  data-bs-title="{{ $order->serial_number }}">{{ $order->serial_number }}</span>
+            @include('orders.partials.serial-validation-badge', ['order' => $order])
+        </div>
     @elseif($canAssign)
         <button type="button"
                 class="serial-cell-trigger transaction-cell-trigger dashboard-u-transaction-add dashboard-u-transition dashboard-u-focus-ring"

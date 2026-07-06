@@ -2,6 +2,7 @@
 
 namespace App\Services\Dashboard;
 
+use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
@@ -194,6 +195,11 @@ class DashboardSnapshot
             + ($counts[OperationQueue::Attention->value] ?? 0);
     }
 
+    public function myWorkCount(User $scopeUser): int
+    {
+        return $this->incidentsForQueue(OperationQueue::MyWork->value, $scopeUser)->count();
+    }
+
     public function waitingCount(): int
     {
         return $this->queueCounts()[OperationQueue::WaitingCustomer->value] ?? 0;
@@ -226,6 +232,14 @@ class DashboardSnapshot
     }
 
     /**
+     * @return Collection<int, Incident>
+     */
+    public function myWorkIncidents(User $scopeUser): Collection
+    {
+        return $this->incidentsForQueue(OperationQueue::MyWork->value, $scopeUser);
+    }
+
+    /**
      * @return array<string, int>
      */
     public function queueCounts(?User $scopeUser = null): array
@@ -242,7 +256,31 @@ class DashboardSnapshot
      */
     public function filterCounts(?User $assignedTo = null, ?User $user = null): array
     {
-        return $this->queueCounts($assignedTo);
+        $counts = $this->queueCounts($assignedTo);
+
+        foreach ($this->legacyFilterKeys() as $legacyFilter) {
+            $counts[$legacyFilter] = $this->incidentsForFilter($legacyFilter, $assignedTo)->count();
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function legacyFilterKeys(): array
+    {
+        return [
+            'pending_admin',
+            'needs_attention',
+            'high_priority',
+            'overdue',
+            'warning',
+            'all',
+            'completed',
+            'my_cases',
+            'pending_support',
+        ];
     }
 
     /**
@@ -270,6 +308,42 @@ class DashboardSnapshot
 
         if ($filter === 'my_cases') {
             return $this->incidentsForQueue(OperationQueue::MyWork->value, $assignmentScope);
+        }
+
+        if ($filter === 'pending_admin') {
+            return $this->activeIncidents
+                ->filter(function (Incident $incident) use ($assignmentScope): bool {
+                    if (! $incident->isPendingAdmin()) {
+                        return false;
+                    }
+
+                    if ($this->queueClassifier->isHardware($incident)) {
+                        return false;
+                    }
+
+                    if ($assignmentScope !== null && $incident->assigned_to_user_id !== $assignmentScope->id) {
+                        return false;
+                    }
+
+                    return true;
+                })
+                ->values();
+        }
+
+        if ($filter === 'needs_attention') {
+            return $this->activeIncidents
+                ->filter(function (Incident $incident) use ($assignmentScope): bool {
+                    if (! $incident->isActive() || $incident->status === IncidentStatus::Closed) {
+                        return false;
+                    }
+
+                    if ($assignmentScope !== null && $incident->assigned_to_user_id !== $assignmentScope->id) {
+                        return false;
+                    }
+
+                    return $this->orderSerialMissing($incident->order);
+                })
+                ->values();
         }
 
         if (in_array($filter, ['overdue', 'warning'], true)) {

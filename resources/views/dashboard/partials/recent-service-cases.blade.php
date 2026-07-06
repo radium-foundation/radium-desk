@@ -1,15 +1,20 @@
 @php
     use App\Services\DashboardPersonalizationService;
 
-    $activeQueue = $operationQueue ?? $serviceCaseFilter ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
+    $activeQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
+    $legacyServiceCaseFilter = $serviceCaseFilter ?? $activeQueue;
     $serviceCaseFilterCounts = $serviceCaseFilterCounts ?? [];
     $renderedServiceCaseCount = $recentServiceCases->count();
-    $totalServiceCaseCount = $serviceCaseTotalCount ?? ($serviceCaseFilterCounts[$activeQueue] ?? $renderedServiceCaseCount);
+    $totalServiceCaseCount = $serviceCaseTotalCount ?? ($serviceCaseFilterCounts[$legacyServiceCaseFilter] ?? $renderedServiceCaseCount);
     $serviceCaseHasMore = $serviceCaseHasMore ?? ($renderedServiceCaseCount < $totalServiceCaseCount);
     $availableOperationQueues = $availableOperationQueues ?? [];
     $operationQueues = $operationQueues ?? config('operations.queues', []);
     $personalization = app(DashboardPersonalizationService::class);
     $defaultQueue = $personalization->defaultQueueFor(auth()->user());
+    $myWorkSearchPlaceholder = 'Search order ID, case ID, serial, customer…';
+    $searchPlaceholder = $activeQueue === DashboardPersonalizationService::QUEUE_MY_WORK
+        ? $myWorkSearchPlaceholder
+        : 'Search service cases…';
 
     $queueUrl = function (string $queueKey) use ($defaultQueue): string {
         $params = [];
@@ -26,7 +31,7 @@
      id="dashboard-service-cases-panel"
      data-service-cases-loaded="{{ $renderedServiceCaseCount }}"
      data-service-case-filter-total="{{ $totalServiceCaseCount }}"
-     data-service-case-filter="{{ $activeQueue }}"
+     data-service-case-filter="{{ $legacyServiceCaseFilter }}"
      data-operation-queue="{{ $activeQueue }}">
     <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
@@ -80,19 +85,25 @@
                          aria-label="Operational queues">
                         @foreach($operationQueues as $queueKey => $queueMeta)
                             @continue(! in_array($queueKey, $availableOperationQueues, true))
+                            @php
+                                $isActiveQueue = $activeQueue === $queueKey;
+                                $filterCountKey = $isActiveQueue && array_key_exists($legacyServiceCaseFilter, $serviceCaseFilterCounts)
+                                    ? $legacyServiceCaseFilter
+                                    : $queueKey;
+                            @endphp
                             <a href="{{ $queueUrl($queueKey) }}"
                                @class([
                                    'dashboard-case-filter-chip',
                                    'dashboard-case-filter-chip--' . ($queueMeta['tone'] ?? 'primary'),
-                                   'is-active' => $activeQueue === $queueKey,
+                                   'is-active' => $isActiveQueue,
                                ])
                                role="tab"
-                               @if($activeQueue === $queueKey) aria-selected="true" @else aria-selected="false" @endif
-                               @if($activeQueue === $queueKey) aria-current="page" @endif>
+                               @if($isActiveQueue) aria-selected="true" @else aria-selected="false" @endif
+                               @if($isActiveQueue) aria-current="page" @endif>
                                 <i class="bi {{ $queueMeta['icon'] ?? 'bi-inbox' }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
                                 <span class="dashboard-case-filter-chip__label">{{ $queueMeta['label'] ?? $queueKey }}</span>
                                 <span class="dashboard-case-filter-chip__count"
-                                      data-dashboard-case-filter-count="{{ $queueKey }}">({{ $serviceCaseFilterCounts[$queueKey] ?? 0 }})</span>
+                                      data-dashboard-case-filter-count="{{ $filterCountKey }}">({{ $serviceCaseFilterCounts[$filterCountKey] ?? 0 }})</span>
                             </a>
                         @endforeach
                     </div>
@@ -118,7 +129,7 @@
                         <input type="search"
                                id="dashboard-quick-filter-input"
                                class="dashboard-quick-filter__input dashboard-u-focus-ring"
-                               placeholder="Search service cases..."
+                               placeholder="{{ $searchPlaceholder }}"
                                autocomplete="off"
                                data-dashboard-quick-filter-input
                                aria-describedby="dashboard-quick-filter-count">

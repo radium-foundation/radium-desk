@@ -91,6 +91,12 @@ class DashboardServiceCaseController extends Controller
             is_string($legacyFilter) ? $legacyFilter : null,
         );
         $operationQueue = $queueResolution['queue'];
+        $serviceCaseFilter = $this->dashboardPersonalization->resolveServiceCaseFilter(
+            $user,
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
+        );
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
@@ -102,7 +108,7 @@ class DashboardServiceCaseController extends Controller
 
         $payload = $this->dashboardService->serviceCasesPayload(
             $user,
-            $operationQueue,
+            $serviceCaseFilter,
             $assignedTo,
             $prioritizeRecentAssignments,
             $pageSize,

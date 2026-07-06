@@ -29,13 +29,19 @@ class DashboardLiveController extends Controller
             is_string($legacyFilter) ? $legacyFilter : null,
         );
         $operationQueue = $queueResolution['queue'];
+        $serviceCaseFilter = $this->dashboardPersonalization->resolveServiceCaseFilter(
+            $user,
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
+        );
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
-        return DB::transaction(function () use ($user, $operationQueue, $assignedTo, $prioritizeRecentAssignments, $limit): JsonResponse {
+        return DB::transaction(function () use ($user, $serviceCaseFilter, $assignedTo, $prioritizeRecentAssignments, $limit): JsonResponse {
             $filterCounts = $user->can('incidents.view')
                 ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
                 : [];
@@ -43,7 +49,7 @@ class DashboardLiveController extends Controller
             $serviceCasesPayload = $user->can('incidents.view')
                 ? $this->dashboardService->serviceCasesPayload(
                     $user,
-                    $operationQueue,
+                    $serviceCaseFilter,
                     $assignedTo,
                     $prioritizeRecentAssignments,
                     $limit,

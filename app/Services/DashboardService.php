@@ -37,6 +37,7 @@ class DashboardService
         $activeKpis = $this->kpiAggregator->activeIncidentKpis($activeIncidents, $user);
         $incidentStatusCounts = $this->kpiAggregator->incidentStatusCounts();
         $operationalKpis = $snapshot->operationalKpiCounts($this->resolveKpiScopeUser($user));
+        $roles = app(OperationsRoleService::class);
 
         $stats = [
             'online_count' => $onlineUsers->count(),
@@ -52,6 +53,13 @@ class DashboardService
             'high_priority_cases' => $activeKpis['high_priority_cases'],
             'total_active_cases' => $activeKpis['total_active_cases'],
         ];
+
+        if ($roles->usesSupportQueues($user)) {
+            $stats = [
+                ...$stats,
+                ...$this->kpiAggregator->supportAgentKpis($snapshot, $user),
+            ];
+        }
 
         if ($user->can('refunds.view')) {
             $refundCounts = $this->kpiAggregator->refundStatusCounts();
@@ -96,16 +104,6 @@ class DashboardService
 
     private function resolveKpiScopeUser(User $user): ?User
     {
-        $roles = app(OperationsRoleService::class);
-
-        if ($roles->usesAdminQueues($user)) {
-            return null;
-        }
-
-        if ($roles->usesSupportQueues($user)) {
-            return $user;
-        }
-
         return null;
     }
 

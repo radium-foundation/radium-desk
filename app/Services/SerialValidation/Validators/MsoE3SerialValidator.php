@@ -7,7 +7,10 @@ use App\Data\SerialValidationResult;
 class MsoE3SerialValidator extends AbstractProductSerialValidator
 {
     /** @var list<string> */
-    private const REJECTED_PREFIXES = ['17', '18', '19', '20', '21', '22'];
+    private const REJECTED_PREFIXES = ['17', '18', '19', '21', '22'];
+
+    /** @var list<string> */
+    private const WARNING_PREFIXES = ['20'];
 
     public function product(): string
     {
@@ -27,6 +30,15 @@ class MsoE3SerialValidator extends AbstractProductSerialValidator
                 $normalized,
                 'MSO E3 serial numbers must contain exactly 11 characters.',
             );
+        }
+
+        foreach (self::WARNING_PREFIXES as $prefix) {
+            if (str_starts_with($normalized, $prefix)) {
+                return $this->warning(
+                    $normalized,
+                    'MSO E3 serial numbers with prefix '.$prefix.' need review.',
+                );
+            }
         }
 
         foreach (self::REJECTED_PREFIXES as $prefix) {

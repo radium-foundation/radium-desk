@@ -4,11 +4,14 @@ namespace App\Services\Dashboard;
 
 use App\Enums\ApprovalStatus;
 use App\Enums\IncidentStatus;
+use App\Enums\OperationQueue;
 use App\Enums\RefundStatus;
 use App\Models\ApprovalNumber;
 use App\Models\Incident;
 use App\Models\RefundRequest;
 use App\Models\User;
+use App\Services\Operations\OperationsQueueClassifier;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class DashboardKpiAggregator
@@ -48,6 +51,56 @@ class DashboardKpiAggregator
             'high_priority_cases' => $userIncidents
                 ->filter(fn (Incident $incident): bool => (bool) $incident->high_priority)
                 ->count(),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     my_active_work: int,
+     *     my_attention: int,
+     *     my_scheduled_today: int,
+     *     my_waiting_follow_ups: int,
+     *     my_completed_today: int,
+     * }
+     */
+    public function supportAgentKpis(DashboardSnapshot $snapshot, User $user, ?Carbon $now = null): array
+    {
+        $now ??= now();
+        $today = $now->copy()->startOfDay();
+        $classifier = app(OperationsQueueClassifier::class);
+
+        $myWork = $snapshot->myWorkIncidents($user);
+        $attention = $snapshot->incidentsForQueue(OperationQueue::Attention->value, $user);
+        $scheduledToday = $snapshot->incidentsForQueue(OperationQueue::Scheduled->value, $user)
+            ->filter(function (Incident $incident) use ($today): bool {
+                $appointments = $incident->relationLoaded('supportAppointments')
+                    ? $incident->supportAppointments
+                    : $incident->supportAppointments()->get();
+
+                return $appointments->contains(
+                    fn ($appointment): bool => $appointment->preferred_date !== null
+                        && $appointment->preferred_date->isSameDay($today),
+                );
+            });
+        $waitingFollowUps = $snapshot->incidentsForQueue(OperationQueue::WaitingCustomer->value, $user)
+            ->filter(fn (Incident $incident): bool => $classifier->isWaitingFollowUpDue($incident));
+        $completedToday = $snapshot->activeIncidents()
+            ->filter(function (Incident $incident) use ($user, $today, $classifier): bool {
+                if ($incident->assigned_to_user_id !== $user->id || ! $classifier->isCompleted($incident)) {
+                    return false;
+                }
+
+                $completedAt = $incident->order?->completed_at;
+
+                return $completedAt !== null && $completedAt->greaterThanOrEqualTo($today);
+            });
+
+        return [
+            'my_active_work' => $myWork->count(),
+            'my_attention' => $attention->count(),
+            'my_scheduled_today' => $scheduledToday->count(),
+            'my_waiting_follow_ups' => $waitingFollowUps->count(),
+            'my_completed_today' => $completedToday->count(),
         ];
     }
 

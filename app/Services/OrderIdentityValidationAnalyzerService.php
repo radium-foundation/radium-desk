@@ -125,7 +125,7 @@ class OrderIdentityValidationAnalyzerService
             deviceModel: $order->device_model,
             serialNumber: $order->serial_number,
             validatorClass: $this->serialValidationService->validatorClassForOrder($order),
-            validationPassed: $validation->status === SerialValidationStatus::Valid,
+            validationPassed: $validation->allowsWorkflow(),
             failureReason: $this->failureReason($order, $validation, $duplicateSerial),
             ruleFailed: $this->formatRuleFailed($validation),
             radiumBoxSyncLabel: $radiumBoxSyncLabel,
@@ -158,10 +158,7 @@ class OrderIdentityValidationAnalyzerService
             $order,
         );
 
-        return in_array($validation->status, [
-            SerialValidationStatus::Invalid,
-            SerialValidationStatus::Unsupported,
-        ], true);
+        return $validation->isFail() || $validation->status === SerialValidationStatus::Unsupported;
     }
 
     private function hasDuplicateSerial(Order $order): bool
@@ -211,8 +208,12 @@ class OrderIdentityValidationAnalyzerService
             return OrderIdentityValidationFailureGroup::WaitingForCustomerSerial;
         }
 
-        if ($validation->status === SerialValidationStatus::Invalid) {
+        if ($validation->isFail()) {
             return OrderIdentityValidationFailureGroup::ValidatorRule;
+        }
+
+        if ($validation->isWarning()) {
+            return OrderIdentityValidationFailureGroup::Unknown;
         }
 
         if ($this->hasProductMappingMismatch($order, $validation)) {
@@ -269,12 +270,12 @@ class OrderIdentityValidationAnalyzerService
 
         $syncStatus = $this->syncStore->status($order->id);
 
-        if ($validation->status === SerialValidationStatus::Invalid
+        if ($validation->isFail()
             && $syncStatus === RadiumBoxEnrichmentSyncStatus::Synced) {
             return OrderIdentityValidationRecommendation::RadiumBoxInvalidIdentity;
         }
 
-        if ($validation->status === SerialValidationStatus::Invalid) {
+        if ($validation->isFail()) {
             return OrderIdentityValidationRecommendation::ValidatorTooStrict;
         }
 

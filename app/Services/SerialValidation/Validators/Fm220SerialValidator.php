@@ -19,6 +19,13 @@ class Fm220SerialValidator extends AbstractProductSerialValidator
             return $this->invalid($normalized, 'Serial number is required.');
         }
 
+        if ($this->isKnownManufacturerWarningPattern($normalized)) {
+            return $this->warning(
+                $normalized,
+                'FM 220 serial uses a manufacturer format that needs review.',
+            );
+        }
+
         if (! preg_match('/^[A-Z0-9]+$/', $normalized)) {
             return $this->invalid(
                 $normalized,
@@ -44,13 +51,23 @@ class Fm220SerialValidator extends AbstractProductSerialValidator
 
         $modelCode = (int) substr($normalized, 1, 2);
 
-        if ($modelCode < 22 || $modelCode > 25) {
+        if ($modelCode < 22 || $modelCode > 26) {
             return $this->invalid(
                 $normalized,
-                'FM 220 serial numbers must have 22, 23, 24, or 25 as characters 2 and 3.',
+                'FM 220 serial numbers must have 22, 23, 24, 25, or 26 as characters 2 and 3.',
             );
         }
 
         return $this->valid($normalized);
+    }
+
+    private function isKnownManufacturerWarningPattern(string $normalized): bool
+    {
+        if (strlen($normalized) !== 9) {
+            return false;
+        }
+
+        return str_starts_with($normalized, 'B47')
+            || str_starts_with($normalized, 'N01');
     }
 }

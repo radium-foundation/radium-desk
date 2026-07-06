@@ -5,6 +5,7 @@ namespace App\Enums;
 enum SerialValidationStatus: string
 {
     case Valid = 'valid';
+    case Warning = 'warning';
     case Invalid = 'invalid';
     case Unsupported = 'unsupported';
     case Pending = 'pending';
@@ -12,6 +13,11 @@ enum SerialValidationStatus: string
     public function isValid(): bool
     {
         return $this === self::Valid;
+    }
+
+    public function isWarning(): bool
+    {
+        return $this === self::Warning;
     }
 
     public function isInvalid(): bool

@@ -138,7 +138,7 @@ class AutomationOperationsValidationCollector
             deviceModel: $order->device_model,
             serialNumber: $order->serial_number,
             validatorClass: $this->serialValidationService->validatorClassForOrder($order),
-            validationPassed: $validation->status === SerialValidationStatus::Valid,
+            validationPassed: $validation->allowsWorkflow(),
             failureReason: $this->failureReason($order, $validation, $duplicateSerial),
             ruleFailed: $this->formatRuleFailed($validation),
             radiumBoxSyncLabel: $this->radiumBoxSyncLabel($order),
@@ -206,8 +206,12 @@ class AutomationOperationsValidationCollector
             return OrderIdentityValidationFailureGroup::WaitingForCustomerSerial;
         }
 
-        if ($validation->status === SerialValidationStatus::Invalid) {
+        if ($validation->isFail()) {
             return OrderIdentityValidationFailureGroup::ValidatorRule;
+        }
+
+        if ($validation->isWarning()) {
+            return OrderIdentityValidationFailureGroup::Unknown;
         }
 
         if ($this->hasProductMappingMismatch($order, $validation)) {
@@ -264,12 +268,12 @@ class AutomationOperationsValidationCollector
 
         $syncStatus = $this->syncStore->status($order->id);
 
-        if ($validation->status === SerialValidationStatus::Invalid
+        if ($validation->isFail()
             && $syncStatus === RadiumBoxEnrichmentSyncStatus::Synced) {
             return OrderIdentityValidationRecommendation::RadiumBoxInvalidIdentity;
         }
 
-        if ($validation->status === SerialValidationStatus::Invalid) {
+        if ($validation->isFail()) {
             return OrderIdentityValidationRecommendation::ValidatorTooStrict;
         }
 

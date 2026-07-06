@@ -1080,7 +1080,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertOk()
             ->assertSee($expectedHref, false)
             ->assertSee('>Open<', false)
-            ->assertSee('>Waiting<', false)
+            ->assertSee('Customer Waiting')
             ->assertSee('>Refunds<', false)
             ->assertDontSee('>Pending Approvals<', false)
             ->assertDontSee('>Warning<', false)

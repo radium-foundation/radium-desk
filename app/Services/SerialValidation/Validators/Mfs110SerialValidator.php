@@ -19,6 +19,12 @@ class Mfs110SerialValidator extends AbstractProductSerialValidator
             return $this->invalid($normalized, 'Serial number is required.');
         }
 
+        $clearFailureReason = $this->clearlyInvalidReason($normalized);
+
+        if ($clearFailureReason !== null) {
+            return $this->invalid($normalized, $clearFailureReason);
+        }
+
         if (! ctype_digit($normalized)) {
             return $this->invalid($normalized, 'MFS 110 serial numbers must be numeric only.');
         }
@@ -53,5 +59,30 @@ class Mfs110SerialValidator extends AbstractProductSerialValidator
             $normalized,
             'MFS 110 serial numbers must contain exactly 7 or 8 digits.',
         );
+    }
+
+    private function clearlyInvalidReason(string $normalized): ?string
+    {
+        if (str_starts_with($normalized, '54SAXX')) {
+            return 'MFS 110 serial numbers cannot be product labels.';
+        }
+
+        if ($normalized === 'KAMAL') {
+            return 'MFS 110 serial numbers cannot be placeholder text.';
+        }
+
+        if (preg_match('/\d+\s*V(?:DC|AC)/i', $normalized) !== 0
+            || str_contains($normalized, 'VDC')
+            || str_contains($normalized, 'VAC')) {
+            return 'MFS 110 serial numbers cannot be voltage specifications.';
+        }
+
+        if (str_starts_with($normalized, 'P/N')
+            || str_starts_with($normalized, 'PFSPL')
+            || str_contains($normalized, 'FPSPL')) {
+            return 'MFS 110 serial numbers cannot be part numbers.';
+        }
+
+        return null;
     }
 }

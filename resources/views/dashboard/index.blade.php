@@ -14,7 +14,7 @@
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
          data-live-queue="{{ $operationQueue }}"
-         data-live-filter="{{ $operationQueue }}"
+         data-live-filter="{{ $serviceCaseFilter ?? $operationQueue }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
          data-user-id="{{ auth()->id() }}"
@@ -48,7 +48,7 @@
             <div class="dashboard-primary-panel mb-1">
                 @include('dashboard.partials.recent-service-cases', [
                     'recentServiceCases' => $recentServiceCases,
-                    'serviceCaseFilter' => $operationQueue,
+                    'serviceCaseFilter' => $serviceCaseFilter ?? $operationQueue,
                     'operationQueue' => $operationQueue,
                     'operationQueues' => $operationQueues ?? [],
                     'availableOperationQueues' => $availableOperationQueues ?? [],

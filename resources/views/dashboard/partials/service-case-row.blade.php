@@ -1,8 +1,11 @@
 @php
     use App\Enums\IncidentStatus;
     use App\Enums\OperationQueue;
+    use App\Enums\SerialValidationSeverity;
     use App\Enums\ServiceCaseSlaStatus;
     use App\Services\Operations\OperationsQueueClassifier;
+    use App\Services\SerialValidation\SerialPlaceholderService;
+    use App\Services\SerialValidation\SerialValidationService;
 
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
@@ -27,6 +30,17 @@
     $slaStatusForRisk = $serviceCase->slaStatus();
     $showScheduledSlaRisk = $operationQueue === OperationQueue::Scheduled
         && in_array($slaStatusForRisk, [ServiceCaseSlaStatus::Warning, ServiceCaseSlaStatus::Overdue], true);
+    $serialValidation = null;
+
+    if ($order !== null
+        && filled($order->serial_number)
+        && ! app(SerialPlaceholderService::class)->isPlaceholder((string) $order->serial_number)) {
+        $serialValidation = app(SerialValidationService::class)->validateForOrder((string) $order->serial_number, $order);
+    }
+
+    $actionTooltip = ($serialValidation?->severity === SerialValidationSeverity::Fail)
+        ? 'Verify serial/device'
+        : 'Action';
 @endphp
 
 <tr id="service-case-row-{{ $serviceCase->id }}"
@@ -60,6 +74,9 @@
             @if($showScheduledSlaRisk)
                 <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle"
                       title="SLA at risk while case remains scheduled">SLA at risk</span>
+            @endif
+            @if($order?->serial_number)
+                @include('orders.partials.serial-validation-badge', ['order' => $order])
             @endif
         </div>
     </td>
@@ -149,11 +166,11 @@
                             class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
-                            data-bs-title="Action"
+                            data-bs-title="{{ $actionTooltip }}"
                             data-workspace-trigger="action"
                             data-workspace-incident-id="{{ $serviceCase->id }}"
                             data-workspace-context="dashboard"
-                            aria-label="Action for {{ $serviceCase->display_reference }}">
+                            aria-label="{{ $actionTooltip }} for {{ $serviceCase->display_reference }}">
                         <i class="bi bi-lightning-charge" aria-hidden="true"></i>
                     </button>
                 @endif

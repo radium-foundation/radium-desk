@@ -3,41 +3,53 @@
 ])
 
 @php
+    use App\Services\Operations\OperationsRoleService;
+
     $items = [];
     $currentUser = $viewer ?? auth()->user();
+    $roles = app(OperationsRoleService::class);
+    $usesSupportQueues = $currentUser !== null && $roles->usesSupportQueues($currentUser);
+    $usesAdminQueues = $currentUser !== null && $roles->usesAdminQueues($currentUser);
 
-    if ($currentUser?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_AGENT)) {
+    if ($usesSupportQueues) {
         $items[] = [
             'label' => 'My Active Work',
-            'value' => $stats['my_active_cases'],
+            'value' => $stats['my_active_work'] ?? 0,
             'icon' => 'bi-briefcase',
             'color' => 'primary',
-            'href' => route('incidents.index'),
+            'href' => route('dashboard', ['queue' => 'my_work']).'#dashboard-service-cases-panel',
         ];
         $items[] = [
-            'label' => 'Pending Admin',
-            'value' => $stats['waiting_for_admin'],
+            'label' => 'My Attention',
+            'value' => $stats['my_attention'] ?? 0,
+            'icon' => 'bi-exclamation-triangle-fill',
+            'color' => 'danger',
+            'href' => route('dashboard', ['queue' => 'my_work']).'#dashboard-service-cases-panel',
+        ];
+        $items[] = [
+            'label' => 'My Scheduled Today',
+            'value' => $stats['my_scheduled_today'] ?? 0,
+            'icon' => 'bi-calendar-check',
+            'color' => 'info',
+            'href' => route('dashboard', ['queue' => 'scheduled']).'#dashboard-service-cases-panel',
+        ];
+        $items[] = [
+            'label' => 'My Waiting Follow-ups',
+            'value' => $stats['my_waiting_follow_ups'] ?? 0,
             'icon' => 'bi-hourglass-split',
             'color' => 'warning',
-            'href' => route('dashboard', ['queue' => 'action_required']),
+            'href' => route('dashboard', ['queue' => 'waiting_customer']).'#dashboard-service-cases-panel',
         ];
         $items[] = [
-            'label' => 'High Priority',
-            'value' => $stats['high_priority_cases'],
-            'icon' => 'bi-flag-fill',
-            'color' => 'danger',
-            'href' => route('dashboard', ['queue' => 'attention']),
-        ];
-        $items[] = [
-            'label' => 'Total Active Cases',
-            'value' => $stats['total_active_cases'],
-            'icon' => 'bi-clipboard-data',
-            'color' => 'info',
-            'href' => route('incidents.index'),
+            'label' => 'My Completed Today',
+            'value' => $stats['my_completed_today'] ?? 0,
+            'icon' => 'bi-check-circle',
+            'color' => 'success',
+            'href' => route('dashboard', ['queue' => 'completed']).'#dashboard-service-cases-panel',
         ];
     }
 
-    if ($currentUser?->can('incidents.view')) {
+    if ($currentUser?->can('incidents.view') && ! $usesSupportQueues) {
         $items[] = [
             'label' => 'Open',
             'value' => $stats['open_cases'] ?? $stats['open_incidents'] ?? 0,
@@ -60,6 +72,16 @@
             'icon' => 'bi-hourglass-split',
             'color' => 'warning',
             'href' => route('dashboard', ['queue' => 'waiting_customer']).'#dashboard-service-cases-panel',
+        ];
+    }
+
+    if ($usesAdminQueues && isset($stats['total_active_cases'])) {
+        $items[] = [
+            'label' => 'Total Active Cases',
+            'value' => $stats['total_active_cases'],
+            'icon' => 'bi-clipboard-data',
+            'color' => 'info',
+            'href' => route('incidents.index'),
         ];
     }
 
