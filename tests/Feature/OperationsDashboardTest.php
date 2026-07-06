@@ -170,6 +170,8 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('Team Load')
             ->assertSee('View Full Analysis')
             ->assertSee('Loading recommendations')
+            ->assertSee('operations-live-indicator', false)
+            ->assertSee('operations-skeleton-loader', false)
             ->assertSee('Cashfree')
             ->assertSee('id="operations-dashboard-tabs"', false)
             ->assertSee('operations-tab-team', false)
@@ -290,8 +292,34 @@ class OperationsDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('operations-critical-alert-card', false)
             ->assertSee('operations-critical-alert-metric', false)
+            ->assertSee('operations-critical-alerts-grid', false)
+            ->assertSee('status-badge', false)
             ->assertSee('Overdue support appointments', false)
             ->assertDontSee('alert alert-danger mb-0', false);
+    }
+
+    public function test_command_center_ux_polish_renders_compact_layout_markers(): void
+    {
+        $admin = $this->createAdminUser('admin-ux-polish@test.com');
+
+        $this->actingAs($admin)
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('operations-live-indicator', false)
+            ->assertSee('operations-tabs-sentinel', false)
+            ->assertSee('operations-skeleton-loader', false)
+            ->assertSee('status-badge', false);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'ira_compact']))
+            ->assertOk()
+            ->assertSee('operations-ira-chip', false);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'health_cashfree']))
+            ->assertOk()
+            ->assertSee('operations-metric-row', false)
+            ->assertSee('All systems operational', false);
     }
 
     public function test_health_status_shell_does_not_include_lazy_placeholders(): void
@@ -321,6 +349,7 @@ class OperationsDashboardTest extends TestCase
             ->getJson(route('admin.operations.live', ['groups' => 'today']))
             ->assertOk()
             ->assertSee('operations-workload-card', false)
+            ->assertSee('operations-workload-grid', false)
             ->assertSee('operations-support-intelligence-summary', false)
             ->assertSee('Show details', false)
             ->assertSee('Shipra', false)

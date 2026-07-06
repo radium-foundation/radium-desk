@@ -92,6 +92,13 @@
     $capacityPercent = min(100, (int) round(($busiestLoad / max(1, 8)) * 100));
     $capacityTone = $capacityPercent >= 85 ? 'danger' : ($capacityPercent >= 60 ? 'warning' : 'success');
 
+    $statusToneMap = [
+        'success' => 'healthy',
+        'danger' => 'danger',
+        'warning' => 'warning',
+        'primary' => 'info',
+    ];
+
     $cards = [
         [
             'icon' => '🚨',
@@ -159,7 +166,7 @@
             <div class="col-6 col-xl-3">
                 <button
                     type="button"
-                    class="card border-0 shadow-sm h-100 operations-command-card operations-command-card--{{ $card['tone'] }} w-100 text-start"
+                    class="card border-0 shadow-sm h-100 operations-command-card operations-command-card--{{ $card['tone'] }} operations-card-hover w-100 text-start"
                     data-operations-tab-target="{{ $card['target'] }}"
                 >
                     <div class="card-body py-3">
@@ -168,7 +175,11 @@
                                 <div class="operations-command-card-icon" aria-hidden="true">{{ $card['icon'] }}</div>
                                 <div class="operations-command-card-label">{{ $card['label'] }}</div>
                             </div>
-                            <span class="badge text-bg-{{ $card['tone'] }} operations-command-card-status">{{ $card['status'] }}</span>
+                            <span @class([
+                                'status-badge',
+                                'status-' . ($statusToneMap[$card['tone']] ?? 'info'),
+                                'operations-command-card-status',
+                            ])>{{ $card['status'] }}</span>
                         </div>
 
                         @if (! empty($card['meter']))
@@ -179,7 +190,7 @@
                                             <span>{{ $meter['label'] }}</span>
                                             <span>{{ number_format($meter['value']) }}{{ $meter['suffix'] ?? '' }}</span>
                                         </div>
-                                        <div class="progress operations-command-progress" style="height: 6px;">
+                                        <div class="progress operations-command-progress">
                                             <div
                                                 class="progress-bar bg-{{ $meter['tone'] }}"
                                                 role="progressbar"

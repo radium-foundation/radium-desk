@@ -20,6 +20,13 @@
         ? 'No team members configured'
         : sprintf('%s%% team connectivity', number_format($telegramTotal > 0 ? ($telegramConnected / $telegramTotal) * 100 : 0, 0));
 
+    $badgeClassToStatus = [
+        'success' => 'healthy',
+        'danger' => 'danger',
+        'warning' => 'warning',
+        'secondary' => 'info',
+    ];
+
     $systems = array_values(array_filter([
         [
             'id' => 'cashfree',
@@ -29,6 +36,7 @@
                 ? '✅ Healthy'
                 : ($cashfreeHealth['detail'] ?? 'Needs attention'),
             'badge_class' => $cashfreeHealth['badge_class'] ?? ($cashfreeHealthy ? 'success' : 'danger'),
+            'status_class' => $badgeClassToStatus[$cashfreeHealth['badge_class'] ?? ($cashfreeHealthy ? 'success' : 'danger')] ?? 'info',
             'status_label' => $cashfreeHealth['status_label'] ?? ($cashfreeHealthy ? 'Healthy' : 'Needs attention'),
             'lazy_section' => 'cashfree_health',
         ],
@@ -44,6 +52,7 @@
                     number_format((int) ($radiumBoxHealth['pending_syncs'] ?? 0)),
                 ),
             'badge_class' => $radiumBoxHealthy ? 'success' : 'warning',
+            'status_class' => $radiumBoxHealthy ? 'healthy' : 'warning',
             'status_label' => $radiumBoxHealthy ? 'Healthy' : 'Needs attention',
             'lazy_section' => 'health_radiumbox',
         ] : null,
@@ -53,6 +62,7 @@
             'healthy' => $telegramHealthy,
             'summary' => $telegramHealthy ? $telegramSummary : sprintf('%s of %s connected', number_format($telegramConnected), number_format($telegramTotal)),
             'badge_class' => $telegramHealthy ? 'success' : 'warning',
+            'status_class' => $telegramHealthy ? 'healthy' : 'warning',
             'status_label' => $telegramHealthy ? 'Healthy' : 'Needs attention',
             'lazy_section' => 'health_telegram',
         ],
@@ -70,7 +80,7 @@
             @php
                 $collapseId = 'operations-health-'.$system['id'];
             @endphp
-            <div class="accordion-item border-0 shadow-sm mb-2">
+            <div class="accordion-item border-0 shadow-sm mb-2 operations-card-hover">
                 <h3 class="accordion-header" id="operations-health-heading-{{ $system['id'] }}">
                     <button
                         class="accordion-button operations-health-accordion-button collapsed"
@@ -83,7 +93,7 @@
                     >
                         <span class="operations-health-accordion-title">{{ $system['label'] }}</span>
                         <span class="operations-health-accordion-summary text-muted">{{ $system['summary'] }}</span>
-                        <span class="badge bg-{{ $system['badge_class'] }} ms-auto me-2">{{ $system['status_label'] }}</span>
+                        <span @class(['status-badge', 'status-' . ($system['status_class'] ?? 'info'), 'ms-auto', 'me-2'])>{{ $system['status_label'] }}</span>
                     </button>
                 </h3>
                 <div

@@ -73,6 +73,18 @@ const LAZY_LOAD_GUARD_MS = FETCH_TIMEOUT_MS;
 
 const LAZY_PLACEHOLDER_SELECTOR = '.operations-lazy-placeholder';
 
+const renderLazySkeleton = (label = 'Loading…') => `
+    <div class="operations-lazy-placeholder operations-skeleton-loader card border-0 shadow-sm" aria-busy="true" aria-label="${label}">
+        <div class="card-body py-3">
+            <span class="visually-hidden">${label}</span>
+            <div class="operations-skeleton-line operations-skeleton-line--title"></div>
+            <div class="operations-skeleton-line"></div>
+            <div class="operations-skeleton-line operations-skeleton-line--medium"></div>
+            <div class="operations-skeleton-line operations-skeleton-line--short"></div>
+        </div>
+    </div>
+`;
+
 const SECTIONS_ALLOW_NESTED_LAZY_MARKERS = new Set([
     'health_status',
 ]);
@@ -205,7 +217,17 @@ const formatGeneratedAt = (isoString) => {
         return '';
     }
 
-    return date.toLocaleString();
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+};
+
+const renderGeneratedAtMarkup = (isoString) => {
+    const formattedTime = formatGeneratedAt(isoString);
+
+    if (formattedTime === '') {
+        return '';
+    }
+
+    return `<span class="operations-live-indicator" aria-hidden="true">● Live</span> Updated ${formattedTime}`;
 };
 
 const getActiveTabGroup = (pageRoot) => {
@@ -396,10 +418,7 @@ const loadLazyTab = async (pageRoot, group, { force = false } = {}) => {
             targetId,
             error instanceof Error ? error.message : 'Unable to load this tab right now.',
             () => {
-                replaceSectionHtml(
-                    targetId,
-                    '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
-                );
+                replaceSectionHtml(targetId, renderLazySkeleton('Retrying…'));
                 loadLazyTab(pageRoot, group, { force: true });
             },
         );
@@ -424,14 +443,7 @@ const loadHealthDetail = async (pageRoot, collapseElement, { force = false } = {
     const targetElement = document.getElementById(targetId);
 
     if (targetElement && !targetElement.querySelector(LAZY_PLACEHOLDER_SELECTOR)) {
-        targetElement.innerHTML = `
-            <div class="operations-lazy-placeholder card border-0 shadow-sm">
-                <div class="card-body py-4 text-center text-muted">
-                    <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-                    <span>Loading integration details…</span>
-                </div>
-            </div>
-        `;
+        targetElement.innerHTML = renderLazySkeleton('Loading integration details…');
     }
 
     try {
@@ -452,10 +464,7 @@ const loadHealthDetail = async (pageRoot, collapseElement, { force = false } = {
             targetId,
             error instanceof Error ? error.message : 'Unable to load integration details right now.',
             () => {
-                replaceSectionHtml(
-                    targetId,
-                    '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
-                );
+                replaceSectionHtml(targetId, renderLazySkeleton('Retrying…'));
                 loadHealthDetail(pageRoot, collapseElement, { force: true });
             },
         );
@@ -565,10 +574,7 @@ const bindIraFullAnalysisModal = (pageRoot) => {
                 error instanceof Error ? error.message : 'Unable to load Ira analysis right now.',
                 () => {
                     modalElement.dataset.operationsIraAnalysisLoaded = 'false';
-                    replaceSectionHtml(
-                        modalBodyId,
-                        '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
-                    );
+                    replaceSectionHtml(modalBodyId, renderLazySkeleton('Retrying…'));
                     window.bootstrap?.Modal.getOrCreateInstance(modalElement).show();
                 },
             );
@@ -577,10 +583,7 @@ const bindIraFullAnalysisModal = (pageRoot) => {
 };
 
 const retryInitialOperationsLoad = async (pageRoot) => {
-    replaceSectionHtml(
-        TAB_CONTENT_TARGETS.today,
-        '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
-    );
+    replaceSectionHtml(TAB_CONTENT_TARGETS.today, renderLazySkeleton('Retrying…'));
 
     await refreshOperationsDashboard(pageRoot, { surfaceErrors: true });
     await loadLazyTab(pageRoot, 'today', { force: true });
@@ -610,7 +613,11 @@ const refreshOperationsDashboard = async (
         const generatedAtElement = document.getElementById('operations-dashboard-generated-at');
 
         if (generatedAtElement && payload.generated_at) {
-            generatedAtElement.textContent = `Updated ${formatGeneratedAt(payload.generated_at)}`;
+            const markup = renderGeneratedAtMarkup(payload.generated_at);
+
+            if (markup !== '') {
+                generatedAtElement.innerHTML = markup;
+            }
         }
 
         if (surfaceErrors) {
@@ -747,10 +754,7 @@ const guardAgainstStaleLazyPlaceholders = (pageRoot) => {
             const healthCollapse = placeholder.closest('[data-operations-lazy-section]');
             const retryHandler = healthCollapse
                 ? () => {
-                    replaceSectionHtml(
-                        target.id,
-                        '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
-                    );
+                    replaceSectionHtml(target.id, renderLazySkeleton('Retrying…'));
                     loadHealthDetail(pageRoot, healthCollapse, { force: true });
                 }
                 : () => {
@@ -763,10 +767,7 @@ const guardAgainstStaleLazyPlaceholders = (pageRoot) => {
                         return;
                     }
 
-                    replaceSectionHtml(
-                        target.id,
-                        '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
-                    );
+                    replaceSectionHtml(target.id, renderLazySkeleton('Retrying…'));
                     loadLazyTab(pageRoot, group, { force: true });
                 };
 
@@ -779,6 +780,30 @@ const guardAgainstStaleLazyPlaceholders = (pageRoot) => {
     }, LAZY_LOAD_GUARD_MS);
 };
 
+const bindStickyOperationsTabs = (pageRoot) => {
+    const sentinel = document.getElementById('operations-tabs-sentinel');
+    const tabsCard = pageRoot.querySelector('.operations-dashboard-tabs');
+
+    if (!sentinel || !tabsCard || tabsCard.dataset.operationsStickyBound === 'true') {
+        return;
+    }
+
+    tabsCard.dataset.operationsStickyBound = 'true';
+
+    const topbarHeight = getComputedStyle(document.documentElement)
+        .getPropertyValue('--topbar-height')
+        .trim() || '52px';
+
+    const observer = new IntersectionObserver(([entry]) => {
+        tabsCard.classList.toggle('is-sticky', !entry.isIntersecting);
+    }, {
+        threshold: 0,
+        rootMargin: `-${topbarHeight} 0px 0px 0px`,
+    });
+
+    observer.observe(sentinel);
+};
+
 const initOperationsDashboard = async () => {
     const pageRoot = document.getElementById('operations-dashboard-root');
 
@@ -786,12 +811,13 @@ const initOperationsDashboard = async () => {
         return;
     }
 
-    console.info('Operations dashboard JS version P06-07-020 loaded');
+    console.info('Operations dashboard JS version P06-07-021 loaded');
 
     bindBatchRecoveryForms(pageRoot);
     bindOperationsTabShortcuts(pageRoot);
     bindIraInsightToggleLabels(pageRoot);
     bindIraFullAnalysisModal(pageRoot);
+    bindStickyOperationsTabs(pageRoot);
 
     await refreshOperationsDashboard(pageRoot, { surfaceErrors: true });
 
@@ -815,6 +841,7 @@ export {
     loadHealthDetail,
     loadLazyTab,
     refreshOperationsDashboard,
+    renderLazySkeleton,
     restoreLoadedHealthDetails,
     showLazyLoadError,
     validateSectionHtml,

@@ -28,10 +28,11 @@ describe('operations-dashboard lazy loading', () => {
                     data-operations-lazy-loaded="false"
                 >
                     <div id="operations-tab-today-content">
-                        <div class="operations-lazy-placeholder card border-0 shadow-sm">
-                            <div class="card-body py-4 text-center text-muted">
-                                <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
-                                <span>Loading support intelligence…</span>
+                        <div class="operations-lazy-placeholder operations-skeleton-loader card border-0 shadow-sm">
+                            <div class="card-body py-3">
+                                <span class="visually-hidden">Loading support intelligence…</span>
+                                <div class="operations-skeleton-line operations-skeleton-line--title"></div>
+                                <div class="operations-skeleton-line"></div>
                             </div>
                         </div>
                     </div>

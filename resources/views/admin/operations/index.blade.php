@@ -14,8 +14,9 @@
                 <h1 class="h3 mb-1">Operations Control Center</h1>
                 <p class="text-muted mb-0">Command center for live operational health, support load, and team status.</p>
             </div>
-            <div class="text-muted small" id="operations-dashboard-generated-at">
-                Updated {{ display_app_datetime_seconds($dashboard->generatedAt) }}
+            <div class="operations-dashboard-meta text-muted small" id="operations-dashboard-generated-at">
+                <span class="operations-live-indicator" aria-hidden="true">● Live</span>
+                Updated {{ \App\Support\AppDateFormatter::format($dashboard->generatedAt, 'H:i') }}
             </div>
         </div>
 
@@ -46,8 +47,10 @@
             ])
         </div>
 
-        <div class="operations-dashboard-tabs card border-0 shadow-sm">
-            <div class="card-header bg-white border-bottom-0 pb-0">
+        <div id="operations-tabs-sentinel" class="operations-tabs-sentinel" aria-hidden="true"></div>
+
+        <div class="operations-dashboard-tabs card border-0 shadow-sm operations-card-hover">
+            <div class="card-header bg-white border-bottom-0 pb-0 operations-dashboard-tabs-header">
                 <ul class="nav nav-tabs card-header-tabs operations-dashboard-tablist flex-nowrap overflow-auto" id="operations-dashboard-tabs" role="tablist">
                     <li class="nav-item" role="presentation">
                         <button

@@ -68,10 +68,16 @@
             'severity' => 'success',
         ];
     }
+
+    $chipSeverityMap = [
+        'success' => 'healthy',
+        'danger' => 'danger',
+        'warning' => 'warning',
+    ];
 @endphp
 
 <section class="operations-ira-command-card mb-3" aria-labelledby="operations-ira-compact-heading">
-    <div class="card border-0 shadow-sm">
+    <div class="card border-0 shadow-sm operations-card-hover">
         <div class="card-body py-3">
             <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
                 <div class="flex-grow-1">
@@ -79,26 +85,33 @@
                         <span class="operations-ira-command-icon" aria-hidden="true">🤖</span>
                         <h2 id="operations-ira-compact-heading" class="h6 mb-0 fw-semibold">Ira</h2>
                         @if ($briefing !== null)
-                            <span class="badge text-bg-light border text-muted">{{ str($reasoningProvider)->headline() }}</span>
+                            <span class="status-badge status-info">{{ str($reasoningProvider)->headline() }}</span>
                         @endif
                     </div>
 
                     @if ($briefing === null)
-                        <p class="text-muted small mb-0">Loading recommendations…</p>
+                        <div class="operations-skeleton-loader" aria-busy="true" aria-label="Loading recommendations">
+                            <div class="operations-skeleton-line operations-skeleton-line--title"></div>
+                            <div class="operations-skeleton-line operations-skeleton-line--medium"></div>
+                            <p class="visually-hidden">Loading recommendations…</p>
+                        </div>
                     @else
                         <p class="operations-ira-command-count mb-2">
                             <strong>{{ number_format(max(1, $recommendationCount)) }}</strong>
                             {{ str('Recommendation')->plural($recommendationCount > 0 ? $recommendationCount : 1) }}
                         </p>
 
-                        <ul class="list-unstyled mb-0 operations-ira-command-bullets">
+                        <div class="operations-ira-chips d-flex flex-wrap gap-2">
                             @foreach ($bullets as $bullet)
-                                <li class="operations-ira-command-bullet operations-ira-command-bullet--{{ $bullet['severity'] }}">
-                                    <span aria-hidden="true">{{ $bullet['icon'] }}</span>
-                                    <span>{{ $bullet['label'] }}</span>
-                                </li>
+                                <span @class([
+                                    'operations-ira-chip',
+                                    'operations-ira-chip--' . ($chipSeverityMap[$bullet['severity']] ?? 'info'),
+                                ])>
+                                    <span class="operations-ira-chip-icon" aria-hidden="true">{{ $bullet['icon'] }}</span>
+                                    <span class="operations-ira-chip-label">{{ $bullet['label'] }}</span>
+                                </span>
                             @endforeach
-                        </ul>
+                        </div>
                     @endif
                 </div>
 

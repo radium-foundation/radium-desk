@@ -26,7 +26,12 @@
             $activeCases = (int) ($member['active_cases'] ?? 0);
             $totalLoad = $todayCount + $pendingCount;
             $loadPercent = min(100, (int) round(($totalLoad / max(1, 8)) * 100));
-            $isOverloaded = $loadPercent >= 85;
+            $capacityClass = match (true) {
+                $loadPercent >= 91 => 'danger',
+                $loadPercent >= 71 => 'warning',
+                default => 'healthy',
+            };
+            $progressTone = $capacityClass === 'healthy' ? 'success' : $capacityClass;
 
             return [
                 'name' => $member['name'] ?? 'Unknown',
@@ -34,8 +39,8 @@
                 'pending' => $pendingCount,
                 'active_cases' => $activeCases,
                 'load_percent' => $loadPercent,
-                'is_overloaded' => $isOverloaded,
-                'tone' => $isOverloaded ? 'danger' : 'success',
+                'capacity_class' => $capacityClass,
+                'progress_tone' => $progressTone,
             ];
         })
         ->filter(fn (array $member): bool => $member['today'] > 0
@@ -62,7 +67,7 @@
         </button>
     </div>
 
-    <div class="operations-support-intelligence-summary card border-0 shadow-sm mb-2">
+    <div class="operations-support-intelligence-summary card border-0 shadow-sm mb-2 operations-card-hover">
         <div class="card-body py-2 px-3">
             <div class="row g-2 small">
                 <div class="col-6 col-md-3">
@@ -86,10 +91,10 @@
     </div>
 
     <div id="operations-support-intelligence-details" @class(['collapse', 'show' => $showDetails])>
-        <div class="card border-0 shadow-sm">
+        <div class="card border-0 shadow-sm operations-card-hover">
             <div class="card-body">
-                <div class="row g-4">
-                    <div class="col-md-6 col-xl-3">
+                <div class="row g-3">
+                    <div class="col-md-4">
                         <p class="text-uppercase text-muted small fw-semibold mb-2">Today's Support</p>
                         <dl class="row mb-0 small">
                             <dt class="col-7">Scheduled</dt>
@@ -105,7 +110,7 @@
                         </dl>
                     </div>
 
-                    <div class="col-md-6 col-xl-3">
+                    <div class="col-md-4">
                         <p class="text-uppercase text-muted small fw-semibold mb-2">Upcoming Support</p>
                         <dl class="row mb-0 small">
                             <dt class="col-7">Tomorrow</dt>
@@ -115,7 +120,7 @@
                         </dl>
                     </div>
 
-                    <div class="col-md-6 col-xl-3">
+                    <div class="col-md-4">
                         <p class="text-uppercase text-muted small fw-semibold mb-2">Customer Response</p>
                         <dl class="row mb-0 small">
                             <dt class="col-7">Serial requested</dt>
@@ -126,24 +131,26 @@
                             <dd class="col-5 text-end mb-0">{{ number_format($stillWaiting) }}</dd>
                         </dl>
                     </div>
+                </div>
 
-                    <div class="col-md-12 col-xl-3">
-                        <p class="text-uppercase text-muted small fw-semibold mb-2">Team Workload</p>
-                        @if ($workloadCards === [])
-                            <p class="text-muted small mb-0">No active support workload right now.</p>
-                        @else
-                            <div class="d-flex flex-column gap-2">
-                                @foreach ($workloadCards as $member)
+                <div class="mt-3 pt-3 border-top">
+                    <p class="text-uppercase text-muted small fw-semibold mb-2">Team Workload</p>
+                    @if ($workloadCards === [])
+                        <p class="text-muted small mb-0">No active support workload right now.</p>
+                    @else
+                        <div class="row g-2 operations-workload-grid">
+                            @foreach ($workloadCards as $member)
+                                <div class="col-12 col-md-6 col-xl-4">
                                     <div @class([
-                                        'card border-0 shadow-sm operations-workload-card',
-                                        'operations-workload-card--overloaded' => $member['is_overloaded'],
+                                        'card border-0 shadow-sm h-100 operations-workload-card operations-card-hover',
+                                        'operations-workload-card--' . $member['capacity_class'] => true,
                                     ])>
                                         <div class="card-body py-2 px-3">
                                             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                                                 <strong class="operations-workload-card-name">{{ $member['name'] }}</strong>
-                                                @if ($member['is_overloaded'])
-                                                    <span class="badge text-bg-danger">Overloaded</span>
-                                                @endif
+                                                <span @class(['status-badge', 'status-' . $member['capacity_class']])>
+                                                    {{ number_format($member['load_percent']) }}%
+                                                </span>
                                             </div>
                                             <div class="operations-workload-card-metrics small">
                                                 <div class="d-flex justify-content-between gap-2">
@@ -161,12 +168,12 @@
                                             </div>
                                             <div class="operations-workload-card-meter mt-2">
                                                 <div class="d-flex justify-content-between small text-muted mb-1">
-                                                    <span>Load</span>
+                                                    <span>Capacity</span>
                                                     <span>{{ number_format($member['load_percent']) }}%</span>
                                                 </div>
-                                                <div class="progress operations-command-progress" style="height: 6px;">
+                                                <div class="progress operations-command-progress">
                                                     <div
-                                                        class="progress-bar bg-{{ $member['tone'] }}"
+                                                        class="progress-bar bg-{{ $member['progress_tone'] }}"
                                                         role="progressbar"
                                                         style="width: {{ $member['load_percent'] }}%;"
                                                         aria-valuenow="{{ $member['load_percent'] }}"
@@ -177,10 +184,10 @@
                                             </div>
                                         </div>
                                     </div>
-                                @endforeach
-                            </div>
-                        @endif
-                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
