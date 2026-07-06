@@ -25,16 +25,6 @@ class UpdateTeamAvailabilityRequest extends FormRequest
                 'string',
                 Rule::in(TeamAvailabilityStatus::values()),
             ],
-            'leave_start_date' => [
-                Rule::requiredIf(fn (): bool => $this->input('availability_status') === TeamAvailabilityStatus::OnLeave->value),
-                'nullable',
-                'date',
-            ],
-            'leave_end_date' => [
-                'nullable',
-                'date',
-                'after_or_equal:leave_start_date',
-            ],
         ];
     }
 }

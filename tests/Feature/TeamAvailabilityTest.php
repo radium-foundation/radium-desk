@@ -55,25 +55,35 @@ class TeamAvailabilityTest extends TestCase
         $this->assertNull($agent->leave_end_date);
     }
 
-    public function test_on_leave_user_stores_leave_dates(): void
+    public function test_team_member_cannot_set_on_leave_status(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->actingAs($agent)
             ->patch(route('profile.availability.update'), [
-                'availability_status' => TeamAvailabilityStatus::OnLeave->value,
+                'availability_status' => 'on_leave',
                 'leave_start_date' => '2026-07-10',
                 'leave_end_date' => '2026-07-20',
             ])
-            ->assertRedirect(route('profile.edit'));
+            ->assertSessionHasErrors('availability_status');
 
         $agent->refresh();
 
-        $this->assertSame(TeamAvailabilityStatus::OnLeave, $agent->availability_status);
-        $this->assertSame('2026-07-10', $agent->leave_start_date?->toDateString());
-        $this->assertSame('2026-07-20', $agent->leave_end_date?->toDateString());
-        $this->assertTrue(app(TeamAvailabilityService::class)->isOnLeave($agent));
+        $this->assertNotSame('on_leave', $agent->availability_status?->value ?? $agent->getRawOriginal('availability_status'));
+    }
+
+    public function test_profile_team_availability_shows_request_leave_link(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Request Leave')
+            ->assertDontSee('Leave start date')
+            ->assertDontSee('On Leave');
     }
 
     public function test_non_team_member_cannot_update_availability(): void
@@ -101,11 +111,11 @@ class TeamAvailabilityTest extends TestCase
         $agent->forceFill(['last_active_at' => now()->subMinutes(5)])->save();
 
         $this->actingAs($admin)
-            ->get(route('admin.operations.index'))
+            ->getJson(route('admin.operations.live', ['groups' => 'team']))
             ->assertOk()
-            ->assertSee('Avinash Agent')
-            ->assertSee('Available')
-            ->assertSee('Team Presence');
+            ->assertSee('Avinash Agent', false)
+            ->assertSee('Available', false)
+            ->assertSee('Team Presence', false);
     }
 
     public function test_whatsapp_dispatch_updates_customer_communication_timestamp(): void

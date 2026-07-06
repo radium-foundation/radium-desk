@@ -8,15 +8,27 @@ use Illuminate\Support\Carbon;
 
 class TeamAvailabilityService
 {
+    public function __construct(
+        private readonly WorkCalendarService $workCalendarService,
+    ) {}
+
     public function statusFor(User $user): TeamAvailabilityStatus
     {
-        $stored = $user->availability_status;
+        $stored = $user->getRawOriginal('availability_status');
+
+        if (! is_string($stored) || $stored === '') {
+            $stored = $user->availability_status;
+        }
 
         if ($stored instanceof TeamAvailabilityStatus) {
             return $stored;
         }
 
         if (is_string($stored) && $stored !== '') {
+            if ($stored === 'on_leave') {
+                return TeamAvailabilityStatus::Offline;
+            }
+
             return TeamAvailabilityStatus::tryFrom($stored) ?? TeamAvailabilityStatus::Offline;
         }
 
@@ -25,49 +37,15 @@ class TeamAvailabilityService
 
     public function isOnLeave(User $user, ?Carbon $date = null): bool
     {
-        if ($this->statusFor($user) === TeamAvailabilityStatus::OnLeave) {
-            return true;
-        }
-
-        if ($user->leave_start_date === null) {
-            return false;
-        }
-
-        $date ??= now()->startOfDay();
-        $start = $user->leave_start_date->startOfDay();
-        $end = $user->leave_end_date?->endOfDay();
-
-        if ($date->lt($start)) {
-            return false;
-        }
-
-        if ($end !== null && $date->gt($end)) {
-            return false;
-        }
-
-        return true;
+        return $this->workCalendarService->hasApprovedLeave($user, $date);
     }
 
-    public function updateStatus(
-        User $user,
-        TeamAvailabilityStatus $status,
-        ?Carbon $leaveStartDate = null,
-        ?Carbon $leaveEndDate = null,
-    ): User {
-        $attributes = [
+    public function updateStatus(User $user, TeamAvailabilityStatus $status): User
+    {
+        $user->fill([
             'availability_status' => $status,
             'availability_updated_at' => now(),
-        ];
-
-        if ($status === TeamAvailabilityStatus::OnLeave) {
-            $attributes['leave_start_date'] = $leaveStartDate?->toDateString();
-            $attributes['leave_end_date'] = $leaveEndDate?->toDateString();
-        } else {
-            $attributes['leave_start_date'] = null;
-            $attributes['leave_end_date'] = null;
-        }
-
-        $user->fill($attributes);
+        ]);
         $user->save();
 
         return $user->fresh();
@@ -85,8 +63,6 @@ class TeamAvailabilityService
             'label' => $status->label(),
             'badge_class' => $status->badgeClass(),
             'updated_at' => $user->availability_updated_at?->toIso8601String(),
-            'leave_start_date' => $user->leave_start_date?->toDateString(),
-            'leave_end_date' => $user->leave_end_date?->toDateString(),
             'on_leave' => $this->isOnLeave($user),
         ];
     }

@@ -75,10 +75,6 @@ class SmartAssignmentService
             return false;
         }
 
-        if ($this->availabilityService->isOnLeave($user, $at)) {
-            return false;
-        }
-
         $status = $this->availabilityService->statusFor($user);
 
         return in_array($status, [

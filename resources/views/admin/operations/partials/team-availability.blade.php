@@ -119,14 +119,8 @@
                                     <span>Lunch {{ $workCalendar['lunch_time'] }}</span>
                                 @endif
 
-                                @if(($availability['on_leave'] ?? false) && filled($availability['leave_start_date'] ?? null))
-                                    <span>
-                                        Manual leave:
-                                        {{ display_app_date(\Illuminate\Support\Carbon::parse($availability['leave_start_date'])) }}
-                                        @if(filled($availability['leave_end_date'] ?? null))
-                                            – {{ display_app_date(\Illuminate\Support\Carbon::parse($availability['leave_end_date'])) }}
-                                        @endif
-                                    </span>
+                                @if(filled($workCalendar['label'] ?? null) && ($workCalendar['status'] ?? '') === \App\Enums\WorkCalendarDayStatus::LeaveApproved->value)
+                                    <span>Approved leave today</span>
                                 @endif
 
                                 @if(filled($member['last_active_relative'] ?? null))

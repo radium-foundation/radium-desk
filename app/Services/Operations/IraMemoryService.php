@@ -101,8 +101,7 @@ class IraMemoryService
         $leaveCount = 0;
 
         foreach ($teamMembers as $member) {
-            if ($this->workCalendarService->hasApprovedLeave($member, $at)
-                || $this->availabilityService->isOnLeave($member, $at)) {
+            if ($this->workCalendarService->hasApprovedLeave($member, $at)) {
                 $leaveCount++;
 
                 continue;

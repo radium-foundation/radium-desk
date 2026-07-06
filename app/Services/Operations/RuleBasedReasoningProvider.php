@@ -226,15 +226,13 @@ class RuleBasedReasoningProvider implements IraReasoningProvider
     private function leaveMemberNames(Carbon $at): array
     {
         $workCalendar = app(WorkCalendarService::class);
-        $availability = app(TeamAvailabilityService::class);
         $roleService = app(OperationsRoleService::class);
 
         return \App\Models\User::query()
             ->where('is_active', true)
             ->whereHas('roles', fn ($query) => $query->whereIn('name', $roleService->operationalRoleSlugs()))
             ->get()
-            ->filter(fn (\App\Models\User $user): bool => $workCalendar->hasApprovedLeave($user, $at)
-                || $availability->isOnLeave($user, $at))
+            ->filter(fn (\App\Models\User $user): bool => $workCalendar->hasApprovedLeave($user, $at))
             ->map(fn (\App\Models\User $user): string => $user->name)
             ->values()
             ->all();

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\TeamAvailabilityStatusCast;
 use App\Enums\TeamAvailabilityStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -46,7 +47,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'telegram_notifications_enabled' => 'boolean',
-            'availability_status' => TeamAvailabilityStatus::class,
+            'availability_status' => TeamAvailabilityStatusCast::class,
             'availability_updated_at' => 'datetime',
             'leave_start_date' => 'date',
             'leave_end_date' => 'date',

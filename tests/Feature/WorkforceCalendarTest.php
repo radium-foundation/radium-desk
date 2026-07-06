@@ -210,14 +210,22 @@ class WorkforceCalendarTest extends TestCase
         $available = $this->createScheduledAgent('Available Agent', TeamAvailabilityStatus::Available);
         $busy = $this->createScheduledAgent('Busy Agent', TeamAvailabilityStatus::Busy);
         $offline = $this->createScheduledAgent('Offline Agent', TeamAvailabilityStatus::Offline);
-        $manualLeave = $this->createScheduledAgent('Manual Leave Agent', TeamAvailabilityStatus::OnLeave);
+        $approvedLeave = $this->createScheduledAgent('Approved Leave Agent', TeamAvailabilityStatus::Available);
+
+        LeaveRequest::query()->create([
+            'user_id' => $approvedLeave->id,
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-06',
+            'reason' => 'Approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
 
         $service = app(SmartAssignmentService::class);
 
         $this->assertTrue($service->isEligible($available));
         $this->assertTrue($service->isEligible($busy));
         $this->assertFalse($service->isEligible($offline));
-        $this->assertFalse($service->isEligible($manualLeave));
+        $this->assertFalse($service->isEligible($approvedLeave));
 
         $candidates = $service->eligibleCandidates();
         $candidateIds = collect($candidates)->pluck('id')->all();
@@ -225,7 +233,89 @@ class WorkforceCalendarTest extends TestCase
         $this->assertContains($available->id, $candidateIds);
         $this->assertContains($busy->id, $candidateIds);
         $this->assertNotContains($offline->id, $candidateIds);
-        $this->assertNotContains($manualLeave->id, $candidateIds);
+        $this->assertNotContains($approvedLeave->id, $candidateIds);
+    }
+
+    public function test_future_approved_leave_does_not_block_today_assignment(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent('Future Leave Agent', TeamAvailabilityStatus::Available);
+
+        LeaveRequest::query()->create([
+            'user_id' => $agent->id,
+            'start_date' => '2026-07-08',
+            'end_date' => '2026-07-10',
+            'reason' => 'Planned leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $this->assertTrue(app(SmartAssignmentService::class)->isEligible($agent));
+
+        $incident = $this->createUnassignedIncident('RD-FUTURE-LEAVE');
+        $this->bookAppointment($incident);
+
+        $incident->refresh();
+        $this->assertSame($agent->id, $incident->assigned_to_user_id);
+    }
+
+    public function test_agent_is_eligible_again_after_approved_leave_ends(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-11 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent('Past Leave Agent', TeamAvailabilityStatus::Available);
+
+        LeaveRequest::query()->create([
+            'user_id' => $agent->id,
+            'start_date' => '2026-07-08',
+            'end_date' => '2026-07-10',
+            'reason' => 'Completed leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $this->assertTrue(app(SmartAssignmentService::class)->isEligible($agent));
+        $this->assertTrue(app(WorkCalendarService::class)->isEligibleForAssignment($agent));
+    }
+
+    public function test_offline_status_blocks_assignment(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $offlineAgent = $this->createScheduledAgent('Offline Agent', TeamAvailabilityStatus::Offline);
+        $availableAgent = $this->createScheduledAgent('Available Agent', TeamAvailabilityStatus::Available);
+
+        $this->assertFalse(app(SmartAssignmentService::class)->isEligible($offlineAgent));
+
+        $incident = $this->createUnassignedIncident('RD-OFFLINE-1');
+        $this->bookAppointment($incident);
+
+        $incident->refresh();
+        $this->assertSame($availableAgent->id, $incident->assigned_to_user_id);
+        $this->assertNotSame($offlineAgent->id, $incident->assigned_to_user_id);
+    }
+
+    public function test_manual_on_leave_status_migration_resets_to_offline(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        \Illuminate\Support\Facades\DB::table('users')->where('id', $agent->id)->update([
+            'availability_status' => 'on_leave',
+            'leave_start_date' => '2026-07-08',
+            'leave_end_date' => '2026-07-10',
+        ]);
+
+        $migration = require database_path('migrations/2026_07_06_200000_reset_manual_on_leave_availability_status.php');
+        $migration->up();
+
+        $row = \Illuminate\Support\Facades\DB::table('users')->where('id', $agent->id)->first();
+
+        $this->assertSame('offline', $row->availability_status);
+        $this->assertSame('2026-07-08', $row->leave_start_date);
+        $this->assertSame('2026-07-10', $row->leave_end_date);
+
+        $agent->refresh();
+        $this->assertSame(TeamAvailabilityStatus::Offline, app(\App\Services\Operations\TeamAvailabilityService::class)->statusFor($agent));
     }
 
     public function test_work_calendar_supports_future_presence_fields(): void
@@ -256,10 +346,10 @@ class WorkforceCalendarTest extends TestCase
         $this->createScheduleFor($laterAgent);
 
         $this->actingAs($admin)
-            ->get(route('admin.operations.index'))
+            ->getJson(route('admin.operations.live', ['groups' => 'team']))
             ->assertOk()
-            ->assertSee('Starts later')
-            ->assertSee('Shipra Later');
+            ->assertSee('Starts later', false)
+            ->assertSee('Shipra Later', false);
     }
 
     /**

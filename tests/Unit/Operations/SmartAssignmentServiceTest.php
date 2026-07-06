@@ -2,7 +2,9 @@
 
 namespace Tests\Unit\Operations;
 
+use App\Enums\LeaveRequestStatus;
 use App\Enums\TeamAvailabilityStatus;
+use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\Operations\SmartAssignmentService;
 use Database\Seeders\RolePermissionSeeder;
@@ -20,11 +22,19 @@ class SmartAssignmentServiceTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_eligible_candidates_exclude_offline_and_on_leave_users(): void
+    public function test_eligible_candidates_exclude_offline_and_approved_leave_users(): void
     {
         $available = $this->createAgent(TeamAvailabilityStatus::Available);
         $this->createAgent(TeamAvailabilityStatus::Offline);
-        $this->createAgent(TeamAvailabilityStatus::OnLeave);
+
+        $onApprovedLeave = $this->createAgent(TeamAvailabilityStatus::Available);
+        LeaveRequest::query()->create([
+            'user_id' => $onApprovedLeave->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+            'reason' => 'Approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
 
         $candidates = app(SmartAssignmentService::class)->eligibleCandidates();
 

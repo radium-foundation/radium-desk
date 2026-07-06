@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\LeaveRequestStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\TeamAvailabilityStatus;
 use App\Models\AuditLog;
+use App\Models\LeaveRequest;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
@@ -71,11 +73,19 @@ class SmartAssignmentTest extends TestCase
         $this->assertContains('Available', $auditLog?->new_values['assignment_reason']['factors'] ?? []);
     }
 
-    public function test_on_leave_user_is_skipped(): void
+    public function test_approved_leave_user_is_skipped(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
-        $this->createSupportAgent('On Leave Agent', TeamAvailabilityStatus::OnLeave);
+        $onLeaveAgent = $this->createSupportAgent('On Leave Agent', TeamAvailabilityStatus::Available);
+        LeaveRequest::query()->create([
+            'user_id' => $onLeaveAgent->id,
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-06',
+            'reason' => 'Family event',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
         $incident = $this->createUnassignedIncident();
 
         $this->bookAppointment($incident);

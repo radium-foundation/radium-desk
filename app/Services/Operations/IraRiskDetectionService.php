@@ -168,8 +168,7 @@ class IraRiskDetectionService
         $dashboardSnapshot = DashboardSnapshot::load();
 
         foreach ($this->teamMembers() as $member) {
-            if ($this->workCalendarService->hasApprovedLeave($member, $at)
-                || $this->availabilityService->isOnLeave($member, $at)) {
+            if ($this->workCalendarService->hasApprovedLeave($member, $at)) {
                 continue;
             }
 

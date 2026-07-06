@@ -6,7 +6,6 @@ enum TeamAvailabilityStatus: string
 {
     case Available = 'available';
     case Busy = 'busy';
-    case OnLeave = 'on_leave';
     case Offline = 'offline';
 
     public function label(): string
@@ -14,7 +13,6 @@ enum TeamAvailabilityStatus: string
         return match ($this) {
             self::Available => 'Available',
             self::Busy => 'Busy',
-            self::OnLeave => 'On Leave',
             self::Offline => 'Offline',
         };
     }
@@ -24,9 +22,16 @@ enum TeamAvailabilityStatus: string
         return match ($this) {
             self::Available => 'success',
             self::Busy => 'warning',
-            self::OnLeave => 'info',
             self::Offline => 'secondary',
         };
+    }
+
+    /**
+     * @return list<self>
+     */
+    public static function liveCases(): array
+    {
+        return self::cases();
     }
 
     /**
