@@ -83,7 +83,7 @@ class OperationsDashboardPerformanceTest extends TestCase
 
         $this->assertGreaterThan(count($partialSections), count($fullSections));
         $this->assertSame(
-            ['critical_alerts', 'overview_cards', 'health_status', 'ira_briefing_compact'],
+            ['critical_alerts', 'overview_cards', 'health_status', 'ira_compact'],
             $partialSections,
         );
     }
@@ -99,7 +99,7 @@ class OperationsDashboardPerformanceTest extends TestCase
             ->getJson(route('admin.operations.live', ['groups' => 'performance']))
             ->assertOk()
             ->assertJsonMissingPath('html.critical_alerts')
-            ->assertJsonMissingPath('html.ira_briefing_compact')
+            ->assertJsonMissingPath('html.ira_compact')
             ->assertJsonMissingPath('html.advisor_insights')
             ->assertJsonStructure([
                 'html' => [

@@ -45,13 +45,13 @@ class OperationsRadiumBoxHealthTest extends TestCase
         $admin = $this->createAdminUser();
 
         $response = $this->actingAs($admin)
-            ->getJson(route('admin.operations.live'));
+            ->getJson(route('admin.operations.live', ['groups' => 'health_radiumbox']));
 
         $response->assertOk();
-        $response->assertJsonStructure(['html' => ['radiumbox_health']]);
+        $response->assertJsonStructure(['html' => ['health_radiumbox']]);
         $this->assertStringContainsString(
             'RadiumBox Health',
-            (string) $response->json('html.radiumbox_health'),
+            (string) $response->json('html.health_radiumbox'),
         );
     }
 

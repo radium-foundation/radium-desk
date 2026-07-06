@@ -236,7 +236,7 @@ class OperationsDashboardTest extends TestCase
                 'html' => [
                     'critical_alerts',
                     'overview_cards',
-                    'ira_briefing_compact',
+                    'ira_compact',
                     'health_status',
                     'today_tab',
                     'team_tab',
@@ -295,19 +295,19 @@ class OperationsDashboardTest extends TestCase
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'ira_compact']))
             ->assertOk()
-            ->assertJsonStructure(['html' => ['ira_briefing_compact', 'critical_alerts']])
+            ->assertJsonStructure(['html' => ['ira_compact']])
             ->assertSee('View Full Analysis', false);
 
         $telegramResponse = $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'health_telegram']))
             ->assertOk()
-            ->assertJsonStructure(['html' => ['team_telegram_status']]);
+            ->assertJsonStructure(['html' => ['health_telegram']]);
 
         $this->assertStringContainsString(
             'Telegram',
-            (string) $telegramResponse->json('html.team_telegram_status'),
+            (string) $telegramResponse->json('html.health_telegram'),
         );
-        $this->assertNotSame('', trim((string) $telegramResponse->json('html.team_telegram_status')));
+        $this->assertNotSame('', trim((string) $telegramResponse->json('html.health_telegram')));
 
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'health_cashfree']))
@@ -333,7 +333,7 @@ class OperationsDashboardTest extends TestCase
             ->assertJsonStructure([
                 'html' => [
                     'today_tab',
-                    'team_telegram_status',
+                    'health_telegram',
                 ],
             ]);
     }
@@ -343,9 +343,9 @@ class OperationsDashboardTest extends TestCase
         $admin = $this->createAdminUser('admin-lazy-content@test.com');
 
         $lazyGroups = [
-            'ira_compact' => ['ira_briefing_compact', 'critical_alerts'],
-            'health_radiumbox' => ['radiumbox_health'],
-            'health_telegram' => ['team_telegram_status'],
+            'ira_compact' => ['ira_compact'],
+            'health_radiumbox' => ['health_radiumbox'],
+            'health_telegram' => ['health_telegram'],
             'today' => ['today_tab'],
         ];
 
@@ -378,9 +378,36 @@ class OperationsDashboardTest extends TestCase
                     'critical_alerts',
                     'overview_cards',
                     'health_status',
-                    'ira_briefing_compact',
+                    'ira_compact',
                 ],
             ]);
+    }
+
+    public function test_live_endpoint_returns_frontend_lazy_response_keys_without_loading_placeholders(): void
+    {
+        $admin = $this->createAdminUser('admin-lazy-contract@test.com');
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', [
+                'groups' => 'health,today,health_telegram,health_radiumbox',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('groups', ['health', 'today', 'health_telegram', 'health_radiumbox'])
+            ->assertJsonStructure([
+                'html' => [
+                    'health_status',
+                    'today_tab',
+                    'health_telegram',
+                    'health_radiumbox',
+                ],
+            ]);
+
+        foreach (['health_status', 'today_tab', 'health_telegram', 'health_radiumbox'] as $sectionKey) {
+            $html = (string) $response->json("html.{$sectionKey}");
+
+            $this->assertNotSame('', trim($html), "Expected {$sectionKey} HTML to be rendered.");
+            $this->assertStringNotContainsString('Loading', $html, "Expected {$sectionKey} HTML to avoid loading placeholders.");
+        }
     }
 
     public function test_sidebar_shows_operations_link_for_admin(): void

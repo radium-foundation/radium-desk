@@ -45,7 +45,7 @@
                 ),
             'badge_class' => $radiumBoxHealthy ? 'success' : 'warning',
             'status_label' => $radiumBoxHealthy ? 'Healthy' : 'Needs attention',
-            'lazy_section' => 'radiumbox_health',
+            'lazy_section' => 'health_radiumbox',
         ] : null,
         [
             'id' => 'telegram',
@@ -54,7 +54,7 @@
             'summary' => $telegramHealthy ? $telegramSummary : sprintf('%s of %s connected', number_format($telegramConnected), number_format($telegramTotal)),
             'badge_class' => $telegramHealthy ? 'success' : 'warning',
             'status_label' => $telegramHealthy ? 'Healthy' : 'Needs attention',
-            'lazy_section' => 'team_telegram_status',
+            'lazy_section' => 'health_telegram',
         ],
     ]));
 @endphp
@@ -96,11 +96,9 @@
                     data-operations-lazy-loaded="{{ $isExpanded ? 'false' : 'false' }}"
                 >
                     <div class="accordion-body pt-0" id="operations-health-detail-{{ $system['id'] }}">
-                        @if ($isExpanded)
-                            @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading '.$system['label'].' details…'])
-                        @else
+                        @unless ($isExpanded)
                             <p class="text-muted small mb-0 operations-health-collapsed-hint">Expand to load {{ $system['label'] }} details.</p>
-                        @endif
+                        @endunless
                     </div>
                 </div>
             </div>

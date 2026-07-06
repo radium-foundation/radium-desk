@@ -41,7 +41,7 @@ describe('operations-dashboard lazy loading', () => {
                 <div
                     id="operations-health-radiumbox"
                     class="accordion-collapse collapse show"
-                    data-operations-lazy-section="radiumbox_health"
+                    data-operations-lazy-section="health_radiumbox"
                     data-operations-lazy-loaded="false"
                 >
                     <div class="accordion-body pt-0" id="operations-health-detail-radiumbox">
@@ -93,7 +93,7 @@ describe('operations-dashboard lazy loading', () => {
 
         expect(content.querySelector('.operations-lazy-placeholder')).toBeNull();
         expect(content.querySelector('.operations-lazy-error')).not.toBeNull();
-        expect(content.textContent).toContain('Missing radiumbox_health content');
+        expect(content.textContent).toContain('Missing health_radiumbox content');
     });
 
     it('showLazyLoadError replaces placeholder content', () => {

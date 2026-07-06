@@ -1,7 +1,7 @@
 const SECTION_TARGETS = {
     critical_alerts: 'operations-critical-alerts',
     overview_cards: 'operations-overview-cards',
-    ira_briefing_compact: 'operations-ira-briefing-compact',
+    ira_compact: 'operations-ira-briefing-compact',
     ira_full_analysis: 'operations-ira-full-analysis-modal-body',
     health_status: 'operations-health-status',
     today_tab: 'operations-tab-today-content',
@@ -14,13 +14,11 @@ const SECTION_TARGETS = {
     immediate_risks: 'operations-immediate-risks',
     advisor_insights: 'operations-advisor-insights',
     team_availability: 'operations-team-availability',
-    team_telegram_status: 'operations-team-telegram-status',
     system_health: 'operations-system-health',
     notification_metrics: 'operations-notification-metrics',
     automation_metrics: 'operations-automation-metrics',
     queue_metrics: 'operations-queue-metrics',
     integration_health: 'operations-integration-health',
-    radiumbox_health: 'operations-radiumbox-health',
     cashfree_health: 'operations-cashfree-health',
     cashfree_device_enrichment_quality: 'operations-cashfree-device-enrichment-quality',
     missing_serial_automation_quality: 'operations-missing-serial-automation-quality',
@@ -38,14 +36,14 @@ const TAB_GROUP_BY_SECTION = {
 
 const HEALTH_DETAIL_GROUPS = {
     cashfree_health: 'health_cashfree',
-    radiumbox_health: 'health_radiumbox',
-    team_telegram_status: 'health_telegram',
+    health_radiumbox: 'health_radiumbox',
+    health_telegram: 'health_telegram',
 };
 
 const HEALTH_DETAIL_TARGETS = {
     cashfree_health: 'operations-health-detail-cashfree',
-    radiumbox_health: 'operations-health-detail-radiumbox',
-    team_telegram_status: 'operations-health-detail-telegram',
+    health_radiumbox: 'operations-health-detail-radiumbox',
+    health_telegram: 'operations-health-detail-telegram',
 };
 
 const ALWAYS_REFRESH_GROUPS = ['critical', 'summary', 'health', 'ira_compact'];
@@ -135,10 +133,10 @@ const isTabStillLoading = (group) => {
 const findStaleLazySectionTargets = (pageRoot) => {
     const targets = new Set();
 
-    const iraElement = document.getElementById(SECTION_TARGETS.ira_briefing_compact);
+    const iraElement = document.getElementById(SECTION_TARGETS.ira_compact);
 
     if (isIraLoadingPlaceholder(iraElement)) {
-        targets.add(SECTION_TARGETS.ira_briefing_compact);
+        targets.add(SECTION_TARGETS.ira_compact);
     }
 
     pageRoot.querySelectorAll(LAZY_PLACEHOLDER_SELECTOR).forEach((placeholder) => {

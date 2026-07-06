@@ -84,7 +84,7 @@ class OperationsDashboardController extends Controller
                 'skipped' => $result->skipped,
             ],
             'html' => [
-                'radiumbox_health' => view('admin.operations.partials.radiumbox-health', [
+                'health_radiumbox' => view('admin.operations.partials.radiumbox-health', [
                     'health' => $dashboard->radiumBoxHealth,
                 ])->render(),
                 'health_status' => view('admin.operations.partials.health-status-compact', [
@@ -127,7 +127,7 @@ class OperationsDashboardController extends Controller
         return collect($sections)->contains(fn (string $section): bool => in_array($section, [
             'critical_alerts',
             'overview_cards',
-            'ira_briefing_compact',
+            'ira_compact',
             'ira_full_analysis',
             'ira_briefing',
             'ira_briefing_details',

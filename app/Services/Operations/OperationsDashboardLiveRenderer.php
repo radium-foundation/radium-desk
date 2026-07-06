@@ -12,7 +12,7 @@ class OperationsDashboardLiveRenderer
     public const ALL_SECTIONS = [
         'critical_alerts',
         'overview_cards',
-        'ira_briefing_compact',
+        'ira_compact',
         'health_status',
         'today_tab',
         'team_tab',
@@ -24,12 +24,12 @@ class OperationsDashboardLiveRenderer
     public const GROUP_SECTIONS = [
         'critical' => ['critical_alerts'],
         'summary' => ['overview_cards'],
-        'ira_compact' => ['ira_briefing_compact', 'critical_alerts'],
+        'ira_compact' => ['ira_compact'],
         'ira_full' => ['ira_full_analysis'],
         'health' => ['health_status'],
         'health_cashfree' => ['cashfree_health'],
-        'health_radiumbox' => ['radiumbox_health'],
-        'health_telegram' => ['team_telegram_status'],
+        'health_radiumbox' => ['health_radiumbox'],
+        'health_telegram' => ['health_telegram'],
         'today' => ['today_tab'],
         'team' => ['team_tab'],
         'performance' => ['performance_tab'],
@@ -108,7 +108,7 @@ class OperationsDashboardLiveRenderer
                 'insights' => $advisorInsights,
                 'intelligence' => $dashboard->supportIntelligence,
             ])->render(),
-            'ira_briefing_compact' => view('admin.operations.partials.ira-briefing-compact', [
+            'ira_compact' => view('admin.operations.partials.ira-briefing-compact', [
                 'briefing' => $iraBriefing,
                 'formatted' => $iraBriefingFormatted,
                 'reasoningProvider' => $iraReasoningProvider,
@@ -167,7 +167,7 @@ class OperationsDashboardLiveRenderer
             'integration_health' => view('admin.operations.partials.integration-health', [
                 'cards' => $dashboard->integrationHealth,
             ])->render(),
-            'radiumbox_health' => view('admin.operations.partials.radiumbox-health', [
+            'health_radiumbox' => view('admin.operations.partials.radiumbox-health', [
                 'health' => $dashboard->radiumBoxHealth,
             ])->render(),
             'cashfree_health' => view('admin.operations.partials.cashfree-health', [
@@ -194,7 +194,7 @@ class OperationsDashboardLiveRenderer
             'team_availability' => view('admin.operations.partials.team-availability', [
                 'members' => $dashboard->teamAvailability,
             ])->render(),
-            'team_telegram_status' => view('admin.operations.partials.team-telegram-status', [
+            'health_telegram' => view('admin.operations.partials.team-telegram-status', [
                 'members' => $dashboard->teamTelegramStatus,
             ])->render(),
             default => '',
