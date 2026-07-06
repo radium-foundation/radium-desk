@@ -26,7 +26,7 @@ class CustomerWaitingLifecycleService
 
     public const EVENT_AUTO_CLOSED = 'service_case.customer_waiting_auto_closed';
 
-    public const EVENT_LEGACY_CLEANUP_CLOSED = 'service_case.customer_waiting_legacy_cleanup_closed';
+    public const EVENT_LEGACY_CLEANUP_CLOSED = 'service_case.customer_waiting_cleanup_closed';
 
     public const LEGACY_CLEANUP_REMARK = <<<'TEXT'
 Closed during customer waiting lifecycle migration cleanup.

@@ -13,7 +13,10 @@ use App\Services\IncidentWaitingStateService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\RemarkService;
 use App\Services\ServiceCaseStatusService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CustomerWaitingLegacyCleanupService
 {
@@ -31,22 +34,31 @@ class CustomerWaitingLegacyCleanupService
         $candidates = $this->legacyCandidates();
         $casesClosed = 0;
         $skipped = 0;
+        $wouldClose = 0;
+        /** @var array<string, int> $skipReasons */
+        $skipReasons = [];
 
         foreach ($candidates as $incident) {
             if (! $this->shouldClose($incident)) {
                 $skipped++;
+                $this->recordSkipReason($skipReasons, 'not eligible');
 
                 continue;
             }
 
             if ($dryRun) {
+                $wouldClose++;
+
                 continue;
             }
 
-            if ($this->closeLegacyCase($incident)) {
+            $failureReason = $this->closeLegacyCase($incident);
+
+            if ($failureReason === null) {
                 $casesClosed++;
             } else {
                 $skipped++;
+                $this->recordSkipReason($skipReasons, $failureReason);
             }
         }
 
@@ -54,6 +66,8 @@ class CustomerWaitingLegacyCleanupService
             totalFound: $candidates->count(),
             casesClosed: $casesClosed,
             skipped: $skipped,
+            wouldClose: $wouldClose,
+            skipReasons: $skipReasons,
         );
     }
 
@@ -105,10 +119,15 @@ class CustomerWaitingLegacyCleanupService
             && $this->isLegacyWaitingState($this->waitingStateService->activeFor($incident));
     }
 
-    private function closeLegacyCase(Incident $incident): bool
+    private function closeLegacyCase(Incident $incident): ?string
     {
         $waitingState = $this->waitingStateService->activeFor($incident);
-        $actor = $this->automationIdentity->systemUser();
+
+        try {
+            $actor = $this->automationIdentity->systemUser();
+        } catch (ModelNotFoundException) {
+            return 'missing actor';
+        }
 
         try {
             DB::transaction(function () use ($incident, $waitingState, $actor): void {
@@ -144,9 +163,21 @@ class CustomerWaitingLegacyCleanupService
                 );
             });
 
-            return true;
+            return null;
+        } catch (ValidationException) {
+            return 'close validation failed';
+        } catch (QueryException) {
+            return 'database error';
         } catch (\Throwable) {
-            return false;
+            return 'close failed';
         }
+    }
+
+    /**
+     * @param  array<string, int>  $skipReasons
+     */
+    private function recordSkipReason(array &$skipReasons, string $reason): void
+    {
+        $skipReasons[$reason] = ($skipReasons[$reason] ?? 0) + 1;
     }
 }

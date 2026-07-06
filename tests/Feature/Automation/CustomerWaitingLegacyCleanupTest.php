@@ -67,6 +67,7 @@ class CustomerWaitingLegacyCleanupTest extends TestCase
         $this->assertSame(1, $summary->totalFound);
         $this->assertSame(1, $summary->casesClosed);
         $this->assertSame(0, $summary->skipped);
+        $this->assertSame([], $summary->skipReasons);
 
         $incident = $incident->fresh();
         $waitingState = $waitingState->fresh();
@@ -108,6 +109,7 @@ class CustomerWaitingLegacyCleanupTest extends TestCase
         $this->artisan('customer-waiting:cleanup-legacy', ['--dry-run' => true])
             ->expectsOutputToContain('Dry run')
             ->expectsOutputToContain('Total found: 1')
+            ->expectsOutputToContain('Would close: 1')
             ->expectsOutputToContain('Cases closed: 0')
             ->expectsOutputToContain('Skipped: 0')
             ->assertSuccessful();
@@ -116,6 +118,28 @@ class CustomerWaitingLegacyCleanupTest extends TestCase
         $this->assertDatabaseMissing('audit_logs', [
             'event' => CustomerWaitingLifecycleService::EVENT_LEGACY_CLEANUP_CLOSED,
         ]);
+    }
+
+    public function test_cleanup_failure_increments_skipped_with_reason(): void
+    {
+        Carbon::setTestNow('2026-07-07 10:00:00');
+
+        [, $incident] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-05 10:00:00'),
+        );
+
+        $this->partialMock(\App\Services\AuditLogService::class, function ($mock): void {
+            $mock->shouldReceive('log')
+                ->andThrow(new \RuntimeException('Simulated cleanup failure'));
+        });
+
+        $summary = app(CustomerWaitingLegacyCleanupService::class)->cleanup();
+
+        $this->assertSame(1, $summary->totalFound);
+        $this->assertSame(0, $summary->casesClosed);
+        $this->assertSame(1, $summary->skipped);
+        $this->assertSame(['close failed' => 1], $summary->skipReasons);
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
     }
 
     public function test_post_deployment_waiting_case_is_not_closed(): void

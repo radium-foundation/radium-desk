@@ -29,14 +29,30 @@ class CustomerWaitingLegacyCleanupCommand extends Command
         $summary = $this->cleanupService->cleanup($dryRun);
 
         $this->info(sprintf('Total found: %d', $summary->totalFound));
+
+        if ($dryRun) {
+            $this->info(sprintf('Would close: %d', $summary->wouldClose));
+        }
+
         $this->info(sprintf('Cases closed: %d', $summary->casesClosed));
         $this->info(sprintf('Skipped: %d', $summary->skipped));
+
+        if ($summary->skipReasons !== []) {
+            $this->newLine();
+            $this->info('Skipped:');
+
+            foreach ($summary->skipReasons as $reason => $count) {
+                $this->info(sprintf('- %s: %d', $reason, $count));
+            }
+        }
 
         Log::info('Customer waiting legacy cleanup command completed.', [
             'dry_run' => $dryRun,
             'total_found' => $summary->totalFound,
+            'would_close' => $summary->wouldClose,
             'cases_closed' => $summary->casesClosed,
             'skipped' => $summary->skipped,
+            'skip_reasons' => $summary->skipReasons,
         ]);
 
         return self::SUCCESS;
