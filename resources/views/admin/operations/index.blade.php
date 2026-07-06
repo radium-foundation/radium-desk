@@ -22,18 +22,20 @@
         <div id="operations-critical-alerts" class="mb-3">
             @include('admin.operations.partials.critical-alerts', [
                 'dashboard' => $dashboard,
-                'briefing' => $iraBriefing ?? null,
+                'briefing' => null,
             ])
         </div>
 
         <div id="operations-overview-cards" class="mb-3">
             @include('admin.operations.partials.overview-cards', [
-                'briefing' => $iraBriefing ?? null,
-                'formatted' => $iraBriefingFormatted ?? null,
+                'dashboard' => $dashboard,
                 'members' => $dashboard->teamAvailability,
-                'insights' => $advisorInsights ?? [],
                 'intelligence' => $dashboard->supportIntelligence,
             ])
+        </div>
+
+        <div id="operations-ira-briefing-compact" class="mb-3">
+            @include('admin.operations.partials.ira-briefing-compact')
         </div>
 
         <div id="operations-health-status" class="mb-4">
@@ -118,34 +120,11 @@
                         role="tabpanel"
                         aria-labelledby="operations-tab-today"
                         tabindex="0"
+                        data-operations-lazy-group="today"
+                        data-operations-lazy-loaded="false"
                     >
-                        <div id="operations-ira-briefing" class="mb-4">
-                            @include('admin.operations.partials.ira-briefing', [
-                                'briefing' => $iraBriefing ?? null,
-                                'formatted' => $iraBriefingFormatted ?? null,
-                                'reasoningProvider' => $iraReasoningProvider ?? 'rule_based',
-                            ])
-                        </div>
-
-                        <div id="operations-support-intelligence" class="mb-4">
-                            @include('admin.operations.partials.support-intelligence', [
-                                'intelligence' => $dashboard->supportIntelligence,
-                            ])
-                        </div>
-
-                        <div id="operations-ira-briefing-details" class="mb-4">
-                            @include('admin.operations.partials.ira-briefing-details', [
-                                'briefing' => $iraBriefing ?? null,
-                                'formatted' => $iraBriefingFormatted ?? null,
-                            ])
-                        </div>
-
-                        <div id="operations-advisor-insights" class="mb-4">
-                            @include('admin.operations.partials.advisor-insights', ['insights' => $advisorInsights ?? []])
-                        </div>
-
-                        <div id="operations-immediate-risks">
-                            @include('admin.operations.partials.immediate-risks', ['briefing' => $iraBriefing ?? null])
+                        <div id="operations-tab-today-content">
+                            @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading support intelligence…'])
                         </div>
                     </div>
 
@@ -155,9 +134,11 @@
                         role="tabpanel"
                         aria-labelledby="operations-tab-team"
                         tabindex="0"
+                        data-operations-lazy-group="team"
+                        data-operations-lazy-loaded="false"
                     >
-                        <div id="operations-team-availability">
-                            @include('admin.operations.partials.team-availability', ['members' => $dashboard->teamAvailability])
+                        <div id="operations-tab-team-content">
+                            @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading team availability…'])
                         </div>
                     </div>
 
@@ -167,43 +148,11 @@
                         role="tabpanel"
                         aria-labelledby="operations-tab-performance"
                         tabindex="0"
+                        data-operations-lazy-group="performance"
+                        data-operations-lazy-loaded="false"
                     >
-                        <div class="row g-4 mb-4">
-                            <div class="col-lg-4">
-                                <div id="operations-notification-metrics">
-                                    @include('admin.operations.partials.notification-metrics', ['metrics' => $dashboard->notificationMetrics])
-                                </div>
-                            </div>
-                            <div class="col-lg-4">
-                                <div id="operations-automation-metrics">
-                                    @include('admin.operations.partials.automation-metrics', ['metrics' => $dashboard->automationMetrics])
-                                </div>
-                            </div>
-                            <div class="col-lg-4">
-                                <div id="operations-queue-metrics">
-                                    @include('admin.operations.partials.queue-metrics', ['metrics' => $dashboard->queueMetrics])
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="operations-radiumbox-health">
-                            @include('admin.operations.partials.radiumbox-health', ['health' => $dashboard->radiumBoxHealth])
-                        </div>
-
-                        <div id="operations-cashfree-health" class="mt-4">
-                            @include('admin.operations.partials.cashfree-health', ['health' => $dashboard->cashfreeHealth])
-                        </div>
-
-                        <div id="operations-cashfree-device-enrichment-quality" class="mt-4">
-                            @include('admin.operations.partials.cashfree-device-enrichment-quality', [
-                                'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,
-                            ])
-                        </div>
-
-                        <div id="operations-missing-serial-automation-quality" class="mt-4">
-                            @include('admin.operations.partials.missing-serial-automation-quality', [
-                                'quality' => $dashboard->missingSerialAutomationQuality,
-                            ])
+                        <div id="operations-tab-performance-content">
+                            @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading performance metrics…'])
                         </div>
                     </div>
 
@@ -213,32 +162,27 @@
                         role="tabpanel"
                         aria-labelledby="operations-tab-system"
                         tabindex="0"
+                        data-operations-lazy-group="system"
+                        data-operations-lazy-loaded="false"
                     >
-                        <div id="operations-system-health" class="mb-4">
-                            @include('admin.operations.partials.system-health', ['components' => $dashboard->systemHealth])
-                        </div>
-
-                        <div id="operations-integration-health" class="mb-4">
-                            @include('admin.operations.partials.integration-health', ['cards' => $dashboard->integrationHealth])
-                        </div>
-
-                        <div class="row g-4">
-                            <div class="col-xl-6">
-                                <div id="operations-recent-notification-failures">
-                                    @include('admin.operations.partials.recent-notification-failures', ['failures' => $dashboard->recentNotificationFailures])
-                                </div>
-                            </div>
-                            <div class="col-xl-6">
-                                <div id="operations-recent-automation-activity">
-                                    @include('admin.operations.partials.recent-automation-activity', ['activities' => $dashboard->recentAutomationActivity])
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="operations-recent-ira-messages" class="mt-4">
-                            @include('admin.operations.partials.recent-ira-messages', ['messages' => $dashboard->recentIraMessages])
+                        <div id="operations-tab-system-content">
+                            @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading system health…'])
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="operations-ira-full-analysis-modal" tabindex="-1" aria-labelledby="operations-ira-full-analysis-modal-label" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5 mb-0" id="operations-ira-full-analysis-modal-label">Ira Full Analysis</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="operations-ira-full-analysis-modal-body">
+                    @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading Ira analysis…'])
                 </div>
             </div>
         </div>

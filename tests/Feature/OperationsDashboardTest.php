@@ -162,35 +162,22 @@ class OperationsDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Operations Control Center')
             ->assertSee('Critical Alerts')
-            ->assertSee('Operations Summary')
+            ->assertSee('Command Center')
             ->assertSee('Integration Health')
-            ->assertSee('Ira Today')
-            ->assertSee('IRA Advisor')
-            ->assertSee('Recommendations only')
-            ->assertSee('Team Presence')
-            ->assertSee('Immediate Risks')
-            ->assertSee('Cases Needing Action')
-            ->assertSee('Support Today')
-            ->assertSee('Customer Waiting')
-            ->assertSee('Team Workload')
             ->assertSee('System Health')
-            ->assertSee('Notification Metrics')
-            ->assertSee('Automation Metrics')
-            ->assertSee('Queue Metrics')
-            ->assertSee('Support Intelligence')
-            ->assertSee('Integration Health')
-            ->assertSee('Recent Notification Failures')
-            ->assertSee('Recent Automation Activity')
-            ->assertSee('Interakt API timeout')
-            ->assertSee('Jane Customer')
-            ->assertSee($incident->display_reference)
-            ->assertSee('Open Incident')
-            ->assertSee('Automation Runtime')
+            ->assertSee('Operations Queue')
+            ->assertSee('Support Today')
+            ->assertSee('Team Load')
+            ->assertSee('View Full Analysis')
+            ->assertSee('Loading recommendations')
             ->assertSee('Cashfree')
             ->assertSee('id="operations-dashboard-tabs"', false)
             ->assertSee('operations-tab-team', false)
             ->assertSee('operations-tab-performance', false)
-            ->assertSee('operations-tab-system', false);
+            ->assertSee('operations-tab-system', false)
+            ->assertSee('operations-tab-today-content', false)
+            ->assertDontSee('IRA Advisor')
+            ->assertDontSee('Immediate Risks');
     }
 
     public function test_operations_dashboard_shows_interakt_template_configuration_health(): void
@@ -214,17 +201,22 @@ class OperationsDashboardTest extends TestCase
             ]);
         }
 
-        $this->actingAs($this->createAdminUser('admin-ops-templates@test.com'))
-            ->get(route('admin.operations.index'))
-            ->assertOk()
-            ->assertSee('Interakt Template Configuration', false)
-            ->assertSee('7 / 7 templates configured', false);
+        $response = $this->actingAs($this->createAdminUser('admin-ops-templates@test.com'))
+            ->getJson(route('admin.operations.live', ['groups' => 'system']));
+
+        $response->assertOk()
+            ->assertSee('Interakt Template Configuration', false);
+
+        $this->assertStringContainsString(
+            '7 / 7 templates configured',
+            (string) $response->json('html.system_tab'),
+        );
     }
 
     public function test_operations_dashboard_shows_meta_flow_integration_card(): void
     {
         $this->actingAs($this->createAdminUser('admin-ops-meta-flow@test.com'))
-            ->get(route('admin.operations.index'))
+            ->getJson(route('admin.operations.live', ['groups' => 'system']))
             ->assertOk()
             ->assertSee('Meta Flow', false)
             ->assertSee('Not Configured', false);
@@ -244,22 +236,90 @@ class OperationsDashboardTest extends TestCase
                 'html' => [
                     'critical_alerts',
                     'overview_cards',
+                    'ira_briefing_compact',
                     'health_status',
-                    'ira_briefing',
-                    'ira_briefing_details',
-                    'immediate_risks',
-                    'advisor_insights',
-                    'team_availability',
-                    'system_health',
-                    'notification_metrics',
-                    'automation_metrics',
-                    'queue_metrics',
-                    'integration_health',
-                    'radiumbox_health',
-                    'cashfree_health',
-                    'support_intelligence',
-                    'recent_notification_failures',
-                    'recent_automation_activity',
+                    'today_tab',
+                    'team_tab',
+                    'performance_tab',
+                    'system_tab',
+                ],
+            ]);
+    }
+
+    public function test_command_center_cards_render_on_initial_page(): void
+    {
+        $this->actingAs($this->createAdminUser('admin-command-cards@test.com'))
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('System Health', false)
+            ->assertSee('Operations Queue', false)
+            ->assertSee('Support Today', false)
+            ->assertSee('Team Load', false)
+            ->assertSee('operations-command-card', false);
+    }
+
+    public function test_healthy_integration_systems_render_collapsed_on_initial_page(): void
+    {
+        $this->actingAs($this->createAdminUser('admin-health-collapsed@test.com'))
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('operations-health-trigger-cashfree', false)
+            ->assertSee('accordion-button collapsed', false)
+            ->assertSee('Expand to load Cashfree details', false);
+    }
+
+    public function test_critical_alerts_still_render_on_initial_page(): void
+    {
+        $this->actingAs($this->createAdminUser('admin-critical-alerts@test.com'))
+            ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('Critical Alerts', false)
+            ->assertSee('operations-critical-alerts', false);
+    }
+
+    public function test_live_endpoint_lazy_loads_tab_and_health_details(): void
+    {
+        $admin = $this->createAdminUser('admin-lazy-load@test.com');
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'today']))
+            ->assertOk()
+            ->assertJsonStructure(['html' => ['today_tab']])
+            ->assertSee('Support Intelligence', false);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'ira_compact']))
+            ->assertOk()
+            ->assertJsonStructure(['html' => ['ira_briefing_compact', 'critical_alerts']])
+            ->assertSee('View Full Analysis', false);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'health_cashfree']))
+            ->assertOk()
+            ->assertJsonStructure(['html' => ['cashfree_health']]);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'ira_full']))
+            ->assertOk()
+            ->assertJsonStructure(['html' => ['ira_full_analysis']])
+            ->assertSee('IRA Advisor', false)
+            ->assertSee('Immediate Risks', false);
+    }
+
+    public function test_live_refresh_still_returns_core_command_center_sections(): void
+    {
+        $admin = $this->createAdminUser('admin-live-refresh@test.com');
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
+            ->assertOk()
+            ->assertJsonPath('groups', ['critical', 'summary', 'health', 'ira_compact'])
+            ->assertJsonStructure([
+                'html' => [
+                    'critical_alerts',
+                    'overview_cards',
+                    'health_status',
+                    'ira_briefing_compact',
                 ],
             ]);
     }
@@ -304,7 +364,6 @@ class OperationsDashboardTest extends TestCase
         $this->actingAs($this->createAdminUser('admin-ops-stale-cache@test.com'))
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('RadiumBox Health', false)
             ->assertSee('Operations Control Center');
     }
 
@@ -313,7 +372,7 @@ class OperationsDashboardTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
         $this->actingAs($this->createAdminUser('admin-support-intelligence@test.com'))
-            ->get(route('admin.operations.index'))
+            ->getJson(route('admin.operations.live', ['groups' => 'today']))
             ->assertOk()
             ->assertSee('Support Intelligence')
             ->assertSee('Upcoming Support')

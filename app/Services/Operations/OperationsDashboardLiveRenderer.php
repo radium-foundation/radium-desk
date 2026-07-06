@@ -12,57 +12,28 @@ class OperationsDashboardLiveRenderer
     public const ALL_SECTIONS = [
         'critical_alerts',
         'overview_cards',
+        'ira_briefing_compact',
         'health_status',
-        'support_intelligence',
-        'ira_briefing',
-        'ira_briefing_details',
-        'immediate_risks',
-        'advisor_insights',
-        'team_availability',
-        'team_telegram_status',
-        'system_health',
-        'notification_metrics',
-        'automation_metrics',
-        'queue_metrics',
-        'integration_health',
-        'radiumbox_health',
-        'cashfree_health',
-        'cashfree_device_enrichment_quality',
-        'missing_serial_automation_quality',
-        'recent_notification_failures',
-        'recent_automation_activity',
-        'recent_ira_messages',
+        'today_tab',
+        'team_tab',
+        'performance_tab',
+        'system_tab',
     ];
 
     /** @var array<string, list<string>> */
     public const GROUP_SECTIONS = [
         'critical' => ['critical_alerts'],
         'summary' => ['overview_cards'],
+        'ira_compact' => ['ira_briefing_compact', 'critical_alerts'],
+        'ira_full' => ['ira_full_analysis'],
         'health' => ['health_status'],
-        'today' => [
-            'support_intelligence',
-            'ira_briefing',
-            'ira_briefing_details',
-            'immediate_risks',
-            'advisor_insights',
-        ],
-        'team' => ['team_availability', 'team_telegram_status'],
-        'performance' => [
-            'notification_metrics',
-            'automation_metrics',
-            'queue_metrics',
-            'radiumbox_health',
-            'cashfree_health',
-            'cashfree_device_enrichment_quality',
-            'missing_serial_automation_quality',
-        ],
-        'system' => [
-            'system_health',
-            'integration_health',
-            'recent_notification_failures',
-            'recent_automation_activity',
-            'recent_ira_messages',
-        ],
+        'health_cashfree' => ['cashfree_health'],
+        'health_radiumbox' => ['radiumbox_health'],
+        'health_telegram' => ['team_telegram_status'],
+        'today' => ['today_tab'],
+        'team' => ['team_tab'],
+        'performance' => ['performance_tab'],
+        'system' => ['system_tab'],
     ];
 
     /**
@@ -130,16 +101,41 @@ class OperationsDashboardLiveRenderer
                 'briefing' => $iraBriefing,
             ])->render(),
             'overview_cards' => view('admin.operations.partials.overview-cards', [
+                'dashboard' => $dashboard,
                 'briefing' => $iraBriefing,
                 'formatted' => $iraBriefingFormatted,
                 'members' => $dashboard->teamAvailability,
                 'insights' => $advisorInsights,
                 'intelligence' => $dashboard->supportIntelligence,
             ])->render(),
+            'ira_briefing_compact' => view('admin.operations.partials.ira-briefing-compact', [
+                'briefing' => $iraBriefing,
+                'formatted' => $iraBriefingFormatted,
+                'reasoningProvider' => $iraReasoningProvider,
+            ])->render(),
+            'ira_full_analysis' => view('admin.operations.partials.ira-full-analysis', [
+                'briefing' => $iraBriefing,
+                'formatted' => $iraBriefingFormatted,
+                'reasoningProvider' => $iraReasoningProvider,
+                'advisorInsights' => $advisorInsights,
+            ])->render(),
             'health_status' => view('admin.operations.partials.health-status-compact', [
                 'cashfreeHealth' => $dashboard->cashfreeHealth,
                 'radiumBoxHealth' => $dashboard->radiumBoxHealth,
                 'teamTelegramStatus' => $dashboard->teamTelegramStatus,
+            ])->render(),
+            'today_tab' => view('admin.operations.partials.today-tab', [
+                'intelligence' => $dashboard->supportIntelligence,
+            ])->render(),
+            'team_tab' => view('admin.operations.partials.team-tab', [
+                'members' => $dashboard->teamAvailability,
+                'teamTelegramStatus' => $dashboard->teamTelegramStatus,
+            ])->render(),
+            'performance_tab' => view('admin.operations.partials.performance-tab', [
+                'dashboard' => $dashboard,
+            ])->render(),
+            'system_tab' => view('admin.operations.partials.system-tab', [
+                'dashboard' => $dashboard,
             ])->render(),
             'ira_briefing' => view('admin.operations.partials.ira-briefing', [
                 'briefing' => $iraBriefing,

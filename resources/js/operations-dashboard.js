@@ -1,7 +1,13 @@
 const SECTION_TARGETS = {
     critical_alerts: 'operations-critical-alerts',
     overview_cards: 'operations-overview-cards',
+    ira_briefing_compact: 'operations-ira-briefing-compact',
+    ira_full_analysis: 'operations-ira-full-analysis-modal-body',
     health_status: 'operations-health-status',
+    today_tab: 'operations-tab-today-content',
+    team_tab: 'operations-tab-team-content',
+    performance_tab: 'operations-tab-performance-content',
+    system_tab: 'operations-tab-system-content',
     support_intelligence: 'operations-support-intelligence',
     ira_briefing: 'operations-ira-briefing',
     ira_briefing_details: 'operations-ira-briefing-details',
@@ -23,12 +29,38 @@ const SECTION_TARGETS = {
     recent_ira_messages: 'operations-recent-ira-messages',
 };
 
-const ALWAYS_REFRESH_GROUPS = ['critical', 'summary', 'health'];
+const HEALTH_DETAIL_GROUPS = {
+    cashfree_health: 'health_cashfree',
+    radiumbox_health: 'health_radiumbox',
+    team_telegram_status: 'health_telegram',
+};
+
+const HEALTH_DETAIL_TARGETS = {
+    cashfree_health: 'operations-health-detail-cashfree',
+    radiumbox_health: 'operations-health-detail-radiumbox',
+    team_telegram_status: 'operations-health-detail-telegram',
+};
+
+const ALWAYS_REFRESH_GROUPS = ['critical', 'summary', 'health', 'ira_compact'];
 const TAB_GROUP_BY_PANE = {
     'operations-pane-today': 'today',
     'operations-pane-team': 'team',
     'operations-pane-performance': 'performance',
     'operations-pane-system': 'system',
+};
+
+const TAB_CONTENT_TARGETS = {
+    today: 'operations-tab-today-content',
+    team: 'operations-tab-team-content',
+    performance: 'operations-tab-performance-content',
+    system: 'operations-tab-system-content',
+};
+
+const TAB_SECTION_KEYS = {
+    today: 'today_tab',
+    team: 'team_tab',
+    performance: 'performance_tab',
+    system: 'system_tab',
 };
 
 const replaceSectionHtml = (elementId, html) => {
@@ -75,7 +107,7 @@ const getActiveTabGroup = (pageRoot) => {
     return TAB_GROUP_BY_PANE[activePane.id] ?? null;
 };
 
-const buildLiveGroups = (pageRoot, forceFullRefresh) => {
+const buildLiveGroups = (pageRoot, forceFullRefresh, extraGroups = []) => {
     if (forceFullRefresh) {
         return null;
     }
@@ -87,7 +119,38 @@ const buildLiveGroups = (pageRoot, forceFullRefresh) => {
         groups.push(activeGroup);
     }
 
+    extraGroups.forEach((group) => {
+        if (!groups.includes(group)) {
+            groups.push(group);
+        }
+    });
+
     return groups;
+};
+
+const fetchLiveGroups = async (pageRoot, groups) => {
+    const liveUrl = pageRoot.dataset.liveUrl;
+
+    if (!liveUrl) {
+        return null;
+    }
+
+    const requestUrl = groups === null
+        ? liveUrl
+        : `${liveUrl}?groups=${groups.join(',')}`;
+
+    const response = await fetch(requestUrl, {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    if (!response.ok) {
+        return null;
+    }
+
+    return response.json();
 };
 
 const bindOperationsTabShortcuts = (pageRoot) => {
@@ -105,18 +168,20 @@ const bindOperationsTabShortcuts = (pageRoot) => {
                 return;
             }
 
+            if (targetSelector.startsWith('#operations-health')) {
+                const healthTarget = pageRoot.querySelector(targetSelector);
+
+                if (healthTarget) {
+                    healthTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    healthTarget.click();
+                }
+
+                return;
+            }
+
             const tabButton = pageRoot.querySelector(targetSelector);
 
             if (!tabButton || !window.bootstrap?.Tab) {
-                if (targetSelector.startsWith('#operations-health-trigger-')) {
-                    const healthTrigger = pageRoot.querySelector(targetSelector);
-
-                    if (healthTrigger) {
-                        healthTrigger.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                        healthTrigger.click();
-                    }
-                }
-
                 return;
             }
 
@@ -155,37 +220,127 @@ const bindIraInsightToggleLabels = (pageRoot) => {
     });
 };
 
-const refreshOperationsDashboard = async (pageRoot, { forceFullRefresh = false } = {}) => {
-    const liveUrl = pageRoot.dataset.liveUrl;
+const markTabLoaded = (pageRoot, group) => {
+    const pane = pageRoot.querySelector(`[data-operations-lazy-group="${group}"]`);
 
-    if (!liveUrl) {
+    if (pane) {
+        pane.dataset.operationsLazyLoaded = 'true';
+    }
+};
+
+const loadLazyTab = async (pageRoot, group) => {
+    const pane = pageRoot.querySelector(`[data-operations-lazy-group="${group}"]`);
+
+    if (!pane || pane.dataset.operationsLazyLoaded === 'true') {
         return;
     }
 
-    const groups = buildLiveGroups(pageRoot, forceFullRefresh);
-    const requestUrl = groups === null
-        ? liveUrl
-        : `${liveUrl}?groups=${groups.join(',')}`;
+    const payload = await fetchLiveGroups(pageRoot, [group]);
 
-    try {
-        const response = await fetch(requestUrl, {
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        });
+    if (!payload) {
+        return;
+    }
 
-        if (!response.ok) {
+    const sectionKey = TAB_SECTION_KEYS[group];
+    const targetId = TAB_CONTENT_TARGETS[group];
+    const sectionHtml = payload.html?.[sectionKey];
+
+    if (targetId && sectionHtml !== undefined) {
+        replaceSectionHtml(targetId, sectionHtml);
+        markTabLoaded(pageRoot, group);
+        bindBatchRecoveryForms(pageRoot);
+        bindOperationsTabShortcuts(pageRoot);
+        bindIraInsightToggleLabels(pageRoot);
+    }
+};
+
+const loadHealthDetail = async (pageRoot, collapseElement) => {
+    const section = collapseElement.dataset.operationsLazySection;
+    const targetId = HEALTH_DETAIL_TARGETS[section];
+    const group = HEALTH_DETAIL_GROUPS[section];
+
+    if (!section || !targetId || !group || collapseElement.dataset.operationsLazyLoaded === 'true') {
+        return;
+    }
+
+    const payload = await fetchLiveGroups(pageRoot, [group]);
+
+    if (!payload) {
+        return;
+    }
+
+    const sectionHtml = payload.html?.[section];
+
+    if (sectionHtml !== undefined) {
+        replaceSectionHtml(targetId, sectionHtml);
+        collapseElement.dataset.operationsLazyLoaded = 'true';
+        bindBatchRecoveryForms(pageRoot);
+        bindOperationsTabShortcuts(pageRoot);
+    }
+};
+
+const bindHealthAccordionLazyLoad = (pageRoot) => {
+    pageRoot.querySelectorAll('[data-operations-lazy-section]').forEach((collapseElement) => {
+        if (collapseElement.dataset.operationsHealthLazyBound === 'true') {
             return;
         }
 
-        const payload = await response.json();
+        collapseElement.dataset.operationsHealthLazyBound = 'true';
+
+        collapseElement.addEventListener('show.bs.collapse', () => {
+            loadHealthDetail(pageRoot, collapseElement);
+        });
+
+        if (collapseElement.classList.contains('show')) {
+            loadHealthDetail(pageRoot, collapseElement);
+        }
+    });
+};
+
+const bindIraFullAnalysisModal = (pageRoot) => {
+    const modalElement = document.getElementById('operations-ira-full-analysis-modal');
+
+    if (!modalElement || modalElement.dataset.operationsIraModalBound === 'true') {
+        return;
+    }
+
+    modalElement.dataset.operationsIraModalBound = 'true';
+
+    modalElement.addEventListener('show.bs.modal', async () => {
+        if (modalElement.dataset.operationsIraAnalysisLoaded === 'true') {
+            return;
+        }
+
+        const payload = await fetchLiveGroups(pageRoot, ['ira_full']);
+
+        if (!payload) {
+            return;
+        }
+
+        applyLiveHtml(payload.html ?? {});
+        modalElement.dataset.operationsIraAnalysisLoaded = 'true';
+        bindBatchRecoveryForms(pageRoot);
+        bindOperationsTabShortcuts(pageRoot);
+        bindIraInsightToggleLabels(pageRoot);
+    });
+};
+
+const refreshOperationsDashboard = async (pageRoot, { forceFullRefresh = false, extraGroups = [] } = {}) => {
+    const groups = buildLiveGroups(pageRoot, forceFullRefresh, extraGroups);
+
+    try {
+        const payload = await fetchLiveGroups(pageRoot, groups);
+
+        if (!payload) {
+            return;
+        }
 
         applyLiveHtml(payload.html ?? {});
 
         bindBatchRecoveryForms(pageRoot);
         bindOperationsTabShortcuts(pageRoot);
         bindIraInsightToggleLabels(pageRoot);
+        bindHealthAccordionLazyLoad(pageRoot);
 
         const generatedAtElement = document.getElementById('operations-dashboard-generated-at');
 
@@ -219,6 +374,12 @@ const startPolling = (pageRoot, intervalMs, fullRefreshIntervalMs) => {
 
     pageRoot.querySelectorAll('[data-operations-live-group]').forEach((tabButton) => {
         tabButton.addEventListener('shown.bs.tab', () => {
+            const group = tabButton.dataset.operationsLiveGroup;
+
+            if (group) {
+                loadLazyTab(pageRoot, group);
+            }
+
             refreshOperationsDashboard(pageRoot);
         });
     });
@@ -272,6 +433,7 @@ const bindBatchRecoveryForms = (pageRoot) => {
                 applyLiveHtml(payload.html ?? {});
                 bindBatchRecoveryForms(pageRoot);
                 bindOperationsTabShortcuts(pageRoot);
+                bindHealthAccordionLazyLoad(pageRoot);
             } finally {
                 if (button instanceof HTMLButtonElement) {
                     button.disabled = false;
@@ -291,6 +453,11 @@ const initOperationsDashboard = () => {
     bindBatchRecoveryForms(pageRoot);
     bindOperationsTabShortcuts(pageRoot);
     bindIraInsightToggleLabels(pageRoot);
+    bindHealthAccordionLazyLoad(pageRoot);
+    bindIraFullAnalysisModal(pageRoot);
+
+    refreshOperationsDashboard(pageRoot);
+    loadLazyTab(pageRoot, 'today');
 
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
     const fullRefreshIntervalMs = Number(pageRoot.dataset.liveFullInterval ?? 120000);

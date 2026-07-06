@@ -32,14 +32,8 @@ class OperationsDashboardController extends Controller
 
     public function index(): View
     {
-        $iraBriefing = $this->iraBrainService->briefing();
-
         return view('admin.operations.index', [
             'dashboard' => $this->dashboardService->dashboardData(),
-            'advisorInsights' => $this->advisorService->platformInsights(),
-            'iraBriefing' => $iraBriefing,
-            'iraBriefingFormatted' => $this->iraBriefingFormatter->format($iraBriefing),
-            'iraReasoningProvider' => $this->iraBrainService->reasoningProviderName(),
         ]);
     }
 
@@ -133,6 +127,8 @@ class OperationsDashboardController extends Controller
         return collect($sections)->contains(fn (string $section): bool => in_array($section, [
             'critical_alerts',
             'overview_cards',
+            'ira_briefing_compact',
+            'ira_full_analysis',
             'ira_briefing',
             'ira_briefing_details',
             'immediate_risks',

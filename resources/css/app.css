@@ -5437,6 +5437,85 @@ body.customer-360-drawer-open {
     color: var(--bs-danger, #dc3545);
 }
 
+.operations-command-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+}
+
+.operations-command-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.08) !important;
+}
+
+.operations-command-card-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+    margin-bottom: 0.35rem;
+}
+
+.operations-command-card-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.operations-command-card-status {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.operations-command-metrics strong.text-danger {
+    color: var(--bs-danger, #dc3545) !important;
+}
+
+.operations-command-metrics strong.text-warning {
+    color: var(--bs-warning-text-emphasis, #997404) !important;
+}
+
+.operations-ira-command-icon {
+    font-size: 1.125rem;
+}
+
+.operations-ira-command-count {
+    font-size: 0.9375rem;
+    margin-bottom: 0.5rem;
+}
+
+.operations-ira-command-bullets {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.operations-ira-command-bullet {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.35;
+}
+
+.operations-ira-command-bullet--danger {
+    color: var(--bs-danger, #dc3545);
+}
+
+.operations-ira-command-bullet--warning {
+    color: var(--bs-warning-text-emphasis, #997404);
+}
+
+.operations-health-collapsed-hint {
+    padding: 0.5rem 0 0.25rem;
+}
+
+.operations-lazy-placeholder .card-body {
+    min-height: 5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .operations-dashboard-tabs .operations-dashboard-tablist {
     border-bottom: 0;
     gap: 0.25rem;

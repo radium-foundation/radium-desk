@@ -38,6 +38,32 @@ class OperationsDashboardPerformanceTest extends TestCase
         $this->assertGreaterThan(0, $result['total_ms']);
     }
 
+    public function test_initial_page_payload_is_smaller_than_full_live_refresh(): void
+    {
+        Cache::flush();
+
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $indexResponse = $this->actingAs($admin)->get(route('admin.operations.index'));
+        $liveResponse = $this->actingAs($admin)->getJson(route('admin.operations.live'));
+
+        $indexBytes = strlen($indexResponse->getContent());
+        $liveBytes = strlen((string) $liveResponse->getContent());
+
+        $this->assertLessThan(
+            $liveBytes,
+            $indexBytes,
+            'Initial SSR payload should be smaller than a full live refresh payload.',
+        );
+
+        $this->assertLessThan(
+            120000,
+            $indexBytes,
+            'Initial HTML payload should stay under 120KB for fast first paint.',
+        );
+    }
+
     public function test_live_endpoint_supports_partial_group_refresh(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
@@ -48,18 +74,21 @@ class OperationsDashboardPerformanceTest extends TestCase
             ->assertOk();
 
         $partialResponse = $this->actingAs($admin)
-            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health']))
+            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
             ->assertOk()
-            ->assertJsonPath('groups', ['critical', 'summary', 'health']);
+            ->assertJsonPath('groups', ['critical', 'summary', 'health', 'ira_compact']);
 
         $fullSections = array_keys($fullResponse->json('html'));
         $partialSections = array_keys($partialResponse->json('html'));
 
         $this->assertGreaterThan(count($partialSections), count($fullSections));
-        $this->assertSame(['critical_alerts', 'overview_cards', 'health_status'], $partialSections);
+        $this->assertSame(
+            ['critical_alerts', 'overview_cards', 'health_status', 'ira_briefing_compact'],
+            $partialSections,
+        );
     }
 
-    public function test_live_partial_refresh_skips_ira_and_advisor_when_not_needed(): void
+    public function test_live_partial_refresh_skips_heavy_tab_shells_when_not_needed(): void
     {
         Cache::flush();
 
@@ -70,31 +99,35 @@ class OperationsDashboardPerformanceTest extends TestCase
             ->getJson(route('admin.operations.live', ['groups' => 'performance']))
             ->assertOk()
             ->assertJsonMissingPath('html.critical_alerts')
-            ->assertJsonMissingPath('html.ira_briefing')
+            ->assertJsonMissingPath('html.ira_briefing_compact')
             ->assertJsonMissingPath('html.advisor_insights')
             ->assertJsonStructure([
                 'html' => [
-                    'notification_metrics',
-                    'automation_metrics',
-                    'queue_metrics',
+                    'performance_tab',
                 ],
             ]);
     }
 
-    public function test_live_renderer_group_sections_cover_all_dashboard_sections(): void
+    public function test_live_renderer_exposes_lazy_load_groups_for_command_center(): void
     {
-        $groupSections = collect(OperationsDashboardLiveRenderer::GROUP_SECTIONS)
-            ->flatten()
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
+        $lazyGroups = [
+            'critical',
+            'summary',
+            'ira_compact',
+            'ira_full',
+            'health',
+            'health_cashfree',
+            'health_radiumbox',
+            'health_telegram',
+            'today',
+            'team',
+            'performance',
+            'system',
+        ];
 
-        $allSections = collect(OperationsDashboardLiveRenderer::ALL_SECTIONS)
-            ->sort()
-            ->values()
-            ->all();
-
-        $this->assertSame($allSections, $groupSections);
+        foreach ($lazyGroups as $group) {
+            $this->assertArrayHasKey($group, OperationsDashboardLiveRenderer::GROUP_SECTIONS);
+            $this->assertNotSame([], OperationsDashboardLiveRenderer::GROUP_SECTIONS[$group]);
+        }
     }
 }

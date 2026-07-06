@@ -16,6 +16,9 @@
     $telegramConnected = collect($teamTelegramStatus)->where('connected', true)->count();
     $telegramTotal = count($teamTelegramStatus);
     $telegramHealthy = $telegramTotal === 0 || $telegramConnected === $telegramTotal;
+    $telegramSummary = $telegramTotal === 0
+        ? 'No team members configured'
+        : sprintf('%s%% team connectivity', number_format($telegramTotal > 0 ? ($telegramConnected / $telegramTotal) * 100 : 0, 0));
 
     $systems = array_values(array_filter([
         [
@@ -23,19 +26,18 @@
             'label' => 'Cashfree',
             'healthy' => $cashfreeHealthy,
             'summary' => $cashfreeHealthy
-                ? 'Payment webhooks healthy'
+                ? '✅ Healthy'
                 : ($cashfreeHealth['detail'] ?? 'Needs attention'),
             'badge_class' => $cashfreeHealth['badge_class'] ?? ($cashfreeHealthy ? 'success' : 'danger'),
             'status_label' => $cashfreeHealth['status_label'] ?? ($cashfreeHealthy ? 'Healthy' : 'Needs attention'),
-            'partial' => 'admin.operations.partials.cashfree-health',
-            'partial_data' => ['health' => $cashfreeHealth],
+            'lazy_section' => 'cashfree_health',
         ],
         $radiumBoxEnabled ? [
             'id' => 'radiumbox',
             'label' => 'RadiumBox',
             'healthy' => $radiumBoxHealthy,
             'summary' => $radiumBoxHealthy
-                ? sprintf('%s%% success rate (24h)', number_format((float) ($radiumBoxHealth['success_rate_24h'] ?? 0), 1))
+                ? '✅ Healthy'
                 : sprintf(
                     '%s failed, %s pending sync(s)',
                     number_format((int) ($radiumBoxHealth['failed_syncs'] ?? 0)),
@@ -43,20 +45,16 @@
                 ),
             'badge_class' => $radiumBoxHealthy ? 'success' : 'warning',
             'status_label' => $radiumBoxHealthy ? 'Healthy' : 'Needs attention',
-            'partial' => 'admin.operations.partials.radiumbox-health',
-            'partial_data' => ['health' => $radiumBoxHealth],
+            'lazy_section' => 'radiumbox_health',
         ] : null,
         [
             'id' => 'telegram',
             'label' => 'Telegram',
             'healthy' => $telegramHealthy,
-            'summary' => $telegramTotal === 0
-                ? 'No team members configured'
-                : sprintf('%s of %s team member(s) connected', number_format($telegramConnected), number_format($telegramTotal)),
+            'summary' => $telegramHealthy ? $telegramSummary : sprintf('%s of %s connected', number_format($telegramConnected), number_format($telegramTotal)),
             'badge_class' => $telegramHealthy ? 'success' : 'warning',
             'status_label' => $telegramHealthy ? 'Healthy' : 'Needs attention',
-            'partial' => 'admin.operations.partials.team-telegram-status',
-            'partial_data' => ['members' => $teamTelegramStatus],
+            'lazy_section' => 'team_telegram_status',
         ],
     ]));
 @endphp
@@ -94,9 +92,15 @@
                     class="accordion-collapse collapse {{ $isExpanded ? 'show' : '' }}"
                     aria-labelledby="operations-health-heading-{{ $system['id'] }}"
                     data-bs-parent="#operations-health-accordion"
+                    data-operations-lazy-section="{{ $system['lazy_section'] }}"
+                    data-operations-lazy-loaded="{{ $isExpanded ? 'false' : 'false' }}"
                 >
-                    <div class="accordion-body pt-0">
-                        @include($system['partial'], $system['partial_data'])
+                    <div class="accordion-body pt-0" id="operations-health-detail-{{ $system['id'] }}">
+                        @if ($isExpanded)
+                            @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading '.$system['label'].' details…'])
+                        @else
+                            <p class="text-muted small mb-0 operations-health-collapsed-hint">Expand to load {{ $system['label'] }} details.</p>
+                        @endif
                     </div>
                 </div>
             </div>
