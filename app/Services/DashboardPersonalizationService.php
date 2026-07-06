@@ -20,6 +20,8 @@ class DashboardPersonalizationService
 
     public const QUEUE_ACTION_REQUIRED = 'action_required';
 
+    public const QUEUE_PENDING_REVIEW = 'pending_review';
+
     public const QUEUE_SCHEDULED = 'scheduled';
 
     public const QUEUE_WAITING_CUSTOMER = 'waiting_customer';
@@ -73,6 +75,7 @@ class DashboardPersonalizationService
         if ($this->operationsRoles->usesAdminQueues($user)) {
             $queues = [
                 self::QUEUE_ACTION_REQUIRED,
+                self::QUEUE_PENDING_REVIEW,
                 self::QUEUE_SCHEDULED,
                 self::QUEUE_WAITING_CUSTOMER,
                 self::QUEUE_ATTENTION,
@@ -176,10 +179,6 @@ class DashboardPersonalizationService
 
         if ($normalized !== null) {
             return $normalized;
-        }
-
-        if ($this->operationsRoles->usesAdminQueues($user)) {
-            return 'pending_admin';
         }
 
         return $this->defaultQueueFor($user);
@@ -406,7 +405,11 @@ class DashboardPersonalizationService
             self::QUEUE_ATTENTION => 'needs_attention',
             self::QUEUE_MY_WORK => 'my_cases',
             self::QUEUE_HARDWARE => 'all',
-            default => 'pending_admin',
+            self::QUEUE_ACTION_REQUIRED,
+            self::QUEUE_PENDING_REVIEW,
+            self::QUEUE_SCHEDULED,
+            self::QUEUE_WAITING_CUSTOMER => $queue,
+            default => self::QUEUE_ACTION_REQUIRED,
         };
     }
 

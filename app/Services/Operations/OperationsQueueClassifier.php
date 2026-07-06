@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseAutomationStatus;
 use App\Enums\ServiceCaseSlaStatus;
@@ -36,6 +37,14 @@ class OperationsQueueClassifier
 
         if ($this->isAttention($incident)) {
             return OperationQueue::Attention;
+        }
+
+        if ($this->isActionRequired($incident)) {
+            return OperationQueue::ActionRequired;
+        }
+
+        if ($this->isPendingReview($incident)) {
+            return OperationQueue::PendingReview;
         }
 
         return OperationQueue::ActionRequired;
@@ -191,5 +200,60 @@ class OperationsQueueClassifier
         }
 
         return false;
+    }
+
+    public function isActionRequired(Incident $incident): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        if ($this->isHardware($incident)
+            || $this->isWaitingCustomer($incident)
+            || $this->isScheduled($incident)
+            || $this->isAttention($incident)) {
+            return false;
+        }
+
+        if ($incident->assigned_to_user_id !== null) {
+            return true;
+        }
+
+        if (in_array($incident->status, [
+            IncidentStatus::AwaitingProductDetails,
+            IncidentStatus::InProgress,
+        ], true)) {
+            return true;
+        }
+
+        return ! $this->isStaleBacklog($incident);
+    }
+
+    public function isPendingReview(Incident $incident): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        if ($this->isHardware($incident)
+            || $this->isWaitingCustomer($incident)
+            || $this->isScheduled($incident)
+            || $this->isAttention($incident)
+            || $this->isActionRequired($incident)) {
+            return false;
+        }
+
+        return $this->isStaleBacklog($incident);
+    }
+
+    public function isStaleBacklog(Incident $incident): bool
+    {
+        if ($incident->assigned_to_user_id !== null || $incident->created_at === null) {
+            return false;
+        }
+
+        $thresholdHours = max(1, (int) config('operations.backlog_stale_hours', 72));
+
+        return $incident->created_at->lte(now()->subHours($thresholdHours));
     }
 }

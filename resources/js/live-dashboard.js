@@ -3,6 +3,7 @@ import { initTooltips } from './tooltips';
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
 import { isDashboardQuickFilterActive, setServiceCasePagination } from './dashboard-service-case-state';
+import { buildDashboardLiveQuery } from './dashboard-live-query';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -168,8 +169,8 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
         setServiceCasePagination({
             loaded: data.loaded_count ?? (data.rows?.length ?? 0),
             total: data.total_count ?? data.service_case_filter_counts?.[
-                document.getElementById('dashboard-page')?.dataset.liveQueue
-                    ?? document.getElementById('dashboard-page')?.dataset.liveFilter
+                document.getElementById('dashboard-page')?.dataset.liveFilter
+                    ?? document.getElementById('dashboard-page')?.dataset.liveQueue
                     ?? 'action_required'
             ],
         });
@@ -229,9 +230,12 @@ const flushPendingDashboardRefresh = async () => {
     await applyDashboardRefresh(data);
 };
 
+const buildLiveRefreshQuery = (pageRoot, loadedCount = 0) => buildDashboardLiveQuery(pageRoot, {
+    limit: loadedCount > 0 ? loadedCount : undefined,
+});
+
 const refreshDashboard = async (pageRoot) => {
     const liveUrl = pageRoot.dataset.liveUrl;
-    const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? 'action_required';
 
     if (!liveUrl || document.hidden || refreshInFlight || isDashboardSearchActive() || isDashboardQuickFilterActive()) {
         return;
@@ -240,18 +244,10 @@ const refreshDashboard = async (pageRoot) => {
     refreshInFlight = true;
 
     try {
-        const query = new URLSearchParams({ queue });
-
-        if (! pageRoot.dataset.liveQueue && pageRoot.dataset.liveFilter) {
-            query.set('filter', pageRoot.dataset.liveFilter);
-        }
         const loadedCount = Number(
             pageRoot.querySelector('.dashboard-service-cases-card')?.dataset.serviceCasesLoaded ?? 0,
         );
-
-        if (loadedCount > 0) {
-            query.set('limit', String(loadedCount));
-        }
+        const query = buildLiveRefreshQuery(pageRoot, loadedCount);
 
         const response = await fetch(`${liveUrl}?${query.toString()}`, {
             headers: {
@@ -335,6 +331,7 @@ export {
     applyKpis,
     applyPartialDashboardUpdate,
     applyRows,
+    buildLiveRefreshQuery,
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,

@@ -7,6 +7,7 @@ import {
     getServiceCaseSearchQuery,
     setServiceCasePagination,
 } from './dashboard-service-case-state';
+import { buildDashboardLiveQuery } from './dashboard-live-query';
 
 export const initDashboardLoadMore = ({
     pageRoot = document,
@@ -31,20 +32,15 @@ export const initDashboardLoadMore = ({
         button.disabled = true;
 
         try {
-            const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? card.dataset.serviceCaseFilter ?? 'action_required';
-            const query = new URLSearchParams({
-                queue,
-                offset: String(getServiceCaseLoadedCount()),
+            const query = buildDashboardLiveQuery(pageRoot, {
+                fallbackQueue: card.dataset.serviceCaseFilter ?? 'action_required',
+                offset: getServiceCaseLoadedCount(),
             });
 
             const searchQuery = getServiceCaseSearchQuery();
 
             if (searchQuery) {
                 query.set('q', searchQuery);
-            }
-
-            if (! pageRoot.dataset.liveQueue && pageRoot.dataset.liveFilter) {
-                query.set('filter', pageRoot.dataset.liveFilter);
             }
 
             const response = await fetch(`${loadMoreUrl}?${query.toString()}`, {

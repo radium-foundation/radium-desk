@@ -87,7 +87,7 @@
                             @continue(! in_array($queueKey, $availableOperationQueues, true))
                             @php
                                 $isActiveQueue = $activeQueue === $queueKey;
-                                $filterCountKey = $isActiveQueue && array_key_exists($legacyServiceCaseFilter, $serviceCaseFilterCounts)
+                                $filterCountKey = $isActiveQueue && $legacyServiceCaseFilter !== $queueKey
                                     ? $legacyServiceCaseFilter
                                     : $queueKey;
                             @endphp

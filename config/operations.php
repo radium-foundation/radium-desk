@@ -1,11 +1,18 @@
 <?php
 
 return [
+    'backlog_stale_hours' => (int) env('OPERATIONS_BACKLOG_STALE_HOURS', 18),
+
     'queues' => [
         'action_required' => [
             'label' => 'Action Required',
             'icon' => 'bi-lightning-charge-fill',
             'tone' => 'warning',
+        ],
+        'pending_review' => [
+            'label' => 'Pending Review',
+            'icon' => 'bi-inbox',
+            'tone' => 'secondary',
         ],
         'scheduled' => [
             'label' => 'Scheduled',

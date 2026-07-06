@@ -5,6 +5,7 @@ namespace App\Enums;
 enum OperationQueue: string
 {
     case ActionRequired = 'action_required';
+    case PendingReview = 'pending_review';
     case Scheduled = 'scheduled';
     case WaitingCustomer = 'waiting_customer';
     case Attention = 'attention';
@@ -34,6 +35,7 @@ enum OperationQueue: string
     {
         return [
             self::ActionRequired->value,
+            self::PendingReview->value,
             self::Scheduled->value,
             self::WaitingCustomer->value,
             self::Attention->value,

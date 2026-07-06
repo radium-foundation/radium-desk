@@ -416,6 +416,7 @@ class DashboardSnapshot
             'completed' => OperationQueue::Completed->value,
             'pending_support', 'needs_attention', 'my_attention', 'overdue', 'warning', 'high_priority' => OperationQueue::Attention->value,
             'pending_admin' => OperationQueue::ActionRequired->value,
+            'pending_review' => OperationQueue::PendingReview->value,
             'my_cases' => OperationQueue::MyWork->value,
             default => OperationQueue::ActionRequired->value,
         };

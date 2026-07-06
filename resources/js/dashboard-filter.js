@@ -11,6 +11,7 @@ import {
     updateServiceCaseCountDisplay,
     formatServiceCaseCount,
 } from './dashboard-service-case-state';
+import { buildDashboardLiveQuery } from './dashboard-live-query';
 
 const FILTERED_OUT_CLASS = 'dashboard-case-row--filtered-out';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
@@ -317,16 +318,11 @@ export const initDashboardQuickFilter = ({
 
         setServiceCaseSearchQuery(normalizedQuery);
 
-        const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? card.dataset.serviceCaseFilter ?? 'action_required';
-        const params = new URLSearchParams({
-            queue,
-            offset: '0',
+        const params = buildDashboardLiveQuery(pageRoot, {
+            fallbackQueue: card.dataset.serviceCaseFilter ?? 'action_required',
+            offset: 0,
             q: normalizedQuery,
         });
-
-        if (! pageRoot.dataset.liveQueue && pageRoot.dataset.liveFilter) {
-            params.set('filter', pageRoot.dataset.liveFilter);
-        }
 
         try {
             const response = await fetch(`${resolvedLoadMoreUrl}?${params.toString()}`, {

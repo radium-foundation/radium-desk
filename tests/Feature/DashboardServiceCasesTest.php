@@ -7,7 +7,9 @@ use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\OperationsQueueClassifier;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -315,7 +317,7 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dashboard_defaults_to_pending_admin_filter(): void
+    public function test_dashboard_defaults_to_action_required_filter_aligned_with_queue(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -348,6 +350,7 @@ class DashboardServiceCasesTest extends TestCase
             'title' => 'Pending case',
             'description' => 'Pending case.',
             'status' => 'open',
+            'assigned_to_user_id' => $admin->id,
             'created_by' => $admin->id,
         ]);
 
@@ -365,6 +368,8 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertSee('data-live-queue="action_required"', false)
+            ->assertSee('data-live-filter="action_required"', false)
             ->assertSee('SC-PENDING-1')
             ->assertDontSee('SC-COMPLETE-2');
     }
@@ -625,6 +630,7 @@ class DashboardServiceCasesTest extends TestCase
             'title' => 'Inline transaction test',
             'description' => 'Inline transaction test.',
             'status' => 'open',
+            'assigned_to_user_id' => $admin->id,
             'created_by' => $admin->id,
         ]);
 
@@ -932,7 +938,7 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Overdue')
-            ->assertSee('Warning')
+            ->assertDontSee('>Warning<', false)
             ->assertSee('>1</div>', false);
 
         $this->actingAs($admin)
@@ -1382,5 +1388,148 @@ class DashboardServiceCasesTest extends TestCase
             ->assertJsonPath('loaded_count', 90)
             ->assertJsonPath('total_count', 90)
             ->assertJsonPath('has_more', false);
+    }
+
+    public function test_action_required_count_matches_displayed_grid(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 12:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createAdminOpenCase($admin, 'RD-ACTION-1', assignedTo: $admin);
+        $this->createAdminOpenCase($admin, 'RD-ACTION-2', assignedTo: $admin);
+        $this->createAdminOpenCase(
+            $admin,
+            'RD-STALE-1',
+            createdAt: now()->subHours(20),
+            serialNumber: 'B47C11929',
+            deviceModel: 'Access FM220 L1',
+        );
+
+        $counts = DashboardSnapshot::load()->queueCounts();
+
+        $this->assertSame(2, $counts['action_required']);
+        $this->assertSame(1, $counts['pending_review']);
+
+        $response = $this->actingAs($admin)->get(route('dashboard'));
+
+        $response->assertOk()
+            ->assertSee('data-dashboard-case-filter-count="action_required">(2)', false)
+            ->assertSee('RD-ACTION-1')
+            ->assertSee('RD-ACTION-2')
+            ->assertDontSee('RD-STALE-1')
+            ->assertSee('2 of 2 Showing');
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.live', ['queue' => 'action_required']))
+            ->assertOk()
+            ->assertJsonCount(2, 'rows')
+            ->assertJsonPath('total_count', 2);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_stale_open_case_does_not_inflate_action_required_count(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 12:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $staleCase = $this->createAdminOpenCase(
+            $admin,
+            'RD-STALE-ONLY',
+            createdAt: now()->subHours(20),
+            serialNumber: 'B47C11929',
+            deviceModel: 'Access FM220 L1',
+        );
+
+        $classifier = app(OperationsQueueClassifier::class);
+        $freshIncident = $staleCase->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
+
+        $this->assertSame('pending_review', $classifier->classify($freshIncident)->value);
+
+        $counts = DashboardSnapshot::load()->queueCounts();
+
+        $this->assertSame(0, $counts['action_required']);
+        $this->assertSame(1, $counts['pending_review']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_attention_case_remains_urgent_not_action_required_backlog(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 12:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $attentionCase = $this->createAdminOpenCase(
+            $admin,
+            'RD-ATTENTION-QUEUE',
+            createdAt: now()->subDays(5),
+            highPriority: true,
+        );
+
+        $classifier = app(OperationsQueueClassifier::class);
+        $freshIncident = $attentionCase->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
+
+        $this->assertSame('attention', $classifier->classify($freshIncident)->value);
+
+        $counts = DashboardSnapshot::load()->queueCounts();
+
+        $this->assertSame(0, $counts['action_required']);
+        $this->assertSame(1, $counts['attention']);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'attention']))
+            ->assertOk()
+            ->assertSee('data-dashboard-case-filter-count="attention">(1)', false)
+            ->assertSee('RD-ATTENTION-QUEUE');
+
+        Carbon::setTestNow();
+    }
+
+    private function createAdminOpenCase(
+        User $admin,
+        string $orderId,
+        ?User $assignedTo = null,
+        ?Carbon $createdAt = null,
+        bool $highPriority = false,
+        ?string $serialNumber = null,
+        ?string $deviceModel = null,
+    ): Incident {
+        $order = Order::query()->create([
+            'order_id' => $orderId,
+            'serial_number' => $serialNumber ?? 'SN-'.$orderId,
+            'product_name' => $deviceModel ?? 'MFS 110',
+            'device_model' => $deviceModel ?? 'MFS 110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => "Case {$orderId}",
+            'description' => "Case {$orderId}.",
+            'status' => IncidentStatus::Open,
+            'high_priority' => $highPriority,
+            'assigned_to_user_id' => $assignedTo?->id,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        if ($createdAt !== null) {
+            $incident->forceFill([
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ])->saveQuietly();
+        }
+
+        return $incident->fresh();
     }
 }

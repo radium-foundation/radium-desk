@@ -161,6 +161,7 @@ class OperationsModelFoundationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Action Required')
+            ->assertSee('Pending Review')
             ->assertSee('Waiting Customer')
             ->assertSee('Scheduled')
             ->assertSee('Attention')
@@ -245,6 +246,7 @@ class OperationsModelFoundationTest extends TestCase
         $personalization = app(DashboardPersonalizationService::class);
 
         $this->assertContains('action_required', $personalization->availableQueuesFor($admin));
+        $this->assertContains('pending_review', $personalization->availableQueuesFor($admin));
         $this->assertContains('hardware', $personalization->availableQueuesFor($admin));
         $this->assertSame('my_work', $personalization->defaultQueueFor($agent));
         $this->assertContains('waiting_customer', $personalization->availableQueuesFor($agent));
