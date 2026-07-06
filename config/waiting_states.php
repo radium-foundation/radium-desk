@@ -3,6 +3,17 @@
 return [
     /*
     |--------------------------------------------------------------------------
+    | Customer Waiting Lifecycle Deployment
+    |--------------------------------------------------------------------------
+    |
+    | Active waiting states that started before this timestamp are treated as
+    | legacy when running the one-time customer waiting cleanup command.
+    |
+    */
+    'lifecycle_deployment_at' => env('CUSTOMER_WAITING_LIFECYCLE_DEPLOYED_AT', '2026-07-07 00:00:00'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Waiting Reasons
     |--------------------------------------------------------------------------
     |

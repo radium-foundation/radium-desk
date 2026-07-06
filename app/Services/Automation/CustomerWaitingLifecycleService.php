@@ -26,6 +26,14 @@ class CustomerWaitingLifecycleService
 
     public const EVENT_AUTO_CLOSED = 'service_case.customer_waiting_auto_closed';
 
+    public const EVENT_LEGACY_CLEANUP_CLOSED = 'service_case.customer_waiting_legacy_cleanup_closed';
+
+    public const LEGACY_CLEANUP_REMARK = <<<'TEXT'
+Closed during customer waiting lifecycle migration cleanup.
+Customer information was previously requested but response was not received.
+Case can be reopened when customer provides required details.
+TEXT;
+
     public const AUTO_CLOSE_REMARK = <<<'TEXT'
 Customer information requested.
 Follow-up reminder sent.
@@ -193,7 +201,7 @@ TEXT;
         $autoClosedAudit = AuditLog::query()
             ->where('auditable_type', $incident->getMorphClass())
             ->where('auditable_id', $incident->id)
-            ->where('event', self::EVENT_AUTO_CLOSED)
+            ->whereIn('event', [self::EVENT_AUTO_CLOSED, self::EVENT_LEGACY_CLEANUP_CLOSED])
             ->latest('created_at')
             ->first();
 
@@ -234,5 +242,13 @@ TEXT;
             WaitingReason::CustomerApproval,
             WaitingReason::Other,
         ];
+    }
+
+    public static function lifecycleDeploymentAt(): Carbon
+    {
+        return Carbon::parse(
+            (string) config('waiting_states.lifecycle_deployment_at', '2026-07-07 00:00:00'),
+            AppDateFormatter::timezone(),
+        );
     }
 }

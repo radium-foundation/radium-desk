@@ -208,6 +208,17 @@ class ServiceCaseActivityTimelineService
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
+                CustomerWaitingLifecycleService::EVENT_LEGACY_CLEANUP_CLOSED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Closed during customer waiting lifecycle migration',
+                    body: isset($auditLog->new_values['resolution_reason_label'])
+                        ? 'Reason: '.$auditLog->new_values['resolution_reason_label']
+                        : null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 NotificationAuditTrailService::EVENT_DISPATCHED => $this->mapNotificationDispatchedEntry(
                     $auditLog,
                     $actor,
