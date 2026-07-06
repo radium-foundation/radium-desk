@@ -14,6 +14,7 @@ class IncidentWaitingState extends Model
         'incident_id',
         'waiting_reason',
         'started_at',
+        'customer_followup_sent_at',
         'sla_paused',
         'reminder_policy_key',
         'metadata',
@@ -28,6 +29,7 @@ class IncidentWaitingState extends Model
         return [
             'waiting_reason' => WaitingReason::class,
             'started_at' => 'datetime',
+            'customer_followup_sent_at' => 'datetime',
             'sla_paused' => 'boolean',
             'metadata' => 'array',
             'next_action_at' => 'datetime',
@@ -63,6 +65,11 @@ class IncidentWaitingState extends Model
     public function isActive(): bool
     {
         return $this->cleared_at === null;
+    }
+
+    public function customerWaitingSince(): ?\Illuminate\Support\Carbon
+    {
+        return $this->started_at;
     }
 
     public function reminderPolicyLabel(): ?string

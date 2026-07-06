@@ -79,7 +79,7 @@ class IncidentWaitingStateTest extends TestCase
             'incident_id' => $incident->id,
             'waiting_reason' => WaitingReason::SerialNumber->value,
             'sla_paused' => true,
-            'reminder_policy_key' => 'serial_number_default',
+            'reminder_policy_key' => 'customer_waiting_default',
             'created_by' => $agent->id,
             'updated_by' => $agent->id,
         ]);

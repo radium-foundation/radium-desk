@@ -11,6 +11,7 @@ class AutomationNotificationTypeResolver
         return match ($actionKey) {
             'request_serial_number',
             'request_serial_number_reminder' => NotificationType::RequestSerialNumber,
+            'customer_waiting_followup' => NotificationType::CustomerWaitingFollowup,
             default => null,
         };
     }

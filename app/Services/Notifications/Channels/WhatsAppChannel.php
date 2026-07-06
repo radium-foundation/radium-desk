@@ -29,6 +29,7 @@ class WhatsAppChannel implements NotificationChannel
     {
         return match ($type) {
             NotificationType::RequestSerialNumber,
+            NotificationType::CustomerWaitingFollowup,
             NotificationType::SupportAppointmentBooked => true,
         };
     }
@@ -79,6 +80,7 @@ class WhatsAppChannel implements NotificationChannel
     {
         return match ($type) {
             NotificationType::RequestSerialNumber => WhatsAppTemplate::RequestSerialNumber,
+            NotificationType::CustomerWaitingFollowup => WhatsAppTemplate::RequestSerialNumber,
             NotificationType::SupportAppointmentBooked => WhatsAppTemplate::SupportAppointmentBooked,
         };
     }
@@ -117,7 +119,7 @@ class WhatsAppChannel implements NotificationChannel
     {
         $context = $message->metadata;
 
-        if ($message->type !== NotificationType::RequestSerialNumber) {
+        if (! in_array($message->type, [NotificationType::RequestSerialNumber, NotificationType::CustomerWaitingFollowup], true)) {
             return $context;
         }
 

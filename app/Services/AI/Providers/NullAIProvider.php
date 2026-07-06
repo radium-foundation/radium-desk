@@ -101,7 +101,7 @@ class NullAIProvider implements AIProvider
             );
         }
 
-        if ($context->waitingState !== null) {
+        if ($context->waitingState !== null && isset($context->waitingState['reason_label'])) {
             $actions[] = new AIRecommendationDTO(
                 title: 'Follow up on waiting state',
                 description: 'Case is waiting for '.$context->waitingState['reason_label'].'.',
@@ -242,7 +242,7 @@ class NullAIProvider implements AIProvider
             return 'Waiting for serial number.';
         }
 
-        if ($context->waitingState !== null) {
+        if ($context->waitingState !== null && isset($context->waitingState['reason_label'])) {
             return 'Waiting for '.$context->waitingState['reason_label'].'.';
         }
 

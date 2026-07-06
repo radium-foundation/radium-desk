@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Models\Remark;
 use App\Models\ServiceCaseCloseException;
 use App\Models\User;
+use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use Database\Seeders\RolePermissionSeeder;
@@ -182,6 +183,28 @@ class ServiceCaseActivityTimelineService
                     actor: $this->automationIdentity->automationActor(),
                     title: 'Waiting for manual correction',
                     body: null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                CustomerWaitingLifecycleService::EVENT_WAITING_STARTED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Waiting for customer input',
+                    body: isset($auditLog->new_values['waiting_reason_label'])
+                        ? 'Reason: '.$auditLog->new_values['waiting_reason_label']
+                        : null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                CustomerWaitingLifecycleService::EVENT_AUTO_CLOSED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Closed automatically — customer not responding',
+                    body: isset($auditLog->new_values['customer_followup_sent_at'])
+                        ? 'Follow-up sent at '.$auditLog->new_values['customer_followup_sent_at']
+                        : null,
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),

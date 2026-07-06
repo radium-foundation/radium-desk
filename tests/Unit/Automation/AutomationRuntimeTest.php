@@ -19,6 +19,7 @@ use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Automation\AutomationIdempotencyKeyGenerator;
+use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Automation\AutomationNotificationTypeResolver;
 use App\Services\Automation\AutomationRuntime;
 use App\Services\Automation\ExecutionPlanner;
@@ -65,7 +66,7 @@ class AutomationRuntimeTest extends TestCase
 
         $runtime = new AutomationRuntime(
             app(AutomationIdempotencyKeyGenerator::class),
-            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class))],
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class))],
         );
 
         $result = $runtime->execute($waitingState, $plannedActions);
@@ -117,7 +118,7 @@ class AutomationRuntimeTest extends TestCase
 
         $runtime = new AutomationRuntime(
             app(AutomationIdempotencyKeyGenerator::class),
-            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class))],
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class))],
         );
 
         $firstRun = $runtime->execute($waitingState, $plannedActions);
@@ -178,7 +179,7 @@ class AutomationRuntimeTest extends TestCase
 
         $runtime = new AutomationRuntime(
             app(AutomationIdempotencyKeyGenerator::class),
-            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class))],
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class))],
         );
 
         $result = $runtime->execute($waitingState, $plannedActions);
@@ -241,6 +242,7 @@ class AutomationRuntimeTest extends TestCase
             incident: $incident,
             reason: WaitingReason::SerialNumber,
             actor: $agent,
+            reminderPolicyKey: 'serial_number_default',
         );
 
         $waitingState = IncidentWaitingState::query()->firstOrFail();

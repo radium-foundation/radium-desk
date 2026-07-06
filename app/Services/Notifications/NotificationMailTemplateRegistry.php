@@ -21,6 +21,11 @@ class NotificationMailTemplateRegistry
                 view: 'emails.notifications.request-serial-number',
                 requiredVariables: ['customer_name', 'booking_url'],
             ),
+            NotificationType::CustomerWaitingFollowup => new NotificationMailTemplateDefinition(
+                subject: 'Reminder: We Still Need Your Information',
+                view: 'emails.notifications.customer-waiting-followup',
+                requiredVariables: ['customer_name', 'booking_url'],
+            ),
             NotificationType::SupportAppointmentBooked => new NotificationMailTemplateDefinition(
                 subject: 'Your Support Appointment Is Confirmed',
                 view: 'emails.notifications.support-appointment-booked',
@@ -36,6 +41,10 @@ class NotificationMailTemplateRegistry
     {
         $defaults = match ($message->type) {
             NotificationType::RequestSerialNumber => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
+            ],
+            NotificationType::CustomerWaitingFollowup => [
                 'customer_name' => $this->resolveCustomerName($message),
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
             ],

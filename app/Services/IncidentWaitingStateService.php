@@ -9,6 +9,7 @@ use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
+use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,8 @@ class IncidentWaitingStateService
             ]);
 
             $incident->unsetRelation('activeWaitingState');
+
+            app(CustomerWaitingLifecycleService::class)->auditWaitingStarted($waitingState, $actor);
 
             return $waitingState;
         });
@@ -141,14 +144,39 @@ class IncidentWaitingStateService
         return [
             'reason_label' => $waitingState->waiting_reason->label(),
             'started_at' => $waitingState->started_at,
+            'customer_waiting_since' => $waitingState->customerWaitingSince(),
+            'customer_followup_sent_at' => $waitingState->customer_followup_sent_at,
             'waiting_duration_label' => AppDateFormatter::waitingDuration($waitingState->started_at),
             'requested_at_label' => AppDateFormatter::format(
                 $waitingState->started_at,
                 RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
             ),
+            'followup_sent_at_label' => $waitingState->customer_followup_sent_at !== null
+                ? AppDateFormatter::format(
+                    $waitingState->customer_followup_sent_at,
+                    RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+                )
+                : null,
             'sla_paused' => $waitingState->sla_paused,
             'reminder_policy_label' => $waitingState->reminderPolicyLabel(),
             'next_action_at' => $waitingState->next_action_at,
+            'lifecycle_history' => app(CustomerWaitingLifecycleService::class)->lifecycleHistory($incident),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function lifecycleOnlyCard(Incident $incident): ?array
+    {
+        $history = app(CustomerWaitingLifecycleService::class)->lifecycleHistory($incident);
+
+        if ($history === null) {
+            return null;
+        }
+
+        return [
+            'lifecycle_history' => $history,
         ];
     }
 }

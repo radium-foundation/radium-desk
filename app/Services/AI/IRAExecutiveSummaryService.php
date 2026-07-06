@@ -79,6 +79,12 @@ class IRAExecutiveSummaryService
             $lines[] = 'The device serial number is still missing, causing service delay.';
         }
 
+        $waitingLifecycleLine = $this->customerWaitingLifecycleLine($context);
+
+        if ($waitingLifecycleLine !== null) {
+            $lines[] = $waitingLifecycleLine;
+        }
+
         $warrantyLine = $this->warrantySummaryLine($context, $response);
 
         if ($warrantyLine !== null) {
@@ -126,10 +132,20 @@ class IRAExecutiveSummaryService
             return 'This incident requires immediate attention to avoid further delay.';
         }
 
-        if ($context->waitingState !== null) {
+        if ($context->waitingState !== null && isset($context->waitingState['reason_label'])) {
             $reason = $context->waitingState['reason_label'] ?? 'customer input';
 
             return "Service progress depends on {$reason}; keep the customer informed while waiting.";
+        }
+
+        $lifecycleHistory = is_array($context->waitingState)
+            ? ($context->waitingState['lifecycle_history'] ?? null)
+            : null;
+
+        if (is_array($lifecycleHistory) && ($lifecycleHistory['auto_closed'] ?? false)) {
+            $reasonLabel = $lifecycleHistory['resolution_reason_label'] ?? 'Customer not responding';
+
+            return "This case was auto-closed after a follow-up reminder because the customer did not respond. Reason: {$reasonLabel}. Review prior timeline before contacting the customer again.";
         }
 
         $primaryInsight = $operationsAdvisorInsights[0] ?? null;
@@ -196,6 +212,44 @@ class IRAExecutiveSummaryService
         return filled($advisorRecommendation)
             ? $advisorRecommendation
             : 'Review incident details and contact the customer with the next update.';
+    }
+
+    private function customerWaitingLifecycleLine(\App\Data\AI\AIContextDTO $context): ?string
+    {
+        $waitingState = $context->waitingState;
+
+        if (! is_array($waitingState)) {
+            return null;
+        }
+
+        $lifecycleHistory = $waitingState['lifecycle_history'] ?? null;
+
+        if (is_array($lifecycleHistory) && ($lifecycleHistory['auto_closed'] ?? false)) {
+            $followupSentAt = $lifecycleHistory['customer_followup_sent_at'] ?? null;
+            $followupLabel = $followupSentAt instanceof \Illuminate\Support\Carbon
+                ? $followupSentAt->toDayDateTimeString()
+                : 'an earlier time';
+
+            return "Case was auto-closed after a follow-up reminder sent at {$followupLabel}; customer did not respond within 24 hours.";
+        }
+
+        if (($waitingState['customer_followup_sent_at'] ?? null) instanceof \Illuminate\Support\Carbon) {
+            return 'A customer waiting follow-up reminder was already sent; await response before closing manually.';
+        }
+
+        if (($waitingState['customer_waiting_since'] ?? null) instanceof \Illuminate\Support\Carbon) {
+            $reason = $waitingState['reason_label'] ?? ($lifecycleHistory['waiting_reason_label'] ?? 'customer input');
+
+            return "Waiting for {$reason} since ".$waitingState['customer_waiting_since']->toDayDateTimeString().'.';
+        }
+
+        if (is_array($lifecycleHistory) && ($lifecycleHistory['customer_waiting_since'] ?? null) instanceof \Illuminate\Support\Carbon) {
+            $reason = $lifecycleHistory['waiting_reason_label'] ?? 'customer input';
+
+            return "Previously waited for {$reason} since ".$lifecycleHistory['customer_waiting_since']->toDayDateTimeString().'.';
+        }
+
+        return null;
     }
 
     private function warrantySummaryLine(

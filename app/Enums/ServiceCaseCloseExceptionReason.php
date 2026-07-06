@@ -11,6 +11,7 @@ enum ServiceCaseCloseExceptionReason: string
     case ReplacementIssued = 'replacement_issued';
     case CashCollectedOffline = 'cash_collected_offline';
     case ApprovedByAdmin = 'approved_by_admin';
+    case CustomerNotResponding = 'customer_not_responding';
     case Other = 'other';
 
     public function label(): string
@@ -23,6 +24,7 @@ enum ServiceCaseCloseExceptionReason: string
             self::ReplacementIssued => 'Replacement issued',
             self::CashCollectedOffline => 'Cash collected offline',
             self::ApprovedByAdmin => 'Approved by Admin',
+            self::CustomerNotResponding => 'Customer not responding',
             self::Other => 'Other',
         };
     }

@@ -11,6 +11,7 @@ use App\Enums\AutomationPolicyActionType;
 use App\Enums\NotificationChannelType;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Services\Automation\AutomationNotificationTypeResolver;
+use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
 
@@ -20,6 +21,7 @@ class NotificationActionHandler implements ActionHandler
         private readonly NotificationDispatcher $notificationDispatcher,
         private readonly AutomationNotificationTypeResolver $notificationTypeResolver,
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
+        private readonly CustomerWaitingLifecycleService $customerWaitingLifecycleService,
     ) {}
 
     public function supports(AutomationPolicyActionType $type): bool
@@ -86,6 +88,10 @@ class NotificationActionHandler implements ActionHandler
                 $this->deliverySummaryFormatter->failureMessage($dispatchResult),
                 metadata: $metadata,
             );
+        }
+
+        if ($action->actionKey === 'customer_waiting_followup') {
+            $this->customerWaitingLifecycleService->recordFollowupSent($waitingState->fresh());
         }
 
         $externalId = $this->resolveExternalId($dispatchResult->results);

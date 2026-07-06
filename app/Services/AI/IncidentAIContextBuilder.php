@@ -60,7 +60,8 @@ class IncidentAIContextBuilder
 
         $warrantyStatus = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
         $waitingState = $snapshot?->waitingStateCard
-            ?? $this->waitingStateService->customer360Card($incident);
+            ?? $this->waitingStateService->customer360Card($incident)
+            ?? $this->waitingStateService->lifecycleOnlyCard($incident);
 
         $timeline = $snapshot?->timeline
             ?? ($order !== null ? $this->customer360TimelineService->forOrder($order) : null);

@@ -91,6 +91,7 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(AutomationIdempotencyKeyGenerator::class),
                 [
                     $app->make(NotificationActionHandler::class),
+                    $app->make(\App\Services\Automation\Handlers\AutoCloseActionHandler::class),
                 ],
             );
         });

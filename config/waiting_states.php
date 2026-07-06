@@ -14,7 +14,7 @@ return [
     'reasons' => [
         'serial_number' => [
             'label' => 'Serial Number',
-            'default_reminder_policy_key' => 'serial_number_default',
+            'default_reminder_policy_key' => 'customer_waiting_default',
             'pause_sla' => true,
         ],
         'payment' => [
@@ -29,12 +29,12 @@ return [
         ],
         'customer_approval' => [
             'label' => 'Customer Approval',
-            'default_reminder_policy_key' => 'customer_approval_default',
+            'default_reminder_policy_key' => 'customer_waiting_default',
             'pause_sla' => true,
         ],
         'photos' => [
             'label' => 'Photos',
-            'default_reminder_policy_key' => 'photos_default',
+            'default_reminder_policy_key' => 'customer_waiting_default',
             'pause_sla' => true,
         ],
         'device_pickup' => [
@@ -44,7 +44,7 @@ return [
         ],
         'other' => [
             'label' => 'Other',
-            'default_reminder_policy_key' => null,
+            'default_reminder_policy_key' => 'customer_waiting_default',
             'pause_sla' => false,
         ],
     ],
@@ -61,6 +61,9 @@ return [
     'reminder_policies' => [
         'serial_number_default' => [
             'label' => 'Serial Number Default',
+        ],
+        'customer_waiting_default' => [
+            'label' => 'Customer Waiting Default',
         ],
         'payment_default' => [
             'label' => 'Payment Default',

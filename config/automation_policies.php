@@ -63,5 +63,28 @@ return [
                 ],
             ],
         ],
+        'customer_waiting_default' => [
+            'label' => 'Customer Waiting Default',
+            'schedule' => [
+                [
+                    'day' => 1,
+                    'actions' => [
+                        [
+                            'type' => 'whatsapp_template',
+                            'key' => 'customer_waiting_followup',
+                        ],
+                    ],
+                ],
+                [
+                    'day' => 2,
+                    'actions' => [
+                        [
+                            'type' => 'auto_close',
+                            'key' => 'customer_not_responding',
+                        ],
+                    ],
+                ],
+            ],
+        ],
     ],
 ];

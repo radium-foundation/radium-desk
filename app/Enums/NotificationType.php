@@ -5,6 +5,7 @@ namespace App\Enums;
 enum NotificationType: string
 {
     case RequestSerialNumber = 'request_serial_number';
+    case CustomerWaitingFollowup = 'customer_waiting_followup';
     case SupportAppointmentBooked = 'support_appointment_booked';
     case SupportAppointmentAssigned = 'support_appointment_assigned';
 }

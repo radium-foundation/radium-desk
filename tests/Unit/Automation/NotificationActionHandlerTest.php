@@ -18,6 +18,7 @@ use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Automation\AutomationNotificationTypeResolver;
+use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Automation\Handlers\NotificationActionHandler;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationDispatcher;
@@ -77,6 +78,7 @@ class NotificationActionHandlerTest extends TestCase
             $notificationDispatcher,
             app(AutomationNotificationTypeResolver::class),
             app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
+            app(CustomerWaitingLifecycleService::class),
         );
 
         $result = $handler->handle($plannedAction);
@@ -98,6 +100,7 @@ class NotificationActionHandlerTest extends TestCase
             $notificationDispatcher,
             app(AutomationNotificationTypeResolver::class),
             app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
+            app(CustomerWaitingLifecycleService::class),
         );
 
         $result = $handler->handle($plannedAction);
