@@ -984,7 +984,8 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-cases-table {
-    --bs-table-border-color: var(--dashboard-border-subtle);
+    --bs-table-border-color: rgba(0, 0, 0, 0.04);
+    --dashboard-table-row-border: rgba(0, 0, 0, 0.04);
     --bs-table-hover-bg: var(--dashboard-table-hover-bg);
     border-collapse: separate;
     border-spacing: 0;
@@ -997,7 +998,7 @@ a:focus-visible .stat-card {
     border-top: 0;
     border-left: 0;
     border-right: 0;
-    border-bottom: 1px solid var(--dashboard-border-subtle);
+    border-bottom: 1px solid var(--dashboard-table-row-border, rgba(0, 0, 0, 0.04));
     vertical-align: middle;
 }
 
@@ -1015,16 +1016,16 @@ a:focus-visible .stat-card {
     top: 0;
     z-index: var(--dashboard-z-sticky-header);
     font-size: 0.6875rem;
-    font-weight: 600;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--dashboard-color-muted-light);
+    letter-spacing: 0.03em;
+    color: #adb5bd;
     padding: var(--dashboard-space-1) var(--dashboard-space-2);
-    border-bottom: 1px solid var(--dashboard-border-subtle);
+    border-bottom: 1px solid var(--dashboard-table-row-border, rgba(0, 0, 0, 0.04));
     border-top: 0;
     white-space: nowrap;
     background-color: var(--dashboard-sticky-bg);
-    box-shadow: 0 1px 0 var(--dashboard-border-subtle);
+    box-shadow: 0 1px 0 var(--dashboard-table-row-border, rgba(0, 0, 0, 0.04));
 }
 
 .dashboard-cases-table thead.table-light th {
@@ -1037,7 +1038,7 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-cases-table tbody > tr:nth-child(even):not(.dashboard-case-row--completed):not(.dashboard-case-row--selected) > * {
-    --bs-table-bg-type: #f3f5f7;
+    --bs-table-bg-type: #f8f9fa;
 }
 
 .dashboard-cases-table.table-hover > tbody > tr:hover:not(.dashboard-case-row--completed):not(.dashboard-case-row--selected) > * {
@@ -1166,28 +1167,56 @@ a:focus-visible .stat-card {
     color: #495057;
 }
 
-.dashboard-cases-table .dashboard-date-cell .dashboard-u-datetime-stack__date,
-.dashboard-cases-table .dashboard-date-cell .dashboard-u-datetime-stack__time {
+.dashboard-cases-table .dashboard-date-cell .dashboard-u-datetime-compact {
     color: #adb5bd;
+    font-size: 0.75rem;
     font-weight: 400;
+    white-space: nowrap;
 }
 
-.dashboard-cases-table .dashboard-date-cell .dashboard-u-datetime-stack__date {
-    font-size: 0.6875rem;
+.dashboard-cases-table .dashboard-people-cell .dashboard-people-avatars {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
 }
 
-.dashboard-cases-table .dashboard-date-cell .dashboard-u-datetime-stack__time {
-    font-size: 0.625rem;
-}
-
-.dashboard-cases-table .dashboard-owner-cell .dashboard-u-avatar {
+.dashboard-cases-table .dashboard-people-cell .dashboard-u-avatar {
+    width: 1.375rem;
+    height: 1.375rem;
+    font-size: 0.5625rem;
     background-color: rgba(73, 80, 87, 0.1);
     color: #495057;
     font-weight: 600;
 }
 
+.serial-validation-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.8125rem;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.serial-validation-indicator--pass {
+    color: var(--dashboard-color-success, #198754);
+}
+
+.serial-validation-indicator--warning {
+    color: #cc9a06;
+}
+
+.serial-validation-indicator--fail {
+    color: var(--dashboard-color-danger, #dc3545);
+}
+
+.dashboard-cases-table .case-serial-cell .serial-validation-indicator {
+    font-size: 0.75rem;
+}
+
 .dashboard-cases-table .dashboard-product-cell {
-    color: #495057;
+    color: #adb5bd;
     font-weight: 400;
 }
 
@@ -1594,6 +1623,13 @@ a:focus-visible .stat-card {
     justify-content: flex-end;
     gap: 0.375rem;
     flex-wrap: nowrap;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.dashboard-cases-table tbody tr:hover .dashboard-row-actions,
+.dashboard-cases-table tbody tr:focus-within .dashboard-row-actions {
+    opacity: 1;
 }
 
 .dashboard-row-actions .dashboard-u-icon-action {
@@ -1627,12 +1663,15 @@ a:focus-visible .stat-card {
 .transaction-id-cell .transaction-cell-trigger.dashboard-u-transaction-add,
 .serial-number-cell .serial-cell-trigger.dashboard-u-transaction-add {
     vertical-align: middle;
+    opacity: 0;
+    transition: opacity 0.15s ease;
 }
 
 .transaction-id-cell[data-inline-transaction="true"]:hover .transaction-cell-trigger,
 .transaction-id-cell[data-inline-transaction="true"]:focus-within .transaction-cell-trigger,
 .serial-number-cell[data-inline-serial="true"]:hover .serial-cell-trigger,
 .serial-number-cell[data-inline-serial="true"]:focus-within .serial-cell-trigger {
+    opacity: 1;
     color: var(--dashboard-accent-primary);
     border-color: rgba(13, 110, 253, 0.35);
     background-color: var(--dashboard-row-hover-bg);

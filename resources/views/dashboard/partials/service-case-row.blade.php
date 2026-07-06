@@ -75,9 +75,6 @@
                 <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle"
                       title="SLA at risk while case remains scheduled">SLA at risk</span>
             @endif
-            @if($order?->serial_number)
-                @include('orders.partials.serial-validation-badge', ['order' => $order])
-            @endif
         </div>
     </td>
     <td class="case-order-cell case-meta-cell">
@@ -108,36 +105,35 @@
     <td class="source-cell d-none d-md-table-cell">
         @include('dashboard.partials.source-icon', ['source' => $serviceCase->source])
     </td>
-    <td class="case-meta-cell dashboard-owner-cell dashboard-user-cell d-none d-md-table-cell">
-        @if($serviceCase->assignee)
-            <x-dashboard-user-avatar :user="$serviceCase->assignee" aria-prefix="Assigned To" />
-        @else
-            —
-        @endif
-    </td>
-    <td class="case-meta-cell dashboard-user-cell d-none d-md-table-cell">
-        @if($serviceCase->creator)
-            <x-dashboard-user-avatar :user="$serviceCase->creator" aria-prefix="Logged by" />
-        @else
-            —
-        @endif
+    <td class="case-meta-cell dashboard-people-cell d-none d-md-table-cell">
+        <div class="dashboard-people-avatars">
+            @if($serviceCase->assignee)
+                <x-dashboard-user-avatar :user="$serviceCase->assignee" aria-prefix="Assigned To" />
+            @endif
+            @if($serviceCase->creator)
+                <x-dashboard-user-avatar :user="$serviceCase->creator" aria-prefix="Logged by" />
+            @endif
+            @if(! $serviceCase->assignee && ! $serviceCase->creator)
+                —
+            @endif
+        </div>
     </td>
     <td class="case-meta-cell dashboard-date-cell d-none d-lg-table-cell">
         @if($serviceCase->created_at)
-            <span class="dashboard-u-datetime-stack">
-                <span class="dashboard-u-datetime-stack__date">{{ display_app_timeline_date($serviceCase->created_at) }}</span>
-                <span class="dashboard-u-datetime-stack__time">{{ display_app_timeline_time($serviceCase->created_at) }}</span>
-            </span>
+            <span class="dashboard-u-datetime-compact"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  data-bs-title="{{ display_app_datetime($serviceCase->created_at) }}">{{ display_app_grid_datetime($serviceCase->created_at) }}</span>
         @else
             —
         @endif
     </td>
     <td class="case-meta-cell dashboard-date-cell d-none d-lg-table-cell">
         @if($serviceCase->updated_at)
-            <span class="dashboard-u-datetime-stack">
-                <span class="dashboard-u-datetime-stack__date">{{ display_app_timeline_date($serviceCase->updated_at) }}</span>
-                <span class="dashboard-u-datetime-stack__time">{{ display_app_timeline_time($serviceCase->updated_at) }}</span>
-            </span>
+            <span class="dashboard-u-datetime-compact"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  data-bs-title="{{ display_app_datetime($serviceCase->updated_at) }}">{{ display_app_grid_datetime($serviceCase->updated_at) }}</span>
         @else
             —
         @endif

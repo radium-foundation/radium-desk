@@ -14,12 +14,12 @@
         data-store-url="{{ route('orders.serial.store', $order) }}"
     @endif>
     @if($isLocked && $order?->serial_number)
-        <div class="d-flex flex-wrap align-items-center gap-1">
+        <div class="d-flex align-items-center gap-1">
             <span class="serial-display-value dashboard-u-serial-value"
                   data-bs-toggle="tooltip"
                   data-bs-placement="top"
                   data-bs-title="{{ $order->serial_number }}">{{ $order->serial_number }}</span>
-            @include('orders.partials.serial-validation-badge', ['order' => $order])
+            @include('orders.partials.serial-validation-badge', ['order' => $order, 'compact' => true])
         </div>
     @elseif($canAssign)
         <button type="button"

@@ -137,9 +137,80 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
+            ->assertSee('dashboard-people-avatars', false)
             ->assertSee('dashboard-u-avatar', false)
             ->assertSee('aria-label="Logged by: Ravi Kumar"', false)
+            ->assertSee('aria-label="Assigned To: Ravi Kumar"', false)
             ->assertSee('data-bs-title="Ravi Kumar"', false);
+    }
+
+    public function test_dashboard_grid_renders_compact_serial_validation_indicator(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-VALIDATION-1',
+            'serial_number' => 'SN-VALIDATION-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Validation indicator test',
+            'description' => 'Validation indicator test.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('SN-VALIDATION-1')
+            ->assertSee('serial-validation-indicator', false)
+            ->assertSee('data-bs-title', false);
+    }
+
+    public function test_dashboard_grid_row_actions_remain_in_dom_for_keyboard_access(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-ROW-ACTION-1',
+            'serial_number' => 'SN-ROW-ACTION-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Row action accessibility test',
+            'description' => 'Row action accessibility test.',
+            'status' => 'open',
+            'created_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('dashboard-row-actions', false)
+            ->assertSee('data-workspace-trigger="remark"', false)
+            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertSee('aria-label="Add note for '.$incident->display_reference.'"', false);
     }
 
     public function test_dashboard_sorts_high_priority_service_cases_first(): void

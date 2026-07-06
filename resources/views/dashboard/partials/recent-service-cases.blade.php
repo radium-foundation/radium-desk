@@ -178,8 +178,7 @@
                             <th class="sla-cell">SLA</th>
                             <th>Ref.</th>
                             <th class="d-none d-md-table-cell">Source</th>
-                            <th class="d-none d-md-table-cell">Assigned To</th>
-                            <th class="d-none d-md-table-cell">Logged By</th>
+                            <th class="d-none d-md-table-cell">People</th>
                             <th class="d-none d-lg-table-cell">Created</th>
                             <th class="d-none d-lg-table-cell">Updated</th>
                             <th class="d-none d-lg-table-cell">Model</th>
@@ -199,7 +198,7 @@
                             ])
                         @empty
                             @php
-                                $tableColumnCount = 12
+                                $tableColumnCount = 11
                                     + (($canManageTransactions ?? false) ? 1 : 0)
                                     + (($canShowServiceCaseActions ?? false) ? 1 : 0);
                             @endphp

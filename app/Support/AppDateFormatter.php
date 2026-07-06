@@ -79,6 +79,11 @@ class AppDateFormatter
         return $localized?->diffForHumans();
     }
 
+    public static function gridCompactDatetime(?CarbonInterface $date): ?string
+    {
+        return self::format($date, 'd M H:i');
+    }
+
     public static function waitingDuration(?CarbonInterface $startedAt): ?string
     {
         $localized = self::inAppTimezone($startedAt);

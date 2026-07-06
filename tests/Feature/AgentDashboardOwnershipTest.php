@@ -111,10 +111,43 @@ class AgentDashboardOwnershipTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('RD3442035')
-            ->assertSee('Serial validation failed', false)
+            ->assertSee('serial-validation-indicator--fail', false)
             ->assertSee('Verify serial/device', false);
 
         Carbon::setTestNow();
+    }
+
+    public function test_agent_dashboard_grid_shows_people_column_with_assignee_and_creator(): void
+    {
+        $agent = $this->createAgent('Grid Agent');
+        $creator = User::factory()->create(['name' => 'Admin Creator']);
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createIncident('RD-PEOPLE-1', $creator, $agent);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('dashboard-people-avatars', false)
+            ->assertSee('aria-label="Assigned To: Grid Agent"', false)
+            ->assertSee('aria-label="Logged by: Admin Creator"', false)
+            ->assertSee('People', false);
+    }
+
+    public function test_agent_dashboard_grid_row_actions_remain_accessible(): void
+    {
+        $agent = $this->createAgent('Action Agent');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $incident = $this->createIncident('RD-ACTION-1', $creator, $agent);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('dashboard-row-actions', false)
+            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertSee('data-workspace-incident-id="'.$incident->id.'"', false);
     }
 
     public function test_agent_dashboard_hides_global_metrics_and_shows_personal_kpis(): void
