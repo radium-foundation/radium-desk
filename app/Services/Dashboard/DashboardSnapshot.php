@@ -16,7 +16,7 @@ class DashboardSnapshot
     /** @var Collection<int, Incident> */
     private Collection $activeIncidents;
 
-    /** @var array{overdue_cases: int, warning_cases: int}|null */
+    /** @var array{overdue_cases: int, warning_cases: int, service_overdue_cases: int, service_warning_cases: int, hardware_overdue_cases: int, hardware_warning_cases: int}|null */
     private ?array $slaCounts = null;
 
     /** @var array<string, Collection<int, Incident>>|null */
@@ -59,7 +59,14 @@ class DashboardSnapshot
     }
 
     /**
-     * @return array{overdue_cases: int, warning_cases: int}
+     * @return array{
+     *     overdue_cases: int,
+     *     warning_cases: int,
+     *     service_overdue_cases: int,
+     *     service_warning_cases: int,
+     *     hardware_overdue_cases: int,
+     *     hardware_warning_cases: int
+     * }
      */
     public function slaCounts(?Carbon $now = null): array
     {
@@ -68,10 +75,66 @@ class DashboardSnapshot
         }
 
         $now ??= now();
+        $service = $this->countSlaStatuses(
+            $this->activeIncidents->filter(fn (Incident $incident): bool => ! $this->queueClassifier->isHardware($incident)),
+            $now,
+        );
+        $hardware = $this->countSlaStatuses(
+            $this->activeIncidents->filter(fn (Incident $incident): bool => $this->queueClassifier->isHardware($incident)),
+            $now,
+        );
 
         return $this->slaCounts = [
-            'overdue_cases' => $this->overdue($now)->count(),
-            'warning_cases' => $this->warning($now)->count(),
+            'overdue_cases' => $service['overdue_cases'] + $hardware['overdue_cases'],
+            'warning_cases' => $service['warning_cases'] + $hardware['warning_cases'],
+            'service_overdue_cases' => $service['overdue_cases'],
+            'service_warning_cases' => $service['warning_cases'],
+            'hardware_overdue_cases' => $hardware['overdue_cases'],
+            'hardware_warning_cases' => $hardware['warning_cases'],
+        ];
+    }
+
+    /**
+     * @return array{overdue_cases: int, warning_cases: int}
+     */
+    public function serviceSlaCounts(?Carbon $now = null): array
+    {
+        $counts = $this->slaCounts($now);
+
+        return [
+            'overdue_cases' => $counts['service_overdue_cases'],
+            'warning_cases' => $counts['service_warning_cases'],
+        ];
+    }
+
+    /**
+     * @return array{overdue_cases: int, warning_cases: int}
+     */
+    public function hardwareSlaCounts(?Carbon $now = null): array
+    {
+        $counts = $this->slaCounts($now);
+
+        return [
+            'overdue_cases' => $counts['hardware_overdue_cases'],
+            'warning_cases' => $counts['hardware_warning_cases'],
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidents
+     * @return array{overdue_cases: int, warning_cases: int}
+     */
+    private function countSlaStatuses(Collection $incidents, Carbon $now): array
+    {
+        return [
+            'overdue_cases' => $incidents
+                ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin()
+                    && $incident->slaStatus($now) === ServiceCaseSlaStatus::Overdue)
+                ->count(),
+            'warning_cases' => $incidents
+                ->filter(fn (Incident $incident): bool => $incident->isPendingAdmin()
+                    && $incident->slaStatus($now) === ServiceCaseSlaStatus::Warning)
+                ->count(),
         ];
     }
 

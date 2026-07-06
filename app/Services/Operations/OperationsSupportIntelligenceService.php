@@ -50,6 +50,10 @@ class OperationsSupportIntelligenceService
             ->count();
 
         $serialSummary = $serialQuality ?? $this->missingSerialAutomationService->qualitySummary();
+        $slaCounts = $snapshot->slaCounts($at);
+        $serviceSlaCounts = $snapshot->serviceSlaCounts($at);
+        $hardwareSlaCounts = $snapshot->hardwareSlaCounts($at);
+        $queueCounts = $snapshot->queueCounts();
 
         return new SupportIntelligenceSummary(
             scheduledToday: $scheduledToday,
@@ -62,6 +66,19 @@ class OperationsSupportIntelligenceService
             serialReceived: $serialSummary->customerReplied,
             serialStillWaiting: $this->serialStillWaitingCount(),
             teamWorkload: $this->teamWorkload($at, $snapshot),
+            operationalMetrics: [
+                'action_required' => $queueCounts[OperationQueue::ActionRequired->value] ?? 0,
+                'waiting' => $queueCounts[OperationQueue::WaitingCustomer->value] ?? 0,
+                'service_sla_risk' => ($serviceSlaCounts['overdue_cases'] ?? 0) + ($serviceSlaCounts['warning_cases'] ?? 0),
+                'service_overdue' => $serviceSlaCounts['overdue_cases'] ?? 0,
+                'service_warning' => $serviceSlaCounts['warning_cases'] ?? 0,
+                'hardware_sla_risk' => ($hardwareSlaCounts['overdue_cases'] ?? 0) + ($hardwareSlaCounts['warning_cases'] ?? 0),
+                'hardware_overdue' => $hardwareSlaCounts['overdue_cases'] ?? 0,
+                'hardware_warning' => $hardwareSlaCounts['warning_cases'] ?? 0,
+                'missed_appointments' => $missedOverdue,
+                'total_overdue_cases' => $slaCounts['overdue_cases'] ?? 0,
+                'total_warning_cases' => $slaCounts['warning_cases'] ?? 0,
+            ],
         );
     }
 
@@ -153,13 +170,17 @@ class OperationsSupportIntelligenceService
             $workload[] = [
                 'name' => $user->name,
                 'today' => $this->todayAppointmentsFor($user, $snapshot, $today),
-                'pending' => $metrics['scheduled_cases'],
-                'active_cases' => $metrics['open_cases'],
+                'action_needed' => $metrics['open_cases'],
+                'scheduled_today' => $metrics['scheduled_today'],
+                'scheduled_future' => $metrics['scheduled_future'],
+                'pending' => $metrics['scheduled_future'],
+                'active_cases' => $metrics['total'],
             ];
         }
 
-        usort($workload, fn (array $left, array $right): int => ($right['today'] <=> $left['today'])
-            ?: ($right['pending'] <=> $left['pending'])
+        usort($workload, fn (array $left, array $right): int => ($right['active_cases'] <=> $left['active_cases'])
+            ?: ($right['today'] <=> $left['today'])
+            ?: ($right['scheduled_future'] <=> $left['scheduled_future'])
             ?: strcmp($left['name'], $right['name']));
 
         return $workload;

@@ -7,7 +7,6 @@ use App\Data\Workspace\WorkspaceActionResponse;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\MissingSerialAutomationStatus;
 use App\Enums\NotificationType;
-use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
@@ -99,11 +98,7 @@ class WorkspaceRequestSerialActionService
         $waitingStateSuffix = 'Waiting state started.';
 
         if ($this->waitingStateService->activeFor($incident) === null) {
-            $this->waitingStateService->start(
-                incident: $incident,
-                reason: WaitingReason::SerialNumber,
-                actor: $actor,
-            );
+            $this->waitingStateService->ensureSerialWaitingState($incident, $actor);
         } else {
             $waitingStateSuffix = 'Waiting state already active.';
         }

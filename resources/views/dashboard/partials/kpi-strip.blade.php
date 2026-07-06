@@ -55,7 +55,7 @@
         ];
 
         $items[] = [
-            'label' => 'Waiting',
+            'label' => 'Customer Waiting',
             'value' => $stats['waiting_cases'] ?? 0,
             'icon' => 'bi-hourglass-split',
             'color' => 'warning',

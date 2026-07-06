@@ -42,7 +42,10 @@ class IraRiskDetectionService
     {
         $risks = [];
         $openCases = (int) ($snapshot->operations['open_cases'] ?? 0);
-        $scheduled = (int) ($snapshot->operations['scheduled'] ?? 0);
+        $scheduled = (int) ($snapshot->operations['scheduled_today']
+            ?? $snapshot->operations['support']['today']['scheduled']
+            ?? $snapshot->operations['scheduled']
+            ?? 0);
         $openThreshold = (int) config('ira.thresholds.high_open_cases', 30);
         $scheduledThreshold = (int) config('ira.thresholds.high_scheduled_appointments', 15);
         $minStaff = (int) config('ira.thresholds.min_available_staff', 2);
@@ -65,7 +68,7 @@ class IraRiskDetectionService
                 title: 'Heavy Appointment Load',
                 category: IraRiskCategory::Workload,
                 severity: AIRiskLevel::Medium,
-                message: "{$scheduled} scheduled appointments today — capacity may be stretched.",
+                message: "{$scheduled} appointments scheduled for today — capacity may be stretched.",
                 context: ['scheduled' => $scheduled, 'threshold' => $scheduledThreshold],
             );
         }

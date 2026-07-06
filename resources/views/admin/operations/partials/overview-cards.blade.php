@@ -9,8 +9,21 @@
 
 @php
     $operations = $briefing?->snapshot->operations ?? [];
+    $operational = $intelligence['operational'] ?? [];
     $supportToday = $intelligence['today'] ?? [];
     $teamWorkload = $intelligence['team_workload'] ?? [];
+
+    if ($operations === [] && $operational !== []) {
+        $operations = [
+            'action_required' => $operational['action_required'] ?? 0,
+            'waiting' => $operational['waiting'] ?? 0,
+            'overdue' => $operational['service_overdue'] ?? 0,
+            'warning' => $operational['service_warning'] ?? 0,
+            'hardware_overdue' => $operational['hardware_overdue'] ?? 0,
+            'hardware_warning' => $operational['hardware_warning'] ?? 0,
+            'missed_appointments' => $operational['missed_appointments'] ?? ($supportToday['missed_overdue'] ?? 0),
+        ];
+    }
 
     $systemComponents = $dashboard->systemHealth ?? [];
     $integrationCards = $dashboard->integrationHealth ?? [];
@@ -64,14 +77,13 @@
 
     $activeCases = (int) collect($members)->sum('open_work_count');
     $needsAction = (int) ($operations['action_required'] ?? $activeCases);
-    $slaRisk = (int) ($operations['overdue'] ?? 0) + (int) ($operations['warning'] ?? 0);
-    if ($slaRisk === 0) {
-        $slaRisk = (int) ($supportToday['missed_overdue'] ?? 0);
-    }
-    $queueMax = max(1, $activeCases, $needsAction, $slaRisk);
+    $slaRiskCases = (int) ($operations['overdue'] ?? 0) + (int) ($operations['warning'] ?? 0);
+    $missedAppointments = (int) ($operations['missed_appointments'] ?? $supportToday['missed_overdue'] ?? 0);
+    $hardwareSlaRisk = (int) ($operations['hardware_overdue'] ?? 0) + (int) ($operations['hardware_warning'] ?? 0);
+    $queueMax = max(1, $activeCases, $needsAction, $slaRiskCases, $missedAppointments);
     $activePercent = min(100, (int) round(($activeCases / $queueMax) * 100));
     $actionPercent = min(100, (int) round(($needsAction / $queueMax) * 100));
-    $slaPercent = min(100, (int) round(($slaRisk / max(1, $needsAction, 1)) * 100));
+    $slaPercent = min(100, (int) round(($slaRiskCases / max(1, $needsAction, 1)) * 100));
 
     $scheduledToday = (int) ($supportToday['scheduled'] ?? 0);
     $completedToday = (int) ($supportToday['completed'] ?? 0);
@@ -82,13 +94,15 @@
         : 100;
 
     $activeMembers = collect($teamWorkload)
-        ->filter(fn (array $member): bool => ($member['today'] ?? 0) > 0 || ($member['pending'] ?? 0) > 0)
+        ->filter(fn (array $member): bool => ($member['today'] ?? 0) > 0
+            || ($member['action_needed'] ?? $member['active_cases'] ?? 0) > 0
+            || ($member['scheduled_today'] ?? 0) > 0)
         ->count();
     $busiestMember = collect($teamWorkload)
-        ->sortByDesc(fn (array $member): int => (int) ($member['today'] ?? 0) + (int) ($member['pending'] ?? 0))
+        ->sortByDesc(fn (array $member): int => (int) ($member['active_cases'] ?? 0))
         ->first();
     $busiestName = $busiestMember['name'] ?? '—';
-    $busiestLoad = (int) ($busiestMember['today'] ?? 0) + (int) ($busiestMember['pending'] ?? 0);
+    $busiestLoad = (int) ($busiestMember['active_cases'] ?? 0);
     $capacityPercent = min(100, (int) round(($busiestLoad / max(1, 8)) * 100));
     $capacityTone = $capacityPercent >= 85 ? 'danger' : ($capacityPercent >= 60 ? 'warning' : 'success');
 
@@ -114,14 +128,18 @@
         [
             'icon' => '🎫',
             'label' => 'Operations Queue',
-            'tone' => $needsAction > 0 || $slaRisk > 0 ? 'warning' : 'success',
+            'tone' => $needsAction > 0 || $slaRiskCases > 0 || $missedAppointments > 0 ? 'warning' : 'success',
             'target' => '#operations-tab-performance',
             'status' => $needsAction > 0 ? 'Action needed' : 'On track',
             'meter' => [
                 ['label' => 'Active cases', 'value' => $activeCases, 'percent' => $activePercent, 'tone' => 'primary'],
                 ['label' => 'Needs action', 'value' => $needsAction, 'percent' => $actionPercent, 'tone' => $needsAction > 0 ? 'warning' : 'success'],
-                ['label' => 'SLA risk', 'value' => $slaRisk, 'percent' => $slaPercent, 'tone' => $slaRisk > 0 ? 'danger' : 'success'],
+                ['label' => 'SLA Risk Cases', 'value' => $slaRiskCases, 'percent' => $slaPercent, 'tone' => $slaRiskCases > 0 ? 'danger' : 'success'],
             ],
+            'metrics' => array_values(array_filter([
+                ['label' => 'Missed Appointments', 'value' => $missedAppointments, 'tone' => $missedAppointments > 0 ? 'danger' : 'muted'],
+                $hardwareSlaRisk > 0 ? ['label' => 'Hardware SLA Risk', 'value' => $hardwareSlaRisk, 'tone' => 'warning'] : null,
+            ])),
         ],
         [
             'icon' => '📅',
@@ -138,7 +156,7 @@
                 ['label' => 'Scheduled', 'value' => $scheduledToday],
                 ['label' => 'Completed', 'value' => $completedToday],
                 ['label' => 'Pending', 'value' => $pendingToday],
-                ['label' => 'Overdue', 'value' => $overdueToday, 'tone' => $overdueToday > 0 ? 'danger' : 'muted'],
+                ['label' => 'Missed Appointments', 'value' => $overdueToday, 'tone' => $overdueToday > 0 ? 'danger' : 'muted'],
             ],
         ],
         [

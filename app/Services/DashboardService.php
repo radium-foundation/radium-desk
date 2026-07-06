@@ -77,9 +77,17 @@ class DashboardService
         }
 
         if ($user->can('incidents.view')) {
+            $slaCounts = $snapshot->slaCounts();
+            $serviceSla = $snapshot->serviceSlaCounts();
+            $hardwareSla = $snapshot->hardwareSlaCounts();
+
             $stats = [
                 ...$stats,
-                ...$snapshot->slaCounts(),
+                ...$slaCounts,
+                'service_overdue_cases' => $serviceSla['overdue_cases'],
+                'service_warning_cases' => $serviceSla['warning_cases'],
+                'hardware_overdue_cases' => $hardwareSla['overdue_cases'],
+                'hardware_warning_cases' => $hardwareSla['warning_cases'],
             ];
         }
 

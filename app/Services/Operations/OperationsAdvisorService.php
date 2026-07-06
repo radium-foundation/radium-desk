@@ -236,11 +236,14 @@ class OperationsAdvisorService
     private function analyzeSlaRisk(OperationsAdvisorSnapshot $snapshot): array
     {
         $counts = $snapshot->slaCounts();
-        $likelyBreaches = $counts['overdue_cases'] + $counts['warning_cases'];
+        $serviceOverdue = $counts['service_overdue_cases'] ?? $counts['overdue_cases'];
+        $serviceWarning = $counts['service_warning_cases'] ?? $counts['warning_cases'];
+        $likelyBreaches = $serviceOverdue + $serviceWarning;
         $insights = [];
 
         if ($likelyBreaches > 0) {
-            $pending = $snapshot->pendingAdminIncidents();
+            $pending = $snapshot->pendingAdminIncidents()
+                ->filter(fn (Incident $incident): bool => ! \App\Models\Order::isHardwareOrderId($incident->order?->order_id));
             $now = now();
             $affected = $pending
                 ->filter(fn (Incident $incident): bool => in_array(
@@ -258,7 +261,7 @@ class OperationsAdvisorService
                     ? '1 SLA breach likely today'
                     : "{$likelyBreaches} SLA breaches likely today",
                 category: OperationsInsightCategory::SlaRisk,
-                severity: $counts['overdue_cases'] > 0 ? AIRiskLevel::High : AIRiskLevel::Medium,
+                severity: $serviceOverdue > 0 ? AIRiskLevel::High : AIRiskLevel::Medium,
                 confidence: AIConfidenceLevel::High,
                 confidenceScore: 90,
                 recommendation: 'Review overdue and warning cases first and reassign if queues are blocked.',

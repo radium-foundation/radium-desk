@@ -6,6 +6,7 @@ use App\Enums\WaitingReason;
 use App\Exceptions\ActiveWaitingStateExistsException;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Support\AppDateFormatter;
@@ -65,6 +66,45 @@ class IncidentWaitingStateService
 
             return $waitingState;
         });
+    }
+
+    public function clearSerialWaitingForOrder(Order $order, User $actor): void
+    {
+        if (! $order->isSerialLocked()) {
+            return;
+        }
+
+        $order->loadMissing('incidents.activeWaitingState');
+
+        foreach ($order->incidents as $incident) {
+            if (! $incident->isActive()) {
+                continue;
+            }
+
+            $waitingState = $this->activeFor($incident);
+
+            if ($waitingState === null || $waitingState->waiting_reason !== WaitingReason::SerialNumber) {
+                continue;
+            }
+
+            $this->clear($incident, $actor);
+        }
+    }
+
+    public function ensureSerialWaitingState(Incident $incident, User $actor): IncidentWaitingState
+    {
+        $existing = $this->activeFor($incident);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        return $this->start(
+            incident: $incident,
+            reason: WaitingReason::SerialNumber,
+            actor: $actor,
+            pauseSla: true,
+        );
     }
 
     public function clear(Incident $incident, User $actor, ?Carbon $clearedAt = null): IncidentWaitingState

@@ -74,16 +74,26 @@ class IraMemoryService
         $snapshot = DashboardSnapshot::load();
         $queueCounts = $snapshot->queueCounts();
         $slaCounts = $snapshot->slaCounts($at);
+        $serviceSlaCounts = $snapshot->serviceSlaCounts($at);
+        $hardwareSlaCounts = $snapshot->hardwareSlaCounts($at);
+        $supportSummary = $this->supportIntelligenceService->summary($at);
 
         $operations = [
             'open_cases' => $snapshot->openCount(),
             'scheduled' => $queueCounts[OperationQueue::Scheduled->value] ?? 0,
+            'scheduled_today' => $supportSummary->scheduledToday,
             'waiting' => $queueCounts[OperationQueue::WaitingCustomer->value] ?? 0,
-            'overdue' => $slaCounts['overdue_cases'] ?? 0,
-            'warning' => $slaCounts['warning_cases'] ?? 0,
+            'serial_response_pending' => $supportSummary->serialStillWaiting,
+            'overdue' => $serviceSlaCounts['overdue_cases'] ?? 0,
+            'warning' => $serviceSlaCounts['warning_cases'] ?? 0,
+            'hardware_overdue' => $hardwareSlaCounts['overdue_cases'] ?? 0,
+            'hardware_warning' => $hardwareSlaCounts['warning_cases'] ?? 0,
+            'missed_appointments' => $supportSummary->missedOverdue,
+            'total_overdue_cases' => $slaCounts['overdue_cases'] ?? 0,
+            'total_warning_cases' => $slaCounts['warning_cases'] ?? 0,
             'action_required' => $queueCounts[OperationQueue::ActionRequired->value] ?? 0,
             'attention' => $queueCounts[OperationQueue::Attention->value] ?? 0,
-            'support' => $this->supportIntelligenceService->summary($at)->toArray(),
+            'support' => $supportSummary->toArray(),
         ];
 
         $teamMembers = $this->teamMembers();

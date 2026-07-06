@@ -254,6 +254,15 @@ class MissingSerialAutomationService
         ]);
 
         $this->auditService->recordCompleted($order->fresh(), $reason);
+
+        $incident = $this->resolveIncident($order);
+
+        if ($incident !== null) {
+            $this->waitingStateService->clearSerialWaitingForOrder(
+                $order->fresh(),
+                $this->automationIdentityService->systemUser(),
+            );
+        }
     }
 
     /**
@@ -387,10 +396,9 @@ class MissingSerialAutomationService
             $order->update($updates);
 
             if ($this->waitingStateService->activeFor($incident) === null) {
-                $this->waitingStateService->start(
-                    incident: $incident,
-                    reason: WaitingReason::SerialNumber,
-                    actor: $this->automationIdentityService->systemUser(),
+                $this->waitingStateService->ensureSerialWaitingState(
+                    $incident->fresh(['activeWaitingState']),
+                    $this->automationIdentityService->systemUser(),
                 );
             }
 
@@ -592,6 +600,15 @@ class MissingSerialAutomationService
 
         if ($updates !== []) {
             $order->update($updates);
+        }
+
+        $incident = $this->resolveIncident($order);
+
+        if ($incident !== null) {
+            $this->waitingStateService->ensureSerialWaitingState(
+                $incident->fresh(['activeWaitingState']),
+                $this->automationIdentityService->systemUser(),
+            );
         }
     }
 }

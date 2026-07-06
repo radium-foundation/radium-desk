@@ -4,6 +4,7 @@ namespace App\Services\Operations;
 
 use App\Data\Operations\OperationsDashboardData;
 use App\Enums\IncidentStatus;
+use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
@@ -19,7 +20,7 @@ class OperationsAdvisorSnapshot
     /** @var Collection<int, Incident>|null */
     private ?Collection $activeIncidents = null;
 
-    /** @var array{overdue_cases: int, warning_cases: int}|null */
+    /** @var array{overdue_cases: int, warning_cases: int, service_overdue_cases: int, service_warning_cases: int, hardware_overdue_cases: int, hardware_warning_cases: int}|null */
     private ?array $slaCounts = null;
 
     /** @var Collection<int, Collection<int, Incident>>|null */
@@ -85,7 +86,14 @@ class OperationsAdvisorSnapshot
     }
 
     /**
-     * @return array{overdue_cases: int, warning_cases: int}
+     * @return array{
+     *     overdue_cases: int,
+     *     warning_cases: int,
+     *     service_overdue_cases: int,
+     *     service_warning_cases: int,
+     *     hardware_overdue_cases: int,
+     *     hardware_warning_cases: int
+     * }
      */
     public function slaCounts(): array
     {
@@ -96,14 +104,32 @@ class OperationsAdvisorSnapshot
         $now = now();
         $pending = $this->pendingAdminIncidents();
 
+        $pending = $this->pendingAdminIncidents();
+        $servicePending = $pending->filter(
+            fn (Incident $incident): bool => ! Order::isHardwareOrderId($incident->order?->order_id),
+        );
+        $hardwarePending = $pending->filter(
+            fn (Incident $incident): bool => Order::isHardwareOrderId($incident->order?->order_id),
+        );
+
         return $this->slaCounts = [
-            'overdue_cases' => $pending
-                ->filter(fn (Incident $incident): bool => $incident->slaStatus($now)->value === 'overdue')
-                ->count(),
-            'warning_cases' => $pending
-                ->filter(fn (Incident $incident): bool => $incident->slaStatus($now)->value === 'warning')
-                ->count(),
+            'overdue_cases' => $this->countSlaStatus($pending, $now, ServiceCaseSlaStatus::Overdue),
+            'warning_cases' => $this->countSlaStatus($pending, $now, ServiceCaseSlaStatus::Warning),
+            'service_overdue_cases' => $this->countSlaStatus($servicePending, $now, ServiceCaseSlaStatus::Overdue),
+            'service_warning_cases' => $this->countSlaStatus($servicePending, $now, ServiceCaseSlaStatus::Warning),
+            'hardware_overdue_cases' => $this->countSlaStatus($hardwarePending, $now, ServiceCaseSlaStatus::Overdue),
+            'hardware_warning_cases' => $this->countSlaStatus($hardwarePending, $now, ServiceCaseSlaStatus::Warning),
         ];
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $incidents
+     */
+    private function countSlaStatus(Collection $incidents, \Illuminate\Support\Carbon $now, ServiceCaseSlaStatus $status): int
+    {
+        return $incidents
+            ->filter(fn (Incident $incident): bool => $incident->slaStatus($now) === $status)
+            ->count();
     }
 
     /**

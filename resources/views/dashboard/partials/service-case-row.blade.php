@@ -1,5 +1,8 @@
 @php
     use App\Enums\IncidentStatus;
+    use App\Enums\OperationQueue;
+    use App\Enums\ServiceCaseSlaStatus;
+    use App\Services\Operations\OperationsQueueClassifier;
 
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
@@ -19,6 +22,11 @@
         $order?->displayDeviceModelName(),
     ], fn ($value) => filled($value));
     $searchText = strtolower(implode(' ', $searchParts));
+    $queueClassifier = app(OperationsQueueClassifier::class);
+    $operationQueue = $queueClassifier->classify($serviceCase);
+    $slaStatusForRisk = $serviceCase->slaStatus();
+    $showScheduledSlaRisk = $operationQueue === OperationQueue::Scheduled
+        && in_array($slaStatusForRisk, [ServiceCaseSlaStatus::Warning, ServiceCaseSlaStatus::Overdue], true);
 @endphp
 
 <tr id="service-case-row-{{ $serviceCase->id }}"
@@ -48,6 +56,10 @@
             </a>
             @if($serviceCase->high_priority)
                 @include('dashboard.partials.high-priority-badge')
+            @endif
+            @if($showScheduledSlaRisk)
+                <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle"
+                      title="SLA at risk while case remains scheduled">SLA at risk</span>
             @endif
         </div>
     </td>

@@ -353,7 +353,7 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('operations-support-intelligence-summary', false)
             ->assertSee('Show details', false)
             ->assertSee('Shipra', false)
-            ->assertSee('Active cases', false);
+            ->assertSee('Action needed', false);
     }
 
     public function test_live_endpoint_lazy_loads_tab_and_health_details(): void
@@ -619,8 +619,10 @@ class OperationsDashboardTest extends TestCase
 
         $this->assertNotNull($shipraWorkload);
         $this->assertSame(2, $shipraWorkload['today']);
-        $this->assertSame(3, $shipraWorkload['pending']);
-        $this->assertArrayHasKey('active_cases', $shipraWorkload);
+        $this->assertSame(2, $shipraWorkload['scheduled_today']);
+        $this->assertSame(1, $shipraWorkload['scheduled_future']);
+        $this->assertSame(1, $shipraWorkload['pending']);
+        $this->assertSame(2, $shipraWorkload['active_cases']);
         $this->assertNotNull($otherWorkload);
         $this->assertSame(0, $otherWorkload['today']);
         $this->assertSame(1, $otherWorkload['pending']);

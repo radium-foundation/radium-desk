@@ -5,7 +5,8 @@ namespace App\Data\Operations;
 readonly class SupportIntelligenceSummary
 {
     /**
-     * @param  list<array{name: string, today: int, pending: int, active_cases: int}>  $teamWorkload
+     * @param  list<array{name: string, action_needed: int, today: int, scheduled_today: int, scheduled_future: int, active_cases: int}>  $teamWorkload
+     * @param  array<string, int>  $operationalMetrics
      */
     public function __construct(
         public int $scheduledToday,
@@ -18,6 +19,7 @@ readonly class SupportIntelligenceSummary
         public int $serialReceived,
         public int $serialStillWaiting,
         public array $teamWorkload,
+        public array $operationalMetrics = [],
     ) {}
 
     /**
@@ -39,9 +41,10 @@ readonly class SupportIntelligenceSummary
             'customer_response' => [
                 'serial_requested' => $this->serialRequested,
                 'serial_received' => $this->serialReceived,
-                'still_waiting' => $this->serialStillWaiting,
+                'serial_response_pending' => $this->serialStillWaiting,
             ],
             'team_workload' => $this->teamWorkload,
+            'operational' => $this->operationalMetrics,
         ];
     }
 }

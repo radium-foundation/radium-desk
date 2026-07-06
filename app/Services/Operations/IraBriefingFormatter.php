@@ -86,8 +86,8 @@ class IraBriefingFormatter
 
         return [
             'Action Required: '.(int) ($operations['action_required'] ?? $operations['open_cases'] ?? 0),
-            'Scheduled Today: '.(int) ($operations['scheduled'] ?? 0),
-            'Waiting Customer: '.(int) ($operations['waiting'] ?? 0),
+            'Scheduled Today: '.(int) ($operations['scheduled_today'] ?? $operations['support']['today']['scheduled'] ?? 0),
+            'Customer Waiting: '.(int) ($operations['waiting'] ?? 0),
         ];
     }
 
