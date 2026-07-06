@@ -90,7 +90,7 @@ class DashboardTest extends TestCase
             ->assertRedirect(route('dashboard'));
     }
 
-    public function test_admin_dashboard_defaults_to_action_required_queue(): void
+    public function test_admin_dashboard_defaults_to_attention_queue(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -98,12 +98,12 @@ class DashboardTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Action Required')
+            ->assertSee('Ready Queue')
             ->assertSee('Attention')
             ->assertSee('Hardware')
             ->assertDontSee('dashboard-module-nav', false)
             ->assertSee('aria-selected="true"', false)
-            ->assertSee('>Action Required<', false);
+            ->assertSee('>Attention<', false);
     }
 
     public function test_superadmin_dashboard_uses_admin_operation_queues(): void
@@ -114,7 +114,7 @@ class DashboardTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Action Required')
+            ->assertSee('Ready Queue')
             ->assertSee('Hardware')
             ->assertDontSee('>Team<', false);
     }

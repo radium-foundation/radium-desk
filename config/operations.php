@@ -5,7 +5,7 @@ return [
 
     'queues' => [
         'action_required' => [
-            'label' => 'Action Required',
+            'label' => 'Ready Queue',
             'icon' => 'bi-lightning-charge-fill',
             'tone' => 'warning',
         ],

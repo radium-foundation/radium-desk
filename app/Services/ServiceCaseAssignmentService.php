@@ -91,7 +91,12 @@ class ServiceCaseAssignmentService
         User $actor,
         ?Carbon $at = null,
     ): Incident {
-        $incident = $incident->fresh(['assignee']);
+        $incident = $incident->fresh(['assignee', 'supportAppointments', 'order']);
+
+        if ($incident->hasActiveSupportAppointment()) {
+            return app(\App\Services\Operations\SupportAppointmentSmartAssignmentService::class)
+                ->assignForActiveSupport($incident, $actor);
+        }
 
         if ($incident->assigned_to_user_id !== null) {
             return $incident;
@@ -213,6 +218,44 @@ class ServiceCaseAssignmentService
         );
 
         return $incident->fresh(['assignee']);
+    }
+
+    public function reassignToSupportAgentViaRoundRobin(
+        Incident $incident,
+        User $actor,
+        ?Carbon $at = null,
+    ): Incident {
+        $incident = $incident->fresh(['assignee', 'order']);
+
+        $currentAssignee = $incident->assignee;
+
+        if ($currentAssignee !== null && $this->isSupportAgent($currentAssignee)) {
+            return $incident;
+        }
+
+        if ($currentAssignee !== null && $this->orderRoutingService->isDesignatedAssignee($incident, $currentAssignee)) {
+            return $incident;
+        }
+
+        if (! config('service_case_assignment.round_robin_enabled', true)) {
+            return $incident;
+        }
+
+        $assignee = $this->resolveAgentRoundRobin($at);
+
+        if ($assignee === null) {
+            return $incident;
+        }
+
+        return $this->applyAssignment(
+            incident: $this->clearAutomationPending($incident, $actor),
+            assignee: $assignee,
+            actor: $actor,
+            event: 'service_case.reassigned',
+            extraNewValues: [
+                'reason' => 'validation_failed_support_queue',
+            ],
+        );
     }
 
     public function reassign(Incident $incident, User $assignee, User $actor): Incident
@@ -572,13 +615,21 @@ class ServiceCaseAssignmentService
         }
     }
 
-    private function isSupportAgent(User $user): bool
+    public function isSupportAgent(User $user): bool
     {
         return $user->hasRole(RolePermissionSeeder::ROLE_AGENT)
             && ! $user->hasAnyRole([
                 RolePermissionSeeder::ROLE_ADMIN,
                 RolePermissionSeeder::ROLE_SUPERADMIN,
             ]);
+    }
+
+    public function isShiftAdmin(User $user): bool
+    {
+        return $user->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ]);
     }
 
     private function findValidAdminAssigneeById(int $userId): ?User

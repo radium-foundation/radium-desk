@@ -29,7 +29,7 @@ class DashboardPersonalizationServiceTest extends TestCase
             $this->service->defaultViewFor(null),
         );
         $this->assertSame(
-            DashboardPersonalizationService::QUEUE_ACTION_REQUIRED,
+            DashboardPersonalizationService::QUEUE_ATTENTION,
             $this->service->defaultQueueFor(null),
         );
     }
@@ -46,8 +46,8 @@ class DashboardPersonalizationServiceTest extends TestCase
         $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
         $this->assertSame(DashboardPersonalizationService::QUEUE_MY_WORK, $this->service->defaultQueueFor($agent));
-        $this->assertSame(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $this->service->defaultQueueFor($admin));
-        $this->assertSame(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $this->service->defaultQueueFor($superadmin));
+        $this->assertSame(DashboardPersonalizationService::QUEUE_ATTENTION, $this->service->defaultQueueFor($admin));
+        $this->assertSame(DashboardPersonalizationService::QUEUE_ATTENTION, $this->service->defaultQueueFor($superadmin));
     }
 
     public function test_hardware_aliases_normalize_to_hardware_queue(): void

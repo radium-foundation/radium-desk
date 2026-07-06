@@ -127,6 +127,17 @@ class Incident extends Model
         return $this->hasMany(SupportAppointment::class);
     }
 
+    public function hasActiveSupportAppointment(): bool
+    {
+        if ($this->relationLoaded('supportAppointments')) {
+            return $this->supportAppointments->contains(
+                fn (SupportAppointment $appointment): bool => $appointment->isScheduled(),
+            );
+        }
+
+        return $this->supportAppointments()->scheduled()->exists();
+    }
+
     public function getDisplayReferenceAttribute(): string
     {
         if ($this->reference_no === null || $this->reference_no === '') {

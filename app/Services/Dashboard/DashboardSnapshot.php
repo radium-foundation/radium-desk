@@ -418,7 +418,7 @@ class DashboardSnapshot
             'pending_admin' => OperationQueue::ActionRequired->value,
             'pending_review' => OperationQueue::PendingReview->value,
             'my_cases' => OperationQueue::MyWork->value,
-            default => OperationQueue::ActionRequired->value,
+            default => OperationQueue::Attention->value,
         };
     }
 

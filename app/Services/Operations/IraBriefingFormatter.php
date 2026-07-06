@@ -85,7 +85,7 @@ class IraBriefingFormatter
         $operations = $snapshot->operations;
 
         return [
-            'Action Required: '.(int) ($operations['action_required'] ?? $operations['open_cases'] ?? 0),
+            'Ready Queue: '.(int) ($operations['action_required'] ?? $operations['open_cases'] ?? 0),
             'Scheduled Today: '.(int) ($operations['scheduled_today'] ?? $operations['support']['today']['scheduled'] ?? 0),
             'Customer Waiting: '.(int) ($operations['waiting'] ?? 0),
         ];

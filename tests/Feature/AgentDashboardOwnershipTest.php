@@ -178,7 +178,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Action Required')
+            ->assertSee('Ready Queue')
             ->assertSee('Attention')
             ->assertSee('Customer Waiting')
             ->assertSee('>Open<', false)

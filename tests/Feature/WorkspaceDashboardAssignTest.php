@@ -66,7 +66,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         $incident->update(['assigned_to_user_id' => $admin->id]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['queue' => 'action_required']))
             ->assertOk()
             ->assertSee('data-workspace-context="dashboard"', false)
             ->assertSee('id="workspace-context-slugs"', false)
@@ -127,7 +127,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         $incident->update(['assigned_to_user_id' => $admin->id]);
 
         $response = $this->actingAs($admin)
-            ->getJson(route('dashboard.live'))
+            ->getJson(route('dashboard.live', ['queue' => 'action_required']))
             ->assertOk();
 
         $this->assertStringContainsString(

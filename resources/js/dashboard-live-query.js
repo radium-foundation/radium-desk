@@ -1,5 +1,5 @@
 export const buildDashboardLiveQuery = (pageRoot, extras = {}) => {
-    const fallbackQueue = extras.fallbackQueue ?? 'action_required';
+    const fallbackQueue = extras.fallbackQueue ?? 'attention';
     const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? fallbackQueue;
     const filter = pageRoot.dataset.liveFilter ?? queue;
     const query = new URLSearchParams();

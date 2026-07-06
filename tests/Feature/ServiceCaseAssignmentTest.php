@@ -564,7 +564,7 @@ class ServiceCaseAssignmentTest extends TestCase
         ]);
 
         $this->actingAs($avinash)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['queue' => 'action_required']))
             ->assertOk()
             ->assertSee('Assigned To', false)
             ->assertSee('aria-label="Assigned To: Avinash Jha"', false)

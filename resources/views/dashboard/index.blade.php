@@ -6,7 +6,7 @@
     @php
         use App\Services\DashboardPersonalizationService;
 
-        $operationQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
+        $operationQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ATTENTION;
     @endphp
 
     <div class="app-content-compact"

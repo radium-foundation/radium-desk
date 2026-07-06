@@ -9,6 +9,7 @@ use App\Enums\SerialValidationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Operations\SupportAppointmentSmartAssignmentService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
@@ -100,16 +101,39 @@ class ServiceCaseAssignmentEligibilityService
             $incident = Incident::query()
                 ->whereKey($incidentId)
                 ->lockForUpdate()
-                ->with(['order', 'assignee'])
+                ->with(['order', 'assignee', 'supportAppointments'])
                 ->first();
 
             if ($incident === null || $incident->status === IncidentStatus::Closed) {
                 return;
             }
 
+            if ($incident->hasActiveSupportAppointment()) {
+                app(SupportAppointmentSmartAssignmentService::class)
+                    ->assignForActiveSupport($incident, $actor);
+
+                return;
+            }
+
             $order = $incident->order;
 
-            if ($order === null || ! $this->passesValidationForOrder($order)) {
+            if ($order === null) {
+                return;
+            }
+
+            if (! $this->passesValidationForOrder($order)) {
+                $assignee = $incident->assignee;
+
+                if ($assignee !== null
+                    && $this->isAdminUser($assignee)
+                    && ! $this->orderRoutingService->isDesignatedAssignee($incident, $assignee)
+                ) {
+                    $this->assignmentService->reassignToSupportAgentViaRoundRobin(
+                        incident: $incident,
+                        actor: $actor,
+                    );
+                }
+
                 return;
             }
 

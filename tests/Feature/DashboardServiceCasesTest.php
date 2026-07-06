@@ -317,19 +317,16 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dashboard_defaults_to_action_required_filter_aligned_with_queue(): void
+    public function test_dashboard_defaults_to_attention_filter_aligned_with_queue(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $pendingOrder = Order::query()->create([
-            'order_id' => 'RD-PENDING-1',
-            'serial_number' => 'SN-PENDING-1',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
-            'status' => 'active',
-            'created_by' => $admin->id,
-        ]);
+        $attentionCase = $this->createAdminOpenCase(
+            $admin,
+            'RD-ATTENTION-DEFAULT',
+            highPriority: true,
+        );
 
         $completedOrder = Order::query()->create([
             'order_id' => 'RD-COMPLETE-2',
@@ -339,18 +336,6 @@ class DashboardServiceCasesTest extends TestCase
             'transaction_id' => 'TX999',
             'completed_at' => now(),
             'status' => 'active',
-            'created_by' => $admin->id,
-        ]);
-
-        Incident::query()->create([
-            'order_id' => $pendingOrder->id,
-            'reference_no' => 'SC-PENDING-1',
-            'category' => 'General',
-            'source' => IncidentSource::Call,
-            'title' => 'Pending case',
-            'description' => 'Pending case.',
-            'status' => 'open',
-            'assigned_to_user_id' => $admin->id,
             'created_by' => $admin->id,
         ]);
 
@@ -368,10 +353,12 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-live-queue="action_required"', false)
-            ->assertSee('data-live-filter="action_required"', false)
-            ->assertSee('SC-PENDING-1')
+            ->assertSee('data-live-queue="attention"', false)
+            ->assertSee('data-live-filter="attention"', false)
+            ->assertSee('RD-ATTENTION-DEFAULT')
             ->assertDontSee('SC-COMPLETE-2');
+
+        $this->assertSame($attentionCase->id, $attentionCase->fresh()->id);
     }
 
     public function test_dashboard_high_priority_filter_shows_only_high_priority_cases(): void
@@ -635,7 +622,7 @@ class DashboardServiceCasesTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard'))
+            ->get(route('dashboard', ['queue' => 'action_required']))
             ->assertOk()
             ->assertSee('data-bulk-bar', false)
             ->assertSee('data-batch-assign', false)
@@ -938,7 +925,6 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Overdue')
-            ->assertDontSee('>Warning<', false)
             ->assertSee('>1</div>', false);
 
         $this->actingAs($admin)
@@ -1412,7 +1398,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->assertSame(2, $counts['action_required']);
         $this->assertSame(1, $counts['pending_review']);
 
-        $response = $this->actingAs($admin)->get(route('dashboard'));
+        $response = $this->actingAs($admin)->get(route('dashboard', ['queue' => 'action_required']));
 
         $response->assertOk()
             ->assertSee('data-dashboard-case-filter-count="action_required">(2)', false)

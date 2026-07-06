@@ -28,13 +28,30 @@ class SupportAppointmentSmartAssignmentService
         SupportAppointment $appointment,
         ?User $actor = null,
     ): Incident {
+        return $this->assignForActiveSupport($incident, $actor, $appointment);
+    }
+
+    public function assignForActiveSupport(
+        Incident $incident,
+        ?User $actor = null,
+        ?SupportAppointment $appointment = null,
+    ): Incident {
         if (! config('smart_assignment.enabled', true)) {
             return $incident->fresh(['assignee']);
         }
 
-        $incident = $incident->fresh(['assignee']);
+        $incident = $incident->fresh(['assignee', 'supportAppointments']);
 
-        if ($incident->assigned_to_user_id !== null) {
+        $appointment ??= $incident->supportAppointments
+            ->first(fn (SupportAppointment $candidate): bool => $candidate->isScheduled());
+
+        if ($appointment === null) {
+            return $incident;
+        }
+
+        $currentAssignee = $incident->assignee;
+
+        if ($currentAssignee !== null && $this->assignmentService->isSupportAgent($currentAssignee)) {
             return $incident;
         }
 
@@ -48,6 +65,8 @@ class SupportAppointmentSmartAssignmentService
         $assignee = $result->assignee;
         assert($assignee instanceof User);
 
+        $isReassignment = $incident->assigned_to_user_id !== null;
+
         $incident = $this->assignmentService->assignWithAuditContext(
             incident: $incident,
             assignee: $assignee,
@@ -58,6 +77,7 @@ class SupportAppointmentSmartAssignmentService
                 'assignment_trigger' => 'support_appointment_booked',
                 'appointment_id' => $appointment->id,
             ],
+            event: $isReassignment ? 'service_case.reassigned' : 'service_case.assigned',
         );
 
         event(new SupportAppointmentSmartAssigned(
@@ -81,7 +101,7 @@ class SupportAppointmentSmartAssignmentService
             event: 'service_case.smart_assignment_unassigned',
             auditable: $incident,
             oldValues: [
-                'assigned_to_user_id' => null,
+                'assigned_to_user_id' => $incident->assigned_to_user_id,
             ],
             newValues: [
                 'assigned_to_user_id' => null,

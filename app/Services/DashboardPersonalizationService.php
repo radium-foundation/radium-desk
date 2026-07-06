@@ -53,7 +53,7 @@ class DashboardPersonalizationService
     public function defaultQueueFor(?User $user): string
     {
         if ($user === null) {
-            return self::QUEUE_ACTION_REQUIRED;
+            return self::QUEUE_ATTENTION;
         }
 
         if ($this->operationsRoles->isHardwareTeam($user)) {
@@ -61,7 +61,7 @@ class DashboardPersonalizationService
         }
 
         if ($this->operationsRoles->usesAdminQueues($user)) {
-            return self::QUEUE_ACTION_REQUIRED;
+            return self::QUEUE_ATTENTION;
         }
 
         return self::QUEUE_MY_WORK;
@@ -74,17 +74,17 @@ class DashboardPersonalizationService
     {
         if ($this->operationsRoles->usesAdminQueues($user)) {
             $queues = [
+                self::QUEUE_ATTENTION,
                 self::QUEUE_ACTION_REQUIRED,
-                self::QUEUE_PENDING_REVIEW,
                 self::QUEUE_SCHEDULED,
                 self::QUEUE_WAITING_CUSTOMER,
-                self::QUEUE_ATTENTION,
             ];
 
             if ($this->canViewHardwareOrders($user)) {
                 $queues[] = self::QUEUE_HARDWARE;
             }
 
+            $queues[] = self::QUEUE_PENDING_REVIEW;
             $queues[] = self::QUEUE_COMPLETED;
 
             return $queues;
@@ -395,7 +395,7 @@ class DashboardPersonalizationService
 
         if ($filter === 'pending_admin' || $filter === 'all' || $view === self::VIEW_ALL || $view === self::VIEW_TEAM) {
             return $this->operationsRoles->usesAdminQueues($user)
-                ? self::QUEUE_ACTION_REQUIRED
+                ? self::QUEUE_ATTENTION
                 : self::QUEUE_MY_WORK;
         }
 
@@ -413,7 +413,7 @@ class DashboardPersonalizationService
             self::QUEUE_PENDING_REVIEW,
             self::QUEUE_SCHEDULED,
             self::QUEUE_WAITING_CUSTOMER => $queue,
-            default => self::QUEUE_ACTION_REQUIRED,
+            default => self::QUEUE_ATTENTION,
         };
     }
 

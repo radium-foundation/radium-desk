@@ -161,6 +161,28 @@ class SmartAssignmentTest extends TestCase
         Event::assertDispatched(\App\Events\Operations\SupportAppointmentSmartAssigned::class);
     }
 
+    public function test_shift_admin_reassigned_when_appointment_booked(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create(['name' => 'Shift Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agent = $this->createSupportAgent('Booking Agent', TeamAvailabilityStatus::Available);
+
+        $incident = $this->createUnassignedIncident();
+        $incident->update(['assigned_to_user_id' => $admin->id]);
+
+        $this->bookAppointment($incident);
+
+        $incident->refresh();
+        $this->assertSame($agent->id, $incident->assigned_to_user_id);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.reassigned',
+            'auditable_id' => $incident->id,
+        ]);
+    }
+
     public function test_manual_assignment_is_preserved(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));

@@ -160,7 +160,7 @@ class OperationsModelFoundationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Action Required')
+            ->assertSee('Ready Queue')
             ->assertSee('Pending Review')
             ->assertSee('Waiting Customer')
             ->assertSee('Scheduled')
@@ -180,7 +180,7 @@ class OperationsModelFoundationTest extends TestCase
             ->assertOk()
             ->assertSee('My Work')
             ->assertSee('Waiting Customer')
-            ->assertDontSee('Action Required')
+            ->assertDontSee('Ready Queue')
             ->assertDontSee('dashboard-module-nav', false);
     }
 

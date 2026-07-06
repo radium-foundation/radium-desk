@@ -34,12 +34,12 @@ enum OperationQueue: string
     public static function adminValues(): array
     {
         return [
+            self::Attention->value,
             self::ActionRequired->value,
-            self::PendingReview->value,
             self::Scheduled->value,
             self::WaitingCustomer->value,
-            self::Attention->value,
             self::Hardware->value,
+            self::PendingReview->value,
             self::Completed->value,
         ];
     }
