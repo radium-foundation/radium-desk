@@ -16,6 +16,7 @@ use App\Services\AutomationIdentityService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\RemarkService;
 use App\Services\ServiceCaseStatusService;
+use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -31,8 +32,6 @@ Follow-up reminder sent.
 No response received within 24 hours after reminder.
 Closed automatically.
 TEXT;
-
-    public const FOLLOWUP_COOLDOWN_HOURS = 24;
 
     public function __construct(
         private readonly AuditLogService $auditLogService,
@@ -78,6 +77,32 @@ TEXT;
         ]);
     }
 
+    public static function autoCloseCutoffAt(Carbon $followupSentAt): Carbon
+    {
+        $timezone = AppDateFormatter::timezone();
+        $sentAt = $followupSentAt->copy()->timezone($timezone);
+        [$hour, $minute] = self::businessCutoffParts();
+        $sameDayCutoff = $sentAt->copy()->startOfDay()->setTime($hour, $minute);
+
+        if ($sentAt->lt($sameDayCutoff)) {
+            return $sameDayCutoff;
+        }
+
+        return $sameDayCutoff->addDay();
+    }
+
+    public static function isAutoCloseCutoffReached(
+        Carbon $followupSentAt,
+        ?Carbon $referenceAt = null,
+    ): bool {
+        $referenceAt ??= Carbon::now();
+
+        return $referenceAt
+            ->copy()
+            ->timezone(AppDateFormatter::timezone())
+            ->gte(self::autoCloseCutoffAt($followupSentAt));
+    }
+
     public function autoCloseForNoResponse(PlannedAutomationAction $action): ActionHandlerResult
     {
         $waitingState = $action->waitingState->fresh(['incident.order']);
@@ -96,8 +121,8 @@ TEXT;
 
         $followupSentAt = $waitingState->customer_followup_sent_at;
 
-        if ($followupSentAt->copy()->addHours(self::FOLLOWUP_COOLDOWN_HOURS)->isFuture()) {
-            return ActionHandlerResult::failure('Follow-up cooldown has not elapsed.');
+        if (! self::isAutoCloseCutoffReached($followupSentAt)) {
+            return ActionHandlerResult::failure('Business cutoff has not been reached.');
         }
 
         $incident = $waitingState->incident;
@@ -181,6 +206,20 @@ TEXT;
             'resolution_reason' => $autoClosedAudit?->new_values['resolution_reason'] ?? null,
             'resolution_reason_label' => $autoClosedAudit?->new_values['resolution_reason_label'] ?? null,
             'auto_closed_at' => $autoClosedAudit?->created_at,
+        ];
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     */
+    private static function businessCutoffParts(): array
+    {
+        $cutoffTime = (string) config('workforce_calendar.default_work_end', '18:00');
+        $parts = explode(':', $cutoffTime);
+
+        return [
+            (int) ($parts[0] ?? 18),
+            (int) ($parts[1] ?? 0),
         ];
     }
 

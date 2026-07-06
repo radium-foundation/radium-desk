@@ -143,10 +143,10 @@ class CustomerWaitingLifecycleTest extends TestCase
         );
     }
 
-    public function test_24_hours_after_followup_auto_closes_case_with_remark(): void
+    public function test_followup_sent_before_cutoff_closes_same_day_at_business_cutoff(): void
     {
         [$agent, $incident, $waitingState] = $this->createWaitingScenario(
-            startedAt: Carbon::parse('2026-07-06 09:00:00'),
+            startedAt: Carbon::parse('2026-07-06 10:00:00'),
         );
 
         Carbon::setTestNow('2026-07-07 10:00:00');
@@ -154,9 +154,16 @@ class CustomerWaitingLifecycleTest extends TestCase
 
         $waitingState = $waitingState->fresh();
         $this->assertNotNull($waitingState->customer_followup_sent_at);
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
 
-        Carbon::setTestNow('2026-07-08 10:00:00');
-        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-08 10:00:00'));
+        Carbon::setTestNow('2026-07-07 17:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 17:00:00'));
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+        $this->assertNull($waitingState->fresh()->cleared_at);
+
+        Carbon::setTestNow('2026-07-07 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 18:00:00'));
 
         $incident = $incident->fresh();
         $waitingState = $waitingState->fresh();
@@ -179,15 +186,60 @@ class CustomerWaitingLifecycleTest extends TestCase
             'remarkable_id' => $incident->id,
             'body' => CustomerWaitingLifecycleService::AUTO_CLOSE_REMARK,
         ]);
+    }
 
-        $autoClosedAudit = $incident->fresh()->remarks()->first();
-        $this->assertNotNull($autoClosedAudit);
+    public function test_followup_sent_after_cutoff_closes_next_day_at_business_cutoff(): void
+    {
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-06 20:00:00'),
+        );
+
+        Carbon::setTestNow('2026-07-07 20:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 20:00:00'));
+
+        $waitingState = $waitingState->fresh();
+        $this->assertNotNull($waitingState->customer_followup_sent_at);
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+
+        Carbon::setTestNow('2026-07-07 21:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 21:00:00'));
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+
+        Carbon::setTestNow('2026-07-08 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-08 18:00:00'));
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertNotNull($waitingState->fresh()->cleared_at);
+    }
+
+    public function test_customer_response_before_cutoff_prevents_auto_close(): void
+    {
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-06 10:00:00'),
+        );
+
+        Carbon::setTestNow('2026-07-07 10:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 10:00:00'));
+
+        Carbon::setTestNow('2026-07-07 17:00:00');
+        app(IncidentWaitingStateService::class)->clear($incident->fresh(), $agent);
+
+        Carbon::setTestNow('2026-07-07 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 18:00:00'));
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+        $this->assertDatabaseMissing('automation_executions', [
+            'waiting_state_id' => $waitingState->id,
+            'action_key' => 'customer_not_responding',
+            'status' => AutomationExecutionStatus::Success->value,
+        ]);
     }
 
     public function test_customer_return_after_auto_close_shows_history_to_ira(): void
     {
         [$agent, $incident] = array_slice(
-            $this->createWaitingScenario(startedAt: Carbon::parse('2026-07-06 09:00:00')),
+            $this->createWaitingScenario(startedAt: Carbon::parse('2026-07-06 10:00:00')),
             0,
             2,
         );
@@ -195,8 +247,8 @@ class CustomerWaitingLifecycleTest extends TestCase
         Carbon::setTestNow('2026-07-07 10:00:00');
         app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 10:00:00'));
 
-        Carbon::setTestNow('2026-07-08 10:00:00');
-        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-08 10:00:00'));
+        Carbon::setTestNow('2026-07-07 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 18:00:00'));
 
         app(ServiceCaseStatusService::class)->reopen($incident->fresh(), $agent);
 

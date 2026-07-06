@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Data\AutomationPolicyDefinition;
+use App\Data\AutomationPolicyAction;
 use App\Data\AutomationPolicyDueAction;
+use App\Enums\AutomationPolicyActionType;
 use App\Exceptions\InvalidAutomationPolicyException;
 use App\Exceptions\UnknownAutomationPolicyException;
 use App\Models\IncidentWaitingState;
+use App\Services\Automation\CustomerWaitingLifecycleService;
 use Illuminate\Support\Carbon;
 
 class AutomationPolicyService
@@ -68,6 +71,10 @@ class AutomationPolicyService
             }
 
             foreach ($entry->actions as $action) {
+                if (! $this->actionIsDue($waitingState, $action, $referenceAt)) {
+                    continue;
+                }
+
                 $dueActions[] = new AutomationPolicyDueAction(
                     day: $entry->day,
                     scheduledAt: $scheduledAt,
@@ -77,5 +84,31 @@ class AutomationPolicyService
         }
 
         return $dueActions;
+    }
+
+    private function actionIsDue(
+        IncidentWaitingState $waitingState,
+        AutomationPolicyAction $action,
+        Carbon $referenceAt,
+    ): bool {
+        if ($waitingState->reminder_policy_key !== 'customer_waiting_default') {
+            return true;
+        }
+
+        if ($action->type !== AutomationPolicyActionType::AutoClose
+            || $action->key !== 'customer_not_responding') {
+            return true;
+        }
+
+        $followupSentAt = $waitingState->customer_followup_sent_at;
+
+        if ($followupSentAt === null) {
+            return false;
+        }
+
+        return CustomerWaitingLifecycleService::isAutoCloseCutoffReached(
+            $followupSentAt,
+            $referenceAt,
+        );
     }
 }

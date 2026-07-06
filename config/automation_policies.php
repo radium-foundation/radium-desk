@@ -73,11 +73,6 @@ return [
                             'type' => 'whatsapp_template',
                             'key' => 'customer_waiting_followup',
                         ],
-                    ],
-                ],
-                [
-                    'day' => 2,
-                    'actions' => [
                         [
                             'type' => 'auto_close',
                             'key' => 'customer_not_responding',
