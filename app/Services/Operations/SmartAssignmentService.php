@@ -19,6 +19,7 @@ class SmartAssignmentService
         private readonly WorkCalendarService $workCalendarService,
         private readonly TeamMemberActivityService $activityService,
         private readonly OperationsQueueClassifier $queueClassifier,
+        private readonly OperationsAssignmentEligibilityService $assignmentEligibilityService,
     ) {}
 
     public function resolveBestAssignee(?Carbon $at = null): SmartAssignmentResult
@@ -60,27 +61,14 @@ class SmartAssignmentService
             ->role(RolePermissionSeeder::SUPPORT_TEAM_ROLES)
             ->orderBy('id')
             ->get()
-            ->filter(fn (User $user): bool => $this->isEligible($user, $at))
+            ->filter(fn (User $user): bool => $this->assignmentEligibilityService->isEligible($user, $at))
             ->values()
             ->all();
     }
 
     public function isEligible(User $user, ?Carbon $at = null): bool
     {
-        if (! $user->is_active || $user->trashed()) {
-            return false;
-        }
-
-        if (! $this->workCalendarService->isEligibleForAssignment($user, $at)) {
-            return false;
-        }
-
-        $status = $this->availabilityService->statusFor($user);
-
-        return in_array($status, [
-            TeamAvailabilityStatus::Available,
-            TeamAvailabilityStatus::Busy,
-        ], true);
+        return $this->assignmentEligibilityService->isEligible($user, $at);
     }
 
     /**

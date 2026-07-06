@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\LeaveRequestStatus;
+use App\Enums\TeamAvailabilityStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
+use App\Models\LeaveRequest;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
@@ -86,12 +89,18 @@ class ServiceCaseAssignmentTest extends TestCase
         ]);
     }
 
-    private function createAgentUser(string $email, string $name, bool $active = true): User
-    {
+    private function createAgentUser(
+        string $email,
+        string $name,
+        bool $active = true,
+        TeamAvailabilityStatus $availability = TeamAvailabilityStatus::Available,
+    ): User {
         $user = User::factory()->create([
             'name' => $name,
             'email' => $email,
             'is_active' => $active,
+            'availability_status' => $availability,
+            'availability_updated_at' => now(),
         ]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
@@ -136,6 +145,136 @@ class ServiceCaseAssignmentTest extends TestCase
         $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
 
         $this->assertSame($activeAgent->id, $result->assigned_to_user_id);
+    }
+
+    public function test_round_robin_assigns_available_agent(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $availableAgent = $this->createAgentUser('available@test.com', 'Available Agent');
+        $this->createAgentUser(
+            'offline@test.com',
+            'Offline Agent',
+            availability: TeamAvailabilityStatus::Offline,
+        );
+
+        $incident = $this->createIncidentForAssignmentTest();
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($availableAgent->id, $result->assigned_to_user_id);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_round_robin_skips_offline_agents(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $this->createAgentUser(
+            'offline-a@test.com',
+            'Offline Agent A',
+            availability: TeamAvailabilityStatus::Offline,
+        );
+        $availableAgent = $this->createAgentUser('available-b@test.com', 'Available Agent B');
+
+        $incident = $this->createIncidentForAssignmentTest();
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($availableAgent->id, $result->assigned_to_user_id);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_offline_agent_keeps_existing_assignment_on_create(): void
+    {
+        $offlineAgent = $this->createAgentUser(
+            'offline-owner@test.com',
+            'Offline Owner',
+            availability: TeamAvailabilityStatus::Offline,
+        );
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $incident = Incident::query()->create([
+            'order_id' => $this->createIncidentForAssignmentTest($actor)->order_id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Existing offline owner',
+            'description' => 'Existing offline owner.',
+            'status' => 'open',
+            'assigned_to_user_id' => $offlineAgent->id,
+            'created_by' => $actor->id,
+        ]);
+
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident->fresh(), $actor);
+
+        $this->assertSame($offlineAgent->id, $result->assigned_to_user_id);
+    }
+
+    public function test_round_robin_skips_agent_on_approved_leave_today(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $onLeaveAgent = $this->createAgentUser('leave@test.com', 'Leave Agent');
+        LeaveRequest::query()->create([
+            'user_id' => $onLeaveAgent->id,
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-06',
+            'reason' => 'Approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $availableAgent = $this->createAgentUser('available@test.com', 'Available Agent');
+
+        $incident = $this->createIncidentForAssignmentTest();
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($availableAgent->id, $result->assigned_to_user_id);
+        $this->assertNotSame($onLeaveAgent->id, $result->assigned_to_user_id);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_round_robin_keeps_agent_eligible_before_future_approved_leave(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $futureLeaveAgent = $this->createAgentUser('future-leave@test.com', 'Future Leave Agent');
+        LeaveRequest::query()->create([
+            'user_id' => $futureLeaveAgent->id,
+            'start_date' => '2026-07-08',
+            'end_date' => '2026-07-10',
+            'reason' => 'Future approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $incident = $this->createIncidentForAssignmentTest();
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($futureLeaveAgent->id, $result->assigned_to_user_id);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_demo_offline_agent_excluded_from_new_automatic_assignment(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $demo = $this->createAgentUser(
+            'demo@radiumbox.com',
+            'Demo Agent',
+            availability: TeamAvailabilityStatus::Offline,
+        );
+        $availableAgent = $this->createAgentUser('working@test.com', 'Working Agent');
+
+        $incident = $this->createIncidentForAssignmentTest();
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($availableAgent->id, $result->assigned_to_user_id);
+        $this->assertNotSame($demo->id, $result->assigned_to_user_id);
+
+        Carbon::setTestNow();
     }
 
     public function test_assign_on_create_leaves_case_unassigned_when_no_agents_exist(): void

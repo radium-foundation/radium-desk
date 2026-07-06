@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
 use App\Services\Operations\IraCommunicationService;
+use App\Services\Operations\OperationsAssignmentEligibilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class ServiceCaseAssignmentService
         private readonly SettingService $settingService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly ServiceCaseOrderAssignmentRoutingService $orderRoutingService,
+        private readonly OperationsAssignmentEligibilityService $assignmentEligibilityService,
     ) {}
 
     public function resolveAssignee(?Carbon $at = null): User
@@ -165,7 +167,7 @@ class ServiceCaseAssignmentService
             );
         }
 
-        $assignee = $this->resolveAgentRoundRobin();
+        $assignee = $this->resolveAgentRoundRobin($at);
 
         if ($assignee === null) {
             return $this->logUnassignedOnCreate($incident, $actor);
@@ -335,20 +337,24 @@ class ServiceCaseAssignmentService
     /**
      * @return list<User>
      */
-    public function activeSupportAgents(): array
+    public function activeSupportAgents(?Carbon $at = null): array
     {
+        $at ??= now();
+
         return User::query()
             ->where('is_active', true)
             ->role(RolePermissionSeeder::ROLE_AGENT)
             ->orderBy('id')
             ->get()
+            ->filter(fn (User $agent): bool => $this->assignmentEligibilityService->isEligible($agent, $at))
+            ->values()
             ->all();
     }
 
-    private function resolveAgentRoundRobin(): ?User
+    private function resolveAgentRoundRobin(?Carbon $at = null): ?User
     {
-        return DB::transaction(function (): ?User {
-            $agents = $this->activeSupportAgents();
+        return DB::transaction(function () use ($at): ?User {
+            $agents = $this->activeSupportAgents($at);
 
             if ($agents === []) {
                 return null;
