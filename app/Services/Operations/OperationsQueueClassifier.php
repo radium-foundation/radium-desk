@@ -158,7 +158,8 @@ class OperationsQueueClassifier
         $today = now()->startOfDay();
 
         return $appointments->contains(
-            fn ($appointment): bool => $appointment->preferred_date !== null
+            fn ($appointment): bool => $appointment->isScheduled()
+                && $appointment->preferred_date !== null
                 && $appointment->preferred_date->greaterThanOrEqualTo($today),
         );
     }

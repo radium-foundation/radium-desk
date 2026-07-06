@@ -4,14 +4,13 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Models\InteraktWebhookLog;
-use App\Models\OutboxEvent;
-use App\Enums\OutboxEventStatus;
 use App\Services\Interakt\Exceptions\InteraktFlowWebhookProcessingException;
 use App\Services\Interakt\Exceptions\WhatsAppFlowTokenException;
 use App\Services\Interakt\InteraktFlowWebhookOutboxWriter;
 use App\Services\Interakt\InteraktFlowWebhookPayloadParser;
 use App\Services\Interakt\InteraktFlowWebhookProcessorService;
 use App\Services\Interakt\InteraktWebhookSignatureVerifier;
+use App\Services\Outbox\OutboxProcessorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -25,6 +24,7 @@ class InteraktFlowWebhookController extends Controller
         private readonly InteraktFlowWebhookOutboxWriter $outboxWriter,
         private readonly InteraktFlowWebhookProcessorService $flowWebhookProcessorService,
         private readonly InteraktWebhookSignatureVerifier $signatureVerifier,
+        private readonly OutboxProcessorService $outboxProcessorService,
     ) {}
 
     public function handle(Request $request): JsonResponse
@@ -60,15 +60,22 @@ class InteraktFlowWebhookController extends Controller
             }
 
             $this->outboxWriter->writeProcessingJob($webhookLog->id);
-            $this->flowWebhookProcessorService->process($webhookLog);
-            $this->markOutboxCompleted($webhookLog->id);
+            $this->outboxProcessorService->processAggregate(
+                InteraktFlowWebhookOutboxWriter::AGGREGATE_TYPE,
+                $webhookLog->id,
+            );
+
+            $webhookLog->refresh();
+
+            if ($webhookLog->processing_status === InteraktFlowWebhookProcessorService::STATUS_FAILED) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $webhookLog->processing_error,
+                ], 422);
+            }
 
             return response()->json(['status' => 'ok'], 200);
         } catch (InteraktFlowWebhookProcessingException|ValidationException|WhatsAppFlowTokenException $exception) {
-            if ($webhookLog instanceof InteraktWebhookLog) {
-                $this->markOutboxFailed($webhookLog->id, $exception->getMessage());
-            }
-
             Log::warning('[Interakt Flow Webhook] Payload rejected', [
                 'timestamp' => now()->toIso8601String(),
                 'message' => $exception->getMessage(),
@@ -77,10 +84,6 @@ class InteraktFlowWebhookController extends Controller
 
             return response()->json(['status' => 'error', 'message' => $exception->getMessage()], 422);
         } catch (Throwable $exception) {
-            if ($webhookLog instanceof InteraktWebhookLog) {
-                $this->markOutboxFailed($webhookLog->id, $exception->getMessage());
-            }
-
             Log::error('[Interakt Flow Webhook] Processing failed', [
                 'timestamp' => now()->toIso8601String(),
                 'remote_ip' => $request->ip(),
@@ -128,27 +131,6 @@ class InteraktFlowWebhookController extends Controller
             'received_at' => now(),
             'processing_status' => InteraktWebhookLog::STATUS_RECEIVED,
         ]);
-    }
-
-    private function markOutboxCompleted(int $webhookLogId): void
-    {
-        OutboxEvent::query()
-            ->where('idempotency_key', sprintf('interakt.flow.webhook.process.%d', $webhookLogId))
-            ->update([
-                'status' => OutboxEventStatus::Completed,
-                'processed_at' => now(),
-                'last_error' => null,
-            ]);
-    }
-
-    private function markOutboxFailed(int $webhookLogId, string $message): void
-    {
-        OutboxEvent::query()
-            ->where('idempotency_key', sprintf('interakt.flow.webhook.process.%d', $webhookLogId))
-            ->update([
-                'status' => OutboxEventStatus::Failed,
-                'last_error' => $message,
-            ]);
     }
 
     /**

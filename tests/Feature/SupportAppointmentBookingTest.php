@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\Order;
@@ -134,6 +135,56 @@ class SupportAppointmentBookingTest extends TestCase
         $response->assertSee('Afternoon (12 PM – 3 PM)', false);
         $response->assertDontSee('9123456789', false);
         $response->assertSee('Device not connecting to RD Service.', false);
+    }
+
+    public function test_customer_360_shows_only_active_scheduled_appointment(): void
+    {
+        $agent = User::factory()->create([
+            'first_name' => 'Jayram',
+            'last_name' => 'Singh',
+            'name' => 'Jayram Singh',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => '2026-07-04',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Afternoon,
+            'phone_number' => '9852525656',
+            'normalized_phone' => '9852525656',
+            'status' => SupportAppointmentStatus::Superseded,
+            'additional_notes' => 'Old afternoon slot.',
+        ]);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => '2026-07-06',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9852525656',
+            'normalized_phone' => '9852525656',
+            'status' => SupportAppointmentStatus::Scheduled,
+            'additional_notes' => 'Current morning slot.',
+        ]);
+
+        $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
+
+        $response->assertOk();
+
+        preg_match(
+            '/<section class="customer-360-support-appointments"[^>]*>(.*?)<\/section>/s',
+            $response->getContent(),
+            $matches,
+        );
+
+        $this->assertNotEmpty($matches[1] ?? null);
+        $section = $matches[1];
+
+        $this->assertStringContainsString('Morning (9 AM – 12 PM)', $section);
+        $this->assertStringContainsString('Current morning slot.', $section);
+        $this->assertStringNotContainsString('Old afternoon slot.', $section);
+        $this->assertStringNotContainsString('Afternoon (12 PM – 3 PM)', $section);
     }
 
     public function test_customer_360_hides_support_appointments_section_when_none_exist(): void

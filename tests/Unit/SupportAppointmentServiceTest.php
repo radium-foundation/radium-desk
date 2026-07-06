@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\Order;
@@ -63,6 +64,8 @@ class SupportAppointmentServiceTest extends TestCase
             'incident_id' => $incident->id,
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
             'phone_number' => '9876543210',
+            'normalized_phone' => '9876543210',
+            'status' => SupportAppointmentStatus::Scheduled->value,
             'additional_notes' => 'Need help with fingerprint setup.',
         ]);
     }
@@ -189,6 +192,67 @@ class SupportAppointmentServiceTest extends TestCase
 
         $this->assertSame($firstAppointment->id, $secondAppointment->id);
         $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertDatabaseHas('support_appointments', [
+            'id' => $firstAppointment->id,
+            'status' => SupportAppointmentStatus::Scheduled->value,
+        ]);
+    }
+
+    public function test_rebooking_different_slot_supersedes_previous_and_sends_one_confirmation(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $this->mock(SupportAppointmentConfirmationNotificationService::class, function ($mock): void {
+            $mock->shouldReceive('send')->twice();
+        });
+
+        $incident = $this->createIncident();
+
+        $firstAppointment = app(SupportAppointmentService::class)->book($incident, [
+            'preferred_date' => '2026-07-07',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Afternoon->value,
+            'phone_number' => '9876543210',
+        ]);
+
+        $secondAppointment = app(SupportAppointmentService::class)->book($incident, [
+            'preferred_date' => '2026-07-08',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ]);
+
+        $this->assertNotSame($firstAppointment->id, $secondAppointment->id);
+        $this->assertDatabaseCount('support_appointments', 2);
+        $this->assertSame(
+            SupportAppointmentStatus::Superseded,
+            SupportAppointment::query()->find($firstAppointment->id)?->status,
+        );
+        $this->assertSame(
+            SupportAppointmentStatus::Scheduled,
+            SupportAppointment::query()->find($secondAppointment->id)?->status,
+        );
+    }
+
+    public function test_two_identical_book_calls_create_one_row_and_one_confirmation(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $this->mock(SupportAppointmentConfirmationNotificationService::class, function ($mock): void {
+            $mock->shouldReceive('send')->once();
+        });
+
+        $incident = $this->createIncident();
+
+        $payload = [
+            'preferred_date' => '2026-07-07',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ];
+
+        app(SupportAppointmentService::class)->book($incident, $payload);
+        app(SupportAppointmentService::class)->book($incident, $payload);
+
+        $this->assertDatabaseCount('support_appointments', 1);
+        $this->assertSame(1, SupportAppointment::query()->where('status', SupportAppointmentStatus::Scheduled)->count());
     }
 
     public function test_duplicate_booking_with_different_notes_returns_existing_appointment_without_resending_notification(): void

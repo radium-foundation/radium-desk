@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OutboxEventStatus;
+use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\InteraktWebhookLog;
@@ -76,6 +77,35 @@ class InteraktFlowWebhookTest extends TestCase
         ]);
 
         $this->assertSame(1, SupportAppointment::query()->count());
+    }
+
+    public function test_duplicate_webhook_processing_creates_single_appointment(): void
+    {
+        [$incident, $flowToken] = $this->createIncidentWithFlowToken();
+
+        $payload = $this->officialFlowResponsePayload([
+            'flow_token' => $flowToken,
+            'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+            'additional_notes' => 'Booked via WhatsApp Flow.',
+        ]);
+
+        $this->postSignedInteraktFlowWebhook($payload)
+            ->assertOk()
+            ->assertExactJson(['status' => 'ok']);
+
+        $webhookLog = InteraktWebhookLog::query()->latest('id')->first();
+        $this->assertNotNull($webhookLog);
+
+        app(InteraktFlowWebhookProcessorService::class)->process($webhookLog->fresh());
+
+        $this->assertSame(1, SupportAppointment::query()->count());
+        $this->assertSame(1, SupportAppointment::query()->where('status', SupportAppointmentStatus::Scheduled)->count());
+        $this->assertDatabaseHas('support_appointments', [
+            'incident_id' => $incident->id,
+            'status' => SupportAppointmentStatus::Scheduled->value,
+        ]);
     }
 
     public function test_flow_webhook_books_support_appointment_from_string_response_json(): void

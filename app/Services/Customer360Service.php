@@ -6,6 +6,7 @@ use App\Data\AI\AIContextBuildSnapshot;
 use App\Data\AI\AIWorkbenchDTO;
 use App\Data\TimelineViewModel;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Enums\SupportAppointmentStatus;
 use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
@@ -54,7 +55,10 @@ class Customer360Service
             'order.deviceModel',
             'activeWaitingState',
             'assignee',
-            'supportAppointments' => fn ($query) => $query->latest('preferred_date')->latest('id'),
+            'supportAppointments' => fn ($query) => $query
+                ->where('status', SupportAppointmentStatus::Scheduled)
+                ->latest('preferred_date')
+                ->latest('id'),
         ]);
         $order = $incident->order;
 

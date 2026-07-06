@@ -34,6 +34,19 @@ class InteraktFlowWebhookProcessorService
 
         try {
             DB::transaction(function () use ($webhookLog, $payload): void {
+                $lockedWebhookLog = InteraktWebhookLog::query()
+                    ->whereKey($webhookLog->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($lockedWebhookLog === null) {
+                    throw new InteraktFlowWebhookProcessingException('Interakt flow webhook log not found.');
+                }
+
+                if ($lockedWebhookLog->processing_status === self::STATUS_PROCESSED) {
+                    return;
+                }
+
                 $responseJson = $this->payloadParser->responseJson($payload);
 
                 if ($responseJson === null) {
@@ -54,7 +67,11 @@ class InteraktFlowWebhookProcessorService
                     bookingSource: SupportAppointmentBookingSource::WhatsAppFlow,
                 );
 
-                $this->markProcessed($webhookLog);
+                $lockedWebhookLog->update([
+                    'processing_status' => self::STATUS_PROCESSED,
+                    'processing_error' => null,
+                    'processed_at' => now(),
+                ]);
             });
 
             return $webhookLog->fresh();
@@ -67,15 +84,6 @@ class InteraktFlowWebhookProcessorService
 
             throw $exception;
         }
-    }
-
-    private function markProcessed(InteraktWebhookLog $webhookLog): void
-    {
-        $webhookLog->update([
-            'processing_status' => self::STATUS_PROCESSED,
-            'processing_error' => null,
-            'processed_at' => now(),
-        ]);
     }
 
     private function markIgnored(InteraktWebhookLog $webhookLog, string $reason): InteraktWebhookLog
