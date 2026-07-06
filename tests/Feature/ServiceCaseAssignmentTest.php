@@ -566,8 +566,8 @@ class ServiceCaseAssignmentTest extends TestCase
         $this->actingAs($avinash)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Owner', false)
-            ->assertSee('aria-label="Owner: Avinash Jha"', false)
+            ->assertSee('Assigned To', false)
+            ->assertSee('aria-label="Assigned To: Avinash Jha"', false)
             ->assertSee('data-bs-title="Avinash Jha"', false);
     }
 
