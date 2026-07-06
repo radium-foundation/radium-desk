@@ -43,6 +43,8 @@ return new class extends Migration
                 ]);
         });
 
+        $this->dedupeScheduledAppointments();
+
         $this->createScheduledUniqueIndexes();
     }
 
@@ -152,6 +154,52 @@ return new class extends Migration
             'CREATE UNIQUE INDEX '.self::UNIQUE_ACTIVE_SLOT_INDEX
             .' ON support_appointments ('.self::SCHEDULED_SLOT_KEY_COLUMN.')'
         );
+    }
+
+    private function dedupeScheduledAppointments(): void
+    {
+        $scheduledAppointments = DB::table('support_appointments')
+            ->select([
+                'id',
+                'incident_id',
+                'preferred_date',
+                'preferred_time_slot',
+                'normalized_phone',
+            ])
+            ->where('status', 'scheduled')
+            ->orderByDesc('id')
+            ->get();
+
+        $keptIncidentIds = [];
+        $keptSlotKeys = [];
+        $supersededIds = [];
+
+        foreach ($scheduledAppointments as $appointment) {
+            $incidentId = (int) $appointment->incident_id;
+            $slotKey = implode('|', [
+                $incidentId,
+                (string) $appointment->preferred_date,
+                (string) $appointment->preferred_time_slot,
+                (string) $appointment->normalized_phone,
+            ]);
+
+            if (isset($keptIncidentIds[$incidentId]) || isset($keptSlotKeys[$slotKey])) {
+                $supersededIds[] = (int) $appointment->id;
+
+                continue;
+            }
+
+            $keptIncidentIds[$incidentId] = true;
+            $keptSlotKeys[$slotKey] = true;
+        }
+
+        if ($supersededIds === []) {
+            return;
+        }
+
+        DB::table('support_appointments')
+            ->whereIn('id', $supersededIds)
+            ->update(['status' => 'superseded']);
     }
 
     private function dropScheduledUniqueIndexes(): void
