@@ -281,17 +281,33 @@ class OperationsDashboardTest extends TestCase
     {
         $admin = $this->createAdminUser('admin-lazy-load@test.com');
 
-        $this->actingAs($admin)
+        $todayResponse = $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'today']))
             ->assertOk()
-            ->assertJsonStructure(['html' => ['today_tab']])
-            ->assertSee('Support Intelligence', false);
+            ->assertJsonStructure(['html' => ['today_tab']]);
+
+        $this->assertStringContainsString(
+            'Support Intelligence',
+            (string) $todayResponse->json('html.today_tab'),
+        );
+        $this->assertNotSame('', trim((string) $todayResponse->json('html.today_tab')));
 
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'ira_compact']))
             ->assertOk()
             ->assertJsonStructure(['html' => ['ira_briefing_compact', 'critical_alerts']])
             ->assertSee('View Full Analysis', false);
+
+        $telegramResponse = $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'health_telegram']))
+            ->assertOk()
+            ->assertJsonStructure(['html' => ['team_telegram_status']]);
+
+        $this->assertStringContainsString(
+            'Telegram',
+            (string) $telegramResponse->json('html.team_telegram_status'),
+        );
+        $this->assertNotSame('', trim((string) $telegramResponse->json('html.team_telegram_status')));
 
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'health_cashfree']))
@@ -304,6 +320,22 @@ class OperationsDashboardTest extends TestCase
             ->assertJsonStructure(['html' => ['ira_full_analysis']])
             ->assertSee('IRA Advisor', false)
             ->assertSee('Immediate Risks', false);
+    }
+
+    public function test_live_endpoint_returns_expected_lazy_section_keys(): void
+    {
+        $admin = $this->createAdminUser('admin-lazy-keys@test.com');
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'today,health_telegram']))
+            ->assertOk()
+            ->assertJsonPath('groups', ['today', 'health_telegram'])
+            ->assertJsonStructure([
+                'html' => [
+                    'today_tab',
+                    'team_telegram_status',
+                ],
+            ]);
     }
 
     public function test_live_refresh_still_returns_core_command_center_sections(): void

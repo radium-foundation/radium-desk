@@ -21,7 +21,11 @@ class SearchController extends Controller
             return $this->jsonResponse($request, $query);
         }
 
-        return redirect()->route('dashboard');
+        if ($query === '') {
+            return redirect()->route('dashboard');
+        }
+
+        return redirect()->route('dashboard', ['q' => $query]);
     }
 
     private function jsonResponse(Request $request, string $query): JsonResponse

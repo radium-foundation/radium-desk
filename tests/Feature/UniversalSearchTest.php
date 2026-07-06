@@ -69,8 +69,49 @@ class UniversalSearchTest extends TestCase
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->actingAs($agent)
-            ->get(route('search.index', ['q' => '9876543210']))
+            ->get(route('search.index'))
             ->assertRedirect(route('dashboard'));
+    }
+
+    public function test_legacy_search_route_preserves_query_on_dashboard_redirect(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->get(route('search.index', ['q' => 'RD3437407']))
+            ->assertRedirect(route('dashboard', ['q' => 'RD3437407']));
+    }
+
+    public function test_global_search_from_operations_page_form_preserves_query_via_search_route(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->get(route('search.index', ['q' => 'RDE253851']))
+            ->assertRedirect(route('dashboard', ['q' => 'RDE253851']));
+    }
+
+    public function test_search_finds_order_by_rd_and_rde_prefixes(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $rdIncident = $this->createServiceCase($agent, ['order_id' => 'RD3437407']);
+        $rdeIncident = $this->createServiceCase($agent, ['order_id' => 'RDE253851']);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD3437407']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $rdIncident->id);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RDE253851']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $rdeIncident->id);
     }
 
     public function test_dashboard_search_alias_returns_same_json_as_search_route(): void
@@ -470,7 +511,9 @@ class UniversalSearchTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee(route('search.index'), false)
-            ->assertSee('data-search-url', false);
+            ->assertSee(route('dashboard'), false)
+            ->assertSee('data-search-url', false)
+            ->assertSee('data-dashboard-url', false);
     }
 
     public function test_search_result_includes_required_display_fields(): void

@@ -15,6 +15,12 @@ const buildSearchRowsUrl = (baseUrl, incidentIds) => {
     return `${baseUrl}?${params.toString()}`;
 };
 
+const buildDashboardSearchUrl = (dashboardUrl, query) => {
+    const params = new URLSearchParams({ q: query.trim() });
+
+    return `${dashboardUrl}?${params.toString()}`;
+};
+
 const clearSearchMatchHighlight = (card) => {
     card?.querySelectorAll(`.${SEARCH_MATCH_CLASS}`).forEach((row) => {
         row.classList.remove(SEARCH_MATCH_CLASS);
@@ -52,6 +58,7 @@ export const initUniversalSearch = ({
     const form = document.querySelector('[data-universal-search-form]');
     const globalInput = document.getElementById('global-search-input');
     const searchUrl = form?.dataset.searchUrl ?? '';
+    const dashboardUrl = form?.dataset.dashboardUrl ?? '';
     const searchControl = document.querySelector('[data-universal-search-control]');
     const searchIcon = document.querySelector('[data-universal-search-icon]');
 
@@ -71,6 +78,14 @@ export const initUniversalSearch = ({
         dashboardIntegration?.pageRoot?.querySelector('.dashboard-service-cases-card') ?? null
     );
 
+    const redirectToDashboardSearch = (query) => {
+        if (!dashboardUrl) {
+            return;
+        }
+
+        window.location.assign(buildDashboardSearchUrl(dashboardUrl, query));
+    };
+
     const applySearchRows = async (incidentIds, matchCount) => {
         if (!dashboardIntegration?.searchRowsUrl || !dashboardIntegration.applyRows) {
             return;
@@ -85,6 +100,7 @@ export const initUniversalSearch = ({
         const rowsResponse = await fetch(
             buildSearchRowsUrl(dashboardIntegration.searchRowsUrl, incidentIds),
             {
+                credentials: 'same-origin',
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -134,13 +150,21 @@ export const initUniversalSearch = ({
     const runUniversalSearch = async (query) => {
         const trimmedQuery = query.trim();
 
-        if (!searchUrl || trimmedQuery === '') {
+        if (trimmedQuery === '') {
             setSearchLoading(false);
 
             return;
         }
 
         if (!dashboardIntegration) {
+            redirectToDashboardSearch(trimmedQuery);
+
+            return;
+        }
+
+        if (!searchUrl) {
+            setSearchLoading(false);
+
             return;
         }
 
@@ -155,6 +179,7 @@ export const initUniversalSearch = ({
 
         try {
             const response = await fetch(`${searchUrl}?${params.toString()}`, {
+                credentials: 'same-origin',
                 headers: {
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
@@ -257,4 +282,14 @@ export const initUniversalSearch = ({
             clearSearch();
         }
     });
+
+    const pendingQuery = new URLSearchParams(window.location.search).get('q')?.trim() ?? '';
+
+    if (pendingQuery !== '' && globalInput) {
+        globalInput.value = pendingQuery;
+
+        if (dashboardIntegration) {
+            runUniversalSearch(pendingQuery);
+        }
+    }
 };

@@ -28,8 +28,20 @@ describe('initUniversalSearch', () => {
         initUniversalSearch();
     };
 
-    it('does not run search when dashboard integration is unavailable', async () => {
-        mountSearch();
+    it('redirects to dashboard search when dashboard integration is unavailable', () => {
+        delete window.location;
+        window.location = { assign: vi.fn() };
+
+        document.body.innerHTML = `
+            <form data-universal-search-form data-search-url="/search" data-dashboard-url="/dashboard">
+                <span data-universal-search-control>
+                    <span data-universal-search-icon"><i class="bi bi-search"></i></span>
+                </span>
+                <input id="global-search-input" type="search" value="">
+            </form>
+        `;
+
+        initUniversalSearch();
 
         document.getElementById('global-search-input').value = 'RD3434509';
 
@@ -37,9 +49,8 @@ describe('initUniversalSearch', () => {
             new Event('submit', { bubbles: true, cancelable: true }),
         );
 
-        await Promise.resolve();
-
         expect(fetch).not.toHaveBeenCalled();
+        expect(window.location.assign).toHaveBeenCalledWith('/dashboard?q=RD3434509');
     });
 
     it('runs search on Enter when dashboard integration is provided', async () => {

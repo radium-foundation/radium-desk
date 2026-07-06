@@ -8,7 +8,8 @@
           class="flex-grow-1 mx-lg-3 position-relative"
           role="search"
           data-universal-search-form
-          data-search-url="{{ route('search.index') }}">
+          data-search-url="{{ route('search.index') }}"
+          data-dashboard-url="{{ route('dashboard') }}">
         <div class="input-group">
             <span class="input-group-text bg-white border-end-0" data-universal-search-control>
                 <span data-universal-search-icon aria-hidden="true">

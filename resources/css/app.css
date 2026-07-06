@@ -5516,6 +5516,10 @@ body.customer-360-drawer-open {
     justify-content: center;
 }
 
+.operations-lazy-error {
+    margin-bottom: 0;
+}
+
 .operations-dashboard-tabs .operations-dashboard-tablist {
     border-bottom: 0;
     gap: 0.25rem;

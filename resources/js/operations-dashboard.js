@@ -29,6 +29,13 @@ const SECTION_TARGETS = {
     recent_ira_messages: 'operations-recent-ira-messages',
 };
 
+const TAB_GROUP_BY_SECTION = {
+    today_tab: 'today',
+    team_tab: 'team',
+    performance_tab: 'performance',
+    system_tab: 'system',
+};
+
 const HEALTH_DETAIL_GROUPS = {
     cashfree_health: 'health_cashfree',
     radiumbox_health: 'health_radiumbox',
@@ -67,18 +74,48 @@ const replaceSectionHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
 
     if (!element || html === undefined) {
-        return;
+        return false;
     }
 
     element.innerHTML = html;
+
+    return true;
 };
 
-const applyLiveHtml = (html) => {
+const renderLazyLoadError = (message, retryLabel = 'Retry') => `
+    <div class="operations-lazy-error alert alert-warning mb-0 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2">
+        <span>${message}</span>
+        <button type="button" class="btn btn-sm btn-outline-warning" data-operations-lazy-retry>
+            ${retryLabel}
+        </button>
+    </div>
+`;
+
+const showLazyLoadError = (elementId, message, retryHandler) => {
+    const element = document.getElementById(elementId);
+
+    if (!element) {
+        return;
+    }
+
+    element.innerHTML = renderLazyLoadError(message);
+    element.querySelector('[data-operations-lazy-retry]')?.addEventListener('click', retryHandler);
+};
+
+const applyLiveHtml = (pageRoot, html) => {
     Object.entries(html ?? {}).forEach(([sectionKey, sectionHtml]) => {
         const elementId = SECTION_TARGETS[sectionKey];
 
-        if (elementId) {
-            replaceSectionHtml(elementId, sectionHtml);
+        if (!elementId) {
+            return;
+        }
+
+        replaceSectionHtml(elementId, sectionHtml);
+
+        const tabGroup = TAB_GROUP_BY_SECTION[sectionKey];
+
+        if (tabGroup) {
+            markTabLoaded(pageRoot, tabGroup);
         }
     });
 };
@@ -132,7 +169,7 @@ const fetchLiveGroups = async (pageRoot, groups) => {
     const liveUrl = pageRoot.dataset.liveUrl;
 
     if (!liveUrl) {
-        return null;
+        throw new Error('Operations live refresh URL is missing.');
     }
 
     const requestUrl = groups === null
@@ -140,6 +177,7 @@ const fetchLiveGroups = async (pageRoot, groups) => {
         : `${liveUrl}?groups=${groups.join(',')}`;
 
     const response = await fetch(requestUrl, {
+        credentials: 'same-origin',
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -147,7 +185,7 @@ const fetchLiveGroups = async (pageRoot, groups) => {
     });
 
     if (!response.ok) {
-        return null;
+        throw new Error(`Operations live refresh failed (${response.status}).`);
     }
 
     return response.json();
@@ -228,55 +266,111 @@ const markTabLoaded = (pageRoot, group) => {
     }
 };
 
-const loadLazyTab = async (pageRoot, group) => {
+const resetTabLoaded = (pageRoot, group) => {
     const pane = pageRoot.querySelector(`[data-operations-lazy-group="${group}"]`);
 
-    if (!pane || pane.dataset.operationsLazyLoaded === 'true') {
-        return;
+    if (pane) {
+        pane.dataset.operationsLazyLoaded = 'false';
     }
+};
 
-    const payload = await fetchLiveGroups(pageRoot, [group]);
-
-    if (!payload) {
-        return;
-    }
-
-    const sectionKey = TAB_SECTION_KEYS[group];
+const loadLazyTab = async (pageRoot, group, { force = false } = {}) => {
+    const pane = pageRoot.querySelector(`[data-operations-lazy-group="${group}"]`);
     const targetId = TAB_CONTENT_TARGETS[group];
-    const sectionHtml = payload.html?.[sectionKey];
+    const sectionKey = TAB_SECTION_KEYS[group];
 
-    if (targetId && sectionHtml !== undefined) {
+    if (!pane || !targetId || !sectionKey) {
+        return false;
+    }
+
+    if (!force && pane.dataset.operationsLazyLoaded === 'true') {
+        return true;
+    }
+
+    try {
+        const payload = await fetchLiveGroups(pageRoot, [group]);
+        const sectionHtml = payload.html?.[sectionKey];
+
+        if (typeof sectionHtml !== 'string' || sectionHtml.trim() === '') {
+            throw new Error(`Missing ${sectionKey} content from operations live refresh.`);
+        }
+
         replaceSectionHtml(targetId, sectionHtml);
         markTabLoaded(pageRoot, group);
         bindBatchRecoveryForms(pageRoot);
         bindOperationsTabShortcuts(pageRoot);
         bindIraInsightToggleLabels(pageRoot);
+
+        return true;
+    } catch (error) {
+        resetTabLoaded(pageRoot, group);
+        showLazyLoadError(
+            targetId,
+            error instanceof Error ? error.message : 'Unable to load this tab right now.',
+            () => {
+                replaceSectionHtml(
+                    targetId,
+                    '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
+                );
+                loadLazyTab(pageRoot, group, { force: true });
+            },
+        );
+
+        return false;
     }
 };
 
-const loadHealthDetail = async (pageRoot, collapseElement) => {
+const loadHealthDetail = async (pageRoot, collapseElement, { force = false } = {}) => {
     const section = collapseElement.dataset.operationsLazySection;
     const targetId = HEALTH_DETAIL_TARGETS[section];
     const group = HEALTH_DETAIL_GROUPS[section];
 
-    if (!section || !targetId || !group || collapseElement.dataset.operationsLazyLoaded === 'true') {
-        return;
+    if (!section || !targetId || !group) {
+        return false;
     }
 
-    const payload = await fetchLiveGroups(pageRoot, [group]);
-
-    if (!payload) {
-        return;
+    if (!force && collapseElement.dataset.operationsLazyLoaded === 'true') {
+        return true;
     }
 
-    const sectionHtml = payload.html?.[section];
+    try {
+        const payload = await fetchLiveGroups(pageRoot, [group]);
+        const sectionHtml = payload.html?.[section];
 
-    if (sectionHtml !== undefined) {
+        if (typeof sectionHtml !== 'string' || sectionHtml.trim() === '') {
+            throw new Error(`Missing ${section} content from operations live refresh.`);
+        }
+
         replaceSectionHtml(targetId, sectionHtml);
         collapseElement.dataset.operationsLazyLoaded = 'true';
         bindBatchRecoveryForms(pageRoot);
         bindOperationsTabShortcuts(pageRoot);
+
+        return true;
+    } catch (error) {
+        collapseElement.dataset.operationsLazyLoaded = 'false';
+        showLazyLoadError(
+            targetId,
+            error instanceof Error ? error.message : 'Unable to load integration details right now.',
+            () => {
+                replaceSectionHtml(
+                    targetId,
+                    '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
+                );
+                loadHealthDetail(pageRoot, collapseElement, { force: true });
+            },
+        );
+
+        return false;
     }
+};
+
+const rehydrateExpandedHealthDetails = (pageRoot) => {
+    pageRoot.querySelectorAll('[data-operations-lazy-section].show').forEach((collapseElement) => {
+        collapseElement.dataset.operationsLazyLoaded = 'false';
+        collapseElement.dataset.operationsHealthLazyBound = 'false';
+        loadHealthDetail(pageRoot, collapseElement, { force: true });
+    });
 };
 
 const bindHealthAccordionLazyLoad = (pageRoot) => {
@@ -311,17 +405,35 @@ const bindIraFullAnalysisModal = (pageRoot) => {
             return;
         }
 
-        const payload = await fetchLiveGroups(pageRoot, ['ira_full']);
+        const modalBodyId = SECTION_TARGETS.ira_full_analysis;
 
-        if (!payload) {
-            return;
+        try {
+            const payload = await fetchLiveGroups(pageRoot, ['ira_full']);
+            const sectionHtml = payload.html?.ira_full_analysis;
+
+            if (typeof sectionHtml !== 'string' || sectionHtml.trim() === '') {
+                throw new Error('Missing Ira analysis content from operations live refresh.');
+            }
+
+            replaceSectionHtml(modalBodyId, sectionHtml);
+            modalElement.dataset.operationsIraAnalysisLoaded = 'true';
+            bindBatchRecoveryForms(pageRoot);
+            bindOperationsTabShortcuts(pageRoot);
+            bindIraInsightToggleLabels(pageRoot);
+        } catch (error) {
+            showLazyLoadError(
+                modalBodyId,
+                error instanceof Error ? error.message : 'Unable to load Ira analysis right now.',
+                () => {
+                    modalElement.dataset.operationsIraAnalysisLoaded = 'false';
+                    replaceSectionHtml(
+                        modalBodyId,
+                        '<div class="operations-lazy-placeholder card border-0 shadow-sm"><div class="card-body py-4 text-center text-muted"><div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div><span>Retrying…</span></div></div>',
+                    );
+                    window.bootstrap?.Modal.getOrCreateInstance(modalElement).show();
+                },
+            );
         }
-
-        applyLiveHtml(payload.html ?? {});
-        modalElement.dataset.operationsIraAnalysisLoaded = 'true';
-        bindBatchRecoveryForms(pageRoot);
-        bindOperationsTabShortcuts(pageRoot);
-        bindIraInsightToggleLabels(pageRoot);
     });
 };
 
@@ -331,16 +443,13 @@ const refreshOperationsDashboard = async (pageRoot, { forceFullRefresh = false, 
     try {
         const payload = await fetchLiveGroups(pageRoot, groups);
 
-        if (!payload) {
-            return;
-        }
-
-        applyLiveHtml(payload.html ?? {});
+        applyLiveHtml(pageRoot, payload.html ?? {});
 
         bindBatchRecoveryForms(pageRoot);
         bindOperationsTabShortcuts(pageRoot);
         bindIraInsightToggleLabels(pageRoot);
         bindHealthAccordionLazyLoad(pageRoot);
+        rehydrateExpandedHealthDetails(pageRoot);
 
         const generatedAtElement = document.getElementById('operations-dashboard-generated-at');
 
@@ -348,7 +457,7 @@ const refreshOperationsDashboard = async (pageRoot, { forceFullRefresh = false, 
             generatedAtElement.textContent = `Updated ${formatGeneratedAt(payload.generated_at)}`;
         }
     } catch {
-        // Keep the last rendered snapshot when refresh fails.
+        // Keep the last rendered snapshot when background refresh fails.
     }
 };
 
@@ -415,6 +524,7 @@ const bindBatchRecoveryForms = (pageRoot) => {
             try {
                 const response = await fetch(recoveryUrl, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: {
                         Accept: 'application/json',
                         'Content-Type': 'application/json',
@@ -430,10 +540,11 @@ const bindBatchRecoveryForms = (pageRoot) => {
 
                 const payload = await response.json();
 
-                applyLiveHtml(payload.html ?? {});
+                applyLiveHtml(pageRoot, payload.html ?? {});
                 bindBatchRecoveryForms(pageRoot);
                 bindOperationsTabShortcuts(pageRoot);
                 bindHealthAccordionLazyLoad(pageRoot);
+                rehydrateExpandedHealthDetails(pageRoot);
             } finally {
                 if (button instanceof HTMLButtonElement) {
                     button.disabled = false;
@@ -443,7 +554,7 @@ const bindBatchRecoveryForms = (pageRoot) => {
     });
 };
 
-const initOperationsDashboard = () => {
+const initOperationsDashboard = async () => {
     const pageRoot = document.getElementById('operations-dashboard-root');
 
     if (!pageRoot) {
@@ -456,8 +567,10 @@ const initOperationsDashboard = () => {
     bindHealthAccordionLazyLoad(pageRoot);
     bindIraFullAnalysisModal(pageRoot);
 
-    refreshOperationsDashboard(pageRoot);
-    loadLazyTab(pageRoot, 'today');
+    await Promise.all([
+        refreshOperationsDashboard(pageRoot),
+        loadLazyTab(pageRoot, 'today'),
+    ]);
 
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
     const fullRefreshIntervalMs = Number(pageRoot.dataset.liveFullInterval ?? 120000);
