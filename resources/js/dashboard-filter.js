@@ -222,7 +222,7 @@ export const initDashboardQuickFilter = ({
     const countElement = pageRoot.querySelector('[data-dashboard-filter-count]');
     const trigger = pageRoot.querySelector('[data-dashboard-quick-filter-trigger]');
     const control = pageRoot.querySelector('[data-dashboard-quick-filter-control]');
-    const resolvedLoadMoreUrl = loadMoreUrl ?? pageRoot.dataset.dashboardLoadMoreUrl ?? '';
+    const resolvedLoadMoreUrl = loadMoreUrl ?? pageRoot.dataset?.dashboardLoadMoreUrl ?? '';
 
     if (!card || !input || !container) {
         return null;

@@ -20,6 +20,7 @@ import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
+import { getDashboardConfig } from './dashboard-config';
 import { initOperationsDashboard } from './operations-dashboard';
 import { initPresenceHeartbeat } from './presence-heartbeat';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from './customer-intake';
@@ -514,9 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initTooltips();
 
-    const pageRoot = document.getElementById('dashboard-page') ?? document;
-    initServiceCasePaginationState(pageRoot);
-    initDashboardKpiActions(pageRoot);
+    const dashboardConfig = getDashboardConfig();
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
     const dashboardTransactionsRef = { current: null };
     const dashboardSerialRef = { current: null };
@@ -584,74 +583,90 @@ document.addEventListener('DOMContentLoaded', () => {
     const legacyVerificationModal = initLegacyVerificationModal();
     setOrderWorkspaceLegacyVerificationModal(legacyVerificationModal);
 
-    dashboardTransactionsRef.current = initDashboardTransactions({
-        pageRoot,
-        legacyVerificationModal,
-        openBatchModal: (incidentIds) => {
-            workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
-        },
-        onRowUpdated: () => {
-            dashboardQuickFilter?.reapply();
-        },
-    });
+    if (dashboardConfig) {
+        const { pageRoot } = dashboardConfig;
 
-    const dashboardTransactions = dashboardTransactionsRef.current;
+        initServiceCasePaginationState(pageRoot);
+        initDashboardKpiActions(pageRoot);
 
-    dashboardQuickFilter = initDashboardQuickFilter({
-        pageRoot,
-        loadMoreUrl: pageRoot.dataset.dashboardLoadMoreUrl,
-        onRestoreDashboard: () => refreshDashboard(pageRoot),
-        onFilterApplied: () => {
-            dashboardTransactions?.batchSession.updateToolbar();
-        },
-    });
-
-    initDashboardLoadMore({
-        pageRoot,
-        onRowsAppended: () => {
-            dashboardTransactions?.batchSession.restoreAllRowStates();
-            dashboardQuickFilter?.reapply();
-        },
-    });
-
-    const customer360Drawer = initCustomer360Drawer({
-        pageRoot,
-        showToast: showAppToast,
-        initTooltips,
-    });
-
-    const dashboardLiveHooks = {
-        onRowsUpdated: () => {
-            dashboardTransactions?.batchSession.restoreAllRowStates();
-            dashboardQuickFilter?.reapply();
-        },
-    };
-
-    initUniversalSearch({
-        dashboardIntegration: pageRoot?.querySelector('.dashboard-service-cases-card') ? {
+        dashboardTransactionsRef.current = initDashboardTransactions({
             pageRoot,
-            searchRowsUrl: pageRoot.dataset.dashboardSearchRowsUrl,
-            applyRows: (rows, options = {}) => {
-                applyRows(rows, options);
+            legacyVerificationModal,
+            openBatchModal: (incidentIds) => {
+                workspaceApi?.openBatchComponent('batch-transaction', incidentIds, 'dashboard');
             },
-            restoreDashboard: () => refreshDashboard(pageRoot),
-            openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),
-            closeDrawer: () => customer360Drawer?.close(),
-            onRowsUpdated: dashboardLiveHooks.onRowsUpdated,
-        } : null,
-    });
-
-    const liveDashboard = initLiveDashboard(dashboardLiveHooks);
-    const liveMode = liveDashboard.pageRoot?.dataset.liveMode ?? 'poll';
-
-    if (liveMode === 'reverb' || liveMode === 'auto') {
-        initLiveDashboardReverb({
-            pageRoot: liveDashboard.pageRoot,
-            startPolling: liveDashboard.startPolling,
-            stopPolling: liveDashboard.stopPolling,
-            hooks: dashboardLiveHooks,
-            fallbackPoll: liveMode === 'auto',
+            onRowUpdated: () => {
+                dashboardQuickFilter?.reapply();
+            },
         });
+
+        const dashboardTransactions = dashboardTransactionsRef.current;
+
+        dashboardQuickFilter = initDashboardQuickFilter({
+            pageRoot,
+            loadMoreUrl: dashboardConfig.dashboardLoadMoreUrl,
+            onRestoreDashboard: () => refreshDashboard(pageRoot),
+            onFilterApplied: () => {
+                dashboardTransactions?.batchSession.updateToolbar();
+            },
+        });
+
+        initDashboardLoadMore({
+            pageRoot,
+            onRowsAppended: () => {
+                dashboardTransactions?.batchSession.restoreAllRowStates();
+                dashboardQuickFilter?.reapply();
+            },
+        });
+
+        const customer360Drawer = initCustomer360Drawer({
+            pageRoot,
+            showToast: showAppToast,
+            initTooltips,
+        });
+
+        const dashboardLiveHooks = {
+            onRowsUpdated: () => {
+                dashboardTransactions?.batchSession.restoreAllRowStates();
+                dashboardQuickFilter?.reapply();
+            },
+        };
+
+        initUniversalSearch({
+            dashboardIntegration: pageRoot.querySelector('.dashboard-service-cases-card') ? {
+                pageRoot,
+                searchRowsUrl: dashboardConfig.dashboardSearchRowsUrl,
+                applyRows: (rows, options = {}) => {
+                    applyRows(rows, options);
+                },
+                restoreDashboard: () => refreshDashboard(pageRoot),
+                openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),
+                closeDrawer: () => customer360Drawer?.close(),
+                onRowsUpdated: dashboardLiveHooks.onRowsUpdated,
+            } : null,
+        });
+
+        const liveDashboard = initLiveDashboard(dashboardLiveHooks);
+        const liveMode = liveDashboard.pageRoot?.dataset.liveMode ?? 'poll';
+
+        if (liveMode === 'reverb' || liveMode === 'auto') {
+            initLiveDashboardReverb({
+                pageRoot: liveDashboard.pageRoot,
+                startPolling: liveDashboard.startPolling,
+                stopPolling: liveDashboard.stopPolling,
+                hooks: dashboardLiveHooks,
+                fallbackPoll: liveMode === 'auto',
+            });
+        }
+
+        dashboardSerialRef.current = initDashboardSerialNumbers({
+            replaceServiceCaseRow: (...args) => (
+                dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
+            )(...args),
+            showToast: showAppToast,
+        });
+    } else {
+        initUniversalSearch({ dashboardIntegration: null });
     }
 
     initLiveNotifications();
@@ -660,13 +675,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initOrderWorkspace();
 
     initCustomerIntake();
-
-    dashboardSerialRef.current = initDashboardSerialNumbers({
-        replaceServiceCaseRow: (...args) => (
-            dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
-        )(...args),
-        showToast: showAppToast,
-    });
 
     initKeyboardShortcuts({
         closeOpenInlineEditor: () => (

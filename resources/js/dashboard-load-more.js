@@ -14,7 +14,7 @@ export const initDashboardLoadMore = ({
 } = {}) => {
     const card = pageRoot.querySelector('.dashboard-service-cases-card');
     const button = pageRoot.querySelector('[data-dashboard-load-more]');
-    const loadMoreUrl = pageRoot.dataset.dashboardLoadMoreUrl;
+    const loadMoreUrl = pageRoot.dataset?.dashboardLoadMoreUrl;
 
     if (!card || !button || !loadMoreUrl) {
         return null;
