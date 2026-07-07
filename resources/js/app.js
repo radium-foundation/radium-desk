@@ -638,6 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         initUniversalSearch({
+            showToast: showAppToast,
             dashboardIntegration: pageRoot.querySelector('.dashboard-service-cases-card') ? {
                 pageRoot,
                 searchRowsUrl: dashboardConfig.dashboardSearchRowsUrl,

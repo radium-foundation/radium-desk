@@ -6,6 +6,7 @@ use App\Enums\IncidentSource;
 use App\Enums\NewContactIntent;
 use App\Http\Requests\SearchCustomerIntakeRequest;
 use App\Http\Requests\StoreCustomerIntakeRequest;
+use App\Models\Incident;
 use App\Models\Order;
 use App\Services\CustomerIntakeSearchService;
 use App\Services\CustomerIntakeService;
@@ -30,20 +31,18 @@ class QuickServiceRequestController extends Controller
             user: $request->user(),
         );
 
-        return response()->json([
-            'classification' => $result->classification->value,
-            'classification_label' => $result->classification->label(),
-            'matches' => $result->matches,
-            'legacy_source' => $result->legacySource,
-            'legacy_preview' => $result->legacyPreview?->toArray(),
-            'requires_confirmation' => $result->requiresConfirmation,
-            'legacy_preview_message' => $result->requiresConfirmation
-                ? 'Legacy order found. Create service case?'
-                : null,
-        ]);
+        return response()->json($this->customerIntakeSearchService->toSearchPayload(
+            $result,
+            [
+                'phone' => $request->string('phone')->trim()->toString() ?: null,
+                'order_id' => $request->string('order_id')->trim()->toString() ?: null,
+                'serial_number' => $request->string('serial_number')->trim()->toString() ?: null,
+                'email' => null,
+            ],
+        ));
     }
 
-    public function store(StoreCustomerIntakeRequest $request): RedirectResponse
+    public function store(StoreCustomerIntakeRequest $request): RedirectResponse|JsonResponse
     {
         $source = IncidentSource::fromIntakeKey($request->string('source')->toString());
         $notes = $request->string('notes')->trim()->toString();
@@ -75,7 +74,7 @@ class QuickServiceRequestController extends Controller
                 highPriority: $highPriority,
             );
 
-            return $this->createdRedirect($incident->display_reference);
+            return $this->respondCreated($request, $incident);
         }
 
         if ($action === 'legacy_radiumbox') {
@@ -88,7 +87,7 @@ class QuickServiceRequestController extends Controller
                 phone: $request->string('phone')->trim()->toString() ?: null,
             );
 
-            return $this->createdRedirect($incident->display_reference);
+            return $this->respondCreated($request, $incident);
         }
 
         if ($action === 'legacy_import') {
@@ -101,7 +100,7 @@ class QuickServiceRequestController extends Controller
                 phone: $request->string('phone')->trim()->toString() ?: null,
             );
 
-            return $this->createdRedirect($incident->display_reference);
+            return $this->respondCreated($request, $incident);
         }
 
         $incident = $this->customerIntakeService->createNewContact(
@@ -114,6 +113,20 @@ class QuickServiceRequestController extends Controller
             notes: $notes,
             highPriority: $highPriority,
         );
+
+        return $this->respondCreated($request, $incident);
+    }
+
+    private function respondCreated(StoreCustomerIntakeRequest $request, Incident $incident): RedirectResponse|JsonResponse
+    {
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Service Case '.$incident->display_reference.' created',
+                'incident_id' => $incident->id,
+                'display_reference' => $incident->display_reference,
+                'customer_360_url' => route('dashboard.service-cases.customer-360', $incident),
+            ]);
+        }
 
         return $this->createdRedirect($incident->display_reference);
     }

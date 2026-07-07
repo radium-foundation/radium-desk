@@ -52,6 +52,39 @@ class LegacyOrderPreview
         );
     }
 
+    public function isCompleteForOneClick(?string $intakePhone = null): bool
+    {
+        return $this->missingFieldsForOneClick($intakePhone) === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function missingFieldsForOneClick(?string $intakePhone = null): array
+    {
+        $missing = [];
+
+        if (! filled($this->customerName)) {
+            $missing[] = 'customer_name';
+        }
+
+        $phone = filled($this->mobile) ? $this->mobile : $intakePhone;
+
+        if (! filled($phone)) {
+            $missing[] = 'mobile';
+        }
+
+        if (! filled($this->productModel)) {
+            $missing[] = 'product_model';
+        }
+
+        if (! filled($this->serialNumber)) {
+            $missing[] = 'serial_number';
+        }
+
+        return $missing;
+    }
+
     /**
      * @return array<string, mixed>
      */

@@ -114,9 +114,29 @@ class GlobalSearchIntakeFallbackTest extends TestCase
             ->assertJsonPath('intake.classification', 'legacy')
             ->assertJsonPath('intake.requires_confirmation', true)
             ->assertJsonPath('intake.legacy_preview.order_id', 'RD3395988')
+            ->assertJsonPath('intake.legacy_preview_complete', true)
+            ->assertJsonPath('intake.missing_fields', [])
+            ->assertJsonPath('intake.default_source', 'call')
+            ->assertJsonPath('intake.create_url', route('service-requests.quick.store'))
             ->assertJsonPath('intake.parsed_query.order_id', 'RD3395988');
 
         Http::assertSentCount(1);
+    }
+
+    public function test_incomplete_legacy_preview_is_not_one_click_eligible(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponseWithoutSerial()),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD3395988']))
+            ->assertOk()
+            ->assertJsonPath('intake.legacy_preview_complete', false)
+            ->assertJsonPath('intake.missing_fields', ['serial_number']);
     }
 
     public function test_unknown_query_returns_new_contact_intake_state(): void
@@ -195,7 +215,20 @@ class GlobalSearchIntakeFallbackTest extends TestCase
             ->assertOk()
             ->assertJsonPath('classification', 'legacy')
             ->assertJsonPath('requires_confirmation', true)
-            ->assertJsonPath('legacy_preview.order_id', 'RD3421021');
+            ->assertJsonPath('legacy_preview.order_id', 'RD3421021')
+            ->assertJsonPath('legacy_preview_complete', true)
+            ->assertJsonPath('default_source', 'call');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyOrderApiResponseWithoutSerial(string $orderId = 'RD3395988'): array
+    {
+        $response = $this->legacyOrderApiResponse($orderId);
+        unset($response['data']['rd_order']['serial_no']);
+
+        return $response;
     }
 
     /**

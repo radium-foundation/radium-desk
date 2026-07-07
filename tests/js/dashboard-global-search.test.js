@@ -21,7 +21,7 @@ describe('dashboard global search integration', () => {
         vi.restoreAllMocks();
     });
 
-    const mountDashboard = () => {
+    const mountDashboard = ({ showToast = vi.fn() } = {}) => {
         document.body.innerHTML = `
             <meta name="csrf-token" content="test-csrf-token">
             <form data-universal-search-form data-search-url="/search">
@@ -80,10 +80,11 @@ describe('dashboard global search integration', () => {
         const pageRoot = document.getElementById('dashboard-page');
         const customer360Drawer = initCustomer360Drawer({
             pageRoot,
-            showToast: vi.fn(),
+            showToast,
         });
 
         initUniversalSearch({
+            showToast,
             dashboardIntegration: {
                 pageRoot,
                 searchRowsUrl: pageRoot.dataset.dashboardSearchRowsUrl,
@@ -97,7 +98,7 @@ describe('dashboard global search integration', () => {
             },
         });
 
-        return { pageRoot, customer360Drawer };
+        return { pageRoot, customer360Drawer, showToast };
     };
 
     const submitSearch = async (query) => {
@@ -431,6 +432,207 @@ describe('dashboard global search integration', () => {
         expect(fallback?.textContent).not.toContain('No record found');
         expect(fallback?.querySelector('[data-dashboard-search-intake-action]')?.textContent?.trim())
             .toBe('Create Service Request');
+    });
+
+    it('creates complete legacy orders in one click without opening quick create', async () => {
+        const quickCreateShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockReturnValue({
+            show: quickCreateShow,
+        });
+
+        const { customer360Drawer, showToast } = mountDashboard();
+        const openDrawerSpy = vi.spyOn(customer360Drawer, 'open');
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 0,
+                    incident_ids: [],
+                    results: [],
+                    intake: {
+                        classification: 'legacy',
+                        requires_confirmation: true,
+                        legacy_preview_complete: true,
+                        default_source: 'call',
+                        create_url: '/service-requests/quick',
+                        legacy_preview: {
+                            order_id: 'RD3395988',
+                            customer_name: 'Satyam Test',
+                            mobile: '9876543210',
+                            product_model: 'MFS 110',
+                            serial_number: 'SN123456',
+                        },
+                        parsed_query: {
+                            phone: null,
+                            order_id: 'RD3395988',
+                            serial_number: null,
+                        },
+                    },
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    message: 'Service Case SC00055 created',
+                    incident_id: 55,
+                    display_reference: 'SC00055',
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [55],
+                    results: [{
+                        type: 'service_case',
+                        service_case: 'SC00055',
+                        order_id: 'RD3395988',
+                        status: 'Open',
+                        actions: {
+                            incident_id: 55,
+                            display_reference: 'SC00055',
+                        },
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    rows: ['<tr id="service-case-row-55" data-incident-id="55"><td><a class="case-reference-link">SC00055</a></td><td>RD3395988</td></tr>'],
+                    service_cases_empty: false,
+                }),
+            });
+
+        await submitSearch('RD3395988');
+
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith('Service Case SC00055 created');
+        });
+
+        expect(quickCreateShow).not.toHaveBeenCalled();
+        expect(openDrawerSpy).toHaveBeenCalledWith(55, 'SC00055');
+
+        const createRequest = fetch.mock.calls.find(
+            ([url, options]) => url === '/service-requests/quick' && options?.method === 'POST',
+        );
+        expect(createRequest).toBeDefined();
+        expect(createRequest?.[1]?.headers?.Accept).toBe('application/json');
+    });
+
+    it('shows toast when one-click legacy create is rejected as duplicate', async () => {
+        const { showToast } = mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 0,
+                    incident_ids: [],
+                    results: [],
+                    intake: {
+                        classification: 'legacy',
+                        requires_confirmation: true,
+                        legacy_preview_complete: true,
+                        default_source: 'call',
+                        create_url: '/service-requests/quick',
+                        legacy_preview: {
+                            order_id: 'RD3395988',
+                            customer_name: 'Satyam Test',
+                            mobile: '9876543210',
+                            product_model: 'MFS 110',
+                            serial_number: 'SN123456',
+                        },
+                        parsed_query: {
+                            phone: null,
+                            order_id: 'RD3395988',
+                            serial_number: null,
+                        },
+                    },
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 422,
+                json: async () => ({
+                    message: 'The given data was invalid.',
+                    errors: {
+                        legacy_order_id: ['This order already exists in Radium Desk.'],
+                    },
+                }),
+            });
+
+        await submitSearch('RD3395988');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith(
+                'This order already exists in Radium Desk.',
+                'danger',
+            );
+        });
+
+        expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('falls back to quick create for incomplete legacy preview', async () => {
+        const quickCreateShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockReturnValue({
+            show: quickCreateShow,
+        });
+
+        mountDashboard();
+
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="modal" id="quickCreateModal">
+                <form id="customerIntakeForm">
+                    <input id="intake_phone" type="text">
+                    <input id="intake_order_id" type="text">
+                    <input id="intake_serial_number" type="text">
+                    <div id="intake-search-feedback" class="alert d-none"></div>
+                    <button type="button" id="intake-search-button">Search</button>
+                </form>
+            </div>
+        `);
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'legacy',
+                    requires_confirmation: true,
+                    legacy_preview_complete: false,
+                    missing_fields: ['serial_number'],
+                    legacy_preview: {
+                        order_id: 'RD3395988',
+                        customer_name: 'Satyam Test',
+                        mobile: '9876543210',
+                        product_model: 'MFS 110',
+                        serial_number: null,
+                    },
+                    parsed_query: {
+                        phone: null,
+                        order_id: 'RD3395988',
+                        serial_number: null,
+                    },
+                },
+            }),
+        });
+
+        await submitSearch('RD3395988');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(quickCreateShow).toHaveBeenCalled();
+        });
+
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(document.getElementById('intake_order_id')?.value).toBe('RD3395988');
     });
 
     it('shows new contact intake fallback panel for unknown queries', async () => {

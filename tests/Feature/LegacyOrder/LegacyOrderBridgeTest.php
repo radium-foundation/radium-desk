@@ -151,6 +151,59 @@ class LegacyOrderBridgeTest extends TestCase
         $this->assertSame('Imported legacy order.', $incident->description);
     }
 
+    public function test_legacy_import_json_response_returns_incident_details(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create(['name' => 'JSON Import Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Call->value,
+            ])
+            ->assertOk();
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+
+        $response
+            ->assertJsonPath('incident_id', $incident->id)
+            ->assertJsonPath('display_reference', $incident->display_reference)
+            ->assertJsonPath('message', 'Service Case '.$incident->display_reference.' created')
+            ->assertJsonPath('customer_360_url', route('dashboard.service-cases.customer-360', $incident));
+    }
+
+    public function test_legacy_import_json_rejects_duplicate_order(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD3395988',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Call->value,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('errors.legacy_order_id.0', 'This order already exists in Radium Desk.');
+    }
+
     public function test_legacy_import_accepts_admin_ui_source_key(): void
     {
         Http::fake([

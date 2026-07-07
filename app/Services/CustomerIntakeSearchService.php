@@ -18,6 +18,7 @@ class CustomerIntakeSearchService
     public function __construct(
         private readonly InteraktCustomerMatcher $customerMatcher,
         private readonly LegacyOrderLookupService $legacyOrderLookupService,
+        private readonly SettingService $settingService,
     ) {}
 
     /**
@@ -95,16 +96,23 @@ class CustomerIntakeSearchService
      */
     public function toSearchPayload(CustomerIntakeSearchResult $result, array $parsedQuery): array
     {
+        $intakePhone = $parsedQuery['phone'] ?? null;
+        $legacyPreview = $result->legacyPreview;
+
         return [
             'classification' => $result->classification->value,
             'classification_label' => $result->classification->label(),
             'matches' => $result->matches,
             'legacy_source' => $result->legacySource,
-            'legacy_preview' => $result->legacyPreview?->toArray(),
+            'legacy_preview' => $legacyPreview?->toArray(),
             'requires_confirmation' => $result->requiresConfirmation,
             'legacy_preview_message' => $result->requiresConfirmation
                 ? 'Legacy order found. Create service case?'
                 : null,
+            'legacy_preview_complete' => $legacyPreview?->isCompleteForOneClick($intakePhone) ?? false,
+            'missing_fields' => $legacyPreview?->missingFieldsForOneClick($intakePhone) ?? [],
+            'default_source' => $this->settingService->enabledSources()->first()?->key,
+            'create_url' => route('service-requests.quick.store'),
             'parsed_query' => $parsedQuery,
         ];
     }

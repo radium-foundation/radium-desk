@@ -79,6 +79,32 @@ const shouldAutoRunIntakeSearch = (parsedQuery = {}) => (
     Boolean(parsedQuery.phone || parsedQuery.order_id || parsedQuery.serial_number)
 );
 
+const isLegacyOneClickEligible = (intake) => (
+    Boolean(
+        intake?.requires_confirmation
+        && intake?.legacy_preview
+        && intake?.legacy_preview_complete === true,
+    )
+);
+
+const extractValidationMessage = (data) => {
+    if (data?.errors && typeof data.errors === 'object') {
+        const firstError = Object.values(data.errors)
+            .flat()
+            .find((value) => typeof value === 'string' && value !== '');
+
+        if (firstError) {
+            return firstError;
+        }
+    }
+
+    if (typeof data?.message === 'string' && data.message !== '') {
+        return data.message;
+    }
+
+    return 'Unable to create service request.';
+};
+
 const prefillAndOpenQuickCreate = (intake, query) => {
     const modalElement = document.getElementById('quickCreateModal');
     const form = modalElement?.querySelector('#customerIntakeForm');
@@ -325,6 +351,7 @@ const highlightSearchMatch = (card, incidentId) => {
 
 export const initUniversalSearch = ({
     dashboardIntegration = null,
+    showToast = null,
 } = {}) => {
     const form = document.querySelector('[data-universal-search-form]');
     const globalInput = document.getElementById('global-search-input');
@@ -436,11 +463,96 @@ export const initUniversalSearch = ({
             </button>
         `;
 
-        panel.querySelector('[data-dashboard-search-intake-action]')?.addEventListener('click', () => {
+        const actionButton = panel.querySelector('[data-dashboard-search-intake-action]');
+
+        actionButton?.addEventListener('click', () => {
+            if (isLegacyOneClickEligible(intake)) {
+                createLegacyServiceRequestFromSearch(intake, query, actionButton);
+
+                return;
+            }
+
             prefillAndOpenQuickCreate(intake, query);
         });
 
         banner.appendChild(panel);
+    };
+
+    const createLegacyServiceRequestFromSearch = async (intake, query, button) => {
+        if (button?.disabled) {
+            return;
+        }
+
+        const createUrl = intake?.create_url ?? '/service-requests/quick';
+        const preview = intake?.legacy_preview ?? {};
+        const parsedQuery = intake?.parsed_query ?? {};
+        const defaultSource = intake?.default_source;
+
+        if (!defaultSource || !preview.order_id) {
+            showToast?.('Unable to create service request.', 'danger');
+
+            return;
+        }
+
+        const originalButtonHtml = button?.innerHTML ?? 'Create Service Request';
+
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Creating…';
+        }
+
+        try {
+            const body = new FormData();
+            body.append('action', 'legacy_import');
+            body.append('legacy_order_id', preview.order_id);
+            body.append('source', defaultSource);
+
+            if (parsedQuery.phone) {
+                body.append('phone', parsedQuery.phone);
+            }
+
+            const response = await fetch(createUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body,
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                showToast?.(extractValidationMessage(data), 'danger');
+
+                return;
+            }
+
+            showToast?.(data.message ?? `Service Case ${data.display_reference} created`);
+
+            const actions = {
+                incident_id: data.incident_id,
+                display_reference: data.display_reference,
+            };
+
+            if (query.trim() !== '') {
+                suppressNextAutoOpen = true;
+                await runUniversalSearch(query);
+                suppressNextAutoOpen = false;
+            }
+
+            openCustomer360FromSearch(actions, dashboardIntegration);
+            refreshCustomer360(actions.incident_id);
+        } catch {
+            showToast?.('Unable to create service request.', 'danger');
+        } finally {
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = originalButtonHtml;
+            }
+        }
     };
 
     const showSearchEmptyResults = (card) => {
