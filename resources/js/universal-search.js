@@ -105,6 +105,28 @@ const extractValidationMessage = (data) => {
     return 'Unable to create service request.';
 };
 
+const parseJsonResponse = async (response) => {
+    const contentType = response.headers.get('content-type') ?? '';
+
+    if (!contentType.includes('application/json')) {
+        return null;
+    }
+
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+};
+
+const legacyCreateErrorMessage = (response) => {
+    if (response.status === 419) {
+        return 'Session expired. Refresh and try again.';
+    }
+
+    return 'Unable to create service request.';
+};
+
 const prefillAndOpenQuickCreate = (intake, query) => {
     const modalElement = document.getElementById('quickCreateModal');
     const form = modalElement?.querySelector('#customerIntakeForm');
@@ -522,7 +544,13 @@ export const initUniversalSearch = ({
                 body,
             });
 
-            const data = await response.json();
+            const data = await parseJsonResponse(response);
+
+            if (data === null) {
+                showToast?.(legacyCreateErrorMessage(response), 'danger');
+
+                return;
+            }
 
             if (!response.ok) {
                 showToast?.(extractValidationMessage(data), 'danger');

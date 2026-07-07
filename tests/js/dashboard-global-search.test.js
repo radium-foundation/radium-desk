@@ -101,6 +101,26 @@ describe('dashboard global search integration', () => {
         return { pageRoot, customer360Drawer, showToast };
     };
 
+    const jsonFetchResponse = (body, { ok = true, status = 200 } = {}) => ({
+        ok,
+        status,
+        headers: {
+            get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+        },
+        json: async () => body,
+    });
+
+    const htmlFetchResponse = (status) => ({
+        ok: false,
+        status,
+        headers: {
+            get: (name) => (name.toLowerCase() === 'content-type' ? 'text/html; charset=UTF-8' : null),
+        },
+        json: async () => {
+            throw new Error('Unexpected JSON parse');
+        },
+    });
+
     const submitSearch = async (query) => {
         document.getElementById('global-search-input').value = query;
         document.querySelector('[data-universal-search-form]')?.dispatchEvent(
@@ -471,14 +491,11 @@ describe('dashboard global search integration', () => {
                     },
                 }),
             })
-            .mockResolvedValueOnce({
-                ok: true,
-                json: async () => ({
-                    message: 'Service Case SC00055 created',
-                    incident_id: 55,
-                    display_reference: 'SC00055',
-                }),
-            })
+            .mockResolvedValueOnce(jsonFetchResponse({
+                message: 'Service Case SC00055 created',
+                incident_id: 55,
+                display_reference: 'SC00055',
+            }))
             .mockResolvedValueOnce({
                 ok: true,
                 json: async () => ({
@@ -556,6 +573,9 @@ describe('dashboard global search integration', () => {
             .mockResolvedValueOnce({
                 ok: false,
                 status: 422,
+                headers: {
+                    get: (name) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+                },
                 json: async () => ({
                     message: 'The given data was invalid.',
                     errors: {
@@ -575,6 +595,94 @@ describe('dashboard global search integration', () => {
         });
 
         expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('shows session expired toast when one-click create returns non-json 419', async () => {
+        const { showToast } = mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 0,
+                    incident_ids: [],
+                    results: [],
+                    intake: {
+                        classification: 'legacy',
+                        requires_confirmation: true,
+                        legacy_preview_complete: true,
+                        default_source: 'call',
+                        create_url: '/service-requests/quick',
+                        legacy_preview: {
+                            order_id: 'RD3395988',
+                            customer_name: 'Satyam Test',
+                            mobile: '9876543210',
+                            product_model: 'MFS 110',
+                            serial_number: 'SN123456',
+                        },
+                        parsed_query: {
+                            phone: null,
+                            order_id: 'RD3395988',
+                            serial_number: null,
+                        },
+                    },
+                }),
+            })
+            .mockResolvedValueOnce(htmlFetchResponse(419));
+
+        await submitSearch('RD3395988');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith(
+                'Session expired. Refresh and try again.',
+                'danger',
+            );
+        });
+    });
+
+    it('shows generic toast when one-click create returns non-json error', async () => {
+        const { showToast } = mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 0,
+                    incident_ids: [],
+                    results: [],
+                    intake: {
+                        classification: 'legacy',
+                        requires_confirmation: true,
+                        legacy_preview_complete: true,
+                        default_source: 'call',
+                        create_url: '/service-requests/quick',
+                        legacy_preview: {
+                            order_id: 'RD3395988',
+                            customer_name: 'Satyam Test',
+                            mobile: '9876543210',
+                            product_model: 'MFS 110',
+                            serial_number: 'SN123456',
+                        },
+                        parsed_query: {
+                            phone: null,
+                            order_id: 'RD3395988',
+                            serial_number: null,
+                        },
+                    },
+                }),
+            })
+            .mockResolvedValueOnce(htmlFetchResponse(500));
+
+        await submitSearch('RD3395988');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(showToast).toHaveBeenCalledWith(
+                'Unable to create service request.',
+                'danger',
+            );
+        });
     });
 
     it('falls back to quick create for incomplete legacy preview', async () => {
