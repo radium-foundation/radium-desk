@@ -9,6 +9,7 @@ use App\Enums\AutomationPolicyActionType;
 use App\Exceptions\InvalidAutomationPolicyException;
 use App\Exceptions\UnknownAutomationPolicyException;
 use App\Models\IncidentWaitingState;
+use App\Services\Automation\CustomerWaitingEngagementService;
 use App\Services\Automation\CustomerWaitingLifecycleService;
 use Illuminate\Support\Carbon;
 
@@ -18,6 +19,10 @@ class AutomationPolicyService
      * @var array<string, AutomationPolicyDefinition>
      */
     private array $loadedPolicies = [];
+
+    public function __construct(
+        private readonly CustomerWaitingEngagementService $engagementService,
+    ) {}
 
     public function load(string $key): AutomationPolicyDefinition
     {
@@ -106,9 +111,17 @@ class AutomationPolicyService
             return false;
         }
 
-        return CustomerWaitingLifecycleService::isAutoCloseCutoffReached(
-            $followupSentAt,
-            $referenceAt,
-        );
+        if (! CustomerWaitingLifecycleService::isAutoCloseCutoffReached($followupSentAt, $referenceAt)) {
+            return false;
+        }
+
+        $waitingState->loadMissing(['incident.order', 'incident.supportAppointments']);
+        $incident = $waitingState->incident;
+
+        if ($incident !== null && $this->engagementService->hasEngagement($incident, $waitingState)) {
+            return false;
+        }
+
+        return true;
     }
 }

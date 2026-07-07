@@ -44,6 +44,7 @@ TEXT;
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
+        private readonly CustomerWaitingEngagementService $engagementService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly RemarkService $remarkService,
         private readonly ServiceCaseStatusService $serviceCaseStatusService,
@@ -113,7 +114,7 @@ TEXT;
 
     public function autoCloseForNoResponse(PlannedAutomationAction $action): ActionHandlerResult
     {
-        $waitingState = $action->waitingState->fresh(['incident.order']);
+        $waitingState = $action->waitingState->fresh(['incident.order', 'incident.supportAppointments']);
 
         if ($waitingState === null || ! $waitingState->isActive()) {
             return ActionHandlerResult::failure('Waiting state is no longer active.');
@@ -141,6 +142,10 @@ TEXT;
 
         if ($incident->status === IncidentStatus::Closed) {
             return ActionHandlerResult::failure('Service case is already closed.');
+        }
+
+        if ($this->engagementService->hasEngagement($incident, $waitingState)) {
+            return ActionHandlerResult::failure('Customer engagement detected; auto-close skipped.');
         }
 
         $actor = $this->automationIdentity->systemUser();

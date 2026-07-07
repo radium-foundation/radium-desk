@@ -23,6 +23,7 @@ class CustomerWaitingLegacyCleanupService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
+        private readonly CustomerWaitingEngagementService $engagementService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly OperationsQueueClassifier $queueClassifier,
         private readonly RemarkService $remarkService,
@@ -113,10 +114,16 @@ class CustomerWaitingLegacyCleanupService
 
     private function shouldClose(Incident $incident): bool
     {
+        $waitingState = $this->waitingStateService->activeFor($incident);
+
         return $incident->isActive()
             && $incident->status !== IncidentStatus::Closed
             && $this->queueClassifier->isWaitingCustomer($incident)
-            && $this->isLegacyWaitingState($this->waitingStateService->activeFor($incident));
+            && $this->isLegacyWaitingState($waitingState)
+            && ! $this->engagementService->hasEngagement(
+                $incident->loadMissing(['order', 'supportAppointments']),
+                $waitingState,
+            );
     }
 
     private function closeLegacyCase(Incident $incident): ?string

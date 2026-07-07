@@ -8,11 +8,14 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\NotificationType;
 use App\Enums\ServiceCaseCloseExceptionReason;
+use App\Enums\SupportAppointmentStatus;
+use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\WaitingReason;
 use App\Models\AutomationExecution;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
+use App\Models\SupportAppointment;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\AI\IRAExecutiveSummaryService;
@@ -236,6 +239,49 @@ class CustomerWaitingLifecycleTest extends TestCase
         ]);
     }
 
+    public function test_support_appointment_prevents_auto_close_as_customer_not_responding(): void
+    {
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-06 09:00:00'),
+            reason: WaitingReason::SerialNumber,
+        );
+
+        Carbon::setTestNow('2026-07-06 14:00:00');
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => '2026-07-10',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876543210',
+            'normalized_phone' => '9876543210',
+            'status' => SupportAppointmentStatus::Scheduled,
+        ]);
+
+        Carbon::setTestNow('2026-07-07 10:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 10:00:00'));
+
+        $this->assertNotNull($waitingState->fresh()->customer_followup_sent_at);
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+
+        Carbon::setTestNow('2026-07-07 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 18:00:00'));
+
+        $incident = $incident->fresh();
+        $waitingState = $waitingState->fresh();
+
+        $this->assertSame(IncidentStatus::Open, $incident->status);
+        $this->assertNull($waitingState->cleared_at);
+        $this->assertTrue($incident->hasActiveSupportAppointment());
+        $this->assertDatabaseMissing('automation_executions', [
+            'waiting_state_id' => $waitingState->id,
+            'action_key' => 'customer_not_responding',
+            'status' => AutomationExecutionStatus::Success->value,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => CustomerWaitingLifecycleService::EVENT_AUTO_CLOSED,
+            'auditable_id' => $incident->id,
+        ]);
+    }
+
     public function test_customer_return_after_auto_close_shows_history_to_ira(): void
     {
         [$agent, $incident] = array_slice(
@@ -288,8 +334,10 @@ class CustomerWaitingLifecycleTest extends TestCase
     /**
      * @return array{0: User, 1: Incident, 2: IncidentWaitingState}
      */
-    private function createWaitingScenario(Carbon $startedAt): array
-    {
+    private function createWaitingScenario(
+        Carbon $startedAt,
+        WaitingReason $reason = WaitingReason::Photos,
+    ): array {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
@@ -320,7 +368,7 @@ class CustomerWaitingLifecycleTest extends TestCase
 
         $waitingState = app(IncidentWaitingStateService::class)->start(
             incident: $incident,
-            reason: WaitingReason::Photos,
+            reason: $reason,
             actor: $agent,
             startedAt: $startedAt,
         );
