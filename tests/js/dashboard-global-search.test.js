@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as bootstrap from 'bootstrap';
 import { initUniversalSearch } from '../../resources/js/universal-search';
 import { initCustomer360Drawer } from '../../resources/js/customer-360-drawer';
 import { applyRows, refreshDashboard } from '../../resources/js/live-dashboard';
@@ -383,10 +384,167 @@ describe('dashboard global search integration', () => {
         expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(true);
         expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
             .toBe('No record found for RD-NO-MATCH');
+        expect(document.querySelector('[data-dashboard-search-intake-fallback]')).toBeNull();
         expect(document.getElementById('service-case-row-10')).toBeNull();
         expect(document.getElementById('service-case-row-20')).toBeNull();
         expect(document.getElementById('dashboard-service-cases-empty-row')).not.toBeNull();
         expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows legacy intake fallback panel when search returns intake preview', async () => {
+        mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'legacy',
+                    requires_confirmation: true,
+                    legacy_preview_message: 'Legacy order found. Create service case?',
+                    legacy_preview: {
+                        order_id: 'RD3395988',
+                        customer_name: 'Satyam Test',
+                        mobile: '9876543210',
+                        product_model: 'MFS 110',
+                        serial_number: 'SN123456',
+                    },
+                    parsed_query: {
+                        phone: null,
+                        order_id: 'RD3395988',
+                        serial_number: null,
+                    },
+                },
+            }),
+        });
+
+        await submitSearch('RD3395988');
+
+        const fallback = document.querySelector('[data-dashboard-search-intake-fallback]');
+        expect(fallback).not.toBeNull();
+        expect(fallback?.textContent).toContain('Legacy order found');
+        expect(fallback?.textContent).toContain('RD3395988');
+        expect(fallback?.querySelector('[data-dashboard-search-intake-action]')?.textContent?.trim())
+            .toBe('Create Service Request');
+    });
+
+    it('shows new contact intake fallback panel for unknown queries', async () => {
+        mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'new_contact',
+                    requires_confirmation: false,
+                    legacy_preview: null,
+                    parsed_query: {
+                        phone: null,
+                        order_id: null,
+                        serial_number: null,
+                    },
+                },
+            }),
+        });
+
+        await submitSearch('Unknown Customer Name');
+
+        const fallback = document.querySelector('[data-dashboard-search-intake-fallback]');
+        expect(fallback).not.toBeNull();
+        expect(fallback?.textContent).toContain('No desk record found for Unknown Customer Name');
+        expect(fallback?.querySelector('[data-dashboard-search-intake-action]')).not.toBeNull();
+    });
+
+    it('opens quick create modal from intake fallback action', async () => {
+        const quickCreateShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockReturnValue({
+            show: quickCreateShow,
+        });
+
+        document.body.innerHTML = `
+            <form data-universal-search-form data-search-url="/search">
+                <input id="global-search-input" type="search" value="">
+            </form>
+            <div id="dashboard-page" data-dashboard-search-rows-url="/dashboard/service-cases/search-rows">
+                <div class="dashboard-service-cases-card">
+                    <div id="dashboard-service-cases-content">
+                        <div class="dashboard-search-banner d-none"
+                             data-dashboard-search-banner
+                             hidden>
+                            <div class="dashboard-search-banner__content">
+                                <strong data-dashboard-search-banner-title>Search Results</strong>
+                                <p data-dashboard-search-banner-message></p>
+                                <button type="button" data-dashboard-search-clear>Clear Search</button>
+                            </div>
+                        </div>
+                        <div id="dashboard-service-cases-scroll">
+                            <table><tbody id="dashboard-service-cases-body"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal" id="quickCreateModal">
+                <form id="customerIntakeForm">
+                    <input id="intake_phone" type="text">
+                    <input id="intake_order_id" type="text">
+                    <input id="intake_serial_number" type="text">
+                    <button type="button" id="intake-search-button">Search</button>
+                </form>
+            </div>
+        `;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        const intakeSearchClick = vi.fn();
+        document.getElementById('intake-search-button')?.addEventListener('click', intakeSearchClick);
+
+        initUniversalSearch({
+            dashboardIntegration: {
+                pageRoot,
+                searchRowsUrl: pageRoot.dataset.dashboardSearchRowsUrl,
+                applyRows: vi.fn(),
+                restoreDashboard: vi.fn(),
+            },
+        });
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'new_contact',
+                    parsed_query: {
+                        phone: null,
+                        order_id: null,
+                        serial_number: null,
+                    },
+                },
+            }),
+        });
+
+        document.getElementById('global-search-input').value = 'Unknown Customer Name';
+        document.querySelector('[data-universal-search-form]')?.dispatchEvent(
+            new Event('submit', { bubbles: true, cancelable: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-dashboard-search-intake-fallback]')).not.toBeNull();
+        });
+
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(quickCreateShow).toHaveBeenCalled();
+            expect(intakeSearchClick).toHaveBeenCalled();
+        });
+
+        expect(document.getElementById('intake_order_id')?.value).toBe('Unknown Customer Name');
     });
 
     it('bootstraps search from dashboard q query parameter', async () => {
@@ -530,6 +688,14 @@ describe('dashboard global search integration', () => {
                     match_count: 0,
                     incident_ids: [],
                     results: [],
+                    intake: {
+                        classification: 'new_contact',
+                        parsed_query: {
+                            phone: null,
+                            order_id: null,
+                            serial_number: null,
+                        },
+                    },
                 }),
             })
             .mockResolvedValueOnce({
@@ -552,6 +718,7 @@ describe('dashboard global search integration', () => {
         await submitSearch('RD-NO-MATCH');
 
         expect(document.querySelector('[data-dashboard-search-banner]')?.hidden).toBe(false);
+        expect(document.querySelector('[data-dashboard-search-intake-fallback]')).not.toBeNull();
 
         document.querySelector('[data-dashboard-search-clear]')?.click();
 
@@ -559,6 +726,7 @@ describe('dashboard global search integration', () => {
             expect(document.querySelector('[data-dashboard-search-banner]')?.hidden).toBe(true);
         });
 
+        expect(document.querySelector('[data-dashboard-search-intake-fallback]')).toBeNull();
         expect(isDashboardSearchActive()).toBe(false);
     });
 });

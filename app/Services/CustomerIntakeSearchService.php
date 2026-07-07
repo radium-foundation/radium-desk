@@ -20,6 +20,86 @@ class CustomerIntakeSearchService
         private readonly LegacyOrderLookupService $legacyOrderLookupService,
     ) {}
 
+    /**
+     * @return array{phone: ?string, order_id: ?string, serial_number: ?string}
+     */
+    public function parseQuery(string $query): array
+    {
+        $query = trim($query);
+
+        if ($query === '') {
+            return [
+                'phone' => null,
+                'order_id' => null,
+                'serial_number' => null,
+            ];
+        }
+
+        $normalized = strtoupper($query);
+
+        if ($this->looksLikeOrderId($normalized)) {
+            return [
+                'phone' => null,
+                'order_id' => $query,
+                'serial_number' => null,
+            ];
+        }
+
+        if ($this->looksLikePhone($query)) {
+            return [
+                'phone' => $query,
+                'order_id' => null,
+                'serial_number' => null,
+            ];
+        }
+
+        if ($this->looksLikeSerial($query)) {
+            return [
+                'phone' => null,
+                'order_id' => null,
+                'serial_number' => strtoupper($query),
+            ];
+        }
+
+        return [
+            'phone' => null,
+            'order_id' => null,
+            'serial_number' => null,
+        ];
+    }
+
+    public function searchFromQuery(string $query, ?User $user = null): CustomerIntakeSearchResult
+    {
+        $parsed = $this->parseQuery($query);
+
+        return $this->search(
+            phone: $parsed['phone'],
+            orderId: $parsed['order_id'],
+            serialNumber: $parsed['serial_number'],
+            user: $user,
+        );
+    }
+
+    /**
+     * @param  array{phone: ?string, order_id: ?string, serial_number: ?string}  $parsedQuery
+     * @return array<string, mixed>
+     */
+    public function toSearchPayload(CustomerIntakeSearchResult $result, array $parsedQuery): array
+    {
+        return [
+            'classification' => $result->classification->value,
+            'classification_label' => $result->classification->label(),
+            'matches' => $result->matches,
+            'legacy_source' => $result->legacySource,
+            'legacy_preview' => $result->legacyPreview?->toArray(),
+            'requires_confirmation' => $result->requiresConfirmation,
+            'legacy_preview_message' => $result->requiresConfirmation
+                ? 'Legacy order found. Create service case?'
+                : null,
+            'parsed_query' => $parsedQuery,
+        ];
+    }
+
     public function search(
         ?string $phone = null,
         ?string $orderId = null,
@@ -244,5 +324,34 @@ class CustomerIntakeSearchService
         $normalized = $this->normalizeOptional($value);
 
         return $normalized !== null ? strtoupper($normalized) : null;
+    }
+
+    private function looksLikeOrderId(string $normalized): bool
+    {
+        if (preg_match('/^(RD|RDE|CF|INQ|ORD)[A-Z0-9\-]+$/', $normalized) === 1) {
+            return true;
+        }
+
+        return preg_match('/^RD\d/', $normalized) === 1;
+    }
+
+    private function looksLikePhone(string $query): bool
+    {
+        if (preg_match('/^[\d\s+\-()]+$/', $query) !== 1) {
+            return false;
+        }
+
+        $digits = preg_replace('/\D/', '', $query) ?? '';
+
+        return strlen($digits) >= 10 && strlen($digits) <= 15;
+    }
+
+    private function looksLikeSerial(string $query): bool
+    {
+        if (preg_match('/^[A-Za-z0-9\-]+$/', $query) !== 1) {
+            return false;
+        }
+
+        return ! $this->looksLikeOrderId(strtoupper($query));
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use App\Services\CustomerIntakeSearchService;
 use App\Services\GlobalSearchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -11,6 +13,7 @@ class SearchController extends Controller
 {
     public function __construct(
         private readonly GlobalSearchService $globalSearchService,
+        private readonly CustomerIntakeSearchService $customerIntakeSearchService,
     ) {}
 
     public function search(Request $request): JsonResponse|RedirectResponse
@@ -51,13 +54,35 @@ class SearchController extends Controller
         $results = $this->globalSearchService->search($user, $query);
         $payload = $results->map(fn ($result) => $result->toArray())->values();
 
-        return response()->json([
+        $response = [
             'match_count' => $payload->count(),
             'results' => $payload,
             'incident_ids' => $payload
                 ->where('type', 'service_case')
                 ->pluck('incident_id')
                 ->values(),
-        ]);
+        ];
+
+        if ($payload->isEmpty() && $this->canRunIntakeFallback($user)) {
+            $parsedQuery = $this->customerIntakeSearchService->parseQuery($query);
+            $intakeResult = $this->customerIntakeSearchService->search(
+                phone: $parsedQuery['phone'],
+                orderId: $parsedQuery['order_id'],
+                serialNumber: $parsedQuery['serial_number'],
+                user: $user,
+            );
+
+            $response['intake'] = $this->customerIntakeSearchService->toSearchPayload(
+                $intakeResult,
+                $parsedQuery,
+            );
+        }
+
+        return response()->json($response);
+    }
+
+    private function canRunIntakeFallback(User $user): bool
+    {
+        return $user->can('orders.view') && $user->can('incidents.create');
     }
 }
