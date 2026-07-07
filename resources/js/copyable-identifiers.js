@@ -17,26 +17,33 @@ const copyTextToClipboard = async (value) => {
 };
 
 export const initCopyableIdentifiers = (showToast, root = document) => {
-    root.querySelectorAll('[data-copyable-identifier]').forEach((button) => {
-        if (button.dataset.copyableBound === 'true') {
+    if (root.dataset.copyableDelegationBound === 'true') {
+        return;
+    }
+
+    root.dataset.copyableDelegationBound = 'true';
+
+    root.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-copyable-identifier]');
+
+        if (!button || !root.contains(button)) {
             return;
         }
 
-        button.dataset.copyableBound = 'true';
+        event.preventDefault();
+        event.stopPropagation();
 
-        button.addEventListener('click', async () => {
-            const value = button.dataset.copyValue?.trim() ?? '';
+        const value = button.dataset.copyValue?.trim() ?? '';
 
-            if (value === '') {
-                return;
-            }
+        if (value === '') {
+            return;
+        }
 
-            try {
-                await copyTextToClipboard(value);
-                showToast?.(button.dataset.copyToast ?? 'Copied');
-            } catch {
-                showToast?.('Unable to copy value.', 'danger');
-            }
-        });
+        try {
+            await copyTextToClipboard(value);
+            showToast?.(button.dataset.copyToast ?? 'Copied');
+        } catch {
+            showToast?.('Unable to copy value.', 'danger');
+        }
     });
 };

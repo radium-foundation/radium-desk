@@ -152,6 +152,45 @@ class LegacyOrderUiTest extends TestCase
         $this->assertSame('TXN-IMPORT-001', $order->fresh()->transaction_id);
     }
 
+    public function test_dashboard_legacy_imported_order_renders_styled_order_id(): void
+    {
+        $importer = User::factory()->create(['name' => 'Import Agent']);
+        $importer->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3395988',
+            'serial_number' => 'SN3395988',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'legacy_source' => 'radiumbox',
+            'legacy_imported_at' => now(),
+            'legacy_imported_by_user_id' => $importer->id,
+            'status' => 'active',
+            'created_by' => $importer->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC3395988',
+            'category' => 'General',
+            'source' => 'call',
+            'title' => 'Legacy dashboard case',
+            'description' => 'Imported legacy order.',
+            'status' => 'open',
+            'created_by' => $importer->id,
+            'updated_by' => $importer->id,
+        ]);
+
+        $this->actingAs($importer)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('legacy-imported-order-id', false)
+            ->assertSee('RD3395988', false)
+            ->assertSee('Legacy imported order • Imported by Import •', false)
+            ->assertSee('data-copyable-identifier="serial"', false)
+            ->assertSee('data-copy-value="SN3395988"', false);
+    }
+
     public function test_normal_order_does_not_render_legacy_import_ui_or_require_fulfillment_verification(): void
     {
         $admin = User::factory()->create();

@@ -79,7 +79,10 @@
     </td>
     <td class="case-order-cell case-meta-cell">
         @if($order)
-            <a href="{{ route('orders.show', $order) }}" class="text-decoration-none">{{ $order->order_id }}</a>
+            <x-order-identifier
+                :order="$order"
+                :href="route('orders.show', $order)"
+            />
         @else
             —
         @endif

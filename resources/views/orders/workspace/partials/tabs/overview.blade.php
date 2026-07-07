@@ -14,7 +14,10 @@
 <div class="order-workspace-overview-grid">
     @component('orders.workspace.partials.info-card', ['title' => 'Order Details', 'icon' => 'bi-receipt'])
         <dl class="order-workspace-dl order-workspace-dl--wide">
-            <dt>Order ID</dt><dd class="order-workspace-dl-value">{{ $order->order_id }}</dd>
+            <dt>Order ID</dt>
+            <dd class="order-workspace-dl-value">
+                <x-order-identifier :order="$order" />
+            </dd>
             <dt>Owner</dt><dd class="order-workspace-dl-value">{{ $ownerName }}</dd>
             <dt>Service Reference</dt><dd class="order-workspace-dl-value">{{ $order->transaction_id ?: '—' }}</dd>
             <dt>Completion Status</dt>

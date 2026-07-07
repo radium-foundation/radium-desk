@@ -401,7 +401,7 @@ class ServiceCaseActivityTimelineService
                 occurredAt: $occurredAt,
                 type: ServiceCaseTimelineEntry::TYPE_STATUS,
                 actor: $actor,
-                title: 'Service case reopened.',
+                title: 'Case reopened by '.$actor->displayName.'.',
                 body: null,
                 remark: null,
                 dedupeKey: "audit:{$auditLog->id}",

@@ -202,7 +202,7 @@ class DashboardService
         }
 
         $incidents = Incident::query()
-            ->with(['order.transactionAssigner', 'creator', 'assignee'])
+            ->with(['order.transactionAssigner', 'order.legacyImporter', 'creator', 'assignee'])
             ->whereIn('id', $incidentIds)
             ->get()
             ->keyBy('id');

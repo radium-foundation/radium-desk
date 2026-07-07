@@ -40,6 +40,7 @@ class DashboardSnapshot
                 ->with([
                     'order.deviceModel',
                     'order.transactionAssigner',
+                    'order.legacyImporter',
                     'creator',
                     'assignee.roles',
                     'activeWaitingState',

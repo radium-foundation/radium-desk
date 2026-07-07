@@ -316,7 +316,42 @@ class WorkspaceActionDialogTest extends TestCase
 
         $timelineHtml = collect($response->json('refresh.targets'))
             ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
-        $this->assertStringContainsString('Service case reopened.', $timelineHtml);
+        $this->assertStringContainsString('Case reopened by', $timelineHtml);
+        $this->assertStringContainsString('Assigned to', $timelineHtml);
+    }
+
+    public function test_reopen_action_assigns_to_reopening_user_when_no_assignee_specified(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $previousAssignee = $this->createAdminUser('old@example.com', 'Old Assignee');
+        $incident = $this->createIncident($admin, [
+            'status' => IncidentStatus::Closed,
+            'assigned_to_user_id' => $previousAssignee->id,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Reopen->value,
+                'body' => 'Reopening to take ownership.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+        $this->assertSame($admin->id, $incident->fresh()->assigned_to_user_id);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.assigned',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'user_id' => $admin->id,
+        ]);
+
+        $timelineHtml = collect($response->json('refresh.targets'))
+            ->firstWhere('selector', '#activity-timeline')['html'] ?? '';
+        $this->assertStringContainsString('Case reopened by', $timelineHtml);
+        $this->assertStringContainsString('Assigned to Admin', $timelineHtml);
     }
 
     public function test_global_search_finds_service_case_by_exception_id(): void

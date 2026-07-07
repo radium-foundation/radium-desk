@@ -303,7 +303,9 @@ class CustomerWaitingLifecycleTest extends TestCase
 
         $this->assertContains('Waiting for customer input', $titles);
         $this->assertContains('Closed automatically — customer not responding', $titles);
-        $this->assertContains('Service case reopened.', $titles);
+        $this->assertTrue(
+            collect($titles)->contains(fn (string $title): bool => str_starts_with($title, 'Case reopened by')),
+        );
 
         $context = AIContextFactory::make([
             'waitingState' => app(IncidentWaitingStateService::class)->lifecycleOnlyCard($incident->fresh()),

@@ -122,6 +122,50 @@ describe('initCustomer360Drawer', () => {
         expect(fetch).toHaveBeenCalledTimes(1);
     });
 
+    it('does not open drawer when clicking serial copy control', async () => {
+        document.body.innerHTML = `
+            <div id="dashboard-page" data-customer-360-url="http://localhost/dashboard/service-cases">
+                <table>
+                    <tbody>
+                        <tr data-incident-id="42">
+                            <td><a href="/incidents/42" class="case-reference-link">SC-001</a></td>
+                            <td class="case-order-cell"><a href="/orders/99">RD-001</a></td>
+                            <td class="serial-number-cell">
+                                <button type="button"
+                                        class="copyable-identifier"
+                                        data-copyable-identifier="serial"
+                                        data-copy-value="SN123456">SN123456</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div data-customer-360-drawer aria-hidden="true">
+                <div data-customer-360-backdrop></div>
+                <aside data-customer-360-panel>
+                    <button type="button" data-customer-360-close></button>
+                    <span data-customer-360-subtitle></span>
+                    <div data-customer-360-loading hidden></div>
+                    <div data-customer-360-error class="d-none"></div>
+                    <div data-customer-360-content-host"></div>
+                </aside>
+            </div>
+        `;
+
+        const pageRoot = document.getElementById('dashboard-page');
+
+        global.fetch = vi.fn();
+
+        initCustomer360Drawer({ pageRoot });
+
+        document.querySelector('[data-copyable-identifier="serial"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true, cancelable: true }),
+        );
+
+        expect(fetch).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-customer-360-drawer]')?.classList.contains('is-open')).toBe(false);
+    });
+
     it('closes drawer on escape key', async () => {
         const pageRoot = setupDashboard();
 

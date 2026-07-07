@@ -91,7 +91,7 @@ const isInteractiveTarget = (target) => {
     }
 
     return Boolean(
-        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-inline-transaction], [data-inline-serial], .dashboard-row-actions, .dashboard-select-cell')
+        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-row-actions, .dashboard-select-cell')
     );
 };
 

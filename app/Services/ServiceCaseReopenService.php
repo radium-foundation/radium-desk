@@ -39,14 +39,16 @@ class ServiceCaseReopenService
             );
 
             $freshIncident = $this->statusService->reopen($incident, $actor);
+            $targetAssignee = $assignee ?? $actor;
 
-            if ($assignee !== null) {
-                $freshIncident = $this->assignmentService->reassign(
-                    incident: $freshIncident,
-                    assignee: $assignee,
-                    actor: $actor,
-                );
-            }
+            $freshIncident = $this->assignmentService->assignWithAuditContext(
+                incident: $freshIncident,
+                assignee: $targetAssignee,
+                actor: $actor,
+                auditContext: [
+                    'reason' => 'reopened',
+                ],
+            );
 
             return $freshIncident->fresh(['assignee', 'order', 'creator', 'updater']);
         });
