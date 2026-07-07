@@ -35,8 +35,18 @@ class StoreCustomerIntakeRequest extends FormRequest
             'serial_number' => ['nullable', 'string', 'max:100'],
             'product' => ['nullable', 'string', Rule::in($settingService->enabledProductNames())],
             'source' => ['required', 'string', Rule::in($settingService->enabledSourceKeys())],
-            'notes' => ['nullable', 'string', 'max:5000'],
+            'notes' => ['required', 'string', 'max:5000'],
             'high_priority' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'notes' => 'comment / issue description',
         ];
     }
 

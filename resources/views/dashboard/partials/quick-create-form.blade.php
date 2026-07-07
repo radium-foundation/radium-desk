@@ -162,10 +162,11 @@
                             </div>
 
                             <div class="col-12">
-                                <label for="intake_notes" class="form-label">Comment / Notes</label>
+                                <label for="intake_notes" class="form-label">Comment / Issue Description <span class="text-danger">*</span></label>
                                 <textarea name="notes" id="intake_notes" rows="3"
                                           class="form-control @error('notes') is-invalid @enderror"
-                                          placeholder="Describe the issue or service request (optional)...">{{ old('notes') }}</textarea>
+                                          required
+                                          placeholder="Describe the issue or service request...">{{ old('notes') }}</textarea>
                                 @error('notes')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror

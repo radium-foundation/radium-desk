@@ -165,6 +165,7 @@ class LegacyOrderBridgeTest extends TestCase
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3395988',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Imported legacy order from search.',
             ])
             ->assertOk();
 
@@ -224,6 +225,7 @@ class LegacyOrderBridgeTest extends TestCase
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3395988',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Duplicate import attempt.',
             ]);
 
         $response->assertUnprocessable()
@@ -312,6 +314,7 @@ class LegacyOrderBridgeTest extends TestCase
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3395988',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Assigned to importing agent.',
             ])
             ->assertRedirect(route('dashboard'));
 
@@ -391,6 +394,7 @@ class LegacyOrderBridgeTest extends TestCase
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3421021',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Duplicate serial import attempt.',
             ])
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasErrors('legacy_order_id');
@@ -412,6 +416,7 @@ class LegacyOrderBridgeTest extends TestCase
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3395988',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Assigned to importing agent.',
             ])
             ->assertRedirect(route('dashboard'));
 
@@ -453,6 +458,7 @@ class LegacyOrderBridgeTest extends TestCase
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3395988',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Assigned to importing agent.',
             ])
             ->assertRedirect(route('dashboard'));
 

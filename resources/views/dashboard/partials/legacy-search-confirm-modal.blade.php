@@ -55,11 +55,12 @@
                     </div>
 
                     <div class="col-12">
-                        <label for="legacy_search_confirm_notes" class="form-label">Comment / Notes</label>
+                        <label for="legacy_search_confirm_notes" class="form-label">Comment / Issue Description <span class="text-danger">*</span></label>
                         <textarea id="legacy_search_confirm_notes"
                                   rows="3"
                                   class="form-control"
-                                  placeholder="Describe the issue or service request (optional)..."></textarea>
+                                  required
+                                  placeholder="Describe the issue or service request..."></textarea>
                     </div>
                 </div>
 

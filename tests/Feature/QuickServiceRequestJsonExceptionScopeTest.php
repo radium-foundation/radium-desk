@@ -48,6 +48,7 @@ class QuickServiceRequestJsonExceptionScopeTest extends TestCase
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3395988',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Duplicate import attempt.',
             ])
             ->assertUnprocessable()
             ->assertHeader('Content-Type', 'application/json')
@@ -76,6 +77,7 @@ class QuickServiceRequestJsonExceptionScopeTest extends TestCase
             ->post(route('service-requests.quick.store'), [
                 'action' => 'legacy_import',
                 'legacy_order_id' => 'RD3395988',
+                'notes' => 'Missing source validation test.',
             ])
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasErrors('source');

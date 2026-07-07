@@ -69,6 +69,7 @@ class NotificationCenterTest extends TestCase
             'serial_number' => '7881961',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
+            'notes' => 'High priority device service request.',
             'high_priority' => '1',
         ]);
 

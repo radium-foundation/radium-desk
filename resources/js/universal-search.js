@@ -1,4 +1,5 @@
 import * as bootstrap from 'bootstrap';
+import { advanceQuickCreateToNewContact } from './customer-intake';
 import { isDashboardSearchActive, setDashboardSearchActive } from './dashboard-search-mode';
 import { hideSearchBanner, showSearchBanner } from './dashboard-search-banner';
 import { csrfToken } from './workspace/http';
@@ -37,10 +38,10 @@ const buildLegacyPreviewSummaryHtml = (preview) => {
     ];
 
     return `
-        <dl class="row small mb-0">
+        <dl class="dashboard-legacy-preview-card__fields mb-0">
             ${fields.map(([label, value]) => `
-                <dt class="col-sm-4 text-muted">${label}</dt>
-                <dd class="col-sm-8 mb-1">${formatIntakePreviewValue(value)}</dd>
+                <dt>${label}</dt>
+                <dd>${formatIntakePreviewValue(value)}</dd>
             `).join('')}
         </dl>
     `;
@@ -127,6 +128,19 @@ const legacyCreateErrorMessage = (response) => {
     return 'Unable to create service request.';
 };
 
+const clearStaleQuickCreateState = (form) => {
+    const matchedOrderField = form.querySelector('#intake_matched_order_id');
+    const legacyOrderField = form.querySelector('#intake_legacy_order_id');
+
+    if (matchedOrderField) {
+        matchedOrderField.value = '';
+    }
+
+    if (legacyOrderField) {
+        legacyOrderField.value = '';
+    }
+};
+
 const prefillAndOpenQuickCreate = (intake, query) => {
     const modalElement = document.getElementById('quickCreateModal');
     const form = modalElement?.querySelector('#customerIntakeForm');
@@ -136,6 +150,7 @@ const prefillAndOpenQuickCreate = (intake, query) => {
     }
 
     const parsedQuery = intake?.parsed_query ?? {};
+    clearStaleQuickCreateState(form);
     prefillIntakeSearchFields(form, parsedQuery, query);
 
     modalElement.dataset.resetOnShow = 'false';
@@ -158,6 +173,14 @@ const prefillAndOpenQuickCreate = (intake, query) => {
     if (feedback) {
         feedback.classList.add('d-none');
         feedback.textContent = '';
+    }
+
+    if (intake?.classification === 'new_contact' && shouldAutoRunIntakeSearch(parsedQuery)) {
+        window.setTimeout(() => {
+            advanceQuickCreateToNewContact(modalElement, form);
+        }, 0);
+
+        return;
     }
 
     if (!shouldAutoRunIntakeSearch(parsedQuery)) {
@@ -473,17 +496,27 @@ export const initUniversalSearch = ({
         panel.dataset.dashboardSearchIntakeFallback = '';
 
         const previewHtml = intake.requires_confirmation && intake.legacy_preview
-            ? `<div class="alert alert-info py-2 small mb-2">${buildLegacyPreviewSummaryHtml(intake.legacy_preview)}</div>`
-            : '';
+            ? `
+                <div class="dashboard-legacy-preview-card">
+                    ${buildLegacyPreviewSummaryHtml(intake.legacy_preview)}
+                    <div class="dashboard-legacy-preview-card__actions">
+                        <button type="button"
+                                class="btn btn-sm btn-primary"
+                                data-dashboard-search-intake-action>
+                            Create Service Request
+                        </button>
+                    </div>
+                </div>
+            `
+            : `
+                <button type="button"
+                        class="btn btn-sm btn-primary"
+                        data-dashboard-search-intake-action>
+                    Create Service Request
+                </button>
+            `;
 
-        panel.innerHTML = `
-            ${previewHtml}
-            <button type="button"
-                    class="btn btn-sm btn-primary"
-                    data-dashboard-search-intake-action>
-                Create Service Request
-            </button>
-        `;
+        panel.innerHTML = previewHtml;
 
         const actionButton = panel.querySelector('[data-dashboard-search-intake-action]');
 
@@ -601,11 +634,7 @@ export const initUniversalSearch = ({
             body.append('legacy_order_id', preview.order_id);
             body.append('source', source);
 
-            const trimmedNotes = notes.trim();
-
-            if (trimmedNotes !== '') {
-                body.append('notes', trimmedNotes);
-            }
+            body.append('notes', notes.trim());
 
             if (highPriority) {
                 body.append('high_priority', '1');
@@ -680,6 +709,16 @@ export const initUniversalSearch = ({
         }
 
         const source = legacyConfirmModal?.querySelector('#legacy_search_confirm_source')?.value ?? '';
+        const notes = legacyConfirmModal?.querySelector('#legacy_search_confirm_notes')?.value?.trim() ?? '';
+
+        if (!notes) {
+            if (legacyConfirmError) {
+                legacyConfirmError.textContent = 'Comment / issue description is required.';
+                legacyConfirmError.classList.remove('d-none');
+            }
+
+            return;
+        }
 
         if (!source) {
             if (legacyConfirmError) {
@@ -689,8 +728,6 @@ export const initUniversalSearch = ({
 
             return;
         }
-
-        const notes = legacyConfirmModal?.querySelector('#legacy_search_confirm_notes')?.value ?? '';
         const highPriority = legacyConfirmModal?.querySelector('#legacy_search_confirm_high_priority')?.checked ?? false;
 
         await createLegacyServiceRequestFromSearch(

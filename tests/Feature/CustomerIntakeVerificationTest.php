@@ -169,6 +169,7 @@ class CustomerIntakeVerificationTest extends TestCase
             'intent' => NewContactIntent::BuyDevice->value,
             'phone' => '9123456789',
             'source' => IncidentSource::Call->value,
+            'notes' => 'Interested in purchasing a new device.',
         ])->assertRedirect();
 
         $order = Order::query()->first();

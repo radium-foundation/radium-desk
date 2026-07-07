@@ -8,6 +8,37 @@ const showStep = (modal, stepId) => {
     });
 };
 
+export const advanceQuickCreateToNewContact = (modalElement, form) => {
+    const actionField = form.querySelector('#intake_action');
+    const matchedOrderField = form.querySelector('#intake_matched_order_id');
+    const legacyOrderField = form.querySelector('#intake_legacy_order_id');
+    const searchButton = modalElement.querySelector('#intake-search-button');
+    const submitButton = modalElement.querySelector('#intake-submit-button');
+    const feedback = modalElement.querySelector('#intake-search-feedback');
+
+    if (actionField) {
+        actionField.value = 'new_contact';
+    }
+
+    if (matchedOrderField) {
+        matchedOrderField.value = '';
+    }
+
+    if (legacyOrderField) {
+        legacyOrderField.value = '';
+    }
+
+    if (feedback) {
+        feedback.classList.add('d-none');
+        feedback.textContent = '';
+    }
+
+    showStep(modalElement, 'intake-step-new-contact');
+    modalElement.querySelector('#intake-step-details')?.classList.remove('d-none');
+    searchButton?.classList.add('d-none');
+    submitButton?.classList.remove('d-none');
+};
+
 const resetIntakeForm = (modal, form) => {
     if (!form) {
         return;
@@ -449,15 +480,7 @@ const searchCustomer = async (modal, form) => {
         }
 
         if (data.classification === 'new_contact') {
-            const actionField = form.querySelector('#intake_action');
-            if (actionField) {
-                actionField.value = 'new_contact';
-            }
-
-            showStep(modal, 'intake-step-new-contact');
-            modal.querySelector('#intake-step-details')?.classList.remove('d-none');
-            modal.querySelector('#intake-search-button')?.classList.add('d-none');
-            modal.querySelector('#intake-submit-button')?.classList.remove('d-none');
+            advanceQuickCreateToNewContact(modal, form);
             return;
         }
 
@@ -510,6 +533,22 @@ export const initCustomerIntake = () => {
         button.addEventListener('click', () => {
             resetIntakeForm(modalElement, form);
         });
+    });
+
+    form?.addEventListener('submit', (event) => {
+        const notesField = form.querySelector('#intake_notes');
+        const notes = notesField?.value.trim() ?? '';
+
+        if (notes === '') {
+            event.preventDefault();
+            notesField?.classList.add('is-invalid');
+
+            const existingFeedback = notesField?.parentElement?.querySelector('.invalid-feedback');
+
+            if (existingFeedback) {
+                existingFeedback.textContent = 'Comment / issue description is required.';
+            }
+        }
     });
 
     form?.querySelectorAll('input[name="intent"]').forEach((input) => {

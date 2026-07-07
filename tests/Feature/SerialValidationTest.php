@@ -147,6 +147,7 @@ class SerialValidationTest extends TestCase
                 'serial_number' => 'NOT-VALID',
                 'product' => 'MFS 110',
                 'source' => IncidentSource::Call->value,
+                'notes' => 'Invalid serial validation test.',
             ])
             ->assertSessionHasErrors(['serial_number']);
     }

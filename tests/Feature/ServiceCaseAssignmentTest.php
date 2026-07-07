@@ -433,6 +433,7 @@ class ServiceCaseAssignmentTest extends TestCase
             'serial_number' => '7881960',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
+            'notes' => 'Existing device needs service.',
         ]);
 
         $incident = Incident::query()->first();

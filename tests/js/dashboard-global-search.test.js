@@ -144,6 +144,22 @@ describe('dashboard global search integration', () => {
         },
     });
 
+    const fillLegacyConfirmForm = ({
+        notes = 'Customer reported an issue.',
+        source = 'call',
+    } = {}) => {
+        const notesField = document.getElementById('legacy_search_confirm_notes');
+        const sourceField = document.getElementById('legacy_search_confirm_source');
+
+        if (notesField) {
+            notesField.value = notes;
+        }
+
+        if (sourceField) {
+            sourceField.value = source;
+        }
+    };
+
     const submitSearch = async (query) => {
         document.getElementById('global-search-input').value = query;
         document.querySelector('[data-universal-search-form]')?.dispatchEvent(
@@ -471,10 +487,66 @@ describe('dashboard global search integration', () => {
         expect(fallback).not.toBeNull();
         expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
             .toBe('Legacy order found — create service request');
+        expect(fallback?.querySelector('.dashboard-legacy-preview-card')).not.toBeNull();
         expect(fallback?.textContent).toContain('RD3395988');
         expect(fallback?.textContent).not.toContain('No record found');
         expect(fallback?.querySelector('[data-dashboard-search-intake-action]')?.textContent?.trim())
             .toBe('Create Service Request');
+    });
+
+    it('rejects confirmed legacy create when comment is missing', async () => {
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : vi.fn(),
+            hide: vi.fn(),
+        }));
+
+        const { showToast } = mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'legacy',
+                    requires_confirmation: true,
+                    legacy_preview_complete: true,
+                    default_source: 'call',
+                    create_url: '/service-requests/quick',
+                    legacy_preview: {
+                        order_id: 'RD3395988',
+                        customer_name: 'Satyam Test',
+                        mobile: '9876543210',
+                        product_model: 'MFS 110',
+                        serial_number: 'SN123456',
+                    },
+                    parsed_query: {
+                        phone: null,
+                        order_id: 'RD3395988',
+                        serial_number: null,
+                    },
+                },
+            }),
+        });
+
+        await submitSearch('RD3395988');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        document.querySelector('[data-legacy-search-confirm-submit]')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('legacy_search_confirm_error')?.textContent)
+                .toBe('Comment / issue description is required.');
+        });
+
+        expect(showToast).not.toHaveBeenCalled();
+        expect(fetch).toHaveBeenCalledTimes(1);
     });
 
     it('opens confirmation modal without creating on first click', async () => {
@@ -699,6 +771,7 @@ describe('dashboard global search integration', () => {
             expect(legacyConfirmShow).toHaveBeenCalled();
         });
 
+        fillLegacyConfirmForm();
         document.querySelector('[data-legacy-search-confirm-submit]')?.click();
 
         await vi.waitFor(() => {
@@ -757,6 +830,7 @@ describe('dashboard global search integration', () => {
             expect(legacyConfirmShow).toHaveBeenCalled();
         });
 
+        fillLegacyConfirmForm();
         document.querySelector('[data-legacy-search-confirm-submit]')?.click();
 
         await vi.waitFor(() => {
@@ -813,6 +887,7 @@ describe('dashboard global search integration', () => {
             expect(legacyConfirmShow).toHaveBeenCalled();
         });
 
+        fillLegacyConfirmForm();
         document.querySelector('[data-legacy-search-confirm-submit]')?.click();
 
         await vi.waitFor(() => {
@@ -1004,7 +1079,7 @@ describe('dashboard global search integration', () => {
         expect(intakeSearchClick).not.toHaveBeenCalled();
     });
 
-    it('prefills phone field and auto-runs quick create search from parsed query', async () => {
+    it('advances quick create to new contact for unknown phone without running search', async () => {
         const quickCreateShow = vi.fn();
         vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockReturnValue({
             show: quickCreateShow,
@@ -1026,11 +1101,23 @@ describe('dashboard global search integration', () => {
             </div>
             <div class="modal" id="quickCreateModal">
                 <form id="customerIntakeForm">
-                    <input id="intake_phone" type="text">
-                    <input id="intake_order_id" type="text">
-                    <input id="intake_serial_number" type="text">
-                    <div id="intake-search-feedback" class="alert d-none"></div>
-                    <button type="button" id="intake-search-button">Search</button>
+                    <div id="intake-step-search" class="intake-step">
+                        <input id="intake_phone" name="phone" type="text">
+                        <input id="intake_order_id" type="text">
+                        <input id="intake_serial_number" name="serial_number" type="text">
+                        <div id="intake-search-feedback" class="alert d-none"></div>
+                        <button type="button" id="intake-search-button">Search</button>
+                    </div>
+                    <div id="intake-step-new-contact" class="intake-step d-none">
+                        <input type="radio" name="intent" value="general_support" id="intent_general_support">
+                    </div>
+                    <div id="intake-step-details" class="intake-step d-none">
+                        <textarea name="notes" id="intake_notes"></textarea>
+                    </div>
+                    <input type="hidden" name="action" id="intake_action" value="new_contact">
+                    <input type="hidden" name="matched_order_id" id="intake_matched_order_id">
+                    <input type="hidden" name="legacy_order_id" id="intake_legacy_order_id">
+                    <button type="submit" class="d-none" id="intake-submit-button">Create</button>
                 </form>
             </div>
         `;
@@ -1078,12 +1165,17 @@ describe('dashboard global search integration', () => {
         document.querySelector('[data-dashboard-search-intake-action]')?.click();
 
         await vi.waitFor(() => {
-            expect(intakeSearchClick).toHaveBeenCalled();
+            expect(quickCreateShow).toHaveBeenCalled();
+            expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(false);
+            expect(document.getElementById('intake-step-details')?.classList.contains('d-none')).toBe(false);
+            expect(document.getElementById('intake-submit-button')?.classList.contains('d-none')).toBe(false);
         });
 
+        expect(intakeSearchClick).not.toHaveBeenCalled();
         expect(document.getElementById('intake_phone')?.value).toBe('9876543210');
-        expect(document.getElementById('intake_order_id')?.value).toBe('');
+        expect(document.getElementById('intake_action')?.value).toBe('new_contact');
     });
+
 
     it('refreshes search results after successful reopen action', async () => {
         mountDashboard();

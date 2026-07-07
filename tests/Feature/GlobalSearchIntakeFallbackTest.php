@@ -139,6 +139,26 @@ class GlobalSearchIntakeFallbackTest extends TestCase
             ->assertJsonPath('intake.missing_fields', ['serial_number']);
     }
 
+    public function test_unknown_phone_returns_new_contact_intake_state(): void
+    {
+        Http::fake();
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => '9876501234']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonPath('incident_ids', [])
+            ->assertJsonPath('intake.classification', 'new_contact')
+            ->assertJsonPath('intake.requires_confirmation', false)
+            ->assertJsonPath('intake.legacy_preview', null)
+            ->assertJsonPath('intake.parsed_query.phone', '9876501234');
+
+        Http::assertNothingSent();
+    }
+
     public function test_unknown_query_returns_new_contact_intake_state(): void
     {
         Http::fake();

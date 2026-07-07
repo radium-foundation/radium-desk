@@ -69,7 +69,7 @@ class QuickServiceRequestTest extends TestCase
         $this->assertSame(IncidentSource::Call, $incident->source);
     }
 
-    public function test_quick_create_allows_optional_comment_and_high_priority(): void
+    public function test_quick_create_requires_comment_and_allows_high_priority(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -79,13 +79,31 @@ class QuickServiceRequestTest extends TestCase
             'intent' => NewContactIntent::GeneralSupport->value,
             'phone' => '9876543211',
             'source' => IncidentSource::Call->value,
+            'notes' => 'Customer reported intermittent connectivity.',
             'high_priority' => '1',
         ])->assertRedirect();
 
         $incident = Incident::query()->first();
         $this->assertNotNull($incident);
         $this->assertTrue($incident->high_priority);
-        $this->assertSame('', $incident->description);
+        $this->assertSame('Customer reported intermittent connectivity.', $incident->description);
+    }
+
+    public function test_quick_create_rejects_missing_comment(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->from(route('dashboard'))
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'new_contact',
+                'intent' => NewContactIntent::GeneralSupport->value,
+                'phone' => '9876543212',
+                'source' => IncidentSource::Call->value,
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasErrors('notes');
     }
 
     public function test_dashboard_reopens_quick_create_modal_after_successful_create(): void
@@ -163,6 +181,7 @@ class QuickServiceRequestTest extends TestCase
                 'matched_order_id' => $order->id,
                 'serial_number' => '9999999',
                 'source' => IncidentSource::Email->value,
+                'notes' => 'Customer reported a different serial number.',
             ])
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasErrors('serial_number');
@@ -190,6 +209,7 @@ class QuickServiceRequestTest extends TestCase
             'open_only' => '1',
             'serial_number' => '7881953',
             'source' => IncidentSource::WhatsApp->value,
+            'notes' => 'Open existing order without creating a case.',
         ])
             ->assertRedirect(route('orders.show', $order))
             ->assertSessionHas('status', 'order-found');
