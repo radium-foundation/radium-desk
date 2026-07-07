@@ -10,6 +10,7 @@ enum IncidentSource: string
     case Telegram = 'telegram';
     case Internal = 'internal';
     case Cashfree = 'cashfree';
+    case Other = 'other';
 
     public static function fromIntakeKey(string $key): self
     {
@@ -32,6 +33,7 @@ enum IncidentSource: string
             self::Telegram => 'Telegram',
             self::Internal => 'Internal',
             self::Cashfree => 'Cashfree',
+            self::Other => 'Other',
         };
     }
 
@@ -44,6 +46,7 @@ enum IncidentSource: string
             self::Telegram => 'bi-telegram',
             self::Internal => 'bi-building',
             self::Cashfree => 'bi-credit-card',
+            self::Other => 'bi-three-dots',
         };
     }
 }

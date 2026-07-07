@@ -264,6 +264,40 @@ class LegacyOrderBridgeTest extends TestCase
         $this->assertSame(IncidentSource::Internal, $incident->source);
     }
 
+    public function test_legacy_import_accepts_other_source_key(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        SettingSource::query()->updateOrCreate(
+            ['key' => 'other'],
+            [
+                'label' => 'Other',
+                'icon' => 'bi-three-dots',
+                'sort_order' => 99,
+                'is_enabled' => true,
+            ],
+        );
+
+        $agent = User::factory()->create(['name' => 'Other Source Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => 'other',
+                'notes' => 'Imported from legacy confirmation modal.',
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('status', 'service-case-created');
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+        $this->assertSame(IncidentSource::Other, $incident->source);
+    }
+
     public function test_legacy_import_assigns_importing_agent(): void
     {
         Http::fake([
