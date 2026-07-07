@@ -23,6 +23,9 @@
     <script type="application/json" id="workspace-context-slugs">@json(config('workspace.contexts'))</script>
 </head>
 <body
+    @class([
+        'unified-intake-primary' => config('unified_intake.primary') && request()->routeIs('dashboard'),
+    ])
     @auth
         @if(app(\App\Services\Operations\OperationsRoleService::class)->isTeamMember(auth()->user()))
             data-presence-heartbeat="true"

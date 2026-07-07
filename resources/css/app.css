@@ -147,6 +147,32 @@ html.sidebar-expanded .app-main {
     z-index: 1030;
 }
 
+body.unified-intake-primary .app-topbar [data-universal-search-form] .input-group {
+    border-radius: 0.5rem;
+    box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.22), 0 0.25rem 0.75rem rgba(13, 110, 253, 0.1);
+}
+
+body.unified-intake-primary .app-topbar [data-universal-search-form] .input-group-text,
+body.unified-intake-primary .app-topbar [data-universal-search-form] .form-control {
+    border-color: rgba(13, 110, 253, 0.35);
+    background-color: #f8fbff;
+}
+
+body.unified-intake-primary .app-topbar [data-universal-search-form] .form-control {
+    font-weight: 500;
+}
+
+body.unified-intake-primary .app-topbar [data-universal-search-form] .form-control:focus {
+    border-color: rgba(13, 110, 253, 0.55);
+    box-shadow: none;
+}
+
+body.unified-intake-primary .app-topbar [data-universal-search-form] .btn-outline-secondary {
+    border-color: rgba(13, 110, 253, 0.35);
+    color: var(--bs-primary, #0d6efd);
+    background-color: #fff;
+}
+
 .global-search-results {
     position: absolute;
     top: calc(100% + 0.25rem);

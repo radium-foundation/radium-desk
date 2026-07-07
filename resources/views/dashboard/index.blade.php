@@ -34,7 +34,16 @@
                 <p class="text-muted small mb-0">Welcome back, {{ auth()->user()->firstName() }}.</p>
             </div>
             @if($canQuickCreate)
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#quickCreateModal">
+                @php($unifiedIntakePrimary = config('unified_intake.primary'))
+                <button type="button"
+                        @class([
+                            'btn btn-sm',
+                            'btn-outline-secondary' => $unifiedIntakePrimary,
+                            'btn-primary' => ! $unifiedIntakePrimary,
+                        ])
+                        data-bs-toggle="modal"
+                        data-bs-target="#quickCreateModal"
+                        @if($unifiedIntakePrimary) data-unified-intake-fallback @endif>
                     <i class="bi bi-plus-circle me-1"></i> New Service Request
                 </button>
             @endif
