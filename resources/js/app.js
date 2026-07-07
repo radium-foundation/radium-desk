@@ -680,7 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initMentionTextareas(document.querySelector('[data-service-case-show]') ?? document);
     initOrderWorkspace();
 
-    initCustomerIntake();
+    initCustomerIntake({ showToast: showAppToast });
 
     initKeyboardShortcuts({
         closeOpenInlineEditor: () => (

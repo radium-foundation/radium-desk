@@ -1,6 +1,11 @@
 import * as bootstrap from 'bootstrap';
 import { csrfToken } from './workspace/http';
 import { getWorkspaceSession } from './workspace';
+import {
+    initLegacySearchConfirmModal,
+    openLegacySearchConfirmModal,
+    resolveIntakeOutcome,
+} from './intake-search-flow';
 
 const showStep = (modal, stepId) => {
     modal.querySelectorAll('.intake-step').forEach((step) => {
@@ -479,12 +484,36 @@ const searchCustomer = async (modal, form) => {
             feedback.classList.add('d-none');
         }
 
-        if (data.classification === 'new_contact') {
+        const outcome = resolveIntakeOutcome(data);
+
+        if (outcome === 'new_contact') {
             advanceQuickCreateToNewContact(modal, form);
             return;
         }
 
-        if (data.requires_confirmation && data.legacy_preview) {
+        if (outcome === 'legacy_confirm') {
+            bootstrap.Modal.getInstance(modal)?.hide();
+            openLegacySearchConfirmModal(data, '', {
+                onCancel: () => {
+                    bootstrap.Modal.getOrCreateInstance(modal).show();
+                },
+                onSuccess: async (result) => {
+                    bootstrap.Modal.getInstance(modal)?.hide();
+                    document.dispatchEvent(new CustomEvent('customer360:open', {
+                        detail: {
+                            incidentId: result.incident_id,
+                            referenceLabel: result.display_reference,
+                        },
+                    }));
+                    document.dispatchEvent(new CustomEvent('customer360:refresh', {
+                        detail: { incidentId: result.incident_id },
+                    }));
+                },
+            });
+            return;
+        }
+
+        if (outcome === 'legacy_preview') {
             renderLegacyPreview(modal, form, data);
             return;
         }
@@ -503,7 +532,9 @@ const searchCustomer = async (modal, form) => {
     }
 };
 
-export const initCustomerIntake = () => {
+export const initCustomerIntake = ({ showToast = null } = {}) => {
+    initLegacySearchConfirmModal({ showToast });
+
     const modalElement = document.getElementById('quickCreateModal');
 
     if (!modalElement) {

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as bootstrap from 'bootstrap';
 import { initUniversalSearch } from '../../resources/js/universal-search';
+import { initCustomerIntake } from '../../resources/js/customer-intake';
 import { initCustomer360Drawer } from '../../resources/js/customer-360-drawer';
 import { applyRows, refreshDashboard } from '../../resources/js/live-dashboard';
 import { isDashboardSearchActive, resetDashboardSearchMode } from '../../resources/js/dashboard-search-mode';
@@ -1747,5 +1748,170 @@ describe('dashboard global search integration', () => {
         await vi.waitFor(() => {
             expect(document.querySelector('[data-dashboard-search-result-actions]')).toBeNull();
         });
+    });
+
+    const quickCreateModalHtml = `
+        <div class="modal" id="quickCreateModal" data-intake-search-url="/service-requests/intake/search">
+            <form id="customerIntakeForm">
+                <div id="intake-step-search" class="intake-step">
+                    <input id="intake_phone" name="phone" type="text">
+                    <input id="intake_order_id" type="text">
+                    <input id="intake_serial_number" name="serial_number" type="text">
+                    <div id="intake-search-feedback" class="alert d-none"></div>
+                    <button type="button" id="intake-search-button">Search Customer</button>
+                </div>
+                <div id="intake-step-results" class="intake-step d-none">
+                    <p id="intake-classification-label"></p>
+                    <div id="intake-matches-list"></div>
+                </div>
+                <div id="intake-step-legacy-preview" class="intake-step d-none">
+                    <p id="intake-legacy-preview-message"></p>
+                    <dl id="intake-legacy-preview-fields"></dl>
+                    <button type="button" id="intake-legacy-confirm-button">Confirm</button>
+                </div>
+                <div id="intake-step-new-contact" class="intake-step d-none">
+                    <input type="radio" name="intent" value="general_support" id="intent_general_support">
+                </div>
+                <div id="intake-step-details" class="intake-step d-none">
+                    <textarea name="notes" id="intake_notes"></textarea>
+                </div>
+                <input type="hidden" name="action" id="intake_action" value="new_contact">
+                <input type="hidden" name="matched_order_id" id="intake_matched_order_id">
+                <input type="hidden" name="legacy_order_id" id="intake_legacy_order_id">
+                <button type="submit" class="d-none" id="intake-submit-button">Create</button>
+            </form>
+        </div>
+    `;
+
+    const mountQuickCreateIntake = ({ showToast = vi.fn() } = {}) => {
+        document.body.insertAdjacentHTML('beforeend', quickCreateModalHtml);
+        document.body.insertAdjacentHTML('beforeend', legacyConfirmModalHtml);
+
+        initUniversalSearch({
+            showToast,
+            dashboardIntegration: null,
+        });
+        initCustomerIntake({ showToast });
+
+        return { showToast };
+    };
+
+    it('quick create unknown phone advances to new contact form without duplicate search', async () => {
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'new_contact',
+            requires_confirmation: false,
+            legacy_preview: null,
+            parsed_query: {
+                phone: '9876543210',
+                order_id: null,
+                serial_number: null,
+                email: null,
+            },
+        }));
+
+        document.getElementById('intake_phone').value = '9876543210';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(false);
+            expect(document.getElementById('intake-step-details')?.classList.contains('d-none')).toBe(false);
+            expect(document.getElementById('intake-submit-button')?.classList.contains('d-none')).toBe(false);
+        });
+
+        expect(fetch).toHaveBeenCalledWith(
+            '/service-requests/intake/search',
+            expect.objectContaining({
+                method: 'POST',
+                body: JSON.stringify({
+                    phone: '9876543210',
+                    order_id: '',
+                    serial_number: '',
+                }),
+            }),
+        );
+        expect(document.getElementById('intake_action')?.value).toBe('new_contact');
+    });
+
+    it('quick create complete legacy order opens shared confirmation modal', async () => {
+        const legacyConfirmShow = vi.fn();
+        const quickCreateHide = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : vi.fn(),
+            hide: element?.id === 'quickCreateModal' ? quickCreateHide : vi.fn(),
+        }));
+        vi.spyOn(bootstrap.Modal, 'getInstance').mockImplementation((element) => (
+            element?.id === 'quickCreateModal'
+                ? { hide: quickCreateHide }
+                : null
+        ));
+
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'legacy',
+            requires_confirmation: true,
+            legacy_preview_complete: true,
+            default_source: 'call',
+            create_url: '/service-requests/quick',
+            legacy_preview: {
+                order_id: 'RD3395988',
+                customer_name: 'Satyam Test',
+                mobile: '9876543210',
+                product_model: 'MFS 110',
+                serial_number: 'SN123456',
+            },
+            parsed_query: {
+                phone: null,
+                order_id: 'RD3395988',
+                serial_number: null,
+            },
+        }));
+
+        document.getElementById('intake_order_id').value = 'RD3395988';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        expect(quickCreateHide).toHaveBeenCalled();
+        expect(document.getElementById('intake-step-legacy-preview')?.classList.contains('d-none')).toBe(true);
+        expect(document.querySelector('[data-legacy-confirm-order-id]')?.textContent).toBe('RD3395988');
+        expect(document.querySelector('#legacy_search_confirm_source')?.value).toBe('call');
+    });
+
+    it('quick create incomplete legacy preview stays in modal workflow', async () => {
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'legacy',
+            requires_confirmation: true,
+            legacy_preview_complete: false,
+            missing_fields: ['serial_number'],
+            legacy_preview_message: 'Legacy order found. Create service case?',
+            legacy_preview: {
+                order_id: 'RD3395988',
+                customer_name: 'Satyam Test',
+                mobile: '9876543210',
+                product_model: 'MFS 110',
+                serial_number: null,
+            },
+            parsed_query: {
+                phone: null,
+                order_id: 'RD3395988',
+                serial_number: null,
+            },
+        }));
+
+        document.getElementById('intake_order_id').value = 'RD3395988';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('intake-step-legacy-preview')?.classList.contains('d-none')).toBe(false);
+        });
+
+        expect(document.getElementById('legacySearchConfirmModal')).not.toBeNull();
     });
 });

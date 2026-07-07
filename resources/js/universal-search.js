@@ -2,6 +2,12 @@ import * as bootstrap from 'bootstrap';
 import { advanceQuickCreateToNewContact } from './customer-intake';
 import { isDashboardSearchActive, setDashboardSearchActive } from './dashboard-search-mode';
 import { hideSearchBanner, showSearchBanner } from './dashboard-search-banner';
+import {
+    buildLegacyPreviewSummaryHtml,
+    initLegacySearchConfirmModal,
+    isLegacyOneClickEligible,
+    openLegacySearchConfirmModal,
+} from './intake-search-flow';
 import { csrfToken } from './workspace/http';
 
 const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
@@ -11,41 +17,6 @@ const SEARCH_FETCH_ERROR = 'Unable to load search results. Please try again.';
 const SEARCH_ROWS_ERROR = 'Unable to load matching service cases. Please try again.';
 const INTAKE_FALLBACK_SELECTOR = '[data-dashboard-search-intake-fallback]';
 const SEARCH_RESULT_ACTIONS_SELECTOR = '[data-dashboard-search-result-actions]';
-
-const formatIntakePreviewValue = (value) => {
-    if (value === null || value === undefined || value === '') {
-        return '—';
-    }
-
-    if (Array.isArray(value)) {
-        return value.join(', ');
-    }
-
-    if (typeof value === 'object') {
-        return JSON.stringify(value);
-    }
-
-    return String(value);
-};
-
-const buildLegacyPreviewSummaryHtml = (preview) => {
-    const fields = [
-        ['Order ID', preview.order_id],
-        ['Customer name', preview.customer_name],
-        ['Mobile', preview.mobile],
-        ['Product / model', preview.product_model],
-        ['Serial number', preview.serial_number],
-    ];
-
-    return `
-        <dl class="dashboard-legacy-preview-card__fields mb-0">
-            ${fields.map(([label, value]) => `
-                <dt>${label}</dt>
-                <dd>${formatIntakePreviewValue(value)}</dd>
-            `).join('')}
-        </dl>
-    `;
-};
 
 const prefillIntakeSearchFields = (form, parsedQuery = {}, query = '') => {
     const phoneField = form.querySelector('#intake_phone');
@@ -79,54 +50,6 @@ const prefillIntakeSearchFields = (form, parsedQuery = {}, query = '') => {
 const shouldAutoRunIntakeSearch = (parsedQuery = {}) => (
     Boolean(parsedQuery.phone || parsedQuery.order_id || parsedQuery.serial_number)
 );
-
-const isLegacyOneClickEligible = (intake) => (
-    Boolean(
-        intake?.requires_confirmation
-        && intake?.legacy_preview
-        && intake?.legacy_preview_complete === true,
-    )
-);
-
-const extractValidationMessage = (data) => {
-    if (data?.errors && typeof data.errors === 'object') {
-        const firstError = Object.values(data.errors)
-            .flat()
-            .find((value) => typeof value === 'string' && value !== '');
-
-        if (firstError) {
-            return firstError;
-        }
-    }
-
-    if (typeof data?.message === 'string' && data.message !== '') {
-        return data.message;
-    }
-
-    return 'Unable to create service request.';
-};
-
-const parseJsonResponse = async (response) => {
-    const contentType = response.headers.get('content-type') ?? '';
-
-    if (!contentType.includes('application/json')) {
-        return null;
-    }
-
-    try {
-        return await response.json();
-    } catch {
-        return null;
-    }
-};
-
-const legacyCreateErrorMessage = (response) => {
-    if (response.status === 419) {
-        return 'Session expired. Refresh and try again.';
-    }
-
-    return 'Unable to create service request.';
-};
 
 const clearStaleQuickCreateState = (form) => {
     const matchedOrderField = form.querySelector('#intake_matched_order_id');
@@ -533,153 +456,9 @@ export const initUniversalSearch = ({
         banner.appendChild(panel);
     };
 
-    const legacyConfirmModal = document.getElementById('legacySearchConfirmModal');
-    const legacyConfirmError = legacyConfirmModal?.querySelector('#legacy_search_confirm_error');
-    const legacyConfirmSubmit = legacyConfirmModal?.querySelector('[data-legacy-search-confirm-submit]');
-    let pendingLegacyConfirm = null;
-
-    const setLegacyConfirmField = (selector, value) => {
-        const field = legacyConfirmModal?.querySelector(selector);
-
-        if (field) {
-            field.textContent = formatIntakePreviewValue(value);
-        }
-    };
-
-    const resetLegacySearchConfirmForm = (defaultSource) => {
-        const sourceSelect = legacyConfirmModal?.querySelector('#legacy_search_confirm_source');
-        const notesField = legacyConfirmModal?.querySelector('#legacy_search_confirm_notes');
-        const highPriorityField = legacyConfirmModal?.querySelector('#legacy_search_confirm_high_priority');
-
-        if (sourceSelect) {
-            sourceSelect.value = defaultSource ?? '';
-        }
-
-        if (notesField) {
-            notesField.value = '';
-        }
-
-        if (highPriorityField) {
-            highPriorityField.checked = false;
-        }
-
-        if (legacyConfirmError) {
-            legacyConfirmError.textContent = '';
-            legacyConfirmError.classList.add('d-none');
-        }
-    };
-
-    const populateLegacySearchConfirmModal = (preview, defaultSource) => {
-        setLegacyConfirmField('[data-legacy-confirm-order-id]', preview.order_id);
-        setLegacyConfirmField('[data-legacy-confirm-customer-name]', preview.customer_name);
-        setLegacyConfirmField('[data-legacy-confirm-mobile]', preview.mobile);
-        setLegacyConfirmField('[data-legacy-confirm-email]', preview.email);
-        setLegacyConfirmField('[data-legacy-confirm-product-model]', preview.product_model);
-        setLegacyConfirmField('[data-legacy-confirm-serial-number]', preview.serial_number);
-        resetLegacySearchConfirmForm(defaultSource);
-    };
-
-    const openLegacySearchConfirmModal = (intake, query) => {
-        if (!legacyConfirmModal) {
-            showToast?.('Unable to open confirmation dialog.', 'danger');
-
-            return;
-        }
-
-        pendingLegacyConfirm = { intake, query };
-        populateLegacySearchConfirmModal(intake?.legacy_preview ?? {}, intake?.default_source);
-        bootstrap.Modal.getOrCreateInstance(legacyConfirmModal).show();
-    };
-
-    const createLegacyServiceRequestFromSearch = async (
-        intake,
-        query,
-        {
-            source,
-            notes = '',
-            highPriority = false,
-            submitButton = null,
-            onSuccess = null,
-        } = {},
-    ) => {
-        if (submitButton?.disabled) {
-            return;
-        }
-
-        const createUrl = intake?.create_url ?? '/service-requests/quick';
-        const preview = intake?.legacy_preview ?? {};
-        const parsedQuery = intake?.parsed_query ?? {};
-
-        if (!source || !preview.order_id) {
-            showToast?.('Unable to create service request.', 'danger');
-
-            return;
-        }
-
-        const originalButtonHtml = submitButton?.innerHTML ?? 'Create Service Request';
-
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Creating…';
-        }
-
-        if (legacyConfirmError) {
-            legacyConfirmError.textContent = '';
-            legacyConfirmError.classList.add('d-none');
-        }
-
-        try {
-            const body = new FormData();
-            body.append('action', 'legacy_import');
-            body.append('legacy_order_id', preview.order_id);
-            body.append('source', source);
-
-            body.append('notes', notes.trim());
-
-            if (highPriority) {
-                body.append('high_priority', '1');
-            }
-
-            if (parsedQuery.phone) {
-                body.append('phone', parsedQuery.phone);
-            }
-
-            const response = await fetch(createUrl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': csrfToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body,
-            });
-
-            const data = await parseJsonResponse(response);
-
-            if (data === null) {
-                showToast?.(legacyCreateErrorMessage(response), 'danger');
-
-                return;
-            }
-
-            if (!response.ok) {
-                const message = extractValidationMessage(data);
-
-                if (legacyConfirmError) {
-                    legacyConfirmError.textContent = message;
-                    legacyConfirmError.classList.remove('d-none');
-                }
-
-                showToast?.(message, 'danger');
-
-                return;
-            }
-
-            onSuccess?.();
-
-            showToast?.(data.message ?? `Service Case ${data.display_reference} created`);
-
+    initLegacySearchConfirmModal({
+        showToast,
+        onLegacyCreateSuccess: async (data, { query }) => {
             const actions = {
                 incident_id: data.incident_id,
                 display_reference: data.display_reference,
@@ -693,61 +472,7 @@ export const initUniversalSearch = ({
 
             openCustomer360FromSearch(actions, dashboardIntegration);
             refreshCustomer360(actions.incident_id);
-        } catch {
-            showToast?.('Unable to create service request.', 'danger');
-        } finally {
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.innerHTML = originalButtonHtml;
-            }
-        }
-    };
-
-    legacyConfirmSubmit?.addEventListener('click', async () => {
-        if (!pendingLegacyConfirm) {
-            return;
-        }
-
-        const source = legacyConfirmModal?.querySelector('#legacy_search_confirm_source')?.value ?? '';
-        const notes = legacyConfirmModal?.querySelector('#legacy_search_confirm_notes')?.value?.trim() ?? '';
-
-        if (!notes) {
-            if (legacyConfirmError) {
-                legacyConfirmError.textContent = 'Comment / issue description is required.';
-                legacyConfirmError.classList.remove('d-none');
-            }
-
-            return;
-        }
-
-        if (!source) {
-            if (legacyConfirmError) {
-                legacyConfirmError.textContent = 'Select a source before continuing.';
-                legacyConfirmError.classList.remove('d-none');
-            }
-
-            return;
-        }
-        const highPriority = legacyConfirmModal?.querySelector('#legacy_search_confirm_high_priority')?.checked ?? false;
-
-        await createLegacyServiceRequestFromSearch(
-            pendingLegacyConfirm.intake,
-            pendingLegacyConfirm.query,
-            {
-                source,
-                notes,
-                highPriority,
-                submitButton: legacyConfirmSubmit,
-                onSuccess: () => {
-                    bootstrap.Modal.getInstance(legacyConfirmModal)?.hide();
-                    pendingLegacyConfirm = null;
-                },
-            },
-        );
-    });
-
-    legacyConfirmModal?.addEventListener('hidden.bs.modal', () => {
-        pendingLegacyConfirm = null;
+        },
     });
 
     const showSearchEmptyResults = (card) => {
