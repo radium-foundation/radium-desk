@@ -2,6 +2,7 @@
     $verificationService = app(\App\Services\CustomerVerificationService::class);
     $canCompleteService = $verificationService->canCompleteService($order);
     $requiresLegacyVerification = $verificationService->requiresLegacyVerification($order);
+    $legacyVerificationMode = $verificationService->legacyVerificationMode($order);
 @endphp
 
 @can('assignTransaction', $order)
@@ -21,6 +22,7 @@
                       id="order-workspace-transaction-form"
                       data-order-workspace-transaction-form="true"
                       data-requires-legacy-verification="{{ $requiresLegacyVerification ? 'true' : 'false' }}"
+                      data-legacy-verification-mode="{{ $legacyVerificationMode }}"
                       @if($requiresLegacyVerification)
                           data-legacy-verification-url="{{ route('orders.legacy-verification.store', $order) }}"
                       @endif>

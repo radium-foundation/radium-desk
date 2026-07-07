@@ -329,6 +329,10 @@ class OrderController extends Controller
             $relationships[] = 'deviceModelAssigner';
         }
 
+        if (Schema::hasColumn('orders', 'legacy_imported_by_user_id')) {
+            $relationships[] = 'legacyImporter';
+        }
+
         return $relationships;
     }
 

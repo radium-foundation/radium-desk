@@ -13,9 +13,11 @@
             <div class="col-sm-6 col-lg-4">
                 <span class="text-muted d-block">Order</span>
                 @if($incident->order)
-                    <a href="{{ route('orders.show', $incident->order) }}" class="fw-semibold text-decoration-none">
-                        {{ $incident->order->order_id }}
-                    </a>
+                    <x-order-identifier
+                        :order="$incident->order"
+                        :href="route('orders.show', $incident->order)"
+                        class="fw-semibold"
+                    />
                 @else
                     <span class="fw-semibold">—</span>
                 @endif
@@ -26,12 +28,23 @@
             </div>
             <div class="col-sm-6 col-lg-4">
                 <span class="text-muted d-block">Serial Number</span>
-                <span class="fw-semibold">{{ $incident->order?->serial_number ?: '—' }}</span>
+                @if(filled($incident->order?->serial_number))
+                    <x-copyable-identifier
+                        :value="$incident->order->serial_number"
+                        class="fw-semibold font-monospace"
+                    />
+                @else
+                    <span class="fw-semibold">—</span>
+                @endif
             </div>
             <div class="col-sm-6 col-lg-4">
                 <span class="text-muted d-block">Source</span>
                 <span class="fw-semibold">{{ $incident->source->label() }}</span>
             </div>
         </div>
+
+        @if($incident->order?->legacyImportMetadataLine())
+            <p class="legacy-import-metadata mb-0 mt-3">{{ $incident->order->legacyImportMetadataLine() }}</p>
+        @endif
     </div>
 </div>

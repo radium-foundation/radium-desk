@@ -24,6 +24,7 @@ import { getDashboardConfig } from './dashboard-config';
 import { initOperationsDashboard } from './operations-dashboard';
 import { initPresenceHeartbeat } from './presence-heartbeat';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from './customer-intake';
+import { initCopyableIdentifiers } from './copyable-identifiers';
 
 window.bootstrap = bootstrap;
 
@@ -340,6 +341,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
         const transactionId = input?.value.trim() ?? '';
         const requiresLegacyVerification = cell.dataset.requiresLegacyVerification === 'true';
         const legacyVerificationUrl = cell.dataset.legacyVerificationUrl;
+        const legacyVerificationMode = cell.dataset.legacyVerificationMode ?? 'customer';
 
         if (!storeUrl || !input || transactionId === '') {
             input?.classList.add('is-invalid');
@@ -409,6 +411,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
                 requiresLegacyVerification: true,
                 legacyVerificationUrl,
                 legacyVerificationModal,
+                legacyVerificationMode,
                 onProceed: performSave,
             });
 
@@ -514,6 +517,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initTooltips();
+
+    initCopyableIdentifiers(showAppToast);
 
     const dashboardConfig = getDashboardConfig();
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });

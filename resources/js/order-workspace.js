@@ -86,6 +86,7 @@ const initOrderWorkspaceTransactionGuard = () => {
     form.addEventListener('submit', (event) => {
         const requiresLegacyVerification = form.dataset.requiresLegacyVerification === 'true';
         const legacyVerificationUrl = form.dataset.legacyVerificationUrl;
+        const legacyVerificationMode = form.dataset.legacyVerificationMode ?? 'customer';
 
         if (!requiresLegacyVerification || !legacyVerificationUrl || !legacyVerificationModal) {
             return;
@@ -97,6 +98,7 @@ const initOrderWorkspaceTransactionGuard = () => {
             requiresLegacyVerification: true,
             legacyVerificationUrl,
             legacyVerificationModal,
+            legacyVerificationMode,
             onProceed: () => {
                 form.dataset.legacyVerificationComplete = 'true';
                 form.submit();

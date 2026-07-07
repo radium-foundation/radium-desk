@@ -23,7 +23,9 @@
     <div class="order-workspace-sticky-bar" data-workspace-sticky-bar hidden aria-hidden="true">
         <div class="order-workspace-sticky-bar-inner">
             <div class="order-workspace-sticky-identity">
-                <span class="order-workspace-sticky-order-id">{{ $order->order_id }}</span>
+                <span class="order-workspace-sticky-order-id">
+                    <x-order-identifier :order="$order" class="order-workspace-order-id" />
+                </span>
                 <span class="order-workspace-sticky-status">{{ $primaryStatus }}</span>
             </div>
             <div class="order-workspace-sticky-actions">
@@ -51,13 +53,17 @@
         <nav aria-label="breadcrumb" class="order-workspace-breadcrumb">
             <ol class="breadcrumb mb-2">
                 <li class="breadcrumb-item"><a href="{{ route('orders.index') }}">Orders</a></li>
-                <li class="breadcrumb-item active" aria-current="page">{{ $order->order_id }}</li>
+                <li class="breadcrumb-item active" aria-current="page">
+                    <x-order-identifier :order="$order" />
+                </li>
             </ol>
         </nav>
 
         <div class="order-workspace-header-hero">
             <div class="order-workspace-header-identity">
-                <h1 class="order-workspace-order-id">{{ $order->order_id }}</h1>
+                <h1 class="order-workspace-order-id">
+                    <x-order-identifier :order="$order" />
+                </h1>
             </div>
 
             @include('orders.workspace.partials.status-chips', [

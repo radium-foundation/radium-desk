@@ -185,6 +185,9 @@ class DashboardService
             'legacyVerificationUrl' => $order !== null
                 ? route('orders.legacy-verification.store', $order)
                 : null,
+            'legacyVerificationMode' => $order !== null
+                ? $verificationService->legacyVerificationMode($order)
+                : 'customer',
         ];
     }
 

@@ -114,6 +114,7 @@ class IncidentController extends Controller
     public function show(Incident $incident): View
     {
         $incident->load([
+            'order.legacyImporter',
             'order.incidents.assignee',
             'creator',
             'assignee',

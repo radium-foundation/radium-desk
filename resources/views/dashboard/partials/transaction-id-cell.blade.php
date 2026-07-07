@@ -1,4 +1,4 @@
-@props(['serviceCase', 'canManageTransactions' => false, 'requiresLegacyVerification' => false, 'legacyVerificationUrl' => null])
+@props(['serviceCase', 'canManageTransactions' => false, 'requiresLegacyVerification' => false, 'legacyVerificationUrl' => null, 'legacyVerificationMode' => 'customer'])
 
 @php
     $order = $serviceCase->order;
@@ -13,6 +13,7 @@
         data-incident-id="{{ $serviceCase->id }}"
         data-store-url="{{ route('orders.transaction.store', $order) }}"
         data-requires-legacy-verification="{{ $requiresLegacyVerification ? 'true' : 'false' }}"
+        data-legacy-verification-mode="{{ $legacyVerificationMode }}"
         @if($legacyVerificationUrl)
             data-legacy-verification-url="{{ $legacyVerificationUrl }}"
         @endif

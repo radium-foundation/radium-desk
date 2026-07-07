@@ -4680,6 +4680,44 @@ a:focus-visible .stat-card {
     color: var(--bs-success, #198754);
 }
 
+.copyable-identifier {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted transparent;
+    transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.copyable-identifier:hover,
+.copyable-identifier:focus-visible {
+    text-decoration-color: currentColor;
+    outline: none;
+}
+
+.legacy-imported-order-id {
+    color: #b45309;
+    font-weight: 600;
+}
+
+a.legacy-imported-order-id:hover,
+a.legacy-imported-order-id:focus-visible,
+span.legacy-imported-order-id:hover,
+span.legacy-imported-order-id:focus-visible,
+.copyable-identifier.legacy-imported-order-id:hover,
+.copyable-identifier.legacy-imported-order-id:focus-visible {
+    color: #92400e;
+}
+
+.legacy-import-metadata {
+    font-size: 0.8125rem;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
 .customer-360-device-model {
     display: block;
     font-weight: 500;

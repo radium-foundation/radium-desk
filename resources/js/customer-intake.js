@@ -347,13 +347,42 @@ export const initCustomerIntake = () => {
 
 let pendingLegacyVerification = null;
 
-const resetLegacyVerificationModal = () => {
-    const checkbox = document.getElementById('legacy_verification_confirmed');
-    const confirmButton = document.getElementById('legacy-verification-confirm-button');
-    const error = document.getElementById('legacy-verification-error');
+const configureLegacyVerificationModal = (modalElement, mode = 'customer') => {
+    const customerPanel = modalElement.querySelector('#legacy-verification-customer-panel');
+    const importedPanel = modalElement.querySelector('#legacy-verification-imported-panel');
+    const title = modalElement.querySelector('#legacyVerificationModalLabel');
+    const isImported = mode === 'imported';
+
+    customerPanel?.classList.toggle('d-none', isImported);
+    importedPanel?.classList.toggle('d-none', ! isImported);
+
+    if (title) {
+        title.textContent = isImported
+            ? 'Legacy Imported Order Verification'
+            : 'Legacy Customer Verification';
+    }
+};
+
+const activeLegacyVerificationCheckbox = (modalElement, mode = 'customer') => {
+    if (mode === 'imported') {
+        return modalElement.querySelector('#legacy_import_fulfillment_confirmed');
+    }
+
+    return modalElement.querySelector('#legacy_verification_confirmed');
+};
+
+const resetLegacyVerificationModal = (modalElement) => {
+    const checkbox = modalElement?.querySelector('#legacy_verification_confirmed');
+    const importedCheckbox = modalElement?.querySelector('#legacy_import_fulfillment_confirmed');
+    const confirmButton = modalElement?.querySelector('#legacy-verification-confirm-button');
+    const error = modalElement?.querySelector('#legacy-verification-error');
 
     if (checkbox) {
         checkbox.checked = false;
+    }
+
+    if (importedCheckbox) {
+        importedCheckbox.checked = false;
     }
 
     if (confirmButton) {
@@ -375,15 +404,22 @@ export const initLegacyVerificationModal = () => {
     }
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-    const checkbox = modalElement.querySelector('#legacy_verification_confirmed');
     const confirmButton = modalElement.querySelector('#legacy-verification-confirm-button');
     const error = modalElement.querySelector('#legacy-verification-error');
+    const customerCheckbox = modalElement.querySelector('#legacy_verification_confirmed');
+    const importedCheckbox = modalElement.querySelector('#legacy_import_fulfillment_confirmed');
 
-    checkbox?.addEventListener('change', () => {
+    const syncConfirmButton = () => {
+        const mode = pendingLegacyVerification?.verificationMode ?? 'customer';
+        const checkbox = activeLegacyVerificationCheckbox(modalElement, mode);
+
         if (confirmButton) {
-            confirmButton.disabled = !checkbox.checked;
+            confirmButton.disabled = !checkbox?.checked;
         }
-    });
+    };
+
+    customerCheckbox?.addEventListener('change', syncConfirmButton);
+    importedCheckbox?.addEventListener('change', syncConfirmButton);
 
     confirmButton?.addEventListener('click', async () => {
         if (!pendingLegacyVerification?.verificationUrl) {
@@ -428,13 +464,14 @@ export const initLegacyVerificationModal = () => {
     });
 
     modalElement.addEventListener('hidden.bs.modal', () => {
-        resetLegacyVerificationModal();
+        resetLegacyVerificationModal(modalElement);
     });
 
     return {
-        requestVerification: ({ verificationUrl, onVerified }) => new Promise((resolve, reject) => {
+        requestVerification: ({ verificationUrl, verificationMode = 'customer', onVerified }) => new Promise((resolve, reject) => {
             pendingLegacyVerification = {
                 verificationUrl,
+                verificationMode,
                 onVerified: async () => {
                     try {
                         await onVerified?.();
@@ -445,6 +482,8 @@ export const initLegacyVerificationModal = () => {
                 },
             };
 
+            configureLegacyVerificationModal(modalElement, verificationMode);
+            syncConfirmButton();
             modal.show();
         }),
     };
@@ -458,11 +497,13 @@ export const guardServiceReferenceAssignment = async ({
     requiresLegacyVerification,
     legacyVerificationUrl,
     legacyVerificationModal,
+    legacyVerificationMode = 'customer',
     onProceed,
 }) => {
     if (requiresLegacyVerification && legacyVerificationUrl && legacyVerificationModal) {
         return legacyVerificationModal.requestVerification({
             verificationUrl: legacyVerificationUrl,
+            verificationMode: legacyVerificationMode,
             onVerified: onProceed,
         });
     }

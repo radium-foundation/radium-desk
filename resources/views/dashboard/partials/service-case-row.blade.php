@@ -101,6 +101,14 @@
     @include('dashboard.partials.transaction-id-cell', [
         'serviceCase' => $serviceCase,
         'canManageTransactions' => $canManageTransactions ?? false,
+        'requiresLegacyVerification' => $requiresLegacyVerification
+            ?? ($order !== null && app(\App\Services\CustomerVerificationService::class)->requiresLegacyVerification($order)),
+        'legacyVerificationUrl' => $legacyVerificationUrl
+            ?? ($order !== null ? route('orders.legacy-verification.store', $order) : null),
+        'legacyVerificationMode' => $legacyVerificationMode
+            ?? ($order !== null
+                ? app(\App\Services\CustomerVerificationService::class)->legacyVerificationMode($order)
+                : 'customer'),
     ])
     <td class="source-cell d-none d-md-table-cell">
         @include('dashboard.partials.source-icon', ['source' => $serviceCase->source])

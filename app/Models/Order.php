@@ -455,4 +455,37 @@ class Order extends Model
     {
         return $this->morphMany(Remark::class, 'remarkable');
     }
+
+    public function isLegacyImported(): bool
+    {
+        return filled($this->legacy_source);
+    }
+
+    public function legacyImportTooltipTitle(): ?string
+    {
+        if (! $this->isLegacyImported()) {
+            return null;
+        }
+
+        $agent = $this->legacyImporter?->firstName()
+            ?? $this->legacyImporter?->name
+            ?? 'Unknown';
+
+        $date = AppDateFormatter::datetime($this->legacy_imported_at) ?? 'Unknown date';
+
+        return "Legacy imported order • Imported by {$agent} • {$date}";
+    }
+
+    public function legacyImportMetadataLine(): ?string
+    {
+        if (! $this->isLegacyImported()) {
+            return null;
+        }
+
+        $agent = $this->legacyImporter?->firstName()
+            ?? $this->legacyImporter?->name
+            ?? 'Unknown';
+
+        return "Imported from legacy system by {$agent}";
+    }
 }
