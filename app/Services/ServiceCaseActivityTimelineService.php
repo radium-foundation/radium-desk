@@ -77,7 +77,7 @@ class ServiceCaseActivityTimelineService
                 })->orWhere(function ($orderQuery) use ($incident) {
                     $orderQuery->where('auditable_type', (new Order)->getMorphClass())
                         ->where('auditable_id', $incident->order_id)
-                        ->where('event', 'serial.corrected_by_ira');
+                        ->whereIn('event', ['serial.corrected_by_ira', 'legacy_order.imported']);
                 })->orWhere(function ($remarkQuery) use ($incident) {
                     $remarkQuery->where('auditable_type', (new Remark)->getMorphClass())
                         ->where('event', 'deleted')
@@ -242,6 +242,23 @@ class ServiceCaseActivityTimelineService
                     (string) ($auditLog->old_values['serial_number'] ?? '—'),
                     (string) ($auditLog->new_values['serial_number'] ?? '—'),
                 ),
+                remark: null,
+                dedupeKey: "audit:{$auditLog->id}",
+            );
+        }
+
+        if ($auditLog->auditable_type === (new Order)->getMorphClass()
+            && $auditLog->event === 'legacy_order.imported') {
+            $agentName = (string) ($auditLog->new_values['agent_name'] ?? $auditLog->user?->firstName() ?? 'Agent');
+
+            return new ServiceCaseTimelineEntry(
+                occurredAt: $occurredAt,
+                type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                actor: $actor,
+                title: 'Legacy order imported by '.$agentName,
+                body: isset($auditLog->new_values['order_id'])
+                    ? 'Order '.$auditLog->new_values['order_id']
+                    : null,
                 remark: null,
                 dedupeKey: "audit:{$auditLog->id}",
             );

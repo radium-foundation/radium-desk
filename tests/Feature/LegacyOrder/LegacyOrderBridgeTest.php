@@ -1,0 +1,309 @@
+<?php
+
+namespace Tests\Feature\LegacyOrder;
+
+use App\Enums\IncidentSource;
+use App\Models\AuditLog;
+use App\Models\Incident;
+use App\Models\Order;
+use App\Models\User;
+use App\Services\ServiceCaseActivityTimelineService;
+use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SettingsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+class LegacyOrderBridgeTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RolePermissionSeeder::class);
+        $this->seed(SettingsSeeder::class);
+
+        config([
+            'radiumbox.enabled' => true,
+            'radiumbox.base_url' => 'https://admin.radiumbox.com',
+            'radiumbox.timeout_seconds' => 5,
+            'radiumbox.connect_timeout_seconds' => 3,
+            'service_case_assignment.automation_grace_period_enabled' => false,
+        ]);
+
+        $dayAdmin = User::factory()->create(['email' => 'legacy-day-admin@test.com']);
+        $dayAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $nightAdmin = User::factory()->create(['email' => 'legacy-night-admin@test.com']);
+        $nightAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        app(\App\Services\SettingService::class)->setMany([
+            'assignment.timezone' => config('app.timezone'),
+            'assignment.day_shift_start' => '09:00',
+            'assignment.day_shift_end' => '18:30',
+            'assignment.day_shift_admin_user_id' => (string) $dayAdmin->id,
+            'assignment.night_shift_admin_user_id' => (string) $nightAdmin->id,
+            'assignment.fallback_admin_1_user_id' => '',
+            'assignment.fallback_admin_2_user_id' => '',
+        ]);
+    }
+
+    public function test_existing_desk_order_does_not_call_radiumbox_api(): void
+    {
+        Http::fake();
+
+        $agent = User::factory()->create(['name' => 'Desk Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3395988',
+            'customer_phone' => '9111111111',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->postJson(route('service-requests.intake.search'), [
+                'order_id' => 'RD3395988',
+            ])
+            ->assertOk()
+            ->assertJsonPath('classification', 'legacy')
+            ->assertJsonPath('matches.0.id', $order->id)
+            ->assertJsonPath('requires_confirmation', false)
+            ->assertJsonPath('legacy_preview', null);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_missing_desk_order_returns_legacy_preview_from_api(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->postJson(route('service-requests.intake.search'), [
+                'order_id' => 'RD3395988',
+            ])
+            ->assertOk()
+            ->assertJsonPath('classification', 'legacy')
+            ->assertJsonPath('requires_confirmation', true)
+            ->assertJsonPath('legacy_preview_message', 'Legacy order found. Create service case?')
+            ->assertJsonPath('legacy_preview.order_id', 'RD3395988')
+            ->assertJsonPath('legacy_preview.customer_name', 'Satyam Test')
+            ->assertJsonPath('legacy_preview.mobile', '9876543210')
+            ->assertJsonPath('legacy_preview.email', 'test@example.com')
+            ->assertJsonPath('legacy_preview.product_model', 'MFS 110')
+            ->assertJsonPath('legacy_preview.serial_number', 'SN123456')
+            ->assertJsonPath('legacy_preview.gst_number', 'GSTIN123')
+            ->assertJsonPath('legacy_preview.invoice_number', 'INV-9988')
+            ->assertJsonPath('legacy_preview.purchase_year', '2022')
+            ->assertJsonPath('legacy_preview.amc_status', 'Active')
+            ->assertJsonPath('legacy_preview.amc_year', '2025')
+            ->assertJsonPath('legacy_preview.legacy_order_status', 'Completed');
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_legacy_import_creates_order_and_service_case(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create(['name' => 'Import Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Call->value,
+                'notes' => 'Imported legacy order.',
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('status', 'service-case-created');
+
+        $order = Order::query()->where('order_id', 'RD3395988')->first();
+        $this->assertNotNull($order);
+        $this->assertSame('Satyam Test', $order->customer_name);
+        $this->assertSame('9876543210', $order->customer_phone);
+        $this->assertSame('test@example.com', $order->customer_email);
+        $this->assertSame('SN123456', $order->serial_number);
+        $this->assertSame('GSTIN123', $order->gst_number);
+        $this->assertSame('INV-9988', $order->invoice_number);
+        $this->assertSame('2022', $order->purchase_year);
+        $this->assertSame('Active', $order->amc_status);
+        $this->assertSame('2025', $order->amc_year);
+        $this->assertSame('Completed', $order->legacy_order_status);
+        $this->assertSame('radiumbox', $order->legacy_source);
+        $this->assertSame($agent->id, $order->legacy_imported_by_user_id);
+        $this->assertNotNull($order->legacy_imported_at);
+
+        $incident = Incident::query()->where('order_id', $order->id)->first();
+        $this->assertNotNull($incident);
+        $this->assertSame('Imported legacy order.', $incident->description);
+    }
+
+    public function test_legacy_import_assigns_importing_agent(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create(['name' => 'Assigned Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Call->value,
+            ])
+            ->assertRedirect(route('dashboard'));
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+        $this->assertSame($agent->id, $incident->assigned_to_user_id);
+    }
+
+    public function test_legacy_import_creates_timeline_event(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create(['name' => 'Timeline Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Call->value,
+            ])
+            ->assertRedirect(route('dashboard'));
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'legacy_order.imported',
+            'auditable_type' => $incident->order->getMorphClass(),
+            'auditable_id' => $incident->order_id,
+        ]);
+
+        $timeline = app(ServiceCaseActivityTimelineService::class)->forIncident($incident->fresh(['order', 'creator', 'assignee']));
+        $titles = $timeline->pluck('title')->all();
+
+        $this->assertContains('Legacy order imported by Timeline', $titles);
+    }
+
+    public function test_legacy_import_reuses_customer_id_from_phone_match(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD-EXISTING-001',
+            'customer_id' => 'CUST-12345',
+            'customer_phone' => '9876543210',
+            'customer_name' => 'Existing Customer',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Call->value,
+            ])
+            ->assertRedirect(route('dashboard'));
+
+        $imported = Order::query()->where('order_id', 'RD3395988')->first();
+        $this->assertNotNull($imported);
+        $this->assertSame('CUST-12345', $imported->customer_id);
+        $this->assertSame('9876543210', $imported->customer_phone);
+    }
+
+    public function test_legacy_radiumbox_path_still_creates_service_case(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'rd_order' => [
+                        'order_id' => 'RD-LEGACY-OLD-001',
+                        'serial_no' => 'OLD-SERIAL-1',
+                        'product_name' => 'MFS 110',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_radiumbox',
+                'legacy_order_id' => 'RD-LEGACY-OLD-001',
+                'source' => IncidentSource::Call->value,
+                'notes' => 'Legacy radiumbox compatibility path.',
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('status', 'service-case-created');
+
+        $order = Order::query()->where('order_id', 'RD-LEGACY-OLD-001')->first();
+        $this->assertNotNull($order);
+        $this->assertSame('OLD-SERIAL-1', $order->serial_number);
+        $this->assertNull($order->legacy_imported_at);
+
+        $incident = Incident::query()->where('order_id', $order->id)->first();
+        $this->assertNotNull($incident);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'intake.legacy_customer_matched',
+            'auditable_type' => $order->getMorphClass(),
+            'auditable_id' => $order->id,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyOrderApiResponse(string $orderId = 'RD3395988'): array
+    {
+        return [
+            'status' => 200,
+            'data' => [
+                'rd_order' => [
+                    'order_id' => $orderId,
+                    'customer_name' => 'Satyam Test',
+                    'mobile' => '9876543210',
+                    'email' => 'test@example.com',
+                    'product_name' => 'MFS 110',
+                    'serial_no' => 'SN123456',
+                    'gst_number' => 'GSTIN123',
+                    'invoice_number' => 'INV-9988',
+                    'activation_year' => '2022',
+                    'service_history' => ['2023', '2024'],
+                    'amc_status' => 'Active',
+                    'amc_year' => '2025',
+                    'amc_details' => ['plan' => 'Gold'],
+                    'order_status' => 'Completed',
+                ],
+            ],
+        ];
+    }
+}

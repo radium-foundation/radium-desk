@@ -26,7 +26,7 @@ class StoreCustomerIntakeRequest extends FormRequest
         $settingService = app(SettingService::class);
 
         return [
-            'action' => ['required', 'string', Rule::in(['existing_order', 'legacy_radiumbox', 'new_contact'])],
+            'action' => ['required', 'string', Rule::in(['existing_order', 'legacy_radiumbox', 'legacy_import', 'new_contact'])],
             'matched_order_id' => ['nullable', 'integer', 'exists:orders,id'],
             'legacy_order_id' => ['nullable', 'string', 'max:50'],
             'open_only' => ['sometimes', 'boolean'],
@@ -50,6 +50,10 @@ class StoreCustomerIntakeRequest extends FormRequest
             }
 
             if ($action === 'legacy_radiumbox' && ! $this->filled('legacy_order_id')) {
+                $validator->errors()->add('legacy_order_id', 'Legacy order ID is required.');
+            }
+
+            if ($action === 'legacy_import' && ! $this->filled('legacy_order_id')) {
                 $validator->errors()->add('legacy_order_id', 'Legacy order ID is required.');
             }
 

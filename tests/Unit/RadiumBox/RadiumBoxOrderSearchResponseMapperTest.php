@@ -40,6 +40,41 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
         $this->assertSame('Expired', $enrichment->amc);
     }
 
+    public function test_it_maps_legacy_import_fields_from_rd_order(): void
+    {
+        $enrichment = $this->mapper->map([
+            'status' => 200,
+            'data' => [
+                'rd_order' => [
+                    'order_id' => 'RD3395988',
+                    'customer_name' => 'Satyam Test',
+                    'mobile' => '9876543210',
+                    'email' => 'Test@Example.com',
+                    'product_name' => 'MFS 110',
+                    'serial_no' => 'SN123456',
+                    'gst_number' => 'GSTIN123',
+                    'invoice_number' => 'INV-9988',
+                    'activation_year' => '2022',
+                    'service_history' => ['2023', '2024'],
+                    'amc_status' => 'Active',
+                    'amc_year' => '2025',
+                    'order_status' => 'Completed',
+                ],
+            ],
+        ], 'RD3395988');
+
+        $this->assertSame('Satyam Test', $enrichment->customerName);
+        $this->assertSame('9876543210', $enrichment->customerPhone);
+        $this->assertSame('test@example.com', $enrichment->customerEmail);
+        $this->assertSame('GSTIN123', $enrichment->gstNumber);
+        $this->assertSame('INV-9988', $enrichment->invoiceNumber);
+        $this->assertSame(['2023', '2024'], $enrichment->serviceHistory);
+        $this->assertSame('Active', $enrichment->amcStatus);
+        $this->assertSame('2025', $enrichment->amcYear);
+        $this->assertSame('Completed', $enrichment->legacyOrderStatus);
+        $this->assertTrue($enrichment->hasLegacyPreviewData());
+    }
+
     public function test_it_maps_device_data_when_radiumbox_payment_status_is_pending(): void
     {
         $enrichment = $this->mapper->map([

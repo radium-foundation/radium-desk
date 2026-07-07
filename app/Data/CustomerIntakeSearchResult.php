@@ -21,5 +21,7 @@ class CustomerIntakeSearchResult
         public readonly CustomerIdentityType $classification,
         public readonly array $matches,
         public readonly ?string $legacySource = null,
+        public readonly ?LegacyOrderPreview $legacyPreview = null,
+        public readonly bool $requiresConfirmation = false,
     ) {}
 }

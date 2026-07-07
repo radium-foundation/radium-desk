@@ -9,6 +9,7 @@ use App\Enums\OrderStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\LegacyOrder\LegacyOrderImportService;
 use App\Services\RadiumBox\RadiumBoxClient;
 use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,7 @@ class CustomerIntakeService
         private readonly IncidentReferenceService $incidentReferenceService,
         private readonly AuditLogService $auditLogService,
         private readonly RadiumBoxClient $radiumBoxClient,
+        private readonly LegacyOrderImportService $legacyOrderImportService,
         private readonly SerialValidationService $serialValidationService,
     ) {}
 
@@ -106,6 +108,24 @@ class CustomerIntakeService
                 title: 'Legacy service request — '.($enrichment?->deviceModel ?? $orderId),
             );
         });
+    }
+
+    public function importLegacyOrder(
+        User $user,
+        string $orderId,
+        IncidentSource $source,
+        ?string $notes,
+        bool $highPriority = false,
+        ?string $phone = null,
+    ): Incident {
+        return $this->legacyOrderImportService->import(
+            user: $user,
+            orderId: $orderId,
+            source: $source,
+            notes: $notes,
+            highPriority: $highPriority,
+            intakePhone: $phone,
+        );
     }
 
     public function createNewContact(

@@ -58,6 +58,17 @@ class Order extends Model
         'customer_name',
         'customer_email',
         'customer_phone',
+        'gst_number',
+        'invoice_number',
+        'purchase_year',
+        'service_history',
+        'amc_status',
+        'amc_year',
+        'amc_details',
+        'legacy_order_status',
+        'legacy_source',
+        'legacy_imported_at',
+        'legacy_imported_by_user_id',
         'status',
         'created_by',
         'updated_by',
@@ -78,6 +89,9 @@ class Order extends Model
             'device_model_assigned_at' => 'datetime',
             'payment_date' => 'datetime',
             'payment_amount' => 'decimal:2',
+            'service_history' => 'array',
+            'amc_details' => 'array',
+            'legacy_imported_at' => 'datetime',
         ];
     }
 
@@ -384,6 +398,11 @@ class Order extends Model
     public function deviceModelAssigner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'device_model_assigned_by_user_id');
+    }
+
+    public function legacyImporter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'legacy_imported_by_user_id');
     }
 
     public function incidents(): HasMany

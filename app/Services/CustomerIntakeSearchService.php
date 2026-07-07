@@ -6,14 +6,14 @@ use App\Data\CustomerIntakeSearchResult;
 use App\Enums\CustomerIdentityType;
 use App\Models\Order;
 use App\Services\Interakt\InteraktCustomerMatcher;
-use App\Services\RadiumBox\RadiumBoxClient;
+use App\Services\LegacyOrder\LegacyOrderLookupService;
 use Illuminate\Support\Collection;
 
 class CustomerIntakeSearchService
 {
     public function __construct(
         private readonly InteraktCustomerMatcher $customerMatcher,
-        private readonly RadiumBoxClient $radiumBoxClient,
+        private readonly LegacyOrderLookupService $legacyOrderLookupService,
     ) {}
 
     public function search(
@@ -38,13 +38,15 @@ class CustomerIntakeSearchService
         }
 
         if ($orderId !== null) {
-            $radiumBoxMatch = $this->findRadiumBoxMatch($orderId);
+            $legacyPreview = $this->legacyOrderLookupService->lookupLegacyPreview($orderId);
 
-            if ($radiumBoxMatch !== null) {
+            if ($legacyPreview !== null) {
                 return new CustomerIntakeSearchResult(
                     classification: CustomerIdentityType::Legacy,
-                    matches: [$radiumBoxMatch],
+                    matches: [],
                     legacySource: 'radiumbox',
+                    legacyPreview: $legacyPreview,
+                    requiresConfirmation: true,
                 );
             }
         }
@@ -93,36 +95,6 @@ class CustomerIntakeSearchService
         }
 
         return $orders->unique('id')->values();
-    }
-
-    /**
-     * @return array{
-     *     id: int,
-     *     order_id: string,
-     *     customer_phone: ?string,
-     *     serial_number: ?string,
-     *     product_name: ?string,
-     *     identity_type: string,
-     *     legacy_source: ?string,
-     * }|null
-     */
-    private function findRadiumBoxMatch(string $orderId): ?array
-    {
-        $enrichment = $this->radiumBoxClient->fetchOrderEnrichment($orderId);
-
-        if ($enrichment === null || ! $enrichment->hasData()) {
-            return null;
-        }
-
-        return [
-            'id' => 0,
-            'order_id' => $orderId,
-            'customer_phone' => null,
-            'serial_number' => $enrichment->serialNumber,
-            'product_name' => $enrichment->deviceModel,
-            'identity_type' => CustomerIdentityType::Legacy->value,
-            'legacy_source' => 'radiumbox',
-        ];
     }
 
     /**

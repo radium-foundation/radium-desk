@@ -48,6 +48,98 @@ const resetIntakeForm = (modal, form) => {
     });
 };
 
+const formatPreviewValue = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => {
+            if (typeof item === 'object' && item !== null) {
+                return JSON.stringify(item);
+            }
+
+            return String(item);
+        }).join(', ');
+    }
+
+    if (typeof value === 'object') {
+        return JSON.stringify(value);
+    }
+
+    return String(value);
+};
+
+const renderLegacyPreview = (modal, form, data) => {
+    const preview = data.legacy_preview;
+
+    if (!preview) {
+        return;
+    }
+
+    const message = modal.querySelector('#intake-legacy-preview-message');
+    const fields = modal.querySelector('#intake-legacy-preview-fields');
+    const searchButton = modal.querySelector('#intake-search-button');
+    const submitButton = modal.querySelector('#intake-submit-button');
+    const actionField = form.querySelector('#intake_action');
+    const legacyOrderField = form.querySelector('#intake_legacy_order_id');
+    const matchedOrderField = form.querySelector('#intake_matched_order_id');
+
+    if (message) {
+        message.textContent = data.legacy_preview_message ?? 'Legacy order found. Create service case?';
+    }
+
+    if (fields) {
+        const previewFields = [
+            ['Order ID', preview.order_id],
+            ['Customer name', preview.customer_name],
+            ['Mobile', preview.mobile],
+            ['Email', preview.email],
+            ['Product / model', preview.product_model],
+            ['Serial number', preview.serial_number],
+            ['GST number', preview.gst_number],
+            ['Invoice number', preview.invoice_number],
+            ['Purchase / activation year', preview.purchase_year],
+            ['RD service history', preview.service_history],
+            ['AMC status', preview.amc_status],
+            ['AMC year', preview.amc_year],
+            ['AMC details', preview.amc_details],
+            ['Order status', preview.legacy_order_status],
+        ];
+
+        fields.innerHTML = previewFields.map(([label, value]) => `
+            <dt class="col-sm-4 text-muted">${label}</dt>
+            <dd class="col-sm-8 mb-2">${formatPreviewValue(value)}</dd>
+        `).join('');
+    }
+
+    if (actionField) {
+        actionField.value = 'legacy_import';
+    }
+
+    if (legacyOrderField) {
+        legacyOrderField.value = preview.order_id ?? '';
+    }
+
+    if (matchedOrderField) {
+        matchedOrderField.value = '';
+    }
+
+    showStep(modal, 'intake-step-legacy-preview');
+    searchButton?.classList.add('d-none');
+    submitButton?.classList.add('d-none');
+
+    modal.querySelector('#intake-legacy-confirm-button')?.replaceWith(
+        modal.querySelector('#intake-legacy-confirm-button').cloneNode(true),
+    );
+
+    modal.querySelector('#intake-legacy-confirm-button')?.addEventListener('click', () => {
+        showStep(modal, 'intake-step-details');
+        searchButton?.classList.add('d-none');
+        submitButton?.classList.remove('d-none');
+    });
+};
+
 const renderMatches = (modal, form, data) => {
     const list = modal.querySelector('#intake-matches-list');
     const classificationLabel = modal.querySelector('#intake-classification-label');
@@ -182,6 +274,11 @@ const searchCustomer = async (modal, form) => {
             modal.querySelector('#intake-step-details')?.classList.remove('d-none');
             modal.querySelector('#intake-search-button')?.classList.add('d-none');
             modal.querySelector('#intake-submit-button')?.classList.remove('d-none');
+            return;
+        }
+
+        if (data.requires_confirmation && data.legacy_preview) {
+            renderLegacyPreview(modal, form, data);
             return;
         }
 

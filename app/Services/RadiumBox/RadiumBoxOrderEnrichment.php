@@ -4,6 +4,10 @@ namespace App\Services\RadiumBox;
 
 readonly class RadiumBoxOrderEnrichment
 {
+    /**
+     * @param  array<int, mixed>|null  $serviceHistory
+     * @param  array<string, mixed>|null  $amcDetails
+     */
     public function __construct(
         public ?string $serialNumber = null,
         public ?string $deviceModel = null,
@@ -12,6 +16,17 @@ readonly class RadiumBoxOrderEnrichment
         public ?string $amc = null,
         public ?string $radiumboxPaymentStatus = null,
         public ?string $radiumboxOrderStatus = null,
+        public ?string $customerName = null,
+        public ?string $customerPhone = null,
+        public ?string $customerEmail = null,
+        public ?string $gstNumber = null,
+        public ?string $invoiceNumber = null,
+        public ?string $purchaseYear = null,
+        public ?array $serviceHistory = null,
+        public ?string $amcStatus = null,
+        public ?string $amcYear = null,
+        public ?array $amcDetails = null,
+        public ?string $legacyOrderStatus = null,
     ) {}
 
     public function hasData(): bool
@@ -21,6 +36,23 @@ readonly class RadiumBoxOrderEnrichment
             || filled($this->activationYear)
             || filled($this->warranty)
             || filled($this->amc);
+    }
+
+    public function hasLegacyPreviewData(): bool
+    {
+        return $this->hasData()
+            || filled($this->customerName)
+            || filled($this->customerPhone)
+            || filled($this->customerEmail)
+            || filled($this->gstNumber)
+            || filled($this->invoiceNumber)
+            || filled($this->purchaseYear)
+            || filled($this->serviceHistory)
+            || filled($this->amcStatus)
+            || filled($this->amcYear)
+            || filled($this->amcDetails)
+            || filled($this->legacyOrderStatus)
+            || filled($this->radiumboxOrderStatus);
     }
 
     /**

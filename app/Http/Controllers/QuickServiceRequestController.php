@@ -34,6 +34,11 @@ class QuickServiceRequestController extends Controller
             'classification_label' => $result->classification->label(),
             'matches' => $result->matches,
             'legacy_source' => $result->legacySource,
+            'legacy_preview' => $result->legacyPreview?->toArray(),
+            'requires_confirmation' => $result->requiresConfirmation,
+            'legacy_preview_message' => $result->requiresConfirmation
+                ? 'Legacy order found. Create service case?'
+                : null,
         ]);
     }
 
@@ -74,6 +79,19 @@ class QuickServiceRequestController extends Controller
 
         if ($action === 'legacy_radiumbox') {
             $incident = $this->customerIntakeService->createLegacyFromRadiumBox(
+                user: $request->user(),
+                orderId: $request->string('legacy_order_id')->trim()->toString(),
+                source: $source,
+                notes: $notes,
+                highPriority: $highPriority,
+                phone: $request->string('phone')->trim()->toString() ?: null,
+            );
+
+            return $this->createdRedirect($incident->display_reference);
+        }
+
+        if ($action === 'legacy_import') {
+            $incident = $this->customerIntakeService->importLegacyOrder(
                 user: $request->user(),
                 orderId: $request->string('legacy_order_id')->trim()->toString(),
                 source: $source,

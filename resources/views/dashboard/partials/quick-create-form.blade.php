@@ -71,6 +71,19 @@
                         <div id="intake-matches-list" class="list-group mb-3"></div>
                     </div>
 
+                    <div id="intake-step-legacy-preview" class="intake-step d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h3 class="h6 mb-0">Legacy Order Preview</h3>
+                            <button type="button" class="btn btn-link btn-sm p-0" data-intake-back="search">Change search</button>
+                        </div>
+                        <p class="alert alert-info py-2 small mb-3" id="intake-legacy-preview-message"></p>
+                        <dl class="row small mb-3" id="intake-legacy-preview-fields"></dl>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-intake-back="search">Cancel</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="intake-legacy-confirm-button">Confirm &amp; Continue</button>
+                        </div>
+                    </div>
+
                     <div id="intake-step-new-contact" class="intake-step d-none">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h3 class="h6 mb-0">New Contact</h3>
