@@ -46,31 +46,7 @@ const buildLegacyPreviewSummaryHtml = (preview) => {
     `;
 };
 
-const buildIntakeFallbackMessage = (intake, query) => {
-    if (intake?.requires_confirmation && intake?.legacy_preview) {
-        return intake.legacy_preview_message ?? `Legacy order found for ${query}.`;
-    }
-
-    if (intake?.classification === 'new_contact') {
-        return `No desk record found for ${query}.`;
-    }
-
-    if ((intake?.matches ?? []).length > 0) {
-        return `Desk record found for ${query}.`;
-    }
-
-    return `No record found for ${query}.`;
-};
-
-const prefillAndOpenQuickCreate = (intake, query) => {
-    const modalElement = document.getElementById('quickCreateModal');
-    const form = modalElement?.querySelector('#customerIntakeForm');
-
-    if (!modalElement || !form) {
-        return;
-    }
-
-    const parsedQuery = intake?.parsed_query ?? {};
+const prefillIntakeSearchFields = (form, parsedQuery = {}, query = '') => {
     const phoneField = form.querySelector('#intake_phone');
     const orderField = form.querySelector('#intake_order_id');
     const serialField = form.querySelector('#intake_serial_number');
@@ -87,18 +63,72 @@ const prefillAndOpenQuickCreate = (intake, query) => {
         serialField.value = parsedQuery.serial_number ?? '';
     }
 
-    if (!parsedQuery.phone && !parsedQuery.order_id && !parsedQuery.serial_number && orderField && query) {
-        orderField.value = query;
+    if (
+        !parsedQuery.phone
+        && !parsedQuery.order_id
+        && !parsedQuery.serial_number
+        && !parsedQuery.email
+        && orderField
+        && query.trim() !== ''
+    ) {
+        orderField.value = query.trim();
     }
+};
+
+const shouldAutoRunIntakeSearch = (parsedQuery = {}) => (
+    Boolean(parsedQuery.phone || parsedQuery.order_id || parsedQuery.serial_number)
+);
+
+const prefillAndOpenQuickCreate = (intake, query) => {
+    const modalElement = document.getElementById('quickCreateModal');
+    const form = modalElement?.querySelector('#customerIntakeForm');
+
+    if (!modalElement || !form) {
+        return;
+    }
+
+    const parsedQuery = intake?.parsed_query ?? {};
+    prefillIntakeSearchFields(form, parsedQuery, query);
 
     modalElement.dataset.resetOnShow = 'false';
 
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     modal.show();
 
+    const feedback = modalElement.querySelector('#intake-search-feedback');
+
+    if (parsedQuery.email) {
+        if (feedback) {
+            feedback.className = 'alert alert-info mt-3 mb-0 py-2 small';
+            feedback.textContent = `Email searches are not supported in Quick Create. Enter a phone number, order ID, or serial number. (${parsedQuery.email})`;
+            feedback.classList.remove('d-none');
+        }
+
+        return;
+    }
+
+    if (feedback) {
+        feedback.classList.add('d-none');
+        feedback.textContent = '';
+    }
+
+    if (!shouldAutoRunIntakeSearch(parsedQuery)) {
+        return;
+    }
+
     window.setTimeout(() => {
         modalElement.querySelector('#intake-search-button')?.click();
     }, 0);
+};
+
+const refreshCustomer360 = (incidentId) => {
+    if (!incidentId) {
+        return;
+    }
+
+    document.dispatchEvent(new CustomEvent('customer360:refresh', {
+        detail: { incidentId },
+    }));
 };
 
 const openCustomer360FromSearch = (actions, dashboardIntegration) => {
@@ -123,7 +153,13 @@ const openCustomer360FromSearch = (actions, dashboardIntegration) => {
     }));
 };
 
-const reopenServiceCaseFromSearch = async (actions, button, errorElement, dashboardIntegration) => {
+const reopenServiceCaseFromSearch = async (
+    actions,
+    button,
+    errorElement,
+    dashboardIntegration,
+    { onSuccess } = {},
+) => {
     if (!actions?.reopen_url) {
         return;
     }
@@ -164,7 +200,7 @@ const reopenServiceCaseFromSearch = async (actions, button, errorElement, dashbo
             return;
         }
 
-        openCustomer360FromSearch(actions, dashboardIntegration);
+        await onSuccess?.(actions);
     } catch {
         if (errorElement) {
             errorElement.textContent = 'Unable to reopen service case.';
@@ -180,26 +216,25 @@ const reopenServiceCaseFromSearch = async (actions, button, errorElement, dashbo
 const buildSearchResultActionItemHtml = (result) => {
     const actions = result.actions ?? {};
     const reopenButton = actions.can_reopen
-        ? '<button type="button" class="btn btn-sm btn-outline-primary" data-search-reopen-case>Reopen Case</button>'
+        ? '<button type="button" class="btn btn-outline-secondary" data-search-reopen-case>Reopen</button>'
         : '';
 
     return `
-        <div class="dashboard-search-result-action border rounded p-2 mb-2"
+        <div class="dashboard-search-result-action list-group-item px-0 py-2 border-0 border-bottom"
              data-search-result-action>
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
-                <div class="small">
-                    <div class="fw-semibold">${result.service_case ?? actions.display_reference ?? '—'}</div>
-                    <div class="text-muted">
-                        ${result.order_id ?? '—'}
-                        · ${result.customer ?? '—'}
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="small min-w-0">
+                    <span class="fw-semibold">${result.service_case ?? actions.display_reference ?? '—'}</span>
+                    <span class="text-muted">
+                        · ${result.order_id ?? '—'}
                         · ${result.status ?? actions.status_label ?? '—'}
-                    </div>
+                    </span>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
+                <div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="Service case actions">
                     <button type="button"
-                            class="btn btn-sm btn-primary"
+                            class="btn btn-outline-primary"
                             data-search-open-customer-360>
-                        Open Customer 360
+                        Customer 360
                     </button>
                     ${reopenButton}
                 </div>
@@ -211,7 +246,7 @@ const buildSearchResultActionItemHtml = (result) => {
     `;
 };
 
-const wireSearchResultActionItem = (item, actions, dashboardIntegration) => {
+const wireSearchResultActionItem = (item, actions, dashboardIntegration, { onReopenSuccess } = {}) => {
     const errorElement = item.querySelector('[data-search-result-action-error]');
 
     item.querySelector('[data-search-open-customer-360]')?.addEventListener('click', () => {
@@ -224,6 +259,7 @@ const wireSearchResultActionItem = (item, actions, dashboardIntegration) => {
             event.currentTarget,
             errorElement,
             dashboardIntegration,
+            { onSuccess: onReopenSuccess },
         );
     });
 };
@@ -299,6 +335,19 @@ export const initUniversalSearch = ({
 
     let searchRequestId = 0;
     let searchAbortController = null;
+    let lastSearchQuery = '';
+    let suppressNextAutoOpen = false;
+
+    const handleReopenSuccess = async (actions) => {
+        if (lastSearchQuery) {
+            suppressNextAutoOpen = true;
+            await runUniversalSearch(lastSearchQuery);
+            suppressNextAutoOpen = false;
+        }
+
+        openCustomer360FromSearch(actions, dashboardIntegration);
+        refreshCustomer360(actions.incident_id);
+    };
 
     const setSearchLoading = (loading) => {
         if (!searchIcon) {
@@ -340,16 +389,22 @@ export const initUniversalSearch = ({
         }
 
         const panel = document.createElement('div');
-        panel.className = 'dashboard-search-result-actions border-top px-3 py-3';
+        panel.className = 'dashboard-search-result-actions border-top px-3 py-2';
         panel.dataset.dashboardSearchResultActions = '';
 
         panel.innerHTML = `
-            <p class="small text-muted mb-2">Service case actions</p>
-            ${serviceCaseResults.map((result) => buildSearchResultActionItemHtml(result)).join('')}
+            <div class="list-group list-group-flush">
+                ${serviceCaseResults.map((result) => buildSearchResultActionItemHtml(result)).join('')}
+            </div>
         `;
 
         panel.querySelectorAll('[data-search-result-action]').forEach((item, index) => {
-            wireSearchResultActionItem(item, serviceCaseResults[index].actions, dashboardIntegration);
+            wireSearchResultActionItem(
+                item,
+                serviceCaseResults[index].actions,
+                dashboardIntegration,
+                { onReopenSuccess: handleReopenSuccess },
+            );
         });
 
         banner.appendChild(panel);
@@ -365,16 +420,14 @@ export const initUniversalSearch = ({
         }
 
         const panel = document.createElement('div');
-        panel.className = 'dashboard-search-intake-fallback border-top px-3 py-3';
+        panel.className = 'dashboard-search-intake-fallback border-top px-3 py-2';
         panel.dataset.dashboardSearchIntakeFallback = '';
 
-        const message = buildIntakeFallbackMessage(intake, query);
         const previewHtml = intake.requires_confirmation && intake.legacy_preview
-            ? `<div class="alert alert-info py-2 small mb-3">${buildLegacyPreviewSummaryHtml(intake.legacy_preview)}</div>`
+            ? `<div class="alert alert-info py-2 small mb-2">${buildLegacyPreviewSummaryHtml(intake.legacy_preview)}</div>`
             : '';
 
         panel.innerHTML = `
-            <p class="small text-muted mb-2">${message}</p>
             ${previewHtml}
             <button type="button"
                     class="btn btn-sm btn-primary"
@@ -444,7 +497,7 @@ export const initUniversalSearch = ({
         });
         dashboardIntegration.onRowsUpdated?.();
 
-        if (matchCount === 1 && incidentIds.length === 1) {
+        if (matchCount === 1 && incidentIds.length === 1 && !suppressNextAutoOpen) {
             const incidentId = incidentIds[0];
             highlightSearchMatch(card, incidentId);
 
@@ -503,6 +556,7 @@ export const initUniversalSearch = ({
 
         setSearchLoading(true);
         setDashboardSearchActive(true);
+        lastSearchQuery = trimmedQuery;
 
         const params = new URLSearchParams({ q: trimmedQuery });
 
@@ -542,7 +596,7 @@ export const initUniversalSearch = ({
                 showSearchEmptyResults(card);
 
                 if (intake) {
-                    showSearchBanner(card, { matchCount: 0, query: trimmedQuery });
+                    showSearchBanner(card, { matchCount: 0, query: trimmedQuery, intake });
                     showIntakeFallback(card, intake, trimmedQuery);
                 } else {
                     showSearchBanner(card, { matchCount, query: trimmedQuery });

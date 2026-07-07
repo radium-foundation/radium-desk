@@ -425,8 +425,10 @@ describe('dashboard global search integration', () => {
 
         const fallback = document.querySelector('[data-dashboard-search-intake-fallback]');
         expect(fallback).not.toBeNull();
-        expect(fallback?.textContent).toContain('Legacy order found');
+        expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Legacy order found — create service request');
         expect(fallback?.textContent).toContain('RD3395988');
+        expect(fallback?.textContent).not.toContain('No record found');
         expect(fallback?.querySelector('[data-dashboard-search-intake-action]')?.textContent?.trim())
             .toBe('Create Service Request');
     });
@@ -448,6 +450,7 @@ describe('dashboard global search integration', () => {
                         phone: null,
                         order_id: null,
                         serial_number: null,
+                        email: null,
                     },
                 },
             }),
@@ -457,7 +460,9 @@ describe('dashboard global search integration', () => {
 
         const fallback = document.querySelector('[data-dashboard-search-intake-fallback]');
         expect(fallback).not.toBeNull();
-        expect(fallback?.textContent).toContain('No desk record found for Unknown Customer Name');
+        expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('No existing record — create new service request');
+        expect(fallback?.textContent).not.toContain('No desk record found');
         expect(fallback?.querySelector('[data-dashboard-search-intake-action]')).not.toBeNull();
     });
 
@@ -468,6 +473,7 @@ describe('dashboard global search integration', () => {
         });
 
         document.body.innerHTML = `
+            <meta name="csrf-token" content="test-csrf-token">
             <form data-universal-search-form data-search-url="/search">
                 <input id="global-search-input" type="search" value="">
             </form>
@@ -494,6 +500,7 @@ describe('dashboard global search integration', () => {
                     <input id="intake_phone" type="text">
                     <input id="intake_order_id" type="text">
                     <input id="intake_serial_number" type="text">
+                    <div id="intake-search-feedback" class="alert d-none"></div>
                     <button type="button" id="intake-search-button">Search</button>
                 </form>
             </div>
@@ -524,6 +531,7 @@ describe('dashboard global search integration', () => {
                         phone: null,
                         order_id: null,
                         serial_number: null,
+                        email: null,
                     },
                 },
             }),
@@ -542,10 +550,194 @@ describe('dashboard global search integration', () => {
 
         await vi.waitFor(() => {
             expect(quickCreateShow).toHaveBeenCalled();
-            expect(intakeSearchClick).toHaveBeenCalled();
         });
 
         expect(document.getElementById('intake_order_id')?.value).toBe('Unknown Customer Name');
+        expect(intakeSearchClick).not.toHaveBeenCalled();
+    });
+
+    it('prefills phone field and auto-runs quick create search from parsed query', async () => {
+        const quickCreateShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockReturnValue({
+            show: quickCreateShow,
+        });
+
+        document.body.innerHTML = `
+            <form data-universal-search-form data-search-url="/search">
+                <input id="global-search-input" type="search" value="">
+            </form>
+            <div id="dashboard-page" data-dashboard-search-rows-url="/dashboard/service-cases/search-rows">
+                <div class="dashboard-service-cases-card">
+                    <div class="dashboard-search-banner d-none" data-dashboard-search-banner hidden>
+                        <p data-dashboard-search-banner-message></p>
+                    </div>
+                    <div id="dashboard-service-cases-scroll">
+                        <table><tbody id="dashboard-service-cases-body"></tbody></table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal" id="quickCreateModal">
+                <form id="customerIntakeForm">
+                    <input id="intake_phone" type="text">
+                    <input id="intake_order_id" type="text">
+                    <input id="intake_serial_number" type="text">
+                    <div id="intake-search-feedback" class="alert d-none"></div>
+                    <button type="button" id="intake-search-button">Search</button>
+                </form>
+            </div>
+        `;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        const intakeSearchClick = vi.fn();
+        document.getElementById('intake-search-button')?.addEventListener('click', intakeSearchClick);
+
+        initUniversalSearch({
+            dashboardIntegration: {
+                pageRoot,
+                searchRowsUrl: pageRoot.dataset.dashboardSearchRowsUrl,
+                applyRows: vi.fn(),
+                restoreDashboard: vi.fn(),
+            },
+        });
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'new_contact',
+                    parsed_query: {
+                        phone: '9876543210',
+                        order_id: null,
+                        serial_number: null,
+                        email: null,
+                    },
+                },
+            }),
+        });
+
+        document.getElementById('global-search-input').value = '9876543210';
+        document.querySelector('[data-universal-search-form]')?.dispatchEvent(
+            new Event('submit', { bubbles: true, cancelable: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-dashboard-search-intake-fallback]')).not.toBeNull();
+        });
+
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(intakeSearchClick).toHaveBeenCalled();
+        });
+
+        expect(document.getElementById('intake_phone')?.value).toBe('9876543210');
+        expect(document.getElementById('intake_order_id')?.value).toBe('');
+    });
+
+    it('refreshes search results after successful reopen action', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [43],
+                    results: [{
+                        type: 'service_case',
+                        incident_id: 43,
+                        service_case: 'SC00043',
+                        order_id: 'RD-CLOSED-001',
+                        customer: 'Closed Customer',
+                        status: 'Closed',
+                        actions: {
+                            incident_id: 43,
+                            display_reference: 'SC00043',
+                            is_closed: true,
+                            can_reopen: true,
+                            reopen_url: '/incidents/43/workspace/action',
+                            reopen_workspace_context: 'service_case',
+                        },
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 43,
+                        html: '<tr id="service-case-row-43" data-incident-id="43"><td><a class="case-reference-link">SC00043</a></td><td>RD-CLOSED-001</td></tr>',
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content>Drawer loaded</div>',
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [43],
+                    results: [{
+                        type: 'service_case',
+                        incident_id: 43,
+                        service_case: 'SC00043',
+                        order_id: 'RD-CLOSED-001',
+                        customer: 'Closed Customer',
+                        status: 'Open',
+                        actions: {
+                            incident_id: 43,
+                            display_reference: 'SC00043',
+                            is_closed: false,
+                            can_reopen: false,
+                            reopen_url: null,
+                            reopen_workspace_context: 'service_case',
+                        },
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 43,
+                        html: '<tr id="service-case-row-43" data-incident-id="43"><td><a class="case-reference-link">SC00043</a></td><td>RD-CLOSED-001</td></tr>',
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content>Drawer refreshed</div>',
+            });
+
+        const refreshHandler = vi.fn();
+        document.addEventListener('customer360:refresh', refreshHandler);
+
+        await submitSearch('RD-CLOSED-001');
+
+        document.querySelector('[data-search-reopen-case]')?.click();
+
+        await vi.waitFor(() => {
+            const searchCalls = fetch.mock.calls.filter(([url]) => String(url).includes('/search?q=RD-CLOSED-001'));
+            expect(searchCalls.length).toBeGreaterThanOrEqual(2);
+        });
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-search-reopen-case]')).toBeNull();
+            expect(document.querySelector('[data-search-result-action]')?.textContent).toContain('Open');
+        });
+
+        expect(refreshHandler).toHaveBeenCalled();
     });
 
     it('bootstraps search from dashboard q query parameter', async () => {
@@ -799,6 +991,8 @@ describe('dashboard global search integration', () => {
         expect(panel).not.toBeNull();
         expect(panel?.querySelectorAll('[data-search-open-customer-360]')).toHaveLength(2);
         expect(panel?.querySelectorAll('[data-search-reopen-case]')).toHaveLength(1);
+        expect(panel?.querySelector('[data-search-open-customer-360]')?.textContent?.trim())
+            .toBe('Customer 360');
     });
 
     it('opens customer 360 from search action button', async () => {

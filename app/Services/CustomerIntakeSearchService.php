@@ -21,50 +21,59 @@ class CustomerIntakeSearchService
     ) {}
 
     /**
-     * @return array{phone: ?string, order_id: ?string, serial_number: ?string}
+     * @return array{phone: ?string, order_id: ?string, serial_number: ?string, email: ?string}
      */
     public function parseQuery(string $query): array
     {
         $query = trim($query);
 
         if ($query === '') {
-            return [
-                'phone' => null,
-                'order_id' => null,
-                'serial_number' => null,
-            ];
+            return $this->emptyParsedQuery();
         }
 
         $normalized = strtoupper($query);
 
         if ($this->looksLikeOrderId($normalized)) {
             return [
-                'phone' => null,
+                ...$this->emptyParsedQuery(),
                 'order_id' => $query,
-                'serial_number' => null,
+            ];
+        }
+
+        if ($this->looksLikeEmail($query)) {
+            return [
+                ...$this->emptyParsedQuery(),
+                'email' => $query,
             ];
         }
 
         if ($this->looksLikePhone($query)) {
             return [
+                ...$this->emptyParsedQuery(),
                 'phone' => $query,
-                'order_id' => null,
-                'serial_number' => null,
             ];
         }
 
         if ($this->looksLikeSerial($query)) {
             return [
-                'phone' => null,
-                'order_id' => null,
+                ...$this->emptyParsedQuery(),
                 'serial_number' => strtoupper($query),
             ];
         }
 
+        return $this->emptyParsedQuery();
+    }
+
+    /**
+     * @return array{phone: ?string, order_id: ?string, serial_number: ?string, email: ?string}
+     */
+    private function emptyParsedQuery(): array
+    {
         return [
             'phone' => null,
             'order_id' => null,
             'serial_number' => null,
+            'email' => null,
         ];
     }
 
@@ -81,7 +90,7 @@ class CustomerIntakeSearchService
     }
 
     /**
-     * @param  array{phone: ?string, order_id: ?string, serial_number: ?string}  $parsedQuery
+     * @param  array{phone: ?string, order_id: ?string, serial_number: ?string, email: ?string}  $parsedQuery
      * @return array<string, mixed>
      */
     public function toSearchPayload(CustomerIntakeSearchResult $result, array $parsedQuery): array
@@ -363,6 +372,11 @@ class CustomerIntakeSearchService
         $digits = preg_replace('/\D/', '', $query) ?? '';
 
         return strlen($digits) >= 10 && strlen($digits) <= 15;
+    }
+
+    private function looksLikeEmail(string $query): bool
+    {
+        return filter_var($query, FILTER_VALIDATE_EMAIL) !== false;
     }
 
     private function looksLikeSerial(string $query): bool

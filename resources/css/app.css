@@ -974,6 +974,14 @@ a:focus-visible .stat-card {
     color: var(--bs-danger, #dc3545);
 }
 
+.dashboard-search-result-actions .list-group-item:last-child {
+    border-bottom: 0 !important;
+}
+
+.dashboard-search-result-actions .btn-group .btn {
+    white-space: nowrap;
+}
+
 .dashboard-cases-table-wrap,
 #dashboard-service-cases-scroll {
     overflow: auto;

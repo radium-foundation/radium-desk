@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CustomerIntakeSearchService;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
@@ -135,6 +136,33 @@ class GlobalSearchIntakeFallbackTest extends TestCase
             ->assertJsonPath('intake.legacy_preview', null);
 
         Http::assertNothingSent();
+    }
+
+    public function test_intake_parsed_query_includes_email_for_email_search(): void
+    {
+        Http::fake();
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'new.customer@example.com']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 0)
+            ->assertJsonPath('intake.parsed_query.email', 'new.customer@example.com')
+            ->assertJsonPath('intake.parsed_query.phone', null)
+            ->assertJsonPath('intake.parsed_query.order_id', null);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_intake_parsed_query_maps_phone_order_and_serial(): void
+    {
+        $service = app(CustomerIntakeSearchService::class);
+
+        $this->assertSame('9876543210', $service->parseQuery('9876543210')['phone']);
+        $this->assertSame('RD3434509', $service->parseQuery('RD3434509')['order_id']);
+        $this->assertSame('SCN001', $service->parseQuery('SCN001')['serial_number']);
     }
 
     public function test_intake_fallback_is_omitted_without_quick_create_permissions(): void
