@@ -21,6 +21,86 @@ const updateModalTitle = (modal, title) => {
     }
 };
 
+const preserveSearchValues = (form) => ({
+    phone: form.querySelector('#intake_phone')?.value ?? '',
+    orderId: form.querySelector('#intake_order_id')?.value ?? '',
+    serialNumber: form.querySelector('#intake_serial_number')?.value ?? '',
+});
+
+const restoreSearchValues = (form, { phone, orderId, serialNumber }) => {
+    const phoneField = form.querySelector('#intake_phone');
+    const orderField = form.querySelector('#intake_order_id');
+    const serialField = form.querySelector('#intake_serial_number');
+
+    if (phoneField) {
+        phoneField.value = phone;
+    }
+
+    if (orderField) {
+        orderField.value = orderId;
+    }
+
+    if (serialField) {
+        serialField.value = serialNumber;
+    }
+};
+
+const clearIntakeValidationState = (modal, form) => {
+    const feedback = modal.querySelector('#intake-search-feedback');
+
+    if (feedback) {
+        feedback.className = 'alert d-none mt-3 mb-0 py-2 small';
+        feedback.textContent = '';
+    }
+
+    form.querySelectorAll('.is-invalid').forEach((field) => {
+        field.classList.remove('is-invalid');
+    });
+
+    form.querySelectorAll('.invalid-feedback').forEach((element) => {
+        element.textContent = '';
+        element.classList.remove('d-block');
+    });
+};
+
+const returnToSearchStep = (modal, form) => {
+    if (!form) {
+        return;
+    }
+
+    const searchValues = preserveSearchValues(form);
+
+    clearIntakeValidationState(modal, form);
+
+    const actionField = form.querySelector('#intake_action');
+    if (actionField) {
+        actionField.value = 'new_contact';
+    }
+
+    const matchedOrderField = form.querySelector('#intake_matched_order_id');
+    if (matchedOrderField) {
+        matchedOrderField.value = '';
+    }
+
+    const legacyOrderField = form.querySelector('#intake_legacy_order_id');
+    if (legacyOrderField) {
+        legacyOrderField.value = '';
+    }
+
+    form.querySelectorAll('input[name="intent"]').forEach((input) => {
+        input.checked = false;
+    });
+
+    const searchButton = modal.querySelector('#intake-search-button');
+    const submitButton = modal.querySelector('#intake-submit-button');
+    searchButton?.classList.remove('d-none');
+    submitButton?.classList.add('d-none');
+
+    showStep(modal, 'intake-step-search');
+    updateModalTitle(modal, 'Find Customer');
+    restoreSearchValues(form, searchValues);
+};
+
 export const advanceQuickCreateToNewContact = (modalElement, form) => {
     const actionField = form.querySelector('#intake_action');
     const matchedOrderField = form.querySelector('#intake_matched_order_id');
@@ -83,15 +163,7 @@ const resetIntakeForm = (modal, form) => {
     showStep(modal, 'intake-step-search');
     updateModalTitle(modal, 'Find Customer');
 
-    const feedback = modal.querySelector('#intake-search-feedback');
-    if (feedback) {
-        feedback.classList.add('d-none');
-        feedback.textContent = '';
-    }
-
-    form.querySelectorAll('.is-invalid').forEach((field) => {
-        field.classList.remove('is-invalid');
-    });
+    clearIntakeValidationState(modal, form);
 };
 
 const formatAmcDetails = (value) => {
@@ -572,7 +644,7 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
 
     modalElement.querySelectorAll('[data-intake-back]').forEach((button) => {
         button.addEventListener('click', () => {
-            resetIntakeForm(modalElement, form);
+            returnToSearchStep(modalElement, form);
         });
     });
 

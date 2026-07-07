@@ -1771,9 +1771,11 @@ describe('dashboard global search integration', () => {
                     <button type="button" id="intake-legacy-confirm-button">Confirm</button>
                 </div>
                 <div id="intake-step-new-contact" class="intake-step d-none">
+                    <button type="button" data-intake-back="search">Change search</button>
                     <input type="text" name="customer_name" id="intake_customer_name">
                     <div class="invalid-feedback"></div>
                     <input type="radio" name="intent" value="general_support" id="intent_general_support" checked>
+                    <div class="invalid-feedback d-block" data-intake-intent-error>Select the customer intent before continuing.</div>
                 </div>
                 <div id="intake-step-details" class="intake-step d-none">
                     <select name="source" id="intake_source">
@@ -2063,5 +2065,47 @@ describe('dashboard global search integration', () => {
         expect(document.getElementById('legacySearchConfirmModal')?.querySelector('input[name="customer_name"]')).toBeNull();
         expect(document.getElementById('legacySearchConfirmModal')?.querySelector('#intake_customer_name')).toBeNull();
         expect(document.querySelector('[data-legacy-confirm-customer-name]')?.textContent).toBe('Satyam Test');
+    });
+
+    it('clears stale new contact validation when returning to search step', async () => {
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'new_contact',
+            requires_confirmation: false,
+            legacy_preview: null,
+            parsed_query: {
+                phone: '9876543210',
+                order_id: null,
+                serial_number: null,
+                email: null,
+            },
+        }));
+
+        document.getElementById('intake_phone').value = '9876543210';
+        document.getElementById('intake_order_id').value = 'RD-KEEP-ME';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(false);
+        });
+
+        document.getElementById('intake_notes').value = 'Caller asked about office hours.';
+        document.getElementById('customerIntakeForm')?.dispatchEvent(
+            new Event('submit', { bubbles: true, cancelable: true }),
+        );
+
+        expect(document.getElementById('intake_customer_name')?.classList.contains('is-invalid')).toBe(true);
+
+        document.querySelector('[data-intake-back="search"]')?.click();
+
+        expect(document.getElementById('intake-step-search')?.classList.contains('d-none')).toBe(false);
+        expect(document.getElementById('quickCreateModalLabel')?.textContent).toBe('Find Customer');
+        expect(document.getElementById('intake_customer_name')?.classList.contains('is-invalid')).toBe(false);
+        expect(document.querySelector('[data-intake-intent-error]')?.classList.contains('d-block')).toBe(false);
+        expect(document.querySelector('[data-intake-intent-error]')?.textContent).toBe('');
+        expect(document.getElementById('intake-search-feedback')?.classList.contains('d-none')).toBe(true);
+        expect(document.getElementById('intake_phone')?.value).toBe('9876543210');
+        expect(document.getElementById('intake_order_id')?.value).toBe('RD-KEEP-ME');
     });
 });
