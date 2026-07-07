@@ -274,6 +274,25 @@ class CustomerIntakeSearchService
      *     reopen_workspace_context: string,
      * }
      */
+    public function formatServiceCaseActions(Incident $incident, ?User $user): array
+    {
+        return $this->formatExistingCase($incident, $user);
+    }
+
+    /**
+     * @return array{
+     *     incident_id: int,
+     *     reference_no: ?string,
+     *     display_reference: string,
+     *     status: string,
+     *     status_label: string,
+     *     is_closed: bool,
+     *     customer_360_url: string,
+     *     can_reopen: bool,
+     *     reopen_url: ?string,
+     *     reopen_workspace_context: string,
+     * }
+     */
     private function formatExistingCase(Incident $incident, ?User $user): array
     {
         $isClosed = $incident->status === IncidentStatus::Closed;

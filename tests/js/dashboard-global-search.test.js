@@ -23,6 +23,7 @@ describe('dashboard global search integration', () => {
 
     const mountDashboard = () => {
         document.body.innerHTML = `
+            <meta name="csrf-token" content="test-csrf-token">
             <form data-universal-search-form data-search-url="/search">
                 <span data-universal-search-control>
                     <span data-universal-search-icon><i class="bi bi-search"></i></span>
@@ -728,5 +729,289 @@ describe('dashboard global search integration', () => {
 
         expect(document.querySelector('[data-dashboard-search-intake-fallback]')).toBeNull();
         expect(isDashboardSearchActive()).toBe(false);
+    });
+
+    it('renders desk action buttons for search results', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 2,
+                    incident_ids: [42, 43],
+                    results: [
+                        {
+                            type: 'service_case',
+                            incident_id: 42,
+                            service_case: 'SC00042',
+                            order_id: 'RD-ORDER-A',
+                            customer: 'Customer A',
+                            status: 'Open',
+                            actions: {
+                                incident_id: 42,
+                                display_reference: 'SC00042',
+                                is_closed: false,
+                                can_reopen: false,
+                                reopen_url: null,
+                                reopen_workspace_context: 'service_case',
+                            },
+                        },
+                        {
+                            type: 'service_case',
+                            incident_id: 43,
+                            service_case: 'SC00043',
+                            order_id: 'RD-ORDER-B',
+                            customer: 'Customer B',
+                            status: 'Closed',
+                            actions: {
+                                incident_id: 43,
+                                display_reference: 'SC00043',
+                                is_closed: true,
+                                can_reopen: true,
+                                reopen_url: '/incidents/43/workspace/action',
+                                reopen_workspace_context: 'service_case',
+                            },
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [
+                        {
+                            incident_id: 42,
+                            html: '<tr id="service-case-row-42" data-incident-id="42"><td><a class="case-reference-link">SC00042</a></td><td>RD-ORDER-A</td></tr>',
+                        },
+                        {
+                            incident_id: 43,
+                            html: '<tr id="service-case-row-43" data-incident-id="43"><td><a class="case-reference-link">SC00043</a></td><td>RD-ORDER-B</td></tr>',
+                        },
+                    ],
+                }),
+            });
+
+        await submitSearch('RD-MULTI');
+
+        const panel = document.querySelector('[data-dashboard-search-result-actions]');
+        expect(panel).not.toBeNull();
+        expect(panel?.querySelectorAll('[data-search-open-customer-360]')).toHaveLength(2);
+        expect(panel?.querySelectorAll('[data-search-reopen-case]')).toHaveLength(1);
+    });
+
+    it('opens customer 360 from search action button', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 2,
+                    incident_ids: [42, 43],
+                    results: [
+                        {
+                            type: 'service_case',
+                            incident_id: 42,
+                            service_case: 'SC00042',
+                            order_id: 'RD-ORDER-A',
+                            customer: 'Customer A',
+                            status: 'Open',
+                            actions: {
+                                incident_id: 42,
+                                display_reference: 'SC00042',
+                                is_closed: false,
+                                can_reopen: false,
+                                reopen_url: null,
+                                reopen_workspace_context: 'service_case',
+                            },
+                        },
+                        {
+                            type: 'service_case',
+                            incident_id: 43,
+                            service_case: 'SC00043',
+                            order_id: 'RD-ORDER-B',
+                            customer: 'Customer B',
+                            status: 'Closed',
+                            actions: {
+                                incident_id: 43,
+                                display_reference: 'SC00043',
+                                is_closed: true,
+                                can_reopen: true,
+                                reopen_url: '/incidents/43/workspace/action',
+                                reopen_workspace_context: 'service_case',
+                            },
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [
+                        {
+                            incident_id: 42,
+                            html: '<tr id="service-case-row-42" data-incident-id="42"><td><a class="case-reference-link">SC00042</a></td><td>RD-ORDER-A</td></tr>',
+                        },
+                        {
+                            incident_id: 43,
+                            html: '<tr id="service-case-row-43" data-incident-id="43"><td><a class="case-reference-link">SC00043</a></td><td>RD-ORDER-B</td></tr>',
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content>Drawer loaded</div>',
+            });
+
+        await submitSearch('RD-MULTI');
+
+        document.querySelectorAll('[data-search-open-customer-360]')[1]?.click();
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-customer-360-drawer]')?.classList.contains('is-open')).toBe(true);
+        });
+
+        expect(fetch).toHaveBeenCalledWith(
+            'http://localhost/dashboard/service-cases/43/customer-360',
+            expect.any(Object),
+        );
+    });
+
+    it('calls reopen workflow from search action button', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [43],
+                    results: [{
+                        type: 'service_case',
+                        incident_id: 43,
+                        service_case: 'SC00043',
+                        order_id: 'RD-CLOSED-001',
+                        customer: 'Closed Customer',
+                        status: 'Closed',
+                        actions: {
+                            incident_id: 43,
+                            display_reference: 'SC00043',
+                            is_closed: true,
+                            can_reopen: true,
+                            reopen_url: '/incidents/43/workspace/action',
+                            reopen_workspace_context: 'service_case',
+                        },
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 43,
+                        html: '<tr id="service-case-row-43" data-incident-id="43"><td><a class="case-reference-link">SC00043</a></td><td>RD-CLOSED-001</td></tr>',
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ success: true }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content>Drawer loaded</div>',
+            });
+
+        await submitSearch('RD-CLOSED-001');
+
+        document.querySelector('[data-search-reopen-case]')?.click();
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledWith(
+                '/incidents/43/workspace/action',
+                expect.objectContaining({
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        workspace_context: 'service_case',
+                        action_type: 'reopen',
+                        body: 'Reopened from global search.',
+                    }),
+                }),
+            );
+        });
+    });
+
+    it('clears desk action panel when search is cleared', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [42],
+                    results: [{
+                        type: 'service_case',
+                        incident_id: 42,
+                        service_case: 'SC00042',
+                        order_id: 'RD-ORDER-A',
+                        customer: 'Customer A',
+                        status: 'Open',
+                        actions: {
+                            incident_id: 42,
+                            display_reference: 'SC00042',
+                            is_closed: false,
+                            can_reopen: false,
+                            reopen_url: null,
+                            reopen_workspace_context: 'service_case',
+                        },
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 42,
+                        html: '<tr id="service-case-row-42" data-incident-id="42"><td><a class="case-reference-link">SC00042</a></td><td>RD-ORDER-A</td></tr>',
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content>Drawer loaded</div>',
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [
+                        {
+                            incident_id: 10,
+                            html: '<tr id="service-case-row-10" data-incident-id="10"><td><a class="case-reference-link">SC00010</a></td><td>RD-LOCAL-010</td></tr>',
+                        },
+                        {
+                            incident_id: 20,
+                            html: '<tr id="service-case-row-20" data-incident-id="20"><td><a class="case-reference-link">SC00020</a></td><td>RD-LOCAL-020</td></tr>',
+                        },
+                    ],
+                }),
+            });
+
+        await submitSearch('RD-ORDER-A');
+
+        expect(document.querySelector('[data-dashboard-search-result-actions]')).not.toBeNull();
+
+        document.querySelector('[data-dashboard-search-clear]')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.querySelector('[data-dashboard-search-result-actions]')).toBeNull();
+        });
     });
 });

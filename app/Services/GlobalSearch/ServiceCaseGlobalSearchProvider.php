@@ -7,6 +7,7 @@ use App\Data\GlobalSearchResult;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CustomerIntakeSearchService;
 use App\Services\UniversalSearchService;
 use Illuminate\Support\Collection;
 
@@ -14,6 +15,7 @@ class ServiceCaseGlobalSearchProvider implements GlobalSearchProvider
 {
     public function __construct(
         private readonly UniversalSearchService $searchService,
+        private readonly CustomerIntakeSearchService $customerIntakeSearchService,
     ) {}
 
     public function type(): string
@@ -28,10 +30,10 @@ class ServiceCaseGlobalSearchProvider implements GlobalSearchProvider
     {
         return $this->searchService
             ->search($user, $query)
-            ->map(fn (Incident $serviceCase): GlobalSearchResult => $this->toResult($serviceCase));
+            ->map(fn (Incident $serviceCase): GlobalSearchResult => $this->toResult($serviceCase, $user));
     }
 
-    private function toResult(Incident $serviceCase): GlobalSearchResult
+    private function toResult(Incident $serviceCase, User $user): GlobalSearchResult
     {
         $order = $serviceCase->order;
 
@@ -49,6 +51,7 @@ class ServiceCaseGlobalSearchProvider implements GlobalSearchProvider
                 'assigned_to' => $serviceCase->assignee?->name ?? '—',
                 'status' => $serviceCase->status->label(),
                 'age' => Order::formatCompactDurationBetween($serviceCase->created_at) ?? '—',
+                'actions' => $this->customerIntakeSearchService->formatServiceCaseActions($serviceCase, $user),
             ],
         );
     }
