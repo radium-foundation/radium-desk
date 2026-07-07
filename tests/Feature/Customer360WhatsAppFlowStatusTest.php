@@ -29,11 +29,13 @@ class Customer360WhatsAppFlowStatusTest extends TestCase
     {
         [$agent, $incident] = $this->createFixture();
 
-        $this->actingAs($agent)
-            ->get(route('dashboard.service-cases.customer-360', $incident))
+        $timelineHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0')
             ->assertOk()
-            ->assertSee('WhatsApp Flow', false)
-            ->assertSee('Not Configured', false);
+            ->json('html');
+
+        $this->assertStringContainsString('WhatsApp Flow', $timelineHtml);
+        $this->assertStringContainsString('Not Configured', $timelineHtml);
     }
 
     public function test_customer_360_shows_whatsapp_flow_ready_when_appointment_exists(): void
@@ -47,11 +49,13 @@ class Customer360WhatsAppFlowStatusTest extends TestCase
             'phone_number' => $order->customer_phone,
         ]);
 
-        $this->actingAs($agent)
-            ->get(route('dashboard.service-cases.customer-360', $incident))
+        $timelineHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0')
             ->assertOk()
-            ->assertSee('WhatsApp Flow', false)
-            ->assertSee('Ready', false);
+            ->json('html');
+
+        $this->assertStringContainsString('WhatsApp Flow', $timelineHtml);
+        $this->assertStringContainsString('Ready', $timelineHtml);
     }
 
     /**

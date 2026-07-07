@@ -122,16 +122,18 @@ class WhatsAppConversationFeatureTest extends TestCase
             ]);
         }
 
-        $this->actingAs($agent)
-            ->get(route('dashboard.service-cases.customer-360', $incident))
+        $timelineHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0')
             ->assertOk()
-            ->assertSee('unified-timeline-summary-fields', false)
-            ->assertSee('6 exchanged', false)
-            ->assertSee('Repair Started', false)
-            ->assertSee('Open in Interakt', false)
-            ->assertSee('https://app.interakt.ai/inbox/cust-ui-001', false)
-            ->assertDontSee('Casual greeting', false)
-            ->assertDontSee('When will my device be ready?', false);
+            ->json('html');
+
+        $this->assertStringContainsString('unified-timeline-summary-fields', $timelineHtml);
+        $this->assertStringContainsString('6 exchanged', $timelineHtml);
+        $this->assertStringContainsString('Repair Started', $timelineHtml);
+        $this->assertStringContainsString('Open in Interakt', $timelineHtml);
+        $this->assertStringContainsString('https://app.interakt.ai/inbox/cust-ui-001', $timelineHtml);
+        $this->assertStringNotContainsString('Casual greeting', $timelineHtml);
+        $this->assertStringNotContainsString('When will my device be ready?', $timelineHtml);
     }
 
     public function test_search_finds_incident_by_whatsapp_template_name(): void

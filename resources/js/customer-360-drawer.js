@@ -126,6 +126,11 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
     let timelinePollTimer = null;
+    const lazyTabState = {
+        executiveSummary: false,
+        timeline: false,
+        ai: false,
+    };
 
     const stopTimelinePolling = () => {
         if (timelinePollTimer === null) {
@@ -474,8 +479,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 return;
             }
 
+            const scopedRefreshUrl = refreshUrl.includes('?')
+                ? `${refreshUrl}&scope=workbench`
+                : `${refreshUrl}?scope=workbench`;
+
             try {
-                const response = await fetch(refreshUrl, {
+                const response = await fetch(scopedRefreshUrl, {
                     headers: {
                         Accept: 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
@@ -527,6 +536,151 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     const ACTIVE_TAB_ATTR = 'data-customer-360-active-tab';
 
+    const resetLazyTabState = () => {
+        lazyTabState.executiveSummary = false;
+        lazyTabState.timeline = false;
+        lazyTabState.ai = false;
+    };
+
+    const loadExecutiveSummary = async () => {
+        if (lazyTabState.executiveSummary) {
+            return;
+        }
+
+        const placeholder = contentHost.querySelector('[data-customer-360-executive-summary-lazy]');
+        const loadUrl = placeholder?.dataset.executiveSummaryUrl?.trim() ?? '';
+
+        if (!placeholder || loadUrl === '') {
+            return;
+        }
+
+        lazyTabState.executiveSummary = true;
+
+        try {
+            const response = await fetch(loadUrl, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                logCustomer360Failure(loadUrl, response.status, 'executive-summary-load');
+                placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load executive summary.</p>';
+
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (payload.html) {
+                placeholder.outerHTML = payload.html;
+                bindExecutiveSummaryTranslation();
+            }
+        } catch (error) {
+            logCustomer360Failure(loadUrl, null, 'executive-summary-load', error);
+            placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load executive summary.</p>';
+        }
+    };
+
+    const loadTimelineTab = async () => {
+        if (lazyTabState.timeline) {
+            return;
+        }
+
+        const placeholder = contentHost.querySelector('[data-customer-360-timeline-tab]');
+        const loadUrl = placeholder?.dataset.timelineTabUrl?.trim() ?? '';
+
+        if (!placeholder || loadUrl === '') {
+            return;
+        }
+
+        lazyTabState.timeline = true;
+
+        try {
+            const response = await fetch(loadUrl, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                logCustomer360Failure(loadUrl, response.status, 'timeline-tab-load');
+                placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load timeline.</p>';
+
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (payload.html) {
+                placeholder.outerHTML = payload.html;
+                initUnifiedTimeline(contentHost);
+                configureTimelinePolling();
+            }
+        } catch (error) {
+            logCustomer360Failure(loadUrl, null, 'timeline-tab-load', error);
+            placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load timeline.</p>';
+        }
+    };
+
+    const loadAiTab = async () => {
+        if (lazyTabState.ai) {
+            return;
+        }
+
+        const placeholder = contentHost.querySelector('[data-customer-360-ai-tab]');
+        const loadUrl = placeholder?.dataset.aiTabUrl?.trim() ?? '';
+
+        if (!placeholder || loadUrl === '') {
+            return;
+        }
+
+        lazyTabState.ai = true;
+
+        try {
+            const response = await fetch(loadUrl, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) {
+                logCustomer360Failure(loadUrl, response.status, 'ai-tab-load');
+                placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load IRA AI.</p>';
+
+                return;
+            }
+
+            const payload = await response.json();
+
+            if (payload.html) {
+                placeholder.outerHTML = payload.html;
+                verifyAiDomIntegrity(contentHost);
+                bindWorkbenchActions();
+            }
+        } catch (error) {
+            logCustomer360Failure(loadUrl, null, 'ai-tab-load', error);
+            placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load IRA AI.</p>';
+        }
+    };
+
+    const hydrateLazySectionsForTab = (tabKey) => {
+        if (tabKey === 'overview') {
+            loadExecutiveSummary();
+        }
+
+        if (tabKey === 'timeline') {
+            loadTimelineTab();
+        }
+
+        if (tabKey === 'ai-assistant') {
+            loadAiTab();
+        }
+    };
+
     const getPersistedTab = () => contentHost.getAttribute(ACTIVE_TAB_ATTR);
 
     const setPersistedTab = (tabKey) => {
@@ -568,6 +722,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         if (drawerBody) {
             drawerBody.scrollTop = 0;
         }
+
+        hydrateLazySectionsForTab(tabKey);
     };
 
     const syncTabState = () => {
@@ -801,15 +957,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     const finalizeDrawerContent = () => {
         try {
-            verifyAiDomIntegrity(contentHost);
             bindDeviceSectionInteractions();
-            bindExecutiveSummaryTranslation();
-            bindWorkbenchActions();
             syncTabState();
-            initUnifiedTimeline(contentHost);
-            initUnifiedTimeline(contentHost);
             configureDeviceSyncPolling();
-            configureTimelinePolling();
+            hydrateLazySectionsForTab(getPersistedTab() ?? 'overview');
         } catch (error) {
             logCustomer360Failure(null, null, 'drawer-init', error);
         }
@@ -914,6 +1065,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         clearContent();
         clearPersistedTab();
+        resetLazyTabState();
         setError('');
         setLoading(false);
 
@@ -943,6 +1095,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         if (String(previousIncidentId) !== String(incidentId)) {
             clearPersistedTab();
+            resetLazyTabState();
         }
         drawer.classList.add('is-open');
         drawer.setAttribute('aria-hidden', 'false');

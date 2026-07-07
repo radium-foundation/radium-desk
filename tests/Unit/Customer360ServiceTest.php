@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Customer360\Customer360DrawerProfiler;
 use App\Services\Customer360Service;
 use App\Services\IncidentReferenceService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
@@ -118,8 +119,89 @@ class Customer360ServiceTest extends TestCase
         $this->assertFalse($data['serialRequestState']['requested']);
         $this->assertNull($data['serialRequestState']['requested_at']);
 
-        $this->assertInstanceOf(\App\Data\TimelineViewModel::class, $data['timeline']);
-        $this->assertLessThanOrEqual(8, $data['timeline']->events()->count());
+        $this->assertArrayHasKey('timelineTabUrl', $data);
+        $this->assertArrayHasKey('aiTabUrl', $data);
+        $this->assertArrayHasKey('executiveSummaryUrl', $data);
+        $this->assertArrayNotHasKey('timeline', $data);
+        $this->assertArrayNotHasKey('aiAssistant', $data);
+        $this->assertArrayNotHasKey('executiveSummary', $data);
+    }
+
+    public function test_drawer_data_initial_payload_completes_under_performance_budget(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-360-PERF',
+            'serial_number' => 'SN-360-PERF',
+            'product_name' => 'MFS 110 E3',
+            'device_model' => 'MFS 110 E3',
+            'customer_name' => 'Perf Customer',
+            'customer_phone' => '9876500000',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Perf case',
+            'description' => 'Perf case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $profiler = new Customer360DrawerProfiler;
+        $service = app(Customer360Service::class);
+
+        $data = $profiler->measure('drawer_data', fn () => $service->drawerData($incident));
+        $html = $profiler->measure('render', fn () => view('customer-360.drawer-content', $data)->render());
+
+        $this->assertLessThan(500, $profiler->totalMs(), 'Initial Customer 360 payload should open under 500ms.');
+        $this->assertStringContainsString('data-customer-360-section="health-card"', $html);
+        $this->assertStringContainsString('data-customer-360-timeline-tab', $html);
+        $this->assertStringContainsString('data-customer-360-ai-tab', $html);
+    }
+
+    public function test_timeline_tab_payload_includes_timeline_operations_health_and_sla_metrics(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-360-TAB',
+            'serial_number' => 'SN-360-TAB',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876501111',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Timeline tab case',
+            'description' => 'Timeline tab case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $payload = app(Customer360Service::class)->timelineTabPayload($incident);
+
+        $this->assertInstanceOf(\App\Data\TimelineViewModel::class, $payload['timeline']);
+        $this->assertIsArray($payload['operationsHealth']);
+        $this->assertNotNull($payload['slaMetrics']);
+        $this->assertStringContainsString('Customer Timeline', $payload['html']);
+        $this->assertStringContainsString('Operations Health', $payload['html']);
+        $this->assertStringContainsString('SLA Metrics', $payload['html']);
     }
 
     public function test_active_services_show_not_available_when_enrichment_missing(): void

@@ -69,9 +69,8 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('Drawer Customer', false);
         $response->assertSee('9123456780', false);
         $response->assertSee('data-customer-360-section="health-card"', false);
-        $response->assertSee('Customer Timeline', false);
-        $response->assertSee('data-unified-timeline', false);
-        $response->assertSee('data-timeline-filters', false);
+        $response->assertSee('data-customer-360-timeline-tab', false);
+        $response->assertSee('data-customer-360-ai-tab', false);
         $response->assertSee('Quick Actions', false);
         $response->assertDontSee('Copy Phone', false);
         $response->assertDontSee('Copy Email', false);
@@ -83,8 +82,6 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('Last Call', false);
         $response->assertSee('No calls yet', false);
         $response->assertSee('Not available', false);
-        $response->assertSee('timeline-actor-badge', false);
-        $response->assertSee('unified-timeline-filter-chip', false);
     }
 
     public function test_customer_360_health_card_shows_whatsapp_communication_timestamp(): void

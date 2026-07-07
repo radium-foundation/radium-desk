@@ -59,29 +59,36 @@ class Customer360AIAssistantTabTest extends TestCase
         $response->assertOk();
         $response->assertSee('data-customer-360-tab="ai-assistant"', false);
         $response->assertSee('data-customer-360-tab="timeline"', false);
-        $response->assertSee('data-customer-360-section="ai-assistant"', false);
+        $response->assertSee('data-customer-360-ai-tab', false);
         $response->assertSee('IRA AI', false);
-        $response->assertSee('Read only', false);
-        $response->assertSee('Customer Summary', false);
-        $response->assertSee('Incident Summary', false);
-        $response->assertSee('Suggested Next Actions', false);
-        $response->assertSee('Suggested Customer Reply', false);
-        $response->assertSee('IRA Advisor', false);
-        $response->assertSee('Recommendations only', false);
-        $response->assertSee('IRA Workspace', false);
-        $response->assertSee('Suggested Checklist', false);
-        $response->assertSee('Customer Intelligence', false);
-        $response->assertSee('Device Intelligence', false);
-        $response->assertSee('Operational Intelligence', false);
-        $response->assertSee('Business Intelligence', false);
-        $response->assertSee('IRA Confidence', false);
-        $response->assertSee('IRA Knowledge', false);
-        $response->assertSee('Similar Repairs', false);
-        $response->assertSee('Common Resolution', false);
-        $response->assertSee('Historical Success Rate', false);
-        $response->assertSee('Top Recommended Fixes', false);
-        $response->assertSee('AI Tab Customer', false);
-        $response->assertSee('Request serial number', false);
-        $response->assertSee('Powered by <strong>null</strong> provider', false);
+
+        $aiTabHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.ai-workbench', $incident))
+            ->assertOk()
+            ->json('html');
+
+        $this->assertStringContainsString('data-customer-360-section="ai-assistant"', $aiTabHtml);
+        $this->assertStringContainsString('Read only', $aiTabHtml);
+        $this->assertStringContainsString('Customer Summary', $aiTabHtml);
+        $this->assertStringContainsString('Incident Summary', $aiTabHtml);
+        $this->assertStringContainsString('Suggested Next Actions', $aiTabHtml);
+        $this->assertStringContainsString('Suggested Customer Reply', $aiTabHtml);
+        $this->assertStringContainsString('IRA Advisor', $aiTabHtml);
+        $this->assertStringContainsString('Recommendations only', $aiTabHtml);
+        $this->assertStringContainsString('IRA Workspace', $aiTabHtml);
+        $this->assertStringContainsString('Suggested Checklist', $aiTabHtml);
+        $this->assertStringContainsString('Customer Intelligence', $aiTabHtml);
+        $this->assertStringContainsString('Device Intelligence', $aiTabHtml);
+        $this->assertStringContainsString('Operational Intelligence', $aiTabHtml);
+        $this->assertStringContainsString('Business Intelligence', $aiTabHtml);
+        $this->assertStringContainsString('IRA Confidence', $aiTabHtml);
+        $this->assertStringContainsString('IRA Knowledge', $aiTabHtml);
+        $this->assertStringContainsString('Similar Repairs', $aiTabHtml);
+        $this->assertStringContainsString('Common Resolution', $aiTabHtml);
+        $this->assertStringContainsString('Historical Success Rate', $aiTabHtml);
+        $this->assertStringContainsString('Top Recommended Fixes', $aiTabHtml);
+        $this->assertStringContainsString('AI Tab Customer', $aiTabHtml);
+        $this->assertStringContainsString('Request serial number', $aiTabHtml);
+        $this->assertStringContainsString('Powered by <strong>null</strong> provider', $aiTabHtml);
     }
 }

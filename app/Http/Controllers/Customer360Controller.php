@@ -9,11 +9,13 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\AI\AIWorkbenchAuditService;
 use App\Services\AI\IRAExecutiveSummaryTranslationService;
+use App\Services\Customer360\Customer360DrawerProfiler;
 use App\Services\Customer360Service;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 
 class Customer360Controller extends Controller
 {
@@ -28,7 +30,17 @@ class Customer360Controller extends Controller
     {
         $this->authorize('view', $incident);
 
-        $html = view('customer-360.drawer-content', $this->customer360Service->drawerData($incident))->render();
+        $profiler = new Customer360DrawerProfiler;
+        $startedAt = microtime(true);
+
+        $data = $profiler->measure('drawer_data', fn () => $this->customer360Service->drawerData($incident));
+        $html = $profiler->measure('render', fn () => view('customer-360.drawer-content', $data)->render());
+
+        Log::info('customer360.drawer.open', [
+            'incident_id' => $incident->id,
+            'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+            'sections' => $profiler->timings(),
+        ]);
 
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
     }
@@ -110,19 +122,55 @@ class Customer360Controller extends Controller
         return $user;
     }
 
-    public function aiWorkbench(Incident $incident): JsonResponse
+    public function aiWorkbench(Incident $incident, Request $request): JsonResponse
     {
         $this->authorize('view', $incident);
 
-        $data = $this->customer360Service->refreshAiWorkbench($incident);
+        $startedAt = microtime(true);
+
+        if ($request->query('scope') === 'workbench') {
+            $workbench = $this->customer360Service->refreshAiWorkbench($incident);
+
+            Log::info('customer360.drawer.ai_workbench_refresh', [
+                'incident_id' => $incident->id,
+                'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+            ]);
+
+            return response()->json([
+                'generated_at' => now()->toIso8601String(),
+                'html' => view('customer-360.partials.ai-workbench', [
+                    'workbench' => $workbench,
+                    'incident' => $incident,
+                ])->render(),
+            ]);
+        }
+
+        $payload = $this->customer360Service->aiTabPayload($incident);
+
+        Log::info('customer360.drawer.ai_tab', [
+            'incident_id' => $incident->id,
+            'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+        ]);
 
         return response()->json([
             'generated_at' => now()->toIso8601String(),
-            'html' => view('customer-360.partials.ai-workbench', [
-                'workbench' => $data,
-                'incident' => $incident,
-            ])->render(),
+            'html' => $payload['html'],
         ]);
+    }
+
+    public function executiveSummary(Incident $incident): JsonResponse
+    {
+        $this->authorize('view', $incident);
+
+        $startedAt = microtime(true);
+        $payload = $this->customer360Service->executiveSummaryPayload($incident);
+
+        Log::info('customer360.drawer.executive_summary', [
+            'incident_id' => $incident->id,
+            'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+        ]);
+
+        return response()->json($payload);
     }
 
     public function auditWorkbench(Incident $incident, Customer360AIWorkbenchAuditRequest $request): JsonResponse
@@ -181,6 +229,24 @@ class Customer360Controller extends Controller
         $this->authorize('view', $incident);
 
         $offset = max(0, (int) $request->query('offset', 0));
+        $loadTab = $request->query('tab') === '1' && $offset === 0;
+
+        if ($loadTab && $request->wantsJson()) {
+            $startedAt = microtime(true);
+            $payload = $this->customer360Service->timelineTabPayload($incident, $offset);
+
+            Log::info('customer360.drawer.timeline_tab', [
+                'incident_id' => $incident->id,
+                'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+            ]);
+
+            return response()->json([
+                'html' => $payload['html'],
+                'has_more' => $payload['timeline']->hasMore,
+                'loaded_count' => $payload['timeline']->loadedCount,
+            ]);
+        }
+
         $payload = $this->customer360Service->timelinePayload($incident, $offset);
 
         if ($request->wantsJson()) {

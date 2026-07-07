@@ -37,12 +37,35 @@ class Customer360SlaMetricsService
     {
         $orders = $this->ordersForPhone($phone, $focusOrder);
 
+        if (! filled($phone)) {
+            $focusOrder->load(['incidents.supportAppointments']);
+        }
+
+        $incidentIds = $orders
+            ->flatMap(fn (Order $order): Collection => $order->incidents->pluck('id'))
+            ->unique()
+            ->values();
+
+        $emailNotificationAtByIncident = $this->batchFirstEmailNotificationAt($incidentIds);
+
         return new Customer360SlaMetrics(
             stages: [
                 'payment_to_order' => $this->aggregateStage($orders, fn (Order $order) => $this->paymentToOrderMinutes($order)),
                 'order_to_sync' => $this->aggregateStage($orders, fn (Order $order) => $this->orderToSyncMinutes($order)),
-                'sync_to_email' => $this->aggregateStage($orders, fn (Order $order) => $this->syncToEmailMinutes($order)),
-                'email_to_booking' => $this->aggregateStage($orders, fn (Order $order) => $this->emailToBookingMinutes($order)),
+                'sync_to_email' => $this->aggregateStage(
+                    $orders,
+                    fn (Order $order) => $this->syncToEmailMinutes(
+                        $order,
+                        $this->firstEmailForOrder($order, $emailNotificationAtByIncident),
+                    ),
+                ),
+                'email_to_booking' => $this->aggregateStage(
+                    $orders,
+                    fn (Order $order) => $this->emailToBookingMinutes(
+                        $order,
+                        $this->firstEmailForOrder($order, $emailNotificationAtByIncident),
+                    ),
+                ),
                 'booking_to_resolution' => $this->aggregateStage($orders, fn (Order $order) => $this->bookingToResolutionMinutes($order)),
             ],
         );
@@ -59,6 +82,7 @@ class Customer360SlaMetricsService
 
         return Order::query()
             ->where('customer_phone', $phone)
+            ->with(['incidents.supportAppointments'])
             ->orderByDesc('created_at')
             ->limit(25)
             ->get();
@@ -129,24 +153,17 @@ class Customer360SlaMetricsService
         return $this->minutesBetween($order->created_at, $order->radiumbox_last_sync_at);
     }
 
-    private function syncToEmailMinutes(Order $order): ?float
+    private function syncToEmailMinutes(Order $order, ?Carbon $emailSentAt): ?float
     {
-        if ($order->radiumbox_last_sync_at === null) {
-            return null;
-        }
-
-        $emailSentAt = $this->firstNotificationAt($order, 'email');
-
-        if ($emailSentAt === null) {
+        if ($order->radiumbox_last_sync_at === null || $emailSentAt === null) {
             return null;
         }
 
         return $this->minutesBetween($order->radiumbox_last_sync_at, $emailSentAt);
     }
 
-    private function emailToBookingMinutes(Order $order): ?float
+    private function emailToBookingMinutes(Order $order, ?Carbon $emailSentAt): ?float
     {
-        $emailSentAt = $this->firstNotificationAt($order, 'email');
         $bookingAt = $this->firstAppointmentAt($order);
 
         if ($emailSentAt === null || $bookingAt === null) {
@@ -168,13 +185,14 @@ class Customer360SlaMetricsService
         return $this->minutesBetween($bookingAt, $resolvedAt);
     }
 
-    private function firstNotificationAt(Order $order, string $channel): ?Carbon
+    /**
+     * @param  Collection<int, int|string>  $incidentIds
+     * @return array<int, Carbon>
+     */
+    private function batchFirstEmailNotificationAt(Collection $incidentIds): array
     {
-        $order->loadMissing('incidents');
-        $incidentIds = $order->incidents->pluck('id');
-
         if ($incidentIds->isEmpty()) {
-            return null;
+            return [];
         }
 
         $logs = AuditLog::query()
@@ -182,21 +200,47 @@ class Customer360SlaMetricsService
             ->whereIn('auditable_id', $incidentIds)
             ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
             ->orderBy('created_at')
-            ->get(['created_at', 'new_values']);
+            ->get(['auditable_id', 'created_at', 'new_values']);
+
+        $result = [];
 
         foreach ($logs as $log) {
+            $incidentId = (int) $log->auditable_id;
+
+            if (isset($result[$incidentId])) {
+                continue;
+            }
+
             foreach ($log->new_values['channel_results'] ?? [] as $record) {
                 if (! is_array($record)) {
                     continue;
                 }
 
-                if (strtolower((string) ($record['channel'] ?? '')) !== $channel) {
+                if (strtolower((string) ($record['channel'] ?? '')) !== 'email') {
                     continue;
                 }
 
                 if (($record['success'] ?? false) === true && $log->created_at !== null) {
-                    return $log->created_at;
+                    $result[$incidentId] = $log->created_at;
+
+                    break;
                 }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  array<int, Carbon>  $emailNotificationAtByIncident
+     */
+    private function firstEmailForOrder(Order $order, array $emailNotificationAtByIncident): ?Carbon
+    {
+        foreach ($order->incidents->sortBy('id') as $incident) {
+            $incidentId = (int) $incident->id;
+
+            if (isset($emailNotificationAtByIncident[$incidentId])) {
+                return $emailNotificationAtByIncident[$incidentId];
             }
         }
 
@@ -205,8 +249,6 @@ class Customer360SlaMetricsService
 
     private function firstAppointmentAt(Order $order): ?Carbon
     {
-        $order->loadMissing('incidents.supportAppointments');
-
         $appointment = $order->incidents
             ->flatMap(fn (Incident $incident) => $incident->supportAppointments)
             ->sortBy(fn (SupportAppointment $item) => $item->created_at?->timestamp ?? 0)
@@ -217,8 +259,6 @@ class Customer360SlaMetricsService
 
     private function firstClosedIncidentAt(Order $order): ?Carbon
     {
-        $order->loadMissing('incidents');
-
         return $order->incidents
             ->filter(fn (Incident $incident): bool => $incident->status?->value === 'closed')
             ->sortBy(fn (Incident $incident) => $incident->updated_at?->timestamp ?? 0)

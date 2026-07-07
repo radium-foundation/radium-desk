@@ -87,6 +87,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360.timeline');
     Route::get('dashboard/service-cases/{incident}/customer-360/ai-workbench', [Customer360Controller::class, 'aiWorkbench'])
         ->name('dashboard.service-cases.customer-360.ai-workbench');
+    Route::get('dashboard/service-cases/{incident}/customer-360/executive-summary', [Customer360Controller::class, 'executiveSummary'])
+        ->name('dashboard.service-cases.customer-360.executive-summary');
     Route::post('dashboard/service-cases/{incident}/customer-360/ai-workbench/audit', [Customer360Controller::class, 'auditWorkbench'])
         ->name('dashboard.service-cases.customer-360.ai-workbench.audit');
     Route::post('dashboard/service-cases/{incident}/customer-360/executive-summary/translate', [Customer360Controller::class, 'translateExecutiveSummary'])

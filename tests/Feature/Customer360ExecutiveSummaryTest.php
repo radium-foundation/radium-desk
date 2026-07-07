@@ -35,21 +35,28 @@ class Customer360ExecutiveSummaryTest extends TestCase
         $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk()
-            ->assertSee('data-customer-360-section="executive-summary"', false)
-            ->assertSee('IRA Executive Summary', false)
-            ->assertSee('Read Only', false)
-            ->assertSee('IRA Opinion', false)
-            ->assertSee('IRA Recommendation', false)
-            ->assertSee('data-ira-summary-lang-toggle', false)
-            ->assertSee('data-ira-translate-url', false);
+            ->assertSee('data-customer-360-executive-summary-lazy', false);
+
+        $summaryHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.executive-summary', $incident))
+            ->assertOk()
+            ->json('html');
+
+        $this->assertStringContainsString('data-customer-360-section="executive-summary"', $summaryHtml);
+        $this->assertStringContainsString('IRA Executive Summary', $summaryHtml);
+        $this->assertStringContainsString('Read Only', $summaryHtml);
+        $this->assertStringContainsString('IRA Opinion', $summaryHtml);
+        $this->assertStringContainsString('IRA Recommendation', $summaryHtml);
+        $this->assertStringContainsString('data-ira-summary-lang-toggle', $summaryHtml);
+        $this->assertStringContainsString('data-ira-translate-url', $summaryHtml);
 
         $html = $response->getContent();
-        $executivePos = strpos($html, 'data-customer-360-section="executive-summary"');
         $healthPos = strpos($html, 'data-customer-360-section="health-card"');
+        $lazyPos = strpos($html, 'data-customer-360-executive-summary-lazy');
 
-        $this->assertNotFalse($executivePos);
         $this->assertNotFalse($healthPos);
-        $this->assertLessThan($healthPos, $executivePos);
+        $this->assertNotFalse($lazyPos);
+        $this->assertLessThan($healthPos, $lazyPos);
     }
 
     public function test_executive_summary_translation_endpoint_returns_hindi_without_rebuilding_drawer(): void

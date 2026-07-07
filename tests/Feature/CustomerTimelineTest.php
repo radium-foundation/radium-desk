@@ -185,11 +185,13 @@ class CustomerTimelineTest extends TestCase
             'new_values' => [],
         ]);
 
-        $this->actingAs($agent)
-            ->get(route('dashboard.service-cases.customer-360', $incident))
+        $timelineHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0')
             ->assertOk()
-            ->assertSee('Customer Timeline', false)
-            ->assertSee('data-unified-timeline', false)
-            ->assertSee('Payment received', false);
+            ->json('html');
+
+        $this->assertStringContainsString('Customer Timeline', $timelineHtml);
+        $this->assertStringContainsString('data-unified-timeline', $timelineHtml);
+        $this->assertStringContainsString('Payment received', $timelineHtml);
     }
 }

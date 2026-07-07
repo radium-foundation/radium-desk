@@ -97,14 +97,17 @@ class Customer360UnifiedTimelineTest extends TestCase
     {
         [$agent, $incident] = $this->createFixture();
 
-        $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
+        $response = $this->actingAs($agent)->getJson(
+            route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0',
+        );
 
         $response->assertOk();
-        $response->assertSee('Customer Timeline', false);
-        $response->assertSee('Operations Health', false);
-        $response->assertSee('SLA Metrics', false);
-        $response->assertSee('data-timeline-filter-chip="synchronization"', false);
-        $response->assertSee('data-customer-360-timeline-section', false);
+        $response->assertJsonStructure(['html', 'has_more', 'loaded_count']);
+        $html = (string) $response->json('html');
+        $this->assertStringContainsString('Customer Timeline', $html);
+        $this->assertStringContainsString('Operations Health', $html);
+        $this->assertStringContainsString('SLA Metrics', $html);
+        $this->assertStringContainsString('data-customer-360-timeline-section', $html);
     }
 
     public function test_timeline_endpoint_supports_json_refresh_payload(): void
@@ -138,6 +141,56 @@ class Customer360UnifiedTimelineTest extends TestCase
         $this->assertTrue($syncEvent->matchesFilter('synchronization'));
         $this->assertTrue($syncEvent->matchesFilter('system'));
         $this->assertFalse($syncEvent->matchesFilter('payments'));
+    }
+
+    public function test_sla_metrics_service_batches_audit_log_queries(): void
+    {
+        [, , $order] = $this->createFixture();
+
+        for ($index = 0; $index < 3; $index++) {
+            $relatedOrder = Order::query()->create([
+                'order_id' => 'RD-SLA-BATCH-'.$index,
+                'customer_phone' => $order->customer_phone,
+                'status' => 'active',
+                'created_by' => $order->created_by,
+            ]);
+
+            $relatedIncident = Incident::query()->create([
+                'order_id' => $relatedOrder->id,
+                'reference_no' => app(IncidentReferenceService::class)->generate(),
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => 'SLA batch case '.$index,
+                'description' => 'SLA batch case.',
+                'status' => IncidentStatus::Open,
+                'created_by' => $order->created_by,
+                'updated_by' => $order->created_by,
+            ]);
+
+            app(AuditLogService::class)->log(
+                userId: null,
+                event: NotificationAuditTrailService::EVENT_DISPATCHED,
+                auditable: $relatedIncident,
+                newValues: [
+                    'channel_results' => [[
+                        'channel' => 'email',
+                        'success' => true,
+                    ]],
+                ],
+            );
+        }
+
+        $auditLogQueries = 0;
+
+        AuditLog::resolveConnection()->listen(function ($query) use (&$auditLogQueries): void {
+            if (str_contains(strtolower($query->sql), 'audit_logs')) {
+                $auditLogQueries++;
+            }
+        });
+
+        app(Customer360SlaMetricsService::class)->forOrder($order->fresh());
+
+        $this->assertSame(1, $auditLogQueries);
     }
 
     public function test_sla_metrics_service_returns_stage_aggregates(): void

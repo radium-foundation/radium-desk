@@ -7,7 +7,6 @@ use App\Data\AI\AIWorkbenchDTO;
 use App\Data\TimelineViewModel;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
-use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\AI\AIService;
@@ -21,11 +20,11 @@ use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
+use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
 use App\Support\AppDateFormatter;
 use App\Support\DeviceModelFormatter;
-use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use Illuminate\Support\Carbon;
 
 class Customer360Service
@@ -72,6 +71,43 @@ class Customer360Service
         $activeServices = $this->activeServices($order, $enrichmentMetadata);
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
         $summary = $scopeCache->customerSummary();
+        $waitingStateCard = $this->waitingStateService->customer360Card($incident);
+
+        return [
+            'incident' => $incident,
+            'order' => $order,
+            'customer' => $customer,
+            'device' => $this->deviceSection($order, $fullModelName, $incident),
+            'sync_history' => $this->syncTimelineService->forOrder($order),
+            'activeServices' => $activeServices,
+            'summary' => $summary,
+            'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary),
+            'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
+            'serialRequestState' => $this->serialRequestState($order),
+            'waitingStateCard' => $waitingStateCard,
+            'supportAppointments' => $incident->supportAppointments,
+            'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
+            'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
+            'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
+        ];
+    }
+
+    /**
+     * @return array{html: string}
+     */
+    public function executiveSummaryPayload(Incident $incident): array
+    {
+        $incident->loadMissing(['order.deviceModel', 'activeWaitingState', 'assignee']);
+        $order = $incident->order;
+
+        if ($order === null) {
+            return ['html' => ''];
+        }
+
+        $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
+        $activeServices = $this->activeServices($order, $enrichmentMetadata);
+        $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
+        $summary = $scopeCache->customerSummary();
         $timeline = $this->customer360TimelineService->forOrder($order);
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
         $snapshot = new AIContextBuildSnapshot(
@@ -83,34 +119,97 @@ class Customer360Service
         );
         $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
         $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);
+        $executiveSummary = $this->executiveSummaryService->buildFromBundle(
+            $incident,
+            $aiBundle,
+            $snapshot,
+            $operationsAdvisorInsights,
+        );
 
         return [
-            'incident' => $incident,
-            'order' => $order,
-            'customer' => $customer,
-            'device' => $this->deviceSection($order, $fullModelName, $incident),
-            'sync_history' => $this->syncTimelineService->forOrder($order),
-            'activeServices' => $activeServices,
-            'summary' => $summary,
-            'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary, $timeline),
-            'timeline' => $timeline,
-            'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
-            'timelineRefreshUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
-            'operationsHealth' => $this->operationsHealthService->forIncident($incident),
-            'slaMetrics' => $this->slaMetricsService->forOrder($order),
-            'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
-            'serialRequestState' => $this->serialRequestState($order),
-            'waitingStateCard' => $waitingStateCard,
-            'supportAppointments' => $incident->supportAppointments,
-            'aiAssistant' => $aiBundle->response,
-            'executiveSummary' => $this->executiveSummaryService->buildFromBundle(
-                $incident,
-                $aiBundle,
-                $snapshot,
-                $operationsAdvisorInsights,
-            ),
-            'operationsAdvisorInsights' => $operationsAdvisorInsights,
-            'aiWorkbench' => $this->aiWorkbenchService->buildFromBundle($incident, $aiBundle),
+            'html' => view('customer-360.partials.executive-summary', [
+                'incident' => $incident,
+                'executiveSummary' => $executiveSummary,
+            ])->render(),
+        ];
+    }
+
+    /**
+     * @return array{timeline: TimelineViewModel, html: string, operationsHealth: array<string, mixed>, slaMetrics: \App\Data\Customer360\Customer360SlaMetrics}
+     */
+    public function timelineTabPayload(Incident $incident, int $offset = 0): array
+    {
+        $incident->loadMissing('order');
+        $order = $incident->order;
+        $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
+        $timelineUrl = route('dashboard.service-cases.customer-360.timeline', $incident);
+        $operationsHealth = $this->operationsHealthService->forIncident($incident);
+        $slaMetrics = $order !== null
+            ? $this->slaMetricsService->forOrder($order)
+            : null;
+
+        return [
+            'timeline' => $viewModel,
+            'operationsHealth' => $operationsHealth,
+            'slaMetrics' => $slaMetrics,
+            'html' => view('customer-360.partials.timeline-tab', [
+                'timeline' => $viewModel,
+                'timelineLoadMoreUrl' => $timelineUrl,
+                'timelineRefreshUrl' => $timelineUrl,
+                'operationsHealth' => $operationsHealth,
+                'slaMetrics' => $slaMetrics,
+            ])->render(),
+        ];
+    }
+
+    /**
+     * @return array{html: string, workbench: AIWorkbenchDTO}
+     */
+    public function aiTabPayload(Incident $incident): array
+    {
+        $incident->loadMissing(['order.deviceModel', 'activeWaitingState', 'assignee']);
+        $order = $incident->order;
+
+        if ($order === null) {
+            $aiBundle = $this->aiService->buildBundle($incident);
+            $workbench = $this->aiWorkbenchService->buildFromBundle($incident, $aiBundle);
+
+            return [
+                'html' => view('customer-360.partials.ai-tab', [
+                    'incident' => $incident,
+                    'aiAssistant' => $aiBundle->response,
+                    'operationsAdvisorInsights' => [],
+                    'aiWorkbench' => $workbench,
+                ])->render(),
+                'workbench' => $workbench,
+            ];
+        }
+
+        $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
+        $activeServices = $this->activeServices($order, $enrichmentMetadata);
+        $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
+        $summary = $scopeCache->customerSummary();
+        $timeline = $this->customer360TimelineService->forOrder($order);
+        $waitingStateCard = $this->waitingStateService->customer360Card($incident);
+        $snapshot = new AIContextBuildSnapshot(
+            customerSummary: $summary,
+            activeServices: $activeServices,
+            enrichmentMetadata: $enrichmentMetadata,
+            timeline: $timeline,
+            waitingStateCard: $waitingStateCard,
+        );
+        $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
+        $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);
+        $workbench = $this->aiWorkbenchService->buildFromBundle($incident, $aiBundle);
+
+        return [
+            'html' => view('customer-360.partials.ai-tab', [
+                'incident' => $incident,
+                'aiAssistant' => $aiBundle->response,
+                'operationsAdvisorInsights' => $operationsAdvisorInsights,
+                'aiWorkbench' => $workbench,
+            ])->render(),
+            'workbench' => $workbench,
         ];
     }
 
@@ -302,11 +401,7 @@ class Customer360Service
         array $customer,
         array $activeServices,
         array $summary,
-        TimelineViewModel $timeline,
     ): array {
-        $events = $timeline->events();
-        $lastPaymentEvent = $events->first(fn ($event) => $event->type === TimelineEventType::Payment);
-        $lastInteraction = $events->first();
         $warranty = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
         $communication = $this->requestSerialCommunicationHistoryService->forCustomerPhone($order->customer_phone);
 
@@ -316,10 +411,10 @@ class Customer360Service
             'email' => $customer['email'],
             'warranty_status' => $warranty,
             'active_service_cases' => $summary['open_cases'] ?? 0,
-            'last_payment' => $this->resolveLastPayment($order, $lastPaymentEvent),
+            'last_payment' => $this->resolveLastPayment($order),
             'last_whatsapp' => $communication['whatsapp'],
             'last_email' => $communication['email'],
-            'last_interaction_at' => $lastInteraction?->occurredAt,
+            'last_interaction_at' => null,
             'last_call' => null,
         ];
     }
@@ -327,17 +422,8 @@ class Customer360Service
     /**
      * @return array{label: string, occurred_at: \Illuminate\Support\Carbon}|null
      */
-    private function resolveLastPayment(Order $order, ?\App\Data\TimelineEvent $paymentEvent): ?array
+    private function resolveLastPayment(Order $order): ?array
     {
-        if ($paymentEvent !== null) {
-            $label = $paymentEvent->summary ?? $paymentEvent->title;
-
-            return [
-                'label' => $label,
-                'occurred_at' => $paymentEvent->occurredAt,
-            ];
-        }
-
         if ($order->payment_date === null) {
             return null;
         }
@@ -461,6 +547,7 @@ class Customer360Service
                 'order_id' => null,
                 'service_reference' => null,
             ],
+            'sync_history' => [],
             'activeServices' => [],
             'summary' => [
                 'total_orders' => 0,
@@ -480,15 +567,6 @@ class Customer360Service
                 'last_interaction_at' => null,
                 'last_call' => null,
             ],
-            'timeline' => new TimelineViewModel(
-                groups: collect(),
-                totalCount: 0,
-                loadedCount: 0,
-                offset: 0,
-                limit: TimelineService::DEFAULT_PAGE_SIZE,
-                hasMore: false,
-            ),
-            'timelineLoadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
             'canRequestSerialNumber' => false,
             'serialRequestState' => [
                 'requested' => false,
@@ -497,10 +575,9 @@ class Customer360Service
             ],
             'waitingStateCard' => null,
             'supportAppointments' => collect(),
-            'aiAssistant' => ($bundle = $this->aiService->buildBundle($incident))->response,
-            'executiveSummary' => $this->executiveSummaryService->buildFromBundle($incident, $bundle),
-            'operationsAdvisorInsights' => [],
-            'aiWorkbench' => $this->aiWorkbenchService->buildFromBundle($incident, $bundle),
+            'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
+            'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
+            'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
         ];
     }
 }

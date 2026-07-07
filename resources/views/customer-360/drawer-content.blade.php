@@ -41,9 +41,8 @@
          class="customer-360-tab-pane"
          role="tabpanel"
          data-customer-360-tab-pane="overview">
-        @include('customer-360.partials.executive-summary', [
-            'incident' => $incident,
-            'executiveSummary' => $executiveSummary ?? null,
+        @include('customer-360.partials.executive-summary-placeholder', [
+            'executiveSummaryUrl' => $executiveSummaryUrl ?? null,
         ])
         @include('customer-360.partials.health-card', ['healthCard' => $healthCard])
         @include('customer-360.partials.support-appointments', [
@@ -71,12 +70,8 @@
          class="customer-360-tab-pane d-none"
          role="tabpanel"
          data-customer-360-tab-pane="timeline">
-        @include('customer-360.partials.operations-health', ['health' => $operationsHealth ?? []])
-        @include('customer-360.partials.sla-metrics', ['slaMetrics' => $slaMetrics ?? null])
-        @include('customer-360.partials.timeline-section', [
-            'viewModel' => $timeline,
-            'loadMoreUrl' => $timelineLoadMoreUrl ?? null,
-            'timelineRefreshUrl' => $timelineRefreshUrl ?? ($timelineLoadMoreUrl ?? null),
+        @include('customer-360.partials.timeline-tab-placeholder', [
+            'timelineTabUrl' => $timelineTabUrl ?? null,
         ])
     </div>
 
@@ -84,11 +79,8 @@
          class="customer-360-tab-pane d-none"
          role="tabpanel"
          data-customer-360-tab-pane="ai-assistant">
-        @include('customer-360.partials.ai-advisor', ['insights' => $operationsAdvisorInsights ?? []])
-        @include('customer-360.partials.ai-assistant', ['aiAssistant' => $aiAssistant])
-        @include('customer-360.partials.ai-workbench', [
-            'workbench' => $aiWorkbench,
-            'incident' => $incident,
+        @include('customer-360.partials.ai-tab-placeholder', [
+            'aiTabUrl' => $aiTabUrl ?? null,
         ])
     </div>
 </div>
