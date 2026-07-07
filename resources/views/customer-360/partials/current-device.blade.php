@@ -97,7 +97,14 @@
                     :value="$device['order_id'] ?? null"
                     label="Order ID"
                     copy-key="order-id"
-                />
+                >
+                    @if($device['is_legacy_imported'] ?? false)
+                        <span class="legacy-imported-order-indicator"
+                              title="{{ $device['legacy_import_tooltip'] }}"
+                              aria-label="{{ $device['legacy_import_tooltip'] }}">↓</span>
+                    @endif
+                    {{ $device['order_id'] }}
+                </x-customer-360-inline-copy>
             </dd>
         </div>
         <div class="customer-360-dl-row">

@@ -473,7 +473,7 @@ class Order extends Model
 
         $date = AppDateFormatter::datetime($this->legacy_imported_at) ?? 'Unknown date';
 
-        return "Legacy imported order • Imported by {$agent} • {$date}";
+        return "LIO • Imported by {$agent} • {$date}";
     }
 
     public function legacyImportMetadataLine(): ?string

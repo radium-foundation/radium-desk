@@ -13,15 +13,23 @@
        {{ $attributes->class([
            'text-decoration-none',
            'legacy-imported-order-id' => $isLegacyImported,
-       ]) }}
-       @if($tooltip) title="{{ $tooltip }}" @endif>
+       ]) }}>
+        @if($isLegacyImported)
+            <span class="legacy-imported-order-indicator"
+                  title="{{ $tooltip }}"
+                  aria-label="{{ $tooltip }}">↓</span>
+        @endif
         {{ $order->order_id }}
     </a>
 @else
     <span {{ $attributes->class([
         'legacy-imported-order-id' => $isLegacyImported,
-    ]) }}
-          @if($tooltip) title="{{ $tooltip }}" @endif>
+    ]) }}>
+        @if($isLegacyImported)
+            <span class="legacy-imported-order-indicator"
+                  title="{{ $tooltip }}"
+                  aria-label="{{ $tooltip }}">↓</span>
+        @endif
         {{ $order->order_id }}
     </span>
 @endif

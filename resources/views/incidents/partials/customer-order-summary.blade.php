@@ -42,9 +42,5 @@
                 <span class="fw-semibold">{{ $incident->source->label() }}</span>
             </div>
         </div>
-
-        @if($incident->order?->legacyImportMetadataLine())
-            <p class="legacy-import-metadata mb-0 mt-3">{{ $incident->order->legacyImportMetadataLine() }}</p>
-        @endif
     </div>
 </div>

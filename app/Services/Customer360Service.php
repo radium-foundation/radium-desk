@@ -307,6 +307,8 @@ class Customer360Service
             'can_manual_sync' => $this->canManualRadiumBoxSync($order, $syncStatus),
             'manual_sync_url' => route('dashboard.service-cases.customer-360.radiumbox-sync', $incident),
             'order_id' => $order->order_id,
+            'is_legacy_imported' => $order->isLegacyImported(),
+            'legacy_import_tooltip' => $order->legacyImportTooltipTitle(),
             'service_reference' => $order->transaction_id,
         ];
     }

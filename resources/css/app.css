@@ -4703,18 +4703,18 @@ a:focus-visible .stat-card {
     outline: none;
 }
 
-.legacy-imported-order-id {
+.legacy-imported-order-indicator {
     color: #b45309;
+    font-size: 0.85em;
+    margin-right: 0.125rem;
+    cursor: help;
     font-weight: 600;
+    vertical-align: baseline;
 }
 
-a.legacy-imported-order-id:hover,
-a.legacy-imported-order-id:focus-visible,
-span.legacy-imported-order-id:hover,
-span.legacy-imported-order-id:focus-visible,
-.copyable-identifier.legacy-imported-order-id:hover,
-.copyable-identifier.legacy-imported-order-id:focus-visible {
-    color: #92400e;
+.dashboard-cases-table .case-order-cell .legacy-imported-order-indicator,
+.order-workspace-order-id .legacy-imported-order-indicator {
+    color: #b45309;
 }
 
 .legacy-import-metadata {

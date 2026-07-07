@@ -66,8 +66,9 @@ class LegacyOrderUiTest extends TestCase
             ->assertSee('data-copy-toast="Serial number copied"', false)
             ->assertSee(route('orders.show', $order), false)
             ->assertSee('legacy-imported-order-id', false)
-            ->assertSee('Legacy imported order • Imported by Import •', false)
-            ->assertSee('Imported from legacy system by Import', false)
+            ->assertSee('legacy-imported-order-indicator', false)
+            ->assertSee('LIO • Imported by Import •', false)
+            ->assertDontSee('Imported from legacy system by', false)
             ->assertSee(route('incidents.show', $incident), false)
             ->assertSee('SC00088', false);
     }
@@ -98,7 +99,8 @@ class LegacyOrderUiTest extends TestCase
             ->assertDontSee('data-copy-value="RD3395999"', false)
             ->assertDontSee('data-copyable-identifier="order-id"', false)
             ->assertSee('legacy-imported-order-id', false)
-            ->assertSee('Legacy imported order • Imported by Workspace •', false)
+            ->assertSee('legacy-imported-order-indicator', false)
+            ->assertSee('LIO • Imported by Workspace •', false)
             ->assertSee('data-copyable-identifier="serial"', false)
             ->assertSee('data-copy-value="SN999999"', false)
             ->assertSee('data-legacy-verification-mode="imported"', false)
@@ -185,10 +187,48 @@ class LegacyOrderUiTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('legacy-imported-order-id', false)
+            ->assertSee('legacy-imported-order-indicator', false)
             ->assertSee('RD3395988', false)
-            ->assertSee('Legacy imported order • Imported by Import •', false)
+            ->assertSee('LIO • Imported by Import •', false)
             ->assertSee('data-copyable-identifier="serial"', false)
             ->assertSee('data-copy-value="SN3395988"', false);
+    }
+
+    public function test_customer_360_legacy_imported_order_renders_visual_indicator(): void
+    {
+        $importer = User::factory()->create(['name' => 'Import Agent']);
+        $importer->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3395988',
+            'serial_number' => 'SN3395988',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'legacy_source' => 'radiumbox',
+            'legacy_imported_at' => now(),
+            'legacy_imported_by_user_id' => $importer->id,
+            'status' => 'active',
+            'created_by' => $importer->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC3395988',
+            'category' => 'General',
+            'source' => 'call',
+            'title' => 'Legacy customer 360 case',
+            'description' => 'Imported legacy order.',
+            'status' => 'open',
+            'created_by' => $importer->id,
+            'updated_by' => $importer->id,
+        ]);
+
+        $this->actingAs($importer)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('legacy-imported-order-indicator', false)
+            ->assertSee('RD3395988', false)
+            ->assertSee('LIO • Imported by Import •', false);
     }
 
     public function test_normal_order_does_not_render_legacy_import_ui_or_require_fulfillment_verification(): void

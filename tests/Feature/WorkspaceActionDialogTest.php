@@ -295,6 +295,23 @@ class WorkspaceActionDialogTest extends TestCase
         );
     }
 
+    public function test_reopen_dialog_does_not_show_assignee_selector(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, ['status' => IncidentStatus::Closed]);
+
+        $this->actingAs($admin)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'action',
+                'context' => WorkspaceContext::ServiceCase->value,
+            ]))
+            ->assertOk()
+            ->assertSee('data-workspace-action-card="reopen"', false)
+            ->assertDontSee('workspace_action_reopen_assignee', false)
+            ->assertDontSee('data-workspace-action-panel="reopen"', false);
+    }
+
     public function test_reopen_action_reopens_closed_service_case_with_remark_only(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');

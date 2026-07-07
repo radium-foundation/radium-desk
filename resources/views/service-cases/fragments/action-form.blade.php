@@ -216,27 +216,6 @@
             @enderror
         </div>
 
-        <div class="workspace-action-panel @if($selectedAction !== WorkspaceActionType::Reopen) d-none @endif"
-             data-workspace-action-panel="reopen">
-            <div class="mb-0">
-                <label for="workspace_action_reopen_assignee" class="form-label">Assign To <span class="text-muted">(optional)</span></label>
-                <select name="assigned_to_user_id"
-                        id="workspace_action_reopen_assignee"
-                        class="form-select form-select-sm @error('assigned_to_user_id') is-invalid @enderror"
-                        @disabled($selectedAction !== WorkspaceActionType::Reopen)>
-                    <option value="" @selected($assigneeValue === null || $assigneeValue === '')>Keep current assignee</option>
-                    @foreach($reassignableAdmins as $adminUser)
-                        <option value="{{ $adminUser->id }}" @selected((int) $assigneeValue === $adminUser->id)>
-                            {{ $adminUser->firstName() }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('assigned_to_user_id')
-                    <div class="invalid-feedback">{{ $message }}</div>
-                @enderror
-            </div>
-        </div>
-
         <div class="workspace-action-remark-section mt-3">
             <label for="workspace_action_remark" class="form-label">Remark <span class="text-danger">*</span></label>
             <textarea name="body"
