@@ -6,6 +6,7 @@ use App\Enums\IncidentSource;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\SettingSource;
 use App\Models\User;
 use App\Services\ServiceCaseActivityTimelineService;
 use Database\Seeders\RolePermissionSeeder;
@@ -148,6 +149,40 @@ class LegacyOrderBridgeTest extends TestCase
         $incident = Incident::query()->where('order_id', $order->id)->first();
         $this->assertNotNull($incident);
         $this->assertSame('Imported legacy order.', $incident->description);
+    }
+
+    public function test_legacy_import_accepts_admin_ui_source_key(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        SettingSource::query()->updateOrCreate(
+            ['key' => 'admin'],
+            [
+                'label' => 'Admin UI',
+                'icon' => 'bi-person-gear',
+                'sort_order' => 0,
+                'is_enabled' => true,
+            ],
+        );
+
+        $agent = User::factory()->create(['name' => 'Admin UI Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => 'admin',
+                'notes' => 'Imported from admin UI quick create.',
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHas('status', 'service-case-created');
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+        $this->assertSame(IncidentSource::Internal, $incident->source);
     }
 
     public function test_legacy_import_assigns_importing_agent(): void

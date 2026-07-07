@@ -11,6 +11,18 @@ enum IncidentSource: string
     case Internal = 'internal';
     case Cashfree = 'cashfree';
 
+    public static function fromIntakeKey(string $key): self
+    {
+        if ($resolved = self::tryFrom($key)) {
+            return $resolved;
+        }
+
+        return match ($key) {
+            'admin' => self::Internal,
+            default => self::from($key),
+        };
+    }
+
     public function label(): string
     {
         return match ($this) {

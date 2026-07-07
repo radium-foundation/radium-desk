@@ -176,7 +176,7 @@ class OrderController extends Controller
         $incident = $this->quickServiceRequestService->createForOrder(
             user: $request->user(),
             order: $order,
-            source: IncidentSource::from($request->string('source')->toString()),
+            source: IncidentSource::fromIntakeKey($request->string('source')->toString()),
             notes: $notes,
             highPriority: $request->boolean('high_priority'),
         );

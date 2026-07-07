@@ -44,7 +44,7 @@ class QuickServiceRequestController extends Controller
 
     public function store(StoreCustomerIntakeRequest $request): RedirectResponse
     {
-        $source = IncidentSource::from($request->string('source')->toString());
+        $source = IncidentSource::fromIntakeKey($request->string('source')->toString());
         $notes = $request->string('notes')->trim()->toString();
         $notes = $notes === '' ? null : $notes;
         $highPriority = $request->boolean('high_priority');
