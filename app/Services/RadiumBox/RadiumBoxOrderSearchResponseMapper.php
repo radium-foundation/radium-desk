@@ -33,23 +33,54 @@ class RadiumBoxOrderSearchResponseMapper
             throw new RadiumBoxInvalidResponseException('RadiumBox response is missing rd_order data.');
         }
 
+        $billingOrder = data_get($payload, 'data.order');
+        $billingOrder = is_array($billingOrder) ? $billingOrder : null;
+
         if ($expectedOrderId !== null) {
             $this->assertOrderIdMatches($rdOrder, $expectedOrderId);
         }
+
+        $userDetails = $this->parseUserDetails(
+            data_get($rdOrder, 'userdetails'),
+            $billingOrder !== null ? data_get($billingOrder, 'userdetails') : null,
+        );
 
         $amcStatus = $this->normalizeOptionalString(
             data_get($rdOrder, 'amc_status')
                 ?? data_get($rdOrder, 'amc'),
         );
 
+        $derivedYear = $this->deriveYear(
+            data_get($rdOrder, 'created_at'),
+            $billingOrder !== null ? data_get($billingOrder, 'orderdate') : null,
+        );
+
+        $activationYear = $this->normalizeOptionalString(
+            data_get($rdOrder, 'activation_year')
+                ?? data_get($rdOrder, 'activationYear')
+                ?? data_get($rdOrder, 'year'),
+        ) ?? $derivedYear;
+
+        $purchaseYear = $this->normalizeOptionalString(
+            data_get($rdOrder, 'purchase_year')
+                ?? data_get($rdOrder, 'purchaseYear'),
+        ) ?? $derivedYear;
+
+        $serviceHistory = $this->normalizeHistory(
+            data_get($rdOrder, 'service_history')
+                ?? data_get($rdOrder, 'rd_service_history')
+                ?? data_get($rdOrder, 'service_years')
+                ?? data_get($rdOrder, 'service_year'),
+        );
+
+        if ($serviceHistory === null) {
+            $serviceHistory = $this->normalizeHistory(data_get($rdOrder, 'rd_service_name'));
+        }
+
         return new RadiumBoxOrderEnrichment(
             serialNumber: $this->normalizeSerialNumber(data_get($rdOrder, 'serial_no')),
             deviceModel: $this->normalizeDeviceModel(data_get($rdOrder, 'product_name')),
-            activationYear: $this->normalizeOptionalString(
-                data_get($rdOrder, 'activation_year')
-                    ?? data_get($rdOrder, 'activationYear')
-                    ?? data_get($rdOrder, 'year'),
-            ),
+            activationYear: $activationYear,
             warranty: $this->normalizeOptionalString(
                 data_get($rdOrder, 'warranty')
                     ?? data_get($rdOrder, 'warranty_status')
@@ -59,47 +90,47 @@ class RadiumBoxOrderSearchResponseMapper
             radiumboxPaymentStatus: $this->normalizeOptionalString(
                 data_get($rdOrder, 'payment_status')
                     ?? data_get($rdOrder, 'pay_status')
-                    ?? data_get($rdOrder, 'paymentStatus'),
+                    ?? data_get($rdOrder, 'paymentStatus')
+                    ?? ($billingOrder !== null ? data_get($billingOrder, 'payment_status') : null),
             ),
             radiumboxOrderStatus: $this->normalizeOptionalString(
                 data_get($rdOrder, 'order_status')
-                    ?? data_get($rdOrder, 'status'),
+                    ?? data_get($rdOrder, 'status')
+                    ?? ($billingOrder !== null ? data_get($billingOrder, 'status') : null),
             ),
             customerName: $this->normalizeOptionalString(
                 data_get($rdOrder, 'customer_name')
                     ?? data_get($rdOrder, 'name')
-                    ?? data_get($rdOrder, 'cust_name'),
+                    ?? data_get($rdOrder, 'cust_name')
+                    ?? data_get($userDetails, 'name'),
             ),
             customerPhone: $this->normalizeOptionalString(
                 data_get($rdOrder, 'mobile')
                     ?? data_get($rdOrder, 'phone')
                     ?? data_get($rdOrder, 'customer_phone')
-                    ?? data_get($rdOrder, 'mobile_no'),
+                    ?? data_get($rdOrder, 'mobile_no')
+                    ?? data_get($userDetails, 'phone'),
             ),
             customerEmail: $this->normalizeEmail(
                 data_get($rdOrder, 'email')
-                    ?? data_get($rdOrder, 'customer_email'),
+                    ?? data_get($rdOrder, 'customer_email')
+                    ?? data_get($userDetails, 'email'),
             ),
             gstNumber: $this->normalizeOptionalString(
                 data_get($rdOrder, 'gst_number')
                     ?? data_get($rdOrder, 'gst_no')
-                    ?? data_get($rdOrder, 'gst'),
+                    ?? data_get($rdOrder, 'gst')
+                    ?? ($billingOrder !== null ? data_get($billingOrder, 'gst_no') : null)
+                    ?? data_get($userDetails, 'gst_no'),
             ),
             invoiceNumber: $this->normalizeOptionalString(
                 data_get($rdOrder, 'invoice_number')
                     ?? data_get($rdOrder, 'invoice_no')
-                    ?? data_get($rdOrder, 'invoice'),
+                    ?? data_get($rdOrder, 'invoice')
+                    ?? ($billingOrder !== null ? data_get($billingOrder, 'invoicecode') : null),
             ),
-            purchaseYear: $this->normalizeOptionalString(
-                data_get($rdOrder, 'purchase_year')
-                    ?? data_get($rdOrder, 'purchaseYear'),
-            ),
-            serviceHistory: $this->normalizeHistory(
-                data_get($rdOrder, 'service_history')
-                    ?? data_get($rdOrder, 'rd_service_history')
-                    ?? data_get($rdOrder, 'service_years')
-                    ?? data_get($rdOrder, 'service_year'),
-            ),
+            purchaseYear: $purchaseYear,
+            serviceHistory: $serviceHistory,
             amcStatus: $amcStatus,
             amcYear: $this->normalizeOptionalString(
                 data_get($rdOrder, 'amc_year')
@@ -108,7 +139,8 @@ class RadiumBoxOrderSearchResponseMapper
             amcDetails: $this->normalizeAmcDetails($rdOrder, $amcStatus),
             legacyOrderStatus: $this->normalizeOptionalString(
                 data_get($rdOrder, 'order_status')
-                    ?? data_get($rdOrder, 'status'),
+                    ?? data_get($rdOrder, 'status')
+                    ?? ($billingOrder !== null ? data_get($billingOrder, 'status') : null),
             ),
         );
     }
@@ -138,6 +170,12 @@ class RadiumBoxOrderSearchResponseMapper
 
         if (filled($amcYear)) {
             $summary['year'] = $amcYear;
+        }
+
+        $amcServiceName = $this->normalizeOptionalString(data_get($rdOrder, 'amc_service_name'));
+
+        if (filled($amcServiceName)) {
+            $summary['service_name'] = $amcServiceName;
         }
 
         return $summary !== [] ? $summary : null;
@@ -170,7 +208,8 @@ class RadiumBoxOrderSearchResponseMapper
     {
         $responseOrderId = data_get($rdOrder, 'order_id')
             ?? data_get($rdOrder, 'orderid')
-            ?? data_get($rdOrder, 'order_no');
+            ?? data_get($rdOrder, 'order_no')
+            ?? data_get($rdOrder, 'rdorderid');
 
         if (! is_string($responseOrderId) || trim($responseOrderId) === '') {
             return;
@@ -181,6 +220,72 @@ class RadiumBoxOrderSearchResponseMapper
                 'RadiumBox returned data for a different order.',
             );
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseUserDetails(mixed $primary, mixed $fallback = null): array
+    {
+        foreach ([$primary, $fallback] as $value) {
+            $parsed = $this->decodeUserDetails($value);
+
+            if ($parsed !== []) {
+                return $parsed;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeUserDetails(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (! is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        try {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return [];
+        }
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function deriveYear(mixed $createdAt, mixed $orderDate): ?string
+    {
+        foreach ([$createdAt, $orderDate] as $value) {
+            $year = $this->extractYear($value);
+
+            if ($year !== null) {
+                return $year;
+            }
+        }
+
+        return null;
+    }
+
+    private function extractYear(mixed $value): ?string
+    {
+        $normalized = $this->normalizeOptionalString($value);
+
+        if ($normalized === null) {
+            return null;
+        }
+
+        if (preg_match('/^(\d{4})/', $normalized, $matches) === 1) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     private function normalizeSerialNumber(mixed $value): ?string

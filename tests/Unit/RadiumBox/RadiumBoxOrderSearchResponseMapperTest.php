@@ -40,39 +40,68 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
         $this->assertSame('Expired', $enrichment->amc);
     }
 
-    public function test_it_maps_legacy_import_fields_from_rd_order(): void
+    public function test_it_maps_legacy_import_fields_from_production_style_payload(): void
     {
-        $enrichment = $this->mapper->map([
-            'status' => 200,
-            'data' => [
-                'rd_order' => [
-                    'order_id' => 'RD3395988',
-                    'customer_name' => 'Satyam Test',
-                    'mobile' => '9876543210',
-                    'email' => 'Test@Example.com',
-                    'product_name' => 'MFS 110',
-                    'serial_no' => 'SN123456',
-                    'gst_number' => 'GSTIN123',
-                    'invoice_number' => 'INV-9988',
-                    'activation_year' => '2022',
-                    'service_history' => ['2023', '2024'],
-                    'amc_status' => 'Active',
-                    'amc_year' => '2025',
-                    'order_status' => 'Completed',
-                ],
-            ],
-        ], 'RD3395988');
+        $enrichment = $this->mapper->map($this->productionStylePayload(), 'RD3395988');
 
         $this->assertSame('Satyam Test', $enrichment->customerName);
         $this->assertSame('9876543210', $enrichment->customerPhone);
         $this->assertSame('test@example.com', $enrichment->customerEmail);
         $this->assertSame('GSTIN123', $enrichment->gstNumber);
         $this->assertSame('INV-9988', $enrichment->invoiceNumber);
+        $this->assertSame('2022', $enrichment->activationYear);
+        $this->assertSame('2022', $enrichment->purchaseYear);
         $this->assertSame(['2023', '2024'], $enrichment->serviceHistory);
         $this->assertSame('Active', $enrichment->amcStatus);
         $this->assertSame('2025', $enrichment->amcYear);
         $this->assertSame('Completed', $enrichment->legacyOrderStatus);
         $this->assertTrue($enrichment->hasLegacyPreviewData());
+    }
+
+    public function test_it_maps_rd3395988_production_style_payload(): void
+    {
+        $enrichment = $this->mapper->map($this->rd3395988ProductionStylePayload(), 'RD3395988');
+
+        $this->assertSame('C Balasubramanian', $enrichment->customerName);
+        $this->assertSame('8940040243', $enrichment->customerPhone);
+        $this->assertSame('sheyamalaonline@gmail.com', $enrichment->customerEmail);
+        $this->assertSame('INV6718288', $enrichment->invoiceNumber);
+        $this->assertSame('2026', $enrichment->activationYear);
+        $this->assertSame('2026', $enrichment->purchaseYear);
+        $this->assertSame('MIS100 IRIS', $enrichment->deviceModel);
+        $this->assertSame('6183792', $enrichment->serialNumber);
+        $this->assertSame(['1 Year Unlimited'], $enrichment->serviceHistory);
+        $this->assertSame('Completed', $enrichment->legacyOrderStatus);
+        $this->assertNull($enrichment->gstNumber);
+        $this->assertNull($enrichment->amcStatus);
+    }
+
+    public function test_it_falls_back_to_order_userdetails_when_rd_order_userdetails_is_invalid(): void
+    {
+        $userDetails = json_encode([
+            'name' => 'Fallback Customer',
+            'phone' => '9000000001',
+            'email' => 'fallback@example.com',
+        ]);
+
+        $enrichment = $this->mapper->map([
+            'status' => 200,
+            'data' => [
+                'order' => [
+                    'userdetails' => $userDetails,
+                ],
+                'rd_order' => [
+                    'rdorderid' => 'RD-FALLBACK-001',
+                    'userdetails' => '{invalid json',
+                    'serial_no' => 'SER-001',
+                    'product_name' => 'MFS 110',
+                ],
+            ],
+        ], 'RD-FALLBACK-001');
+
+        $this->assertSame('Fallback Customer', $enrichment->customerName);
+        $this->assertSame('9000000001', $enrichment->customerPhone);
+        $this->assertSame('fallback@example.com', $enrichment->customerEmail);
     }
 
     public function test_it_maps_device_data_when_radiumbox_payment_status_is_pending(): void
@@ -104,7 +133,7 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
             'status' => 200,
             'data' => [
                 'rd_order' => [
-                    'order_id' => 'RD-OTHER',
+                    'rdorderid' => 'RD-OTHER',
                     'serial_no' => '9655721',
                     'product_name' => 'MFS 110',
                 ],
@@ -132,5 +161,82 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
             'status' => 200,
             'data' => [],
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function productionStylePayload(string $orderId = 'RD3395988'): array
+    {
+        $userDetails = json_encode([
+            'name' => 'Satyam Test',
+            'phone' => '9876543210',
+            'email' => 'Test@Example.com',
+            'gst_no' => 'GSTIN123',
+        ]);
+
+        return [
+            'status' => 200,
+            'data' => [
+                'order' => [
+                    'invoicecode' => 'INV-9988',
+                    'orderdate' => '2022-06-15 10:00:00',
+                    'userdetails' => $userDetails,
+                    'gst_no' => 'GSTIN123',
+                    'status' => 'Completed',
+                ],
+                'rd_order' => [
+                    'rdorderid' => $orderId,
+                    'product_name' => 'MFS 110',
+                    'serial_no' => 'SN123456',
+                    'userdetails' => $userDetails,
+                    'activation_year' => '2022',
+                    'service_history' => ['2023', '2024'],
+                    'amc_status' => 'Active',
+                    'amc_year' => '2025',
+                    'rd_service_name' => '1 Year Unlimited',
+                    'status' => 'Completed',
+                    'created_at' => '2022-06-15 10:00:00',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rd3395988ProductionStylePayload(): array
+    {
+        $userDetails = json_encode([
+            'name' => 'C Balasubramanian',
+            'phone' => '8940040243',
+            'email' => 'sheyamalaonline@gmail.com',
+            'gst_no' => null,
+        ]);
+
+        return [
+            'status' => 200,
+            'data' => [
+                'order' => [
+                    'invoicecode' => 'INV6718288',
+                    'orderdate' => '2026-05-18 15:27:39',
+                    'userdetails' => $userDetails,
+                    'gst_no' => null,
+                    'status' => 'Completed',
+                ],
+                'rd_order' => [
+                    'rdorderid' => 'RD3395988',
+                    'product_name' => 'MIS100 IRIS',
+                    'serial_no' => '6183792',
+                    'userdetails' => $userDetails,
+                    'gst_no' => null,
+                    'rd_service_name' => '1 Year Unlimited',
+                    'amc_service_id' => null,
+                    'amc_service_name' => null,
+                    'status' => 'Completed',
+                    'created_at' => '2026-05-18 15:27:15',
+                ],
+            ],
+        ];
     }
 }

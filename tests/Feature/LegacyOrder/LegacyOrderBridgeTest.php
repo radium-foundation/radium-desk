@@ -284,24 +284,36 @@ class LegacyOrderBridgeTest extends TestCase
      */
     private function legacyOrderApiResponse(string $orderId = 'RD3395988'): array
     {
+        $userDetails = json_encode([
+            'name' => 'Satyam Test',
+            'phone' => '9876543210',
+            'email' => 'test@example.com',
+            'gst_no' => 'GSTIN123',
+        ]);
+
         return [
             'status' => 200,
             'data' => [
+                'order' => [
+                    'invoicecode' => 'INV-9988',
+                    'orderdate' => '2022-06-15 10:00:00',
+                    'userdetails' => $userDetails,
+                    'gst_no' => 'GSTIN123',
+                    'status' => 'Completed',
+                ],
                 'rd_order' => [
-                    'order_id' => $orderId,
-                    'customer_name' => 'Satyam Test',
-                    'mobile' => '9876543210',
-                    'email' => 'test@example.com',
+                    'rdorderid' => $orderId,
                     'product_name' => 'MFS 110',
                     'serial_no' => 'SN123456',
-                    'gst_number' => 'GSTIN123',
-                    'invoice_number' => 'INV-9988',
+                    'userdetails' => $userDetails,
                     'activation_year' => '2022',
                     'service_history' => ['2023', '2024'],
                     'amc_status' => 'Active',
                     'amc_year' => '2025',
                     'amc_details' => ['plan' => 'Gold'],
-                    'order_status' => 'Completed',
+                    'rd_service_name' => '1 Year Unlimited',
+                    'status' => 'Completed',
+                    'created_at' => '2022-06-15 10:00:00',
                 ],
             ],
         ];
