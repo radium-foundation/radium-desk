@@ -4,7 +4,11 @@ namespace App\Services;
 
 use App\Data\CustomerIntakeSearchResult;
 use App\Enums\CustomerIdentityType;
+use App\Enums\IncidentStatus;
+use App\Enums\WorkspaceContext;
+use App\Models\Incident;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\LegacyOrder\LegacyOrderLookupService;
 use Illuminate\Support\Collection;
@@ -20,6 +24,7 @@ class CustomerIntakeSearchService
         ?string $phone = null,
         ?string $orderId = null,
         ?string $serialNumber = null,
+        ?User $user = null,
     ): CustomerIntakeSearchResult {
         $phone = $this->normalizeOptional($phone);
         $orderId = $this->normalizeOptional($orderId);
@@ -32,7 +37,7 @@ class CustomerIntakeSearchService
 
             return new CustomerIntakeSearchResult(
                 classification: $classification,
-                matches: $this->formatMatches($matches),
+                matches: $this->formatMatches($matches, $user),
                 legacySource: $classification === CustomerIdentityType::Legacy ? 'desk' : null,
             );
         }
@@ -123,13 +128,40 @@ class CustomerIntakeSearchService
      *     product_name: ?string,
      *     identity_type: string,
      *     legacy_source: ?string,
+     *     existing_case: ?array{
+     *         incident_id: int,
+     *         reference_no: ?string,
+     *         display_reference: string,
+     *         status: string,
+     *         status_label: string,
+     *         is_closed: bool,
+     *         customer_360_url: string,
+     *         can_reopen: bool,
+     *         reopen_url: ?string,
+     *         reopen_workspace_context: string,
+     *     },
      * }>
      */
-    private function formatMatches(Collection $matches): array
+    private function formatMatches(Collection $matches, ?User $user): array
     {
+        if ($matches->isEmpty()) {
+            return [];
+        }
+
+        $orders = Order::query()
+            ->whereIn('id', $matches->pluck('id'))
+            ->with([
+                'incidents' => fn ($query) => $query->latest()->limit(1),
+            ])
+            ->get()
+            ->keyBy('id');
+
         return $matches
-            ->map(function (Order $order): array {
+            ->map(function (Order $order) use ($user, $orders): array {
+                $order = $orders->get($order->id) ?? $order;
                 $identityType = $this->identityTypeForOrder($order);
+                /** @var Incident|null $incident */
+                $incident = $order->incidents->first();
 
                 return [
                     'id' => $order->id,
@@ -139,10 +171,48 @@ class CustomerIntakeSearchService
                     'product_name' => $order->displayDeviceModelName(),
                     'identity_type' => $identityType->value,
                     'legacy_source' => $identityType === CustomerIdentityType::Legacy ? 'desk' : null,
+                    'existing_case' => $incident !== null
+                        ? $this->formatExistingCase($incident, $user)
+                        : null,
                 ];
             })
             ->values()
             ->all();
+    }
+
+    /**
+     * @return array{
+     *     incident_id: int,
+     *     reference_no: ?string,
+     *     display_reference: string,
+     *     status: string,
+     *     status_label: string,
+     *     is_closed: bool,
+     *     customer_360_url: string,
+     *     can_reopen: bool,
+     *     reopen_url: ?string,
+     *     reopen_workspace_context: string,
+     * }
+     */
+    private function formatExistingCase(Incident $incident, ?User $user): array
+    {
+        $isClosed = $incident->status === IncidentStatus::Closed;
+        $canReopen = $user !== null
+            && $isClosed
+            && $user->can('update', $incident);
+
+        return [
+            'incident_id' => $incident->id,
+            'reference_no' => $incident->reference_no,
+            'display_reference' => $incident->display_reference,
+            'status' => $incident->status->value,
+            'status_label' => $incident->status->label(),
+            'is_closed' => $isClosed,
+            'customer_360_url' => route('dashboard.service-cases.customer-360', $incident),
+            'can_reopen' => $canReopen,
+            'reopen_url' => $canReopen ? route('incidents.workspace.action', $incident) : null,
+            'reopen_workspace_context' => WorkspaceContext::ServiceCase->value,
+        ];
     }
 
     public function identityTypeForOrder(Order $order): CustomerIdentityType

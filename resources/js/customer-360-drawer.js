@@ -1022,6 +1022,17 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
     }, { signal: customer360RefreshAbortController.signal });
 
+    document.addEventListener('customer360:open', (event) => {
+        const incidentId = event.detail?.incidentId;
+        const referenceLabel = event.detail?.referenceLabel ?? '';
+
+        if (!incidentId) {
+            return;
+        }
+
+        open(incidentId, referenceLabel);
+    }, { signal: customer360RefreshAbortController.signal });
+
     return {
         open,
         close,

@@ -27,6 +27,7 @@ class QuickServiceRequestController extends Controller
             phone: $request->string('phone')->trim()->toString() ?: null,
             orderId: $request->string('order_id')->trim()->toString() ?: null,
             serialNumber: $request->string('serial_number')->trim()->toString() ?: null,
+            user: $request->user(),
         );
 
         return response()->json([

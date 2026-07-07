@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Customer360AIWorkbenchAuditRequest;
 use App\Http\Requests\Customer360ExecutiveSummaryTranslationRequest;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\AI\AIWorkbenchAuditService;
 use App\Services\AI\IRAExecutiveSummaryTranslationService;
@@ -30,6 +31,17 @@ class Customer360Controller extends Controller
         $html = view('customer-360.drawer-content', $this->customer360Service->drawerData($incident))->render();
 
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+
+    public function showForOrder(Order $order): Response
+    {
+        $incident = $order->incidents()->latest()->first();
+
+        if ($incident === null) {
+            abort(404, 'No service case found for this order.');
+        }
+
+        return $this->show($incident);
     }
 
     public function radiumBoxSync(Incident $incident): JsonResponse

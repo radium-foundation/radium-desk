@@ -15,6 +15,7 @@ class CustomerIntakeSearchResult
      *     product_name: ?string,
      *     identity_type: string,
      *     legacy_source: ?string,
+     *     existing_case: ?array<string, mixed>,
      * }>  $matches
      */
     public function __construct(

@@ -140,6 +140,141 @@ const renderLegacyPreview = (modal, form, data) => {
     });
 };
 
+const renderExistingRecordCard = (modal, form, match) => {
+    const list = modal.querySelector('#intake-matches-list');
+    const classificationLabel = modal.querySelector('#intake-classification-label');
+    const searchButton = modal.querySelector('#intake-search-button');
+    const existingCase = match.existing_case;
+
+    if (!list || !classificationLabel || !existingCase) {
+        return;
+    }
+
+    classificationLabel.textContent = 'Existing Radium Desk record found.';
+    list.innerHTML = '';
+
+    const item = document.createElement('div');
+    item.className = 'list-group-item intake-existing-record-card';
+    item.innerHTML = `
+        <dl class="row small mb-3 intake-existing-record-card__fields">
+            <dt class="col-sm-3 text-muted">Order</dt>
+            <dd class="col-sm-9 mb-2 fw-semibold">${match.order_id}</dd>
+            <dt class="col-sm-3 text-muted">Case</dt>
+            <dd class="col-sm-9 mb-2 fw-semibold">${existingCase.display_reference}</dd>
+            <dt class="col-sm-3 text-muted">Status</dt>
+            <dd class="col-sm-9 mb-0">${existingCase.status_label}</dd>
+        </dl>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-sm btn-primary" data-intake-open-customer-360="true">
+                Open Customer 360
+            </button>
+            ${existingCase.can_reopen ? `
+                <button type="button" class="btn btn-sm btn-outline-primary" data-intake-reopen-case="true">
+                    Reopen Case
+                </button>
+            ` : ''}
+            ${existingCase.is_closed ? '' : `
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-intake-select-match="true">
+                    Create Service Case
+                </button>
+            `}
+        </div>
+        <div class="text-danger small mt-2 d-none" data-intake-existing-record-error></div>
+    `;
+
+    item.querySelector('[data-intake-open-customer-360]')?.addEventListener('click', () => {
+        bootstrap.Modal.getInstance(modal)?.hide();
+        document.dispatchEvent(new CustomEvent('customer360:open', {
+            detail: {
+                incidentId: existingCase.incident_id,
+                referenceLabel: existingCase.display_reference,
+            },
+        }));
+    });
+
+    item.querySelector('[data-intake-reopen-case]')?.addEventListener('click', async () => {
+        const errorElement = item.querySelector('[data-intake-existing-record-error]');
+        const reopenButton = item.querySelector('[data-intake-reopen-case]');
+
+        if (!existingCase.reopen_url) {
+            return;
+        }
+
+        if (errorElement) {
+            errorElement.classList.add('d-none');
+            errorElement.textContent = '';
+        }
+
+        if (reopenButton) {
+            reopenButton.disabled = true;
+        }
+
+        try {
+            const response = await fetch(existingCase.reopen_url, {
+                method: 'PATCH',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    workspace_context: existingCase.reopen_workspace_context,
+                    action_type: 'reopen',
+                    body: 'Reopened from Quick Create search.',
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                if (errorElement) {
+                    errorElement.textContent = data.message ?? 'Unable to reopen service case.';
+                    errorElement.classList.remove('d-none');
+                }
+
+                return;
+            }
+
+            bootstrap.Modal.getInstance(modal)?.hide();
+            document.dispatchEvent(new CustomEvent('customer360:open', {
+                detail: {
+                    incidentId: existingCase.incident_id,
+                    referenceLabel: existingCase.display_reference,
+                },
+            }));
+        } catch {
+            if (errorElement) {
+                errorElement.textContent = 'Unable to reopen service case.';
+                errorElement.classList.remove('d-none');
+            }
+        } finally {
+            if (reopenButton) {
+                reopenButton.disabled = false;
+            }
+        }
+    });
+
+    item.querySelector('[data-intake-select-match]')?.addEventListener('click', () => {
+        const actionField = form.querySelector('#intake_action');
+        const matchedOrderField = form.querySelector('#intake_matched_order_id');
+        const legacyOrderField = form.querySelector('#intake_legacy_order_id');
+
+        actionField.value = 'existing_order';
+        matchedOrderField.value = String(match.id);
+        legacyOrderField.value = '';
+
+        showStep(modal, 'intake-step-details');
+        searchButton?.classList.add('d-none');
+        modal.querySelector('#intake-submit-button')?.classList.remove('d-none');
+    });
+
+    list.appendChild(item);
+    showStep(modal, 'intake-step-results');
+    searchButton?.classList.add('d-none');
+    modal.querySelector('#intake-submit-button')?.classList.add('d-none');
+};
+
 const renderMatches = (modal, form, data) => {
     const list = modal.querySelector('#intake-matches-list');
     const classificationLabel = modal.querySelector('#intake-classification-label');
@@ -147,6 +282,11 @@ const renderMatches = (modal, form, data) => {
     const submitButton = modal.querySelector('#intake-submit-button');
 
     if (!list || !classificationLabel) {
+        return;
+    }
+
+    if (data.matches.length === 1 && data.matches[0].existing_case) {
+        renderExistingRecordCard(modal, form, data.matches[0]);
         return;
     }
 
