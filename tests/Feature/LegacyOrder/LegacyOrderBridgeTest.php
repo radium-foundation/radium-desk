@@ -178,6 +178,32 @@ class LegacyOrderBridgeTest extends TestCase
             ->assertJsonPath('customer_360_url', route('dashboard.service-cases.customer-360', $incident));
     }
 
+    public function test_legacy_import_json_accepts_source_notes_and_high_priority(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response($this->legacyOrderApiResponse()),
+        ]);
+
+        $agent = User::factory()->create(['name' => 'JSON Priority Agent']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->postJson(route('service-requests.quick.store'), [
+                'action' => 'legacy_import',
+                'legacy_order_id' => 'RD3395988',
+                'source' => IncidentSource::Email->value,
+                'notes' => 'Customer reported screen flickering.',
+                'high_priority' => true,
+            ])
+            ->assertOk();
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+        $this->assertSame(IncidentSource::Email, $incident->source);
+        $this->assertSame('Customer reported screen flickering.', $incident->description);
+        $this->assertTrue($incident->high_priority);
+    }
+
     public function test_legacy_import_json_rejects_duplicate_order(): void
     {
         Http::fake([

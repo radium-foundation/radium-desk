@@ -82,6 +82,9 @@
                 'enabledProducts' => $enabledProducts ?? [],
                 'enabledSources' => $enabledSources ?? [],
             ])
+            @include('dashboard.partials.legacy-search-confirm-modal', [
+                'enabledSources' => $enabledSources ?? [],
+            ])
         @endif
 
         @include('dashboard.partials.customer-360-drawer-host')

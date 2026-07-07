@@ -21,7 +21,29 @@ describe('dashboard global search integration', () => {
         vi.restoreAllMocks();
     });
 
-    const mountDashboard = ({ showToast = vi.fn() } = {}) => {
+    const legacyConfirmModalHtml = `
+            <div class="modal fade" id="legacySearchConfirmModal">
+                <div class="modal-body">
+                    <dd data-legacy-confirm-order-id></dd>
+                    <dd data-legacy-confirm-customer-name></dd>
+                    <dd data-legacy-confirm-mobile></dd>
+                    <dd data-legacy-confirm-email></dd>
+                    <dd data-legacy-confirm-product-model></dd>
+                    <dd data-legacy-confirm-serial-number></dd>
+                    <select id="legacy_search_confirm_source">
+                        <option value="" disabled selected>Select source</option>
+                        <option value="call">Call</option>
+                        <option value="email">Email</option>
+                    </select>
+                    <input type="checkbox" id="legacy_search_confirm_high_priority" value="1">
+                    <textarea id="legacy_search_confirm_notes"></textarea>
+                    <div id="legacy_search_confirm_error" class="d-none"></div>
+                </div>
+                <button type="button" data-legacy-search-confirm-submit>Create Service Request</button>
+            </div>
+        `;
+
+    const mountDashboard = ({ showToast = vi.fn(), includeLegacyConfirmModal = true } = {}) => {
         document.body.innerHTML = `
             <meta name="csrf-token" content="test-csrf-token">
             <form data-universal-search-form data-search-url="/search">
@@ -75,6 +97,7 @@ describe('dashboard global search integration', () => {
                     <div data-customer-360-content-host"></div>
                 </aside>
             </div>
+            ${includeLegacyConfirmModal ? legacyConfirmModalHtml : ''}
         `;
 
         const pageRoot = document.getElementById('dashboard-page');
@@ -454,11 +477,65 @@ describe('dashboard global search integration', () => {
             .toBe('Create Service Request');
     });
 
-    it('creates complete legacy orders in one click without opening quick create', async () => {
+    it('opens confirmation modal without creating on first click', async () => {
         const quickCreateShow = vi.fn();
-        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockReturnValue({
-            show: quickCreateShow,
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : quickCreateShow,
+            hide: vi.fn(),
+        }));
+
+        mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                match_count: 0,
+                incident_ids: [],
+                results: [],
+                intake: {
+                    classification: 'legacy',
+                    requires_confirmation: true,
+                    legacy_preview_complete: true,
+                    default_source: 'call',
+                    create_url: '/service-requests/quick',
+                    legacy_preview: {
+                        order_id: 'RD3395988',
+                        customer_name: 'Satyam Test',
+                        mobile: '9876543210',
+                        email: 'test@example.com',
+                        product_model: 'MFS 110',
+                        serial_number: 'SN123456',
+                    },
+                    parsed_query: {
+                        phone: null,
+                        order_id: 'RD3395988',
+                        serial_number: null,
+                    },
+                },
+            }),
         });
+
+        await submitSearch('RD3395988');
+        document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        expect(quickCreateShow).not.toHaveBeenCalled();
+        expect(fetch).toHaveBeenCalledTimes(1);
+        expect(document.querySelector('[data-legacy-confirm-order-id]')?.textContent).toBe('RD3395988');
+        expect(document.querySelector('#legacy_search_confirm_source')?.value).toBe('call');
+    });
+
+    it('creates complete legacy orders after confirmation without opening quick create', async () => {
+        const quickCreateShow = vi.fn();
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : quickCreateShow,
+            hide: vi.fn(),
+        }));
 
         const { customer360Drawer, showToast } = mountDashboard();
         const openDrawerSpy = vi.spyOn(customer360Drawer, 'open');
@@ -526,6 +603,28 @@ describe('dashboard global search integration', () => {
         document.querySelector('[data-dashboard-search-intake-action]')?.click();
 
         await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        const notesField = document.getElementById('legacy_search_confirm_notes');
+        const sourceField = document.getElementById('legacy_search_confirm_source');
+        const highPriorityField = document.getElementById('legacy_search_confirm_high_priority');
+
+        if (notesField) {
+            notesField.value = 'Screen flickering issue';
+        }
+
+        if (sourceField) {
+            sourceField.value = 'email';
+        }
+
+        if (highPriorityField) {
+            highPriorityField.checked = true;
+        }
+
+        document.querySelector('[data-legacy-search-confirm-submit]')?.click();
+
+        await vi.waitFor(() => {
             expect(showToast).toHaveBeenCalledWith('Service Case SC00055 created');
         });
 
@@ -537,9 +636,18 @@ describe('dashboard global search integration', () => {
         );
         expect(createRequest).toBeDefined();
         expect(createRequest?.[1]?.headers?.Accept).toBe('application/json');
+        expect(createRequest?.[1]?.body.get('source')).toBe('email');
+        expect(createRequest?.[1]?.body.get('notes')).toBe('Screen flickering issue');
+        expect(createRequest?.[1]?.body.get('high_priority')).toBe('1');
     });
 
-    it('shows toast when one-click legacy create is rejected as duplicate', async () => {
+    it('shows toast when confirmed legacy create is rejected as duplicate', async () => {
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : vi.fn(),
+            hide: vi.fn(),
+        }));
+
         const { showToast } = mountDashboard();
 
         fetch
@@ -588,6 +696,12 @@ describe('dashboard global search integration', () => {
         document.querySelector('[data-dashboard-search-intake-action]')?.click();
 
         await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        document.querySelector('[data-legacy-search-confirm-submit]')?.click();
+
+        await vi.waitFor(() => {
             expect(showToast).toHaveBeenCalledWith(
                 'This order already exists in Radium Desk.',
                 'danger',
@@ -597,7 +711,13 @@ describe('dashboard global search integration', () => {
         expect(fetch).toHaveBeenCalledTimes(2);
     });
 
-    it('shows session expired toast when one-click create returns non-json 419', async () => {
+    it('shows session expired toast when confirmed legacy create returns non-json 419', async () => {
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : vi.fn(),
+            hide: vi.fn(),
+        }));
+
         const { showToast } = mountDashboard();
 
         fetch
@@ -634,6 +754,12 @@ describe('dashboard global search integration', () => {
         document.querySelector('[data-dashboard-search-intake-action]')?.click();
 
         await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        document.querySelector('[data-legacy-search-confirm-submit]')?.click();
+
+        await vi.waitFor(() => {
             expect(showToast).toHaveBeenCalledWith(
                 'Session expired. Refresh and try again.',
                 'danger',
@@ -641,7 +767,13 @@ describe('dashboard global search integration', () => {
         });
     });
 
-    it('shows generic toast when one-click create returns non-json error', async () => {
+    it('shows generic toast when confirmed legacy create returns non-json error', async () => {
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : vi.fn(),
+            hide: vi.fn(),
+        }));
+
         const { showToast } = mountDashboard();
 
         fetch
@@ -676,6 +808,12 @@ describe('dashboard global search integration', () => {
 
         await submitSearch('RD3395988');
         document.querySelector('[data-dashboard-search-intake-action]')?.click();
+
+        await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        document.querySelector('[data-legacy-search-confirm-submit]')?.click();
 
         await vi.waitFor(() => {
             expect(showToast).toHaveBeenCalledWith(
