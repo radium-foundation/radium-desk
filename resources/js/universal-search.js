@@ -4,6 +4,8 @@ import { hideSearchBanner, showSearchBanner } from './dashboard-search-banner';
 const SEARCH_ICON_HTML = '<i class="bi bi-search"></i>';
 const SEARCH_LOADING_HTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
+const SEARCH_FETCH_ERROR = 'Unable to load search results. Please try again.';
+const SEARCH_ROWS_ERROR = 'Unable to load matching service cases. Please try again.';
 
 const buildSearchRowsUrl = (baseUrl, incidentIds) => {
     const params = new URLSearchParams();
@@ -19,6 +21,18 @@ const buildDashboardSearchUrl = (dashboardUrl, query) => {
     const params = new URLSearchParams({ q: query.trim() });
 
     return `${dashboardUrl}?${params.toString()}`;
+};
+
+const buildSearchEmptyRowHtml = (card) => {
+    const colCount = card?.querySelector('thead tr')?.children.length ?? 12;
+
+    return `
+        <tr id="dashboard-service-cases-empty-row">
+            <td colspan="${colCount}" class="dashboard-cases-empty text-center text-muted small py-3">
+                No matching records.
+            </td>
+        </tr>
+    `;
 };
 
 const clearSearchMatchHighlight = (card) => {
@@ -86,15 +100,32 @@ export const initUniversalSearch = ({
         window.location.assign(buildDashboardSearchUrl(dashboardUrl, query));
     };
 
-    const applySearchRows = async (incidentIds, matchCount) => {
-        if (!dashboardIntegration?.searchRowsUrl || !dashboardIntegration.applyRows) {
+    const showSearchEmptyResults = (card) => {
+        if (!dashboardIntegration?.applyRows) {
             return;
+        }
+
+        dashboardIntegration.applyRows([], {
+            serviceCasesEmpty: true,
+            serviceCasesEmptyHtml: buildSearchEmptyRowHtml(card),
+        });
+        dashboardIntegration.onRowsUpdated?.();
+    };
+
+    const showSearchFailure = (card, message) => {
+        showSearchBanner(card, { error: message });
+        setDashboardSearchActive(true);
+    };
+
+    const applySearchRows = async (incidentIds, matchCount, query) => {
+        if (!dashboardIntegration?.searchRowsUrl || !dashboardIntegration.applyRows) {
+            return false;
         }
 
         const card = getDashboardCard();
 
         if (!card || incidentIds.length === 0) {
-            return;
+            return false;
         }
 
         const rowsResponse = await fetch(
@@ -110,14 +141,16 @@ export const initUniversalSearch = ({
         );
 
         if (!rowsResponse.ok) {
-            return;
+            showSearchFailure(card, SEARCH_ROWS_ERROR);
+
+            return false;
         }
 
         const rowsData = await rowsResponse.json();
 
         dashboardIntegration.applyRows(rowsData.rows ?? [], {
             serviceCasesEmpty: Boolean(rowsData.service_cases_empty),
-            serviceCasesEmptyHtml: rowsData.service_cases_empty_html ?? '',
+            serviceCasesEmptyHtml: rowsData.service_cases_empty_html ?? buildSearchEmptyRowHtml(card),
         });
         dashboardIntegration.onRowsUpdated?.();
 
@@ -132,6 +165,8 @@ export const initUniversalSearch = ({
         } else {
             clearSearchMatchHighlight(card);
         }
+
+        return true;
     };
 
     const restoreDashboard = async () => {
@@ -187,7 +222,15 @@ export const initUniversalSearch = ({
                 signal: searchAbortController.signal,
             });
 
-            if (!response.ok || requestId !== searchRequestId) {
+            if (requestId !== searchRequestId) {
+                return;
+            }
+
+            const card = getDashboardCard();
+
+            if (!response.ok) {
+                showSearchFailure(card, SEARCH_FETCH_ERROR);
+
                 return;
             }
 
@@ -199,20 +242,24 @@ export const initUniversalSearch = ({
 
             const incidentIds = (data.incident_ids ?? []).map(Number);
             const matchCount = data.match_count ?? 0;
-            const card = getDashboardCard();
 
-            showSearchBanner(card, { matchCount });
+            showSearchBanner(card, { matchCount, query: trimmedQuery });
 
             if (incidentIds.length === 0) {
+                showSearchEmptyResults(card);
                 dashboardIntegration.onRowsUpdated?.();
 
                 return;
             }
 
-            await applySearchRows(incidentIds, matchCount);
+            await applySearchRows(incidentIds, matchCount, trimmedQuery);
         } catch (error) {
             if (error?.name === 'AbortError') {
                 return;
+            }
+
+            if (requestId === searchRequestId) {
+                showSearchFailure(getDashboardCard(), SEARCH_FETCH_ERROR);
             }
         } finally {
             if (requestId === searchRequestId) {

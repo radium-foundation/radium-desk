@@ -209,6 +209,10 @@ class DashboardPersonalizationService
             $params['queue'] = $queue;
         }
 
+        $preserveQuery = filled($request->query('q'))
+            ? ['q' => $request->query('q')]
+            : [];
+
         $currentParams = array_filter([
             'queue' => $request->query('queue'),
             'view' => $request->query('view'),
@@ -220,14 +224,14 @@ class DashboardPersonalizationService
         }
 
         if ($params === [] && $currentParams !== []) {
-            return redirect()->route('dashboard');
+            return redirect()->route('dashboard', $preserveQuery);
         }
 
         if (($currentParams['queue'] ?? null) === ($params['queue'] ?? null) && ! isset($currentParams['view'], $currentParams['filter'])) {
             return null;
         }
 
-        return redirect()->route('dashboard', $params);
+        return redirect()->route('dashboard', array_merge($params, $preserveQuery));
     }
 
     public function resolveAssignedToScope(User $user, string $queue): ?User

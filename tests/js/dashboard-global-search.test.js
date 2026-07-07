@@ -265,7 +265,7 @@ describe('dashboard global search integration', () => {
         });
 
         expect(fetch).toHaveBeenCalledWith(
-            '/dashboard/live?filter=all',
+            '/dashboard/live?queue=all&filter=all',
             expect.any(Object),
         );
         expect(document.getElementById('service-case-row-10')).not.toBeNull();
@@ -361,10 +361,10 @@ describe('dashboard global search integration', () => {
         expect(banner?.hidden).toBe(false);
         expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(false);
         expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
-            .toBe('Showing 2 matching service cases');
+            .toBe('Showing results for RD-MULTI');
     });
 
-    it('shows zero-result banner without blanking dashboard rows', async () => {
+    it('shows zero-result banner and clears dashboard rows', async () => {
         mountDashboard();
 
         fetch.mockResolvedValueOnce({
@@ -382,10 +382,107 @@ describe('dashboard global search integration', () => {
         expect(banner?.hidden).toBe(false);
         expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(true);
         expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
-            .toBe('No matching service cases found.');
-        expect(document.getElementById('service-case-row-10')).not.toBeNull();
-        expect(document.getElementById('service-case-row-20')).not.toBeNull();
+            .toBe('No record found for RD-NO-MATCH');
+        expect(document.getElementById('service-case-row-10')).toBeNull();
+        expect(document.getElementById('service-case-row-20')).toBeNull();
+        expect(document.getElementById('dashboard-service-cases-empty-row')).not.toBeNull();
         expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('bootstraps search from dashboard q query parameter', async () => {
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [42],
+                    results: [{ incident_id: 42 }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    service_cases_empty: false,
+                    rows: [{
+                        incident_id: 42,
+                        html: `
+                            <tr id="service-case-row-42" data-incident-id="42">
+                                <td><a href="/incidents/42" class="case-reference-link">SC03587</a></td>
+                                <td>RD3437143</td>
+                            </tr>
+                        `,
+                    }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => '<div data-customer-360-content>Drawer loaded</div>',
+            });
+
+        window.history.replaceState({}, '', '/dashboard?q=RD3437143');
+
+        mountDashboard();
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledWith(
+                '/search?q=RD3437143',
+                expect.objectContaining({
+                    headers: expect.objectContaining({ Accept: 'application/json' }),
+                }),
+            );
+        });
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('service-case-row-42')).not.toBeNull();
+            expect(document.getElementById('service-case-row-10')).toBeNull();
+        });
+
+        expect(document.getElementById('global-search-input')?.value).toBe('RD3437143');
+        expect(document.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Showing results for RD3437143');
+    });
+
+    it('shows visible error when search fetch fails', async () => {
+        mountDashboard();
+
+        fetch.mockResolvedValueOnce({
+            ok: false,
+            json: async () => ({}),
+        });
+
+        await submitSearch('RD-FAIL');
+
+        const banner = document.querySelector('[data-dashboard-search-banner]');
+        expect(banner?.hidden).toBe(false);
+        expect(banner?.classList.contains('dashboard-search-banner--error')).toBe(true);
+        expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Unable to load search results. Please try again.');
+    });
+
+    it('shows visible error when search rows fetch fails', async () => {
+        mountDashboard();
+
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    match_count: 1,
+                    incident_ids: [42],
+                    results: [{ incident_id: 42 }],
+                }),
+            })
+            .mockResolvedValueOnce({
+                ok: false,
+                json: async () => ({}),
+            });
+
+        await submitSearch('RD-ROWS-FAIL');
+
+        const banner = document.querySelector('[data-dashboard-search-banner]');
+        expect(banner?.hidden).toBe(false);
+        expect(banner?.classList.contains('dashboard-search-banner--error')).toBe(true);
+        expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Unable to load matching service cases. Please try again.');
     });
 
     it('prevents live dashboard refresh from overwriting search rows', async () => {

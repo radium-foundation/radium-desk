@@ -19,37 +19,51 @@ describe('dashboard search banner', () => {
         document.body.innerHTML = '';
     });
 
-    it('shows result count message for matches', () => {
+    it('shows result query message for matches', () => {
         const card = document.querySelector('.dashboard-service-cases-card');
 
-        showSearchBanner(card, { matchCount: 1 });
+        showSearchBanner(card, { matchCount: 1, query: 'RD3437143' });
 
         const banner = document.querySelector('[data-dashboard-search-banner]');
         expect(banner?.hidden).toBe(false);
+        expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(false);
         expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
-            .toBe('Showing 1 matching service case');
+            .toBe('Showing results for RD3437143');
     });
 
     it('shows zero-result message without title', () => {
         const card = document.querySelector('.dashboard-service-cases-card');
 
-        showSearchBanner(card, { matchCount: 0 });
+        showSearchBanner(card, { matchCount: 0, query: 'RD3437143' });
 
         const banner = document.querySelector('[data-dashboard-search-banner]');
         expect(banner?.hidden).toBe(false);
         expect(banner?.querySelector('[data-dashboard-search-banner-title]')?.classList.contains('d-none')).toBe(true);
         expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
-            .toBe('No matching service cases found.');
+            .toBe('No record found for RD3437143');
+    });
+
+    it('shows error message for failed search', () => {
+        const card = document.querySelector('.dashboard-service-cases-card');
+
+        showSearchBanner(card, { error: 'Unable to load search results. Please try again.' });
+
+        const banner = document.querySelector('[data-dashboard-search-banner]');
+        expect(banner?.hidden).toBe(false);
+        expect(banner?.classList.contains('dashboard-search-banner--error')).toBe(true);
+        expect(banner?.querySelector('[data-dashboard-search-banner-message]')?.textContent)
+            .toBe('Unable to load search results. Please try again.');
     });
 
     it('hides banner when search is cleared', () => {
         const card = document.querySelector('.dashboard-service-cases-card');
 
-        showSearchBanner(card, { matchCount: 2 });
+        showSearchBanner(card, { matchCount: 2, query: 'RD-MULTI' });
         hideSearchBanner(card);
 
         const banner = document.querySelector('[data-dashboard-search-banner]');
         expect(banner?.hidden).toBe(true);
         expect(banner?.classList.contains('d-none')).toBe(true);
+        expect(banner?.classList.contains('dashboard-search-banner--error')).toBe(false);
     });
 });

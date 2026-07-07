@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\DashboardPersonalizationService;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -181,5 +182,89 @@ class DashboardGlobalSearchTest extends TestCase
             ->assertJsonPath('service_cases_empty', true)
             ->assertJsonPath('rows', [])
             ->assertJsonPath('incident_ids', []);
+    }
+
+    public function test_search_rows_includes_closed_case(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $closedCase = $this->createServiceCase($agent, [
+            'order_id' => 'RD-CLOSED-SEARCH-001',
+        ], [
+            'status' => IncidentStatus::Closed,
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.search-rows', ['ids' => [$closedCase->id]]))
+            ->assertOk()
+            ->assertJsonPath('service_cases_empty', false)
+            ->assertJsonPath('incident_ids.0', $closedCase->id)
+            ->assertSee('RD-CLOSED-SEARCH-001', false);
+    }
+
+    public function test_global_search_finds_closed_case_by_order_id(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $closedCase = $this->createServiceCase($agent, [
+            'order_id' => 'RD3437143',
+        ], [
+            'status' => IncidentStatus::Closed,
+        ]);
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD3437143']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $closedCase->id);
+    }
+
+    public function test_dashboard_search_finds_case_outside_assignee_queue(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $otherAgent = User::factory()->create();
+        $otherAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $otherCase = $this->createServiceCase($otherAgent, [
+            'order_id' => 'RD3437143',
+        ], [
+            'assigned_to_user_id' => $otherAgent->id,
+            'status' => IncidentStatus::Closed,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['queue' => 'my_work', 'q' => 'RD3437143']))
+            ->assertOk()
+            ->assertSee('data-dashboard-search-rows-url', false)
+            ->assertDontSee('RD3437143');
+
+        $this->actingAs($agent)
+            ->getJson(route('search.index', ['q' => 'RD3437143']))
+            ->assertOk()
+            ->assertJsonPath('match_count', 1)
+            ->assertJsonPath('incident_ids.0', $otherCase->id);
+
+        $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.search-rows', ['ids' => [$otherCase->id]]))
+            ->assertOk()
+            ->assertJsonPath('service_cases_empty', false)
+            ->assertSee('RD3437143', false);
+    }
+
+    public function test_dashboard_redirect_preserves_q_param(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->get('/dashboard?view=hardware_orders&q=RD3437143')
+            ->assertRedirect(route('dashboard', [
+                'queue' => DashboardPersonalizationService::QUEUE_HARDWARE,
+                'q' => 'RD3437143',
+            ]));
     }
 }

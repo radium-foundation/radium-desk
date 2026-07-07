@@ -970,6 +970,10 @@ a:focus-visible .stat-card {
     font-size: 0.8125rem;
 }
 
+.dashboard-search-banner--error .dashboard-search-banner__message {
+    color: var(--bs-danger, #dc3545);
+}
+
 .dashboard-cases-table-wrap,
 #dashboard-service-cases-scroll {
     overflow: auto;
