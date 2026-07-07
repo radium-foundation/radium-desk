@@ -1752,7 +1752,8 @@ describe('dashboard global search integration', () => {
 
     const quickCreateModalHtml = `
         <div class="modal" id="quickCreateModal" data-intake-search-url="/service-requests/intake/search">
-            <form id="customerIntakeForm">
+            <form id="customerIntakeForm" action="/service-requests/quick" method="POST">
+                <h2 id="quickCreateModalLabel">Find Customer</h2>
                 <div id="intake-step-search" class="intake-step">
                     <input id="intake_phone" name="phone" type="text">
                     <input id="intake_order_id" type="text">
@@ -1770,10 +1771,16 @@ describe('dashboard global search integration', () => {
                     <button type="button" id="intake-legacy-confirm-button">Confirm</button>
                 </div>
                 <div id="intake-step-new-contact" class="intake-step d-none">
-                    <input type="radio" name="intent" value="general_support" id="intent_general_support">
+                    <input type="text" name="customer_name" id="intake_customer_name">
+                    <div class="invalid-feedback"></div>
+                    <input type="radio" name="intent" value="general_support" id="intent_general_support" checked>
                 </div>
                 <div id="intake-step-details" class="intake-step d-none">
+                    <select name="source" id="intake_source">
+                        <option value="call" selected>Call</option>
+                    </select>
                     <textarea name="notes" id="intake_notes"></textarea>
+                    <div class="invalid-feedback"></div>
                 </div>
                 <input type="hidden" name="action" id="intake_action" value="new_contact">
                 <input type="hidden" name="matched_order_id" id="intake_matched_order_id">
@@ -1913,5 +1920,148 @@ describe('dashboard global search integration', () => {
         });
 
         expect(document.getElementById('legacySearchConfirmModal')).not.toBeNull();
+    });
+
+    it('empty quick create search stays on search step with validation message', async () => {
+        mountQuickCreateIntake();
+
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('intake-search-feedback')?.textContent)
+                .toBe('Enter a phone number, order ID, or serial number to continue.');
+        });
+
+        expect(document.getElementById('intake-step-search')?.classList.contains('d-none')).toBe(false);
+        expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(true);
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('new contact classification changes modal title to New Service Request', async () => {
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'new_contact',
+            requires_confirmation: false,
+            legacy_preview: null,
+            parsed_query: {
+                phone: '9876543210',
+                order_id: null,
+                serial_number: null,
+                email: null,
+            },
+        }));
+
+        document.getElementById('intake_phone').value = '9876543210';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('quickCreateModalLabel')?.textContent).toBe('New Service Request');
+        });
+    });
+
+    it('blocks new contact submit without customer name', async () => {
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'new_contact',
+            requires_confirmation: false,
+            legacy_preview: null,
+            parsed_query: {
+                phone: '9876543210',
+                order_id: null,
+                serial_number: null,
+                email: null,
+            },
+        }));
+
+        document.getElementById('intake_phone').value = '9876543210';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(false);
+        });
+
+        document.getElementById('intake_notes').value = 'Caller asked about office hours.';
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+        const prevented = !document.getElementById('customerIntakeForm')?.dispatchEvent(submitEvent);
+
+        expect(prevented).toBe(true);
+        expect(document.getElementById('intake_customer_name')?.classList.contains('is-invalid')).toBe(true);
+        expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows new contact submit when customer name is provided', async () => {
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'new_contact',
+            requires_confirmation: false,
+            legacy_preview: null,
+            parsed_query: {
+                phone: '9876543210',
+                order_id: null,
+                serial_number: null,
+                email: null,
+            },
+        }));
+
+        document.getElementById('intake_phone').value = '9876543210';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(false);
+        });
+
+        document.getElementById('intake_customer_name').value = 'Jane Doe';
+        document.getElementById('intake_notes').value = 'Caller asked about office hours.';
+
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+        const prevented = !document.getElementById('customerIntakeForm')?.dispatchEvent(submitEvent);
+
+        expect(prevented).toBe(false);
+        expect(document.getElementById('intake_customer_name')?.classList.contains('is-invalid')).toBe(false);
+        expect(document.getElementById('intake_notes')?.classList.contains('is-invalid')).toBe(false);
+    });
+
+    it('legacy import confirmation does not ask for customer name', async () => {
+        const legacyConfirmShow = vi.fn();
+        vi.spyOn(bootstrap.Modal, 'getOrCreateInstance').mockImplementation((element) => ({
+            show: element?.id === 'legacySearchConfirmModal' ? legacyConfirmShow : vi.fn(),
+            hide: vi.fn(),
+        }));
+
+        mountQuickCreateIntake();
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'legacy',
+            requires_confirmation: true,
+            legacy_preview_complete: true,
+            default_source: 'call',
+            create_url: '/service-requests/quick',
+            legacy_preview: {
+                order_id: 'RD3395988',
+                customer_name: 'Satyam Test',
+                mobile: '9876543210',
+                product_model: 'MFS 110',
+                serial_number: 'SN123456',
+            },
+            parsed_query: {
+                phone: null,
+                order_id: 'RD3395988',
+                serial_number: null,
+            },
+        }));
+
+        document.getElementById('intake_order_id').value = 'RD3395988';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(legacyConfirmShow).toHaveBeenCalled();
+        });
+
+        expect(document.getElementById('legacySearchConfirmModal')?.querySelector('input[name="customer_name"]')).toBeNull();
+        expect(document.getElementById('legacySearchConfirmModal')?.querySelector('#intake_customer_name')).toBeNull();
+        expect(document.querySelector('[data-legacy-confirm-customer-name]')?.textContent).toBe('Satyam Test');
     });
 });

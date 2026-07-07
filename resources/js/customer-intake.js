@@ -13,6 +13,14 @@ const showStep = (modal, stepId) => {
     });
 };
 
+const updateModalTitle = (modal, title) => {
+    const label = modal.querySelector('#quickCreateModalLabel');
+
+    if (label) {
+        label.textContent = title;
+    }
+};
+
 export const advanceQuickCreateToNewContact = (modalElement, form) => {
     const actionField = form.querySelector('#intake_action');
     const matchedOrderField = form.querySelector('#intake_matched_order_id');
@@ -40,6 +48,7 @@ export const advanceQuickCreateToNewContact = (modalElement, form) => {
 
     showStep(modalElement, 'intake-step-new-contact');
     modalElement.querySelector('#intake-step-details')?.classList.remove('d-none');
+    updateModalTitle(modalElement, 'New Service Request');
     searchButton?.classList.add('d-none');
     submitButton?.classList.remove('d-none');
 };
@@ -72,6 +81,7 @@ const resetIntakeForm = (modal, form) => {
     submitButton?.classList.add('d-none');
 
     showStep(modal, 'intake-step-search');
+    updateModalTitle(modal, 'Find Customer');
 
     const feedback = modal.querySelector('#intake-search-feedback');
     if (feedback) {
@@ -437,7 +447,7 @@ const searchCustomer = async (modal, form) => {
     if (phone === '' && orderId === '' && serialNumber === '') {
         if (feedback) {
             feedback.className = 'alert alert-danger mt-3 mb-0 py-2 small';
-            feedback.textContent = 'Enter a phone number, order ID, or serial number to search.';
+            feedback.textContent = 'Enter a phone number, order ID, or serial number to continue.';
             feedback.classList.remove('d-none');
         }
 
@@ -567,6 +577,8 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
     });
 
     form?.addEventListener('submit', (event) => {
+        const actionField = form.querySelector('#intake_action');
+        const action = actionField?.value ?? '';
         const notesField = form.querySelector('#intake_notes');
         const notes = notesField?.value.trim() ?? '';
 
@@ -578,6 +590,22 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
 
             if (existingFeedback) {
                 existingFeedback.textContent = 'Comment / issue description is required.';
+            }
+        }
+
+        if (action === 'new_contact') {
+            const customerNameField = form.querySelector('#intake_customer_name');
+            const customerName = customerNameField?.value.trim() ?? '';
+
+            if (customerName === '') {
+                event.preventDefault();
+                customerNameField?.classList.add('is-invalid');
+
+                const nameFeedback = customerNameField?.parentElement?.querySelector('.invalid-feedback');
+
+                if (nameFeedback) {
+                    nameFeedback.textContent = 'Customer name is required.';
+                }
             }
         }
     });

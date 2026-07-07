@@ -31,6 +31,7 @@ class StoreCustomerIntakeRequest extends FormRequest
             'legacy_order_id' => ['nullable', 'string', 'max:50'],
             'open_only' => ['sometimes', 'boolean'],
             'intent' => ['nullable', 'string', Rule::enum(NewContactIntent::class)],
+            'customer_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'serial_number' => ['nullable', 'string', 'max:100'],
             'product' => ['nullable', 'string', Rule::in($settingService->enabledProductNames())],
@@ -47,6 +48,7 @@ class StoreCustomerIntakeRequest extends FormRequest
     {
         return [
             'notes' => 'comment / issue description',
+            'customer_name' => 'customer name',
         ];
     }
 
@@ -68,6 +70,10 @@ class StoreCustomerIntakeRequest extends FormRequest
             }
 
             if ($action === 'new_contact') {
+                if (! $this->filled('customer_name')) {
+                    $validator->errors()->add('customer_name', 'Customer name is required.');
+                }
+
                 if (! $this->filled('intent')) {
                     $validator->errors()->add('intent', 'Select the customer intent before continuing.');
                 }

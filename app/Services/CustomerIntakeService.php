@@ -132,13 +132,14 @@ class CustomerIntakeService
         User $user,
         NewContactIntent $intent,
         IncidentSource $source,
+        ?string $customerName,
         ?string $phone,
         ?string $serialNumber,
         ?string $product,
         ?string $notes,
         bool $highPriority = false,
     ): Incident {
-        return DB::transaction(function () use ($user, $intent, $source, $phone, $serialNumber, $product, $notes, $highPriority): Incident {
+        return DB::transaction(function () use ($user, $intent, $source, $customerName, $phone, $serialNumber, $product, $notes, $highPriority): Incident {
             $reference = $this->incidentReferenceService->generate();
             $inquiryOrderId = Order::inquiryOrderIdFromReference($reference);
 
@@ -174,6 +175,7 @@ class CustomerIntakeService
 
             $order = Order::query()->create([
                 'order_id' => $inquiryOrderId,
+                'customer_name' => $customerName,
                 'customer_phone' => $phone,
                 'serial_number' => $normalizedSerial,
                 'product_name' => $intent->requiresProduct() ? $product : null,

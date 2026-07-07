@@ -107,6 +107,7 @@ class QuickServiceRequestController extends Controller
             user: $request->user(),
             intent: NewContactIntent::from($request->string('intent')->toString()),
             source: $source,
+            customerName: $request->string('customer_name')->trim()->toString() ?: null,
             phone: $request->string('phone')->trim()->toString() ?: null,
             serialNumber: $request->string('serial_number')->trim()->toString() ?: null,
             product: $request->string('product')->trim()->toString() ?: null,

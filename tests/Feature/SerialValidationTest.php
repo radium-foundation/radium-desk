@@ -144,6 +144,7 @@ class SerialValidationTest extends TestCase
             ->post(route('service-requests.quick.store'), [
                 'action' => 'new_contact',
                 'intent' => \App\Enums\NewContactIntent::ExistingDeviceService->value,
+                'customer_name' => 'Invalid Serial Customer',
                 'serial_number' => 'NOT-VALID',
                 'product' => 'MFS 110',
                 'source' => IncidentSource::Call->value,

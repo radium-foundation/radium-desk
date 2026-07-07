@@ -138,6 +138,7 @@ class CustomerIntakeVerificationTest extends TestCase
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
             'intent' => NewContactIntent::GeneralSupport->value,
+            'customer_name' => 'Office Hours Caller',
             'phone' => '9876543210',
             'source' => IncidentSource::Call->value,
             'notes' => 'Caller asked about office hours.',
@@ -167,6 +168,7 @@ class CustomerIntakeVerificationTest extends TestCase
         $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
             'intent' => NewContactIntent::BuyDevice->value,
+            'customer_name' => 'Buy Device Prospect',
             'phone' => '9123456789',
             'source' => IncidentSource::Call->value,
             'notes' => 'Interested in purchasing a new device.',

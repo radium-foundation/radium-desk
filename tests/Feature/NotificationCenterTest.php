@@ -66,6 +66,7 @@ class NotificationCenterTest extends TestCase
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
             'intent' => \App\Enums\NewContactIntent::ExistingDeviceService->value,
+            'customer_name' => 'High Priority Customer',
             'serial_number' => '7881961',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,

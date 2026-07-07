@@ -48,6 +48,7 @@ class QuickServiceRequestTest extends TestCase
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
             'intent' => NewContactIntent::ExistingDeviceService->value,
+            'customer_name' => 'Device Service Customer',
             'phone' => '9876543210',
             'serial_number' => '7881953',
             'product' => 'MFS 110',
@@ -77,6 +78,7 @@ class QuickServiceRequestTest extends TestCase
         $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
             'intent' => NewContactIntent::GeneralSupport->value,
+            'customer_name' => 'General Support Customer',
             'phone' => '9876543211',
             'source' => IncidentSource::Call->value,
             'notes' => 'Customer reported intermittent connectivity.',
@@ -99,11 +101,51 @@ class QuickServiceRequestTest extends TestCase
             ->post(route('service-requests.quick.store'), [
                 'action' => 'new_contact',
                 'intent' => NewContactIntent::GeneralSupport->value,
+                'customer_name' => 'Missing Comment Customer',
                 'phone' => '9876543212',
                 'source' => IncidentSource::Call->value,
             ])
             ->assertRedirect(route('dashboard'))
             ->assertSessionHasErrors('notes');
+    }
+
+    public function test_quick_create_rejects_missing_customer_name_for_new_contact(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->from(route('dashboard'))
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'new_contact',
+                'intent' => NewContactIntent::GeneralSupport->value,
+                'phone' => '9876543213',
+                'source' => IncidentSource::Call->value,
+                'notes' => 'Caller asked about office hours.',
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasErrors('customer_name');
+
+        $this->assertSame(0, Incident::query()->count());
+    }
+
+    public function test_quick_create_stores_customer_name_for_new_contact(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)->post(route('service-requests.quick.store'), [
+            'action' => 'new_contact',
+            'intent' => NewContactIntent::GeneralSupport->value,
+            'customer_name' => 'Jane Doe',
+            'phone' => '9876543214',
+            'source' => IncidentSource::Call->value,
+            'notes' => 'Caller asked about office hours.',
+        ])->assertRedirect();
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+        $this->assertSame('Jane Doe', $incident->order->customer_name);
     }
 
     public function test_dashboard_reopens_quick_create_modal_after_successful_create(): void

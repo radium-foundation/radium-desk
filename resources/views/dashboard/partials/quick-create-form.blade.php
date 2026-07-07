@@ -1,11 +1,11 @@
 <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-labelledby="quickCreateModalLabel"
-     data-show-on-load="{{ ($errors->has('phone') || $errors->has('order_id') || $errors->has('serial_number') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority') || $errors->has('intent') || $errors->has('action') || ($reopenQuickCreate ?? false)) ? 'true' : 'false' }}"
+     data-show-on-load="{{ ($errors->has('phone') || $errors->has('order_id') || $errors->has('serial_number') || $errors->has('customer_name') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority') || $errors->has('intent') || $errors->has('action') || ($reopenQuickCreate ?? false)) ? 'true' : 'false' }}"
      data-reset-on-show="{{ ($reopenQuickCreate ?? false) ? 'true' : 'false' }}"
      data-intake-search-url="{{ route('service-requests.intake.search') }}">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h2 class="modal-title h5 mb-0" id="quickCreateModalLabel">New Service Request</h2>
+                <h2 class="modal-title h5 mb-0" id="quickCreateModalLabel">Find Customer</h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ route('service-requests.quick.store') }}" id="customerIntakeForm">
@@ -90,6 +90,17 @@
                             <button type="button" class="btn btn-link btn-sm p-0" data-intake-back="search">Change search</button>
                         </div>
                         <p class="text-muted small mb-3">No matching customer or order was found. Capture intent before creating a workflow.</p>
+
+                        <div class="mb-3">
+                            <label for="intake_customer_name" class="form-label">Customer Name <span class="text-danger">*</span></label>
+                            <input type="text" name="customer_name" id="intake_customer_name"
+                                   class="form-control @error('customer_name') is-invalid @enderror"
+                                   value="{{ old('customer_name') }}"
+                                   placeholder="Customer full name">
+                            @error('customer_name')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
 
                         <fieldset class="mb-3">
                             <legend class="form-label fs-6">Customer Intent <span class="text-danger">*</span></legend>

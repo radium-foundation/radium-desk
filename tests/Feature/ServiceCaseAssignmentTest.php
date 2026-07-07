@@ -430,6 +430,7 @@ class ServiceCaseAssignmentTest extends TestCase
         $response = $this->actingAs($creator)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
             'intent' => \App\Enums\NewContactIntent::ExistingDeviceService->value,
+            'customer_name' => 'Assignment Customer',
             'serial_number' => '7881960',
             'product' => 'MFS 110',
             'source' => IncidentSource::Call->value,
