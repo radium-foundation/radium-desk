@@ -67,7 +67,10 @@ class LegacyOrderUiTest extends TestCase
             ->assertSee(route('orders.show', $order), false)
             ->assertSee('legacy-imported-order-id', false)
             ->assertSee('legacy-imported-order-indicator', false)
-            ->assertSee('LIO • Imported by Import •', false)
+            ->assertSeeInOrder(['RD3395988', 'legacy-imported-order-indicator'], false)
+            ->assertSee('data-bs-toggle="tooltip"', false)
+            ->assertSee('data-bs-title="LIO • Imported by Import •', false)
+            ->assertDontSee('legacy-imported-order-indicator" title=', false)
             ->assertDontSee('Imported from legacy system by', false)
             ->assertSee(route('incidents.show', $incident), false)
             ->assertSee('SC00088', false);
@@ -100,7 +103,10 @@ class LegacyOrderUiTest extends TestCase
             ->assertDontSee('data-copyable-identifier="order-id"', false)
             ->assertSee('legacy-imported-order-id', false)
             ->assertSee('legacy-imported-order-indicator', false)
-            ->assertSee('LIO • Imported by Workspace •', false)
+            ->assertSeeInOrder(['RD3395999', 'legacy-imported-order-indicator'], false)
+            ->assertSee('data-bs-toggle="tooltip"', false)
+            ->assertSee('data-bs-title="LIO • Imported by Workspace •', false)
+            ->assertDontSee('legacy-imported-order-indicator" title=', false)
             ->assertSee('data-copyable-identifier="serial"', false)
             ->assertSee('data-copy-value="SN999999"', false)
             ->assertSee('data-legacy-verification-mode="imported"', false)
@@ -189,7 +195,11 @@ class LegacyOrderUiTest extends TestCase
             ->assertSee('legacy-imported-order-id', false)
             ->assertSee('legacy-imported-order-indicator', false)
             ->assertSee('RD3395988', false)
-            ->assertSee('LIO • Imported by Import •', false)
+            ->assertSeeInOrder(['RD3395988', 'legacy-imported-order-indicator'], false)
+            ->assertSee('data-bs-toggle="tooltip"', false)
+            ->assertSee('data-bs-title="LIO • Imported by Import •', false)
+            ->assertDontSee('legacy-imported-order-indicator" title=', false)
+            ->assertSee(route('orders.show', $order), false)
             ->assertSee('data-copyable-identifier="serial"', false)
             ->assertSee('data-copy-value="SN3395988"', false);
     }
@@ -228,7 +238,10 @@ class LegacyOrderUiTest extends TestCase
             ->assertOk()
             ->assertSee('legacy-imported-order-indicator', false)
             ->assertSee('RD3395988', false)
-            ->assertSee('LIO • Imported by Import •', false);
+            ->assertSeeInOrder(['RD3395988', 'legacy-imported-order-indicator'], false)
+            ->assertSee('data-bs-toggle="tooltip"', false)
+            ->assertSee('data-bs-title="LIO • Imported by Import •', false)
+            ->assertDontSee('legacy-imported-order-indicator" title=', false);
     }
 
     public function test_normal_order_does_not_render_legacy_import_ui_or_require_fulfillment_verification(): void

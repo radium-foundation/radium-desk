@@ -93,18 +93,27 @@
         <div class="customer-360-dl-row">
             <dt>Order ID</dt>
             <dd>
-                <x-customer-360-inline-copy
-                    :value="$device['order_id'] ?? null"
-                    label="Order ID"
-                    copy-key="order-id"
-                >
-                    @if($device['is_legacy_imported'] ?? false)
-                        <span class="legacy-imported-order-indicator"
-                              title="{{ $device['legacy_import_tooltip'] }}"
-                              aria-label="{{ $device['legacy_import_tooltip'] }}">↓</span>
-                    @endif
-                    {{ $device['order_id'] }}
-                </x-customer-360-inline-copy>
+                @if($device['is_legacy_imported'] ?? false)
+                    <span data-bs-toggle="tooltip"
+                          data-bs-placement="top"
+                          data-bs-title="{{ $device['legacy_import_tooltip'] }}"
+                          aria-label="{{ $device['legacy_import_tooltip'] }}">
+                        <x-customer-360-inline-copy
+                            :value="$device['order_id'] ?? null"
+                            label="Order ID"
+                            copy-key="order-id"
+                        >
+                            {{ $device['order_id'] }}
+                            <span class="legacy-imported-order-indicator" aria-hidden="true">↓</span>
+                        </x-customer-360-inline-copy>
+                    </span>
+                @else
+                    <x-customer-360-inline-copy
+                        :value="$device['order_id'] ?? null"
+                        label="Order ID"
+                        copy-key="order-id"
+                    />
+                @endif
             </dd>
         </div>
         <div class="customer-360-dl-row">
