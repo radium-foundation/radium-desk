@@ -26,7 +26,10 @@
                 <dt>SLA</dt><dd class="order-workspace-dl-value">{{ $slaLabel }}</dd>
                 <dt>Priority</dt><dd class="order-workspace-dl-value">{{ $priorityLabel }}</dd>
             @endif
-            <dt>Created</dt><dd class="order-workspace-dl-value">{{ display_app_datetime_24($order->created_at) }}</dd>
+            <dt>{{ $order->isLegacyImported() ? 'Order Date' : 'Created' }}</dt><dd class="order-workspace-dl-value">{{ display_app_datetime_24($order->displayOrderDate()) }}</dd>
+            @if($order->isLegacyImported() && $order->legacy_imported_at)
+                <dt>Imported</dt><dd class="order-workspace-dl-value">{{ display_app_datetime_24($order->legacy_imported_at) }}</dd>
+            @endif
             <dt>Last Updated</dt><dd class="order-workspace-dl-value">{{ display_app_datetime_24($order->updated_at) }}</dd>
         </dl>
     @endcomponent

@@ -66,6 +66,7 @@ class Order extends Model
         'amc_year',
         'amc_details',
         'legacy_order_status',
+        'legacy_order_date',
         'legacy_source',
         'legacy_imported_at',
         'legacy_imported_by_user_id',
@@ -91,6 +92,7 @@ class Order extends Model
             'payment_amount' => 'decimal:2',
             'service_history' => 'array',
             'amc_details' => 'array',
+            'legacy_order_date' => 'datetime',
             'legacy_imported_at' => 'datetime',
         ];
     }
@@ -487,5 +489,14 @@ class Order extends Model
             ?? 'Unknown';
 
         return "Imported from legacy system by {$agent}";
+    }
+
+    public function displayOrderDate(): ?Carbon
+    {
+        if ($this->isLegacyImported() && $this->legacy_order_date !== null) {
+            return $this->legacy_order_date;
+        }
+
+        return $this->created_at;
     }
 }

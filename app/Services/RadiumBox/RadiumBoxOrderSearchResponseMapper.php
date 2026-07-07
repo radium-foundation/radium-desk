@@ -4,6 +4,7 @@ namespace App\Services\RadiumBox;
 
 use App\Services\RadiumBox\Exceptions\RadiumBoxInvalidResponseException;
 use App\Services\RadiumBox\Exceptions\RadiumBoxOrderNotFoundException;
+use Illuminate\Support\Carbon;
 
 class RadiumBoxOrderSearchResponseMapper
 {
@@ -142,6 +143,10 @@ class RadiumBoxOrderSearchResponseMapper
                     ?? data_get($rdOrder, 'status')
                     ?? ($billingOrder !== null ? data_get($billingOrder, 'status') : null),
             ),
+            legacyOrderDate: $this->parseLegacyOrderDate(
+                data_get($rdOrder, 'created_at'),
+                $billingOrder !== null ? data_get($billingOrder, 'orderdate') : null,
+            ),
         );
     }
 
@@ -151,7 +156,7 @@ class RadiumBoxOrderSearchResponseMapper
      */
     private function normalizeAmcDetails(array $rdOrder, ?string $amcStatus): ?array
     {
-        $details = data_get($rdOrder, 'amc_details');
+        $details = $this->decodeAmcDetails(data_get($rdOrder, 'amc_details'));
 
         if (is_array($details) && $details !== []) {
             return $details;
@@ -179,6 +184,78 @@ class RadiumBoxOrderSearchResponseMapper
         }
 
         return $summary !== [] ? $summary : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function decodeAmcDetails(mixed $value): ?array
+    {
+        if (is_array($value)) {
+            return $value !== [] ? $value : null;
+        }
+
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return null;
+        }
+
+        return is_array($decoded) && $decoded !== [] ? $decoded : null;
+    }
+
+    private function parseLegacyOrderDate(mixed $createdAt, mixed $orderDate): ?Carbon
+    {
+        foreach ([$orderDate, $createdAt] as $value) {
+            $parsed = $this->parseDateTime($value);
+
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private function parseDateTime(mixed $value): ?Carbon
+    {
+        $normalized = $this->normalizeOptionalString($value);
+
+        if ($normalized === null) {
+            return null;
+        }
+
+        $timezone = config('app.timezone', 'Asia/Kolkata');
+
+        foreach ([
+            'Y-m-d H:i:s',
+            'Y-m-d H:i',
+            'd-m-Y H:i:s',
+            'd-m-Y h:i A',
+            'd-m-Y H:i',
+            'd/m/Y H:i:s',
+            'd/m/Y h:i A',
+        ] as $format) {
+            try {
+                $parsed = Carbon::createFromFormat($format, $normalized, $timezone);
+
+                if ($parsed !== false) {
+                    return $parsed;
+                }
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        try {
+            return Carbon::parse($normalized, $timezone);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

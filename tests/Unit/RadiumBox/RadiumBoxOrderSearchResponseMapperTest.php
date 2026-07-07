@@ -76,6 +76,18 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
         $this->assertNull($enrichment->amcStatus);
     }
 
+    public function test_it_maps_rd3421021_production_style_payload(): void
+    {
+        $enrichment = $this->mapper->map($this->rd3421021ProductionStylePayload(), 'RD3421021');
+
+        $this->assertSame('INV6731025', $enrichment->invoiceNumber);
+        $this->assertSame('MFS110', $enrichment->deviceModel);
+        $this->assertSame('9321909', $enrichment->serialNumber);
+        $this->assertSame(['regular'], $enrichment->serviceHistory);
+        $this->assertSame(['service_name' => '1 Year Standard'], $enrichment->amcDetails);
+        $this->assertSame('2026-06-17 10:45:00', $enrichment->legacyOrderDate?->format('Y-m-d H:i:s'));
+    }
+
     public function test_it_falls_back_to_order_userdetails_when_rd_order_userdetails_is_invalid(): void
     {
         $userDetails = json_encode([
@@ -235,6 +247,40 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
                     'amc_service_name' => null,
                     'status' => 'Completed',
                     'created_at' => '2026-05-18 15:27:15',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rd3421021ProductionStylePayload(): array
+    {
+        $userDetails = json_encode([
+            'name' => 'RD3421021 Customer',
+            'phone' => '9876543210',
+            'email' => 'rd3421021@example.com',
+        ]);
+
+        return [
+            'status' => 200,
+            'data' => [
+                'order' => [
+                    'invoicecode' => 'INV6731025',
+                    'orderdate' => '17-06-2026 10:45 AM',
+                    'userdetails' => $userDetails,
+                    'status' => 'Completed',
+                ],
+                'rd_order' => [
+                    'rdorderid' => 'RD3421021',
+                    'product_name' => 'MFS110',
+                    'serial_no' => '9321909',
+                    'userdetails' => $userDetails,
+                    'rd_service_name' => 'regular',
+                    'amc_details' => '{"service_name":"1 Year Standard"}',
+                    'status' => 'Completed',
+                    'created_at' => '2026-06-17 10:45:00',
                 ],
             ],
         ];

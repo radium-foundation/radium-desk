@@ -114,6 +114,39 @@ class LegacyOrderUiTest extends TestCase
             ->assertSee('Verified legacy order details', false);
     }
 
+    public function test_legacy_imported_order_workspace_shows_legacy_order_date_separate_from_imported_at(): void
+    {
+        $importer = User::factory()->create(['name' => 'Workspace Importer']);
+        $importer->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $legacyOrderDate = now()->subDays(10)->startOfMinute();
+        $importedAt = now()->startOfMinute();
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3421021',
+            'serial_number' => '9321909',
+            'product_name' => 'MFS110',
+            'device_model' => 'MFS110',
+            'legacy_source' => 'radiumbox',
+            'legacy_order_date' => $legacyOrderDate,
+            'legacy_imported_at' => $importedAt,
+            'legacy_imported_by_user_id' => $importer->id,
+            'status' => 'active',
+            'created_by' => $importer->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('Order Date', false)
+            ->assertSee(display_app_datetime_24($legacyOrderDate), false)
+            ->assertSee('Imported', false)
+            ->assertSee(display_app_datetime_24($importedAt), false);
+    }
+
     public function test_legacy_imported_order_requires_fulfillment_verification_before_assign_ref(): void
     {
         $admin = User::factory()->create();

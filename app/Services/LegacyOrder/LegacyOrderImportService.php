@@ -17,6 +17,7 @@ use App\Services\RadiumBox\RadiumBoxClient;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Services\ServiceCaseAssignmentService;
 use App\Services\SettingService;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -58,30 +59,47 @@ class LegacyOrderImportService
 
             $customerIdentity = $this->resolveCustomerIdentity($enrichment, $intakePhone);
 
-            $order = Order::query()->create([
-                'order_id' => $orderId,
-                'customer_id' => $customerIdentity['customer_id'],
-                'customer_name' => $enrichment->customerName ?? $customerIdentity['customer_name'],
-                'customer_email' => $enrichment->customerEmail ?? $customerIdentity['customer_email'],
-                'customer_phone' => $customerIdentity['customer_phone'],
-                'serial_number' => $enrichment->serialNumber,
-                'product_name' => $enrichment->deviceModel,
-                'device_model' => $enrichment->deviceModel,
-                'gst_number' => $enrichment->gstNumber,
-                'invoice_number' => $enrichment->invoiceNumber,
-                'purchase_year' => $enrichment->purchaseYear ?? $enrichment->activationYear,
-                'service_history' => $enrichment->serviceHistory,
-                'amc_status' => $enrichment->amcStatus ?? $enrichment->amc,
-                'amc_year' => $enrichment->amcYear,
-                'amc_details' => $enrichment->amcDetails,
-                'legacy_order_status' => $enrichment->legacyOrderStatus ?? $enrichment->radiumboxOrderStatus,
-                'legacy_source' => 'radiumbox',
-                'legacy_imported_at' => now(),
-                'legacy_imported_by_user_id' => $user->id,
-                'status' => OrderStatus::Active,
-                'created_by' => $user->id,
-                'updated_by' => $user->id,
-            ]);
+            if (filled($enrichment->serialNumber)) {
+                $serialAlreadyLinked = Order::query()
+                    ->where('serial_number', $enrichment->serialNumber)
+                    ->exists();
+
+                if ($serialAlreadyLinked) {
+                    throw ValidationException::withMessages([
+                        'legacy_order_id' => 'This device serial number is already linked to another order in Radium Desk.',
+                    ]);
+                }
+            }
+
+            try {
+                $order = Order::query()->create([
+                    'order_id' => $orderId,
+                    'customer_id' => $customerIdentity['customer_id'],
+                    'customer_name' => $enrichment->customerName ?? $customerIdentity['customer_name'],
+                    'customer_email' => $enrichment->customerEmail ?? $customerIdentity['customer_email'],
+                    'customer_phone' => $customerIdentity['customer_phone'],
+                    'serial_number' => $enrichment->serialNumber,
+                    'product_name' => $enrichment->deviceModel,
+                    'device_model' => $enrichment->deviceModel,
+                    'gst_number' => $enrichment->gstNumber,
+                    'invoice_number' => $enrichment->invoiceNumber,
+                    'purchase_year' => $enrichment->purchaseYear ?? $enrichment->activationYear,
+                    'service_history' => $enrichment->serviceHistory,
+                    'amc_status' => $enrichment->amcStatus ?? $enrichment->amc,
+                    'amc_year' => $enrichment->amcYear,
+                    'amc_details' => $enrichment->amcDetails,
+                    'legacy_order_status' => $enrichment->legacyOrderStatus ?? $enrichment->radiumboxOrderStatus,
+                    'legacy_order_date' => $enrichment->legacyOrderDate,
+                    'legacy_source' => 'radiumbox',
+                    'legacy_imported_at' => now(),
+                    'legacy_imported_by_user_id' => $user->id,
+                    'status' => OrderStatus::Active,
+                    'created_by' => $user->id,
+                    'updated_by' => $user->id,
+                ]);
+            } catch (QueryException $exception) {
+                $this->throwMappedImportQueryException($exception);
+            }
 
             $this->auditLogService->log(
                 userId: $user->id,
@@ -175,5 +193,24 @@ class LegacyOrderImportService
             'customer_name' => $matchedOrder?->customer_name,
             'customer_id' => $matchedOrder?->customer_id,
         ];
+    }
+
+    private function throwMappedImportQueryException(QueryException $exception): void
+    {
+        $message = strtolower($exception->getMessage());
+
+        if (str_contains($message, 'duplicate') && str_contains($message, 'serial_number')) {
+            throw ValidationException::withMessages([
+                'legacy_order_id' => 'This device serial number is already linked to another order in Radium Desk.',
+            ]);
+        }
+
+        if (str_contains($message, 'unknown column') && str_contains($message, 'legacy_')) {
+            throw ValidationException::withMessages([
+                'legacy_order_id' => 'Legacy import is not fully configured on this environment. Contact an administrator.',
+            ]);
+        }
+
+        throw $exception;
     }
 }

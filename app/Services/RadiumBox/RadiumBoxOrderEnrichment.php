@@ -2,6 +2,8 @@
 
 namespace App\Services\RadiumBox;
 
+use Illuminate\Support\Carbon;
+
 readonly class RadiumBoxOrderEnrichment
 {
     /**
@@ -27,6 +29,7 @@ readonly class RadiumBoxOrderEnrichment
         public ?string $amcYear = null,
         public ?array $amcDetails = null,
         public ?string $legacyOrderStatus = null,
+        public ?Carbon $legacyOrderDate = null,
     ) {}
 
     public function hasData(): bool
@@ -52,7 +55,8 @@ readonly class RadiumBoxOrderEnrichment
             || filled($this->amcYear)
             || filled($this->amcDetails)
             || filled($this->legacyOrderStatus)
-            || filled($this->radiumboxOrderStatus);
+            || filled($this->radiumboxOrderStatus)
+            || $this->legacyOrderDate !== null;
     }
 
     /**

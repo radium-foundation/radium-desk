@@ -3,6 +3,9 @@
 namespace App\Data;
 
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
+use App\Support\AppDateFormatter;
+use App\Support\LegacyOrderDisplay;
+use Illuminate\Support\Carbon;
 
 class LegacyOrderPreview
 {
@@ -25,6 +28,7 @@ class LegacyOrderPreview
         public readonly ?string $amcYear = null,
         public readonly ?array $amcDetails = null,
         public readonly ?string $legacyOrderStatus = null,
+        public readonly ?Carbon $legacyOrderDate = null,
     ) {}
 
     public static function fromEnrichment(string $orderId, RadiumBoxOrderEnrichment $enrichment): self
@@ -44,6 +48,7 @@ class LegacyOrderPreview
             amcYear: $enrichment->amcYear,
             amcDetails: $enrichment->amcDetails,
             legacyOrderStatus: $enrichment->legacyOrderStatus ?? $enrichment->radiumboxOrderStatus,
+            legacyOrderDate: $enrichment->legacyOrderDate,
         );
     }
 
@@ -66,7 +71,9 @@ class LegacyOrderPreview
             'amc_status' => $this->amcStatus,
             'amc_year' => $this->amcYear,
             'amc_details' => $this->amcDetails,
+            'amc_details_display' => LegacyOrderDisplay::formatAmcDetails($this->amcDetails),
             'legacy_order_status' => $this->legacyOrderStatus,
+            'legacy_order_date' => AppDateFormatter::datetime($this->legacyOrderDate),
         ];
     }
 }

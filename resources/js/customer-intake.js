@@ -48,6 +48,43 @@ const resetIntakeForm = (modal, form) => {
     });
 };
 
+const formatAmcDetails = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try {
+                return formatAmcDetails(JSON.parse(trimmed));
+            } catch {
+                return trimmed;
+            }
+        }
+
+        return trimmed;
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => formatAmcDetails(item)).join(', ');
+    }
+
+    if (typeof value === 'object') {
+        if (typeof value.service_name === 'string' && value.service_name.trim() !== '') {
+            return value.service_name;
+        }
+
+        return Object.values(value)
+            .filter((item) => item !== null && item !== undefined && item !== '')
+            .map((item) => formatAmcDetails(item))
+            .join(', ');
+    }
+
+    return String(value);
+};
+
 const formatPreviewValue = (value) => {
     if (value === null || value === undefined || value === '') {
         return '—';
@@ -103,14 +140,21 @@ const renderLegacyPreview = (modal, form, data) => {
             ['RD service history', preview.service_history],
             ['AMC status', preview.amc_status],
             ['AMC year', preview.amc_year],
-            ['AMC details', preview.amc_details],
+            ['AMC details', preview.amc_details_display ?? preview.amc_details],
+            ['Order date', preview.legacy_order_date],
             ['Order status', preview.legacy_order_status],
         ];
 
-        fields.innerHTML = previewFields.map(([label, value]) => `
+        fields.innerHTML = previewFields.map(([label, value]) => {
+            const formattedValue = label === 'AMC details'
+                ? formatAmcDetails(value)
+                : formatPreviewValue(value);
+
+            return `
             <dt class="col-sm-4 text-muted">${label}</dt>
-            <dd class="col-sm-8 mb-2">${formatPreviewValue(value)}</dd>
-        `).join('');
+            <dd class="col-sm-8 mb-2">${formattedValue}</dd>
+        `;
+        }).join('');
     }
 
     if (actionField) {
