@@ -33,7 +33,8 @@ class ProcessMissingSerialAutomationCommand extends Command
         $result = $this->automationService->process($limit);
 
         $this->info(sprintf(
-            'Processed %d order(s): sent=%d, reminded=%d, escalated=%d, skipped=%d, failed=%d',
+            '[%s] scanned=%d sent=%d reminded=%d escalated=%d skipped=%d failed=%d',
+            now()->toDateTimeString(),
             $result->scanned,
             $result->sent,
             $result->reminded,

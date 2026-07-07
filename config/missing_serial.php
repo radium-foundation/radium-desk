@@ -12,7 +12,7 @@ return [
     */
     'enabled' => env('MISSING_SERIAL_AUTOMATION_ENABLED', true),
 
-    'first_delay_minutes' => (int) env('MISSING_SERIAL_FIRST_DELAY_MINUTES', 45),
+    'first_delay_minutes' => (int) env('MISSING_SERIAL_FIRST_DELAY_MINUTES', 15),
 
     'reminder_delay_hours' => (int) env('MISSING_SERIAL_REMINDER_DELAY_HOURS', 24),
 

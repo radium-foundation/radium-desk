@@ -63,39 +63,25 @@ class MissingSerialAutomationService
         $skipped = 0;
         $failed = 0;
 
-        $this->candidateOrdersQuery()
-            ->orderBy('id')
-            ->chunkById(50, function ($orders) use (
-                $limit,
-                &$scanned,
-                &$sent,
-                &$reminded,
-                &$escalated,
-                &$skipped,
-                &$failed,
-            ): bool {
-                foreach ($orders as $order) {
-                    if ($scanned >= $limit) {
-                        return false;
-                    }
+        $orders = $this->prioritizedCandidateOrdersQuery()
+            ->limit($limit)
+            ->get();
 
-                    $scanned++;
-                    $result = $this->processOrder($order);
+        foreach ($orders as $order) {
+            $scanned++;
+            $result = $this->processOrder($order);
 
-                    match ($result->outcome) {
-                        'sent' => match ($result->action) {
-                            MissingSerialAutomationAction::Request => $sent++,
-                            MissingSerialAutomationAction::Reminder => $reminded++,
-                            MissingSerialAutomationAction::Escalate => $escalated++,
-                        },
-                        'skipped' => $skipped++,
-                        'failed' => $failed++,
-                        default => null,
-                    };
-                }
-
-                return $scanned < $limit;
-            });
+            match ($result->outcome) {
+                'sent' => match ($result->action) {
+                    MissingSerialAutomationAction::Request => $sent++,
+                    MissingSerialAutomationAction::Reminder => $reminded++,
+                    MissingSerialAutomationAction::Escalate => $escalated++,
+                },
+                'skipped' => $skipped++,
+                'failed' => $failed++,
+                default => null,
+            };
+        }
 
         return new MissingSerialAutomationProcessResult(
             scanned: $scanned,
@@ -263,6 +249,19 @@ class MissingSerialAutomationService
                 $this->automationIdentityService->systemUser(),
             );
         }
+    }
+
+    /**
+     * Candidate orders prioritized for outreach: untouched cases first, then oldest payment due date.
+     *
+     * @return Builder<Order>
+     */
+    public function prioritizedCandidateOrdersQuery(): Builder
+    {
+        return $this->candidateOrdersQuery()
+            ->orderByRaw('CASE WHEN missing_serial_automation_status IS NULL THEN 0 ELSE 1 END')
+            ->orderByRaw('COALESCE(payment_date, created_at) ASC')
+            ->orderBy('id');
     }
 
     /**
@@ -531,7 +530,7 @@ class MissingSerialAutomationService
 
     private function firstDelayMinutes(): int
     {
-        return max(1, (int) config('missing_serial.first_delay_minutes', 45));
+        return max(1, (int) config('missing_serial.first_delay_minutes', 15));
     }
 
     private function reminderDelayHours(): int

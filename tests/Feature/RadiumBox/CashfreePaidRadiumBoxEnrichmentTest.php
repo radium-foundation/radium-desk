@@ -102,6 +102,33 @@ class CashfreePaidRadiumBoxEnrichmentTest extends TestCase
         $this->assertSame('MFS 110', $order->device_model);
     }
 
+    public function test_cashfree_paid_with_radiumbox_processing_status_still_imports_serial_and_model(): void
+    {
+        Http::fake([
+            'admin.radiumbox.com/api/search/order*' => Http::response([
+                'status' => 200,
+                'data' => [
+                    'rd_order' => [
+                        'order_id' => 'RD3435006',
+                        'payment_status' => 'paid',
+                        'order_status' => 'Processing',
+                        'serial_no' => 'PROC-SERIAL-1',
+                        'product_name' => 'MFS 110',
+                    ],
+                ],
+            ]),
+        ]);
+
+        $order = $this->createCashfreePaidOrder('RD3435006');
+
+        $this->runEnrichmentJob($order);
+
+        $order->refresh();
+
+        $this->assertSame('PROC-SERIAL-1', $order->serial_number);
+        $this->assertSame('MFS 110', $order->device_model);
+    }
+
     public function test_radiumbox_cannot_overwrite_cashfree_paid_status(): void
     {
         Http::fake([

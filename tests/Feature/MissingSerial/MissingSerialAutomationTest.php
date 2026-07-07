@@ -40,7 +40,7 @@ class MissingSerialAutomationTest extends TestCase
 
         config([
             'missing_serial.enabled' => true,
-            'missing_serial.first_delay_minutes' => 45,
+            'missing_serial.first_delay_minutes' => 15,
             'missing_serial.reminder_delay_hours' => 24,
             'missing_serial.escalation_delay_hours' => 72,
             'cashfree.system_user_email' => 'superadmin@radium.local',
@@ -68,11 +68,11 @@ class MissingSerialAutomationTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_paid_order_missing_serial_sends_after_45_minutes(): void
+    public function test_paid_order_missing_serial_sends_after_15_minutes(): void
     {
         $this->enableNotificationChannels();
 
-        $order = $this->createEligibleOrder(paymentMinutesAgo: 46);
+        $order = $this->createEligibleOrder(paymentMinutesAgo: 16);
 
         Artisan::call('missing-serial:process');
 
@@ -162,7 +162,7 @@ class MissingSerialAutomationTest extends TestCase
     {
         $this->enableNotificationChannels();
 
-        $order = $this->createEligibleOrder(paymentMinutesAgo: 46);
+        $order = $this->createEligibleOrder(paymentMinutesAgo: 16);
 
         $this->assertNull($order->missing_serial_automation_status);
         $this->assertSame(0, WhatsAppTemplateDispatch::query()->where('order_id', $order->id)->count());
@@ -180,11 +180,11 @@ class MissingSerialAutomationTest extends TestCase
         ]);
     }
 
-    public function test_does_not_send_before_45_minutes(): void
+    public function test_does_not_send_before_15_minutes(): void
     {
         $this->enableNotificationChannels();
 
-        $order = $this->createEligibleOrder(paymentMinutesAgo: 30);
+        $order = $this->createEligibleOrder(paymentMinutesAgo: 10);
 
         Artisan::call('missing-serial:process');
 
@@ -332,6 +332,49 @@ class MissingSerialAutomationTest extends TestCase
             'auditable_id' => $order->id,
             'event' => MissingSerialAutomationAuditService::EVENT_REQUEST_SENT,
         ]);
+    }
+
+    public function test_new_due_order_is_processed_when_older_candidates_exceed_batch_limit(): void
+    {
+        $this->enableNotificationChannels();
+
+        config([
+            'missing_serial.batch_limit' => 5,
+            'missing_serial.first_delay_minutes' => 15,
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $blockingOrder = $this->createEligibleOrder(paymentMinutesAgo: 120);
+            $firstRequestedAt = now()->subHours(2);
+
+            $blockingOrder->update([
+                'missing_serial_automation_status' => MissingSerialAutomationStatus::Requested->value,
+                'missing_serial_first_requested_at' => $firstRequestedAt,
+                'missing_serial_last_contacted_at' => $firstRequestedAt,
+            ]);
+        }
+
+        $dueOrder = $this->createEligibleOrder(paymentMinutesAgo: 20);
+
+        $service = app(MissingSerialAutomationService::class);
+        $prioritizedIds = $service->prioritizedCandidateOrdersQuery()
+            ->limit(5)
+            ->pluck('id')
+            ->all();
+
+        $this->assertContains($dueOrder->id, $prioritizedIds);
+        $this->assertSame($dueOrder->id, $prioritizedIds[0]);
+
+        Artisan::call('missing-serial:process');
+
+        $dueOrder->refresh();
+
+        $this->assertSame(MissingSerialAutomationStatus::Requested->value, $dueOrder->missing_serial_automation_status);
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_id' => $dueOrder->id,
+            'event' => MissingSerialAutomationAuditService::EVENT_REQUEST_SENT,
+        ]);
+        $this->assertSame(1, WhatsAppTemplateDispatch::query()->where('order_id', $dueOrder->id)->count());
     }
 
     private function createEligibleOrder(int $paymentMinutesAgo): Order
