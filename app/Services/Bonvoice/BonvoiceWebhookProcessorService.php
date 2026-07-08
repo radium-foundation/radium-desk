@@ -2,6 +2,7 @@
 
 namespace App\Services\Bonvoice;
 
+use App\Models\BonvoiceCallEvent;
 use App\Models\BonvoiceWebhookLog;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +15,7 @@ class BonvoiceWebhookProcessorService
     public function __construct(
         private readonly BonvoiceWebhookPayloadParser $payloadParser,
         private readonly BonvoiceCallEventStore $callEventStore,
+        private readonly BonvoiceLiveCallAssistService $liveCallAssistService,
     ) {}
 
     public function process(BonvoiceWebhookLog $webhookLog): BonvoiceWebhookLog
@@ -21,14 +23,18 @@ class BonvoiceWebhookProcessorService
         $payload = $webhookLog->payload ?? [];
 
         try {
-            DB::transaction(function () use ($webhookLog, $payload): void {
+            $callEvent = DB::transaction(function () use ($webhookLog, $payload): BonvoiceCallEvent {
                 if (! $this->payloadParser->hasRequiredIdentifiers($payload)) {
                     throw new \RuntimeException('BonVoice webhook payload is missing callID.');
                 }
 
-                $this->callEventStore->upsertFromWebhook($payload, $webhookLog->id);
+                $callEvent = $this->callEventStore->upsertFromWebhook($payload, $webhookLog->id);
                 $this->markProcessed($webhookLog);
+
+                return $callEvent;
             });
+
+            $this->liveCallAssistService->maybeNotify($callEvent);
 
             return $webhookLog->fresh();
         } catch (\Throwable $exception) {
