@@ -24,6 +24,7 @@ class BonvoiceCallEvent extends Model
         'callback_parent_id',
         'callback_params',
         'started_at',
+        'recording_url',
         'payload',
         'webhook_log_id',
     ];

@@ -173,6 +173,65 @@ class BonvoiceWebhookTest extends TestCase
         ]);
     }
 
+    public function test_completed_call_webhook_with_recording_url_updates_existing_call(): void
+    {
+        User::factory()->create();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-rec-001',
+            leg: 'a',
+            status: 'ringing',
+            direction: 'inbound',
+            callType: 'Inbound',
+            eventId: 'evt-rec-001',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-rec-001',
+            leg: 'a',
+            status: 'completed',
+            agentStatus: 'completed',
+            direction: 'inbound',
+            callType: 'Inbound',
+            eventId: 'evt-rec-002',
+            recordingUrl: 'https://recordings.bonvoice.example/call-rec-001.mp3',
+        ))->assertOk();
+
+        $this->assertSame(2, BonvoiceWebhookLog::query()->count());
+        $this->assertSame(1, BonvoiceCallEvent::query()->count());
+
+        $callEvent = BonvoiceCallEvent::query()->first();
+        $this->assertNotNull($callEvent);
+        $this->assertSame('call-rec-001', $callEvent->call_id);
+        $this->assertSame('a', $callEvent->leg);
+        $this->assertSame('completed', $callEvent->status);
+        $this->assertSame('completed', $callEvent->agent_status);
+        $this->assertSame('https://recordings.bonvoice.example/call-rec-001.mp3', $callEvent->recording_url);
+        $this->assertSame('evt-rec-002', $callEvent->event_id);
+    }
+
+    public function test_ist_start_time_parses_correctly(): void
+    {
+        User::factory()->create();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-ist-001',
+            startTime: '2026-07-08 10:15:00',
+            direction: 'inbound',
+            callType: 'Inbound',
+            status: 'dial',
+            eventId: 'evt-ist-001',
+        ))->assertOk();
+
+        $callEvent = BonvoiceCallEvent::query()->where('call_id', 'call-ist-001')->first();
+        $this->assertNotNull($callEvent);
+        $this->assertNotNull($callEvent->started_at);
+        $this->assertSame(
+            '2026-07-08 10:15:00',
+            $callEvent->started_at->timezone('Asia/Kolkata')->format('Y-m-d H:i:s'),
+        );
+    }
+
     public function test_customer_360_timeline_tab_renders_ivr_call_event(): void
     {
         $agent = User::factory()->create();
@@ -227,17 +286,21 @@ class BonvoiceWebhookTest extends TestCase
         string $status = 'Ringing',
         ?string $agentStatus = null,
         string $eventId = 'evt-001',
+        ?string $startTime = null,
+        ?string $recordingUrl = null,
+        string $direction = 'Inbound',
+        string $callType = 'Support',
     ): array {
-        return [
+        $payload = [
             'SourceNumber' => '9876543210',
             'DestinationNumber' => '1800123456',
             'DisplayNumber' => '1800123456',
-            'StartTime' => Carbon::parse('2026-07-08T10:15:00')->toIso8601String(),
+            'StartTime' => $startTime ?? Carbon::parse('2026-07-08T10:15:00')->toIso8601String(),
             'DataSource' => 'IVR',
-            'callType' => 'Support',
+            'callType' => $callType,
             'AccountID' => 'acct-001',
             'callID' => $callId,
-            'Direction' => 'Inbound',
+            'Direction' => $direction,
             'Leg' => $leg,
             'Status' => $status,
             'AgentStatus' => $agentStatus,
@@ -245,6 +308,12 @@ class BonvoiceWebhookTest extends TestCase
             'callBackParentID' => null,
             'callBackParams' => null,
         ];
+
+        if ($recordingUrl !== null) {
+            $payload['recording_url'] = $recordingUrl;
+        }
+
+        return $payload;
     }
 
     /**

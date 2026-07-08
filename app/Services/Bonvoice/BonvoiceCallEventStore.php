@@ -58,6 +58,7 @@ class BonvoiceCallEventStore
                 'callback_parent_id' => $this->payloadParser->callbackParentId($payload) ?? $existing?->callback_parent_id,
                 'callback_params' => $this->payloadParser->callbackParams($payload) ?? $existing?->callback_params,
                 'started_at' => $this->payloadParser->startedAt($payload) ?? $existing?->started_at,
+                'recording_url' => $this->payloadParser->recordingUrl($payload) ?? $existing?->recording_url,
                 'payload' => $payload,
                 'webhook_log_id' => $webhookLogId,
             ],

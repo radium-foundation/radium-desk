@@ -2,6 +2,7 @@
 
 namespace App\Services\Bonvoice;
 
+use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 
 class BonvoiceWebhookPayloadParser
@@ -154,6 +155,16 @@ class BonvoiceWebhookPayloadParser
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function recordingUrl(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'recording_url'))
+            ?? $this->scalarValue(data_get($payload, 'RecordingUrl'))
+            ?? $this->scalarValue(data_get($payload, 'recordingUrl'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function startedAt(array $payload): ?Carbon
     {
         $value = data_get($payload, 'StartTime') ?? data_get($payload, 'start_time');
@@ -162,8 +173,15 @@ class BonvoiceWebhookPayloadParser
             return null;
         }
 
+        $raw = trim((string) $value);
+        $timezone = AppDateFormatter::timezone();
+
         try {
-            return Carbon::parse((string) $value);
+            if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $raw) === 1) {
+                return Carbon::createFromFormat('Y-m-d H:i:s', $raw, $timezone);
+            }
+
+            return Carbon::parse($raw, $timezone);
         } catch (\Throwable) {
             return null;
         }
