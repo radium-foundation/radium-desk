@@ -671,16 +671,22 @@ document.addEventListener('DOMContentLoaded', () => {
             )(...args),
             showToast: showAppToast,
         });
+
+        initCustomerIntake({
+            showToast: showAppToast,
+            dashboardIntegration: pageRoot.querySelector('.dashboard-service-cases-card') ? {
+                openDrawer: (incidentId, referenceLabel) => customer360Drawer?.open(incidentId, referenceLabel),
+            } : null,
+        });
     } else {
         initUniversalSearch({ dashboardIntegration: null });
+        initCustomerIntake({ showToast: showAppToast });
     }
 
     initLiveNotifications();
     initServiceCaseShow();
     initMentionTextareas(document.querySelector('[data-service-case-show]') ?? document);
     initOrderWorkspace();
-
-    initCustomerIntake({ showToast: showAppToast });
 
     initKeyboardShortcuts({
         closeOpenInlineEditor: () => (

@@ -701,7 +701,213 @@ const searchCustomer = async (modal, form) => {
     }
 };
 
-export const initCustomerIntake = ({ showToast = null } = {}) => {
+const parseJsonResponse = async (response) => {
+    const contentType = response.headers.get('content-type') ?? '';
+
+    if (!contentType.includes('application/json')) {
+        return null;
+    }
+
+    try {
+        return await response.json();
+    } catch {
+        return null;
+    }
+};
+
+const extractValidationMessage = (data) => {
+    if (data?.errors && typeof data.errors === 'object') {
+        const firstError = Object.values(data.errors)
+            .flat()
+            .find((value) => typeof value === 'string' && value !== '');
+
+        if (firstError) {
+            return firstError;
+        }
+    }
+
+    if (typeof data?.message === 'string' && data.message !== '') {
+        return data.message;
+    }
+
+    return 'Unable to create service request.';
+};
+
+export const openCustomer360AfterIntakeCreate = (result, dashboardIntegration = null) => {
+    if (!result?.incident_id) {
+        return;
+    }
+
+    const incidentId = result.incident_id;
+    const referenceLabel = result.display_reference ?? '';
+
+    if (dashboardIntegration?.openDrawer) {
+        dashboardIntegration.openDrawer(incidentId, referenceLabel);
+
+        return;
+    }
+
+    document.dispatchEvent(new CustomEvent('customer360:open', {
+        detail: {
+            incidentId,
+            referenceLabel,
+        },
+    }));
+};
+
+const applyIntakeServerValidationErrors = (form, errors = {}) => {
+    Object.entries(errors).forEach(([field, messages]) => {
+        const message = Array.isArray(messages) ? messages[0] : messages;
+
+        if (typeof message !== 'string' || message === '') {
+            return;
+        }
+
+        if (field === 'intent') {
+            const intentError = form.querySelector('[data-intake-intent-error]');
+
+            form.querySelectorAll('input[name="intent"]').forEach((input) => {
+                input.classList.add('is-invalid');
+            });
+
+            if (intentError) {
+                intentError.textContent = message;
+                intentError.classList.add('d-block');
+            }
+
+            return;
+        }
+
+        const fieldElement = form.querySelector(`[name="${field}"]`);
+
+        if (!fieldElement) {
+            return;
+        }
+
+        fieldElement.classList.add('is-invalid');
+
+        const feedback = fieldElement.parentElement?.querySelector('.invalid-feedback');
+
+        if (feedback) {
+            feedback.textContent = message;
+        }
+    });
+};
+
+const submitCustomerIntakeForm = async (
+    modalElement,
+    form,
+    { showToast = null, dashboardIntegration = null } = {},
+) => {
+    const submitButton = modalElement.querySelector('#intake-submit-button');
+    const originalButtonHtml = submitButton?.innerHTML ?? 'Create Service Request';
+
+    if (submitButton?.disabled) {
+        return;
+    }
+
+    if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Creating…';
+    }
+
+    try {
+        const response = await fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: new FormData(form),
+        });
+
+        const data = await parseJsonResponse(response);
+
+        if (data === null) {
+            showToast?.('Unable to create service request.', 'danger');
+
+            return;
+        }
+
+        if (!response.ok) {
+            applyIntakeServerValidationErrors(form, data.errors ?? {});
+            showToast?.(extractValidationMessage(data), 'danger');
+
+            return;
+        }
+
+        bootstrap.Modal.getInstance(modalElement)?.hide();
+        showToast?.(data.message ?? `Service Case ${data.display_reference} created`, 'success');
+        openCustomer360AfterIntakeCreate(data, dashboardIntegration);
+        document.dispatchEvent(new CustomEvent('customer360:refresh', {
+            detail: { incidentId: data.incident_id },
+        }));
+        resetIntakeForm(modalElement, form);
+    } catch {
+        showToast?.('Unable to create service request.', 'danger');
+    } finally {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalButtonHtml;
+        }
+    }
+};
+
+const validateCustomerIntakeForm = (form) => {
+    const actionField = form.querySelector('#intake_action');
+    const action = actionField?.value ?? '';
+    const notesField = form.querySelector('#intake_notes');
+    const notes = notesField?.value.trim() ?? '';
+    let isValid = true;
+
+    if (notes === '') {
+        isValid = false;
+        notesField?.classList.add('is-invalid');
+
+        const existingFeedback = notesField?.parentElement?.querySelector('.invalid-feedback');
+
+        if (existingFeedback) {
+            existingFeedback.textContent = 'Comment / issue description is required.';
+        }
+    }
+
+    if (action === 'new_contact') {
+        const customerNameField = form.querySelector('#intake_customer_name');
+        const customerName = customerNameField?.value.trim() ?? '';
+        const selectedIntent = form.querySelector('input[name="intent"]:checked');
+        const intentError = form.querySelector('[data-intake-intent-error]');
+
+        if (customerName === '') {
+            isValid = false;
+            customerNameField?.classList.add('is-invalid');
+
+            const nameFeedback = customerNameField?.parentElement?.querySelector('.invalid-feedback');
+
+            if (nameFeedback) {
+                nameFeedback.textContent = 'Customer name is required.';
+            }
+        }
+
+        if (!selectedIntent) {
+            isValid = false;
+
+            form.querySelectorAll('input[name="intent"]').forEach((input) => {
+                input.classList.add('is-invalid');
+            });
+
+            if (intentError) {
+                intentError.textContent = 'Select the customer intent before continuing.';
+                intentError.classList.add('d-block');
+            }
+        }
+    }
+
+    return isValid;
+};
+
+export const initCustomerIntake = ({ showToast = null, dashboardIntegration = null } = {}) => {
     initLegacySearchConfirmModal({ showToast });
 
     const modalElement = document.getElementById('quickCreateModal');
@@ -736,52 +942,14 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
     });
 
     form?.addEventListener('submit', (event) => {
-        const actionField = form.querySelector('#intake_action');
-        const action = actionField?.value ?? '';
-        const notesField = form.querySelector('#intake_notes');
-        const notes = notesField?.value.trim() ?? '';
-
-        if (notes === '') {
+        if (!validateCustomerIntakeForm(form)) {
             event.preventDefault();
-            notesField?.classList.add('is-invalid');
 
-            const existingFeedback = notesField?.parentElement?.querySelector('.invalid-feedback');
-
-            if (existingFeedback) {
-                existingFeedback.textContent = 'Comment / issue description is required.';
-            }
+            return;
         }
 
-        if (action === 'new_contact') {
-            const customerNameField = form.querySelector('#intake_customer_name');
-            const customerName = customerNameField?.value.trim() ?? '';
-            const selectedIntent = form.querySelector('input[name="intent"]:checked');
-            const intentError = form.querySelector('[data-intake-intent-error]');
-
-            if (customerName === '') {
-                event.preventDefault();
-                customerNameField?.classList.add('is-invalid');
-
-                const nameFeedback = customerNameField?.parentElement?.querySelector('.invalid-feedback');
-
-                if (nameFeedback) {
-                    nameFeedback.textContent = 'Customer name is required.';
-                }
-            }
-
-            if (!selectedIntent) {
-                event.preventDefault();
-
-                form.querySelectorAll('input[name="intent"]').forEach((input) => {
-                    input.classList.add('is-invalid');
-                });
-
-                if (intentError) {
-                    intentError.textContent = 'Select the customer intent before continuing.';
-                    intentError.classList.add('d-block');
-                }
-            }
-        }
+        event.preventDefault();
+        submitCustomerIntakeForm(modalElement, form, { showToast, dashboardIntegration });
     });
 
     form?.querySelectorAll('input[name="intent"]').forEach((input) => {
@@ -809,12 +977,13 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
     if (openIncidentId !== '') {
         window.setTimeout(() => {
             bootstrap.Modal.getInstance(modalElement)?.hide();
-            document.dispatchEvent(new CustomEvent('customer360:open', {
-                detail: {
-                    incidentId: Number(openIncidentId),
-                    referenceLabel: dashboardPage?.dataset.openCustomer360Reference ?? '',
+            openCustomer360AfterIntakeCreate(
+                {
+                    incident_id: Number(openIncidentId),
+                    display_reference: dashboardPage?.dataset.openCustomer360Reference ?? '',
                 },
-            }));
+                dashboardIntegration,
+            );
         }, 0);
 
         return;

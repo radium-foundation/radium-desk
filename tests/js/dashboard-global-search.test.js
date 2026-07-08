@@ -1809,6 +1809,7 @@ describe('dashboard global search integration', () => {
     `;
 
     const mountQuickCreateIntake = ({ showToast = vi.fn() } = {}) => {
+        document.body.insertAdjacentHTML('afterbegin', '<meta name="csrf-token" content="test-csrf-token">');
         document.body.insertAdjacentHTML('beforeend', quickCreateModalHtml);
         document.body.insertAdjacentHTML('beforeend', legacyConfirmModalHtml);
 
@@ -2031,16 +2032,89 @@ describe('dashboard global search integration', () => {
             expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(false);
         });
 
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            message: 'Service Case SC00001 created',
+            incident_id: 88,
+            display_reference: 'SC00001',
+        }));
+
         document.getElementById('intake_customer_name').value = 'Jane Doe';
         document.getElementById('intent_general_support').checked = true;
         document.getElementById('intake_notes').value = 'Caller asked about office hours.';
 
-        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
-        const prevented = !document.getElementById('customerIntakeForm')?.dispatchEvent(submitEvent);
+        document.getElementById('customerIntakeForm')?.requestSubmit();
 
-        expect(prevented).toBe(false);
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledTimes(2);
+        });
+
+        expect(fetch).toHaveBeenLastCalledWith(
+            expect.stringContaining('/service-requests/quick'),
+            expect.objectContaining({
+                method: 'POST',
+                headers: expect.objectContaining({
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                }),
+            }),
+        );
         expect(document.getElementById('intake_customer_name')?.classList.contains('is-invalid')).toBe(false);
         expect(document.getElementById('intake_notes')?.classList.contains('is-invalid')).toBe(false);
+    });
+
+    it('opens Customer 360 after successful new contact create', async () => {
+        const openHandler = vi.fn();
+        document.addEventListener('customer360:open', openHandler);
+        const showToast = vi.fn();
+        const modalHide = vi.fn();
+
+        vi.spyOn(bootstrap.Modal, 'getInstance').mockReturnValue({
+            hide: modalHide,
+        });
+
+        mountQuickCreateIntake({ showToast });
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            classification: 'new_contact',
+            requires_confirmation: false,
+            legacy_preview: null,
+            parsed_query: {
+                phone: '9876543210',
+                order_id: null,
+                serial_number: null,
+                email: null,
+            },
+        }));
+
+        document.getElementById('intake_phone').value = '9876543210';
+        document.getElementById('intake-search-button')?.click();
+
+        await vi.waitFor(() => {
+            expect(document.getElementById('intake-step-new-contact')?.classList.contains('d-none')).toBe(false);
+        });
+
+        fetch.mockResolvedValueOnce(jsonFetchResponse({
+            message: 'Service Case SC00001 created',
+            incident_id: 88,
+            display_reference: 'SC00001',
+        }));
+
+        document.getElementById('intake_customer_name').value = 'Jane Doe';
+        document.getElementById('intent_general_support').checked = true;
+        document.getElementById('intake_notes').value = 'Caller asked about office hours.';
+
+        document.getElementById('customerIntakeForm')?.requestSubmit();
+
+        await vi.waitFor(() => {
+            expect(openHandler).toHaveBeenCalled();
+        });
+
+        expect(openHandler.mock.calls[0][0].detail).toEqual({
+            incidentId: 88,
+            referenceLabel: 'SC00001',
+        });
+        expect(modalHide).toHaveBeenCalled();
+        expect(showToast).toHaveBeenCalledWith('Service Case SC00001 created', 'success');
     });
 
     it('legacy import confirmation does not ask for customer name', async () => {
