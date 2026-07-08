@@ -11,6 +11,7 @@ use App\Models\Incident;
 use App\Models\LeaveRequest;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\PresenceEngineService;
 use App\Services\ServiceCaseAssignmentService;
@@ -178,6 +179,49 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $this->assertTrue($auditLog?->new_values['assignment_override'] ?? false);
         $this->assertSame('manual_reassign', $auditLog?->new_values['override_reason'] ?? null);
+    }
+
+    public function test_assignment_invalidates_dashboard_snapshot_cache(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentUser('snapshot@test.com', 'Snapshot Agent');
+        $incident = $this->createIncidentForAssignmentTest();
+
+        DashboardSnapshot::load();
+
+        app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame(
+            1,
+            DashboardSnapshot::load()->incidentsForQueue('my_work', $agent)->count(),
+        );
+
+        Carbon::setTestNow();
+    }
+
+    public function test_manual_reassignment_refreshes_dashboard_snapshot_in_same_request(): void
+    {
+        $originalAssignee = $this->createAgentUser('original@test.com', 'Original Agent');
+        $newAssignee = $this->createAgentUser('new@test.com', 'New Agent');
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $incident = $this->createIncidentForAssignmentTest($actor);
+        $incident->update(['assigned_to_user_id' => $originalAssignee->id]);
+
+        DashboardSnapshot::load();
+
+        app(ServiceCaseAssignmentService::class)->reassign(
+            incident: $incident->fresh(['assignee']),
+            assignee: $newAssignee,
+            actor: $actor,
+        );
+
+        $snapshot = DashboardSnapshot::load();
+
+        $this->assertSame(0, $snapshot->incidentsForQueue('my_work', $originalAssignee)->count());
+        $this->assertSame(1, $snapshot->incidentsForQueue('my_work', $newAssignee)->count());
     }
 
     public function test_round_robin_assigns_first_active_agent_when_cursor_is_zero(): void
