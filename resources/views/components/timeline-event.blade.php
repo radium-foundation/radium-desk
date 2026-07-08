@@ -9,6 +9,7 @@
     $isInternalNote = $event->type === TimelineEventType::InternalNote;
     $isWhatsAppSummary = $event->type === TimelineEventType::WhatsApp && $event->summaryFields !== [];
     $isWhatsAppTemplateSent = $event->type === TimelineEventType::WhatsAppTemplateSent && $event->summaryFields !== [];
+    $isIvrCall = $event->type === TimelineEventType::IvrCall;
     $isStructuredSummary = $isWhatsAppSummary || $isWhatsAppTemplateSent;
     $mentionFormatter = app(RemarkMentionFormatter::class);
 @endphp
@@ -102,6 +103,27 @@
                     <div class="unified-timeline-detail">{{ $event->summary }}</div>
                 @endif
             @endunless
+
+            @if($isIvrCall && $event->summaryFields !== [])
+                <dl class="unified-timeline-summary-fields">
+                    @foreach($event->summaryFields as $field)
+                        <div class="unified-timeline-summary-field">
+                            <dt>{{ $field['label'] }}</dt>
+                            <dd>{{ $field['value'] }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+
+                @if($event->actionUrl && $event->actionLabel)
+                    <a href="{{ $event->actionUrl }}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="unified-timeline-action-link">
+                        {{ $event->actionLabel }}
+                        <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+                    </a>
+                @endif
+            @endif
         @endif
     </div>
 </article>

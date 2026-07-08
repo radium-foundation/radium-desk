@@ -15,7 +15,7 @@ class UserManagementService
     ) {}
 
     /**
-     * @param  array{first_name: string, last_name: string, email: string, password: string, role: string, is_active: bool}  $data
+     * @param  array{first_name: string, last_name: string, email: string, password: string, role: string, is_active: bool, bonvoice_extension?: string|null}  $data
      */
     public function createUser(array $data, User $actor): User
     {
@@ -28,6 +28,7 @@ class UserManagementService
                 'email' => $data['email'],
                 'password' => $data['password'],
                 'is_active' => $data['is_active'],
+                'bonvoice_extension' => $data['bonvoice_extension'] ?? null,
             ]);
 
             $user->syncRoles([$data['role']]);
@@ -44,7 +45,7 @@ class UserManagementService
     }
 
     /**
-     * @param  array{first_name: string, last_name: string, email: string, role: string, is_active: bool}  $data
+     * @param  array{first_name: string, last_name: string, email: string, role: string, is_active: bool, bonvoice_extension?: string|null}  $data
      */
     public function updateUser(User $user, array $data, User $actor): User
     {
@@ -61,6 +62,7 @@ class UserManagementService
                 'last_name' => $data['last_name'],
                 'email' => $data['email'],
                 'is_active' => $data['is_active'],
+                'bonvoice_extension' => $data['bonvoice_extension'] ?? null,
             ]);
 
             $user->syncRoles([$data['role']]);
@@ -207,6 +209,7 @@ class UserManagementService
             'email' => $user->email,
             'role' => $role,
             'is_active' => $user->is_active,
+            'bonvoice_extension' => $user->bonvoice_extension,
         ];
     }
 }

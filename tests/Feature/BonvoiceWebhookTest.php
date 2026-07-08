@@ -90,7 +90,7 @@ class BonvoiceWebhookTest extends TestCase
         $this->assertSame('Inbound Call', $event->title);
         $this->assertSame('bonvoice:call:call-001', $event->dedupeKey);
         $this->assertSame('Ringing', $event->statusLabel);
-        $this->assertSame('Ringing', collect($event->summaryFields)->firstWhere('label', 'Status')['value']);
+        $this->assertSame('RINGING', collect($event->summaryFields)->firstWhere('label', 'Status')['value']);
     }
 
     public function test_lifecycle_updates_upsert_same_call_without_duplicate_timeline_cards(): void
@@ -319,6 +319,122 @@ class BonvoiceWebhookTest extends TestCase
         $this->assertStringContainsString('Inbound Call', $html);
         $this->assertStringContainsString('Answered', $html);
         $this->assertStringContainsString('bi-telephone', $html);
+    }
+
+    public function test_customer_360_health_card_shows_latest_call_status_and_relative_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-08 15:28:23', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-BV-5',
+            'serial_number' => 'SN-BV-5',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Health Card Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Health card call test',
+            'description' => 'BonVoice health card visibility test.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-health-001',
+            status: 'ANSWERED',
+            startTime: '2026-07-08 14:32:23',
+        ))->assertOk();
+
+        $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
+
+        $response->assertOk();
+        $response->assertSee('Last Call', false);
+        $response->assertSee('ANSWERED', false);
+        $response->assertSee('56 minutes ago', false);
+        $response->assertDontSee('No calls yet', false);
+    }
+
+    public function test_ivr_timeline_resolves_agent_from_destination_number(): void
+    {
+        $agent = User::factory()->create([
+            'first_name' => 'Avinash',
+            'last_name' => 'Kumar',
+            'name' => 'Avinash Kumar',
+            'bonvoice_extension' => '08448423017',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-BV-6',
+            'serial_number' => 'SN-BV-6',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Agent Match Customer',
+            'customer_phone' => '9770763522',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Agent match test',
+            'description' => 'BonVoice agent resolution test.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->postJson('/api/webhooks/bonvoice', [
+            'SourceNumber' => '9770763522',
+            'DestinationNumber' => '08448423017',
+            'StartTime' => '2026-07-08 14:32:23',
+            'EndTime' => '2026-07-08 14:37:06',
+            'CallDuration' => '195',
+            'Status' => 'ANSWERED',
+            'Direction' => 'Inbound',
+            'ResourceURL' => 'https://recordings.bonvoice.example/call-1783501343.mp3',
+            'callID' => 'call-agent-001',
+            'callType' => '2',
+        ])->assertOk();
+
+        $timeline = app(Customer360TimelineService::class)->forOrder($order);
+        $ivrEvent = $timeline->groups
+            ->flatMap(fn ($group) => $group->events)
+            ->first(fn ($event) => $event->type === TimelineEventType::IvrCall);
+
+        $this->assertNotNull($ivrEvent);
+        $this->assertSame('Customer → Avinash', $ivrEvent->actor->displayName);
+        $this->assertSame('Avinash', collect($ivrEvent->summaryFields)->firstWhere('label', 'Agent')['value']);
+        $this->assertSame('3m 15s', collect($ivrEvent->summaryFields)->firstWhere('label', 'Duration')['value']);
+        $this->assertSame('Available', collect($ivrEvent->summaryFields)->firstWhere('label', 'Recording')['value']);
+        $this->assertSame('Play Recording', $ivrEvent->actionLabel);
+        $this->assertSame('https://recordings.bonvoice.example/call-1783501343.mp3', $ivrEvent->actionUrl);
+
+        $response = $this->actingAs($agent)->getJson(
+            route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0',
+        );
+
+        $response->assertOk();
+        $html = (string) $response->json('html');
+        $this->assertStringContainsString('Customer → Avinash', $html);
+        $this->assertStringContainsString('Play Recording', $html);
     }
 
     /**

@@ -33,6 +33,7 @@ class UpdateUserRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'role' => ['required', 'string', Rule::in(app(UserManagementService::class)->assignableRoles($actor))],
             'is_active' => ['required', 'boolean'],
+            'bonvoice_extension' => ['nullable', 'string', 'max:50', Rule::unique('users', 'bonvoice_extension')->ignore($user->id)],
         ];
     }
 
@@ -45,13 +46,19 @@ class UpdateUserRequest extends FormRequest
             'first_name' => 'first name',
             'last_name' => 'last name',
             'is_active' => 'status',
+            'bonvoice_extension' => 'BonVoice extension / desk number',
         ];
     }
 
     protected function prepareForValidation(): void
     {
+        $extension = $this->input('bonvoice_extension');
+
         $this->merge([
             'is_active' => $this->boolean('is_active'),
+            'bonvoice_extension' => is_string($extension) && trim($extension) !== ''
+                ? trim($extension)
+                : null,
         ]);
     }
 }

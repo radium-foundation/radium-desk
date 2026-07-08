@@ -137,6 +137,87 @@ class UserManagementTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_save_bonvoice_extension_on_create(): void
+    {
+        $admin = $this->createAdmin();
+
+        $this->actingAs($admin)->post(route('users.store'), [
+            'first_name' => 'Call',
+            'last_name' => 'Agent',
+            'email' => 'callagent@test.com',
+            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'is_active' => '1',
+            'bonvoice_extension' => '08448423017',
+        ])
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHas('status', 'user-created');
+
+        $created = User::query()->where('email', 'callagent@test.com')->first();
+        $this->assertNotNull($created);
+        $this->assertSame('08448423017', $created->bonvoice_extension);
+    }
+
+    public function test_admin_can_save_bonvoice_extension_on_update(): void
+    {
+        $admin = $this->createAdmin();
+        $target = User::factory()->create([
+            'email' => 'extension-update@test.com',
+            'bonvoice_extension' => null,
+        ]);
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)->put(route('users.update', $target), [
+            'first_name' => $target->first_name,
+            'last_name' => $target->last_name,
+            'email' => $target->email,
+            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'is_active' => '1',
+            'bonvoice_extension' => '08448423017',
+        ])
+            ->assertRedirect(route('users.edit', $target))
+            ->assertSessionHas('status', 'user-updated');
+
+        $this->assertSame('08448423017', $target->fresh()->bonvoice_extension);
+    }
+
+    public function test_duplicate_bonvoice_extension_is_rejected(): void
+    {
+        $admin = $this->createAdmin();
+        $existing = User::factory()->create([
+            'email' => 'existing-extension@test.com',
+            'bonvoice_extension' => '08448423017',
+        ]);
+        $existing->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $target = User::factory()->create([
+            'email' => 'duplicate-extension@test.com',
+            'bonvoice_extension' => null,
+        ]);
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)->post(route('users.store'), [
+            'first_name' => 'Duplicate',
+            'last_name' => 'Extension',
+            'email' => 'new-duplicate@test.com',
+            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'is_active' => '1',
+            'bonvoice_extension' => '08448423017',
+        ])->assertSessionHasErrors('bonvoice_extension');
+
+        $this->actingAs($admin)->put(route('users.update', $target), [
+            'first_name' => $target->first_name,
+            'last_name' => $target->last_name,
+            'email' => $target->email,
+            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'is_active' => '1',
+            'bonvoice_extension' => '08448423017',
+        ])->assertSessionHasErrors('bonvoice_extension');
+    }
+
     public function test_admin_can_deactivate_user(): void
     {
         $admin = $this->createAdmin();

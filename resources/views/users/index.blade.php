@@ -71,6 +71,7 @@
                                 <th>First Name</th>
                                 <th>Last Name</th>
                                 <th>Email</th>
+                                <th>BonVoice Ext</th>
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th>Assigned Service Cases</th>
@@ -90,6 +91,7 @@
                                     <td>{{ $user->firstName() }}</td>
                                     <td>{{ $user->lastName() ?: '—' }}</td>
                                     <td>{{ $user->email }}</td>
+                                    <td class="text-nowrap">{{ $user->bonvoice_extension ?: '—' }}</td>
                                     <td>
                                         @foreach($user->roles as $role)
                                             <span class="badge text-bg-secondary">{{ app(\App\Services\Operations\OperationsRoleService::class)->displayLabel($role->name) }}</span>

@@ -13,6 +13,7 @@ use App\Services\AI\AIService;
 use App\Services\AI\AIWorkbenchService;
 use App\Services\AI\CustomerScopeQueryCache;
 use App\Services\AI\IRAExecutiveSummaryService;
+use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Services\Customer360\Customer360OperationsHealthService;
 use App\Services\Customer360\Customer360SlaMetricsService;
 use App\Services\Operations\OperationsAdvisorService;
@@ -43,6 +44,7 @@ class Customer360Service
         private readonly IRAExecutiveSummaryService $executiveSummaryService,
         private readonly Customer360OperationsHealthService $operationsHealthService,
         private readonly Customer360SlaMetricsService $slaMetricsService,
+        private readonly BonvoiceCustomerCallService $bonvoiceCustomerCallService,
     ) {}
 
     /**
@@ -417,7 +419,7 @@ class Customer360Service
             'last_whatsapp' => $communication['whatsapp'],
             'last_email' => $communication['email'],
             'last_interaction_at' => null,
-            'last_call' => null,
+            'last_call' => $this->bonvoiceCustomerCallService->lastCallSummary($order->customer_phone),
         ];
     }
 

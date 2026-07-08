@@ -9,6 +9,8 @@ use App\Enums\TimelineActorKind;
 use App\Enums\TimelineEventType;
 use App\Models\BonvoiceCallEvent;
 use App\Models\Order;
+use App\Services\Bonvoice\BonvoiceAgentResolver;
+use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Support\AppDateFormatter;
 use Illuminate\Support\Collection;
 
@@ -16,23 +18,13 @@ class BonVoiceCallTimelineEventSource implements TimelineEventSource
 {
     public function __construct(
         private readonly Order $order,
+        private readonly BonvoiceCustomerCallService $bonvoiceCustomerCallService,
+        private readonly BonvoiceAgentResolver $bonvoiceAgentResolver,
     ) {}
 
     public function collect(?int $limit = null): Collection
     {
-        if (! filled($this->order->customer_phone)) {
-            return collect();
-        }
-
-        $events = BonvoiceCallEvent::query()
-            ->where('customer_phone', $this->order->customer_phone)
-            ->orderByDesc('updated_at')
-            ->get()
-            ->groupBy('call_id')
-            ->map(fn (Collection $legs) => $legs->sortByDesc(fn (BonvoiceCallEvent $event) => $event->updated_at?->timestamp ?? 0)->first())
-            ->filter()
-            ->sortByDesc(fn (BonvoiceCallEvent $event) => $event->started_at?->timestamp ?? $event->updated_at?->timestamp ?? 0)
-            ->values();
+        $events = $this->bonvoiceCustomerCallService->dedupedCallsForCustomer($this->order->customer_phone);
 
         if ($limit !== null) {
             $events = $events->take($limit);
@@ -47,30 +39,28 @@ class BonVoiceCallTimelineEventSource implements TimelineEventSource
     {
         $occurredAt = $event->started_at ?? $event->updated_at ?? now();
         $directionLabel = $this->directionLabel($event->direction);
+        $agentName = $this->bonvoiceAgentResolver->resolveAgentFirstNameForCall($event);
+        $duration = $this->formatDuration($this->callDuration($event));
         $summaryFields = array_values(array_filter([
-            [
-                'label' => 'Direction',
-                'value' => $directionLabel,
-            ],
+            filled($agentName) ? [
+                'label' => 'Agent',
+                'value' => $agentName,
+            ] : null,
+            filled($duration) ? [
+                'label' => 'Duration',
+                'value' => $duration,
+            ] : null,
             filled($event->status) ? [
                 'label' => 'Status',
-                'value' => $event->status,
+                'value' => strtoupper((string) $event->status),
             ] : null,
             filled($event->agent_status) ? [
                 'label' => 'Agent Status',
                 'value' => $event->agent_status,
             ] : null,
-            filled($event->source_number) ? [
-                'label' => 'From',
-                'value' => $event->source_number,
-            ] : null,
-            filled($event->destination_number) ? [
-                'label' => 'To',
-                'value' => $event->destination_number,
-            ] : null,
-            filled($event->call_type) ? [
-                'label' => 'Call Type',
-                'value' => $event->call_type,
+            filled($event->recording_url) ? [
+                'label' => 'Recording',
+                'value' => 'Available',
             ] : null,
             [
                 'label' => 'Started',
@@ -82,16 +72,59 @@ class BonVoiceCallTimelineEventSource implements TimelineEventSource
             type: TimelineEventType::IvrCall,
             occurredAt: $occurredAt,
             title: $directionLabel.' Call',
-            actor: new TimelineActor(
-                displayName: 'Customer',
-                kind: TimelineActorKind::Customer,
-            ),
+            actor: $this->resolveActor($agentName),
             dedupeKey: 'bonvoice:call:'.$event->call_id,
             statusLabel: $event->status,
             statusVariant: $this->statusVariant($event->status),
             summaryFields: $summaryFields,
+            actionLabel: filled($event->recording_url) ? 'Play Recording' : null,
+            actionUrl: $event->recording_url,
             filterTags: ['customer', 'notifications'],
         );
+    }
+
+    private function resolveActor(?string $agentName): TimelineActor
+    {
+        if (filled($agentName)) {
+            return new TimelineActor(
+                displayName: 'Customer → '.$agentName,
+                kind: TimelineActorKind::Customer,
+            );
+        }
+
+        return new TimelineActor(
+            displayName: 'Customer',
+            kind: TimelineActorKind::Customer,
+        );
+    }
+
+    private function callDuration(BonvoiceCallEvent $event): ?string
+    {
+        $payload = $event->payload ?? [];
+
+        return is_array($payload)
+            ? ($payload['CallDuration'] ?? $payload['duration_seconds'] ?? null)
+            : null;
+    }
+
+    private function formatDuration(mixed $seconds): ?string
+    {
+        if (! is_scalar($seconds) || trim((string) $seconds) === '' || ! is_numeric($seconds)) {
+            return null;
+        }
+
+        $total = (int) $seconds;
+
+        if ($total < 60) {
+            return $total.'s';
+        }
+
+        $minutes = intdiv($total, 60);
+        $remainingSeconds = $total % 60;
+
+        return $remainingSeconds > 0
+            ? "{$minutes}m {$remainingSeconds}s"
+            : "{$minutes}m";
     }
 
     private function directionLabel(?string $direction): string

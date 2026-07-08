@@ -25,6 +25,7 @@ use Spatie\Permission\Traits\HasRoles;
     'is_active',
     'telegram_chat_id',
     'telegram_notifications_enabled',
+    'bonvoice_extension',
     'availability_status',
     'availability_updated_at',
     'leave_start_date',

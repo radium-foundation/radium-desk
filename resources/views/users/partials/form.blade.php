@@ -42,6 +42,16 @@
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
+    <div class="col-md-6">
+        <label for="bonvoice_extension" class="form-label">BonVoice Extension / Desk Number</label>
+        <input type="text" name="bonvoice_extension" id="bonvoice_extension"
+               class="form-control @error('bonvoice_extension') is-invalid @enderror"
+               value="{{ old('bonvoice_extension', $user->bonvoice_extension) }}"
+               placeholder="08448423017">
+        @error('bonvoice_extension')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+    </div>
 
     @if($showPassword)
         <div class="col-md-6">

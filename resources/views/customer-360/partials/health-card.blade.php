@@ -3,6 +3,7 @@
 
     $displayValue = fn (?string $value) => filled($value) ? $value : 'Not Available';
     $lastPayment = $healthCard['last_payment'] ?? null;
+    $lastCall = $healthCard['last_call'] ?? null;
 @endphp
 
 <section class="customer-360-health-card" data-customer-360-section="health-card" aria-labelledby="customer-360-health-heading">
@@ -72,9 +73,23 @@
             <dt><i class="bi bi-tools" aria-hidden="true"></i> Active Cases</dt>
             <dd>{{ $healthCard['active_service_cases'] ?? 0 }}</dd>
         </div>
-        <div class="customer-360-health-item customer-360-health-item--placeholder">
+        <div @class([
+            'customer-360-health-item',
+            'customer-360-health-item--placeholder' => ! $lastCall,
+        ])>
             <dt><i class="bi bi-telephone-outbound" aria-hidden="true"></i> Last Call</dt>
-            <dd><span class="customer-360-health-placeholder">No calls yet</span></dd>
+            <dd>
+                @if($lastCall)
+                    <span class="customer-360-health-value">{{ $lastCall['status_label'] }}</span>
+                    <time class="customer-360-health-meta"
+                          datetime="{{ $lastCall['occurred_at']->toIso8601String() }}"
+                          title="{{ AppDateFormatter::timelineDatetime($lastCall['occurred_at']) }}">
+                        {{ $lastCall['occurred_at_label'] }}
+                    </time>
+                @else
+                    <span class="customer-360-health-placeholder">No calls yet</span>
+                @endif
+            </dd>
         </div>
     </dl>
 </section>

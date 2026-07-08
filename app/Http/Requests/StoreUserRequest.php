@@ -31,6 +31,7 @@ class StoreUserRequest extends FormRequest
             'role' => ['required', 'string', Rule::in(app(UserManagementService::class)->assignableRoles($actor))],
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'is_active' => ['sometimes', 'boolean'],
+            'bonvoice_extension' => ['nullable', 'string', 'max:50', Rule::unique('users', 'bonvoice_extension')],
         ];
     }
 
@@ -43,13 +44,19 @@ class StoreUserRequest extends FormRequest
             'first_name' => 'first name',
             'last_name' => 'last name',
             'is_active' => 'status',
+            'bonvoice_extension' => 'BonVoice extension / desk number',
         ];
     }
 
     protected function prepareForValidation(): void
     {
+        $extension = $this->input('bonvoice_extension');
+
         $this->merge([
             'is_active' => $this->boolean('is_active'),
+            'bonvoice_extension' => is_string($extension) && trim($extension) !== ''
+                ? trim($extension)
+                : null,
         ]);
     }
 }

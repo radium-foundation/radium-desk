@@ -91,6 +91,7 @@ class UserController extends Controller
             'password' => $validated['password'],
             'role' => $validated['role'],
             'is_active' => $validated['is_active'] ?? true,
+            'bonvoice_extension' => $validated['bonvoice_extension'] ?? null,
         ], $request->user());
 
         return redirect()
@@ -128,6 +129,7 @@ class UserController extends Controller
             'email' => $validated['email'],
             'role' => $validated['role'],
             'is_active' => $validated['is_active'],
+            'bonvoice_extension' => $validated['bonvoice_extension'] ?? null,
         ], $request->user());
 
         return redirect()
