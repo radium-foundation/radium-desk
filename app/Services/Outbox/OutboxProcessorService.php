@@ -5,6 +5,9 @@ namespace App\Services\Outbox;
 use App\Enums\OutboxEventStatus;
 use App\Models\OutboxEvent;
 use App\Models\InteraktWebhookLog;
+use App\Models\BonvoiceWebhookLog;
+use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
+use App\Services\Bonvoice\BonvoiceWebhookProcessorService;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
 use App\Services\Interakt\InteraktFlowWebhookOutboxWriter;
@@ -33,6 +36,7 @@ class OutboxProcessorService
         private readonly InteraktWebhookProcessorService $interaktWebhookProcessorService,
         private readonly InteraktFlowWebhookProcessorService $interaktFlowWebhookProcessorService,
         private readonly InteraktOutboundProcessorService $interaktOutboundProcessorService,
+        private readonly BonvoiceWebhookProcessorService $bonvoiceWebhookProcessorService,
     ) {}
 
     public function process(?int $limit = null): int
@@ -151,6 +155,7 @@ class OutboxProcessorService
             InteraktWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktWebhookProcessing($event),
             InteraktFlowWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktFlowWebhookProcessing($event),
             InteraktOutboundOutboxWriter::EVENT_TYPE => $this->dispatchInteraktTemplateSend($event),
+            BonvoiceWebhookOutboxWriter::EVENT_TYPE => $this->dispatchBonvoiceWebhookProcessing($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
     }
@@ -201,6 +206,24 @@ class OutboxProcessorService
         }
 
         $this->interaktOutboundProcessorService->processDispatch($dispatchId);
+    }
+
+    private function dispatchBonvoiceWebhookProcessing(OutboxEvent $event): void
+    {
+        $payload = $event->payload ?? [];
+        $webhookLogId = (int) ($payload['webhook_log_id'] ?? 0);
+
+        if ($webhookLogId <= 0) {
+            throw new RuntimeException('BonVoice outbox event is missing webhook_log_id.');
+        }
+
+        $webhookLog = BonvoiceWebhookLog::query()->find($webhookLogId);
+
+        if ($webhookLog === null) {
+            throw new RuntimeException('BonVoice webhook log not found: '.$webhookLogId);
+        }
+
+        $this->bonvoiceWebhookProcessorService->process($webhookLog);
     }
 
     private function dispatchCashfreeDeferredOperation(OutboxEvent $event): void

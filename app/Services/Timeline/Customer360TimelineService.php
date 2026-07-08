@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Services\AutomationIdentityService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\Timeline\Sources\AppointmentTimelineEventSource;
+use App\Services\Timeline\Sources\BonVoiceCallTimelineEventSource;
 use App\Services\Timeline\Sources\NotificationTimelineEventSource;
 use App\Services\Timeline\Sources\OrderCustomerTimelineSource;
 use App\Services\Timeline\Sources\RadiumBoxSyncTimelineEventSource;
@@ -69,6 +70,9 @@ class Customer360TimelineService
                     'order' => $order,
                 ]),
                 app()->makeWith(ServiceCaseLifecycleTimelineEventSource::class, [
+                    'order' => $order,
+                ]),
+                app()->makeWith(BonVoiceCallTimelineEventSource::class, [
                     'order' => $order,
                 ]),
             ],

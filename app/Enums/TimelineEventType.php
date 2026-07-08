@@ -81,7 +81,8 @@ enum TimelineEventType: string
             self::Notification,
             self::Synchronization,
             self::Appointment,
-            self::Automation => true,
+            self::Automation,
+            self::IvrCall => true,
             default => false,
         };
     }
@@ -92,7 +93,8 @@ enum TimelineEventType: string
             self::WhatsApp,
             self::WhatsAppTemplateSent => 'notifications',
             self::Email,
-            self::Notification => 'notifications',
+            self::Notification,
+            self::IvrCall => 'notifications',
             self::Payment => 'payments',
             self::ServiceCaseCreated,
             self::Assignment,
