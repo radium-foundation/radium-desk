@@ -129,6 +129,45 @@ class QuickServiceRequestTest extends TestCase
         $this->assertSame(0, Incident::query()->count());
     }
 
+    public function test_quick_create_rejects_missing_intent_for_new_contact(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->from(route('dashboard'))
+            ->post(route('service-requests.quick.store'), [
+                'action' => 'new_contact',
+                'customer_name' => 'Missing Intent Customer',
+                'phone' => '9876543215',
+                'source' => IncidentSource::Call->value,
+                'notes' => 'Caller asked about office hours.',
+            ])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasErrors('intent');
+
+        $this->assertSame(0, Incident::query()->count());
+    }
+
+    public function test_quick_create_allows_new_contact_with_selected_intent(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)->post(route('service-requests.quick.store'), [
+            'action' => 'new_contact',
+            'intent' => NewContactIntent::GeneralSupport->value,
+            'customer_name' => 'Intent Selected Customer',
+            'phone' => '9876543216',
+            'source' => IncidentSource::Call->value,
+            'notes' => 'Caller asked about office hours.',
+        ])->assertRedirect();
+
+        $incident = Incident::query()->first();
+        $this->assertNotNull($incident);
+        $this->assertSame('Intent Selected Customer', $incident->order->customer_name);
+    }
+
     public function test_quick_create_stores_customer_name_for_new_contact(): void
     {
         $agent = User::factory()->create();

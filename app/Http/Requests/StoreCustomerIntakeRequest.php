@@ -30,7 +30,12 @@ class StoreCustomerIntakeRequest extends FormRequest
             'matched_order_id' => ['nullable', 'integer', 'exists:orders,id'],
             'legacy_order_id' => ['nullable', 'string', 'max:50'],
             'open_only' => ['sometimes', 'boolean'],
-            'intent' => ['nullable', 'string', Rule::enum(NewContactIntent::class)],
+            'intent' => [
+                Rule::requiredIf(fn () => $this->string('action')->toString() === 'new_contact'),
+                'nullable',
+                'string',
+                Rule::enum(NewContactIntent::class),
+            ],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'serial_number' => ['nullable', 'string', 'max:100'],
@@ -49,6 +54,7 @@ class StoreCustomerIntakeRequest extends FormRequest
         return [
             'notes' => 'comment / issue description',
             'customer_name' => 'customer name',
+            'intent' => 'customer intent',
         ];
     }
 

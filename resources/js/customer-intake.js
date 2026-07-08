@@ -25,6 +25,7 @@ const preserveSearchValues = (form) => ({
     phone: form.querySelector('#intake_phone')?.value ?? '',
     orderId: form.querySelector('#intake_order_id')?.value ?? '',
     serialNumber: form.querySelector('#intake_serial_number')?.value ?? '',
+    email: form.dataset.intakeSearchedEmail ?? '',
 });
 
 const restoreSearchValues = (form, { phone, orderId, serialNumber }) => {
@@ -45,6 +46,69 @@ const restoreSearchValues = (form, { phone, orderId, serialNumber }) => {
     }
 };
 
+const resolveSearchedContactValues = (form, parsedQuery = null) => ({
+    phone: parsedQuery?.phone ?? form.querySelector('#intake_phone')?.value.trim() ?? '',
+    orderId: parsedQuery?.order_id ?? form.querySelector('#intake_order_id')?.value.trim() ?? '',
+    serialNumber: parsedQuery?.serial_number ?? form.querySelector('#intake_serial_number')?.value.trim() ?? '',
+    email: parsedQuery?.email ?? form.dataset.intakeSearchedEmail ?? '',
+});
+
+export const syncNewContactSearchedDisplay = (form, parsedQuery = null) => {
+    const values = resolveSearchedContactValues(form, parsedQuery);
+    const container = form.querySelector('[data-intake-searched-contact]');
+    const hiddenPhone = form.querySelector('#intake_new_contact_phone');
+    const hiddenSerial = form.querySelector('#intake_new_contact_serial_number');
+    const fieldMap = {
+        phone: values.phone,
+        email: values.email,
+        order_id: values.orderId,
+        serial_number: values.serialNumber,
+    };
+
+    if (hiddenPhone) {
+        hiddenPhone.value = values.phone;
+    }
+
+    if (hiddenSerial) {
+        hiddenSerial.value = values.serialNumber;
+    }
+
+    if (values.email) {
+        form.dataset.intakeSearchedEmail = values.email;
+    } else {
+        delete form.dataset.intakeSearchedEmail;
+    }
+
+    if (!container) {
+        return;
+    }
+
+    let hasVisibleField = false;
+
+    Object.entries(fieldMap).forEach(([field, value]) => {
+        const row = container.querySelector(`[data-intake-searched-field="${field}"]`);
+        const valueElement = container.querySelector(`[data-intake-searched-value="${field}"]`);
+        const trimmedValue = typeof value === 'string' ? value.trim() : '';
+
+        if (!row || !valueElement) {
+            return;
+        }
+
+        if (trimmedValue === '') {
+            row.classList.add('d-none');
+            valueElement.textContent = '';
+
+            return;
+        }
+
+        row.classList.remove('d-none');
+        valueElement.textContent = trimmedValue;
+        hasVisibleField = true;
+    });
+
+    container.classList.toggle('d-none', !hasVisibleField);
+};
+
 const clearIntakeValidationState = (modal, form) => {
     const feedback = modal.querySelector('#intake-search-feedback');
 
@@ -58,6 +122,13 @@ const clearIntakeValidationState = (modal, form) => {
     });
 
     form.querySelectorAll('.invalid-feedback').forEach((element) => {
+        if (element.hasAttribute('data-intake-intent-error')) {
+            element.textContent = '';
+            element.classList.remove('d-block');
+
+            return;
+        }
+
         element.textContent = '';
         element.classList.remove('d-block');
     });
@@ -91,6 +162,20 @@ const returnToSearchStep = (modal, form) => {
         input.checked = false;
     });
 
+    const hiddenPhone = form.querySelector('#intake_new_contact_phone');
+    const hiddenSerial = form.querySelector('#intake_new_contact_serial_number');
+
+    if (hiddenPhone) {
+        hiddenPhone.value = '';
+    }
+
+    if (hiddenSerial) {
+        hiddenSerial.value = '';
+    }
+
+    delete form.dataset.intakeSearchedEmail;
+    syncNewContactSearchedDisplay(form);
+
     const searchButton = modal.querySelector('#intake-search-button');
     const submitButton = modal.querySelector('#intake-submit-button');
     searchButton?.classList.remove('d-none');
@@ -101,7 +186,7 @@ const returnToSearchStep = (modal, form) => {
     restoreSearchValues(form, searchValues);
 };
 
-export const advanceQuickCreateToNewContact = (modalElement, form) => {
+export const advanceQuickCreateToNewContact = (modalElement, form, parsedQuery = null) => {
     const actionField = form.querySelector('#intake_action');
     const matchedOrderField = form.querySelector('#intake_matched_order_id');
     const legacyOrderField = form.querySelector('#intake_legacy_order_id');
@@ -125,6 +210,8 @@ export const advanceQuickCreateToNewContact = (modalElement, form) => {
         feedback.classList.add('d-none');
         feedback.textContent = '';
     }
+
+    syncNewContactSearchedDisplay(form, parsedQuery);
 
     showStep(modalElement, 'intake-step-new-contact');
     modalElement.querySelector('#intake-step-details')?.classList.remove('d-none');
@@ -569,7 +656,7 @@ const searchCustomer = async (modal, form) => {
         const outcome = resolveIntakeOutcome(data);
 
         if (outcome === 'new_contact') {
-            advanceQuickCreateToNewContact(modal, form);
+            advanceQuickCreateToNewContact(modal, form, data.parsed_query ?? null);
             return;
         }
 
@@ -668,6 +755,8 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
         if (action === 'new_contact') {
             const customerNameField = form.querySelector('#intake_customer_name');
             const customerName = customerNameField?.value.trim() ?? '';
+            const selectedIntent = form.querySelector('input[name="intent"]:checked');
+            const intentError = form.querySelector('[data-intake-intent-error]');
 
             if (customerName === '') {
                 event.preventDefault();
@@ -679,11 +768,36 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
                     nameFeedback.textContent = 'Customer name is required.';
                 }
             }
+
+            if (!selectedIntent) {
+                event.preventDefault();
+
+                form.querySelectorAll('input[name="intent"]').forEach((input) => {
+                    input.classList.add('is-invalid');
+                });
+
+                if (intentError) {
+                    intentError.textContent = 'Select the customer intent before continuing.';
+                    intentError.classList.add('d-block');
+                }
+            }
         }
     });
 
     form?.querySelectorAll('input[name="intent"]').forEach((input) => {
         input.addEventListener('change', () => {
+            input.classList.remove('is-invalid');
+            form.querySelectorAll('input[name="intent"]').forEach((intentInput) => {
+                intentInput.classList.remove('is-invalid');
+            });
+
+            const intentError = form.querySelector('[data-intake-intent-error]');
+
+            if (intentError) {
+                intentError.textContent = '';
+                intentError.classList.remove('d-block');
+            }
+
             showStep(modalElement, 'intake-step-new-contact');
             modalElement.querySelector('#intake-step-details')?.classList.remove('d-none');
         });

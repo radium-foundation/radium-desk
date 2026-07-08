@@ -100,7 +100,7 @@ const prefillAndOpenQuickCreate = (intake, query) => {
 
     if (intake?.classification === 'new_contact' && shouldAutoRunIntakeSearch(parsedQuery)) {
         window.setTimeout(() => {
-            advanceQuickCreateToNewContact(modalElement, form);
+            advanceQuickCreateToNewContact(modalElement, form, parsedQuery);
         }, 0);
 
         return;

@@ -23,7 +23,7 @@
                         <div class="row g-3">
                             <div class="col-md-4">
                                 <label for="intake_phone" class="form-label">Phone Number</label>
-                                <input type="text" name="phone" id="intake_phone"
+                                <input type="text" id="intake_phone"
                                        class="form-control @error('phone') is-invalid @enderror"
                                        value="{{ old('phone') }}"
                                        placeholder="Customer phone">
@@ -45,7 +45,7 @@
 
                             <div class="col-md-4">
                                 <label for="intake_serial_number" class="form-label">Serial Number</label>
-                                <input type="text" name="serial_number" id="intake_serial_number"
+                                <input type="text" id="intake_serial_number"
                                        class="form-control @error('serial_number') is-invalid @enderror"
                                        value="{{ old('serial_number') }}"
                                        placeholder="Device serial">
@@ -85,11 +85,36 @@
                     </div>
 
                     <div id="intake-step-new-contact" class="intake-step d-none">
+                        <input type="hidden" name="phone" id="intake_new_contact_phone" value="{{ old('phone') }}">
+                        <input type="hidden" name="serial_number" id="intake_new_contact_serial_number" value="{{ old('serial_number') }}">
+
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h3 class="h6 mb-0">New Contact</h3>
                             <button type="button" class="btn btn-link btn-sm p-0" data-intake-back="search">Change search</button>
                         </div>
                         <p class="text-muted small mb-3">No matching customer or order was found. Capture intent before creating a workflow.</p>
+
+                        <div class="mb-3 d-none" id="intake-searched-contact" data-intake-searched-contact>
+                            <h4 class="h6 text-muted mb-2">Searched Contact</h4>
+                            <dl class="row small mb-0">
+                                <div class="col-12 d-none" data-intake-searched-field="phone">
+                                    <dt class="col-sm-3 text-muted d-inline">Mobile</dt>
+                                    <dd class="col-sm-9 mb-2 d-inline" data-intake-searched-value="phone"></dd>
+                                </div>
+                                <div class="col-12 d-none" data-intake-searched-field="email">
+                                    <dt class="col-sm-3 text-muted d-inline">Email</dt>
+                                    <dd class="col-sm-9 mb-2 d-inline" data-intake-searched-value="email"></dd>
+                                </div>
+                                <div class="col-12 d-none" data-intake-searched-field="order_id">
+                                    <dt class="col-sm-3 text-muted d-inline">Order ID</dt>
+                                    <dd class="col-sm-9 mb-2 d-inline" data-intake-searched-value="order_id"></dd>
+                                </div>
+                                <div class="col-12 d-none" data-intake-searched-field="serial_number">
+                                    <dt class="col-sm-3 text-muted d-inline">Serial Number</dt>
+                                    <dd class="col-sm-9 mb-0 d-inline" data-intake-searched-value="serial_number"></dd>
+                                </div>
+                            </dl>
+                        </div>
 
                         <div class="mb-3">
                             <label for="intake_customer_name" class="form-label">Customer Name <span class="text-danger">*</span></label>
@@ -117,9 +142,9 @@
                                     </label>
                                 </div>
                             @endforeach
-                            @error('intent')
-                                <div class="invalid-feedback d-block">{{ $message }}</div>
-                            @enderror
+                            <div class="invalid-feedback @error('intent') d-block @enderror" data-intake-intent-error>
+                                @error('intent'){{ $message }}@enderror
+                            </div>
                         </fieldset>
                     </div>
 
