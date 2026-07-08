@@ -6,27 +6,44 @@ use Illuminate\Http\Request;
 
 class BonvoiceWebhookSignatureVerifier
 {
-    public const ERROR_INVALID_SIGNATURE = 'Invalid BonVoice webhook signature';
+    public const ERROR_INVALID_AUTHORIZATION = 'Invalid BonVoice webhook authorization';
 
     public function verify(Request $request): bool
     {
-        $signature = $this->headerValue($request, 'bonvoice-signature')
-            ?? $this->headerValue($request, 'x-bonvoice-signature');
-        $secretKey = (string) config('bonvoice.webhook_secret');
+        if (! config('bonvoice.verify_signature')) {
+            return true;
+        }
 
-        if ($signature === null || $secretKey === '') {
+        $token = $this->extractBearerToken($request);
+        $configuredToken = (string) config('bonvoice.webhook_token');
+
+        if ($token === null || $configuredToken === '') {
             return false;
         }
 
-        $expected = 'sha256='.hash_hmac('sha256', $request->getContent(), $secretKey);
-
-        return hash_equals($expected, $signature);
+        return hash_equals($configuredToken, $token);
     }
 
     public function hasRequiredHeaders(Request $request): bool
     {
-        return $this->headerValue($request, 'bonvoice-signature') !== null
-            || $this->headerValue($request, 'x-bonvoice-signature') !== null;
+        if (! config('bonvoice.verify_signature')) {
+            return true;
+        }
+
+        return $this->headerValue($request, 'Authorization') !== null;
+    }
+
+    private function extractBearerToken(Request $request): ?string
+    {
+        $authorization = $this->headerValue($request, 'Authorization');
+
+        if ($authorization === null || ! str_starts_with($authorization, 'Bearer ')) {
+            return null;
+        }
+
+        $token = trim(substr($authorization, 7));
+
+        return $token === '' ? null : $token;
     }
 
     private function headerValue(Request $request, string $name): ?string

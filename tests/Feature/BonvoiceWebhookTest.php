@@ -30,7 +30,7 @@ class BonvoiceWebhookTest extends TestCase
 
         config([
             'bonvoice.verify_signature' => false,
-            'bonvoice.webhook_secret' => 'test-bonvoice-secret',
+            'bonvoice.webhook_token' => 'test-bonvoice-token',
             'bonvoice.account_id' => 'acct-001',
         ]);
 

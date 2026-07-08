@@ -77,7 +77,7 @@ class BonvoiceWebhookController extends Controller
     {
         $webhookLog->update([
             'processing_status' => BonvoiceWebhookLog::STATUS_FAILED,
-            'processing_error' => BonvoiceWebhookSignatureVerifier::ERROR_INVALID_SIGNATURE,
+            'processing_error' => BonvoiceWebhookSignatureVerifier::ERROR_INVALID_AUTHORIZATION,
             'processed_at' => now(),
         ]);
     }
