@@ -17,6 +17,7 @@ class IraPerformanceInsightsService
         private readonly PerformancePeriodService $periodService,
         private readonly SmartAssignmentFeedbackMetricsService $feedbackMetricsService,
         private readonly WorkCalendarService $workCalendarService,
+        private readonly WorkforceAuthorityService $workforceAuthority,
     ) {}
 
     /**
@@ -94,7 +95,7 @@ class IraPerformanceInsightsService
     {
         $user = User::query()->with('workSchedule')->find($metrics->userId);
 
-        if ($user === null || ! $this->workCalendarService->isEligibleForAssignment($user, $at)) {
+        if ($user === null || ! $this->workforceAuthority->isOnDuty($user, $at)) {
             return [];
         }
 
@@ -178,7 +179,7 @@ class IraPerformanceInsightsService
 
         $schedule = $this->workCalendarService->scheduleFor($user);
 
-        if ($schedule === null || ! $this->workCalendarService->isEligibleForAssignment($user, $at)) {
+        if ($schedule === null || ! $this->workforceAuthority->isOnDuty($user, $at)) {
             return null;
         }
 

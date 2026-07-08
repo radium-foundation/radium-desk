@@ -19,6 +19,7 @@ use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\WhatsAppTemplateDispatcher;
 use App\Services\Notifications\Channels\EmailChannel;
 use App\Services\Operations\PresenceEngineService;
+use App\Services\Operations\TeamAvailabilityOverviewService;
 use App\Services\Operations\TeamAvailabilityService;
 use App\Services\Operations\TeamMemberActivityService;
 use App\Services\RemarkService;
@@ -103,16 +104,24 @@ class TeamAvailabilityTest extends TestCase
 
     public function test_admin_can_view_team_availability_on_operations_dashboard(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
         $admin = User::factory()->create(['name' => 'Ops Admin']);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $agent = User::factory()->create(['name' => 'Avinash Agent']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
-        app(TeamAvailabilityService::class)->updateStatus(
-            user: $agent,
-            status: TeamAvailabilityStatus::Available,
-        );
-        $agent->forceFill(['last_active_at' => now()->subMinutes(5)])->save();
+        TeamMemberWorkSchedule::query()->create([
+            'user_id' => $agent->id,
+            'work_start_time' => '09:00:00',
+            'work_end_time' => '18:00:00',
+            'lunch_start_time' => '13:30:00',
+            'lunch_end_time' => '14:00:00',
+            'short_break_count' => 2,
+            'short_break_minutes' => 10,
+            'weekly_off_days' => [Carbon::SUNDAY],
+        ]);
+        app(PresenceEngineService::class)->startSession($agent->fresh(['workSchedule']));
 
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'team']))
@@ -120,6 +129,91 @@ class TeamAvailabilityTest extends TestCase
             ->assertSee('Avinash Agent', false)
             ->assertSee('Available', false)
             ->assertSee('Team Presence', false);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_db_available_without_session_shows_effective_offline(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available);
+
+        $snapshot = app(TeamAvailabilityOverviewService::class)->memberSnapshot($agent);
+
+        $this->assertSame('available', $snapshot['availability']['stored_status']);
+        $this->assertSame('Available', $snapshot['availability']['stored_label']);
+        $this->assertSame('offline', $snapshot['availability']['status']);
+        $this->assertSame('Offline', $snapshot['availability']['label']);
+        $this->assertFalse($snapshot['on_duty']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_active_session_user_appears_on_duty_in_team_overview(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available);
+        app(PresenceEngineService::class)->startSession($agent);
+
+        $members = app(TeamAvailabilityOverviewService::class)->members();
+
+        $this->assertCount(1, $members);
+        $this->assertSame($agent->id, $members[0]['id']);
+        $this->assertTrue($members[0]['on_duty']);
+        $this->assertSame('Available', $members[0]['availability']['label']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_admin_user_excluded_from_team_overview(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create(['name' => 'Ops Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        TeamMemberWorkSchedule::query()->create([
+            'user_id' => $admin->id,
+            'work_start_time' => '09:00:00',
+            'work_end_time' => '18:00:00',
+            'lunch_start_time' => '13:30:00',
+            'lunch_end_time' => '14:00:00',
+            'short_break_count' => 2,
+            'short_break_minutes' => 10,
+            'weekly_off_days' => [Carbon::SUNDAY],
+        ]);
+        app(PresenceEngineService::class)->startSession($admin->fresh(['workSchedule']));
+
+        $this->assertSame([], app(TeamAvailabilityOverviewService::class)->members());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_on_duty_member_count_matches_workforce_authority(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $onDutyAgent = $this->createScheduledAgent(TeamAvailabilityStatus::Available);
+        app(PresenceEngineService::class)->startSession($onDutyAgent);
+
+        $offlineAgent = $this->createScheduledAgent(TeamAvailabilityStatus::Offline, 'Offline Agent');
+
+        $overview = app(TeamAvailabilityOverviewService::class);
+        $authority = app(\App\Services\Operations\WorkforceAuthorityService::class);
+
+        $expectedOnDuty = User::query()
+            ->where('is_active', true)
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', RolePermissionSeeder::SUPPORT_TEAM_ROLES))
+            ->get()
+            ->filter(fn (User $user): bool => $authority->isOnDuty($user))
+            ->count();
+
+        $this->assertSame($expectedOnDuty, count($overview->members()));
+        $this->assertSame($onDutyAgent->id, $overview->members()[0]['id']);
+        $this->assertFalse($authority->isOnDuty($offlineAgent));
+
+        Carbon::setTestNow();
     }
 
     public function test_whatsapp_dispatch_updates_customer_communication_timestamp(): void
@@ -336,9 +430,12 @@ class TeamAvailabilityTest extends TestCase
         $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
     }
 
-    private function createScheduledAgent(TeamAvailabilityStatus $status): User
-    {
+    private function createScheduledAgent(
+        TeamAvailabilityStatus $status,
+        string $name = 'Scheduled Agent',
+    ): User {
         $user = User::factory()->create([
+            'name' => $name,
             'availability_status' => $status,
             'availability_updated_at' => now(),
         ]);

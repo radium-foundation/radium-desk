@@ -67,9 +67,10 @@ class TeamPerformanceMetricsService
     ): array {
         return User::query()
             ->where('is_active', true)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->operationalRoleSlugs()))
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->attendanceTrackedRoleSlugs()))
             ->orderBy('name')
             ->get()
+            ->filter(fn (User $user): bool => $this->roleService->isAttendanceTracked($user))
             ->map(fn (User $user): TeamMemberPerformanceMetrics => $this->metricsFor(
                 $user,
                 $period,

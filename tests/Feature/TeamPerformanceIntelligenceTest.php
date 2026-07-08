@@ -316,6 +316,38 @@ class TeamPerformanceIntelligenceTest extends TestCase
         );
     }
 
+    public function test_team_metrics_exclude_admin_tier_users(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $this->createAgentWithSchedule('Tracked Agent');
+        $admin = User::factory()->create(['name' => 'Ops Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $teamMetrics = app(TeamPerformanceMetricsService::class)->teamMetrics(PerformancePeriod::Today);
+        $userIds = collect($teamMetrics)->map(fn ($metrics) => $metrics->userId)->all();
+
+        $this->assertNotContains($admin->id, $userIds);
+        $this->assertCount(1, $teamMetrics);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_team_metrics_include_hardware_team(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $hardwareUser = User::factory()->create(['name' => 'Hardware Tech']);
+        $hardwareUser->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
+
+        $teamMetrics = app(TeamPerformanceMetricsService::class)->teamMetrics(PerformancePeriod::Today);
+        $userIds = collect($teamMetrics)->map(fn ($metrics) => $metrics->userId)->all();
+
+        $this->assertContains($hardwareUser->id, $userIds);
+
+        Carbon::setTestNow();
+    }
+
     private function createAgentWithSchedule(string $name): User
     {
         $user = User::factory()->create(['name' => $name]);

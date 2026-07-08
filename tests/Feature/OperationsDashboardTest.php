@@ -7,6 +7,7 @@ use App\Enums\AutomationPolicyActionType;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
+use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WaitingReason;
 use App\Models\AuditLog;
 use App\Models\AutomationExecution;
@@ -22,6 +23,9 @@ use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Operations\OperationsDashboardService;
 use App\Services\Operations\OperationsSupportIntelligenceService;
+use App\Services\Operations\PresenceEngineService;
+use App\Services\Operations\TeamAvailabilityOverviewService;
+use App\Services\Operations\WorkforceAuthorityService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -701,6 +705,40 @@ class OperationsDashboardTest extends TestCase
             $summary->scheduledToday,
             $summary->completedToday + $summary->pendingToday,
         );
+    }
+
+    public function test_team_overview_on_duty_count_matches_workforce_authority(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $onDutyAgent = $this->createSupportAgent('On Duty Agent');
+        $onDutyAgent->update([
+            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_updated_at' => now(),
+        ]);
+        app(PresenceEngineService::class)->startSession($onDutyAgent->fresh(['workSchedule']));
+
+        $offlineAgent = $this->createSupportAgent('Offline Agent');
+        $offlineAgent->update([
+            'availability_status' => TeamAvailabilityStatus::Offline,
+            'availability_updated_at' => now(),
+        ]);
+
+        $overview = app(TeamAvailabilityOverviewService::class);
+        $authority = app(WorkforceAuthorityService::class);
+        $trackedUsers = User::query()
+            ->where('is_active', true)
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', RolePermissionSeeder::SUPPORT_TEAM_ROLES))
+            ->get();
+
+        $expectedOnDuty = $trackedUsers
+            ->filter(fn (User $user): bool => $authority->isOnDuty($user))
+            ->count();
+
+        $this->assertSame($expectedOnDuty, count($overview->members()));
+        $this->assertSame(1, $expectedOnDuty);
+
+        Carbon::setTestNow();
     }
 
     private function createSupportAgent(string $name): User

@@ -88,4 +88,15 @@ class OperationsRoleService
     {
         return $user->hasAnyRole(RolePermissionSeeder::SUPPORT_TEAM_ROLES);
     }
+
+    /**
+     * @return list<string>
+     */
+    public function attendanceTrackedRoleSlugs(): array
+    {
+        return [
+            ...RolePermissionSeeder::SUPPORT_TEAM_ROLES,
+            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+        ];
+    }
 }

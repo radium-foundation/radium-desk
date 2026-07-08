@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\TeamAvailabilityStatus;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use Illuminate\Support\Collection;
@@ -14,6 +15,7 @@ class TeamAvailabilityOverviewService
         private readonly TeamMemberActivityService $activityService,
         private readonly PresenceEngineService $presenceEngine,
         private readonly OperationsRoleService $roleService,
+        private readonly WorkforceAuthorityService $workforceAuthority,
     ) {}
 
     /**
@@ -21,12 +23,21 @@ class TeamAvailabilityOverviewService
      */
     public function members(): array
     {
-        $users = $this->teamMembers();
         $snapshot = DashboardSnapshot::load();
 
-        return $users
+        return $this->teamMembers()
+            ->filter(fn (User $user): bool => $this->workforceAuthority->isOnDuty($user))
             ->map(fn (User $user): array => $this->memberRow($user, $snapshot->openCount($user)))
+            ->values()
             ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function memberSnapshot(User $user): array
+    {
+        return $this->memberRow($user, DashboardSnapshot::load()->openCount($user));
     }
 
     /**
@@ -37,10 +48,11 @@ class TeamAvailabilityOverviewService
         return User::query()
             ->with(['roles', 'workSchedule'])
             ->where('is_active', true)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->operationalRoleSlugs()))
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->attendanceTrackedRoleSlugs()))
             ->orderBy('first_name')
             ->orderBy('last_name')
-            ->get();
+            ->get()
+            ->filter(fn (User $user): bool => $this->roleService->isAttendanceTracked($user));
     }
 
     /**
@@ -48,7 +60,9 @@ class TeamAvailabilityOverviewService
      */
     private function memberRow(User $user, int $openWorkCount): array
     {
-        $availability = $this->availabilityService->snapshotFor($user);
+        $authority = $this->workforceAuthority->snapshotFor($user);
+        $storedAvailability = $this->availabilityService->snapshotFor($user);
+        $effectiveStatus = TeamAvailabilityStatus::from($authority['effective_availability']);
         $workCalendar = $this->workCalendarService->todayStatusFor($user);
         $presence = $this->presenceEngine->snapshotFor($user);
         $activity = $this->activityService->snapshotFor($user);
@@ -58,7 +72,17 @@ class TeamAvailabilityOverviewService
             'id' => $user->id,
             'name' => $user->name,
             'role_label' => $user->primaryRoleLabel(),
-            'availability' => $availability,
+            'availability' => [
+                ...$storedAvailability,
+                'status' => $effectiveStatus->value,
+                'label' => $effectiveStatus->label(),
+                'badge_class' => $effectiveStatus->badgeClass(),
+                'stored_status' => $storedAvailability['status'],
+                'stored_label' => $storedAvailability['label'],
+                'stored_badge_class' => $storedAvailability['badge_class'],
+            ],
+            'on_duty' => $authority['on_duty'],
+            'authority' => $authority,
             'work_calendar' => $workCalendar,
             'presence' => $presence,
             'last_active_at' => $user->last_active_at,
