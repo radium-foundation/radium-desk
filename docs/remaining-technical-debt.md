@@ -32,6 +32,17 @@ Dashboard and notifications use 30-second HTTP polling. No WebSocket/Reverb inte
 
 **Recommendation:** Evaluate Reverb or SSE only if polling latency becomes an operational issue.
 
+### Operations Dashboard Build Overhead
+
+`/admin/operations` rebuilds the full metric bundle on every live poll, even when `?groups=` requests only a subset of sections. Profiling during P08-07-019 IVR analytics work identified these bottlenecks (not addressed in that phase):
+
+- `DashboardSnapshot::load()` repeated per request — loads all active incidents with relations
+- Live endpoint always calls `dashboardData()` — partial groups only skip HTML rendering, not DB work
+- Unbounded today's audit log and automation execution `->get()` loads
+- Ira briefing refresh on above-the-fold poll adds team performance metrics and historical incident scans
+
+**Recommendation:** Share one `DashboardSnapshot` per request, build only bundles needed for requested live groups, and replace wholesale `->get()` loads with targeted aggregates.
+
 ### Default Workspace Context Fallback
 
 Requests without explicit context default to `ServiceCase` per `config/workspace.php`. Order and customer page roots do not yet declare `data-workspace-context`.

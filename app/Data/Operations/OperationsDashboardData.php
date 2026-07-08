@@ -22,6 +22,7 @@ readonly class OperationsDashboardData
      * @param  array<string, int>  $cashfreeDeviceEnrichmentQuality
      * @param  array<string, int>  $missingSerialAutomationQuality
      * @param  array<string, mixed>  $supportIntelligence
+     * @param  array<string, mixed>  $ivrAnalytics
      */
     public function __construct(
         public array $systemHealth,
@@ -39,6 +40,7 @@ readonly class OperationsDashboardData
         public array $cashfreeDeviceEnrichmentQuality,
         public array $missingSerialAutomationQuality,
         public array $supportIntelligence,
+        public array $ivrAnalytics,
         public Carbon $generatedAt,
     ) {}
 
@@ -63,6 +65,7 @@ readonly class OperationsDashboardData
             'cashfree_device_enrichment_quality' => $this->cashfreeDeviceEnrichmentQuality,
             'missing_serial_automation_quality' => $this->missingSerialAutomationQuality,
             'support_intelligence' => $this->supportIntelligence,
+            'ivr_analytics' => $this->ivrAnalytics,
             'generated_at' => $this->generatedAt->toIso8601String(),
         ];
     }

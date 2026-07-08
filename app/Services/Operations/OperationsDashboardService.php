@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Data\Operations\OperationsDashboardData;
+use App\Services\Bonvoice\BonvoiceAnalyticsService;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Infrastructure\Queue\QueueMetricsService;
 use Carbon\CarbonInterface;
@@ -34,6 +35,7 @@ class OperationsDashboardService
         private readonly OperationsMissingSerialAutomationService $missingSerialAutomationService,
         private readonly OperationsSupportIntelligenceService $supportIntelligenceService,
         private readonly OperationsTeamTelegramStatusService $teamTelegramStatusService,
+        private readonly BonvoiceAnalyticsService $bonvoiceAnalyticsService,
     ) {}
 
     public function dashboardData(bool $useCache = true): OperationsDashboardData
@@ -84,6 +86,7 @@ class OperationsDashboardService
             cashfreeDeviceEnrichmentQuality: $measure('cashfree_device_enrichment', fn () => $this->cashfreeDeviceEnrichmentService->qualitySummary()->toArray()),
             missingSerialAutomationQuality: $missingSerialQuality->toArray(),
             supportIntelligence: $measure('support_intelligence', fn () => $this->supportIntelligenceService->summary(serialQuality: $missingSerialQuality)->toArray()),
+            ivrAnalytics: $measure('ivr_analytics', fn () => $this->bonvoiceAnalyticsService->widgets()),
             generatedAt: now(),
         );
     }

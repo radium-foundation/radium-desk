@@ -521,6 +521,7 @@ class OperationsDashboardTest extends TestCase
             cashfreeDeviceEnrichmentQuality: $valid->cashfreeDeviceEnrichmentQuality,
             missingSerialAutomationQuality: $valid->missingSerialAutomationQuality,
             supportIntelligence: $valid->supportIntelligence,
+            ivrAnalytics: $valid->ivrAnalytics,
             generatedAt: $valid->generatedAt,
         );
 
