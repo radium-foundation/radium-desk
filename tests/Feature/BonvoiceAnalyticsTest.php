@@ -176,8 +176,8 @@ class BonvoiceAnalyticsTest extends TestCase
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'performance']))
             ->assertOk()
-            ->assertSee('Today\'s IVR Health', false)
-            ->assertSee('Agent Call Performance', false)
+            ->assertSee('Today\'s IVR', false)
+            ->assertSee('Agent Performance', false)
             ->assertSee('Missed Call Watch', false);
     }
 

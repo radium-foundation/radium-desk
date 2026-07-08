@@ -32,6 +32,9 @@ class Incident extends Model
         'description',
         'status',
         'high_priority',
+        'recovery_phone',
+        'missed_call_attempt_count',
+        'last_missed_at',
         'assigned_to_user_id',
         'automation_pending_until',
         'created_by',
@@ -44,6 +47,7 @@ class Incident extends Model
             'status' => IncidentStatus::class,
             'source' => IncidentSource::class,
             'high_priority' => 'boolean',
+            'last_missed_at' => 'datetime',
             'automation_pending_until' => 'datetime',
         ];
     }
@@ -125,6 +129,11 @@ class Incident extends Model
     public function supportAppointments(): HasMany
     {
         return $this->hasMany(SupportAppointment::class);
+    }
+
+    public function bonvoiceCallLinks(): HasMany
+    {
+        return $this->hasMany(IncidentBonvoiceCallLink::class);
     }
 
     public function hasActiveSupportAppointment(): bool

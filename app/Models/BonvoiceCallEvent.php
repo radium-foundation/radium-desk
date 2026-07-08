@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class BonvoiceCallEvent extends Model
 {
@@ -41,5 +42,10 @@ class BonvoiceCallEvent extends Model
     public function webhookLog(): BelongsTo
     {
         return $this->belongsTo(BonvoiceWebhookLog::class, 'webhook_log_id');
+    }
+
+    public function incidentLinks(): HasMany
+    {
+        return $this->hasMany(IncidentBonvoiceCallLink::class);
     }
 }

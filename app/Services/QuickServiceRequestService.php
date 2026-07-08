@@ -105,13 +105,15 @@ class QuickServiceRequestService
         ?string $notes,
         bool $highPriority = false,
         ?string $title = null,
+        ?string $category = null,
+        bool $assignOnCreate = true,
     ): Incident {
         $product = $order->product_name ?: $order->device_model ?: 'General';
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => $this->incidentReferenceService->generate(),
-            'category' => 'General',
+            'category' => $category ?? 'General',
             'source' => $source,
             'title' => $title ?? ('Service request — '.$product),
             'description' => $notes ?? '',
@@ -121,7 +123,9 @@ class QuickServiceRequestService
             'updated_by' => $user->id,
         ]);
 
-        $incident = $this->serviceCaseAssignmentService->assignOnCreate($incident, $user);
+        if ($assignOnCreate) {
+            $incident = $this->serviceCaseAssignmentService->assignOnCreate($incident, $user);
+        }
 
         if ($highPriority && $incident->assignee !== null
             && $incident->assignee->is_active

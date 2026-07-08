@@ -138,8 +138,9 @@ class CustomerIntakeService
         ?string $product,
         ?string $notes,
         bool $highPriority = false,
+        bool $assignOnCreate = true,
     ): Incident {
-        return DB::transaction(function () use ($user, $intent, $source, $customerName, $phone, $serialNumber, $product, $notes, $highPriority): Incident {
+        return DB::transaction(function () use ($user, $intent, $source, $customerName, $phone, $serialNumber, $product, $notes, $highPriority, $assignOnCreate): Incident {
             $reference = $this->incidentReferenceService->generate();
             $inquiryOrderId = Order::inquiryOrderIdFromReference($reference);
 
@@ -192,6 +193,7 @@ class CustomerIntakeService
                 notes: $notes,
                 highPriority: $highPriority,
                 title: $this->titleForIntent($intent),
+                assignOnCreate: $assignOnCreate,
             );
 
             $incident->update([
