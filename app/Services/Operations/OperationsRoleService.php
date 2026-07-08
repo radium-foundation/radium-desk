@@ -75,4 +75,17 @@ class OperationsRoleService
     {
         return $user->hasAnyRole($this->operationalRoleSlugs());
     }
+
+    public function isAttendanceTracked(User $user): bool
+    {
+        return $user->hasAnyRole([
+            ...RolePermissionSeeder::SUPPORT_TEAM_ROLES,
+            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+        ]);
+    }
+
+    public function isNormalAssignmentPool(User $user): bool
+    {
+        return $user->hasAnyRole(RolePermissionSeeder::SUPPORT_TEAM_ROLES);
+    }
 }
