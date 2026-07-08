@@ -50,6 +50,8 @@ class UserManagementService
     public function updateUser(User $user, array $data, User $actor): User
     {
         $this->ensureAssignableRole($actor, $data['role']);
+        $this->ensureSuperadminRoleRetained($user, $data['role'], $actor);
+        $this->ensureActiveSuperadminRetained($user, $data['is_active']);
 
         return DB::transaction(function () use ($user, $data, $actor): User {
             $oldRole = $user->roles->first()?->name;
@@ -109,6 +111,8 @@ class UserManagementService
             return $user;
         }
 
+        $this->ensureActiveSuperadminRetained($user, $isActive);
+
         return DB::transaction(function () use ($user, $isActive, $actor): User {
             $user->update(['is_active' => $isActive]);
             $freshUser = $user->fresh(['roles']);
@@ -149,6 +153,8 @@ class UserManagementService
                 'user' => 'You cannot delete your own account.',
             ]);
         }
+
+        $this->ensureSuperadminDeletionAllowed($user);
 
         DB::transaction(function () use ($user, $actor): void {
             $this->auditLogService->log(
@@ -196,6 +202,68 @@ class UserManagementService
                 'role' => 'You are not allowed to assign this role.',
             ]);
         }
+    }
+
+    private function ensureSuperadminRoleRetained(User $target, string $newRole, User $actor): void
+    {
+        if (! $target->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
+            return;
+        }
+
+        if ($newRole === RolePermissionSeeder::ROLE_SUPERADMIN) {
+            return;
+        }
+
+        if ($actor->id === $target->id) {
+            throw ValidationException::withMessages([
+                'role' => 'You cannot remove your own superadmin role.',
+            ]);
+        }
+
+        if ($target->is_active && $this->countActiveSuperadminsExcluding($target->id) === 0) {
+            throw ValidationException::withMessages([
+                'role' => 'Cannot remove the last active superadmin.',
+            ]);
+        }
+    }
+
+    private function ensureActiveSuperadminRetained(User $target, bool $willBeActive): void
+    {
+        if ($willBeActive || ! $target->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) || ! $target->is_active) {
+            return;
+        }
+
+        if ($this->countActiveSuperadminsExcluding($target->id) === 0) {
+            throw ValidationException::withMessages([
+                'is_active' => 'Cannot deactivate the last active superadmin.',
+            ]);
+        }
+    }
+
+    private function ensureSuperadminDeletionAllowed(User $target): void
+    {
+        if (! $target->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) || ! $target->is_active) {
+            return;
+        }
+
+        if ($this->countActiveSuperadminsExcluding($target->id) === 0) {
+            throw ValidationException::withMessages([
+                'user' => 'Cannot delete the last active superadmin.',
+            ]);
+        }
+    }
+
+    private function countActiveSuperadminsExcluding(?int $userId = null): int
+    {
+        $query = User::query()
+            ->where('is_active', true)
+            ->role(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        if ($userId !== null) {
+            $query->where('id', '!=', $userId);
+        }
+
+        return $query->count();
     }
 
     /**

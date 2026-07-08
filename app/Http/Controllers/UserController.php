@@ -7,8 +7,9 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Requests\UpdateUserStatusRequest;
 use App\Models\User;
+use App\Services\Operations\OperationsRoleService;
+use App\Services\Operations\WorkforceAuthorityService;
 use App\Services\UserManagementService;
-use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -58,14 +59,26 @@ class UserController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        $operationsRoleService = app(OperationsRoleService::class);
+        $workforceAuthority = app(WorkforceAuthorityService::class);
+
+        $roleOptions = collect($operationsRoleService->operationalRoleSlugs())
+            ->map(fn (string $slug): array => [
+                'slug' => $slug,
+                'label' => $operationsRoleService->displayLabel($slug),
+            ])
+            ->all();
+
+        $workforceSnapshots = [];
+        foreach ($users as $user) {
+            $workforceSnapshots[$user->id] = $workforceAuthority->snapshotFor($user);
+        }
+
         return view('users.index', [
             'users' => $users,
             'filters' => $request->only(['role', 'status', 'q']),
-            'roles' => [
-                RolePermissionSeeder::ROLE_AGENT,
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ],
+            'roleOptions' => $roleOptions,
+            'workforceSnapshots' => $workforceSnapshots,
         ]);
     }
 

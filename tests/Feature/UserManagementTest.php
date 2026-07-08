@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
+use App\Enums\TeamAvailabilityStatus;
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -385,5 +387,124 @@ class UserManagementTest extends TestCase
         ])->assertRedirect();
 
         Notification::assertNotSentTo($inactive, TransactionCompletedNotification::class);
+    }
+
+    public function test_cannot_remove_last_superadmin(): void
+    {
+        $soleSuperadmin = $this->createSuperAdmin(['email' => 'sole-super@test.com']);
+        $inactiveSuperadmin = $this->createSuperAdmin([
+            'email' => 'inactive-super@test.com',
+            'is_active' => false,
+        ]);
+
+        $this->withoutMiddleware(EnsureUserIsActive::class);
+
+        $this->actingAs($inactiveSuperadmin)->put(route('users.update', $soleSuperadmin), [
+            'first_name' => $soleSuperadmin->first_name,
+            'last_name' => $soleSuperadmin->last_name,
+            'email' => $soleSuperadmin->email,
+            'role' => RolePermissionSeeder::ROLE_ADMIN,
+            'is_active' => '1',
+        ])->assertSessionHasErrors('role');
+
+        $this->assertTrue($soleSuperadmin->fresh()->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN));
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'user.updated',
+            'auditable_type' => $soleSuperadmin->getMorphClass(),
+            'auditable_id' => $soleSuperadmin->id,
+        ]);
+    }
+
+    public function test_cannot_deactivate_last_superadmin(): void
+    {
+        $soleSuperadmin = $this->createSuperAdmin(['email' => 'sole-super@test.com']);
+        $inactiveSuperadmin = $this->createSuperAdmin([
+            'email' => 'inactive-super@test.com',
+            'is_active' => false,
+        ]);
+
+        $this->withoutMiddleware(EnsureUserIsActive::class);
+
+        $this->actingAs($inactiveSuperadmin)->patch(route('users.status.update', $soleSuperadmin), [
+            'is_active' => '0',
+        ])->assertSessionHasErrors('is_active');
+
+        $this->assertTrue($soleSuperadmin->fresh()->is_active);
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'user.deactivated',
+            'auditable_type' => $soleSuperadmin->getMorphClass(),
+            'auditable_id' => $soleSuperadmin->id,
+        ]);
+    }
+
+    public function test_cannot_delete_last_superadmin(): void
+    {
+        $soleSuperadmin = $this->createSuperAdmin(['email' => 'sole-super@test.com']);
+        $inactiveSuperadmin = $this->createSuperAdmin([
+            'email' => 'inactive-super@test.com',
+            'is_active' => false,
+        ]);
+
+        $this->withoutMiddleware(EnsureUserIsActive::class);
+
+        $this->actingAs($inactiveSuperadmin)->delete(route('users.destroy', $soleSuperadmin))
+            ->assertSessionHasErrors('user');
+
+        $this->assertNull($soleSuperadmin->fresh()->deleted_at);
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'user.deleted',
+            'auditable_type' => $soleSuperadmin->getMorphClass(),
+            'auditable_id' => $soleSuperadmin->id,
+        ]);
+    }
+
+    public function test_superadmin_cannot_remove_own_superadmin_role(): void
+    {
+        $superadmin = $this->createSuperAdmin(['email' => 'self-super@test.com']);
+        $this->createSuperAdmin(['email' => 'other-super@test.com']);
+
+        $this->actingAs($superadmin)->put(route('users.update', $superadmin), [
+            'first_name' => $superadmin->first_name,
+            'last_name' => $superadmin->last_name,
+            'email' => $superadmin->email,
+            'role' => RolePermissionSeeder::ROLE_ADMIN,
+            'is_active' => '1',
+        ])->assertSessionHasErrors('role');
+
+        $this->assertTrue($superadmin->fresh()->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN));
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'user.updated',
+            'auditable_type' => $superadmin->getMorphClass(),
+            'auditable_id' => $superadmin->id,
+        ]);
+    }
+
+    public function test_all_seven_roles_appear_in_filter(): void
+    {
+        $admin = $this->createAdmin();
+        $operationsRoleService = app(\App\Services\Operations\OperationsRoleService::class);
+
+        $response = $this->actingAs($admin)->get(route('users.index'));
+
+        foreach ($operationsRoleService->operationalRoleSlugs() as $roleSlug) {
+            $response->assertSee($operationsRoleService->displayLabel($roleSlug), false);
+        }
+    }
+
+    public function test_workforce_status_renders_on_user_index(): void
+    {
+        $admin = $this->createAdmin();
+        $agent = User::factory()->create([
+            'first_name' => 'Workforce',
+            'last_name' => 'Agent',
+            'email' => 'workforce-agent@test.com',
+            'is_active' => true,
+            'availability_status' => TeamAvailabilityStatus::Available->value,
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)->get(route('users.index'))
+            ->assertOk()
+            ->assertSee('Available', false);
     }
 }

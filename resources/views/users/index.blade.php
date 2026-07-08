@@ -31,9 +31,9 @@
                     <label for="filter_role" class="form-label">Role</label>
                     <select name="role" id="filter_role" class="form-select">
                         <option value="">All roles</option>
-                        @foreach($roles as $role)
-                            <option value="{{ $role }}" @selected(($filters['role'] ?? '') === $role)>
-                                {{ ucfirst($role) }}
+                        @foreach($roleOptions as $roleOption)
+                            <option value="{{ $roleOption['slug'] }}" @selected(($filters['role'] ?? '') === $roleOption['slug'])>
+                                {{ $roleOption['label'] }}
                             </option>
                         @endforeach
                     </select>
@@ -73,6 +73,7 @@
                                 <th>Email</th>
                                 <th>Mobile</th>
                                 <th>Role</th>
+                                <th>Workforce</th>
                                 <th>Status</th>
                                 <th>Assigned Service Cases</th>
                                 <th>Created Date</th>
@@ -96,6 +97,22 @@
                                         @foreach($user->roles as $role)
                                             <span class="badge text-bg-secondary">{{ app(\App\Services\Operations\OperationsRoleService::class)->displayLabel($role->name) }}</span>
                                         @endforeach
+                                    </td>
+                                    <td>
+                                        @if(! $user->is_active)
+                                            <span class="text-muted small">Account inactive</span>
+                                        @else
+                                            @php
+                                                $workforce = $workforceSnapshots[$user->id] ?? null;
+                                                $availability = $workforce['availability'] ?? [];
+                                            @endphp
+                                            <span class="badge text-bg-{{ $availability['badge_class'] ?? 'secondary' }}">
+                                                {{ $availability['label'] ?? 'Offline' }}
+                                            </span>
+                                            @if($workforce['on_duty'] ?? false)
+                                                <span class="badge text-bg-primary ms-1">On duty</span>
+                                            @endif
+                                        @endif
                                     </td>
                                     <td>
                                         @if($user->is_active)
