@@ -51,6 +51,29 @@ class TeamAvailabilityService
         return $user->fresh();
     }
 
+    public function syncFromSessionStart(User $user, ?Carbon $at = null): User
+    {
+        $at ??= now();
+
+        if ($this->workCalendarService->hasApprovedLeave($user, $at)
+            || ! $this->workCalendarService->isEligibleForAssignment($user, $at)) {
+            return $this->updateStatus($user, TeamAvailabilityStatus::Offline);
+        }
+
+        $current = $this->statusFor($user);
+
+        if ($current === TeamAvailabilityStatus::Offline) {
+            return $this->updateStatus($user, TeamAvailabilityStatus::Available);
+        }
+
+        return $user->fresh();
+    }
+
+    public function syncFromSessionEnd(User $user): User
+    {
+        return $this->updateStatus($user, TeamAvailabilityStatus::Offline);
+    }
+
     /**
      * @return array<string, mixed>
      */

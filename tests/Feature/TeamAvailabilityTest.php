@@ -6,15 +6,19 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\NotificationChannelType;
 use App\Enums\NotificationType;
+use App\Enums\LeaveRequestStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Models\Incident;
+use App\Models\LeaveRequest;
 use App\Models\Order;
+use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Data\NotificationMessage;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\WhatsAppTemplateDispatcher;
 use App\Services\Notifications\Channels\EmailChannel;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\TeamAvailabilityService;
 use App\Services\Operations\TeamMemberActivityService;
 use App\Services\RemarkService;
@@ -296,5 +300,61 @@ class TeamAvailabilityTest extends TestCase
             ->assertOk()
             ->assertSee('Team Availability')
             ->assertSee('Update availability');
+    }
+
+    public function test_session_start_does_not_promote_user_on_approved_leave_to_available(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Offline);
+
+        LeaveRequest::query()->create([
+            'user_id' => $agent->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+            'reason' => 'Approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        app(PresenceEngineService::class)->startSession($agent);
+
+        $agent->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
+    }
+
+    public function test_session_start_does_not_promote_user_outside_working_hours_to_available(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 19:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Offline);
+
+        app(PresenceEngineService::class)->startSession($agent);
+
+        $agent->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
+    }
+
+    private function createScheduledAgent(TeamAvailabilityStatus $status): User
+    {
+        $user = User::factory()->create([
+            'availability_status' => $status,
+            'availability_updated_at' => now(),
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        TeamMemberWorkSchedule::query()->create([
+            'user_id' => $user->id,
+            'work_start_time' => '09:00:00',
+            'work_end_time' => '18:00:00',
+            'lunch_start_time' => '13:30:00',
+            'lunch_end_time' => '14:00:00',
+            'short_break_count' => 2,
+            'short_break_minutes' => 10,
+            'weekly_off_days' => [Carbon::SUNDAY],
+        ]);
+
+        return $user->fresh(['workSchedule']);
     }
 }

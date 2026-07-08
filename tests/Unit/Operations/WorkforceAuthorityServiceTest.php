@@ -91,8 +91,14 @@ class WorkforceAuthorityServiceTest extends TestCase
 
     public function test_offline_blocks_duty(): void
     {
-        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Offline);
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available);
         $this->openWorkSession($agent);
+
+        app(\App\Services\Operations\TeamAvailabilityService::class)->updateStatus(
+            $agent,
+            TeamAvailabilityStatus::Offline,
+        );
+        $agent->refresh();
 
         $this->assertSame(TeamAvailabilityStatus::Offline, $this->authority->effectiveAvailability($agent));
         $this->assertFalse($this->authority->isOnDuty($agent));
@@ -119,9 +125,9 @@ class WorkforceAuthorityServiceTest extends TestCase
             'weekly_off_days' => [Carbon::SUNDAY],
         ]);
 
-        $this->openWorkSession($admin->fresh(['workSchedule']));
+        $this->assertNull(app(PresenceEngineService::class)->startSession($admin->fresh(['workSchedule'])));
 
-        $this->assertTrue($this->authority->isOnDuty($admin));
+        $this->assertFalse($this->authority->isOnDuty($admin));
         $this->assertFalse($this->authority->isEligibleForNormalAssignment($admin));
         $this->assertContains('not_assignment_pool', $this->authority->blockReasons($admin));
     }

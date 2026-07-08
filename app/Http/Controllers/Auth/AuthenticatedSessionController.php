@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Enums\WorkSessionEndReason;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\Operations\PresenceEngineService;
-use App\Services\Operations\WorkSessionEndReason;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

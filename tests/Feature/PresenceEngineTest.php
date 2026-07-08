@@ -60,6 +60,59 @@ class PresenceEngineTest extends TestCase
         $this->assertTrue($session->on_time_login);
     }
 
+    public function test_login_creates_session_and_sets_available_from_offline(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Offline Login Agent', TeamAvailabilityStatus::Offline);
+
+        $this->post(route('login'), [
+            'email' => $agent->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard'));
+
+        $agent->refresh();
+
+        $this->assertNotNull(WorkSession::query()->where('user_id', $agent->id)->first());
+        $this->assertSame(TeamAvailabilityStatus::Available, $agent->availability_status);
+    }
+
+    public function test_login_preserves_busy_availability(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Busy Login Agent', TeamAvailabilityStatus::Busy);
+
+        $this->post(route('login'), [
+            'email' => $agent->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard'));
+
+        $agent->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::Busy, $agent->availability_status);
+    }
+
+    public function test_admin_login_does_not_create_workforce_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create([
+            'name' => 'Ops Admin',
+            'password' => bcrypt('password'),
+            'availability_status' => TeamAvailabilityStatus::Offline,
+            'availability_updated_at' => now(),
+        ]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->post(route('login'), [
+            'email' => $admin->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->assertNull(WorkSession::query()->where('user_id', $admin->id)->first());
+    }
+
     public function test_logout_closes_session(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
@@ -75,6 +128,33 @@ class PresenceEngineTest extends TestCase
         $this->assertNotNull($closed?->logout_at);
         $this->assertSame(WorkSessionEndReason::ManualLogout, $closed?->ended_reason);
         $this->assertSame('18:10', $closed?->logout_at?->format('H:i'));
+
+        $agent->refresh();
+        $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
+    }
+
+    public function test_logout_route_closes_session_and_sets_offline(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Route Logout Agent', TeamAvailabilityStatus::Offline);
+
+        $this->post(route('login'), [
+            'email' => $agent->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard'));
+
+        $agent->refresh();
+        $this->assertSame(TeamAvailabilityStatus::Available, $agent->availability_status);
+
+        $this->actingAs($agent)
+            ->post(route('logout'))
+            ->assertRedirect(route('login'));
+
+        $agent->refresh();
+
+        $this->assertNull(app(PresenceEngineService::class)->openSessionFor($agent));
+        $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
     }
 
     public function test_activity_under_five_minutes_is_active(): void
@@ -130,6 +210,9 @@ class PresenceEngineTest extends TestCase
         $session->refresh();
         $this->assertSame(WorkSessionEndReason::AwayTimeout, $session->ended_reason);
         $this->assertSame(0, DB::table('sessions')->where('user_id', $agent->id)->count());
+
+        $agent->refresh();
+        $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
     }
 
     public function test_lunch_time_is_excluded_from_idle(): void
@@ -237,15 +320,17 @@ class PresenceEngineTest extends TestCase
         $this->assertNotNull(WorkSession::query()->where('user_id', $agent->id)->value('last_activity_at'));
     }
 
-    private function createAgentWithSchedule(string $name): User
-    {
+    private function createAgentWithSchedule(
+        string $name,
+        TeamAvailabilityStatus $status = TeamAvailabilityStatus::Available,
+    ): User {
         $user = User::factory()->create([
             'name' => $name,
             'password' => bcrypt('password'),
         ]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
         $user->update([
-            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_status' => $status,
             'availability_updated_at' => now(),
         ]);
 

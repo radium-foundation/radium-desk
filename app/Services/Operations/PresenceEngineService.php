@@ -18,6 +18,7 @@ class PresenceEngineService
     public function __construct(
         private readonly WorkCalendarService $workCalendarService,
         private readonly OperationsRoleService $roleService,
+        private readonly TeamAvailabilityService $availabilityService,
     ) {}
 
     public function startSession(User $user, ?Carbon $at = null): ?WorkSession
@@ -37,7 +38,7 @@ class PresenceEngineService
         $schedule = $this->workCalendarService->scheduleFor($user);
         $breakAllowanceSeconds = $this->breakAllowanceSeconds($schedule);
 
-        return WorkSession::query()->create([
+        $session = WorkSession::query()->create([
             'user_id' => $user->id,
             'work_date' => $at->toDateString(),
             'login_at' => $at,
@@ -51,6 +52,10 @@ class PresenceEngineService
                 ? ! $this->workCalendarService->isLateLogin($user, $at)
                 : null,
         ]);
+
+        $this->availabilityService->syncFromSessionStart($user, $at);
+
+        return $session;
     }
 
     public function closeSession(
@@ -68,6 +73,7 @@ class PresenceEngineService
 
         $this->tickSession($session, $at, hasActivity: false);
         $this->finalizeSession($session, $at, $reason);
+        $this->availabilityService->syncFromSessionEnd($user);
 
         return $session->fresh();
     }
@@ -465,7 +471,7 @@ class PresenceEngineService
 
     private function tracksPresence(User $user): bool
     {
-        return $this->roleService->isTeamMember($user);
+        return $this->roleService->isAttendanceTracked($user);
     }
 
     private function activeThresholdMinutes(): int
