@@ -26,9 +26,15 @@ class NotificationAuthorityService
         NotificationCategory $category,
         NotificationChannelType $channel,
         ?Carbon $at = null,
+        bool $iraTelegramBridge = false,
     ): bool {
         if (! $user->is_active) {
             return false;
+        }
+
+        if ($iraTelegramBridge) {
+            return $channel === NotificationChannelType::Telegram
+                && $this->userAllows($user, $channel);
         }
 
         if (! $this->categoryEnabled($category)) {

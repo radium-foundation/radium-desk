@@ -133,6 +133,35 @@ class NotificationAuthorityServiceTest extends TestCase
         ));
     }
 
+    public function test_ira_telegram_bridge_preserves_legacy_user_gate_only(): void
+    {
+        $this->setSystemSetting('notifications.telegram.enabled', false);
+
+        $superadmin = $this->createSuperadmin([
+            'telegram_notifications_enabled' => true,
+            'telegram_chat_id' => '123456789',
+        ]);
+
+        $this->assertTrue($this->authority->shouldDeliver(
+            $superadmin,
+            NotificationCategory::Escalation,
+            NotificationChannelType::Telegram,
+            iraTelegramBridge: true,
+        ));
+
+        $disabled = $this->createSuperadmin([
+            'telegram_notifications_enabled' => false,
+            'telegram_chat_id' => '123456789',
+        ]);
+
+        $this->assertFalse($this->authority->shouldDeliver(
+            $disabled,
+            NotificationCategory::Escalation,
+            NotificationChannelType::Telegram,
+            iraTelegramBridge: true,
+        ));
+    }
+
     public function test_org_assignment_toggle_blocks_assignment_category(): void
     {
         app(SettingService::class)->set('notifications.assignment_enabled', '0');
@@ -167,11 +196,11 @@ class NotificationAuthorityServiceTest extends TestCase
         );
     }
 
-    private function createSuperadmin(): User
+    private function createSuperadmin(array $overrides = []): User
     {
-        $user = User::factory()->create([
+        $user = User::factory()->create(array_merge([
             'is_active' => true,
-        ]);
+        ], $overrides));
         $user->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
         return $user->fresh();

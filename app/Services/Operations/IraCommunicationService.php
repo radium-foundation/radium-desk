@@ -9,10 +9,13 @@ use App\Data\Operations\SupportSlotReminderItem;
 use App\Data\Operations\TeamWorkBriefing;
 use App\Enums\AI\AIRiskLevel;
 use App\Enums\IraNotificationType;
+use App\Enums\NotificationChannelType;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\IraNotification;
 use App\Models\User;
+use App\Services\Notifications\IraNotificationCategoryMapper;
+use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use App\Services\Telegram\TelegramBotService;
 use Database\Seeders\RolePermissionSeeder;
@@ -52,6 +55,7 @@ class IraCommunicationService
         private readonly IraBriefingFormatter $briefingFormatter,
         private readonly TeamWorkBriefingFormatter $teamBriefingFormatter,
         private readonly NotificationRecipientResolver $recipientResolver,
+        private readonly NotificationAuthorityService $notificationAuthority,
     ) {}
 
     /**
@@ -80,7 +84,13 @@ class IraCommunicationService
                 payload: $this->buildPayload($input),
             );
 
-            if (! $this->canDeliverViaTelegram($user)) {
+            if (! $this->notificationAuthority->shouldDeliver(
+                $user,
+                IraNotificationCategoryMapper::toNotificationCategory($input->event),
+                NotificationChannelType::Telegram,
+                now(),
+                iraTelegramBridge: true,
+            )) {
                 $results[] = $this->notificationService->markSkipped(
                     $notification,
                     'Telegram notifications disabled or chat ID not configured.',
@@ -416,13 +426,6 @@ class IraCommunicationService
             $input->event->value,
             $input->dedupeKey(),
         );
-    }
-
-    private function canDeliverViaTelegram(User $user): bool
-    {
-        return $user->telegram_notifications_enabled
-            && is_string($user->telegram_chat_id)
-            && trim($user->telegram_chat_id) !== '';
     }
 
     /**

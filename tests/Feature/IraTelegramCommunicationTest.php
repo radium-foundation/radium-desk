@@ -314,6 +314,53 @@ class IraTelegramCommunicationTest extends TestCase
         ]);
     }
 
+    public function test_superadmin_critical_alerts_still_pass_through_authority_bridge(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 55],
+            ], 200),
+        ]);
+
+        $owner = $this->createOwnerWithTelegram('123123123');
+
+        $results = app(IraCommunicationService::class)->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::IntegrationFailure,
+            context: [
+                'label' => 'Email',
+                'message' => 'SMTP unavailable.',
+                'dedupe_key' => 'integration:email',
+            ],
+        ));
+
+        $this->assertCount(1, $results);
+        $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
+        Http::assertSentCount(1);
+    }
+
+    public function test_ira_notification_category_mapping_covers_risk_alerts(): void
+    {
+        $this->assertSame(
+            \App\Enums\NotificationCategory::Escalation,
+            \App\Services\Notifications\IraNotificationCategoryMapper::toNotificationCategory(
+                IraNotificationType::RiskAlert,
+            ),
+        );
+        $this->assertSame(
+            \App\Enums\NotificationCategory::DailySummary,
+            \App\Services\Notifications\IraNotificationCategoryMapper::toNotificationCategory(
+                IraNotificationType::DailyBriefing,
+            ),
+        );
+        $this->assertSame(
+            \App\Enums\NotificationCategory::Assignment,
+            \App\Services\Notifications\IraNotificationCategoryMapper::toNotificationCategory(
+                IraNotificationType::SmartAssignment,
+            ),
+        );
+    }
+
     public function test_profile_telegram_settings_can_be_updated(): void
     {
         $user = User::factory()->create([
