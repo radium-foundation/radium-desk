@@ -15,6 +15,7 @@ use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\CashfreeWebhookLogController;
+use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
@@ -236,6 +237,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/notifications/{notification}', [NotificationController::class, 'show'])->name('notifications.show');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+
+    Route::get('/changelog', ChangelogController::class)->name('changelog.index');
 });
 
 require __DIR__.'/auth.php';

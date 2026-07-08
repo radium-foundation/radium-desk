@@ -14,7 +14,7 @@ describe('live notifications session integration', () => {
             <div id="notification-bell-root" data-poll-url="/notifications/poll">
                 <div class="dropdown">
                     <button type="button" class="notification-bell-btn">
-                        <span aria-hidden="true">🔔</span>
+                        <span aria-hidden="true"><i class="bi bi-bell"></i></span>
                         <span class="notification-count-badge">1</span>
                     </button>
                     <div class="dropdown-menu notification-dropdown">

@@ -7,6 +7,8 @@
 
     <title>@yield('title', 'Radium Box Support')</title>
 
+    @include('layouts.partials.head-meta')
+
     @vite(['resources/css/app.css', 'resources/js/customer-portal.js'])
 </head>
 <body class="bg-light">

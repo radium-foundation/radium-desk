@@ -13,7 +13,18 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Radium Desk'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Version
+    |--------------------------------------------------------------------------
+    |
+    | Displayed in the sidebar/footer and used for release visibility.
+    |
+    */
+
+    'version' => env('APP_VERSION', '4.0.0'),
 
     /*
     |--------------------------------------------------------------------------

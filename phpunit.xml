@@ -19,6 +19,8 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_NAME" value="Radium Desk"/>
+        <env name="APP_VERSION" value="4.0.0"/>
         <env name="APP_TIMEZONE" value="Asia/Kolkata"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>

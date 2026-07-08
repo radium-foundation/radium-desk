@@ -6,7 +6,7 @@
         aria-expanded="false"
         aria-label="Notifications"
     >
-        <span aria-hidden="true">🔔</span>
+        <i class="bi bi-bell" aria-hidden="true"></i>
         @if($notificationUnreadBadge)
             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger notification-count-badge">
                 {{ $notificationUnreadBadge }}

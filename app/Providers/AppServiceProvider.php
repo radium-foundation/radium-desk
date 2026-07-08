@@ -33,6 +33,7 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
+use App\Services\ChangelogService;
 use App\Services\SettingService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\SystemSettingsService;
@@ -149,6 +150,10 @@ class AppServiceProvider extends ServiceProvider
                 },
                 'latestNotifications' => $user->notifications()->latest()->limit(10)->get(),
             ]);
+        });
+
+        View::composer('layouts.partials.whats-new-modal', function ($view): void {
+            $view->with('changelogEntries', app(ChangelogService::class)->entries());
         });
     }
 

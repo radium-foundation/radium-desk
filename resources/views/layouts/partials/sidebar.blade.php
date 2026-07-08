@@ -4,8 +4,7 @@
 
 <aside class="app-sidebar" id="appSidebar" aria-label="Main navigation">
     <div class="brand d-flex align-items-center px-3">
-        <i class="bi bi-headset text-primary nav-icon fs-5"></i>
-        <span class="brand-text text-white fw-semibold ms-2">Radium</span>
+        @include('layouts.partials.brand-mark')
     </div>
 
     <nav class="py-2">
@@ -78,7 +77,7 @@
                 <li class="nav-item">
                     @can('operations-dashboard.view')
                         <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.*')]) href="{{ route('admin.operations.index') }}" title="Operations Control Center">
-                            <i class="bi bi-speedometer2 nav-icon me-2"></i>
+                            <i class="bi bi-sliders nav-icon me-2"></i>
                             <span class="nav-label">Operations</span>
                         </a>
                     @endcan
@@ -156,4 +155,6 @@
             </ul>
         @endif
     </nav>
+
+    @include('layouts.partials.version-footer')
 </aside>

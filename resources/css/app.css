@@ -60,6 +60,72 @@ body {
     z-index: 1040;
     overflow-x: hidden;
     transition: width 0.25s ease-in-out;
+    display: flex;
+    flex-direction: column;
+}
+
+.app-sidebar nav {
+    flex: 1 1 auto;
+    overflow-y: auto;
+}
+
+.app-sidebar .brand-logo,
+.guest-brand-logo {
+    width: 1.5rem;
+    height: 1.5rem;
+    object-fit: contain;
+}
+
+.guest-brand-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-inline: auto;
+}
+
+.app-version-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: auto;
+}
+
+.app-version-footer__button {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.7rem;
+    line-height: 1.2;
+    width: 100%;
+    text-align: center;
+}
+
+.app-version-footer__button:hover,
+.app-version-footer__button:focus {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+html:not(.sidebar-expanded) .app-version-footer__label {
+    display: none;
+}
+
+html:not(.sidebar-expanded) .app-version-footer__button::before {
+    content: 'v';
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+body.bg-light .app-version-footer {
+    border-top: 0;
+}
+
+body.bg-light .app-version-footer__button {
+    color: var(--bs-secondary-color);
+}
+
+body.bg-light .app-version-footer__button:hover,
+body.bg-light .app-version-footer__button:focus {
+    color: var(--bs-body-color);
+}
+
+.notification-bell-btn .bi-bell {
+    font-size: 1rem;
+    line-height: 1;
 }
 
 html.sidebar-expanded .app-sidebar {
