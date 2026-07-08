@@ -103,12 +103,7 @@ class NotificationDeliverySummaryFormatter
 
     private function channelLabel(NotificationChannelType $channel): string
     {
-        return match ($channel) {
-            NotificationChannelType::WhatsApp => 'WhatsApp',
-            NotificationChannelType::Email => 'Email',
-            NotificationChannelType::Desktop => 'Desktop',
-            NotificationChannelType::Telegram => 'Telegram',
-        };
+        return $channel->label();
     }
 
     private function skippedReason(NotificationResult $result): string

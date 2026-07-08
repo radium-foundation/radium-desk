@@ -13,6 +13,7 @@ use App\Enums\OperationsHealthStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\IraNotification;
 use App\Models\User;
+use App\Services\Notifications\NotificationRecipientResolver;
 use App\Services\Telegram\TelegramBotService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
@@ -50,6 +51,7 @@ class IraCommunicationService
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly IraBriefingFormatter $briefingFormatter,
         private readonly TeamWorkBriefingFormatter $teamBriefingFormatter,
+        private readonly NotificationRecipientResolver $recipientResolver,
     ) {}
 
     /**
@@ -669,10 +671,7 @@ class IraCommunicationService
      */
     private function ownerUsers(): Collection
     {
-        return User::query()
-            ->where('is_active', true)
-            ->whereHas('roles', fn ($query) => $query->where('name', RolePermissionSeeder::ROLE_SUPERADMIN))
-            ->get();
+        return $this->recipientResolver->ownerRecipients();
     }
 
     /**
@@ -680,12 +679,6 @@ class IraCommunicationService
      */
     private function operationsAdminUsers(): Collection
     {
-        return User::query()
-            ->where('is_active', true)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', [
-                RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-                RolePermissionSeeder::ROLE_ADMIN,
-            ]))
-            ->get();
+        return $this->recipientResolver->operationalRecipients();
     }
 }
