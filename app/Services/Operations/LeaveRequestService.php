@@ -3,26 +3,44 @@
 namespace App\Services\Operations;
 
 use App\Enums\LeaveRequestStatus;
+use App\Enums\NotificationCategory;
+use App\Enums\NotificationChannelType;
 use App\Models\LeaveRequest;
 use App\Models\User;
+use App\Notifications\LeaveRequestDecisionNotification;
+use App\Notifications\LeaveRequestSubmittedNotification;
+use App\Services\AuditLogService;
+use App\Services\Notifications\NotificationAuthorityService;
+use App\Services\Telegram\TelegramBotService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 class LeaveRequestService
 {
+    public function __construct(
+        private readonly NotificationAuthorityService $notificationAuthority,
+        private readonly TelegramBotService $telegramBot,
+        private readonly AuditLogService $auditLogService,
+    ) {}
+
     /**
      * @param  array{start_date: string, end_date: string, reason: string}  $data
      */
     public function submit(User $requester, array $data): LeaveRequest
     {
-        return LeaveRequest::query()->create([
+        $leaveRequest = LeaveRequest::query()->create([
             'user_id' => $requester->id,
             'start_date' => $data['start_date'],
             'end_date' => $data['end_date'],
             'reason' => $data['reason'],
             'status' => LeaveRequestStatus::Pending,
         ]);
+
+        $this->notifyApproversOfSubmission($leaveRequest->fresh(['user']));
+
+        return $leaveRequest;
     }
 
     public function approve(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
@@ -42,7 +60,11 @@ class LeaveRequestService
             'review_notes' => $reviewNotes,
         ])->save();
 
-        return $leaveRequest->fresh(['user', 'reviewer']);
+        $leaveRequest = $leaveRequest->fresh(['user', 'reviewer']);
+
+        $this->notifyRequesterOfDecision($leaveRequest);
+
+        return $leaveRequest;
     }
 
     public function reject(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
@@ -62,7 +84,11 @@ class LeaveRequestService
             'review_notes' => $reviewNotes,
         ])->save();
 
-        return $leaveRequest->fresh(['user', 'reviewer']);
+        $leaveRequest = $leaveRequest->fresh(['user', 'reviewer']);
+
+        $this->notifyRequesterOfDecision($leaveRequest);
+
+        return $leaveRequest;
     }
 
     public function canReview(User $reviewer, LeaveRequest $leaveRequest): bool
@@ -119,5 +145,187 @@ class LeaveRequestService
 
         return $day->gte($leaveRequest->start_date->startOfDay())
             && $day->lte($leaveRequest->end_date->endOfDay());
+    }
+
+    private function notifyApproversOfSubmission(LeaveRequest $leaveRequest): void
+    {
+        foreach ($this->eligibleApprovers($leaveRequest) as $approver) {
+            $this->dispatchLeaveNotification(
+                recipient: $approver,
+                leaveRequest: $leaveRequest,
+                inAppNotification: new LeaveRequestSubmittedNotification($leaveRequest),
+                telegramTitle: 'Leave Request Submitted',
+                telegramMessage: $this->formatSubmittedTelegramMessage($leaveRequest),
+            );
+        }
+    }
+
+    private function notifyRequesterOfDecision(LeaveRequest $leaveRequest): void
+    {
+        $requester = $leaveRequest->user;
+
+        if ($requester === null || ! $requester->is_active) {
+            return;
+        }
+
+        $this->dispatchLeaveNotification(
+            recipient: $requester,
+            leaveRequest: $leaveRequest,
+            inAppNotification: new LeaveRequestDecisionNotification($leaveRequest),
+            telegramTitle: $this->decisionTelegramTitle($leaveRequest),
+            telegramMessage: $this->formatDecisionTelegramMessage($leaveRequest),
+        );
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function eligibleApprovers(LeaveRequest $leaveRequest): Collection
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', [
+                RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_SUPERADMIN,
+            ]))
+            ->get()
+            ->filter(fn (User $reviewer): bool => $reviewer->id !== $leaveRequest->user_id
+                && $this->canReview($reviewer, $leaveRequest))
+            ->values();
+    }
+
+    private function dispatchLeaveNotification(
+        User $recipient,
+        LeaveRequest $leaveRequest,
+        LeaveRequestSubmittedNotification|LeaveRequestDecisionNotification $inAppNotification,
+        string $telegramTitle,
+        string $telegramMessage,
+    ): void {
+        if ($this->notificationAuthority->shouldDeliver(
+            $recipient,
+            NotificationCategory::LeaveApprovals,
+            NotificationChannelType::InApp,
+        )) {
+            $recipient->notify($inAppNotification);
+        }
+
+        $this->dispatchTelegramNotification(
+            recipient: $recipient,
+            leaveRequest: $leaveRequest,
+            title: $telegramTitle,
+            message: $telegramMessage,
+        );
+    }
+
+    private function dispatchTelegramNotification(
+        User $recipient,
+        LeaveRequest $leaveRequest,
+        string $title,
+        string $message,
+    ): void {
+        if (! $this->notificationAuthority->shouldDeliver(
+            $recipient,
+            NotificationCategory::LeaveApprovals,
+            NotificationChannelType::Telegram,
+        )) {
+            $this->auditLogService->log(
+                userId: $leaveRequest->user_id,
+                event: 'leave.notification.dispatched',
+                auditable: $leaveRequest,
+                newValues: [
+                    'recipient_id' => $recipient->id,
+                    'channel' => NotificationChannelType::Telegram->value,
+                    'status' => 'skipped',
+                    'title' => $title,
+                    'message' => 'Telegram delivery blocked by notification authority.',
+                ],
+            );
+
+            return;
+        }
+
+        if (! $this->telegramBot->isConfigured()) {
+            $this->auditLogService->log(
+                userId: $leaveRequest->user_id,
+                event: 'leave.notification.dispatched',
+                auditable: $leaveRequest,
+                newValues: [
+                    'recipient_id' => $recipient->id,
+                    'channel' => NotificationChannelType::Telegram->value,
+                    'status' => 'failed',
+                    'title' => $title,
+                    'message' => 'Telegram bot token is not configured.',
+                ],
+            );
+
+            return;
+        }
+
+        $sendResult = $this->telegramBot->sendMessage(
+            chatId: (string) $recipient->telegram_chat_id,
+            text: $message,
+        );
+
+        $this->auditLogService->log(
+            userId: $leaveRequest->user_id,
+            event: 'leave.notification.dispatched',
+            auditable: $leaveRequest,
+            newValues: [
+                'recipient_id' => $recipient->id,
+                'channel' => NotificationChannelType::Telegram->value,
+                'status' => $sendResult->success ? 'sent' : 'failed',
+                'title' => $title,
+                'message' => $sendResult->success ? null : $sendResult->error,
+            ],
+        );
+    }
+
+    private function formatSubmittedTelegramMessage(LeaveRequest $leaveRequest): string
+    {
+        $requester = $leaveRequest->user;
+        $requesterName = $requester?->firstName() ?: 'A team member';
+        $startDate = $leaveRequest->start_date->toDateString();
+        $endDate = $leaveRequest->end_date->toDateString();
+
+        return implode("\n", [
+            'Leave Request Submitted',
+            '',
+            "{$requesterName} requested leave.",
+            "Dates: {$startDate} to {$endDate}",
+            'Reason: '.$leaveRequest->reason,
+            '',
+            'Review in Radium Desk.',
+        ]);
+    }
+
+    private function formatDecisionTelegramMessage(LeaveRequest $leaveRequest): string
+    {
+        $reviewer = $leaveRequest->reviewer;
+        $reviewerName = $reviewer?->firstName() ?: 'Operations';
+        $startDate = $leaveRequest->start_date->toDateString();
+        $endDate = $leaveRequest->end_date->toDateString();
+        $decision = match ($leaveRequest->status) {
+            LeaveRequestStatus::Approved => 'approved',
+            LeaveRequestStatus::Rejected => 'rejected',
+            default => 'updated',
+        };
+
+        return implode("\n", [
+            'Leave Request '.ucfirst($decision),
+            '',
+            "Your leave request ({$startDate} to {$endDate}) was {$decision} by {$reviewerName}.",
+            '',
+            'View in Radium Desk.',
+        ]);
+    }
+
+    private function decisionTelegramTitle(LeaveRequest $leaveRequest): string
+    {
+        return match ($leaveRequest->status) {
+            LeaveRequestStatus::Approved => 'Leave Request Approved',
+            LeaveRequestStatus::Rejected => 'Leave Request Rejected',
+            default => 'Leave Request Updated',
+        };
     }
 }
