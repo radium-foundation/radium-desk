@@ -17,9 +17,9 @@ return new class extends Migration
             $table->timestamp('linked_at');
             $table->timestamps();
 
-            $table->unique(['incident_id', 'bonvoice_call_event_id']);
-            $table->unique(['call_id', 'link_type']);
-            $table->index(['incident_id', 'link_type']);
+            $table->unique(['incident_id', 'bonvoice_call_event_id'], 'ibcl_incident_event_uq');
+            $table->unique(['call_id', 'link_type'], 'ibcl_call_type_uq');
+            $table->index(['incident_id', 'link_type'], 'ibcl_incident_type_idx');
         });
     }
 
