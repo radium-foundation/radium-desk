@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\SmartAssignmentService;
 use App\Services\Operations\SupportAppointmentSmartAssignmentService;
 use App\Services\SupportAppointmentService;
@@ -271,6 +272,10 @@ class SmartAssignmentTest extends TestCase
             'availability_status' => $status,
             'availability_updated_at' => now(),
         ]);
+
+        if ($status !== TeamAvailabilityStatus::Offline) {
+            app(PresenceEngineService::class)->startSession($user);
+        }
 
         return $user->fresh();
     }

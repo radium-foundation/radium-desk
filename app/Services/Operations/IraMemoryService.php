@@ -7,7 +7,6 @@ use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\PerformancePeriod;
 use App\Enums\ServiceCaseSlaStatus;
-use App\Enums\TeamAvailabilityStatus;
 use App\Models\IraOperationalMemorySnapshot;
 use App\Models\Incident;
 use App\Models\User;
@@ -27,7 +26,7 @@ class IraMemoryService
         private readonly TeamPerformanceMetricsService $performanceMetricsService,
         private readonly OperationsRoleService $roleService,
         private readonly WorkCalendarService $workCalendarService,
-        private readonly TeamAvailabilityService $availabilityService,
+        private readonly WorkforceAuthorityService $workforceAuthority,
         private readonly OperationsSupportIntelligenceService $supportIntelligenceService,
     ) {}
 
@@ -146,16 +145,9 @@ class IraMemoryService
         foreach ($teamMembers as $member) {
             if ($this->workCalendarService->hasApprovedLeave($member, $at)) {
                 $leaveCount++;
-
-                continue;
             }
 
-            $status = $this->availabilityService->statusFor($member);
-
-            if (in_array($status, [
-                TeamAvailabilityStatus::Available,
-                TeamAvailabilityStatus::Busy,
-            ], true) && $this->workCalendarService->isEligibleForAssignment($member, $at)) {
+            if ($this->workforceAuthority->isOnDuty($member, $at)) {
                 $availableCount++;
             }
         }

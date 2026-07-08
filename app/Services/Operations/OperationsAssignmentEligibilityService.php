@@ -2,32 +2,26 @@
 
 namespace App\Services\Operations;
 
-use App\Enums\TeamAvailabilityStatus;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
 class OperationsAssignmentEligibilityService
 {
     public function __construct(
-        private readonly TeamAvailabilityService $availabilityService,
-        private readonly WorkCalendarService $workCalendarService,
+        private readonly WorkforceAuthorityService $workforceAuthority,
     ) {}
 
     public function isEligible(User $user, ?Carbon $at = null): bool
     {
-        if (! $user->is_active || $user->trashed()) {
-            return false;
+        return $this->workforceAuthority->isEligibleForNormalAssignment($user, $at);
+    }
+
+    public function isEligibleWithOverride(User $user, bool $allowOverride = false, ?Carbon $at = null): bool
+    {
+        if ($allowOverride) {
+            return $user->is_active && ! $user->trashed();
         }
 
-        if (! $this->workCalendarService->isEligibleForAssignment($user, $at)) {
-            return false;
-        }
-
-        $status = $this->availabilityService->statusFor($user);
-
-        return in_array($status, [
-            TeamAvailabilityStatus::Available,
-            TeamAvailabilityStatus::Busy,
-        ], true);
+        return $this->isEligible($user, $at);
     }
 }

@@ -10,6 +10,7 @@ use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
 use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\OperationsAssignmentEligibilityService;
+use App\Services\Operations\OperationsRoleService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ class ServiceCaseAssignmentService
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly ServiceCaseOrderAssignmentRoutingService $orderRoutingService,
         private readonly OperationsAssignmentEligibilityService $assignmentEligibilityService,
+        private readonly OperationsRoleService $operationsRoleService,
     ) {}
 
     public function resolveAssignee(?Carbon $at = null): User
@@ -119,6 +121,9 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
+            extraNewValues: [
+                ...$this->shiftAdminOverrideContext(),
+            ],
         );
     }
 
@@ -144,6 +149,9 @@ class ServiceCaseAssignmentService
                 assignee: $this->resolveAssignee(),
                 actor: $actor,
                 event: 'service_case.assigned',
+                extraNewValues: [
+                    ...$this->shiftAdminOverrideContext(),
+                ],
             );
         }
 
@@ -169,6 +177,9 @@ class ServiceCaseAssignmentService
                 assignee: $this->resolveAssignee($at),
                 actor: $actor,
                 event: 'service_case.assigned',
+                extraNewValues: [
+                    ...$this->shiftAdminOverrideContext(),
+                ],
             );
         }
 
@@ -267,6 +278,10 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.reassigned',
+            extraNewValues: [
+                'assignment_override' => true,
+                'override_reason' => 'manual_reassign',
+            ],
         );
     }
 
@@ -318,6 +333,7 @@ class ServiceCaseAssignmentService
             event: 'service_case.reassigned',
             extraNewValues: [
                 'reason' => ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON,
+                ...$this->shiftAdminOverrideContext(),
             ],
         );
     }
@@ -340,6 +356,8 @@ class ServiceCaseAssignmentService
                 'assignment_method' => 'order_routing',
                 'assignment_rule' => 'hardware_order',
                 'order_id' => $incident->order?->order_id,
+                'assignment_override' => true,
+                'override_reason' => 'hardware_routing',
             ],
         );
     }
@@ -386,10 +404,11 @@ class ServiceCaseAssignmentService
 
         return User::query()
             ->where('is_active', true)
-            ->role(RolePermissionSeeder::ROLE_AGENT)
+            ->role(RolePermissionSeeder::SUPPORT_TEAM_ROLES)
             ->orderBy('id')
             ->get()
-            ->filter(fn (User $agent): bool => $this->assignmentEligibilityService->isEligible($agent, $at))
+            ->filter(fn (User $agent): bool => $this->operationsRoleService->isNormalAssignmentPool($agent)
+                && $this->assignmentEligibilityService->isEligible($agent, $at))
             ->values()
             ->all();
     }
@@ -657,5 +676,16 @@ class ServiceCaseAssignmentService
     private function normalizeTime(Carbon $at): Carbon
     {
         return $at->copy()->timezone($this->settingService->get('assignment.timezone', config('app.timezone')));
+    }
+
+    /**
+     * @return array{assignment_override: true, override_reason: 'shift_admin'}
+     */
+    private function shiftAdminOverrideContext(): array
+    {
+        return [
+            'assignment_override' => true,
+            'override_reason' => 'shift_admin',
+        ];
     }
 }

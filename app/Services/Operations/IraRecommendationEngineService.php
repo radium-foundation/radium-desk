@@ -6,7 +6,6 @@ use App\Data\Operations\IraOperationalRecommendation;
 use App\Data\Operations\IraOperationalRisk;
 use App\Data\Operations\IraOperationalSnapshotData;
 use App\Enums\OperationQueue;
-use App\Enums\TeamAvailabilityStatus;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
@@ -16,8 +15,7 @@ class IraRecommendationEngineService
 {
     public function __construct(
         private readonly SmartAssignmentService $smartAssignmentService,
-        private readonly TeamAvailabilityService $availabilityService,
-        private readonly WorkCalendarService $workCalendarService,
+        private readonly WorkforceAuthorityService $workforceAuthority,
         private readonly OperationsRoleService $roleService,
         private readonly IraMemoryService $memoryService,
     ) {}
@@ -56,14 +54,13 @@ class IraRecommendationEngineService
             ->count();
 
         foreach ($this->teamMembers() as $member) {
-            if (! $this->smartAssignmentService->isEligible($member, $at)) {
+            if (! $this->workforceAuthority->isOnDuty($member, $at)) {
                 continue;
             }
 
             $metrics = $this->smartAssignmentService->workloadMetrics($member, $dashboardSnapshot);
-            $status = $this->availabilityService->statusFor($member);
 
-            if ($metrics['total'] >= 5 || $status !== TeamAvailabilityStatus::Available) {
+            if ($metrics['total'] >= 5) {
                 continue;
             }
 

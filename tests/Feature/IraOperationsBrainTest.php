@@ -25,6 +25,7 @@ use App\Services\Operations\IraOperationsBrainService;
 use App\Services\Operations\IraRecommendationEngineService;
 use App\Services\Operations\IraRiskDetectionService;
 use App\Services\Operations\OpenAIReasoningProvider;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\RuleBasedReasoningProvider;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -210,6 +211,35 @@ class IraOperationsBrainTest extends TestCase
             ->assertJsonPath('feedback.response', IraInsightFeedbackResponse::Incorrect->value);
     }
 
+    public function test_memory_available_count_ignores_offline_and_no_session_users(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $this->createAgentWithSchedule('On Duty Agent');
+
+        $offlineAgent = User::factory()->create(['name' => 'Offline Agent']);
+        $offlineAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $offlineAgent->update([
+            'availability_status' => TeamAvailabilityStatus::Offline,
+            'availability_updated_at' => now(),
+        ]);
+        $this->createScheduleFor($offlineAgent);
+
+        $noSessionAgent = User::factory()->create(['name' => 'No Session Agent']);
+        $noSessionAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $noSessionAgent->update([
+            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_updated_at' => now(),
+        ]);
+        $this->createScheduleFor($noSessionAgent);
+
+        $snapshot = app(IraMemoryService::class)->collectSnapshotData();
+
+        $this->assertSame(1, $snapshot->team['available']);
+
+        Carbon::setTestNow();
+    }
+
     public function test_ai_provider_can_be_swapped_later(): void
     {
         $this->assertInstanceOf(RuleBasedReasoningProvider::class, app(IraReasoningProvider::class));
@@ -268,7 +298,7 @@ class IraOperationsBrainTest extends TestCase
             ->assertSee('View Full Analysis');
     }
 
-    private function createAgentWithSchedule(string $name): User
+    private function createAgentWithSchedule(string $name, bool $startSession = true): User
     {
         $user = User::factory()->create(['name' => $name]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -277,7 +307,20 @@ class IraOperationsBrainTest extends TestCase
             'availability_updated_at' => now(),
         ]);
 
-        TeamMemberWorkSchedule::query()->create([
+        $this->createScheduleFor($user);
+
+        $user = $user->fresh(['workSchedule']);
+
+        if ($startSession) {
+            app(PresenceEngineService::class)->startSession($user);
+        }
+
+        return $user->fresh(['workSchedule']);
+    }
+
+    private function createScheduleFor(User $user): TeamMemberWorkSchedule
+    {
+        return TeamMemberWorkSchedule::query()->create([
             'user_id' => $user->id,
             'work_start_time' => '09:00:00',
             'work_end_time' => '18:00:00',
@@ -287,8 +330,6 @@ class IraOperationsBrainTest extends TestCase
             'short_break_minutes' => 10,
             'weekly_off_days' => [Carbon::SUNDAY],
         ]);
-
-        return $user->fresh(['workSchedule']);
     }
 
     private function createIncidentFor(User $agent, string $orderId = 'RD-IRA-1'): Incident

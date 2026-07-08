@@ -16,6 +16,7 @@ use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\LeaveRequestService;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\SmartAssignmentService;
 use App\Services\Operations\WorkCalendarService;
 use App\Services\SupportAppointmentService;
@@ -368,6 +369,12 @@ class WorkforceCalendarTest extends TestCase
         ]);
 
         $this->createScheduleFor($user, $weeklyOffDays);
+
+        $user = $user->fresh(['workSchedule']);
+
+        if ($status !== TeamAvailabilityStatus::Offline) {
+            app(PresenceEngineService::class)->startSession($user);
+        }
 
         return $user->fresh(['workSchedule']);
     }

@@ -12,6 +12,7 @@ use App\Models\LeaveRequest;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\ServiceCaseAssignmentService;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
@@ -104,7 +105,79 @@ class ServiceCaseAssignmentTest extends TestCase
         ]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        return $user;
+        if ($active && $availability !== TeamAvailabilityStatus::Offline) {
+            app(PresenceEngineService::class)->startSession($user);
+        }
+
+        return $user->fresh();
+    }
+
+    public function test_support_specialist_is_included_in_round_robin_pool(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $specialist = User::factory()->create([
+            'name' => 'Support Specialist',
+            'email' => 'specialist@test.com',
+            'is_active' => true,
+            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_updated_at' => now(),
+        ]);
+        $specialist->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+        app(PresenceEngineService::class)->startSession($specialist);
+
+        $incident = $this->createIncidentForAssignmentTest();
+        $result = app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $incident->creator);
+
+        $this->assertSame($specialist->id, $result->assigned_to_user_id);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_shift_admin_assignment_records_override_audit_context(): void
+    {
+        $admin = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $this->configureAssignmentSettings($admin->id, $admin->id);
+
+        Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
+
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $incident = $this->createIncidentForAssignmentTest($actor);
+
+        app(ServiceCaseAssignmentService::class)->assignToShiftAdminAfterValidation($incident->fresh(), $actor);
+
+        $auditLog = AuditLog::query()
+            ->where('event', 'service_case.assigned')
+            ->where('auditable_id', $incident->id)
+            ->first();
+
+        $this->assertTrue($auditLog?->new_values['assignment_override'] ?? false);
+        $this->assertSame('shift_admin', $auditLog?->new_values['override_reason'] ?? null);
+        $this->assertSame($admin->id, $incident->fresh()->assigned_to_user_id);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_manual_reassignment_records_override_audit_context(): void
+    {
+        $fromAdmin = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $toAdmin = $this->createAdminUser('shipra@radiumbox.com', 'Shipra Kumari');
+        $actor = User::factory()->create();
+        $actor->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $incident = $this->createIncidentForAssignmentTest($actor);
+        $incident->update(['assigned_to_user_id' => $fromAdmin->id]);
+
+        app(ServiceCaseAssignmentService::class)->reassign($incident->fresh(), $toAdmin, $actor);
+
+        $auditLog = AuditLog::query()
+            ->where('event', 'service_case.reassigned')
+            ->where('auditable_id', $incident->id)
+            ->first();
+
+        $this->assertTrue($auditLog?->new_values['assignment_override'] ?? false);
+        $this->assertSame('manual_reassign', $auditLog?->new_values['override_reason'] ?? null);
     }
 
     public function test_round_robin_assigns_first_active_agent_when_cursor_is_zero(): void
