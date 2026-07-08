@@ -28,7 +28,7 @@ class UnifiedIntakePrimaryFeatureFlagTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('New Service Request', false)
+            ->assertDontSee('New Service Request', false)
             ->assertSee('btn btn-primary btn-sm', false)
             ->assertDontSee('data-unified-intake-fallback', false)
             ->assertDontSee('class="unified-intake-primary"', false);
@@ -46,14 +46,9 @@ class UnifiedIntakePrimaryFeatureFlagTest extends TestCase
         $response->assertOk()
             ->assertSee('class="unified-intake-primary"', false)
             ->assertSee('id="global-search-input"', false)
-            ->assertSee('New Service Request', false)
-            ->assertSee('data-unified-intake-fallback', false)
-            ->assertSee('data-bs-target="#quickCreateModal"', false);
-
-        $this->assertMatchesRegularExpression(
-            '/<button[^>]+class="btn btn-sm btn-outline-secondary"[^>]+data-unified-intake-fallback/s',
-            (string) $response->getContent(),
-        );
+            ->assertDontSee('New Service Request', false)
+            ->assertDontSee('data-unified-intake-fallback', false)
+            ->assertDontSee('data-bs-target="#quickCreateModal"', false);
     }
 
     public function test_unified_intake_primary_body_class_is_not_applied_off_dashboard(): void

@@ -54,7 +54,7 @@
     ])>
     @if($canSelectRows ?? false)
         <td class="dashboard-select-cell">
-            @if($order && ! $isCompleted)
+            @if($order && ! $isCompleted && ! $order->isInquiryOrder())
                 <input type="checkbox"
                        class="form-check-input service-case-select"
                        value="{{ $serviceCase->id }}"

@@ -52,7 +52,7 @@ class DashboardTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('New Service Request')
+            ->assertDontSee('New Service Request')
             ->assertSee('Search Customer')
             ->assertSee('My Work')
             ->assertSee('Waiting Customer')

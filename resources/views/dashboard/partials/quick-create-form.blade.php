@@ -1,6 +1,6 @@
 <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-labelledby="quickCreateModalLabel"
-     data-show-on-load="{{ ($errors->has('phone') || $errors->has('order_id') || $errors->has('serial_number') || $errors->has('customer_name') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority') || $errors->has('intent') || $errors->has('action') || ($reopenQuickCreate ?? false)) ? 'true' : 'false' }}"
-     data-reset-on-show="{{ ($reopenQuickCreate ?? false) ? 'true' : 'false' }}"
+     data-show-on-load="{{ ($errors->has('phone') || $errors->has('order_id') || $errors->has('serial_number') || $errors->has('customer_name') || $errors->has('product') || $errors->has('source') || $errors->has('notes') || $errors->has('high_priority') || $errors->has('intent') || $errors->has('action')) ? 'true' : 'false' }}"
+     data-reset-on-show="false"
      data-intake-search-url="{{ route('service-requests.intake.search') }}">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">

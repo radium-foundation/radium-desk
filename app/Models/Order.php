@@ -118,6 +118,11 @@ class Order extends Model
         return str_starts_with(strtoupper(trim($orderId)), 'INQ-');
     }
 
+    public function isInquiryOrder(): bool
+    {
+        return self::isInquiryOrderId($this->order_id);
+    }
+
     public static function isHardwareOrderId(?string $orderId): bool
     {
         if ($orderId === null || trim($orderId) === '') {

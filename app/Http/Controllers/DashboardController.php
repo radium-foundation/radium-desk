@@ -71,11 +71,10 @@ class DashboardController extends Controller
             \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ]);
 
-        $reopenQuickCreate = (bool) session('reopen_quick_create', false);
-
         return view('dashboard.index', [
             'stats' => $this->dashboardService->statsFor($user),
-            'reopenQuickCreate' => $reopenQuickCreate,
+            'openCustomer360IncidentId' => session('open_customer_360_incident_id'),
+            'openCustomer360Reference' => session('service_case_reference'),
             'recentServiceCases' => $recentServiceCases,
             'serviceCaseFilterCounts' => $serviceCaseFilterCounts,
             'serviceCaseTotalCount' => $serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count(),

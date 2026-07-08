@@ -129,15 +129,15 @@ class QuickServiceRequestController extends Controller
             ]);
         }
 
-        return $this->createdRedirect($incident->display_reference);
+        return $this->createdRedirect($incident);
     }
 
-    private function createdRedirect(string $reference): RedirectResponse
+    private function createdRedirect(Incident $incident): RedirectResponse
     {
         return redirect()
             ->route('dashboard')
             ->with('status', 'service-case-created')
-            ->with('service_case_reference', $reference)
-            ->with('reopen_quick_create', true);
+            ->with('service_case_reference', $incident->display_reference)
+            ->with('open_customer_360_incident_id', $incident->id);
     }
 }

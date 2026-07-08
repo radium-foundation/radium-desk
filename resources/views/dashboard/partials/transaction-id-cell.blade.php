@@ -3,7 +3,10 @@
 @php
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
-    $canAssign = $canManageTransactions && $order && auth()->user()?->can('assignTransaction', $order);
+    $canAssign = $canManageTransactions
+        && $order
+        && ! $order->isInquiryOrder()
+        && auth()->user()?->can('assignTransaction', $order);
 @endphp
 
 <td class="transaction-id-cell"

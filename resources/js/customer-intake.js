@@ -803,10 +803,24 @@ export const initCustomerIntake = ({ showToast = null } = {}) => {
         });
     });
 
-    const shouldReopen = modalElement.dataset.showOnLoad === 'true'
-        || document.getElementById('dashboard-page')?.dataset.reopenQuickCreate === 'true';
+    const dashboardPage = document.getElementById('dashboard-page');
+    const openIncidentId = dashboardPage?.dataset.openCustomer360IncidentId?.trim() ?? '';
 
-    if (shouldReopen) {
+    if (openIncidentId !== '') {
+        window.setTimeout(() => {
+            bootstrap.Modal.getInstance(modalElement)?.hide();
+            document.dispatchEvent(new CustomEvent('customer360:open', {
+                detail: {
+                    incidentId: Number(openIncidentId),
+                    referenceLabel: dashboardPage?.dataset.openCustomer360Reference ?? '',
+                },
+            }));
+        }, 0);
+
+        return;
+    }
+
+    if (modalElement.dataset.showOnLoad === 'true') {
         window.setTimeout(() => {
             modal.show();
         }, 0);

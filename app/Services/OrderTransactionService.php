@@ -37,6 +37,12 @@ class OrderTransactionService
             ]);
         }
 
+        if ($order->isInquiryOrder()) {
+            throw ValidationException::withMessages([
+                'transaction_id' => 'Inquiry cases cannot be assigned a service reference.',
+            ]);
+        }
+
         $transactionId = trim($transactionId);
 
         if ($transactionId === '') {

@@ -62,7 +62,8 @@ class QuickServiceRequestTest extends TestCase
         $response->assertRedirect(route('dashboard'));
         $response->assertSessionHas('status', 'service-case-created');
         $response->assertSessionHas('service_case_reference', 'SC00001');
-        $response->assertSessionHas('reopen_quick_create', true);
+        $response->assertSessionHas('open_customer_360_incident_id', $incident->id);
+        $response->assertSessionMissing('reopen_quick_create');
 
         $this->assertTrue(Order::isInquiryOrderId($incident->order->order_id));
         $this->assertSame('7881953', $incident->order->serial_number);
@@ -187,7 +188,7 @@ class QuickServiceRequestTest extends TestCase
         $this->assertSame('Jane Doe', $incident->order->customer_name);
     }
 
-    public function test_dashboard_reopens_quick_create_modal_after_successful_create(): void
+    public function test_dashboard_opens_customer_360_after_successful_quick_create(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -195,50 +196,45 @@ class QuickServiceRequestTest extends TestCase
         $this->withSession([
             'status' => 'service-case-created',
             'service_case_reference' => 'SC00001',
-            'reopen_quick_create' => true,
+            'open_customer_360_incident_id' => 42,
         ])
             ->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-show-on-load="true"', false)
-            ->assertSee('data-reset-on-show="true"', false)
-            ->assertSee('data-reopen-quick-create="true"', false)
+            ->assertSee('data-show-on-load="false"', false)
+            ->assertSee('data-open-customer-360-incident-id="42"', false)
+            ->assertSee('data-open-customer-360-reference="SC00001"', false)
             ->assertSee('Service Case SC00001 created successfully.');
     }
 
-    public function test_admin_dashboard_reopens_quick_create_modal_after_successful_create(): void
+    public function test_buy_device_inquiry_case_is_excluded_from_assign_ref_no_selection(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $this->withSession([
-            'status' => 'service-case-created',
-            'service_case_reference' => 'SC00001',
-            'reopen_quick_create' => true,
-        ])
-            ->actingAs($admin)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('data-show-on-load="true"', false)
-            ->assertSee('data-reset-on-show="true"', false)
-            ->assertSee('data-reopen-quick-create="true"', false);
-    }
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-    public function test_superadmin_dashboard_reopens_quick_create_modal_after_successful_create(): void
-    {
-        $superadmin = User::factory()->create();
-        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+        $this->actingAs($agent)->post(route('service-requests.quick.store'), [
+            'action' => 'new_contact',
+            'intent' => NewContactIntent::BuyDevice->value,
+            'customer_name' => 'Buy Device Customer',
+            'phone' => '9876543217',
+            'source' => IncidentSource::Call->value,
+            'notes' => 'Interested in purchasing a device.',
+        ])->assertRedirect();
 
-        $this->withSession([
-            'status' => 'service-case-created',
-            'service_case_reference' => 'SC00001',
-            'reopen_quick_create' => true,
-        ])
-            ->actingAs($superadmin)
-            ->get(route('dashboard'))
-            ->assertOk()
-            ->assertSee('data-reopen-quick-create="true"', false)
-            ->assertSee('data-reset-on-show="true"', false);
+        $incident = Incident::query()->with('order')->first();
+        $this->assertNotNull($incident);
+        $this->assertTrue(Order::isInquiryOrderId($incident->order->order_id));
+
+        $rowHtml = view(
+            'dashboard.partials.service-case-row',
+            app(\App\Services\DashboardService::class)->serviceCaseRowViewData($incident->fresh(['order', 'creator', 'assignee']), $admin),
+        )->render();
+
+        $this->assertStringNotContainsString('service-case-select', $rowHtml);
+        $this->assertStringNotContainsString('data-inline-transaction="true"', $rowHtml);
     }
 
     public function test_existing_order_intake_rejects_serial_mismatch(): void
