@@ -55,7 +55,7 @@ Centralizes hardcoded recipient role maps:
 | `escalation` | High-priority service case notifications, Ira risk alerts | `notifications.high_priority_enabled` |
 | `ivr` | Bonvoice live call assist (in-app bell) | none (defaults open) |
 | `leave_approvals` | not implemented yet | none (defaults open) |
-| `daily_summary` | Ira daily/team briefings, future IVR day-end report | none (defaults open) |
+| `daily_summary` | Ira daily/team briefings, planned Daily Operations Summary | none (defaults open) |
 | `system_health` | Ira integration failure, unusual backlog | none (defaults open) |
 
 ## Channel mapping
@@ -85,6 +85,77 @@ Schedule evaluation uses `WorkCalendarService::todayStatusFor()`:
 - **always** — no calendar block
 - **custom** — falls back to work hours until preference storage exists
 
+## Daily Operations Summary (planned)
+
+The `daily_summary` category will deliver a single **Daily Operations Summary** — not a separate IVR-only day-end Telegram report. IVR metrics are one section inside a broader operational digest.
+
+This is architecture documentation only. The following are **not implemented yet**:
+
+- command
+- formatter
+- scheduler
+- database tables
+- UI
+
+### Delivery authority
+
+All Daily Operations Summary sends must pass through `NotificationAuthorityService::shouldDeliver()` before dispatch:
+
+1. `categoryEnabled(NotificationCategory::DailySummary)`
+2. `channelEnabled()` for the chosen channel (typically `telegram` or `in_app`)
+3. `userAllows()` for the recipient
+4. `scheduleAllows()` for the recipient at the scheduled send time
+
+Recipient resolution uses `NotificationRecipientResolver` (owners, operational users, or explicit assignees depending on rollout scope).
+
+### Command (planned)
+
+```
+operations:send-daily-summary
+```
+
+Scheduled by role cohort:
+
+| Recipient cohort | Send time | Purpose |
+|------------------|-----------|---------|
+| Owner / superadmin | **00:00** (midnight) | Full-day close summary for platform owners |
+| Shipra / configured operations users | **00:00** (midnight) | Operations leadership end-of-day digest |
+| Normal team users | **18:30** | End-of-shift summary for agents and support staff |
+
+The scheduler evaluates each recipient individually via `NotificationAuthorityService` at the configured time. Users outside their allowed schedule window are skipped even if the command runs.
+
+### Formatter (planned)
+
+```
+DailyOperationsSummaryFormatter
+```
+
+Produces a single plain-text (Telegram) or structured (in-app) message with these sections:
+
+| Section | Content |
+|---------|---------|
+| Service case summary | Open/closed counts, queue breakdown, notable cases |
+| Assignment performance | Assignments, reassignments, smart assignment outcomes |
+| SLA / risk | Overdue, at-risk, and high-priority exposure |
+| IVR calls and agent performance | Call volume, answered/missed rates, per-agent stats (from Bonvoice analytics) |
+| Missing serial automation | Pending/completed missing-serial automation status |
+| Hardware routing | Hardware team routing and backlog signals |
+| Team attendance / on-duty | Present, away, offline, and on-duty workforce snapshot |
+| Leave requests and upcoming leaves | Pending approvals, approved leave today, upcoming leave windows |
+| Finance income/expense summary | Transaction and refund activity for the period |
+| IRA recommendations | IRA operational recommendations and risk highlights |
+
+Existing Ira briefing formatters (`IraBriefingFormatter`, `TeamWorkBriefingFormatter`) may be reused or composed inside `DailyOperationsSummaryFormatter` rather than replaced outright during migration.
+
+### Relationship to current briefings
+
+Today, Ira sends separate daily briefing and team daily briefing Telegram messages. The Daily Operations Summary is the **target unified digest** under `daily_summary`. Migration plan:
+
+1. Implement `DailyOperationsSummaryFormatter` and `operations:send-daily-summary`.
+2. Gate delivery through `NotificationAuthorityService`.
+3. Run new command alongside existing Ira briefing commands during transition.
+4. Deprecate standalone Ira daily/team briefing commands once parity is verified.
+
 ## Future preference table plan (Phase 2+)
 
 Planned tables (not created yet):
@@ -112,7 +183,7 @@ Seed matrix per role for admin-managed defaults applied on user create/role chan
 Do not wire these until Phase 2+:
 
 1. Leave approval Telegram + in-app alerts
-2. IVR day-end Telegram summary
+2. Daily Operations Summary command and formatter
 3. Browser desktop permission flow
 4. Replacing `TeamTelegramQuietRulesService` with authority schedule checks
 
@@ -122,7 +193,8 @@ Recommended wiring sequence:
 2. `IraCommunicationService::dispatch()` → authority before send
 3. `BonvoiceLiveCallAssistService` → authority for IVR category
 4. `NotificationPollController` / `live-notifications.js` → desktop preference + permission
-5. New leave + IVR summary commands
+5. `operations:send-daily-summary` → `DailyOperationsSummaryFormatter` + `NotificationAuthorityService`
+6. New leave approval notification events
 
 ## Files
 
