@@ -8,6 +8,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\TeamAvailabilityStatus;
+use App\Enums\WorkCalendarDayStatus;
 use App\Models\CompanyHoliday;
 use App\Models\Incident;
 use App\Models\LeaveRequest;
@@ -18,6 +19,7 @@ use App\Services\IncidentReferenceService;
 use App\Services\Operations\LeaveRequestService;
 use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\SmartAssignmentService;
+use App\Services\Operations\TeamAvailabilityOverviewService;
 use App\Services\Operations\WorkCalendarService;
 use App\Services\SupportAppointmentService;
 use Database\Seeders\RolePermissionSeeder;
@@ -345,12 +347,26 @@ class WorkforceCalendarTest extends TestCase
         $laterAgent = User::factory()->create(['name' => 'Shipra Later']);
         $laterAgent->assignRole(RolePermissionSeeder::ROLE_AGENT);
         $this->createScheduleFor($laterAgent);
+        $laterAgent = $laterAgent->fresh(['workSchedule']);
+
+        $workCalendar = app(WorkCalendarService::class)->todayStatusFor($laterAgent);
+        $this->assertSame(WorkCalendarDayStatus::StartsLater->value, $workCalendar['status']);
+        $this->assertSame('Starts later', $workCalendar['label']);
+
+        $overview = app(TeamAvailabilityOverviewService::class);
+        $this->assertSame([], $overview->members());
+
+        $memberSnapshot = $overview->memberSnapshot($laterAgent);
+        $this->assertSame('Starts later', $memberSnapshot['work_calendar']['label']);
+        $this->assertFalse($memberSnapshot['on_duty']);
 
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'team']))
             ->assertOk()
-            ->assertSee('Starts later', false)
-            ->assertSee('Shipra Later', false);
+            ->assertSee('No active team members on duty', false)
+            ->assertSee('Team Presence', false);
+
+        Carbon::setTestNow();
     }
 
     /**
