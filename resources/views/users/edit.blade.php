@@ -77,7 +77,7 @@
                         <dd class="col-sm-7">{{ display_app_datetime_24($user->created_at) }}</dd>
                         <dt class="col-sm-5">Assigned Cases</dt>
                         <dd class="col-sm-7">{{ $user->assignedIncidents()->count() }}</dd>
-                        <dt class="col-sm-5">BonVoice Ext</dt>
+                        <dt class="col-sm-5">Mobile</dt>
                         <dd class="col-sm-7">{{ $user->bonvoice_extension ?: '—' }}</dd>
                     </dl>
                 </div>

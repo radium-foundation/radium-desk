@@ -43,7 +43,7 @@
         @enderror
     </div>
     <div class="col-md-6">
-        <label for="bonvoice_extension" class="form-label">BonVoice Extension / Desk Number</label>
+        <label for="bonvoice_extension" class="form-label">Mobile</label>
         <input type="text" name="bonvoice_extension" id="bonvoice_extension"
                class="form-control @error('bonvoice_extension') is-invalid @enderror"
                value="{{ old('bonvoice_extension', $user->bonvoice_extension) }}"
@@ -68,10 +68,14 @@
                    class="form-control" required>
         </div>
         <div class="col-12">
-            <div class="form-check">
+            @php
+                $isActiveValue = old('is_active', '1');
+            @endphp
+            <div class="form-check form-switch">
+                <input type="hidden" name="is_active" value="0">
                 <input type="checkbox" name="is_active" id="is_active" value="1"
                        class="form-check-input @error('is_active') is-invalid @enderror"
-                       @checked(old('is_active', $user->is_active ?? true))>
+                       @checked(filter_var($isActiveValue, FILTER_VALIDATE_BOOLEAN))>
                 <label class="form-check-label" for="is_active">Active</label>
                 @error('is_active')
                     <div class="invalid-feedback">{{ $message }}</div>
@@ -82,14 +86,20 @@
 
     @if($showStatus)
         <div class="col-md-6">
+            @php
+                $isActiveValue = old('is_active', $user->is_active ? '1' : '0');
+            @endphp
             <label for="is_active" class="form-label">Status</label>
-            <select name="is_active" id="is_active" class="form-select @error('is_active') is-invalid @enderror" required>
-                <option value="1" @selected(old('is_active', $user->is_active ? '1' : '0') == '1')>Active</option>
-                <option value="0" @selected(old('is_active', $user->is_active ? '1' : '0') == '0')>Inactive</option>
-            </select>
-            @error('is_active')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
+            <div class="form-check form-switch">
+                <input type="hidden" name="is_active" value="0">
+                <input type="checkbox" name="is_active" id="is_active" value="1"
+                       class="form-check-input @error('is_active') is-invalid @enderror"
+                       @checked(filter_var($isActiveValue, FILTER_VALIDATE_BOOLEAN))>
+                <label class="form-check-label" for="is_active">Active</label>
+                @error('is_active')
+                    <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
+            </div>
         </div>
     @endif
 </div>

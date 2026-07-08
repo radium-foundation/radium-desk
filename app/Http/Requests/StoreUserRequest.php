@@ -44,7 +44,7 @@ class StoreUserRequest extends FormRequest
             'first_name' => 'first name',
             'last_name' => 'last name',
             'is_active' => 'status',
-            'bonvoice_extension' => 'BonVoice extension / desk number',
+            'bonvoice_extension' => 'Mobile',
         ];
     }
 

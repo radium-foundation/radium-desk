@@ -71,7 +71,7 @@
                                 <th>First Name</th>
                                 <th>Last Name</th>
                                 <th>Email</th>
-                                <th>BonVoice Ext</th>
+                                <th>Mobile</th>
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th>Assigned Service Cases</th>
