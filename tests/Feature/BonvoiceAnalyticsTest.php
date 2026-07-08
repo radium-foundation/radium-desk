@@ -119,6 +119,7 @@ class BonvoiceAnalyticsTest extends TestCase
         $unknown = collect($missedCalls)->firstWhere('call_id', 'call-missed-unknown');
 
         $this->assertNotNull($matched);
+        $this->assertIsString($matched['started_at']);
         $this->assertSame($order->id, $matched['order_id']);
         $this->assertSame('RD-IVR-1', $matched['order_label']);
         $this->assertNotNull($matched['order_url']);
@@ -126,6 +127,45 @@ class BonvoiceAnalyticsTest extends TestCase
         $this->assertNotNull($unknown);
         $this->assertNull($unknown['order_id']);
         $this->assertNull($unknown['order_label']);
+    }
+
+    public function test_cached_ivr_analytics_renders_performance_partial_without_datetime_crash(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->seedCallEvent('call-missed-cache', 'NOANSWER', '9876500401', '08448423017');
+
+        Cache::flush();
+
+        $service = app(BonvoiceAnalyticsService::class);
+        $service->widgets();
+
+        $cached = Cache::get('bonvoice:analytics:operations');
+        $this->assertIsArray($cached);
+
+        $roundTripped = unserialize(serialize($cached));
+        $this->assertIsArray($roundTripped);
+
+        foreach ($roundTripped['missed_calls'] as $call) {
+            $this->assertIsString($call['started_at']);
+            $this->assertStringNotContainsString('Incomplete_Class', $call['started_at']);
+        }
+
+        $missedCallsHtml = view('admin.operations.partials.ivr-missed-calls', [
+            'calls' => $roundTripped['missed_calls'],
+        ])->render();
+
+        $this->assertStringContainsString('9876500401', $missedCallsHtml);
+        $this->assertStringNotContainsString('Incomplete_Class', $missedCallsHtml);
+
+        Cache::put('bonvoice:analytics:operations', $roundTripped, now()->addMinute());
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'performance']))
+            ->assertOk()
+            ->assertSee('9876500401', false)
+            ->assertDontSee('Incomplete_Class', false);
     }
 
     public function test_operations_dashboard_performance_tab_includes_ivr_widgets(): void

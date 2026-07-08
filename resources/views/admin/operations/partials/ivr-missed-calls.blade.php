@@ -24,11 +24,12 @@
                                 <tr>
                                     <td>{{ $call['customer_phone'] ?? '—' }}</td>
                                     <td>
-                                        @if(! empty($call['time']))
-                                            {{ display_app_datetime($call['time']) }}
-                                        @else
-                                            —
-                                        @endif
+                                        @php
+                                            $startedAt = ! empty($call['started_at'])
+                                                ? \Illuminate\Support\Carbon::parse($call['started_at'])
+                                                : null;
+                                        @endphp
+                                        {{ display_app_datetime($startedAt) }}
                                     </td>
                                     <td>
                                         @if(! empty($call['order_url']))

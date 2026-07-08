@@ -181,10 +181,7 @@ class BonvoiceAnalyticsService
                 return [
                     'call_id' => $call->call_id,
                     'customer_phone' => $call->customer_phone,
-                    'time' => $call->started_at,
-                    'time_label' => $call->started_at instanceof Carbon
-                        ? $call->started_at->format('g:i A')
-                        : null,
+                    'started_at' => $this->toIso8601String($call->started_at),
                     'status' => $call->status,
                     'order_id' => $order?->id,
                     'order_label' => $order?->order_id,
@@ -280,5 +277,18 @@ class BonvoiceAnalyticsService
         return $remainingSeconds > 0
             ? "{$minutes}m {$remainingSeconds}s"
             : "{$minutes}m";
+    }
+
+    private function toIso8601String(mixed $value): ?string
+    {
+        if ($value instanceof Carbon) {
+            return $value->toIso8601String();
+        }
+
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        return null;
     }
 }
