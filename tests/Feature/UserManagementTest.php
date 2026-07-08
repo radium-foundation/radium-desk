@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\IncidentSource;
 use App\Enums\TeamAvailabilityStatus;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -87,7 +88,7 @@ class UserManagementTest extends TestCase
             'first_name' => 'New',
             'last_name' => 'Agent',
             'email' => 'newagent@test.com',
-            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
             'password' => 'password',
             'password_confirmation' => 'password',
             'is_active' => '1',
@@ -121,7 +122,7 @@ class UserManagementTest extends TestCase
             'first_name' => 'Edited',
             'last_name' => 'User',
             'email' => 'edited@test.com',
-            'role' => RolePermissionSeeder::ROLE_ADMIN,
+            'roles' => [RolePermissionSeeder::ROLE_ADMIN],
             'is_active' => '1',
         ])
             ->assertRedirect(route('users.edit', $target))
@@ -147,7 +148,7 @@ class UserManagementTest extends TestCase
             'first_name' => 'Call',
             'last_name' => 'Agent',
             'email' => 'callagent@test.com',
-            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
             'password' => 'password',
             'password_confirmation' => 'password',
             'is_active' => '1',
@@ -174,7 +175,7 @@ class UserManagementTest extends TestCase
             'first_name' => $target->first_name,
             'last_name' => $target->last_name,
             'email' => $target->email,
-            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
             'is_active' => '1',
             'bonvoice_extension' => '08448423017',
         ])
@@ -203,7 +204,7 @@ class UserManagementTest extends TestCase
             'first_name' => 'Duplicate',
             'last_name' => 'Extension',
             'email' => 'new-duplicate@test.com',
-            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
             'password' => 'password',
             'password_confirmation' => 'password',
             'is_active' => '1',
@@ -214,7 +215,7 @@ class UserManagementTest extends TestCase
             'first_name' => $target->first_name,
             'last_name' => $target->last_name,
             'email' => $target->email,
-            'role' => RolePermissionSeeder::ROLE_AGENT,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
             'is_active' => '1',
             'bonvoice_extension' => '08448423017',
         ])->assertSessionHasErrors('bonvoice_extension');
@@ -307,7 +308,7 @@ class UserManagementTest extends TestCase
             'first_name' => 'Hacked',
             'last_name' => 'User',
             'email' => 'hacked@test.com',
-            'role' => RolePermissionSeeder::ROLE_ADMIN,
+            'roles' => [RolePermissionSeeder::ROLE_ADMIN],
             'is_active' => '1',
         ])->assertForbidden();
     }
@@ -320,11 +321,11 @@ class UserManagementTest extends TestCase
             'first_name' => 'Bad',
             'last_name' => 'Role',
             'email' => 'badrole@test.com',
-            'role' => RolePermissionSeeder::ROLE_SUPERADMIN,
+            'roles' => [RolePermissionSeeder::ROLE_SUPERADMIN],
             'password' => 'password',
             'password_confirmation' => 'password',
             'is_active' => '1',
-        ])->assertSessionHasErrors('role');
+        ])->assertSessionHasErrors('roles.0');
     }
 
     public function test_assignment_skips_inactive_admin(): void
@@ -403,9 +404,9 @@ class UserManagementTest extends TestCase
             'first_name' => $soleSuperadmin->first_name,
             'last_name' => $soleSuperadmin->last_name,
             'email' => $soleSuperadmin->email,
-            'role' => RolePermissionSeeder::ROLE_ADMIN,
+            'roles' => [RolePermissionSeeder::ROLE_ADMIN],
             'is_active' => '1',
-        ])->assertSessionHasErrors('role');
+        ])->assertSessionHasErrors('roles');
 
         $this->assertTrue($soleSuperadmin->fresh()->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN));
         $this->assertDatabaseMissing('audit_logs', [
@@ -467,9 +468,9 @@ class UserManagementTest extends TestCase
             'first_name' => $superadmin->first_name,
             'last_name' => $superadmin->last_name,
             'email' => $superadmin->email,
-            'role' => RolePermissionSeeder::ROLE_ADMIN,
+            'roles' => [RolePermissionSeeder::ROLE_ADMIN],
             'is_active' => '1',
-        ])->assertSessionHasErrors('role');
+        ])->assertSessionHasErrors('roles');
 
         $this->assertTrue($superadmin->fresh()->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN));
         $this->assertDatabaseMissing('audit_logs', [
@@ -506,5 +507,138 @@ class UserManagementTest extends TestCase
         $this->actingAs($admin)->get(route('users.index'))
             ->assertOk()
             ->assertSee('Available', false);
+    }
+
+    public function test_superadmin_can_assign_multiple_roles(): void
+    {
+        $superadmin = $this->createSuperAdmin();
+        $target = User::factory()->create([
+            'email' => 'multi-role@test.com',
+        ]);
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($superadmin)->put(route('users.update', $target), [
+            'first_name' => $target->first_name,
+            'last_name' => $target->last_name,
+            'email' => $target->email,
+            'roles' => [
+                RolePermissionSeeder::ROLE_AGENT,
+                RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+            ],
+            'is_active' => '1',
+        ])->assertRedirect(route('users.edit', $target));
+
+        $target->refresh();
+        $this->assertTrue($target->hasRole(RolePermissionSeeder::ROLE_AGENT));
+        $this->assertTrue($target->hasRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM));
+    }
+
+    public function test_superadmin_can_remove_one_role(): void
+    {
+        $superadmin = $this->createSuperAdmin();
+        $target = User::factory()->create([
+            'email' => 'remove-role@test.com',
+        ]);
+        $target->syncRoles([
+            RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+        ]);
+
+        $this->actingAs($superadmin)->put(route('users.update', $target), [
+            'first_name' => $target->first_name,
+            'last_name' => $target->last_name,
+            'email' => $target->email,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
+            'is_active' => '1',
+        ])->assertRedirect(route('users.edit', $target));
+
+        $target->refresh();
+        $this->assertTrue($target->hasRole(RolePermissionSeeder::ROLE_AGENT));
+        $this->assertFalse($target->hasRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM));
+    }
+
+    public function test_shipra_scenario_admin_plus_customer_coordinator_allowed(): void
+    {
+        $superadmin = $this->createSuperAdmin();
+        $shipra = User::factory()->create([
+            'first_name' => 'Shipra',
+            'last_name' => 'Kumari',
+            'email' => 'shipra@radiumbox.com',
+        ]);
+        $shipra->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($superadmin)->put(route('users.update', $shipra), [
+            'first_name' => $shipra->first_name,
+            'last_name' => $shipra->last_name,
+            'email' => $shipra->email,
+            'roles' => [
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+            ],
+            'is_active' => '1',
+        ])->assertRedirect(route('users.edit', $shipra));
+
+        $shipra->refresh();
+        $this->assertTrue($shipra->hasRole(RolePermissionSeeder::ROLE_ADMIN));
+        $this->assertTrue($shipra->hasRole(RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR));
+    }
+
+    public function test_sumit_scenario_agent_plus_hardware_team_allowed(): void
+    {
+        $superadmin = $this->createSuperAdmin();
+        $sumit = User::factory()->create([
+            'first_name' => 'Sumit',
+            'email' => 'sumit@radiumbox.com',
+        ]);
+        $sumit->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($superadmin)->put(route('users.update', $sumit), [
+            'first_name' => $sumit->first_name,
+            'last_name' => $sumit->last_name,
+            'email' => $sumit->email,
+            'roles' => [
+                RolePermissionSeeder::ROLE_AGENT,
+                RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+            ],
+            'is_active' => '1',
+        ])->assertRedirect(route('users.edit', $sumit));
+
+        $sumit->refresh();
+        $this->assertTrue($sumit->hasRole(RolePermissionSeeder::ROLE_AGENT));
+        $this->assertTrue($sumit->hasRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM));
+    }
+
+    public function test_audit_stores_roles_array_on_update(): void
+    {
+        $superadmin = $this->createSuperAdmin();
+        $target = User::factory()->create([
+            'email' => 'audit-roles@test.com',
+        ]);
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($superadmin)->put(route('users.update', $target), [
+            'first_name' => $target->first_name,
+            'last_name' => $target->last_name,
+            'email' => $target->email,
+            'roles' => [
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+            ],
+            'is_active' => '1',
+        ])->assertRedirect(route('users.edit', $target));
+
+        $audit = AuditLog::query()
+            ->where('event', 'user.updated')
+            ->where('auditable_type', $target->getMorphClass())
+            ->where('auditable_id', $target->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($audit);
+        $this->assertSame(['agent'], $audit->old_values['roles']);
+        $this->assertSame([
+            'admin',
+            'customer_coordinator',
+        ], $audit->new_values['roles']);
     }
 }

@@ -52,8 +52,8 @@
 
                         @include('users.partials.form', [
                             'user' => $user,
-                            'roles' => $roles,
-                            'currentRole' => $currentRole,
+                            'roleOptions' => $roleOptions,
+                            'currentRoles' => $currentRoles,
                             'showStatus' => true,
                         ])
 

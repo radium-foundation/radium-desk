@@ -89,7 +89,7 @@ class UserController extends Controller
 
         return view('users.create', [
             'user' => new User(['is_active' => true]),
-            'roles' => $this->userManagementService->assignableRoles($actor),
+            'roleOptions' => $this->assignableRoleOptions($actor),
         ]);
     }
 
@@ -102,7 +102,7 @@ class UserController extends Controller
             'last_name' => $validated['last_name'] ?? '',
             'email' => $validated['email'],
             'password' => $validated['password'],
-            'role' => $validated['role'],
+            'roles' => $validated['roles'],
             'is_active' => $validated['is_active'] ?? true,
             'bonvoice_extension' => $validated['bonvoice_extension'] ?? null,
         ], $request->user());
@@ -124,8 +124,8 @@ class UserController extends Controller
 
         return view('users.edit', [
             'user' => $user,
-            'roles' => $this->userManagementService->assignableRoles($actor),
-            'currentRole' => $user->roles->first()?->name,
+            'roleOptions' => $this->assignableRoleOptions($actor),
+            'currentRoles' => $user->roles->pluck('name')->all(),
             'showsWorkSchedule' => $operationsRoleService->isTeamMember($user)
                 && $actor->can('workforce-calendar.manage'),
             'workSchedule' => $workSchedule,
@@ -140,7 +140,7 @@ class UserController extends Controller
             'first_name' => $validated['first_name'],
             'last_name' => $validated['last_name'] ?? '',
             'email' => $validated['email'],
-            'role' => $validated['role'],
+            'roles' => $validated['roles'],
             'is_active' => $validated['is_active'],
             'bonvoice_extension' => $validated['bonvoice_extension'] ?? null,
         ], $request->user());
@@ -187,5 +187,20 @@ class UserController extends Controller
         return redirect()
             ->route('users.index')
             ->with('status', 'user-deleted');
+    }
+
+    /**
+     * @return list<array{slug: string, label: string}>
+     */
+    private function assignableRoleOptions(User $actor): array
+    {
+        $operationsRoleService = app(OperationsRoleService::class);
+
+        return collect($this->userManagementService->assignableRoles($actor))
+            ->map(fn (string $slug): array => [
+                'slug' => $slug,
+                'label' => $operationsRoleService->displayLabel($slug),
+            ])
+            ->all();
     }
 }

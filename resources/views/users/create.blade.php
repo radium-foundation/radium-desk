@@ -21,7 +21,7 @@
 
                 @include('users.partials.form', [
                     'user' => $user,
-                    'roles' => $roles,
+                    'roleOptions' => $roleOptions,
                     'showPassword' => true,
                 ])
 

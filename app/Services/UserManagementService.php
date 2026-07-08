@@ -15,13 +15,14 @@ class UserManagementService
     ) {}
 
     /**
-     * @param  array{first_name: string, last_name: string, email: string, password: string, role: string, is_active: bool, bonvoice_extension?: string|null}  $data
+     * @param  array{first_name: string, last_name: string, email: string, password: string, roles: list<string>, is_active: bool, bonvoice_extension?: string|null}  $data
      */
     public function createUser(array $data, User $actor): User
     {
-        $this->ensureAssignableRole($actor, $data['role']);
+        $roles = $this->normalizedRoleNamesFromArray($data['roles']);
+        $this->ensureAssignableRoles($actor, $roles);
 
-        return DB::transaction(function () use ($data, $actor): User {
+        return DB::transaction(function () use ($data, $actor, $roles): User {
             $user = User::query()->create([
                 'first_name' => $data['first_name'],
                 'last_name' => $data['last_name'],
@@ -31,13 +32,13 @@ class UserManagementService
                 'bonvoice_extension' => $data['bonvoice_extension'] ?? null,
             ]);
 
-            $user->syncRoles([$data['role']]);
+            $user->syncRoles($roles);
 
             $this->auditLogService->log(
                 userId: $actor->id,
                 event: 'user.created',
                 auditable: $user,
-                newValues: $this->auditSnapshot($user, $data['role']),
+                newValues: $this->auditSnapshot($user, $roles),
             );
 
             return $user->fresh(['roles']);
@@ -45,17 +46,17 @@ class UserManagementService
     }
 
     /**
-     * @param  array{first_name: string, last_name: string, email: string, role: string, is_active: bool, bonvoice_extension?: string|null}  $data
+     * @param  array{first_name: string, last_name: string, email: string, roles: list<string>, is_active: bool, bonvoice_extension?: string|null}  $data
      */
     public function updateUser(User $user, array $data, User $actor): User
     {
-        $this->ensureAssignableRole($actor, $data['role']);
-        $this->ensureSuperadminRoleRetained($user, $data['role'], $actor);
+        $roles = $this->normalizedRoleNamesFromArray($data['roles']);
+        $this->ensureAssignableRoles($actor, $roles);
+        $this->ensureSuperadminRoleRetained($user, $roles, $actor);
         $this->ensureActiveSuperadminRetained($user, $data['is_active']);
 
-        return DB::transaction(function () use ($user, $data, $actor): User {
-            $oldRole = $user->roles->first()?->name;
-            $oldValues = $this->auditSnapshot($user, $oldRole);
+        return DB::transaction(function () use ($user, $data, $actor, $roles): User {
+            $oldValues = $this->auditSnapshot($user, $this->roleNamesFromUser($user));
 
             $wasActive = $user->is_active;
 
@@ -67,11 +68,10 @@ class UserManagementService
                 'bonvoice_extension' => $data['bonvoice_extension'] ?? null,
             ]);
 
-            $user->syncRoles([$data['role']]);
+            $user->syncRoles($roles);
 
             $freshUser = $user->fresh(['roles']);
-            $newRole = $freshUser->roles->first()?->name;
-            $newValues = $this->auditSnapshot($freshUser, $newRole);
+            $newValues = $this->auditSnapshot($freshUser, $this->roleNamesFromUser($freshUser));
 
             if ($oldValues !== $newValues) {
                 $this->auditLogService->log(
@@ -161,7 +161,7 @@ class UserManagementService
                 userId: $actor->id,
                 event: 'user.deleted',
                 auditable: $user,
-                oldValues: $this->auditSnapshot($user, $user->roles->first()?->name),
+                oldValues: $this->auditSnapshot($user, $this->roleNamesFromUser($user)),
             );
 
             $user->delete();
@@ -195,34 +195,44 @@ class UserManagementService
         ];
     }
 
-    private function ensureAssignableRole(User $actor, string $role): void
+    /**
+     * @param  list<string>  $roles
+     */
+    private function ensureAssignableRoles(User $actor, array $roles): void
     {
-        if (! in_array($role, $this->assignableRoles($actor), true)) {
-            throw ValidationException::withMessages([
-                'role' => 'You are not allowed to assign this role.',
-            ]);
+        $assignable = $this->assignableRoles($actor);
+
+        foreach ($roles as $role) {
+            if (! in_array($role, $assignable, true)) {
+                throw ValidationException::withMessages([
+                    'roles' => 'You are not allowed to assign this role.',
+                ]);
+            }
         }
     }
 
-    private function ensureSuperadminRoleRetained(User $target, string $newRole, User $actor): void
+    /**
+     * @param  list<string>  $newRoles
+     */
+    private function ensureSuperadminRoleRetained(User $target, array $newRoles, User $actor): void
     {
         if (! $target->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
             return;
         }
 
-        if ($newRole === RolePermissionSeeder::ROLE_SUPERADMIN) {
+        if (in_array(RolePermissionSeeder::ROLE_SUPERADMIN, $newRoles, true)) {
             return;
         }
 
         if ($actor->id === $target->id) {
             throw ValidationException::withMessages([
-                'role' => 'You cannot remove your own superadmin role.',
+                'roles' => 'You cannot remove your own superadmin role.',
             ]);
         }
 
         if ($target->is_active && $this->countActiveSuperadminsExcluding($target->id) === 0) {
             throw ValidationException::withMessages([
-                'role' => 'Cannot remove the last active superadmin.',
+                'roles' => 'Cannot remove the last active superadmin.',
             ]);
         }
     }
@@ -267,15 +277,40 @@ class UserManagementService
     }
 
     /**
+     * @return list<string>
+     */
+    private function roleNamesFromUser(User $user): array
+    {
+        return $this->normalizedRoleNamesFromArray(
+            $user->roles->pluck('name')->all(),
+        );
+    }
+
+    /**
+     * @param  list<string>  $roles
+     * @return list<string>
+     */
+    private function normalizedRoleNamesFromArray(array $roles): array
+    {
+        return collect($roles)
+            ->filter(fn (mixed $role): bool => is_string($role) && $role !== '')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<string>  $roles
      * @return array<string, mixed>
      */
-    private function auditSnapshot(User $user, ?string $role): array
+    private function auditSnapshot(User $user, array $roles): array
     {
         return [
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'email' => $user->email,
-            'role' => $role,
+            'roles' => $roles,
             'is_active' => $user->is_active,
             'bonvoice_extension' => $user->bonvoice_extension,
         ];

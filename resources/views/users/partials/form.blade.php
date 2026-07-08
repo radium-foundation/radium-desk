@@ -1,4 +1,11 @@
-@props(['user', 'roles', 'currentRole' => null, 'showPassword' => false, 'showStatus' => false])
+@props(['user', 'roleOptions', 'currentRoles' => [], 'showPassword' => false, 'showStatus' => false])
+
+@php
+    $selectedRoles = old('roles', $currentRoles);
+    if (! is_array($selectedRoles)) {
+        $selectedRoles = $selectedRoles !== null ? [$selectedRoles] : [];
+    }
+@endphp
 
 <div class="row g-3">
     <div class="col-md-6">
@@ -29,17 +36,27 @@
         @enderror
     </div>
     <div class="col-md-6">
-        <label for="role" class="form-label">Role</label>
-        <select name="role" id="role" class="form-select @error('role') is-invalid @enderror" required>
-            <option value="">Select role</option>
-            @foreach($roles as $role)
-                <option value="{{ $role }}" @selected(old('role', $currentRole) === $role)>
-                    {{ ucfirst($role) }}
-                </option>
+        <label class="form-label">Roles</label>
+        <div class="@error('roles') is-invalid @enderror @error('roles.*') is-invalid @enderror">
+            @foreach($roleOptions as $roleOption)
+                <div class="form-check">
+                    <input type="checkbox"
+                           name="roles[]"
+                           id="role_{{ $roleOption['slug'] }}"
+                           value="{{ $roleOption['slug'] }}"
+                           class="form-check-input @error('roles') is-invalid @enderror @error('roles.*') is-invalid @enderror"
+                           @checked(in_array($roleOption['slug'], $selectedRoles, true))>
+                    <label class="form-check-label" for="role_{{ $roleOption['slug'] }}">
+                        {{ $roleOption['label'] }}
+                    </label>
+                </div>
             @endforeach
-        </select>
-        @error('role')
-            <div class="invalid-feedback">{{ $message }}</div>
+        </div>
+        @error('roles')
+            <div class="invalid-feedback d-block">{{ $message }}</div>
+        @enderror
+        @error('roles.*')
+            <div class="invalid-feedback d-block">{{ $message }}</div>
         @enderror
     </div>
     <div class="col-md-6">
