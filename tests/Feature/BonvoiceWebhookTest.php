@@ -173,6 +173,50 @@ class BonvoiceWebhookTest extends TestCase
         ]);
     }
 
+    public function test_real_bonvoice_production_payload_without_leg_creates_call_event(): void
+    {
+        User::factory()->create();
+
+        $payload = [
+            'SourceNumber' => '9770763522',
+            'DestinationNumber' => '08448423017',
+            'StartTime' => '2026-07-08 14:32:23',
+            'EndTime' => '2026-07-08 14:37:06',
+            'CallDuration' => '195',
+            'Status' => 'ANSWERED',
+            'Direction' => 'Inbound',
+            'ResourceURL' => 'https://recordings.bonvoice.example/call-1783501343.mp3',
+            'callID' => '1783501343999999',
+            'callType' => '2',
+        ];
+
+        $this->postJson('/api/webhooks/bonvoice', $payload)->assertOk();
+
+        $this->assertDatabaseHas('bonvoice_webhook_logs', [
+            'processing_status' => BonvoiceWebhookProcessorService::STATUS_PROCESSED,
+        ]);
+
+        $this->assertDatabaseHas('bonvoice_call_events', [
+            'call_id' => '1783501343999999',
+            'leg' => 'call',
+            'source_number' => '9770763522',
+            'destination_number' => '08448423017',
+            'direction' => 'Inbound',
+            'status' => 'ANSWERED',
+            'call_type' => '2',
+            'recording_url' => 'https://recordings.bonvoice.example/call-1783501343.mp3',
+        ]);
+
+        $callEvent = BonvoiceCallEvent::query()->first();
+        $this->assertNotNull($callEvent);
+        $this->assertSame('2026-07-08 14:37:06', $callEvent->payload['EndTime']);
+        $this->assertSame('195', $callEvent->payload['CallDuration']);
+        $this->assertSame(
+            '2026-07-08 14:32:23',
+            $callEvent->started_at->timezone('Asia/Kolkata')->format('Y-m-d H:i:s'),
+        );
+    }
+
     public function test_completed_call_webhook_with_recording_url_updates_existing_call(): void
     {
         User::factory()->create();

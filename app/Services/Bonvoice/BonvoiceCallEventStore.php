@@ -22,8 +22,8 @@ class BonvoiceCallEventStore
         $callId = $this->payloadParser->callId($payload);
         $leg = $this->payloadParser->leg($payload);
 
-        if (! filled($callId) || ! filled($leg)) {
-            throw new RuntimeException('BonVoice webhook payload is missing callID or Leg.');
+        if (! filled($callId)) {
+            throw new RuntimeException('BonVoice webhook payload is missing callID.');
         }
 
         $this->assertAccountIdMatches($payload);

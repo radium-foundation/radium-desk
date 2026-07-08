@@ -7,6 +7,8 @@ use Illuminate\Support\Carbon;
 
 class BonvoiceWebhookPayloadParser
 {
+    public const DEFAULT_LEG = 'call';
+
     /**
      * @param  array<string, mixed>  $payload
      */
@@ -35,10 +37,11 @@ class BonvoiceWebhookPayloadParser
     /**
      * @param  array<string, mixed>  $payload
      */
-    public function leg(array $payload): ?string
+    public function leg(array $payload): string
     {
         return $this->scalarValue(data_get($payload, 'Leg'))
-            ?? $this->scalarValue(data_get($payload, 'leg'));
+            ?? $this->scalarValue(data_get($payload, 'leg'))
+            ?? self::DEFAULT_LEG;
     }
 
     /**
@@ -158,6 +161,8 @@ class BonvoiceWebhookPayloadParser
     public function recordingUrl(array $payload): ?string
     {
         return $this->scalarValue(data_get($payload, 'recording_url'))
+            ?? $this->scalarValue(data_get($payload, 'ResourceURL'))
+            ?? $this->scalarValue(data_get($payload, 'resource_url'))
             ?? $this->scalarValue(data_get($payload, 'RecordingUrl'))
             ?? $this->scalarValue(data_get($payload, 'recordingUrl'));
     }
@@ -165,10 +170,33 @@ class BonvoiceWebhookPayloadParser
     /**
      * @param  array<string, mixed>  $payload
      */
+    public function endedAt(array $payload): ?Carbon
+    {
+        return $this->parseTimestamp(data_get($payload, 'EndTime') ?? data_get($payload, 'ended_at'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function durationSeconds(array $payload): ?string
+    {
+        return $this->scalarValue(data_get($payload, 'CallDuration'))
+            ?? $this->scalarValue(data_get($payload, 'duration_seconds'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
     public function startedAt(array $payload): ?Carbon
     {
-        $value = data_get($payload, 'StartTime') ?? data_get($payload, 'start_time');
+        return $this->parseTimestamp(data_get($payload, 'StartTime') ?? data_get($payload, 'start_time'));
+    }
 
+    /**
+     * @param  mixed  $value
+     */
+    private function parseTimestamp(mixed $value): ?Carbon
+    {
         if (! is_scalar($value) || trim((string) $value) === '') {
             return null;
         }
@@ -214,7 +242,7 @@ class BonvoiceWebhookPayloadParser
      */
     public function hasRequiredIdentifiers(array $payload): bool
     {
-        return filled($this->callId($payload)) && filled($this->leg($payload));
+        return filled($this->callId($payload));
     }
 
     /**

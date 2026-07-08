@@ -23,7 +23,7 @@ class BonvoiceWebhookProcessorService
         try {
             DB::transaction(function () use ($webhookLog, $payload): void {
                 if (! $this->payloadParser->hasRequiredIdentifiers($payload)) {
-                    throw new \RuntimeException('BonVoice webhook payload is missing callID or Leg.');
+                    throw new \RuntimeException('BonVoice webhook payload is missing callID.');
                 }
 
                 $this->callEventStore->upsertFromWebhook($payload, $webhookLog->id);
