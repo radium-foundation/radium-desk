@@ -123,6 +123,7 @@ class OperationsDashboardLiveRenderer
                 'cashfreeHealth' => $dashboard->cashfreeHealth,
                 'radiumBoxHealth' => $dashboard->radiumBoxHealth,
                 'teamTelegramStatus' => $dashboard->teamTelegramStatus,
+                'integrationHealth' => $dashboard->integrationHealth,
             ])->render(),
             'today_tab' => view('admin.operations.partials.today-tab', [
                 'intelligence' => $dashboard->supportIntelligence,

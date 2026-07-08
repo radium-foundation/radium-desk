@@ -7,7 +7,7 @@
 
     @if($members === [])
         <div class="card border-0 shadow-sm">
-            <div class="card-body text-muted small mb-0">No active team members found.</div>
+            <div class="card-body text-muted small mb-0">No active team members on duty. Check schedules or activate agents to populate this view.</div>
         </div>
     @else
         <div class="card border-0 shadow-sm operations-team-card">
@@ -31,6 +31,16 @@
                             ?? (($presence['active_duration'] ?? '0m') !== '0m' ? $presence['active_duration'] : null);
                         $lastActivity = $presence['last_work_activity_label'] ?? $member['work_activity_label'] ?? null;
                         $lastActivityAt = $presence['last_work_activity_at'] ?? $member['work_activity_relative'] ?? null;
+                        $openWork = (int) ($member['open_work_count'] ?? 0);
+                        $workloadTone = $openWork >= 6 ? 'danger' : ($openWork >= 3 ? 'warning' : 'healthy');
+                        $availabilityLabel = $availability['label'] ?? 'Offline';
+                        $availabilityClass = $availability['badge_class'] ?? 'secondary';
+                        $statusTone = match ($availabilityClass) {
+                            'success' => 'healthy',
+                            'warning' => 'warning',
+                            'danger' => 'danger',
+                            default => 'info',
+                        };
                     @endphp
                     <div class="list-group-item px-3 py-3 operations-team-row">
                         <div class="operations-team-grid">
@@ -42,21 +52,13 @@
                             </div>
 
                             <div class="operations-team-cell" data-label="Status">
-                                <div class="d-flex flex-wrap gap-1">
-                                    @if(filled($workCalendar['indicator'] ?? null))
-                                        <span class="badge bg-{{ $workCalendar['badge_class'] ?? 'secondary' }}">
-                                            {{ $workCalendar['indicator'] }} {{ $workCalendar['label'] ?? 'Unknown' }}
-                                        </span>
-                                    @endif
-                                    <span class="badge bg-{{ $availability['badge_class'] ?? 'secondary' }}">
-                                        {{ $availability['label'] ?? 'Offline' }}
-                                    </span>
-                                    @if(filled($presence['indicator'] ?? null))
-                                        <span class="badge text-bg-light border text-muted">
-                                            {{ $presence['indicator'] }} {{ $presence['label'] ?? '' }}
-                                        </span>
-                                    @endif
-                                </div>
+                                <span @class(['operations-team-status-pill', 'operations-team-status-pill--' . $statusTone])>
+                                    <span class="operations-team-status-dot" aria-hidden="true"></span>
+                                    <span>{{ $availabilityLabel }}</span>
+                                </span>
+                                @if(filled($workCalendar['indicator'] ?? null) && ($workCalendar['status'] ?? '') !== \App\Enums\WorkCalendarDayStatus::LeaveApproved->value)
+                                    <span class="operations-team-status-meta text-muted small">{{ $workCalendar['indicator'] }} {{ $workCalendar['label'] ?? '' }}</span>
+                                @endif
                             </div>
 
                             <div class="operations-team-cell" data-label="Working time">
@@ -64,8 +66,15 @@
                             </div>
 
                             <div class="operations-team-cell" data-label="Workload">
-                                <span class="fw-semibold">{{ number_format($member['open_work_count'] ?? 0) }}</span>
-                                <span class="text-muted small">open</span>
+                                <div class="operations-team-workload">
+                                    <span @class(['operations-team-workload-value', 'text-danger' => $workloadTone === 'danger', 'text-warning' => $workloadTone === 'warning'])>{{ number_format($openWork) }}</span>
+                                    <span class="operations-team-workload-bar" aria-hidden="true">
+                                        <span
+                                            @class(['operations-team-workload-fill', 'operations-team-workload-fill--' . $workloadTone])
+                                            style="width: {{ min(100, $openWork * 12) }}%;"
+                                        ></span>
+                                    </span>
+                                </div>
                             </div>
 
                             <div class="operations-team-cell" data-label="Last activity">
@@ -75,14 +84,14 @@
                                         <div class="text-muted small">{{ $lastActivityAt }}</div>
                                     @endif
                                 @else
-                                    <span class="text-muted small">—</span>
+                                    <span class="text-muted small">No recent activity</span>
                                 @endif
                             </div>
 
                             <div class="operations-team-cell operations-team-cell--actions">
                                 <button
                                     type="button"
-                                    class="btn btn-sm btn-outline-secondary"
+                                    class="btn btn-sm btn-link text-muted px-0 operations-team-details-toggle"
                                     data-bs-toggle="collapse"
                                     data-bs-target="#{{ $collapseId }}"
                                     aria-expanded="false"
@@ -125,6 +134,10 @@
 
                                 @if(filled($member['last_active_relative'] ?? null))
                                     <span>Last seen: {{ $member['last_active_relative'] }}</span>
+                                @endif
+
+                                @if(filled($presence['indicator'] ?? null))
+                                    <span>{{ $presence['indicator'] }} {{ $presence['label'] ?? '' }}</span>
                                 @endif
                             </div>
                         </div>

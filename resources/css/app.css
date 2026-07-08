@@ -6039,6 +6039,428 @@ body.customer-360-drawer-open {
     gap: 0.15rem;
 }
 
+/* Command Center Bento Layout */
+.operations-command-center {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.operations-bento-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "overview"
+        "ira";
+}
+
+.operations-bento-cell--overview {
+    grid-area: overview;
+    min-width: 0;
+}
+
+.operations-bento-cell--ira {
+    grid-area: ira;
+    min-width: 0;
+}
+
+.operations-bento-inner {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+        "ops"
+        "ivr"
+        "team";
+}
+
+.operations-bento-card--lg {
+    grid-area: ops;
+}
+
+.operations-bento-card--md {
+    grid-area: ivr;
+}
+
+.operations-bento-card--sm {
+    grid-area: team;
+}
+
+.operations-bento-card {
+    border-radius: 0.625rem;
+}
+
+.operations-bento-headline {
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-top: 0.15rem;
+}
+
+.operations-bento-subtitle {
+    line-height: 1.3;
+}
+
+.operations-bento-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 0.75rem;
+}
+
+.operations-bento-stat-grid--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.operations-bento-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.operations-bento-stat-value {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.operations-bento-stat-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.operations-bento-footnote {
+    line-height: 1.3;
+}
+
+@media (min-width: 768px) {
+    .operations-bento-inner {
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        grid-template-areas:
+            "ops ops ops ops ops ops ops ivr ivr ivr ivr ivr"
+            "ops ops ops ops ops ops ops team team team team team";
+    }
+
+    .operations-bento-stat-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1200px) {
+    .operations-bento-grid {
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        grid-template-areas: "overview ira";
+        align-items: stretch;
+    }
+}
+
+/* Critical Alerts Feed */
+.operations-critical-alerts-feed {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 0.625rem;
+}
+
+.operations-critical-alert-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.operations-critical-alerts-feed .operations-critical-alert-row:last-child {
+    border-bottom: 0;
+}
+
+.operations-critical-alert-row:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.operations-critical-alert-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+.operations-critical-alert-row .operations-critical-alert-message {
+    display: block;
+    -webkit-line-clamp: 1;
+    margin-bottom: 0;
+}
+
+.operations-critical-alert-priority {
+    flex-shrink: 0;
+}
+
+/* Integration Health Compact Grid */
+.operations-integration-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.operations-integration-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.2;
+    border: 1px solid transparent;
+    background: rgba(25, 135, 84, 0.08);
+    color: var(--bs-success-text-emphasis, #0a3622);
+}
+
+.operations-integration-pill--healthy {
+    background: rgba(25, 135, 84, 0.08);
+    border-color: rgba(25, 135, 84, 0.14);
+    color: var(--bs-success-text-emphasis, #0a3622);
+}
+
+.operations-integration-pill--warning,
+.operations-integration-pill--issue.operations-integration-pill--warning {
+    background: rgba(255, 193, 7, 0.12);
+    border-color: rgba(255, 193, 7, 0.24);
+    color: var(--bs-warning-text-emphasis, #997404);
+}
+
+.operations-integration-pill--danger,
+.operations-integration-pill--issue.operations-integration-pill--danger {
+    background: rgba(220, 53, 69, 0.08);
+    border-color: rgba(220, 53, 69, 0.18);
+    color: var(--bs-danger-text-emphasis, #58151c);
+}
+
+.operations-integration-pill--info {
+    background: rgba(13, 202, 240, 0.1);
+    border-color: rgba(13, 202, 240, 0.18);
+    color: var(--bs-info-text-emphasis, #055160);
+}
+
+.operations-integration-pill-icon {
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.operations-health-issue-detail {
+    padding-left: 0.15rem;
+}
+
+/* Ira Insight Groups */
+.operations-ira-noticed-label {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.operations-ira-insight-groups {
+    margin-bottom: 0;
+}
+
+.operations-ira-insight-group {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.4rem 0.7rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    line-height: 1.3;
+    border: 1px solid transparent;
+}
+
+.operations-ira-insight-group-count {
+    font-size: 1.125rem;
+    line-height: 1;
+}
+
+.operations-ira-insight-group--healthy {
+    color: var(--bs-success-text-emphasis, #0a3622);
+    background: rgba(25, 135, 84, 0.08);
+    border-color: rgba(25, 135, 84, 0.16);
+}
+
+.operations-ira-insight-group--warning {
+    color: var(--bs-warning-text-emphasis, #997404);
+    background: rgba(255, 193, 7, 0.1);
+    border-color: rgba(255, 193, 7, 0.22);
+}
+
+.operations-ira-insight-group--danger {
+    color: var(--bs-danger-text-emphasis, #58151c);
+    background: rgba(220, 53, 69, 0.08);
+    border-color: rgba(220, 53, 69, 0.16);
+}
+
+.operations-ira-insight-group--info {
+    color: var(--bs-info-text-emphasis, #055160);
+    background: rgba(13, 202, 240, 0.1);
+    border-color: rgba(13, 202, 240, 0.18);
+}
+
+/* IVR Metrics */
+.operations-ivr-metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+}
+
+.operations-ivr-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.operations-ivr-metric--primary {
+    background: rgba(13, 110, 253, 0.06);
+}
+
+.operations-ivr-metric--success {
+    background: rgba(25, 135, 84, 0.06);
+}
+
+.operations-ivr-metric--danger {
+    background: rgba(220, 53, 69, 0.06);
+}
+
+.operations-ivr-metric-value {
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.operations-ivr-metric-value--sm {
+    font-size: 1rem;
+}
+
+.operations-ivr-metric-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.operations-ivr-agent-table thead th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color, #6c757d);
+    border-bottom-width: 1px;
+}
+
+@media (min-width: 768px) {
+    .operations-ivr-metrics {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+/* Team Presence */
+.operations-team-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.2;
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.operations-team-status-pill--healthy {
+    background: rgba(25, 135, 84, 0.1);
+    color: var(--bs-success-text-emphasis, #0a3622);
+}
+
+.operations-team-status-pill--warning {
+    background: rgba(255, 193, 7, 0.14);
+    color: var(--bs-warning-text-emphasis, #997404);
+}
+
+.operations-team-status-pill--danger {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--bs-danger-text-emphasis, #58151c);
+}
+
+.operations-team-status-pill--info {
+    background: rgba(13, 202, 240, 0.12);
+    color: var(--bs-info-text-emphasis, #055160);
+}
+
+.operations-team-status-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+.operations-team-status-meta {
+    display: block;
+    margin-top: 0.2rem;
+}
+
+.operations-team-workload {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 3.5rem;
+}
+
+.operations-team-workload-value {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.operations-team-workload-bar {
+    display: block;
+    height: 0.3rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.operations-team-workload-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--bs-success, #198754);
+}
+
+.operations-team-workload-fill--warning {
+    background: var(--bs-warning, #ffc107);
+}
+
+.operations-team-workload-fill--danger {
+    background: var(--bs-danger, #dc3545);
+}
+
+.operations-team-details-toggle {
+    text-decoration: none;
+}
+
+.operations-team-details-toggle:hover {
+    text-decoration: underline;
+}
+
 .operations-health-accordion .accordion-item {
     border-radius: 0.5rem;
     overflow: hidden;

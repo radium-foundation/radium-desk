@@ -91,6 +91,7 @@ class OperationsDashboardController extends Controller
                     'cashfreeHealth' => $dashboard->cashfreeHealth,
                     'radiumBoxHealth' => $dashboard->radiumBoxHealth,
                     'teamTelegramStatus' => $dashboard->teamTelegramStatus,
+                    'integrationHealth' => $dashboard->integrationHealth,
                 ])->render(),
                 'critical_alerts' => view('admin.operations.partials.critical-alerts', [
                     'dashboard' => $dashboard,

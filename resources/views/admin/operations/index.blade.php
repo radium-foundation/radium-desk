@@ -20,32 +20,37 @@
             </div>
         </div>
 
-        <div id="operations-critical-alerts" class="mb-3">
-            @include('admin.operations.partials.critical-alerts', [
-                'dashboard' => $dashboard,
-                'briefing' => null,
-            ])
-        </div>
+        <section class="operations-command-center" aria-label="Operations command center">
+            <div id="operations-critical-alerts" class="operations-bento-row operations-bento-row--alerts">
+                @include('admin.operations.partials.critical-alerts', [
+                    'dashboard' => $dashboard,
+                    'briefing' => null,
+                ])
+            </div>
 
-        <div id="operations-overview-cards" class="mb-3">
-            @include('admin.operations.partials.overview-cards', [
-                'dashboard' => $dashboard,
-                'members' => $dashboard->teamAvailability,
-                'intelligence' => $dashboard->supportIntelligence,
-            ])
-        </div>
+            <div class="operations-bento-grid mb-3">
+                <div id="operations-overview-cards" class="operations-bento-cell operations-bento-cell--overview">
+                    @include('admin.operations.partials.overview-cards', [
+                        'dashboard' => $dashboard,
+                        'members' => $dashboard->teamAvailability,
+                        'intelligence' => $dashboard->supportIntelligence,
+                    ])
+                </div>
 
-        <div id="operations-ira-briefing-compact" class="mb-3">
-            @include('admin.operations.partials.ira-briefing-compact')
-        </div>
+                <div id="operations-ira-briefing-compact" class="operations-bento-cell operations-bento-cell--ira">
+                    @include('admin.operations.partials.ira-briefing-compact')
+                </div>
+            </div>
 
-        <div id="operations-health-status" class="mb-4">
-            @include('admin.operations.partials.health-status-compact', [
-                'cashfreeHealth' => $dashboard->cashfreeHealth,
-                'radiumBoxHealth' => $dashboard->radiumBoxHealth,
-                'teamTelegramStatus' => $dashboard->teamTelegramStatus,
-            ])
-        </div>
+            <div id="operations-health-status" class="operations-bento-row operations-bento-row--health">
+                @include('admin.operations.partials.health-status-compact', [
+                    'cashfreeHealth' => $dashboard->cashfreeHealth,
+                    'radiumBoxHealth' => $dashboard->radiumBoxHealth,
+                    'teamTelegramStatus' => $dashboard->teamTelegramStatus,
+                    'integrationHealth' => $dashboard->integrationHealth,
+                ])
+            </div>
+        </section>
 
         <div id="operations-tabs-sentinel" class="operations-tabs-sentinel" aria-hidden="true"></div>
 

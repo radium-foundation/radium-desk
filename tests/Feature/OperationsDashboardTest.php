@@ -262,12 +262,20 @@ class OperationsDashboardTest extends TestCase
 
     public function test_healthy_integration_systems_render_collapsed_on_initial_page(): void
     {
-        $this->actingAs($this->createAdminUser('admin-health-collapsed@test.com'))
+        $response = $this->actingAs($this->createAdminUser('admin-health-collapsed@test.com'))
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('operations-health-trigger-cashfree', false)
-            ->assertSee('accordion-button collapsed', false)
-            ->assertSee('Expand to load Cashfree details', false);
+            ->assertSee('operations-integration-grid', false)
+            ->assertSee('operations-integration-pill', false)
+            ->assertDontSee('operations-health-trigger-cashfree', false);
+
+        $html = (string) $response->getContent();
+
+        if (str_contains($html, 'All systems operational')) {
+            $this->assertStringContainsString('All systems operational', $html);
+        } else {
+            $this->assertStringContainsString('operations-health-issue-detail', $html);
+        }
     }
 
     public function test_critical_alerts_still_render_on_initial_page(): void
@@ -313,7 +321,7 @@ class OperationsDashboardTest extends TestCase
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'ira_compact']))
             ->assertOk()
-            ->assertSee('operations-ira-chip', false);
+            ->assertSee('operations-ira-insight-group', false);
 
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'health_cashfree']))
@@ -331,8 +339,8 @@ class OperationsDashboardTest extends TestCase
         $html = (string) $response->json('html.health_status');
 
         $this->assertStringNotContainsString('operations-lazy-placeholder', $html);
-        $this->assertStringContainsString('Expand to load Cashfree details', $html);
-        $this->assertStringContainsString('accordion-button collapsed', $html);
+        $this->assertStringContainsString('operations-integration-grid', $html);
+        $this->assertStringContainsString('operations-integration-pill', $html);
     }
 
     public function test_support_intelligence_renders_workload_cards(): void

@@ -20,7 +20,6 @@
             'message' => 'Paid payments need order recovery.',
             'metric' => $paidMissing,
             'metric_label' => 'Paid missing',
-            'action_label' => 'Review Cashfree health',
             'action_target' => '#operations-health-trigger-cashfree',
         ];
     }
@@ -33,7 +32,6 @@
             'message' => 'Actionable webhook failures require recovery.',
             'metric' => $activeWebhookFailures,
             'metric_label' => 'Failed webhooks',
-            'action_label' => 'Review Cashfree health',
             'action_target' => '#operations-health-trigger-cashfree',
         ];
     }
@@ -46,7 +44,6 @@
             'message' => 'Order syncs failed and need attention.',
             'metric' => $failedSyncs,
             'metric_label' => 'Failed syncs',
-            'action_label' => 'Review RadiumBox health',
             'action_target' => '#operations-health-trigger-radiumbox',
         ];
     }
@@ -59,7 +56,6 @@
             'message' => 'Missed or overdue support appointments need follow-up.',
             'metric' => $missedOverdue,
             'metric_label' => 'Overdue',
-            'action_label' => 'Open Today tab',
             'action_target' => '#operations-tab-today',
         ];
     }
@@ -76,14 +72,13 @@
                 'message' => $risk->message,
                 'metric' => null,
                 'metric_label' => 'High risk',
-                'action_label' => 'Open Today tab',
                 'action_target' => '#operations-tab-today',
             ];
         }
     }
 @endphp
 
-<section class="operations-critical-alerts mb-3" aria-labelledby="operations-critical-alerts-heading">
+<section class="operations-critical-alerts" aria-labelledby="operations-critical-alerts-heading">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <h2 id="operations-critical-alerts-heading" class="h6 mb-0 text-uppercase text-muted fw-semibold">Critical Alerts</h2>
         @if ($alerts === [])
@@ -100,51 +95,42 @@
             </div>
         </div>
     @else
-        <div class="row g-2 operations-critical-alerts-grid">
+        <div class="operations-critical-alerts-grid operations-critical-alerts-feed card border-0 shadow-sm">
             @foreach ($alerts as $alert)
-                <div class="col-6 col-lg-4 col-xxl-3">
-                    <div @class([
-                        'card border-0 shadow-sm h-100 operations-critical-alert-card operations-card-hover',
+                <button
+                    type="button"
+                    @class([
+                        'operations-critical-alert-card operations-critical-alert-row',
                         'operations-critical-alert-card--danger' => $alert['severity'] === 'danger',
                         'operations-critical-alert-card--warning' => $alert['severity'] === 'warning',
-                    ])>
-                        <div class="card-body py-2 px-3">
-                            <div class="d-flex align-items-start gap-2">
-                                <span
-                                    @class([
-                                        'operations-critical-alert-severity',
-                                        'operations-critical-alert-severity--danger' => $alert['severity'] === 'danger',
-                                        'operations-critical-alert-severity--warning' => $alert['severity'] === 'warning',
-                                    ])
-                                    aria-hidden="true"
-                                ></span>
-                                <div class="flex-grow-1 min-w-0">
-                                    <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
-                                        <strong class="operations-critical-alert-title">{{ $alert['title'] }}</strong>
-                                        @if ($alert['metric'] !== null)
-                                            <span class="operations-critical-alert-metric">
-                                                <span class="operations-critical-alert-metric-value">{{ number_format($alert['metric']) }}</span>
-                                                <span class="operations-critical-alert-metric-label">{{ $alert['metric_label'] }}</span>
-                                            </span>
-                                        @else
-                                            <span @class(['status-badge', 'status-' . $alert['severity']])>{{ $alert['metric_label'] }}</span>
-                                        @endif
-                                    </div>
-                                    <p class="small text-muted mb-2 operations-critical-alert-message">{{ $alert['message'] }}</p>
-                                    @if (! empty($alert['action_target']))
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-dark py-0 px-2 operations-critical-alert-action"
-                                            data-operations-tab-target="{{ $alert['action_target'] }}"
-                                        >
-                                            {{ $alert['action_label'] }}
-                                        </button>
-                                    @endif
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    ])
+                    @if (! empty($alert['action_target']))
+                        data-operations-tab-target="{{ $alert['action_target'] }}"
+                    @endif
+                >
+                    <span
+                        @class([
+                            'operations-critical-alert-severity',
+                            'operations-critical-alert-severity--danger' => $alert['severity'] === 'danger',
+                            'operations-critical-alert-severity--warning' => $alert['severity'] === 'warning',
+                        ])
+                        aria-hidden="true"
+                    ></span>
+
+                    <span class="operations-critical-alert-content">
+                        <span class="operations-critical-alert-title">{{ $alert['title'] }}</span>
+                        <span class="operations-critical-alert-message">{{ $alert['message'] }}</span>
+                    </span>
+
+                    @if ($alert['metric'] !== null)
+                        <span class="operations-critical-alert-metric">
+                            <span class="operations-critical-alert-metric-value">{{ number_format($alert['metric']) }}</span>
+                            <span class="operations-critical-alert-metric-label">{{ $alert['metric_label'] }}</span>
+                        </span>
+                    @else
+                        <span @class(['status-badge', 'status-' . $alert['severity'], 'operations-critical-alert-priority'])>{{ $alert['metric_label'] }}</span>
+                    @endif
+                </button>
             @endforeach
         </div>
     @endif
