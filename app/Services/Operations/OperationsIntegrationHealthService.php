@@ -249,13 +249,21 @@ class OperationsIntegrationHealthService
             return ['sent' => 0, 'failed' => 0, 'last_success_at' => null];
         }
 
+        $limit = max(1, (int) config('operations.dashboard.audit_log_limit', 2000));
+
         $logs = AuditLog::query()
             ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
             ->where('created_at', '>=', today())
             ->latest('created_at')
+            ->limit($limit)
             ->get();
 
-        return (new OperationsAuditAggregator($logs))->channelSummary($channel);
+        $totalDispatchCount = (int) AuditLog::query()
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->where('created_at', '>=', today())
+            ->count();
+
+        return (new OperationsAuditAggregator($logs, $totalDispatchCount))->channelSummary($channel);
     }
 
     private function mapConnectionStatus(string $connectionStatus): OperationsHealthStatus

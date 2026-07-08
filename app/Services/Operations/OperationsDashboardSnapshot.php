@@ -24,10 +24,15 @@ class OperationsDashboardSnapshot
     /** @var Collection<int, AuditLog>|null */
     private ?Collection $todayNotificationAuditLogs = null;
 
+    private ?int $todayNotificationDispatchCount = null;
+
     private ?OperationsAuditAggregator $auditAggregator = null;
 
     /** @var Collection<int, AutomationExecution>|null */
     private ?Collection $todayAutomationExecutions = null;
+
+    /** @var array<string, int>|null */
+    private ?array $todayAutomationExecutionCounts = null;
 
     private ?bool $recentAutomationFailure = null;
 
@@ -62,6 +67,22 @@ class OperationsDashboardSnapshot
         return new self($queueMetricsService, $cashfreeProbe);
     }
 
+    public function todayNotificationDispatchCount(): int
+    {
+        if ($this->todayNotificationDispatchCount !== null) {
+            return $this->todayNotificationDispatchCount;
+        }
+
+        if (! Schema::hasTable('audit_logs')) {
+            return $this->todayNotificationDispatchCount = 0;
+        }
+
+        return $this->todayNotificationDispatchCount = (int) AuditLog::query()
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->where('created_at', '>=', today())
+            ->count();
+    }
+
     /**
      * @return Collection<int, AuditLog>
      */
@@ -75,9 +96,13 @@ class OperationsDashboardSnapshot
             return $this->todayNotificationAuditLogs = collect();
         }
 
+        $limit = max(1, (int) config('operations.dashboard.audit_log_limit', 2000));
+
         return $this->todayNotificationAuditLogs = AuditLog::query()
             ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
             ->where('created_at', '>=', today())
+            ->latest('created_at')
+            ->limit($limit)
             ->get();
     }
 
@@ -89,6 +114,7 @@ class OperationsDashboardSnapshot
 
         return $this->auditAggregator = new OperationsAuditAggregator(
             $this->todayNotificationAuditLogs(),
+            $this->todayNotificationDispatchCount(),
         );
     }
 
@@ -105,9 +131,35 @@ class OperationsDashboardSnapshot
             return $this->todayAutomationExecutions = collect();
         }
 
+        $limit = max(1, (int) config('operations.dashboard.automation_execution_limit', 1000));
+
         return $this->todayAutomationExecutions = AutomationExecution::query()
             ->where('created_at', '>=', today())
+            ->latest('created_at')
+            ->limit($limit)
             ->get();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function todayAutomationExecutionCounts(): array
+    {
+        if ($this->todayAutomationExecutionCounts !== null) {
+            return $this->todayAutomationExecutionCounts;
+        }
+
+        if (! Schema::hasTable('automation_executions')) {
+            return $this->todayAutomationExecutionCounts = [];
+        }
+
+        return $this->todayAutomationExecutionCounts = AutomationExecution::query()
+            ->where('created_at', '>=', today())
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status')
+            ->map(fn ($count): int => (int) $count)
+            ->all();
     }
 
     public function hasRecentAutomationFailure(): bool

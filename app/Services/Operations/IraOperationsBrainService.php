@@ -56,12 +56,13 @@ class IraOperationsBrainService
     public function invalidateCache(?Carbon $at = null): void
     {
         Cache::forget($this->cacheKey($at ?? now()));
+        $this->memoryService->invalidateSnapshotDataCache($at);
     }
 
     private function buildBriefing(Carbon $at): IraMorningBriefing
     {
-        $this->memoryService->capture($at);
-        $snapshot = $this->memoryService->collectSnapshotData($at);
+        $memorySnapshot = $this->memoryService->capture($at);
+        $snapshot = IraOperationalSnapshotData::fromModel($memorySnapshot);
         $yesterdayModel = $this->memoryService->yesterdaySnapshot($at);
         $yesterday = $yesterdayModel !== null
             ? IraOperationalSnapshotData::fromModel($yesterdayModel)

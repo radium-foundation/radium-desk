@@ -44,7 +44,7 @@ class OperationsDashboardController extends Controller
         $needsIra = $this->sectionsNeedIra($sections);
         $needsAdvisor = $this->sectionsNeedAdvisor($sections);
 
-        $dashboard = $this->dashboardService->dashboardData();
+        $dashboard = $this->dashboardService->dashboardDataForSections($sections);
         $iraBriefing = $needsIra ? $this->iraBrainService->briefing() : null;
         $iraBriefingFormatted = $needsIra && $iraBriefing !== null
             ? $this->iraBriefingFormatter->format($iraBriefing)

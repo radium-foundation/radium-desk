@@ -38,4 +38,17 @@ readonly class IraOperationalSnapshotData
             performance: $snapshot->performance,
         );
     }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public static function fromArray(array $payload): self
+    {
+        return new self(
+            date: (string) ($payload['date'] ?? now()->toDateString()),
+            operations: is_array($payload['operations'] ?? null) ? $payload['operations'] : [],
+            team: is_array($payload['team'] ?? null) ? $payload['team'] : [],
+            performance: is_array($payload['performance'] ?? null) ? $payload['performance'] : [],
+        );
+    }
 }

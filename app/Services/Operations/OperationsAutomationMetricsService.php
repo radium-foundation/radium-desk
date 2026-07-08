@@ -17,12 +17,18 @@ class OperationsAutomationMetricsService
             return $this->emptyMetrics();
         }
 
+        $statusCounts = $snapshot?->todayAutomationExecutionCounts()
+            ?? $this->statusCountsFromDatabase();
         $executions = $snapshot?->todayAutomationExecutions()
-            ?? AutomationExecution::query()->where('created_at', '>=', today())->get();
+            ?? AutomationExecution::query()
+                ->where('created_at', '>=', today())
+                ->latest('created_at')
+                ->limit(max(1, (int) config('operations.dashboard.automation_execution_limit', 1000)))
+                ->get();
 
-        $success = 0;
+        $success = (int) ($statusCounts[AutomationExecutionStatus::Success->value] ?? 0);
+        $failed = (int) ($statusCounts[AutomationExecutionStatus::Failed->value] ?? 0);
         $partialSuccess = 0;
-        $failed = 0;
         $durations = [];
 
         foreach ($executions as $execution) {
@@ -30,33 +36,35 @@ class OperationsAutomationMetricsService
                 $durations[] = $execution->started_at->diffInMilliseconds($execution->completed_at);
             }
 
-            if ($execution->status === AutomationExecutionStatus::Failed) {
-                $failed++;
-
-                continue;
-            }
-
             if ($execution->status === AutomationExecutionStatus::Success && $this->isPartialSuccess($execution)) {
                 $partialSuccess++;
-
-                continue;
-            }
-
-            if ($execution->status === AutomationExecutionStatus::Success) {
-                $success++;
             }
         }
 
-        $total = $executions->count();
+        $total = array_sum($statusCounts);
         $averageExecutionMs = $durations !== [] ? (int) round(array_sum($durations) / count($durations)) : null;
 
         return [
             'executions_today' => $total,
-            'success' => $success,
+            'success' => max(0, $success - $partialSuccess),
             'partial_success' => $partialSuccess,
             'failed' => $failed,
             'average_execution_ms' => $averageExecutionMs,
         ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function statusCountsFromDatabase(): array
+    {
+        return AutomationExecution::query()
+            ->where('created_at', '>=', today())
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status')
+            ->map(fn ($count): int => (int) $count)
+            ->all();
     }
 
     /**

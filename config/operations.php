@@ -78,4 +78,9 @@ return [
     ],
 
     'hardware_order_prefix' => 'RDE',
+
+    'dashboard' => [
+        'audit_log_limit' => (int) env('OPERATIONS_DASHBOARD_AUDIT_LOG_LIMIT', 2000),
+        'automation_execution_limit' => (int) env('OPERATIONS_DASHBOARD_AUTOMATION_LIMIT', 1000),
+    ],
 ];

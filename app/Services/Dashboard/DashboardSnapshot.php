@@ -35,21 +35,7 @@ class DashboardSnapshot
 
     public static function load(): self
     {
-        return new self(
-            Incident::query()
-                ->with([
-                    'order.deviceModel',
-                    'order.transactionAssigner',
-                    'order.legacyImporter',
-                    'creator',
-                    'assignee.roles',
-                    'activeWaitingState',
-                    'supportAppointments',
-                ])
-                ->whereIn('status', \App\Enums\IncidentStatus::operationallyActive())
-                ->get(),
-            app(OperationsQueueClassifier::class),
-        );
+        return app(DashboardSnapshotStore::class)->get();
     }
 
     /**

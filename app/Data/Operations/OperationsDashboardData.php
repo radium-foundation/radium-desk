@@ -69,4 +69,27 @@ readonly class OperationsDashboardData
             'generated_at' => $this->generatedAt->toIso8601String(),
         ];
     }
+
+    public static function empty(?Carbon $generatedAt = null): self
+    {
+        return new self(
+            systemHealth: [],
+            notificationMetrics: [],
+            automationMetrics: [],
+            queueMetrics: [],
+            integrationHealth: [],
+            radiumBoxHealth: [],
+            cashfreeHealth: [],
+            recentNotificationFailures: [],
+            recentAutomationActivity: [],
+            recentIraMessages: [],
+            teamAvailability: [],
+            teamTelegramStatus: [],
+            cashfreeDeviceEnrichmentQuality: [],
+            missingSerialAutomationQuality: [],
+            supportIntelligence: [],
+            ivrAnalytics: [],
+            generatedAt: $generatedAt ?? now(),
+        );
+    }
 }

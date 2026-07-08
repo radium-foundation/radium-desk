@@ -31,6 +31,7 @@ use App\Services\Notifications\Channels\TelegramChannel;
 use App\Services\Notifications\Channels\WhatsAppChannel;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
+use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
 use App\Services\SettingService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
@@ -52,6 +53,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(RadiumBoxRequestCache::class);
         $this->app->singleton(Customer360TimelineRequestCache::class);
+        $this->app->scoped(DashboardSnapshotStore::class);
 
         $this->app->singleton(IraReasoningProvider::class, function ($app): IraReasoningProvider {
             return match (config('ira.reasoning_provider')) {

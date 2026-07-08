@@ -15,9 +15,14 @@ use App\Models\WorkSession;
 use App\Services\Dashboard\DashboardSnapshot;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class IraMemoryService
 {
+    private const SNAPSHOT_DATA_CACHE_TTL_SECONDS = 30;
+
+    private ?IraOperationalSnapshotData $requestSnapshotData = null;
+
     public function __construct(
         private readonly TeamPerformanceMetricsService $performanceMetricsService,
         private readonly OperationsRoleService $roleService,
@@ -30,15 +35,26 @@ class IraMemoryService
     {
         $at ??= now();
         $data = $this->collectSnapshotData($at);
+        $existing = IraOperationalMemorySnapshot::query()
+            ->whereDate('snapshot_date', $at->toDateString())
+            ->first();
 
-        return IraOperationalMemorySnapshot::query()->updateOrCreate(
-            ['snapshot_date' => $at->toDateString()],
-            [
+        if ($existing !== null) {
+            $existing->update([
                 'operations' => $data->operations,
                 'team' => $data->team,
                 'performance' => $data->performance,
-            ],
-        );
+            ]);
+
+            return $existing->refresh();
+        }
+
+        return IraOperationalMemorySnapshot::query()->create([
+            'snapshot_date' => $at->toDateString(),
+            'operations' => $data->operations,
+            'team' => $data->team,
+            'performance' => $data->performance,
+        ]);
     }
 
     public function ensureTodaySnapshot(?Carbon $at = null): IraOperationalMemorySnapshot
@@ -71,6 +87,33 @@ class IraMemoryService
     public function collectSnapshotData(?Carbon $at = null): IraOperationalSnapshotData
     {
         $at ??= now();
+
+        if ($this->requestSnapshotData !== null) {
+            return $this->requestSnapshotData;
+        }
+
+        $cacheKey = $this->snapshotDataCacheKey($at);
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached)) {
+            return $this->requestSnapshotData = IraOperationalSnapshotData::fromArray($cached);
+        }
+
+        $data = $this->buildSnapshotData($at);
+
+        Cache::put($cacheKey, $data->toArray(), now()->addSeconds(self::SNAPSHOT_DATA_CACHE_TTL_SECONDS));
+
+        return $this->requestSnapshotData = $data;
+    }
+
+    public function invalidateSnapshotDataCache(?Carbon $at = null): void
+    {
+        Cache::forget($this->snapshotDataCacheKey($at ?? now()));
+        $this->requestSnapshotData = null;
+    }
+
+    private function buildSnapshotData(Carbon $at): IraOperationalSnapshotData
+    {
         $snapshot = DashboardSnapshot::load();
         $queueCounts = $snapshot->queueCounts();
         $slaCounts = $snapshot->slaCounts($at);
@@ -141,6 +184,11 @@ class IraMemoryService
             team: $team,
             performance: $performance,
         );
+    }
+
+    private function snapshotDataCacheKey(Carbon $at): string
+    {
+        return 'ira:operations:snapshot-data:'.$at->toDateString();
     }
 
     /**

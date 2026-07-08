@@ -3,12 +3,16 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\Operations\IraMemoryService;
 use App\Services\Operations\OperationsDashboardLiveRenderer;
+use App\Services\Operations\OperationsDashboardSectionBundles;
 use App\Services\Operations\OperationsDashboardService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OperationsDashboardPerformanceTest extends TestCase
@@ -129,5 +133,137 @@ class OperationsDashboardPerformanceTest extends TestCase
             $this->assertArrayHasKey($group, OperationsDashboardLiveRenderer::GROUP_SECTIONS);
             $this->assertNotSame([], OperationsDashboardLiveRenderer::GROUP_SECTIONS[$group]);
         }
+    }
+
+    public function test_dashboard_snapshot_store_reuses_single_incident_load_per_request(): void
+    {
+        Cache::flush();
+        app(DashboardSnapshotStore::class)->forget();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        app(DashboardSnapshotStore::class)->get();
+        app(DashboardSnapshotStore::class)->get();
+        app(DashboardSnapshotStore::class)->get();
+
+        $incidentQueries = collect(DB::getQueryLog())
+            ->filter(fn (array $query): bool => str_contains(strtolower($query['query']), ' from "incidents"')
+                || str_contains(strtolower($query['query']), ' from `incidents`'))
+            ->count();
+
+        DB::disableQueryLog();
+
+        $this->assertSame(1, $incidentQueries, 'DashboardSnapshotStore should load incidents only once per request.');
+    }
+
+    public function test_partial_dashboard_build_skips_ivr_analytics_bundle(): void
+    {
+        Cache::flush();
+
+        $service = app(OperationsDashboardService::class);
+        $sections = OperationsDashboardLiveRenderer::resolveSections(['critical', 'summary', 'health', 'ira_compact']);
+        $bundles = OperationsDashboardSectionBundles::bundlesForSections($sections);
+
+        $this->assertNotContains(OperationsDashboardSectionBundles::IVR_ANALYTICS, $bundles);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $data = $service->buildForSections($sections);
+
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertSame([], $data->ivrAnalytics);
+        $this->assertNotEmpty($data->supportIntelligence);
+        $this->assertGreaterThan(0, $queries);
+    }
+
+    public function test_performance_group_build_excludes_support_intelligence(): void
+    {
+        Cache::flush();
+
+        $service = app(OperationsDashboardService::class);
+        $sections = OperationsDashboardLiveRenderer::resolveSections(['performance']);
+        $data = $service->buildForSections($sections);
+
+        $this->assertNotEmpty($data->ivrAnalytics);
+        $this->assertSame([], $data->supportIntelligence);
+        $this->assertSame([], $data->teamAvailability);
+    }
+
+    public function test_live_partial_refresh_uses_fewer_queries_than_full_refresh(): void
+    {
+        Cache::flush();
+
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live'))
+            ->assertOk();
+
+        $fullQueryCount = count(DB::getQueryLog());
+        DB::flushQueryLog();
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
+            ->assertOk();
+
+        $partialQueryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertLessThan(
+            $fullQueryCount,
+            $partialQueryCount,
+            'Partial live refresh should execute fewer queries than a full refresh.',
+        );
+    }
+
+    public function test_ira_snapshot_data_is_cached_within_ttl(): void
+    {
+        Cache::flush();
+
+        $memoryService = app(IraMemoryService::class);
+
+        $first = $memoryService->collectSnapshotData();
+        $second = $memoryService->collectSnapshotData();
+
+        $this->assertSame($first->date, $second->date);
+        $this->assertSame($first->operations, $second->operations);
+
+        $cached = Cache::get('ira:operations:snapshot-data:'.now()->toDateString());
+        $this->assertIsArray($cached);
+        $this->assertArrayHasKey('date', $cached);
+        $this->assertArrayHasKey('operations', $cached);
+    }
+
+    public function test_audit_log_queries_are_bounded(): void
+    {
+        Cache::flush();
+
+        $service = app(OperationsDashboardService::class);
+        $snapshot = $service->snapshot();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $logs = $snapshot->todayNotificationAuditLogs();
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $selectQuery = collect($queries)
+            ->first(fn (array $query): bool => str_contains(strtolower($query['query']), 'audit_logs')
+                && str_contains(strtolower($query['query']), 'select'));
+
+        $this->assertNotNull($selectQuery);
+        $this->assertLessThanOrEqual(
+            (int) config('operations.dashboard.audit_log_limit', 2000),
+            $logs->count(),
+        );
     }
 }

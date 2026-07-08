@@ -19,10 +19,15 @@ class OperationsAuditAggregator
 
     private ?int $dispatchesWithChannelFailuresCount = null;
 
+    private ?int $totalDispatchCount = null;
+
     public function __construct(
         /** @var Collection<int, AuditLog> */
         private readonly Collection $logs,
-    ) {}
+        ?int $totalDispatchCount = null,
+    ) {
+        $this->totalDispatchCount = $totalDispatchCount;
+    }
 
     /**
      * @return array<string, mixed>
@@ -120,7 +125,7 @@ class OperationsAuditAggregator
 
     public function todayDispatchCount(): int
     {
-        return $this->logs->count();
+        return $this->totalDispatchCount ?? $this->logs->count();
     }
 
     public function dispatchesWithChannelFailuresCount(): int
