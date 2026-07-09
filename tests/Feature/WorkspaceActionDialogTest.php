@@ -14,6 +14,7 @@ use App\Models\Remark;
 use App\Models\ServiceCaseCloseException;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -340,6 +341,56 @@ class WorkspaceActionDialogTest extends TestCase
             ->assertJsonPath('message', 'Serial Number is required before closing this service case.');
 
         $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
+    public function test_inquiry_case_does_not_show_request_serial_number_action(): void
+    {
+        config(['interakt.templates.request_serial_number.name' => 'order_update_request_serial']);
+
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $incident = $this->createIncident($agent, [
+            'order_id' => 'INQ-SC08777',
+            'serial_number' => '',
+        ])->load('order');
+
+        $incident->order->update(['customer_phone' => '9123456780']);
+
+        $this->assertTrue($incident->order->isInquiryOrder());
+
+        $html = $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertFalse(app(RequestSerialNumberEligibilityService::class)->canShowAction($incident));
+        $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
+        $this->assertStringNotContainsString('Request Serial Number', $html);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [$incident, 'request-serial']).'?workspace_context=customer')
+            ->assertForbidden();
+    }
+
+    public function test_device_case_missing_serial_still_shows_request_serial_number_action(): void
+    {
+        config(['interakt.templates.request_serial_number.name' => 'order_update_request_serial']);
+
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $incident = $this->createIncident($agent, [
+            'order_id' => 'RD-DEVICE-1',
+            'serial_number' => '',
+        ])->load('order');
+
+        $incident->order->update(['customer_phone' => '9123456780']);
+
+        $this->assertFalse($incident->order->isInquiryOrder());
+        $this->assertTrue(app(RequestSerialNumberEligibilityService::class)->canShowAction($incident));
+
+        $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->assertSee('data-workspace-trigger="request-serial"', false)
+            ->assertSee('Request Serial Number', false);
     }
 
     public function test_reopen_dialog_does_not_show_assignee_selector(): void

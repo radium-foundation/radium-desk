@@ -39,6 +39,10 @@ class RequestSerialNumberEligibilityService
             return 'Product orders do not require serial number requests.';
         }
 
+        if ($order->isInquiryOrder()) {
+            return 'Inquiry cases do not require serial number requests.';
+        }
+
         if (! filled($order->customer_phone)) {
             return 'Customer phone number is not available.';
         }

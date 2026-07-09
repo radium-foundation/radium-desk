@@ -471,7 +471,7 @@ class Customer360Service
      */
     private function serialRequestState(Order $order): array
     {
-        if ($order->isProductOrder()) {
+        if ($order->isProductOrder() || $order->isInquiryOrder()) {
             return [
                 'requested' => false,
                 'requested_at' => null,

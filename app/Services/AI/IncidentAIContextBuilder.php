@@ -357,7 +357,7 @@ class IncidentAIContextBuilder
 
     private function isSerialMissing(Order $order): bool
     {
-        if ($order->isProductOrder()) {
+        if ($order->isProductOrder() || $order->isInquiryOrder()) {
             return false;
         }
 
