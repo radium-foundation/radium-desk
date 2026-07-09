@@ -9,6 +9,7 @@ use App\Enums\ServiceCaseCloseExceptionReason;
 use App\Models\AuditLog;
 use App\Models\BonvoiceCallEvent;
 use App\Models\Incident;
+use App\Models\Remark;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\Bonvoice\BonvoiceMissedCallRecoveryService;
@@ -98,8 +99,7 @@ class InquirySpamCleanupService
             ])
             ->whereHas('order', fn ($query) => $query->where('order_id', 'like', 'INQ-%'))
             ->when($before !== null, fn ($query) => $query->where('created_at', '<', $before))
-            ->with(['order', 'bonvoiceCallLinks.bonvoiceCallEvent'])
-            ->withCount('remarks')
+            ->with(['order', 'bonvoiceCallLinks.bonvoiceCallEvent', 'remarks.user'])
             ->orderBy('id')
             ->get()
             ->filter(fn (Incident $incident): bool => $this->isSpamCandidate($incident))
@@ -138,8 +138,8 @@ class InquirySpamCleanupService
             return 'not eligible';
         }
 
-        if ((int) ($incident->remarks_count ?? $incident->remarks()->count()) > 0) {
-            return 'has remarks';
+        if ($this->hasHumanRemark($incident)) {
+            return 'has human remarks';
         }
 
         if ($this->hasManualReassignment($incident)) {
@@ -147,6 +147,67 @@ class InquirySpamCleanupService
         }
 
         return null;
+    }
+
+    /**
+     * Human handling means a real teammate left meaningful remark text.
+     * Blank/system/Ira placeholder remarks do not protect a case from archive.
+     */
+    public function hasHumanRemark(Incident $incident): bool
+    {
+        $incident->loadMissing('remarks.user');
+
+        foreach ($incident->remarks as $remark) {
+            if ($this->isHumanRemark($remark)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isHumanRemark(Remark $remark): bool
+    {
+        $body = trim((string) $remark->body);
+
+        if ($body === '' || $this->isIgnoredSystemRemarkBody($body)) {
+            return false;
+        }
+
+        $creator = $remark->user;
+
+        if ($creator === null || $this->automationIdentity->isAutomationActor($creator)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function isIgnoredSystemRemarkBody(string $body): bool
+    {
+        $normalized = mb_strtolower(trim($body));
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        if ($normalized === mb_strtolower(self::ARCHIVE_REMARK)) {
+            return true;
+        }
+
+        // Ira / automation placeholder noise seen in production spam cases.
+        $placeholders = [
+            'ira',
+            'ira ai',
+            'automation',
+            'system',
+            '-',
+            'n/a',
+            'na',
+            'none',
+        ];
+
+        return in_array($normalized, $placeholders, true);
     }
 
     private function archiveCase(Incident $incident): ?string

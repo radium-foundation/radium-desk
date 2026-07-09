@@ -78,8 +78,73 @@ class InquirySpamCleanupTest extends TestCase
         $this->assertSame(1, $summary->totalFound);
         $this->assertSame(0, $summary->casesClosed);
         $this->assertSame(1, $summary->skipped);
-        $this->assertSame(['has remarks' => 1], $summary->skipReasons);
+        $this->assertSame(['has human remarks' => 1], $summary->skipReasons);
         $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
+    public function test_blank_system_remark_allows_archive(): void
+    {
+        $incident = $this->createSpamInquiryIncident('SC-SPAM-SYS', status: 'NOINPUT');
+        $systemUser = User::query()->where('email', 'superadmin@radium.local')->firstOrFail();
+
+        Remark::query()->create([
+            'user_id' => $systemUser->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => '   ',
+        ]);
+
+        $summary = app(InquirySpamCleanupService::class)->cleanup();
+
+        $this->assertSame(1, $summary->totalFound);
+        $this->assertSame(1, $summary->casesClosed);
+        $this->assertSame(0, $summary->skipped);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
+    public function test_null_creator_empty_remark_allows_archive(): void
+    {
+        $incident = $this->createSpamInquiryIncident('SC-SPAM-NULL', status: 'NOINPUT');
+        $deletedUser = User::factory()->create([
+            'email' => 'deleted-remark-user@test.com',
+        ]);
+        $deletedUser->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Remark::query()->create([
+            'user_id' => $deletedUser->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => '',
+        ]);
+
+        $deletedUser->delete();
+
+        $summary = app(InquirySpamCleanupService::class)->cleanup();
+
+        $this->assertSame(1, $summary->totalFound);
+        $this->assertSame(1, $summary->casesClosed);
+        $this->assertSame(0, $summary->skipped);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
+    public function test_ira_placeholder_remark_allows_archive(): void
+    {
+        $incident = $this->createSpamInquiryIncident('SC-SPAM-IRA', status: 'NOINPUT');
+        $systemUser = User::query()->where('email', 'superadmin@radium.local')->firstOrFail();
+
+        Remark::query()->create([
+            'user_id' => $systemUser->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => 'Ira',
+        ]);
+
+        $summary = app(InquirySpamCleanupService::class)->cleanup();
+
+        $this->assertSame(1, $summary->totalFound);
+        $this->assertSame(1, $summary->casesClosed);
+        $this->assertSame(0, $summary->skipped);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
     public function test_manually_reassigned_case_is_skipped(): void
