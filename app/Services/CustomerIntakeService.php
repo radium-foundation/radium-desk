@@ -194,6 +194,7 @@ class CustomerIntakeService
                 highPriority: $highPriority,
                 title: $this->titleForIntent($intent),
                 assignOnCreate: $assignOnCreate,
+                referenceNo: $reference,
             );
 
             $incident->update([

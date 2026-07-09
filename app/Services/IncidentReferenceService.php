@@ -2,38 +2,56 @@
 
 namespace App\Services;
 
-use App\Models\Incident;
+use App\Models\ReferenceSequence;
 use Illuminate\Support\Facades\DB;
 
 class IncidentReferenceService
 {
+    private const PREFIX = 'SC';
+
     public function generate(): string
     {
         return DB::transaction(function (): string {
-            $prefix = 'SC';
+            $sequence = $this->nextSequenceValue();
 
-            $latestSequence = Incident::withTrashed()
-                ->where(function ($query) {
-                    $query->where('reference_no', 'like', 'SC-%')
-                        ->orWhere('reference_no', 'like', 'SC%');
-                })
-                ->lockForUpdate()
-                ->pluck('reference_no')
-                ->map(fn (string $reference): int => $this->extractSequence($reference))
-                ->max();
-
-            $sequence = ($latestSequence ?? 0) + 1;
-
-            return $prefix.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+            return self::formatReference($sequence);
         });
     }
 
-    private function extractSequence(string $reference): int
+    public static function formatReference(int $sequence): string
+    {
+        return self::PREFIX.str_pad((string) $sequence, 5, '0', STR_PAD_LEFT);
+    }
+
+    public static function extractSequenceNumber(string $reference): int
     {
         if (preg_match('/^SC-?(\d+)$/i', $reference, $matches) === 1) {
             return (int) $matches[1];
         }
 
         return 0;
+    }
+
+    private function nextSequenceValue(): int
+    {
+        $row = DB::table('reference_sequences')
+            ->where('name', ReferenceSequence::SC)
+            ->lockForUpdate()
+            ->first();
+
+        if ($row === null) {
+            throw new \RuntimeException('SC reference sequence is not initialized.');
+        }
+
+        $next = ((int) $row->current_value) + 1;
+
+        DB::table('reference_sequences')
+            ->where('name', ReferenceSequence::SC)
+            ->update([
+                'current_value' => $next,
+                'updated_at' => now(),
+            ]);
+
+        return $next;
     }
 }

@@ -107,12 +107,13 @@ class QuickServiceRequestService
         ?string $title = null,
         ?string $category = null,
         bool $assignOnCreate = true,
+        ?string $referenceNo = null,
     ): Incident {
         $product = $order->product_name ?: $order->device_model ?: 'General';
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => $this->incidentReferenceService->generate(),
+            'reference_no' => $referenceNo ?? $this->incidentReferenceService->generate(),
             'category' => $category ?? 'General',
             'source' => $source,
             'title' => $title ?? ('Service request — '.$product),
