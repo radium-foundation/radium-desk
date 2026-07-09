@@ -14,12 +14,19 @@
         <div class="card-body">
             @if($hasOrder)
                 <div class="mb-3 pb-3 @if($hasApprovals || $hasRefunds) border-bottom @endif">
-                    <h3 class="h6 text-muted small text-uppercase mb-2">Order</h3>
-                    <a href="{{ route('orders.show', $incident->order) }}" class="fw-semibold text-decoration-none">
-                        {{ $incident->order->order_id }}
-                    </a>
-                    <span class="text-muted mx-1">·</span>
-                    @include('orders.partials.completion-status-badge', ['order' => $incident->order])
+                    <h3 class="h6 text-muted small text-uppercase mb-2">
+                        {{ $incident->order->isInquiryOrder() ? 'Enquiry' : 'Order' }}
+                    </h3>
+                    <x-order-identifier
+                        :order="$incident->order"
+                        :incident="$incident"
+                        :href="$incident->order->isInquiryOrder() ? null : route('orders.show', $incident->order)"
+                        class="fw-semibold"
+                    />
+                    @unless($incident->order->isInquiryOrder())
+                        <span class="text-muted mx-1">·</span>
+                        @include('orders.partials.completion-status-badge', ['order' => $incident->order])
+                    @endunless
                 </div>
             @endif
 

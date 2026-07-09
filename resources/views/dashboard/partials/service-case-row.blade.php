@@ -81,7 +81,8 @@
         @if($order)
             <x-order-identifier
                 :order="$order"
-                :href="route('orders.show', $order)"
+                :incident="$serviceCase"
+                :href="$order->isInquiryOrder() ? null : route('orders.show', $order)"
             />
         @else
             —

@@ -11,11 +11,12 @@
                 <span class="fw-semibold">{{ $incident->order?->customer_name ?: '—' }}</span>
             </div>
             <div class="col-sm-6 col-lg-4">
-                <span class="text-muted d-block">Order</span>
+                <span class="text-muted d-block">{{ $incident->order?->isInquiryOrder() ? 'Enquiry' : 'Order' }}</span>
                 @if($incident->order)
                     <x-order-identifier
                         :order="$incident->order"
-                        :href="route('orders.show', $incident->order)"
+                        :incident="$incident"
+                        :href="$incident->order->isInquiryOrder() ? null : route('orders.show', $incident->order)"
                         class="fw-semibold"
                     />
                 @else

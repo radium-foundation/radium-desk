@@ -1,17 +1,27 @@
 @props([
     'order',
+    'incident' => null,
     'href' => null,
 ])
 
 @php
-    $isLegacyImported = $order->isLegacyImported();
+    $isInquiry = $order->isInquiryOrder();
+    $caseReference = $incident?->display_reference ?: $order->inquiryCaseReference();
+    $isLegacyImported = ! $isInquiry && $order->isLegacyImported();
     $tooltip = $isLegacyImported ? $order->legacyImportTooltipTitle() : null;
 @endphp
 
-@if($href)
+@if($isInquiry)
+    <span {{ $attributes->class(['order-identifier', 'order-identifier--enquiry', 'd-inline-flex', 'align-items-center', 'gap-1', 'flex-wrap']) }}>
+        <span class="order-identifier__case">{{ $caseReference }}</span>
+        <span class="badge rounded-pill text-bg-secondary order-identifier__type">Enquiry</span>
+    </span>
+@elseif($href)
     <a href="{{ $href }}"
        {{ $attributes->class([
            'text-decoration-none',
+           'order-identifier',
+           'order-identifier--order',
            'legacy-imported-order-id' => $isLegacyImported,
        ]) }}
        @if($isLegacyImported)
@@ -27,6 +37,8 @@
     </a>
 @else
     <span {{ $attributes->class([
+        'order-identifier',
+        'order-identifier--order',
         'legacy-imported-order-id' => $isLegacyImported,
     ]) }}
     @if($isLegacyImported)

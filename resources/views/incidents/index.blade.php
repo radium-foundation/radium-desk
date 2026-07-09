@@ -94,7 +94,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>{{ config('ui.service_case.reference_short') }}</th>
-                                <th>Order ID</th>
+                                <th>Order / Enquiry</th>
                                 <th>Title</th>
                                 <th>Category</th>
                                 <th>Source</th>
@@ -113,9 +113,11 @@
                                     </td>
                                     <td>
                                         @if($incident->order)
-                                            <a href="{{ route('orders.show', $incident->order) }}" class="text-decoration-none">
-                                                {{ $incident->order->order_id }}
-                                            </a>
+                                            <x-order-identifier
+                                                :order="$incident->order"
+                                                :incident="$incident"
+                                                :href="$incident->order->isInquiryOrder() ? null : route('orders.show', $incident->order)"
+                                            />
                                         @else
                                             —
                                         @endif

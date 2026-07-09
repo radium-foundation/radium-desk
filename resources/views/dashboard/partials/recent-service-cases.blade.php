@@ -172,7 +172,7 @@
                                 </th>
                             @endif
                             <th>{{ config('ui.service_case.reference_short') }}</th>
-                            <th>Order ID</th>
+                            <th>Order / Enquiry</th>
                             <th class="case-serial-cell">Serial</th>
                             <th>Status</th>
                             <th class="sla-cell">SLA</th>

@@ -91,7 +91,7 @@ class ServiceCaseAutomationStatusService
 
     private function isWaitingForCustomerSerial(Order $order): bool
     {
-        if ($order->isProductOrder()) {
+        if ($order->isProductOrder() || $order->isInquiryOrder()) {
             return false;
         }
 
