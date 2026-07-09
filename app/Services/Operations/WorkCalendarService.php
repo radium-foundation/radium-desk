@@ -76,6 +76,26 @@ class WorkCalendarService
         return $this->isWithinWorkingHours($schedule, $at);
     }
 
+    public function isOnScheduledShift(User $user, ?Carbon $at = null): bool
+    {
+        $at ??= now();
+
+        if ($this->isCompanyHoliday($at) || $this->hasApprovedLeave($user, $at)) {
+            return false;
+        }
+
+        $schedule = $this->scheduleFor($user);
+
+        if ($schedule === null || ! $this->isWorkingDay($schedule, $at)) {
+            return false;
+        }
+
+        $start = $this->timeOnDate($schedule->work_start_time, $at);
+        $end = $this->timeOnDate($schedule->work_end_time, $at);
+
+        return $at->gte($start) && $at->lt($end);
+    }
+
     public function isWorkingDay(TeamMemberWorkSchedule $schedule, Carbon $at): bool
     {
         $weeklyOff = $schedule->weekly_off_days ?? $this->defaultWeeklyOffDays();

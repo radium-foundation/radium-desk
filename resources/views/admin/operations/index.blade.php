@@ -32,7 +32,7 @@
                 <div id="operations-overview-cards" class="operations-bento-cell operations-bento-cell--overview">
                     @include('admin.operations.partials.overview-cards', [
                         'dashboard' => $dashboard,
-                        'members' => $dashboard->teamAvailability,
+                        'members' => $dashboard->teamAvailability['on_duty'] ?? [],
                         'intelligence' => $dashboard->supportIntelligence,
                     ])
                 </div>

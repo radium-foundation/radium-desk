@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TeamAvailabilityChangeSource;
 use App\Enums\TeamAvailabilityStatus;
 use App\Http\Requests\UpdateTeamAvailabilityRequest;
 use App\Services\Operations\TeamAvailabilityService;
@@ -20,6 +21,8 @@ class TeamAvailabilityController extends Controller
         $this->availabilityService->updateStatus(
             user: $request->user(),
             status: $status,
+            actor: $request->user(),
+            source: TeamAvailabilityChangeSource::Manual,
         );
 
         return redirect()

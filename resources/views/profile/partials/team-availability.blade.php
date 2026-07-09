@@ -2,6 +2,8 @@
     use App\Enums\TeamAvailabilityStatus;
 
     $currentStatus = old('availability_status', $availability['status'] ?? TeamAvailabilityStatus::Offline->value);
+    $restrictOffline = (bool) ($availability['restricts_offline_self_service'] ?? false);
+    $statusOptions = TeamAvailabilityStatus::selfServiceCases($restrictOffline);
 @endphp
 
 <div class="card border-0 shadow-sm">
@@ -17,6 +19,9 @@
 
         <p class="text-muted small">
             Let operations know when you can receive work. Use leave requests for planned time off.
+            @if($restrictOffline)
+                While you are on duty, log out to end your shift or set Busy if temporarily unavailable.
+            @endif
         </p>
 
         <form method="POST" action="{{ route('profile.availability.update') }}">
@@ -30,7 +35,7 @@
                     name="availability_status"
                     class="form-select @error('availability_status') is-invalid @enderror"
                 >
-                    @foreach(TeamAvailabilityStatus::liveCases() as $status)
+                    @foreach($statusOptions as $status)
                         <option value="{{ $status->value }}" @selected($currentStatus === $status->value)>
                             {{ $status->label() }}
                         </option>

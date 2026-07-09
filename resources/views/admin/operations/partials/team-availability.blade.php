@@ -1,16 +1,24 @@
 @props([
-    'members' => [],
+    'teamAvailability' => ['on_duty' => [], 'unavailable' => []],
 ])
+
+@php
+    $onDutyMembers = $teamAvailability['on_duty'] ?? [];
+    $unavailableMembers = $teamAvailability['unavailable'] ?? [];
+@endphp
 
 <section class="mb-4" aria-labelledby="team-presence-heading">
     <h2 id="team-presence-heading" class="h5 mb-3">Team Presence</h2>
 
-    @if($members === [])
-        <div class="card border-0 shadow-sm">
-            <div class="card-body text-muted small mb-0">No active team members on duty. Check schedules or activate agents to populate this view.</div>
+    @if($onDutyMembers === [])
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body text-muted small mb-0">No team members are currently on duty.</div>
         </div>
     @else
-        <div class="card border-0 shadow-sm operations-team-card">
+        <div class="card border-0 shadow-sm operations-team-card mb-4">
+            <div class="card-header bg-white py-2">
+                <h3 class="h6 mb-0">On duty</h3>
+            </div>
             <div class="operations-team-header d-none d-md-grid">
                 <span>Name</span>
                 <span>Status</span>
@@ -21,127 +29,37 @@
             </div>
 
             <div class="list-group list-group-flush">
-                @foreach($members as $member)
-                    @php
-                        $workCalendar = $member['work_calendar'] ?? [];
-                        $availability = $member['availability'] ?? [];
-                        $presence = $member['presence'] ?? [];
-                        $collapseId = 'team-member-details-'.$member['id'];
-                        $workingTime = $workCalendar['work_hours']
-                            ?? (($presence['active_duration'] ?? '0m') !== '0m' ? $presence['active_duration'] : null);
-                        $lastActivity = $presence['last_work_activity_label'] ?? $member['work_activity_label'] ?? null;
-                        $lastActivityAt = $presence['last_work_activity_at'] ?? $member['work_activity_relative'] ?? null;
-                        $openWork = (int) ($member['open_work_count'] ?? 0);
-                        $workloadTone = $openWork >= 6 ? 'danger' : ($openWork >= 3 ? 'warning' : 'healthy');
-                        $availabilityLabel = $availability['label'] ?? 'Offline';
-                        $availabilityClass = $availability['badge_class'] ?? 'secondary';
-                        $statusTone = match ($availabilityClass) {
-                            'success' => 'healthy',
-                            'warning' => 'warning',
-                            'danger' => 'danger',
-                            default => 'info',
-                        };
-                    @endphp
-                    <div class="list-group-item px-3 py-3 operations-team-row">
-                        <div class="operations-team-grid">
-                            <div class="operations-team-cell operations-team-cell--name">
-                                <div class="fw-semibold">{{ $member['name'] }}</div>
-                                @if(filled($member['role_label'] ?? null))
-                                    <div class="text-muted small d-md-none">{{ $member['role_label'] }}</div>
-                                @endif
-                            </div>
+                @foreach($onDutyMembers as $member)
+                    @include('admin.operations.partials.team-availability-row', [
+                        'member' => $member,
+                        'rowPrefix' => 'on-duty',
+                    ])
+                @endforeach
+            </div>
+        </div>
+    @endif
 
-                            <div class="operations-team-cell" data-label="Status">
-                                <span @class(['operations-team-status-pill', 'operations-team-status-pill--' . $statusTone])>
-                                    <span class="operations-team-status-dot" aria-hidden="true"></span>
-                                    <span>{{ $availabilityLabel }}</span>
-                                </span>
-                                @if(filled($workCalendar['indicator'] ?? null) && ($workCalendar['status'] ?? '') !== \App\Enums\WorkCalendarDayStatus::LeaveApproved->value)
-                                    <span class="operations-team-status-meta text-muted small">{{ $workCalendar['indicator'] }} {{ $workCalendar['label'] ?? '' }}</span>
-                                @endif
-                            </div>
+    @if($unavailableMembers !== [])
+        <div class="card border-0 shadow-sm operations-team-card border-warning-subtle">
+            <div class="card-header bg-white py-2">
+                <h3 class="h6 mb-0 text-warning-emphasis">Expected today but unavailable</h3>
+            </div>
+            <div class="operations-team-header d-none d-md-grid">
+                <span>Name</span>
+                <span>Status</span>
+                <span>Working time</span>
+                <span>Workload</span>
+                <span>Last activity</span>
+                <span class="visually-hidden">Details</span>
+            </div>
 
-                            <div class="operations-team-cell" data-label="Working time">
-                                <span class="small">{{ $workingTime ?? '—' }}</span>
-                            </div>
-
-                            <div class="operations-team-cell" data-label="Workload">
-                                <div class="operations-team-workload">
-                                    <span @class(['operations-team-workload-value', 'text-danger' => $workloadTone === 'danger', 'text-warning' => $workloadTone === 'warning'])>{{ number_format($openWork) }}</span>
-                                    <span class="operations-team-workload-bar" aria-hidden="true">
-                                        <span
-                                            @class(['operations-team-workload-fill', 'operations-team-workload-fill--' . $workloadTone])
-                                            style="width: {{ min(100, $openWork * 12) }}%;"
-                                        ></span>
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div class="operations-team-cell" data-label="Last activity">
-                                @if(filled($lastActivity))
-                                    <div class="small">{{ $lastActivity }}</div>
-                                    @if(filled($lastActivityAt))
-                                        <div class="text-muted small">{{ $lastActivityAt }}</div>
-                                    @endif
-                                @else
-                                    <span class="text-muted small">No recent activity</span>
-                                @endif
-                            </div>
-
-                            <div class="operations-team-cell operations-team-cell--actions">
-                                <button
-                                    type="button"
-                                    class="btn btn-sm btn-link text-muted px-0 operations-team-details-toggle"
-                                    data-bs-toggle="collapse"
-                                    data-bs-target="#{{ $collapseId }}"
-                                    aria-expanded="false"
-                                    aria-controls="{{ $collapseId }}"
-                                >
-                                    Details
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="collapse mt-2" id="{{ $collapseId }}">
-                            <div class="text-muted small d-flex flex-column gap-1 operations-team-details">
-                                @if(filled($member['role_label'] ?? null))
-                                    <span>Role: {{ $member['role_label'] }}</span>
-                                @endif
-
-                                @if(filled($presence['login_at'] ?? null))
-                                    <span>Login: {{ $presence['login_at'] }}</span>
-                                @endif
-
-                                @if(filled($presence['active_duration'] ?? null) && ($presence['active_duration'] ?? '0m') !== '0m')
-                                    <span>Active: {{ $presence['active_duration'] }}</span>
-                                @endif
-
-                                @if(filled($presence['idle_duration'] ?? null) && ($presence['idle_duration'] ?? '0m') !== '0m')
-                                    <span>Idle: {{ $presence['idle_duration'] }}</span>
-                                @endif
-
-                                @if(($presence['cases_handled_count'] ?? 0) > 0)
-                                    <span>Cases handled: {{ number_format($presence['cases_handled_count']) }}</span>
-                                @endif
-
-                                @if(filled($workCalendar['lunch_time'] ?? null))
-                                    <span>Lunch {{ $workCalendar['lunch_time'] }}</span>
-                                @endif
-
-                                @if(filled($workCalendar['label'] ?? null) && ($workCalendar['status'] ?? '') === \App\Enums\WorkCalendarDayStatus::LeaveApproved->value)
-                                    <span>Approved leave today</span>
-                                @endif
-
-                                @if(filled($member['last_active_relative'] ?? null))
-                                    <span>Last seen: {{ $member['last_active_relative'] }}</span>
-                                @endif
-
-                                @if(filled($presence['indicator'] ?? null))
-                                    <span>{{ $presence['indicator'] }} {{ $presence['label'] ?? '' }}</span>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
+            <div class="list-group list-group-flush">
+                @foreach($unavailableMembers as $member)
+                    @include('admin.operations.partials.team-availability-row', [
+                        'member' => $member,
+                        'rowPrefix' => 'unavailable',
+                        'showUnavailability' => true,
+                    ])
                 @endforeach
             </div>
         </div>

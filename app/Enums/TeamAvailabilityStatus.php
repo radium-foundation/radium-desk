@@ -35,6 +35,21 @@ enum TeamAvailabilityStatus: string
     }
 
     /**
+     * @return list<self>
+     */
+    public static function selfServiceCases(bool $restrictOffline = false): array
+    {
+        if (! $restrictOffline) {
+            return self::cases();
+        }
+
+        return array_values(array_filter(
+            self::cases(),
+            fn (self $status): bool => $status !== self::Offline,
+        ));
+    }
+
+    /**
      * @return list<string>
      */
     public static function values(): array

@@ -17,7 +17,7 @@ readonly class OperationsDashboardData
      * @param  list<array<string, mixed>>  $recentNotificationFailures
      * @param  list<array<string, mixed>>  $recentAutomationActivity
      * @param  list<array<string, mixed>>  $recentIraMessages
-     * @param  list<array<string, mixed>>  $teamAvailability
+     * @param  array{on_duty: list<array<string, mixed>>, unavailable: list<array<string, mixed>>}  $teamAvailability
      * @param  list<array<string, mixed>>  $teamTelegramStatus
      * @param  array<string, int>  $cashfreeDeviceEnrichmentQuality
      * @param  array<string, int>  $missingSerialAutomationQuality
@@ -83,7 +83,7 @@ readonly class OperationsDashboardData
             recentNotificationFailures: [],
             recentAutomationActivity: [],
             recentIraMessages: [],
-            teamAvailability: [],
+            teamAvailability: ['on_duty' => [], 'unavailable' => []],
             teamTelegramStatus: [],
             cashfreeDeviceEnrichmentQuality: [],
             missingSerialAutomationQuality: [],

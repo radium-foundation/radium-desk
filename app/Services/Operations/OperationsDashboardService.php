@@ -138,7 +138,7 @@ class OperationsDashboardService
                 ? $measure('recent_ira_messages', fn () => $this->recentIraMessagesService->recent(limit: 15))
                 : $empty->recentIraMessages,
             teamAvailability: isset($bundleSet[OperationsDashboardSectionBundles::TEAM_AVAILABILITY])
-                ? $measure('team_availability', fn () => $this->teamAvailabilityOverviewService->members())
+                ? $measure('team_availability', fn () => $this->teamAvailabilityOverviewService->overview())
                 : $empty->teamAvailability,
             teamTelegramStatus: isset($bundleSet[OperationsDashboardSectionBundles::TEAM_TELEGRAM_STATUS])
                 ? $measure('team_telegram_status', fn () => $this->teamTelegramStatusService->members())

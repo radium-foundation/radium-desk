@@ -190,7 +190,8 @@ class OperationsDashboardPerformanceTest extends TestCase
 
         $this->assertNotEmpty($data->ivrAnalytics);
         $this->assertSame([], $data->supportIntelligence);
-        $this->assertSame([], $data->teamAvailability);
+        $this->assertSame([], $data->teamAvailability['on_duty'] ?? []);
+        $this->assertSame([], $data->teamAvailability['unavailable'] ?? []);
     }
 
     public function test_live_partial_refresh_uses_fewer_queries_than_full_refresh(): void

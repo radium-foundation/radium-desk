@@ -4,6 +4,7 @@ namespace App\Services\Operations;
 
 use App\Enums\PresenceActivityType;
 use App\Enums\PresenceStatus;
+use App\Enums\TeamAvailabilityChangeSource;
 use App\Enums\WorkSessionEndReason;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
@@ -73,7 +74,12 @@ class PresenceEngineService
 
         $this->tickSession($session, $at, hasActivity: false);
         $this->finalizeSession($session, $at, $reason);
-        $this->availabilityService->syncFromSessionEnd($user);
+        $this->availabilityService->syncFromSessionEnd(
+            $user,
+            $reason === WorkSessionEndReason::AwayTimeout
+                ? TeamAvailabilityChangeSource::Timeout
+                : TeamAvailabilityChangeSource::Logout,
+        );
 
         return $session->fresh();
     }

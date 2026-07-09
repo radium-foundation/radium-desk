@@ -8,11 +8,14 @@ use App\Enums\NotificationChannelType;
 use App\Enums\NotificationType;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\TeamAvailabilityStatus;
+use App\Enums\WorkSessionEndReason;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\LeaveRequest;
 use App\Models\Order;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
+use App\Models\WorkSession;
 use App\Data\NotificationMessage;
 use App\Services\IncidentReferenceService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
@@ -396,6 +399,161 @@ class TeamAvailabilityTest extends TestCase
             ->assertSee('Update availability');
     }
 
+    public function test_agent_cannot_self_set_offline_during_active_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available);
+        app(PresenceEngineService::class)->startSession($agent);
+
+        $this->actingAs($agent)
+            ->patch(route('profile.availability.update'), [
+                'availability_status' => TeamAvailabilityStatus::Offline->value,
+            ])
+            ->assertSessionHasErrors('availability_status');
+
+        $agent->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::Available, $agent->availability_status);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_profile_hides_offline_option_during_active_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available);
+        app(PresenceEngineService::class)->startSession($agent);
+
+        $this->actingAs($agent)
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('Available', false)
+            ->assertSee('Busy', false)
+            ->assertDontSee('>Offline</option>', false)
+            ->assertSee('While you are on duty', false);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_logout_still_sets_offline_and_audits_change(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available, password: true);
+        app(PresenceEngineService::class)->startSession($agent);
+
+        $this->actingAs($agent)
+            ->post(route('logout'))
+            ->assertRedirect(route('login'));
+
+        $agent->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'user.availability_changed',
+            'auditable_type' => User::class,
+            'auditable_id' => $agent->id,
+        ]);
+
+        $auditLog = AuditLog::query()
+            ->where('event', 'user.availability_changed')
+            ->where('auditable_id', $agent->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('available', $auditLog?->old_values['status'] ?? null);
+        $this->assertSame('offline', $auditLog?->new_values['status'] ?? null);
+        $this->assertSame('logout', $auditLog?->new_values['source'] ?? null);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_timeout_still_sets_offline_and_audits_change(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        config(['presence.away_timeout_minutes' => 15]);
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available);
+        $session = app(PresenceEngineService::class)->startSession($agent);
+        $session?->update(['last_activity_at' => now()->subMinutes(16)]);
+
+        app(PresenceEngineService::class)->processTimedOutSessions();
+
+        $agent->refresh();
+        $session?->refresh();
+
+        $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
+        $this->assertSame(WorkSessionEndReason::AwayTimeout, $session?->ended_reason);
+
+        $auditLog = AuditLog::query()
+            ->where('event', 'user.availability_changed')
+            ->where('auditable_id', $agent->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('timeout', $auditLog?->new_values['source'] ?? null);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_manual_availability_change_creates_audit_log(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($agent)
+            ->patch(route('profile.availability.update'), [
+                'availability_status' => TeamAvailabilityStatus::Busy->value,
+            ])
+            ->assertRedirect(route('profile.edit'));
+
+        $auditLog = AuditLog::query()
+            ->where('event', 'user.availability_changed')
+            ->where('auditable_id', $agent->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame('manual', $auditLog?->new_values['source'] ?? null);
+        $this->assertSame('busy', $auditLog?->new_values['status'] ?? null);
+    }
+
+    public function test_expected_unavailable_agents_visible_to_managers(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $onDutyAgent = $this->createScheduledAgent(TeamAvailabilityStatus::Available, 'On Duty Agent');
+        app(PresenceEngineService::class)->startSession($onDutyAgent);
+
+        $loggedOutAgent = $this->createScheduledAgent(TeamAvailabilityStatus::Offline, 'Logged Out Agent');
+        $session = app(PresenceEngineService::class)->startSession($loggedOutAgent);
+        app(PresenceEngineService::class)->closeSession($loggedOutAgent, WorkSessionEndReason::ManualLogout);
+        $this->assertNotNull($session?->fresh()?->logout_at);
+
+        $overview = app(TeamAvailabilityOverviewService::class)->overview();
+
+        $this->assertCount(1, $overview['on_duty']);
+        $this->assertSame($onDutyAgent->id, $overview['on_duty'][0]['id']);
+        $this->assertCount(1, $overview['unavailable']);
+        $this->assertSame($loggedOutAgent->id, $overview['unavailable'][0]['id']);
+        $this->assertSame('Logged out during shift', $overview['unavailable'][0]['unavailability_label']);
+        $this->assertSame(1, $overview['unavailable'][0]['session_summary']['manual_logout_count']);
+
+        $admin = User::factory()->create(['name' => 'Ops Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'team']))
+            ->assertOk()
+            ->assertSee('Expected today but unavailable', false)
+            ->assertSee('Logged Out Agent', false)
+            ->assertSee('Logged out during shift', false);
+
+        Carbon::setTestNow();
+    }
+
     public function test_session_start_does_not_promote_user_on_approved_leave_to_available(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
@@ -433,12 +591,19 @@ class TeamAvailabilityTest extends TestCase
     private function createScheduledAgent(
         TeamAvailabilityStatus $status,
         string $name = 'Scheduled Agent',
+        bool $password = false,
     ): User {
-        $user = User::factory()->create([
+        $attributes = [
             'name' => $name,
             'availability_status' => $status,
             'availability_updated_at' => now(),
-        ]);
+        ];
+
+        if ($password) {
+            $attributes['password'] = bcrypt('password');
+        }
+
+        $user = User::factory()->create($attributes);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         TeamMemberWorkSchedule::query()->create([

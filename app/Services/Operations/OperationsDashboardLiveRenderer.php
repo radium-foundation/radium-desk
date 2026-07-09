@@ -104,7 +104,7 @@ class OperationsDashboardLiveRenderer
                 'dashboard' => $dashboard,
                 'briefing' => $iraBriefing,
                 'formatted' => $iraBriefingFormatted,
-                'members' => $dashboard->teamAvailability,
+                'members' => $dashboard->teamAvailability['on_duty'] ?? [],
                 'insights' => $advisorInsights,
                 'intelligence' => $dashboard->supportIntelligence,
             ])->render(),
@@ -129,7 +129,7 @@ class OperationsDashboardLiveRenderer
                 'intelligence' => $dashboard->supportIntelligence,
             ])->render(),
             'team_tab' => view('admin.operations.partials.team-tab', [
-                'members' => $dashboard->teamAvailability,
+                'teamAvailability' => $dashboard->teamAvailability,
                 'teamTelegramStatus' => $dashboard->teamTelegramStatus,
             ])->render(),
             'performance_tab' => view('admin.operations.partials.performance-tab', [
@@ -193,7 +193,7 @@ class OperationsDashboardLiveRenderer
                 'messages' => $dashboard->recentIraMessages,
             ])->render(),
             'team_availability' => view('admin.operations.partials.team-availability', [
-                'members' => $dashboard->teamAvailability,
+                'teamAvailability' => $dashboard->teamAvailability,
             ])->render(),
             'health_telegram' => view('admin.operations.partials.team-telegram-status', [
                 'members' => $dashboard->teamTelegramStatus,

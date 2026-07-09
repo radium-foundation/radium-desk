@@ -383,7 +383,7 @@ class WorkforceCalendarTest extends TestCase
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'team']))
             ->assertOk()
-            ->assertSee('No active team members on duty', false)
+            ->assertSee('No team members are currently on duty', false)
             ->assertSee('Team Presence', false);
 
         Carbon::setTestNow();
