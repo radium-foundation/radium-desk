@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Models\BonvoiceWebhookLog;
+use App\Services\Bonvoice\BonvoiceWebhookAuthVerifier;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookPayloadParser;
-use App\Services\Bonvoice\BonvoiceWebhookSignatureVerifier;
 use App\Services\Outbox\OutboxProcessorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +18,7 @@ class BonvoiceWebhookController extends Controller
     public function __construct(
         private readonly BonvoiceWebhookPayloadParser $payloadParser,
         private readonly BonvoiceWebhookOutboxWriter $outboxWriter,
-        private readonly BonvoiceWebhookSignatureVerifier $signatureVerifier,
+        private readonly BonvoiceWebhookAuthVerifier $authVerifier,
         private readonly OutboxProcessorService $outboxProcessorService,
     ) {}
 
@@ -27,18 +27,18 @@ class BonvoiceWebhookController extends Controller
         try {
             $this->logWebhook($request);
             $webhookLog = $this->storeWebhook($request);
+            $payload = $webhookLog->payload ?? [];
 
-            if (config('bonvoice.verify_signature')) {
-                if (! $this->signatureVerifier->hasRequiredHeaders($request)) {
-                    $this->markSignatureVerificationFailed($webhookLog);
+            if ($this->authVerifier->shouldVerify()) {
+                $authResult = $this->authVerifier->verify($request, $payload);
 
-                    return response()->json(['status' => 'error'], 400);
-                }
+                if (! $authResult->isValid()) {
+                    $this->markAuthVerificationFailed($webhookLog, $authResult->error());
 
-                if (! $this->signatureVerifier->verify($request)) {
-                    $this->markSignatureVerificationFailed($webhookLog);
-
-                    return response()->json(['status' => 'error'], 401);
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => $authResult->error(),
+                    ], $authResult->statusCode());
                 }
             }
 
@@ -73,11 +73,11 @@ class BonvoiceWebhookController extends Controller
         ]);
     }
 
-    private function markSignatureVerificationFailed(BonvoiceWebhookLog $webhookLog): void
+    private function markAuthVerificationFailed(BonvoiceWebhookLog $webhookLog, ?string $error): void
     {
         $webhookLog->update([
             'processing_status' => BonvoiceWebhookLog::STATUS_FAILED,
-            'processing_error' => BonvoiceWebhookSignatureVerifier::ERROR_INVALID_AUTHORIZATION,
+            'processing_error' => $error,
             'processed_at' => now(),
         ]);
     }

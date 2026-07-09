@@ -78,8 +78,20 @@ class BonvoiceCallEventStore
 
         $payloadAccountId = $this->payloadParser->accountId($payload);
 
+        if (config('bonvoice.verify_webhook_auth')) {
+            if ($payloadAccountId === null) {
+                throw new RuntimeException(BonvoiceWebhookAuthVerifier::ERROR_MISSING_ACCOUNT_ID);
+            }
+
+            if ($payloadAccountId !== $configuredAccountId) {
+                throw new RuntimeException(BonvoiceWebhookAuthVerifier::ERROR_INVALID_ACCOUNT_ID);
+            }
+
+            return;
+        }
+
         if ($payloadAccountId !== null && $payloadAccountId !== $configuredAccountId) {
-            throw new RuntimeException('BonVoice webhook AccountID does not match configured account.');
+            throw new RuntimeException(BonvoiceWebhookAuthVerifier::ERROR_INVALID_ACCOUNT_ID);
         }
     }
 }

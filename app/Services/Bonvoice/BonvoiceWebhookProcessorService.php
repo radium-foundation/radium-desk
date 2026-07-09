@@ -19,8 +19,11 @@ class BonvoiceWebhookProcessorService
         private readonly BonvoiceMissedCallRecoveryService $missedCallRecoveryService,
     ) {}
 
-    public function process(BonvoiceWebhookLog $webhookLog): BonvoiceWebhookLog
-    {
+    public function process(
+        BonvoiceWebhookLog $webhookLog,
+        ?BonvoiceWebhookProcessOptions $options = null,
+    ): BonvoiceWebhookLog {
+        $options ??= new BonvoiceWebhookProcessOptions();
         $payload = $webhookLog->payload ?? [];
 
         try {
@@ -44,8 +47,13 @@ class BonvoiceWebhookProcessorService
                 return $callEvent;
             });
 
-            $this->liveCallAssistService->maybeNotify($callEvent);
-            $this->missedCallRecoveryService->process($callEvent, $previousStatus);
+            if (! $options->suppressNotifications) {
+                $this->liveCallAssistService->maybeNotify($callEvent);
+            }
+
+            if (! $options->suppressRecovery) {
+                $this->missedCallRecoveryService->process($callEvent, $previousStatus);
+            }
 
             return $webhookLog->fresh();
         } catch (\Throwable $exception) {
