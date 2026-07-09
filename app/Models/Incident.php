@@ -6,6 +6,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\ServiceCaseCloseException;
+use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SettingService;
 use App\Support\AppDateFormatter;
 use Illuminate\Database\Eloquent\Builder;
@@ -299,6 +300,92 @@ class Incident extends Model
             ! $this->high_priority && $status === ServiceCaseSlaStatus::Warning => 4,
             default => 5,
         };
+    }
+
+    /**
+     * Business priority tier for dashboard sorting (lower = higher priority).
+     *
+     * 1: Real RD/RDE order with serial and scheduled appointment
+     * 2: Real RD/RDE order with serial
+     * 3: Real RD/RDE order with missing serial
+     * 4: INQ enquiry with identifiable existing customer
+     * 5: Unknown INQ enquiry
+     */
+    public function servicePriorityTier(): int
+    {
+        $order = $this->order;
+
+        if ($order === null) {
+            return 5;
+        }
+
+        if ($order->isInquiryOrder()) {
+            return $this->isIdentifiableInquiryCustomer() ? 4 : 5;
+        }
+
+        if ($this->hasServiceSerial()) {
+            return $this->hasActiveSupportAppointment() ? 1 : 2;
+        }
+
+        return 3;
+    }
+
+    /**
+     * Combined SLA + business priority rank for dashboard and queue position.
+     * SLA bands (1–7) always dominate; business tier breaks ties within a band.
+     */
+    public function dashboardSortRank(?Carbon $now = null): int
+    {
+        return ($this->slaSortRank($now) * 10) + $this->servicePriorityTier();
+    }
+
+    public function isIdentifiableInquiryCustomer(): bool
+    {
+        $order = $this->order;
+
+        if ($order === null || ! $order->isInquiryOrder()) {
+            return false;
+        }
+
+        if (filled($order->customer_id)) {
+            return true;
+        }
+
+        $phone = trim((string) ($order->customer_phone ?? $this->recovery_phone ?? ''));
+
+        if ($phone === '') {
+            return false;
+        }
+
+        static $existingCustomerPhones = [];
+
+        if (array_key_exists($phone, $existingCustomerPhones)) {
+            return $existingCustomerPhones[$phone];
+        }
+
+        $existingCustomerPhones[$phone] = Order::query()
+            ->where('customer_phone', $phone)
+            ->where('order_id', 'not like', 'INQ-%')
+            ->exists();
+
+        return $existingCustomerPhones[$phone];
+    }
+
+    private function hasServiceSerial(): bool
+    {
+        $order = $this->order;
+
+        if ($order === null) {
+            return false;
+        }
+
+        $serial = trim((string) $order->serial_number);
+
+        if ($serial === '') {
+            return false;
+        }
+
+        return ! app(SerialPlaceholderService::class)->isPlaceholder($serial);
     }
 
     public function slaTooltipHtml(?Carbon $now = null): string

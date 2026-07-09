@@ -37,6 +37,14 @@ class RolePermissionSeeder extends Seeder
     /**
      * @var list<string>
      */
+    public const INQUIRY_ASSIGNMENT_ROLES = [
+        self::ROLE_AGENT,
+        self::ROLE_CUSTOMER_COORDINATOR,
+    ];
+
+    /**
+     * @var list<string>
+     */
     public const ADMIN_TEAM_ROLES = [
         self::ROLE_ADMIN,
         self::ROLE_OPERATIONS_ADMIN,

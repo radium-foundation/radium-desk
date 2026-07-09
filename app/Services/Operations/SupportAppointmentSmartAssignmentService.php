@@ -40,7 +40,7 @@ class SupportAppointmentSmartAssignmentService
             return $incident->fresh(['assignee']);
         }
 
-        $incident = $incident->fresh(['assignee', 'supportAppointments']);
+        $incident = $incident->fresh(['assignee', 'supportAppointments', 'order']);
 
         $appointment ??= $incident->supportAppointments
             ->first(fn (SupportAppointment $candidate): bool => $candidate->isScheduled());
@@ -56,7 +56,7 @@ class SupportAppointmentSmartAssignmentService
         }
 
         $actor ??= $this->automationIdentity->systemUser();
-        $result = $this->smartAssignmentService->resolveBestAssignee();
+        $result = $this->smartAssignmentService->resolveBestAssignee(order: $incident->order);
 
         if (! $result->isAssigned()) {
             return $this->handleUnassigned($incident, $appointment, $actor, $result);

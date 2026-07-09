@@ -360,6 +360,18 @@ class BonvoiceMissedCallRecoveryService
             return $incident;
         }
 
+        if ($incident->order?->isInquiryOrder()) {
+            if ($this->isWithinSupportHours($at)) {
+                $incident = $this->assignmentService->assignViaRoundRobinAfterGracePeriod($incident, $actor);
+
+                return $incident->assigned_to_user_id !== null
+                    ? $incident
+                    : $incident;
+            }
+
+            return $this->assignmentService->assignInquiryViaRoundRobin($incident, $actor, $at);
+        }
+
         if ($this->isWithinSupportHours($at)) {
             $incident = $this->assignmentService->assignViaRoundRobinAfterGracePeriod($incident, $actor);
 

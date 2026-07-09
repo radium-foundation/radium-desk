@@ -78,11 +78,11 @@
         </div>
     </td>
     <td class="case-order-cell case-meta-cell">
-        @if($order)
+        @if($order && ! $order->isInquiryOrder())
             <x-order-identifier
                 :order="$order"
                 :incident="$serviceCase"
-                :href="$order->isInquiryOrder() ? null : route('orders.show', $order)"
+                :href="route('orders.show', $order)"
             />
         @else
             —

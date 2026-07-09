@@ -95,7 +95,7 @@ class InquiryLifecyclePhase1Test extends TestCase
         $this->assertNotSame(ServiceCaseAutomationStatus::WaitingForCustomerSerial, $status);
     }
 
-    public function test_dashboard_renders_enquiry_label_instead_of_inq_order_id(): void
+    public function test_dashboard_renders_dash_for_inquiry_order_and_serial_columns(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -107,8 +107,8 @@ class InquiryLifecyclePhase1Test extends TestCase
             ->assertOk()
             ->assertSee('Order / Enquiry')
             ->assertSee($incident->display_reference)
-            ->assertSee('Enquiry')
-            ->assertDontSee('INQ-SC00099');
+            ->assertDontSee('INQ-SC00099')
+            ->assertDontSee('order-identifier--enquiry', false);
 
         $this->assertStringContainsString(
             'data-search-text="'.strtolower('inq-sc00099 '.$incident->display_reference),

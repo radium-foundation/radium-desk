@@ -481,7 +481,7 @@ class DashboardService
                     }
                 }
 
-                $rankComparison = $left->slaSortRank($now) <=> $right->slaSortRank($now);
+                $rankComparison = $left->dashboardSortRank($now) <=> $right->dashboardSortRank($now);
 
                 if ($rankComparison !== 0) {
                     return $rankComparison;

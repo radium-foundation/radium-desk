@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
@@ -102,6 +103,10 @@ class ServiceCaseAssignmentService
                 ->assignForActiveSupport($incident, $actor);
         }
 
+        if ($incident->order?->isInquiryOrder()) {
+            return $this->assignInquiryViaRoundRobin($incident, $actor, $at);
+        }
+
         if ($incident->assigned_to_user_id !== null) {
             return $incident;
         }
@@ -131,7 +136,7 @@ class ServiceCaseAssignmentService
 
     public function assignViaRoundRobinAfterGracePeriod(Incident $incident, User $actor): Incident
     {
-        $incident = $incident->fresh(['assignee']);
+        $incident = $incident->fresh(['assignee', 'order']);
 
         if ($incident->assigned_to_user_id !== null) {
             return $incident;
@@ -146,6 +151,10 @@ class ServiceCaseAssignmentService
         }
 
         if (! config('service_case_assignment.round_robin_enabled', true)) {
+            if ($incident->order?->isInquiryOrder()) {
+                return $this->logUnassignedAfterGracePeriod($incident, $actor);
+            }
+
             return $this->applyAssignment(
                 incident: $incident,
                 assignee: $this->resolveAssignee(),
@@ -157,7 +166,7 @@ class ServiceCaseAssignmentService
             );
         }
 
-        $assignee = $this->resolveAgentRoundRobin();
+        $assignee = $this->resolveAgentRoundRobin(null, $incident->order);
 
         if ($assignee === null) {
             return $this->logUnassignedAfterGracePeriod($incident, $actor);
@@ -174,6 +183,10 @@ class ServiceCaseAssignmentService
     private function assignImmediatelyOnCreate(Incident $incident, User $actor, ?Carbon $at = null): Incident
     {
         if (! config('service_case_assignment.round_robin_enabled', true)) {
+            if ($incident->order?->isInquiryOrder()) {
+                return $this->logUnassignedOnCreate($incident, $actor);
+            }
+
             return $this->applyAssignment(
                 incident: $incident,
                 assignee: $this->resolveAssignee($at),
@@ -185,7 +198,7 @@ class ServiceCaseAssignmentService
             );
         }
 
-        $assignee = $this->resolveAgentRoundRobin($at);
+        $assignee = $this->resolveAgentRoundRobin($at, $incident->order);
 
         if ($assignee === null) {
             return $this->logUnassignedOnCreate($incident, $actor);
@@ -196,6 +209,42 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
+        );
+    }
+
+    public function assignInquiryViaRoundRobin(
+        Incident $incident,
+        User $actor,
+        ?Carbon $at = null,
+    ): Incident {
+        $incident = $incident->fresh(['assignee', 'order']);
+
+        if ($incident->assigned_to_user_id !== null) {
+            return $incident;
+        }
+
+        if (! $incident->order?->isInquiryOrder()) {
+            return $incident;
+        }
+
+        if (! config('service_case_assignment.round_robin_enabled', true)) {
+            return $this->logUnassignedOnCreate($incident, $actor);
+        }
+
+        $assignee = $this->resolveAgentRoundRobin($at, $incident->order);
+
+        if ($assignee === null) {
+            return $this->logUnassignedOnCreate($incident, $actor);
+        }
+
+        return $this->applyAssignment(
+            incident: $this->clearAutomationPending($incident, $actor),
+            assignee: $assignee,
+            actor: $actor,
+            event: 'service_case.assigned',
+            extraNewValues: [
+                'assignment_method' => 'inquiry_round_robin',
+            ],
         );
     }
 
@@ -254,7 +303,7 @@ class ServiceCaseAssignmentService
             return $incident;
         }
 
-        $assignee = $this->resolveAgentRoundRobin($at);
+        $assignee = $this->resolveAgentRoundRobin($at, $incident->order);
 
         if ($assignee === null) {
             return $incident;
@@ -310,7 +359,11 @@ class ServiceCaseAssignmentService
 
     public function reassignToShiftAdminAfterValidation(Incident $incident, User $actor, ?Carbon $at = null): Incident
     {
-        $incident = $incident->fresh(['assignee']);
+        $incident = $incident->fresh(['assignee', 'order']);
+
+        if ($incident->order?->isInquiryOrder()) {
+            return $incident;
+        }
 
         $currentAssignee = $incident->assignee;
 
@@ -400,13 +453,17 @@ class ServiceCaseAssignmentService
     /**
      * @return list<User>
      */
-    public function activeSupportAgents(?Carbon $at = null): array
+    public function activeSupportAgents(?Carbon $at = null, ?Order $order = null): array
     {
         $at ??= now();
 
+        $roles = ($order !== null && $order->isInquiryOrder())
+            ? RolePermissionSeeder::INQUIRY_ASSIGNMENT_ROLES
+            : RolePermissionSeeder::SUPPORT_TEAM_ROLES;
+
         return User::query()
             ->where('is_active', true)
-            ->role(RolePermissionSeeder::SUPPORT_TEAM_ROLES)
+            ->role($roles)
             ->orderBy('id')
             ->get()
             ->filter(fn (User $agent): bool => $this->operationsRoleService->isNormalAssignmentPool($agent)
@@ -415,10 +472,10 @@ class ServiceCaseAssignmentService
             ->all();
     }
 
-    private function resolveAgentRoundRobin(?Carbon $at = null): ?User
+    private function resolveAgentRoundRobin(?Carbon $at = null, ?Order $order = null): ?User
     {
-        return DB::transaction(function () use ($at): ?User {
-            $agents = $this->activeSupportAgents($at);
+        return DB::transaction(function () use ($at, $order): ?User {
+            $agents = $this->activeSupportAgents($at, $order);
 
             if ($agents === []) {
                 return null;

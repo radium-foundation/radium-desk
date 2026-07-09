@@ -2,8 +2,9 @@
 
 @php
     $order = $serviceCase->order;
+    $isInquiry = $order?->isInquiryOrder() ?? false;
     $isLocked = $order?->isSerialLocked() ?? false;
-    $canAssign = $order && auth()->user()?->can('assignSerial', $order);
+    $canAssign = $order && ! $isInquiry && auth()->user()?->can('assignSerial', $order);
 @endphp
 
 <td class="serial-number-cell case-serial-cell case-meta-cell"
@@ -13,7 +14,9 @@
         data-incident-id="{{ $serviceCase->id }}"
         data-store-url="{{ route('orders.serial.store', $order) }}"
     @endif>
-    @if($isLocked && $order?->serial_number)
+    @if($isInquiry)
+        —
+    @elseif($isLocked && $order?->serial_number)
         <div class="d-flex align-items-center gap-1">
             <x-copyable-identifier
                 :value="$order->serial_number"

@@ -274,7 +274,7 @@ class IncidentAIContextBuilder
         }
 
         $now = now();
-        $rank = $incident->slaSortRank($now);
+        $rank = $incident->dashboardSortRank($now);
         $activeStatuses = array_map(
             fn (IncidentStatus $status) => $status->value,
             IncidentStatus::operationallyActive(),
@@ -296,7 +296,7 @@ class IncidentAIContextBuilder
                 });
             })
             ->get()
-            ->filter(fn (Incident $item) => $item->slaSortRank($now) < $rank)
+            ->filter(fn (Incident $item) => $item->dashboardSortRank($now) < $rank)
             ->count();
 
         return $ahead + 1;

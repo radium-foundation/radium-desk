@@ -6,6 +6,7 @@ use App\Data\Operations\SmartAssignmentResult;
 use App\Enums\OperationQueue;
 use App\Enums\TeamAvailabilityStatus;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use Database\Seeders\RolePermissionSeeder;
@@ -22,9 +23,9 @@ class SmartAssignmentService
         private readonly OperationsAssignmentEligibilityService $assignmentEligibilityService,
     ) {}
 
-    public function resolveBestAssignee(?Carbon $at = null): SmartAssignmentResult
+    public function resolveBestAssignee(?Carbon $at = null, ?Order $order = null): SmartAssignmentResult
     {
-        $candidates = $this->eligibleCandidates($at);
+        $candidates = $this->eligibleCandidates($at, $order);
 
         if ($candidates === []) {
             return SmartAssignmentResult::unassigned('no_eligible_team_members');
@@ -54,11 +55,15 @@ class SmartAssignmentService
     /**
      * @return list<User>
      */
-    public function eligibleCandidates(?Carbon $at = null): array
+    public function eligibleCandidates(?Carbon $at = null, ?Order $order = null): array
     {
+        $roles = ($order !== null && $order->isInquiryOrder())
+            ? RolePermissionSeeder::INQUIRY_ASSIGNMENT_ROLES
+            : RolePermissionSeeder::SUPPORT_TEAM_ROLES;
+
         return User::query()
             ->where('is_active', true)
-            ->role(RolePermissionSeeder::SUPPORT_TEAM_ROLES)
+            ->role($roles)
             ->orderBy('id')
             ->get()
             ->filter(fn (User $user): bool => $this->assignmentEligibilityService->isEligible($user, $at))

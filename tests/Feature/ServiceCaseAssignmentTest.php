@@ -531,13 +531,13 @@ class ServiceCaseAssignmentTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_quick_create_with_serial_assigns_shift_admin_when_grace_period_enabled(): void
+    public function test_inquiry_quick_create_with_serial_assigns_intake_agent_when_grace_period_enabled(): void
     {
         config(['service_case_assignment.automation_grace_period_enabled' => true]);
 
         $admin = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
         $this->configureAssignmentSettings($admin->id, $admin->id);
-        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $agentAlpha = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
 
         Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
 
@@ -559,7 +559,9 @@ class ServiceCaseAssignmentTest extends TestCase
 
         $response->assertRedirect(route('dashboard'));
 
-        $this->assertSame($admin->id, $incident->assignee?->id);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+        $this->assertSame($agentAlpha->id, $incident->assignee?->id);
+        $this->assertNotSame($admin->id, $incident->assignee?->id);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.assigned',
