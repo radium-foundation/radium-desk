@@ -230,9 +230,19 @@ class OperationsModelFoundationTest extends TestCase
 
         $roles = app(OperationsRoleService::class);
 
-        $this->assertSame('Support Specialist', $roles->displayLabel(RolePermissionSeeder::ROLE_AGENT));
-        $this->assertSame('Operations Admin', $roles->displayLabel(RolePermissionSeeder::ROLE_ADMIN));
-        $this->assertSame('Support Specialist', $agent->fresh('roles')->primaryRoleLabel());
+        $this->assertSame('Support Agent', $roles->displayLabel(RolePermissionSeeder::ROLE_AGENT));
+        $this->assertSame('Support Specialist', $roles->displayLabel(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST));
+        $this->assertSame('Admin', $roles->displayLabel(RolePermissionSeeder::ROLE_ADMIN));
+        $this->assertSame('Operations Admin', $roles->displayLabel(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN));
+        $this->assertSame('Support Agent', $agent->fresh('roles')->primaryRoleLabel());
+        $this->assertNotSame(
+            $roles->displayLabel(RolePermissionSeeder::ROLE_AGENT),
+            $roles->displayLabel(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST),
+        );
+        $this->assertNotSame(
+            $roles->displayLabel(RolePermissionSeeder::ROLE_ADMIN),
+            $roles->displayLabel(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN),
+        );
     }
 
     public function test_personalization_exposes_admin_and_support_queue_sets(): void

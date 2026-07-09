@@ -79,7 +79,7 @@ class AutomationIdentityServiceTest extends TestCase
 
         $actor = $this->service->resolveWithRoleLabel($user);
 
-        $this->assertSame('Operations Admin Avinash', $actor->displayName);
+        $this->assertSame('Admin Avinash', $actor->displayName);
         $this->assertFalse($actor->isAutomation);
     }
 

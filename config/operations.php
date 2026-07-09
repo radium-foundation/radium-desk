@@ -52,7 +52,7 @@ return [
             'description' => 'Full system visibility, analytics, and configuration.',
         ],
         'admin' => [
-            'label' => 'Operations Admin',
+            'label' => 'Admin',
             'description' => 'Manage queues, assign cases, approve operations, and oversee the team.',
         ],
         'operations_admin' => [
@@ -60,7 +60,7 @@ return [
             'description' => 'Manage queues, assign cases, approve operations, and oversee the team.',
         ],
         'agent' => [
-            'label' => 'Support Specialist',
+            'label' => 'Support Agent',
             'description' => 'Handle assigned service cases and scheduled support work.',
         ],
         'support_specialist' => [
