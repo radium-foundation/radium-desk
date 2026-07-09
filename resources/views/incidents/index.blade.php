@@ -94,7 +94,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>{{ config('ui.service_case.reference_short') }}</th>
-                                <th>Order / Enquiry</th>
+                                <th>Order</th>
                                 <th>Title</th>
                                 <th>Category</th>
                                 <th>Source</th>

@@ -181,6 +181,70 @@ class EscalationSpecialistAssignmentTest extends TestCase
         $this->assertSame($specialist->id, $incident->fresh()->assigned_to_user_id);
     }
 
+    public function test_manual_assign_dropdown_includes_escalation_specialist(): void
+    {
+        $actor = $this->createAdminUser('actor@test.com', 'Actor Admin');
+        $specialist = $this->createEscalationSpecialist('shubhanshi@radiumbox.com', 'Shubhanshi');
+        $agent = User::factory()->create([
+            'name' => 'Support Agent',
+            'email' => 'support-agent@test.com',
+            'is_active' => true,
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($actor);
+
+        $ids = collect(app(ServiceCaseAssignmentService::class)->reassignableUsers($actor))
+            ->pluck('id')
+            ->all();
+
+        $this->assertContains($specialist->id, $ids);
+        $this->assertContains($agent->id, $ids);
+        $this->assertNotContains($actor->id, $ids);
+    }
+
+    public function test_manual_assign_dropdown_excludes_self_and_superadmin(): void
+    {
+        $actor = User::factory()->create([
+            'name' => 'Actor Agent',
+            'email' => 'actor-agent@test.com',
+            'is_active' => true,
+        ]);
+        $actor->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $superadmin = User::factory()->create([
+            'name' => 'Super Admin',
+            'email' => 'superadmin-user@test.com',
+            'is_active' => true,
+        ]);
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $systemUser = User::factory()->create([
+            'name' => 'System',
+            'email' => 'superadmin@radium.local',
+            'is_active' => true,
+        ]);
+        $systemUser->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $peer = User::factory()->create([
+            'name' => 'Peer Agent',
+            'email' => 'peer-agent@test.com',
+            'is_active' => true,
+        ]);
+        $peer->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($actor);
+
+        $ids = collect(app(ServiceCaseAssignmentService::class)->reassignableUsers($actor))
+            ->pluck('id')
+            ->all();
+
+        $this->assertContains($peer->id, $ids);
+        $this->assertNotContains($actor->id, $ids);
+        $this->assertNotContains($superadmin->id, $ids);
+        $this->assertNotContains($systemUser->id, $ids);
+    }
+
     public function test_escalation_specialist_uses_support_queues_and_my_work(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));

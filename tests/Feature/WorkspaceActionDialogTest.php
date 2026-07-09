@@ -96,7 +96,9 @@ class WorkspaceActionDialogTest extends TestCase
             ->assertSee('data-workspace-action-form="action"', false)
             ->assertSee('data-workspace-action-card="assign"', false)
             ->assertSee('data-workspace-action-card="close"', false)
+            ->assertSee('Notify Teammate', false)
             ->assertSee('Notify Customer', false)
+            ->assertSee('data-workspace-action-notify="teammate"', false)
             ->assertSee('data-mention-textarea', false)
             ->assertSee('Done', false)
             ->assertSee(route('incidents.workspace.action', $incident), false);

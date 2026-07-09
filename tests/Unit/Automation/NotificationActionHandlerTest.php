@@ -21,6 +21,7 @@ use App\Services\Automation\AutomationNotificationTypeResolver;
 use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Automation\Handlers\NotificationActionHandler;
 use App\Services\IncidentReferenceService;
+use App\Services\Notifications\CustomerAutomationEligibilityService;
 use App\Services\Notifications\NotificationDispatcher;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -79,6 +80,7 @@ class NotificationActionHandlerTest extends TestCase
             app(AutomationNotificationTypeResolver::class),
             app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
             app(CustomerWaitingLifecycleService::class),
+            app(CustomerAutomationEligibilityService::class),
         );
 
         $result = $handler->handle($plannedAction);
@@ -87,6 +89,28 @@ class NotificationActionHandlerTest extends TestCase
         $this->assertSame('msg-handler-001', $result->externalId);
         $this->assertSame(NotificationType::RequestSerialNumber->value, $result->metadata['notification_type']);
         $this->assertCount(2, $result->metadata['channel_results']);
+    }
+
+    public function test_blocks_automated_customer_notification_for_inquiry_cases(): void
+    {
+        [$plannedAction] = $this->makePlannedAction('customer_waiting_followup', inquiry: true);
+
+        $notificationDispatcher = Mockery::mock(NotificationDispatcher::class);
+        $notificationDispatcher->shouldNotReceive('send');
+
+        $handler = new NotificationActionHandler(
+            $notificationDispatcher,
+            app(AutomationNotificationTypeResolver::class),
+            app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
+            app(CustomerWaitingLifecycleService::class),
+            app(CustomerAutomationEligibilityService::class),
+        );
+
+        $result = $handler->handle($plannedAction);
+
+        $this->assertFalse($result->success);
+        $this->assertTrue($result->metadata['blocked'] ?? false);
+        $this->assertSame('unverified_inquiry_recovery', $result->metadata['block_reason'] ?? null);
     }
 
     public function test_returns_failure_when_notification_mapping_is_missing(): void
@@ -101,6 +125,7 @@ class NotificationActionHandlerTest extends TestCase
             app(AutomationNotificationTypeResolver::class),
             app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
             app(CustomerWaitingLifecycleService::class),
+            app(CustomerAutomationEligibilityService::class),
         );
 
         $result = $handler->handle($plannedAction);
@@ -115,18 +140,20 @@ class NotificationActionHandlerTest extends TestCase
     /**
      * @return array{0: PlannedAutomationAction}
      */
-    private function makePlannedAction(string $actionKey): array
+    private function makePlannedAction(string $actionKey, bool $inquiry = false): array
     {
         Carbon::setTestNow('2026-07-01 09:00:00');
 
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
+        $reference = app(IncidentReferenceService::class)->generate();
+
         $order = Order::query()->create([
-            'order_id' => 'RD-AUTO-NH-'.uniqid(),
+            'order_id' => $inquiry ? Order::inquiryOrderIdFromReference($reference) : 'RD-AUTO-NH-'.uniqid(),
             'serial_number' => null,
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'product_name' => $inquiry ? null : 'MFS 110',
+            'device_model' => $inquiry ? null : 'MFS 110',
             'customer_phone' => '9876543210',
             'status' => 'active',
             'created_by' => $agent->id,
@@ -134,8 +161,8 @@ class NotificationActionHandlerTest extends TestCase
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => app(IncidentReferenceService::class)->generate(),
-            'category' => 'General',
+            'reference_no' => $reference,
+            'category' => $inquiry ? 'Missed Call Recovery' : 'General',
             'source' => IncidentSource::Call,
             'title' => 'Notification handler case',
             'description' => 'Notification handler case.',

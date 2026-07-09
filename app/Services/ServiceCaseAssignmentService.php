@@ -426,19 +426,44 @@ class ServiceCaseAssignmentService
     }
 
     /**
+     * Manual assignment dropdown candidates.
+     *
+     * Auto-assignment pools are unchanged and still exclude escalation_specialist.
+     *
      * @return list<User>
      */
-    public function reassignableUsers(): array
+    public function reassignableUsers(?User $actor = null): array
     {
+        $actor ??= auth()->user();
+
+        $systemEmail = strtolower((string) config('cashfree.system_user_email'));
+
         return User::query()
             ->where('is_active', true)
             ->role([
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
                 RolePermissionSeeder::ROLE_AGENT,
+                RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
+                RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+                RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             ])
             ->orderBy('name')
             ->get()
+            ->reject(function (User $user) use ($actor, $systemEmail): bool {
+                if ($actor !== null && $user->id === $actor->id) {
+                    return true;
+                }
+
+                if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
+                    return true;
+                }
+
+                if ($systemEmail !== '' && strcasecmp($user->email, $systemEmail) === 0) {
+                    return true;
+                }
+
+                return false;
+            })
+            ->values()
             ->all();
     }
 
@@ -689,13 +714,29 @@ class ServiceCaseAssignmentService
     {
         if ($assignee->trashed() || ! $assignee->is_active || ! $assignee->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
-            RolePermissionSeeder::ROLE_SUPERADMIN,
             RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
+            RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
             RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
         ])) {
             throw ValidationException::withMessages([
-                'assigned_to_user_id' => 'The selected user must be an active admin or agent.',
+                'assigned_to_user_id' => 'The selected user must be an active assignable teammate.',
+            ]);
+        }
+
+        // Superadmin may also hold admin; never allow as a service-case assignee.
+        if ($assignee->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
+            throw ValidationException::withMessages([
+                'assigned_to_user_id' => 'Superadmin users cannot be assigned service cases.',
+            ]);
+        }
+
+        $systemEmail = (string) config('cashfree.system_user_email');
+
+        if ($systemEmail !== '' && strcasecmp($assignee->email, $systemEmail) === 0) {
+            throw ValidationException::withMessages([
+                'assigned_to_user_id' => 'System users cannot be assigned service cases.',
             ]);
         }
     }

@@ -167,6 +167,16 @@ class IncidentAIContextBuilder
      */
     private function activeServices(Order $order, array $enrichmentMetadata): array
     {
+        if ($order->isInquiryOrder()) {
+            return [
+                [
+                    'label' => 'Enquiry',
+                    'status' => 'Open',
+                    'variant' => 'info',
+                ],
+            ];
+        }
+
         $warranty = $this->normalizeServiceStatus($enrichmentMetadata['warranty'] ?? null);
         $amc = $this->normalizeServiceStatus($enrichmentMetadata['amc'] ?? null);
 

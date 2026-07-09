@@ -8,6 +8,7 @@ use App\Enums\SupportAppointmentBookingSource;
 use App\Enums\WhatsAppTemplate;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
+use App\Services\Notifications\CustomerAutomationEligibilityService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Support\AppDateFormatter;
@@ -19,6 +20,7 @@ class SupportAppointmentConfirmationNotificationService
     public function __construct(
         private readonly NotificationDispatcher $notificationDispatcher,
         private readonly NotificationAuditTrailService $auditTrail,
+        private readonly CustomerAutomationEligibilityService $customerAutomationEligibility,
     ) {}
 
     public function send(
@@ -34,6 +36,18 @@ class SupportAppointmentConfirmationNotificationService
             Log::warning('support_appointment.confirmation.skipped', [
                 'appointment_id' => $appointment->id,
                 'reason' => 'missing_incident_or_order',
+            ]);
+
+            return;
+        }
+
+        $blockReason = $this->customerAutomationEligibility->blockReason($incident);
+
+        if ($blockReason !== null) {
+            Log::info('support_appointment.confirmation.skipped', [
+                'appointment_id' => $appointment->id,
+                'incident_id' => $incident->id,
+                'reason' => $blockReason,
             ]);
 
             return;

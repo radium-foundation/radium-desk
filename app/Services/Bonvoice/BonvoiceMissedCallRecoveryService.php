@@ -231,7 +231,7 @@ class BonvoiceMissedCallRecoveryService
                 serialNumber: null,
                 product: null,
                 notes: $notes,
-                highPriority: true,
+                highPriority: false,
                 assignOnCreate: false,
             );
 
@@ -275,14 +275,21 @@ class BonvoiceMissedCallRecoveryService
         Carbon $at,
     ): void {
         $attemptCount = (int) $incident->missed_call_attempt_count + 1;
+        $incident->loadMissing('order');
 
-        $incident->update([
+        $attributes = [
             'missed_call_attempt_count' => $attemptCount,
             'last_missed_at' => $event->started_at ?? $at,
-            'high_priority' => true,
             'recovery_phone' => $recoveryPhone,
             'updated_by' => $actor->id,
-        ]);
+        ];
+
+        // Matched RD recovery stays high priority; do not force it for INQ-only cases.
+        if (! $incident->order?->isInquiryOrder()) {
+            $attributes['high_priority'] = true;
+        }
+
+        $incident->update($attributes);
 
         $this->linkCall($incident, $event, BonvoiceCallLinkType::Missed);
 

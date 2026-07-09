@@ -105,7 +105,7 @@ class InquiryLifecyclePhase1Test extends TestCase
         $response = $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Order / Enquiry')
+            ->assertSee('>Order</th>', false)
             ->assertSee($incident->display_reference)
             ->assertDontSee('INQ-SC00099')
             ->assertDontSee('order-identifier--enquiry', false);
@@ -214,7 +214,27 @@ class InquiryLifecyclePhase1Test extends TestCase
             ->assertSee($incident->display_reference)
             ->assertSee('Type')
             ->assertSee('Enquiry')
-            ->assertDontSee('INQ-SC00333');
+            ->assertDontSee('INQ-SC00333')
+            ->assertDontSee('RD Service')
+            ->assertDontSee('data-customer-360-radiumbox-sync', false);
+    }
+
+    public function test_customer_360_inquiry_active_services_show_enquiry_only(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createInquiryIncident($agent, 'SC00334', assignTo: $agent);
+
+        $data = app(\App\Services\Customer360Service::class)->drawerData($incident->fresh(['order']));
+
+        $this->assertFalse($data['device']['can_manual_sync']);
+        $this->assertFalse($data['device']['show_sync_diagnostics']);
+        $this->assertFalse($data['device']['should_poll_sync']);
+        $this->assertSame(
+            [['label' => 'Enquiry', 'status' => 'Open', 'variant' => 'info']],
+            $data['activeServices'],
+        );
     }
 
     private function createInquiryIncident(

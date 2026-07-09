@@ -70,6 +70,13 @@ class Customer360Controller extends Controller
             ], 422);
         }
 
+        if ($order->isInquiryOrder()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'RadiumBox enrichment is not available for enquiry cases.',
+            ], 422);
+        }
+
         $result = $this->radiumBoxOrderEnrichmentService->manualSync(
             $order,
             $this->authenticatedUser(),

@@ -148,10 +148,42 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
 
         $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
         $this->assertNotNull($incident);
-        $this->assertTrue($incident->high_priority);
+        $this->assertFalse($incident->high_priority);
         $this->assertSame('9123456789', $incident->recovery_phone);
         $this->assertSame($agent->id, $incident->assigned_to_user_id);
         $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_unmatched_inquiry_merge_does_not_force_high_priority(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+
+        $dayAdmin = $this->createAdminUser('day-admin@test.com', 'Day Admin');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $dayAdmin->id, nightAdminId: $nightAdmin->id);
+        $this->createEligibleAgent('agent@test.com', 'Support Agent');
+
+        $this->postMissedCall(
+            callId: 'call-inq-merge-001',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+            callBackParams: ['menu' => '1'],
+        );
+
+        $this->postMissedCall(
+            callId: 'call-inq-merge-002',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+            callBackParams: ['menu' => '2'],
+        );
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+        $this->assertFalse($incident->high_priority);
+        $this->assertSame(2, $incident->missed_call_attempt_count);
 
         Carbon::setTestNow();
     }

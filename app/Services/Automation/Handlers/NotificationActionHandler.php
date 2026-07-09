@@ -12,6 +12,7 @@ use App\Enums\NotificationChannelType;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Services\Automation\AutomationNotificationTypeResolver;
 use App\Services\Automation\CustomerWaitingLifecycleService;
+use App\Services\Notifications\CustomerAutomationEligibilityService;
 use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
 
@@ -22,6 +23,7 @@ class NotificationActionHandler implements ActionHandler
         private readonly AutomationNotificationTypeResolver $notificationTypeResolver,
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
         private readonly CustomerWaitingLifecycleService $customerWaitingLifecycleService,
+        private readonly CustomerAutomationEligibilityService $customerAutomationEligibility,
     ) {}
 
     public function supports(AutomationPolicyActionType $type): bool
@@ -47,6 +49,18 @@ class NotificationActionHandler implements ActionHandler
 
         if ($incident === null || $order === null) {
             return ActionHandlerResult::failure('Incident order context is required for notification actions.');
+        }
+
+        $blockReason = $this->customerAutomationEligibility->blockReason($incident);
+
+        if ($blockReason !== null) {
+            return ActionHandlerResult::failure(
+                'Automated customer notification blocked for enquiry/spam case.',
+                metadata: [
+                    'blocked' => true,
+                    'block_reason' => $blockReason,
+                ],
+            );
         }
 
         $dispatchResult = $this->notificationDispatcher->send(

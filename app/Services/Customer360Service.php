@@ -299,12 +299,16 @@ class Customer360Service
                 $order->radiumbox_last_sync_error,
                 metadata: $metadata,
             ),
-            'show_sync_diagnostics' => ! $hasSerial,
-            'show_sync_freshness' => $hasSerial && $syncStatus === RadiumBoxEnrichmentSyncStatus::Synced,
+            'show_sync_diagnostics' => ! $order->isInquiryOrder() && ! $hasSerial,
+            'show_sync_freshness' => ! $order->isInquiryOrder()
+                && $hasSerial
+                && $syncStatus === RadiumBoxEnrichmentSyncStatus::Synced,
             'last_synced_label' => $this->resolveLastSyncedLabel($lastSyncedAt),
             'last_synced_relative' => AppDateFormatter::timelineRelative($lastSyncedAt),
             'last_synced_tooltip' => AppDateFormatter::datetime($lastSyncedAt),
-            'should_poll_sync' => ! $hasSerial && $syncStatus === RadiumBoxEnrichmentSyncStatus::Pending,
+            'should_poll_sync' => ! $order->isInquiryOrder()
+                && ! $hasSerial
+                && $syncStatus === RadiumBoxEnrichmentSyncStatus::Pending,
             'device_refresh_url' => route('dashboard.service-cases.customer-360.device', $incident),
             'can_manual_sync' => $this->canManualRadiumBoxSync($order, $syncStatus),
             'manual_sync_url' => route('dashboard.service-cases.customer-360.radiumbox-sync', $incident),
@@ -353,6 +357,10 @@ class Customer360Service
 
     private function canManualRadiumBoxSync(Order $order, RadiumBoxEnrichmentSyncStatus $syncStatus): bool
     {
+        if ($order->isInquiryOrder()) {
+            return false;
+        }
+
         if (filled($order->serial_number)) {
             return false;
         }
@@ -374,6 +382,16 @@ class Customer360Service
      */
     private function activeServices(Order $order, array $enrichmentMetadata): array
     {
+        if ($order->isInquiryOrder()) {
+            return [
+                [
+                    'label' => 'Enquiry',
+                    'status' => 'Open',
+                    'variant' => 'info',
+                ],
+            ];
+        }
+
         $warranty = $this->normalizeServiceStatus($enrichmentMetadata['warranty'] ?? null);
         $amc = $this->normalizeServiceStatus($enrichmentMetadata['amc'] ?? null);
 
