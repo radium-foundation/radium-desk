@@ -4,12 +4,16 @@ namespace App\Services;
 
 use App\Enums\WaitingReason;
 use App\Exceptions\ActiveWaitingStateExistsException;
+use App\Exceptions\InvalidAutomationPolicyException;
+use App\Exceptions\UnknownAutomationPolicyException;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\Interakt\RequestSerialCommunicationHistoryService;
+use App\Notifications\ServiceCaseCustomerRespondedNotification;
 use App\Services\Automation\CustomerWaitingLifecycleService;
+use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -50,15 +54,20 @@ class IncidentWaitingStateService
             $reasonConfig = config("waiting_states.reasons.{$reason->value}", []);
             $policyKey = $reminderPolicyKey ?? ($reasonConfig['default_reminder_policy_key'] ?? null);
             $slaPaused = $pauseSla ?? (bool) ($reasonConfig['pause_sla'] ?? false);
+            $startedAtResolved = $startedAt ?? now();
 
             $waitingState = IncidentWaitingState::query()->create([
                 'incident_id' => $incident->id,
                 'waiting_reason' => $reason,
-                'started_at' => $startedAt ?? now(),
+                'started_at' => $startedAtResolved,
                 'sla_paused' => $slaPaused,
                 'reminder_policy_key' => $policyKey,
                 'metadata' => $metadata,
-                'next_action_at' => $nextActionAt,
+                'next_action_at' => $nextActionAt ?? $this->resolveDefaultNextActionAt(
+                    reason: $reason,
+                    policyKey: $policyKey,
+                    startedAt: $startedAtResolved,
+                ),
                 'created_by' => $actor->id,
                 'updated_by' => $actor->id,
             ]);
@@ -91,7 +100,56 @@ class IncidentWaitingStateService
             }
 
             $this->clear($incident, $actor);
+            $this->wakeOwnerAfterCustomerResponse(
+                incident: $incident->fresh(['assignee', 'order', 'activeWaitingState', 'supportAppointments']),
+                reason: WaitingReason::SerialNumber,
+            );
         }
+    }
+
+    public function resolveDefaultNextActionAt(
+        WaitingReason $reason,
+        ?string $policyKey,
+        Carbon $startedAt,
+    ): Carbon {
+        if ($reason === WaitingReason::SerialNumber) {
+            $hours = max(1, (int) config('missing_serial.reminder_delay_hours', 24));
+
+            return $startedAt->copy()->addHours($hours);
+        }
+
+        if ($policyKey !== null && $policyKey !== '') {
+            try {
+                $policy = app(AutomationPolicyService::class)->load($policyKey);
+                $firstFollowUpDay = collect($policy->schedule)
+                    ->map(fn ($entry) => $entry->day)
+                    ->filter(fn (int $day): bool => $day > 0)
+                    ->min();
+
+                if (is_int($firstFollowUpDay)) {
+                    return $startedAt->copy()->addDays($firstFollowUpDay);
+                }
+            } catch (UnknownAutomationPolicyException|InvalidAutomationPolicyException) {
+                // Fall through to default hours.
+            }
+        }
+
+        $defaultHours = max(1, (int) config('waiting_states.default_follow_up_hours', 24));
+
+        return $startedAt->copy()->addHours($defaultHours);
+    }
+
+    public function wakeOwnerAfterCustomerResponse(Incident $incident, WaitingReason $reason): void
+    {
+        $assignee = $incident->assignee;
+
+        if ($assignee === null || ! $assignee->is_active || $assignee->trashed()) {
+            return;
+        }
+
+        $assignee->notify(new ServiceCaseCustomerRespondedNotification($incident, $reason));
+
+        app(DashboardSnapshotStore::class)->forget();
     }
 
     public function ensureSerialWaitingState(Incident $incident, User $actor): IncidentWaitingState

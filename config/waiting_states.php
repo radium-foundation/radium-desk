@@ -14,6 +14,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Agent Follow-up Defaults
+    |--------------------------------------------------------------------------
+    |
+    | When a waiting state starts without an explicit next_action_at, the first
+    | agent follow-up is derived from reminder policy schedules. Serial-number
+    | waiting uses missing_serial.reminder_delay_hours instead.
+    |
+    */
+    'default_follow_up_hours' => (int) env('WAITING_STATE_DEFAULT_FOLLOW_UP_HOURS', 24),
+
+    /*
+    |--------------------------------------------------------------------------
     | Waiting Reasons
     |--------------------------------------------------------------------------
     |

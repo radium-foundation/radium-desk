@@ -83,7 +83,7 @@ class DashboardKpiAggregator
                 );
             });
         $waitingFollowUps = $snapshot->incidentsForQueue(OperationQueue::WaitingCustomer->value, $user)
-            ->filter(fn (Incident $incident): bool => $classifier->isWaitingFollowUpDue($incident));
+            ->filter(fn (Incident $incident): bool => $classifier->isAssignedWaitingCustomer($incident));
         $completedToday = $snapshot->activeIncidents()
             ->filter(function (Incident $incident) use ($user, $today, $classifier): bool {
                 if ($incident->assigned_to_user_id !== $user->id || ! $classifier->isCompleted($incident)) {

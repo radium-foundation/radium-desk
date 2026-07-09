@@ -321,8 +321,10 @@ class IncidentWaitingStateTest extends TestCase
         $this->assertTrue($waitingState->next_action_at->equalTo($nextActionAt));
     }
 
-    public function test_start_without_metadata_and_next_action_at_remains_backward_compatible(): void
+    public function test_start_sets_default_next_action_at_when_not_provided(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:15:21', AppDateFormatter::timezone()));
+
         [$agent, $incident] = $this->createOpenIncidentWithoutSerial();
         $service = app(IncidentWaitingStateService::class);
 
@@ -336,12 +338,16 @@ class IncidentWaitingStateTest extends TestCase
             'incident_id' => $incident->id,
             'waiting_reason' => WaitingReason::CustomerApproval->value,
             'metadata' => null,
-            'next_action_at' => null,
         ]);
 
         $waitingState->refresh();
         $this->assertNull($waitingState->metadata);
-        $this->assertNull($waitingState->next_action_at);
+        $this->assertNotNull($waitingState->next_action_at);
+        $this->assertTrue($waitingState->next_action_at->equalTo(
+            Carbon::parse('2026-07-10 10:15:21', AppDateFormatter::timezone()),
+        ));
+
+        Carbon::setTestNow();
     }
 
     public function test_customer360_renders_next_action_when_set(): void

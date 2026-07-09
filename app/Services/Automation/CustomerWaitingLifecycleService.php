@@ -70,6 +70,7 @@ TEXT;
                 'waiting_reason_label' => $waitingState->waiting_reason->label(),
                 'customer_waiting_since' => $waitingState->started_at->toIso8601String(),
                 'reminder_policy_key' => $waitingState->reminder_policy_key,
+                'next_action_at' => $waitingState->next_action_at?->toIso8601String(),
             ],
         );
     }

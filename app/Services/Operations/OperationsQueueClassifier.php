@@ -71,10 +71,14 @@ class OperationsQueueClassifier
             return false;
         }
 
+        if ($this->hasTodaysScheduledAppointment($incident)) {
+            return true;
+        }
+
         $queue = $this->classify($incident);
 
         if ($queue === OperationQueue::WaitingCustomer) {
-            return $this->isWaitingFollowUpDue($incident);
+            return true;
         }
 
         if ($queue === OperationQueue::Hardware) {
@@ -104,6 +108,34 @@ class OperationsQueueClassifier
 
         return $waitingState->next_action_at !== null
             && $waitingState->next_action_at->lessThanOrEqualTo(now());
+    }
+
+    public function isAssignedWaitingCustomer(Incident $incident): bool
+    {
+        return $this->isWaitingCustomer($incident);
+    }
+
+    public function hasTodaysScheduledAppointment(Incident $incident): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        $appointments = $incident->relationLoaded('supportAppointments')
+            ? $incident->supportAppointments
+            : $incident->supportAppointments()->get();
+
+        if ($appointments->isEmpty()) {
+            return false;
+        }
+
+        $today = now()->startOfDay();
+
+        return $appointments->contains(
+            fn ($appointment): bool => $appointment->isScheduled()
+                && $appointment->preferred_date !== null
+                && $appointment->preferred_date->isSameDay($today),
+        );
     }
 
     public function isCompleted(Incident $incident): bool

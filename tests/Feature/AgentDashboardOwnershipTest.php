@@ -187,7 +187,7 @@ class AgentDashboardOwnershipTest extends TestCase
             ->assertDontSee('My Attention');
     }
 
-    public function test_assigned_waiting_customer_without_follow_up_is_excluded_from_my_work(): void
+    public function test_assigned_waiting_customer_is_included_in_my_work(): void
     {
         $agent = $this->createAgent('Waiting Agent');
         $creator = User::factory()->create();
@@ -206,8 +206,8 @@ class AgentDashboardOwnershipTest extends TestCase
         $incident = $waitingCase->fresh(['activeWaitingState', 'order', 'supportAppointments', 'assignee']);
 
         $this->assertTrue($classifier->isWaitingCustomer($incident));
-        $this->assertFalse($classifier->matchesMyWork($incident, $agent));
-        $this->assertSame(0, DashboardSnapshot::load()->incidentsForQueue('my_work', $agent)->count());
+        $this->assertTrue($classifier->matchesMyWork($incident, $agent));
+        $this->assertSame(1, DashboardSnapshot::load()->incidentsForQueue('my_work', $agent)->count());
     }
 
     public function test_assigned_waiting_customer_with_due_follow_up_is_included_in_my_work(): void

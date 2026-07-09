@@ -500,6 +500,10 @@ class ServiceCaseAssignmentService
             ]);
         }
 
+        if ($incident->assigned_to_user_id === $assignee->id) {
+            return $incident->fresh(['assignee']);
+        }
+
         return DB::transaction(function () use ($incident, $assignee, $actor, $event, $extraNewValues): Incident {
             $oldValues = [
                 'assigned_to_user_id' => $incident->assigned_to_user_id,
