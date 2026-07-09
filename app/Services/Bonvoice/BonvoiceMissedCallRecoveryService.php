@@ -17,6 +17,7 @@ use App\Services\AutomationIdentityService;
 use App\Services\CustomerIntakeService;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\QuickServiceRequestService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use App\Services\ServiceCaseAssignmentService;
 use App\Services\ServiceCaseStatusService;
 use App\Services\SettingService;
@@ -41,6 +42,7 @@ class BonvoiceMissedCallRecoveryService
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
         private readonly SettingService $settingService,
+        private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
     ) {}
 
     public function process(BonvoiceCallEvent $event, ?string $previousStatus): void
@@ -85,10 +87,24 @@ class BonvoiceMissedCallRecoveryService
             return;
         }
 
+        $match = $this->customerResolver->resolve($event->customer_phone);
+
+        if (! $this->isEligibleForRecoveryCase($event, $match)) {
+            Log::info('[BonVoice Missed Call Recovery] Skipping case creation — no customer interaction', [
+                'call_id' => $event->call_id,
+                'bonvoice_call_event_id' => $event->id,
+                'status' => $event->status,
+                'order_matched' => $match['order_id'] !== null,
+            ]);
+
+            return;
+        }
+
         $actor = $this->automationIdentity->systemUser();
         $at = $event->started_at ?? now();
+        $enrichmentOrder = null;
 
-        DB::transaction(function () use ($event, $recoveryPhone, $actor, $at): void {
+        DB::transaction(function () use ($event, $recoveryPhone, $actor, $at, $match, &$enrichmentOrder): void {
             $existing = $this->findOpenRecoveryCaseForUpdate($recoveryPhone);
 
             if ($existing instanceof Incident) {
@@ -97,24 +113,107 @@ class BonvoiceMissedCallRecoveryService
                 return;
             }
 
-            $this->createRecoveryCase($event, $recoveryPhone, $actor, $at);
+            $enrichmentOrder = $this->createRecoveryCase($event, $recoveryPhone, $actor, $at, $match);
         });
+
+        if ($enrichmentOrder instanceof Order) {
+            $this->dispatchOrderEnrichmentIfEligible($enrichmentOrder);
+        }
     }
 
+    /**
+     * @param  array{
+     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     customer_phone: ?string,
+     *     order_id: ?int,
+     *     order_label: ?string,
+     *     incident_id: ?int,
+     * }  $match
+     */
+    private function isEligibleForRecoveryCase(BonvoiceCallEvent $event, array $match): bool
+    {
+        // Rule C: NOINPUT / no interaction never creates a recovery case.
+        if (BonvoiceCallStatuses::normalize($event->status) === 'NOINPUT') {
+            return false;
+        }
+
+        // Rule A: matched customer/order is eligible without requiring IVR params.
+        if ($match['order_id'] !== null) {
+            return true;
+        }
+
+        // Rule B: unmatched callers need customer interaction (IVR input).
+        return $this->hasCustomerInteraction($event);
+    }
+
+    /**
+     * Initial interaction gate — refine after real BonVoice payload samples.
+     */
+    private function hasCustomerInteraction(BonvoiceCallEvent $event): bool
+    {
+        if (BonvoiceCallStatuses::normalize($event->status) === 'NOINPUT') {
+            return false;
+        }
+
+        if ($this->hasNonEmptyCallbackParams($event->callback_params)) {
+            return true;
+        }
+
+        // Reserved for future answered / customer-action signals from payload samples.
+        return false;
+    }
+
+    private function hasNonEmptyCallbackParams(mixed $callbackParams): bool
+    {
+        if (! is_array($callbackParams) || $callbackParams === []) {
+            return false;
+        }
+
+        foreach ($callbackParams as $value) {
+            if (is_array($value)) {
+                if ($this->hasNonEmptyCallbackParams($value)) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (is_string($value) && trim($value) !== '') {
+                return true;
+            }
+
+            if (is_numeric($value) || is_bool($value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array{
+     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     customer_phone: ?string,
+     *     order_id: ?int,
+     *     order_label: ?string,
+     *     incident_id: ?int,
+     * }  $match
+     */
     private function createRecoveryCase(
         BonvoiceCallEvent $event,
         string $recoveryPhone,
         User $actor,
         Carbon $at,
-    ): void {
-        $match = $this->customerResolver->resolve($event->customer_phone);
+        array $match,
+    ): ?Order {
         $notes = $this->missedCallDescription($event);
+        $matchedOrder = null;
 
         if ($match['order_id'] !== null) {
-            $order = Order::query()->findOrFail($match['order_id']);
+            $matchedOrder = Order::query()->findOrFail($match['order_id']);
             $incident = $this->quickServiceRequestService->createForOrder(
                 user: $actor,
-                order: $order,
+                order: $matchedOrder,
                 source: IncidentSource::Call,
                 notes: $notes,
                 highPriority: true,
@@ -164,6 +263,8 @@ class BonvoiceMissedCallRecoveryService
                 'missed_call_attempt_count' => 1,
             ],
         );
+
+        return $matchedOrder;
     }
 
     private function mergeMissedCall(
@@ -422,5 +523,14 @@ class BonvoiceMissedCallRecoveryService
         }
 
         $incident->assignee->notify(new HighPriorityServiceCaseNotification($incident, $actor));
+    }
+
+    private function dispatchOrderEnrichmentIfEligible(Order $order): void
+    {
+        if ($order->isInquiryOrder()) {
+            return;
+        }
+
+        $this->radiumBoxOrderEnrichmentService->dispatch($order);
     }
 }

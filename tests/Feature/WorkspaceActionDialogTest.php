@@ -295,6 +295,53 @@ class WorkspaceActionDialogTest extends TestCase
         );
     }
 
+    public function test_inquiry_case_can_close_without_serial_number(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, [
+            'order_id' => 'INQ-SC08777',
+            'serial_number' => '',
+        ])->load('order');
+
+        $this->assertTrue($incident->order?->isInquiryOrder());
+        $this->assertSame('', (string) $incident->order?->serial_number);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Closing inquiry without serial.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertTrue(! filled(trim((string) $incident->fresh()->order?->serial_number)));
+    }
+
+    public function test_device_case_still_requires_serial_number_before_close(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, [
+            'order_id' => 'RD-DEVICE-1',
+            'serial_number' => '',
+        ])->load('order');
+
+        $this->assertFalse($incident->order?->isInquiryOrder());
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'body' => 'Attempting close without serial.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Serial Number is required before closing this service case.');
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+    }
+
     public function test_reopen_dialog_does_not_show_assignee_selector(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');

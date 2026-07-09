@@ -28,7 +28,7 @@ class ServiceCaseCloseRequirementService
 
         $order = $incident->order;
 
-        if (! $serialNumberUnavailable) {
+        if (! $serialNumberUnavailable && ! ($order?->isInquiryOrder() ?? false)) {
             if ($order === null || ! filled(trim((string) $order->serial_number))) {
                 $messages['serial_number'] = 'Serial Number is required before closing this service case.';
             } elseif ($this->placeholderService->isPlaceholder((string) $order->serial_number)) {

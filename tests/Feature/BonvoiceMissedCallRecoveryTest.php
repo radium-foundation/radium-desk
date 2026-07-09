@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Incident;
 use App\Models\IncidentBonvoiceCallLink;
 use App\Models\Order;
@@ -16,6 +17,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class BonvoiceMissedCallRecoveryTest extends TestCase
@@ -60,6 +62,8 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
 
     public function test_missed_call_creates_recovery_case(): void
     {
+        Queue::fake([RadiumBoxOrderEnrichmentJob::class]);
+
         Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
 
         $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
@@ -92,6 +96,132 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
             'event' => 'missed_call_recovery.created',
             'auditable_id' => $incident->id,
         ]);
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, function (RadiumBoxOrderEnrichmentJob $job) use ($order): bool {
+            return $job->orderId === $order->id;
+        });
+
+        Carbon::setTestNow();
+    }
+
+    public function test_noinput_does_not_create_recovery_case_but_keeps_call_log(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->seedCustomerOrder('9876543210');
+
+        $this->postMissedCall('call-noinput-001', status: 'NOINPUT');
+
+        $this->assertDatabaseHas('bonvoice_call_events', [
+            'call_id' => 'call-noinput-001',
+            'status' => 'NOINPUT',
+        ]);
+
+        $this->assertDatabaseMissing('incidents', [
+            'category' => BonvoiceMissedCallRecoveryService::CATEGORY,
+        ]);
+
+        $this->assertSame(0, IncidentBonvoiceCallLink::query()->where('call_id', 'call-noinput-001')->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_missed_unmatched_with_ivr_input_creates_inquiry_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+
+        $dayAdmin = $this->createAdminUser('day-admin@test.com', 'Day Admin');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $dayAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $agent = $this->createEligibleAgent('agent@test.com', 'Support Agent');
+
+        $this->postMissedCall(
+            callId: 'call-unmatched-ivr-001',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+            callBackParams: ['menu' => '1', 'option' => 'support'],
+        );
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->high_priority);
+        $this->assertSame('9123456789', $incident->recovery_phone);
+        $this->assertSame($agent->id, $incident->assigned_to_user_id);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_missed_unmatched_without_ivr_input_does_not_create_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->postMissedCall(
+            callId: 'call-unmatched-no-ivr-001',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+        );
+
+        $this->assertDatabaseHas('bonvoice_call_events', [
+            'call_id' => 'call-unmatched-no-ivr-001',
+            'status' => 'NOANSWER',
+        ]);
+
+        $this->assertDatabaseMissing('incidents', [
+            'category' => BonvoiceMissedCallRecoveryService::CATEGORY,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_matched_missed_call_dispatches_order_enrichment(): void
+    {
+        Queue::fake([RadiumBoxOrderEnrichmentJob::class]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $order = $this->seedCustomerOrder('9876543210');
+
+        $this->postMissedCall('call-enrich-001');
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, function (RadiumBoxOrderEnrichmentJob $job) use ($order): bool {
+            return $job->orderId === $order->id;
+        });
+
+        Carbon::setTestNow();
+    }
+
+    public function test_inquiry_recovery_case_does_not_dispatch_order_enrichment(): void
+    {
+        Queue::fake([RadiumBoxOrderEnrichmentJob::class]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->postMissedCall(
+            callId: 'call-inq-no-enrich-001',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+            callBackParams: ['dtmf' => '2'],
+        );
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Queue::assertNotPushed(RadiumBoxOrderEnrichmentJob::class);
 
         Carbon::setTestNow();
     }
@@ -249,18 +379,26 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
         Carbon::setTestNow();
     }
 
-    private function postMissedCall(string $callId): void
-    {
+    private function postMissedCall(
+        string $callId,
+        string $status = 'NOANSWER',
+        string $sourceNumber = '9876543210',
+        ?array $callBackParams = null,
+    ): void {
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: $callId,
             status: 'Ringing',
             eventId: $callId.'-ringing',
+            sourceNumber: $sourceNumber,
+            callBackParams: $callBackParams,
         ))->assertOk();
 
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: $callId,
-            status: 'NOANSWER',
+            status: $status,
             eventId: $callId.'-missed',
+            sourceNumber: $sourceNumber,
+            callBackParams: $callBackParams,
         ))->assertOk();
     }
 
@@ -322,6 +460,7 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
     }
 
     /**
+     * @param  array<string, mixed>|null  $callBackParams
      * @return array<string, mixed>
      */
     private function inboundCallPayload(
@@ -329,9 +468,11 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
         string $status,
         string $eventId,
         ?string $agentStatus = null,
+        string $sourceNumber = '9876543210',
+        ?array $callBackParams = null,
     ): array {
         return [
-            'SourceNumber' => '9876543210',
+            'SourceNumber' => $sourceNumber,
             'DestinationNumber' => '1800123456',
             'DisplayNumber' => '1800123456',
             'StartTime' => Carbon::now('Asia/Kolkata')->toIso8601String(),
@@ -345,7 +486,7 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
             'AgentStatus' => $agentStatus,
             'eventID' => $eventId,
             'callBackParentID' => null,
-            'callBackParams' => null,
+            'callBackParams' => $callBackParams,
         ];
     }
 }
