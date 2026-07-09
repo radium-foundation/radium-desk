@@ -23,6 +23,8 @@ class RolePermissionSeeder extends Seeder
 
     public const ROLE_HARDWARE_TEAM = 'hardware_team';
 
+    public const ROLE_ESCALATION_SPECIALIST = 'escalation_specialist';
+
     /**
      * @var list<string>
      */
@@ -72,6 +74,19 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
         ],
         self::ROLE_CUSTOMER_COORDINATOR => [
+            'orders.view',
+            'incidents.view',
+            'incidents.create',
+            'incidents.update',
+            'remarks.view',
+            'remarks.create',
+            'approvals.view',
+            'refunds.view',
+            'refunds.create',
+            'leave-requests.view',
+            'leave-requests.create',
+        ],
+        self::ROLE_ESCALATION_SPECIALIST => [
             'orders.view',
             'incidents.view',
             'incidents.create',

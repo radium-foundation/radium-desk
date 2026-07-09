@@ -71,6 +71,10 @@ return [
             'label' => 'Customer Coordinator',
             'description' => 'Customer follow-up, communication, and waiting-state coordination.',
         ],
+        'escalation_specialist' => [
+            'label' => 'Escalation Specialist',
+            'description' => 'High-priority exceptions, escalations, and red-flag customers — not normal intake.',
+        ],
         'hardware_team' => [
             'label' => 'Hardware Team',
             'description' => 'RDE hardware orders and device processing.',

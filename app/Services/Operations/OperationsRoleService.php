@@ -31,6 +31,7 @@ class OperationsRoleService
             RolePermissionSeeder::ROLE_AGENT,
             RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
             RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
         ];
     }
@@ -63,6 +64,7 @@ class OperationsRoleService
             RolePermissionSeeder::ROLE_AGENT,
             RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
             RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
         ]);
     }
 
@@ -80,6 +82,7 @@ class OperationsRoleService
     {
         return $user->hasAnyRole([
             ...RolePermissionSeeder::SUPPORT_TEAM_ROLES,
+            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
         ]);
     }
@@ -96,6 +99,7 @@ class OperationsRoleService
     {
         return [
             ...RolePermissionSeeder::SUPPORT_TEAM_ROLES,
+            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
         ];
     }

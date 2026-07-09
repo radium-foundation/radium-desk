@@ -58,7 +58,7 @@
                 @endcan
             </li>
             <li class="nav-item">
-                @if(auth()->user()?->hasAnyRole(\Database\Seeders\RolePermissionSeeder::SUPPORT_TEAM_ROLES) || auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_HARDWARE_TEAM))
+                @if(auth()->user()?->hasAnyRole(\Database\Seeders\RolePermissionSeeder::SUPPORT_TEAM_ROLES) || auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST) || auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_HARDWARE_TEAM))
                     <a @class(['nav-link', 'active' => request()->routeIs('my-performance.*')]) href="{{ route('my-performance.index') }}" title="Your Performance">
                         <i class="bi bi-bar-chart nav-icon me-2"></i>
                         <span class="nav-label">Your Performance</span>

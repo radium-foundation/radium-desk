@@ -634,6 +634,7 @@ class ServiceCaseAssignmentService
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
             RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
         ])) {
             throw ValidationException::withMessages([
@@ -644,11 +645,13 @@ class ServiceCaseAssignmentService
 
     public function isSupportAgent(User $user): bool
     {
-        return $user->hasRole(RolePermissionSeeder::ROLE_AGENT)
-            && ! $user->hasAnyRole([
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ]);
+        return $user->hasAnyRole([
+            RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
+        ]) && ! $user->hasAnyRole([
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+        ]);
     }
 
     public function isShiftAdmin(User $user): bool
