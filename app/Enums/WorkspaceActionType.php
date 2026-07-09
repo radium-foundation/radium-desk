@@ -7,6 +7,7 @@ enum WorkspaceActionType: string
     case Assign = 'assign';
     case Close = 'close';
     case Reopen = 'reopen';
+    case Escalate = 'escalate';
 
     /**
      * @return list<string>

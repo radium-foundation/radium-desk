@@ -5513,6 +5513,23 @@ body.customer-360-drawer-open {
     font-size: 0.875rem;
 }
 
+.workspace-action-escalate-row {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.workspace-action-escalate-btn {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+    line-height: 1.3;
+}
+
+.workspace-action-escalate-btn.is-active {
+    color: var(--bs-secondary);
+    border-color: var(--bs-secondary);
+    background-color: rgba(var(--bs-secondary-rgb), 0.08);
+}
+
 .workspace-note-dialog-body {
     padding-top: 0.25rem;
 }

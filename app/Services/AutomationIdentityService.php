@@ -55,6 +55,31 @@ class AutomationIdentityService
         return strcasecmp($user->email, $systemEmail) === 0;
     }
 
+    public function isExcludedFromManualAssignment(User $user): bool
+    {
+        if ($this->isAutomationActor($user)) {
+            return true;
+        }
+
+        $email = strtolower(trim((string) $user->email));
+
+        if ($email === '') {
+            return true;
+        }
+
+        if (str_starts_with($email, 'demo@')) {
+            return true;
+        }
+
+        foreach (config('service_case_assignment.manual_assign_excluded_emails', []) as $excludedEmail) {
+            if (strcasecmp($email, strtolower(trim((string) $excludedEmail))) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function systemUser(): User
     {
         $systemEmail = (string) config('cashfree.system_user_email');

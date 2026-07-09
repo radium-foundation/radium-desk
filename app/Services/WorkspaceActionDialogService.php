@@ -17,6 +17,8 @@ class WorkspaceActionDialogService
         private readonly WorkspaceAssignActionService $assignActionService,
         private readonly WorkspaceCloseActionService $closeActionService,
         private readonly WorkspaceReopenActionService $reopenActionService,
+        private readonly WorkspaceEscalateActionService $escalateActionService,
+        private readonly ServiceCaseEscalationService $escalationService,
     ) {}
 
     /**
@@ -56,6 +58,13 @@ class WorkspaceActionDialogService
                     : null,
                 request: $request,
             ),
+            WorkspaceActionType::Escalate => $this->escalateActionService->escalate(
+                incident: $incident,
+                actor: $actor,
+                body: (string) ($payload['body'] ?? ''),
+                requestContext: $requestContext,
+                request: $request,
+            ),
         };
     }
 
@@ -85,6 +94,12 @@ class WorkspaceActionDialogService
                 $exception,
                 $payload,
             ),
+            WorkspaceActionType::Escalate => $this->escalateActionService->validationFailure(
+                $incident,
+                $requestContext,
+                $exception,
+                $payload,
+            ),
         };
     }
 
@@ -100,6 +115,7 @@ class WorkspaceActionDialogService
             'assign' => $user->can('reassign', $incident) && ! $isClosed,
             'close' => $canUpdate && ! $isClosed,
             'reopen' => $canUpdate && $isClosed,
+            'escalate' => $this->escalationService->canEscalate($incident, $user),
         ];
     }
 }

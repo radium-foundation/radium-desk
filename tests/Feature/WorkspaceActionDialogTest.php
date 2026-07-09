@@ -28,6 +28,10 @@ class WorkspaceActionDialogTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+
+        config([
+            'service_case_assignment.escalation.level_1_email' => 'shubhanshi@radiumbox.com',
+        ]);
     }
 
     private function createAdminUser(string $email, string $name): User
@@ -48,6 +52,18 @@ class WorkspaceActionDialogTest extends TestCase
             'email' => $email,
         ]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        return $user;
+    }
+
+    private function createEscalationSpecialist(string $email, string $name): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'email' => $email,
+            'is_active' => true,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST);
 
         return $user;
     }
@@ -83,9 +99,11 @@ class WorkspaceActionDialogTest extends TestCase
     public function test_action_component_fragment_renders_customer_action_dialog(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
-        $incident = $this->createIncident($admin);
+        $agent = $this->createAgentUser('agent@example.com', 'Support Agent');
+        $this->createEscalationSpecialist('shubhanshi@radiumbox.com', 'Shubhanshi');
+        $incident = $this->createIncident($admin, ['assigned_to_user_id' => $agent->id]);
 
-        $this->actingAs($admin)
+        $this->actingAs($agent)
             ->get(route('incidents.components.show', [
                 'incident' => $incident,
                 'component' => 'action',
@@ -96,7 +114,9 @@ class WorkspaceActionDialogTest extends TestCase
             ->assertSee('data-workspace-action-form="action"', false)
             ->assertSee('data-workspace-action-card="assign"', false)
             ->assertSee('data-workspace-action-card="close"', false)
+            ->assertSee('data-workspace-action-escalate', false)
             ->assertSee('Notify Teammate', false)
+            ->assertSee('Telegram alert is sent during teammate working hours. Critical escalations notify immediately.', false)
             ->assertSee('Notify Customer', false)
             ->assertSee('data-workspace-action-notify="teammate"', false)
             ->assertSee('data-mention-textarea', false)

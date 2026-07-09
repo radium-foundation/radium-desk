@@ -4,7 +4,7 @@
 
     $selectedAction = $selectedAction ?? WorkspaceActionType::Assign;
     $formPayload = $formPayload ?? [];
-    $capabilities = $actionCapabilities ?? ['assign' => false, 'close' => false, 'reopen' => false];
+    $capabilities = $actionCapabilities ?? ['assign' => false, 'close' => false, 'reopen' => false, 'escalate' => false];
     $bodyValue = old('body', $formPayload['body'] ?? $remarkBody ?? '');
     $assigneeValue = old('assigned_to_user_id', $formPayload['assigned_to_user_id'] ?? $incident->assigned_to_user_id);
     $serialUnavailable = old('serial_number_unavailable', $formPayload['serial_number_unavailable'] ?? false);
@@ -72,6 +72,17 @@
             @endif
         </div>
 
+        @if($capabilities['escalate'])
+            <div class="workspace-action-escalate-row mb-3">
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary workspace-action-escalate-btn @if($selectedAction === WorkspaceActionType::Escalate) is-active @endif"
+                        data-workspace-action-escalate
+                        aria-pressed="{{ $selectedAction === WorkspaceActionType::Escalate ? 'true' : 'false' }}">
+                    Escalate
+                </button>
+            </div>
+        @endif
+
         <div class="workspace-action-panel @if($selectedAction !== WorkspaceActionType::Assign) d-none @endif"
              data-workspace-action-panel="assign">
             <div class="mb-0">
@@ -97,9 +108,21 @@
                       aria-label="Teammate notification">
                 <legend class="form-label mb-2">Notify Teammate</legend>
                 <p class="text-muted small mb-0">
-                    Assignee is notified on Telegram when assignment notifications are enabled.
+                    Telegram alert is sent during teammate working hours. Critical escalations notify immediately.
                 </p>
             </fieldset>
+        </div>
+
+        <div class="workspace-action-panel @if($selectedAction !== WorkspaceActionType::Escalate) d-none @endif"
+             data-workspace-action-panel="escalate">
+            <p class="text-muted small mb-0">
+                @if($escalationTarget ?? null)
+                    Case will be escalated to <strong>{{ $escalationTarget->firstName() }}</strong> for supervisor intervention.
+                @else
+                    Case will be escalated to the escalation specialist for supervisor intervention.
+                @endif
+                Telegram alert is sent during their working hours.
+            </p>
         </div>
 
         <div class="workspace-action-panel @if($selectedAction !== WorkspaceActionType::Close) d-none @endif"
@@ -272,6 +295,14 @@
 
     <div class="modal-footer border-0 pt-0">
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-sm btn-primary px-4">Done</button>
+        <button type="submit"
+                class="btn btn-sm @if($selectedAction === WorkspaceActionType::Escalate) btn-outline-secondary @else btn-primary @endif px-4"
+                data-workspace-action-submit>
+            @if($selectedAction === WorkspaceActionType::Escalate)
+                Escalate
+            @else
+                Done
+            @endif
+        </button>
     </div>
 </form>

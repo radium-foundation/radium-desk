@@ -83,6 +83,7 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 'reassignableAdmins' => $this->assignmentService->reassignableAdmins(),
                 'actionCapabilities' => $this->actionCapabilities($incident, auth()->user()),
+                'escalationTarget' => app(ServiceCaseEscalationService::class)->resolveLevel1Target(),
                 'selectedAction' => WorkspaceActionType::tryFrom((string) request()->query('action'))
                     ?? ($incident->status === IncidentStatus::Closed
                         ? WorkspaceActionType::Reopen
@@ -223,7 +224,7 @@ class WorkspaceComponentService
     {
         $capabilities = $this->actionCapabilities($incident, $user);
 
-        return $capabilities['assign'] || $capabilities['close'] || $capabilities['reopen'];
+        return $capabilities['assign'] || $capabilities['close'] || $capabilities['reopen'] || $capabilities['escalate'];
     }
 
     /**
@@ -238,6 +239,7 @@ class WorkspaceComponentService
             'assign' => $user->can('reassign', $incident) && ! $isClosed,
             'close' => $canUpdate && ! $isClosed,
             'reopen' => $canUpdate && $isClosed,
+            'escalate' => app(ServiceCaseEscalationService::class)->canEscalate($incident, $user),
         ];
     }
 

@@ -10,6 +10,7 @@ use App\Enums\WorkspaceContext;
 use App\Http\Requests\Concerns\RequiresActionRemarkBody;
 use App\Models\Incident;
 use App\Services\WorkspaceActionDialogService;
+use App\Services\ServiceCaseEscalationService;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -43,6 +44,7 @@ class WorkspaceActionRequest extends FormRequest
                 && $incident->status !== IncidentStatus::Closed,
             WorkspaceActionType::Reopen => $user->can('update', $incident)
                 && $incident->status === IncidentStatus::Closed,
+            WorkspaceActionType::Escalate => app(ServiceCaseEscalationService::class)->canEscalate($incident, $user),
         };
     }
 
@@ -111,6 +113,7 @@ class WorkspaceActionRequest extends FormRequest
                         ->whereNull('deleted_at')),
                 ],
             ],
+            WorkspaceActionType::Escalate => $rules,
             default => $rules,
         };
     }

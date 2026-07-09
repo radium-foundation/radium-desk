@@ -123,6 +123,17 @@ class ServiceCaseActivityTimelineService
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
+                'service_case.escalated' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
+                    actor: $actor,
+                    title: 'Escalated to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
+                    body: filled($auditLog->new_values['reason'] ?? null)
+                        ? (string) $auditLog->new_values['reason']
+                        : null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 'service_case.automation_pending' => new ServiceCaseTimelineEntry(
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,

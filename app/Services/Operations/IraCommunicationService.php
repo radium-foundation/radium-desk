@@ -12,6 +12,7 @@ use App\Enums\IraNotificationType;
 use App\Enums\NotificationChannelType;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\SupportAppointmentTimeSlot;
+use App\Models\Incident;
 use App\Models\IraNotification;
 use App\Models\User;
 use App\Services\Notifications\IraNotificationCategoryMapper;
@@ -55,6 +56,7 @@ class IraCommunicationService
         private readonly TeamWorkBriefingFormatter $teamBriefingFormatter,
         private readonly NotificationRecipientResolver $recipientResolver,
         private readonly NotificationAuthorityService $notificationAuthority,
+        private readonly IraNotificationPolicyService $notificationPolicy,
     ) {}
 
     /**
@@ -93,6 +95,15 @@ class IraCommunicationService
                 $results[] = $this->notificationService->markSkipped(
                     $notification,
                     'Telegram notifications disabled or chat ID not configured.',
+                );
+
+                continue;
+            }
+
+            if ($this->shouldDeferAssignmentTelegram($user, $input)) {
+                $results[] = $this->notificationService->markSkipped(
+                    $notification,
+                    'Assignee is outside working hours; Telegram deferred.',
                 );
 
                 continue;
@@ -375,6 +386,36 @@ class IraCommunicationService
             IraNotificationType::TeamDailyBriefing,
             IraNotificationType::SupportSlotReminder => collect(),
         };
+    }
+
+    private function shouldDeferAssignmentTelegram(User $user, IraCommunicationInput $input): bool
+    {
+        if (! in_array($input->event, [
+            IraNotificationType::ManualAssignment,
+            IraNotificationType::Reassignment,
+            IraNotificationType::SmartAssignment,
+        ], true)) {
+            return false;
+        }
+
+        $incident = $this->resolveIncidentFromInput($input);
+
+        return ! $this->notificationPolicy->canNotifyNowWithContext(
+            $user,
+            $incident,
+            $input->context,
+        );
+    }
+
+    private function resolveIncidentFromInput(IraCommunicationInput $input): ?Incident
+    {
+        $incidentId = $input->context['incident_id'] ?? null;
+
+        if (! is_numeric($incidentId)) {
+            return null;
+        }
+
+        return Incident::query()->find((int) $incidentId);
     }
 
     private function isImportantEnough(IraCommunicationInput $input): bool

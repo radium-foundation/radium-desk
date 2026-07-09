@@ -336,6 +336,31 @@ class ServiceCaseAssignmentService
         );
     }
 
+    public function escalate(Incident $incident, User $assignee, User $actor, string $reason): Incident
+    {
+        $this->ensureValidAssignee($assignee);
+
+        if (! $assignee->hasRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST)) {
+            throw ValidationException::withMessages([
+                'action_type' => 'Escalation must be routed to an escalation specialist.',
+            ]);
+        }
+
+        $previousAssigneeId = $incident->assigned_to_user_id;
+
+        return $this->applyAssignment(
+            incident: $incident,
+            assignee: $assignee,
+            actor: $actor,
+            event: 'service_case.escalated',
+            extraNewValues: [
+                'reason' => $reason,
+                'previous_assigned_to_user_id' => $previousAssigneeId,
+                'escalation_level' => 1,
+            ],
+        );
+    }
+
     /**
      * @param  array<string, mixed>  $auditContext
      */
@@ -435,8 +460,7 @@ class ServiceCaseAssignmentService
     public function reassignableUsers(?User $actor = null): array
     {
         $actor ??= auth()->user();
-
-        $systemEmail = strtolower((string) config('cashfree.system_user_email'));
+        $automationIdentity = app(AutomationIdentityService::class);
 
         return User::query()
             ->where('is_active', true)
@@ -445,10 +469,12 @@ class ServiceCaseAssignmentService
                 RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
                 RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
                 RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
             ])
             ->orderBy('name')
             ->get()
-            ->reject(function (User $user) use ($actor, $systemEmail): bool {
+            ->reject(function (User $user) use ($actor, $automationIdentity): bool {
                 if ($actor !== null && $user->id === $actor->id) {
                     return true;
                 }
@@ -457,11 +483,7 @@ class ServiceCaseAssignmentService
                     return true;
                 }
 
-                if ($systemEmail !== '' && strcasecmp($user->email, $systemEmail) === 0) {
-                    return true;
-                }
-
-                return false;
+                return $automationIdentity->isExcludedFromManualAssignment($user);
             })
             ->values()
             ->all();
@@ -617,7 +639,7 @@ class ServiceCaseAssignmentService
                 extraNewValues: $extraNewValues,
             );
 
-            if ($event === 'service_case.reassigned') {
+            if (in_array($event, ['service_case.reassigned', 'service_case.escalated'], true)) {
                 $this->dashboardBroadcastService->serviceCaseAssigned($freshIncident, $actor);
             }
 
@@ -649,7 +671,7 @@ class ServiceCaseAssignmentService
             $assignee->notify(new ServiceCaseAssignedNotification($incident, $actor));
         }
 
-        if ($event === 'service_case.reassigned') {
+        if (in_array($event, ['service_case.reassigned', 'service_case.escalated'], true)) {
             $assignee->notify(new ServiceCaseReassignedNotification($incident, $actor));
         }
 
@@ -685,7 +707,7 @@ class ServiceCaseAssignmentService
 
         $communicationService = app(IraCommunicationService::class);
 
-        if ($event === 'service_case.reassigned') {
+        if (in_array($event, ['service_case.reassigned', 'service_case.escalated'], true)) {
             $communicationService->sendReassignment(
                 assignee: $assignee,
                 customer: $order?->customer_name ?? 'Unknown',
@@ -714,6 +736,7 @@ class ServiceCaseAssignmentService
     {
         if ($assignee->trashed() || ! $assignee->is_active || ! $assignee->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
             RolePermissionSeeder::ROLE_AGENT,
             RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
             RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,

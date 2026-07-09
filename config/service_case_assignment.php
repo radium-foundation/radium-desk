@@ -96,4 +96,37 @@ return [
         'assignee_email' => env('SERVICE_CASE_HARDWARE_ORDER_ASSIGNEE_EMAIL', 'sumit@radiumbox.com'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Manual Assignment Governance
+    |--------------------------------------------------------------------------
+    |
+    | Emails excluded from the manual assign dropdown (demo, automation, etc.).
+    | Inactive and superadmin users are always excluded in code.
+    |
+    */
+
+    'manual_assign_excluded_emails' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('SERVICE_CASE_MANUAL_ASSIGN_EXCLUDED_EMAILS', 'demo@radiumbox.com')),
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer Escalation Workflow
+    |--------------------------------------------------------------------------
+    |
+    | Level 1: agent → escalation specialist (manual escalate only).
+    | Level 2: escalation specialist → operations admin (future).
+    | Exceptional: owner manual only.
+    |
+    | Shipra (level 2) schedule is managed via TeamMemberWorkSchedule (10:00–00:00).
+    |
+    */
+
+    'escalation' => [
+        'level_1_email' => env('SERVICE_CASE_ESCALATION_LEVEL_1_EMAIL', 'shubhanshi@radiumbox.com'),
+        'level_2_email' => env('SERVICE_CASE_ESCALATION_LEVEL_2_EMAIL', 'shipra@radiumbox.com'),
+    ],
+
 ];
