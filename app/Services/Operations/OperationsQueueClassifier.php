@@ -110,9 +110,17 @@ class OperationsQueueClassifier
             && $waitingState->next_action_at->lessThanOrEqualTo(now());
     }
 
-    public function isAssignedWaitingCustomer(Incident $incident): bool
+    public function isAssignedWaitingCustomer(Incident $incident, ?User $scopeUser = null): bool
     {
-        return $this->isWaitingCustomer($incident);
+        if (! $this->isWaitingCustomer($incident)) {
+            return false;
+        }
+
+        if ($scopeUser === null) {
+            return true;
+        }
+
+        return $incident->assigned_to_user_id === $scopeUser->id;
     }
 
     public function hasTodaysScheduledAppointment(Incident $incident): bool

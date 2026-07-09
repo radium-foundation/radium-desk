@@ -371,6 +371,49 @@ class IraBriefingFormatter
         return rtrim($recommendation->message, '.').'.';
     }
 
+    public function formatOpsDigest(IraMorningBriefing $briefing, ?string $recipientFirstName = null, ?Carbon $at = null): string
+    {
+        $at = $this->appNow($at);
+        $greeting = $this->greeting($recipientFirstName, $at);
+        $operations = $briefing->snapshot->operations;
+
+        $overdue = (int) ($operations['overdue'] ?? 0);
+        $warning = (int) ($operations['warning'] ?? 0);
+        $waiting = (int) ($operations['waiting'] ?? 0);
+        $missedAppointments = (int) ($operations['missed_appointments'] ?? 0);
+
+        $overloadLines = [];
+        foreach ($briefing->risks as $risk) {
+            if (! str_starts_with($risk->key, 'team.overload.')) {
+                continue;
+            }
+
+            $overloadLines[] = $risk->message;
+        }
+
+        $sections = [
+            $greeting,
+            '',
+            "Operations Digest\n".$this->bulletLines([
+                'SLA risk: '.$overdue.' overdue, '.$warning.' warning',
+                'Waiting backlog: '.$waiting,
+                'Missed appointments: '.$missedAppointments,
+            ]),
+        ];
+
+        if ($overloadLines !== []) {
+            $sections[] = "\nOverloaded agents\n".$this->bulletLines(array_slice($overloadLines, 0, 5));
+        }
+
+        $message = implode('', $sections);
+
+        if (strlen($message) > self::TELEGRAM_MAX_LENGTH) {
+            $message = substr($message, 0, self::TELEGRAM_MAX_LENGTH - 3).'...';
+        }
+
+        return $message;
+    }
+
     private function appNow(?Carbon $at): Carbon
     {
         return ($at ?? now())->timezone(config('app.timezone'));

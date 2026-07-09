@@ -282,9 +282,16 @@ class DashboardSnapshot
             return $cached;
         }
 
-        return $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] = $this->activeIncidents
-            ->filter(fn (Incident $incident): bool => $this->queueClassifier->matchesQueue($incident, $queue, $scopeUser))
-            ->values();
+        $incidents = $this->activeIncidents
+            ->filter(fn (Incident $incident): bool => $this->queueClassifier->matchesQueue($incident, $queue, $scopeUser));
+
+        if ($scopeUser !== null && $queue === OperationQueue::WaitingCustomer->value) {
+            $incidents = $incidents->filter(
+                fn (Incident $incident): bool => $this->queueClassifier->isAssignedWaitingCustomer($incident, $scopeUser),
+            );
+        }
+
+        return $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] = $incidents->values();
     }
 
     /**

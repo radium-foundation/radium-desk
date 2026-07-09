@@ -302,6 +302,85 @@ class AgentDashboardOwnershipTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_agent_my_waiting_follow_ups_count_is_scoped_to_assigned_cases(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agentA = $this->createAgent('Waiting Agent A');
+        $agentB = $this->createAgent('Waiting Agent B');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        for ($index = 1; $index <= 2; $index++) {
+            $this->createAssignedWaitingCase("RD-A-WAIT-{$index}", $creator, $agentA);
+        }
+
+        for ($index = 1; $index <= 3; $index++) {
+            $this->createAssignedWaitingCase("RD-B-WAIT-{$index}", $creator, $agentB);
+        }
+
+        $this->createAssignedWaitingCase('RD-UNASSIGNED-WAIT', $creator, null);
+
+        $this->assertSame(2, app(DashboardService::class)->statsFor($agentA)['my_waiting_follow_ups']);
+        $this->assertSame(3, app(DashboardService::class)->statsFor($agentB)['my_waiting_follow_ups']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_agent_waiting_customer_drilldown_shows_assigned_cases_only(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agentA = $this->createAgent('Waiting Drilldown A');
+        $agentB = $this->createAgent('Waiting Drilldown B');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createAssignedWaitingCase('RD-A-WAIT-DRILL-1', $creator, $agentA);
+        $this->createAssignedWaitingCase('RD-A-WAIT-DRILL-2', $creator, $agentA);
+        $this->createAssignedWaitingCase('RD-B-WAIT-DRILL-1', $creator, $agentB);
+        $this->createAssignedWaitingCase('RD-UNASSIGNED-WAIT-DRILL', $creator, null);
+
+        $this->actingAs($agentA)
+            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
+            ->assertOk()
+            ->assertSee('RD-A-WAIT-DRILL-1')
+            ->assertSee('RD-A-WAIT-DRILL-2')
+            ->assertDontSee('RD-B-WAIT-DRILL-1')
+            ->assertDontSee('RD-UNASSIGNED-WAIT-DRILL');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_admin_waiting_customer_queue_remains_global(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $agentA = $this->createAgent('Global Waiting A');
+        $agentB = $this->createAgent('Global Waiting B');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->createAssignedWaitingCase('RD-GLOBAL-WAIT-A', $creator, $agentA);
+        $this->createAssignedWaitingCase('RD-GLOBAL-WAIT-B', $creator, $agentB);
+        $this->createAssignedWaitingCase('RD-GLOBAL-WAIT-UNASSIGNED', $creator, null);
+
+        $waitingCount = DashboardSnapshot::load()->incidentsForQueue('waiting_customer')->count();
+
+        $this->assertSame(3, $waitingCount);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER]))
+            ->assertOk()
+            ->assertSee('RD-GLOBAL-WAIT-A')
+            ->assertSee('RD-GLOBAL-WAIT-B')
+            ->assertSee('RD-GLOBAL-WAIT-UNASSIGNED');
+
+        Carbon::setTestNow();
+    }
+
     public function test_admin_attention_queue_remains_global(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
@@ -374,6 +453,21 @@ class AgentDashboardOwnershipTest extends TestCase
             'created_at' => now()->subHour(),
             'updated_at' => now()->subHour(),
         ])->save();
+
+        return $incident->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
+    }
+
+    private function createAssignedWaitingCase(string $orderId, User $creator, ?User $assignee): Incident
+    {
+        $incident = $this->createIncident($orderId, $creator, $assignee);
+
+        IncidentWaitingState::query()->create([
+            'incident_id' => $incident->id,
+            'waiting_reason' => WaitingReason::SerialNumber,
+            'started_at' => now(),
+            'sla_paused' => true,
+            'created_by' => $creator->id,
+        ]);
 
         return $incident->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
     }

@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Data\Operations\IraCommunicationInput;
+use App\Data\Operations\IraMorningBriefing;
 use App\Data\Operations\IraOperationalRisk;
+use App\Data\Operations\IraOperationalSnapshotData;
 use App\Enums\AI\AIRiskLevel;
 use App\Enums\IraNotificationStatus;
 use App\Enums\IraNotificationType;
@@ -149,6 +151,168 @@ class IraTelegramCommunicationTest extends TestCase
         });
 
         $this->artisan('ira:send-daily-briefing')->assertSuccessful();
+    }
+
+    public function test_ops_digest_sent_to_operational_recipients_only(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 08:15:00', 'Asia/Kolkata'));
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 101],
+            ], 200),
+        ]);
+
+        $owner = $this->createOwnerWithTelegram('111000111', 'Owner User');
+        $opsAdmin = User::factory()->create([
+            'name' => 'Shipra Kumari',
+            'first_name' => 'Shipra',
+            'last_name' => 'Kumari',
+            'telegram_chat_id' => '222000222',
+            'telegram_notifications_enabled' => true,
+            'is_active' => true,
+        ]);
+        $opsAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $opsAdmin->assignRole(RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR);
+
+        $agent = User::factory()->create([
+            'name' => 'Digest Agent',
+            'telegram_chat_id' => '333000333',
+            'telegram_notifications_enabled' => true,
+            'is_active' => true,
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+        $this->createIncidentFor($agent, 'RD-OPS-DIGEST');
+
+        $briefing = app(IraOperationsBrainService::class)->briefing(useCache: false);
+        $results = app(IraCommunicationService::class)->sendOpsDigest($opsAdmin, $briefing, 'open');
+
+        $this->assertCount(1, $results);
+        $this->assertSame(IraNotificationStatus::Sent, $results[0]->status);
+        $this->assertStringContainsString('Operations Digest', $results[0]->message);
+        $this->assertStringContainsString('Waiting backlog', $results[0]->message);
+        $this->assertStringContainsString('SLA risk', $results[0]->message);
+        $this->assertStringContainsString('Missed appointments', $results[0]->message);
+
+        $this->assertDatabaseMissing('ira_notifications', [
+            'user_id' => $owner->id,
+            'notification_type' => IraNotificationType::OpsDigest->value,
+        ]);
+
+        $this->assertDatabaseMissing('ira_notifications', [
+            'user_id' => $agent->id,
+            'notification_type' => IraNotificationType::OpsDigest->value,
+        ]);
+
+        $this->mock(IraOperationsBrainService::class, function ($mock) use ($briefing): void {
+            $mock->shouldReceive('briefing')->once()->andReturn($briefing);
+        });
+
+        $this->artisan('ira:send-ops-digest --period=open')->assertSuccessful();
+    }
+
+    public function test_high_waiting_risk_is_excluded_from_hourly_alerts(): void
+    {
+        Http::fake();
+
+        $opsAdmin = User::factory()->create([
+            'name' => 'Ops Admin',
+            'telegram_chat_id' => '444000444',
+            'telegram_notifications_enabled' => true,
+            'is_active' => true,
+        ]);
+        $opsAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $briefing = new IraMorningBriefing(
+            greeting: 'Good morning.',
+            summary: 'Operations need attention.',
+            healthStatus: 'warning',
+            highlights: [],
+            risks: [
+                new IraOperationalRisk(
+                    key: 'customer.high_waiting',
+                    title: 'Customers Waiting Too Long',
+                    category: IraRiskCategory::Customer,
+                    severity: AIRiskLevel::Medium,
+                    message: '122 customers are waiting for a response.',
+                    context: ['waiting' => 122, 'threshold' => 50],
+                ),
+            ],
+            recommendations: [],
+            snapshot: new IraOperationalSnapshotData(
+                date: '2026-07-09',
+                operations: ['waiting' => 122],
+                team: ['available' => 2],
+                performance: ['completed_cases' => 0],
+            ),
+        );
+
+        $results = app(IraCommunicationService::class)->sendRiskAlerts($briefing);
+
+        $this->assertSame([], $results);
+        Http::assertNothingSent();
+        $this->assertDatabaseMissing('ira_notifications', [
+            'user_id' => $opsAdmin->id,
+            'notification_type' => IraNotificationType::WaitingCustomerRisk->value,
+        ]);
+    }
+
+    public function test_ops_digest_cooldown_prevents_same_period_resend_within_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 08:15:00', 'Asia/Kolkata'));
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 103],
+            ], 200),
+        ]);
+
+        $opsAdmin = User::factory()->create([
+            'name' => 'Ops Admin',
+            'telegram_chat_id' => '444000444',
+            'telegram_notifications_enabled' => true,
+            'is_active' => true,
+        ]);
+        $opsAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $briefing = new IraMorningBriefing(
+            greeting: 'Good morning.',
+            summary: 'Operations digest.',
+            healthStatus: 'warning',
+            highlights: [],
+            risks: [],
+            recommendations: [],
+            snapshot: new IraOperationalSnapshotData(
+                date: '2026-07-09',
+                operations: ['waiting' => 122, 'overdue' => 44],
+                team: ['available' => 2],
+                performance: ['completed_cases' => 0],
+            ),
+        );
+
+        $service = app(IraCommunicationService::class);
+        $first = $service->sendOpsDigest($opsAdmin, $briefing, 'open');
+        $second = $service->sendOpsDigest($opsAdmin, $briefing, 'open');
+
+        $this->assertCount(1, $first);
+        $this->assertSame(IraNotificationStatus::Sent, $first[0]->status);
+        $this->assertSame([], $second);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 09:30:00', 'Asia/Kolkata'));
+
+        $third = $service->sendOpsDigest($opsAdmin, $briefing, 'open');
+
+        $this->assertSame([], $third);
+        $this->assertSame(
+            1,
+            IraNotification::query()
+                ->where('user_id', $opsAdmin->id)
+                ->where('notification_type', IraNotificationType::OpsDigest->value)
+                ->count(),
+        );
+        Http::assertSentCount(1);
     }
 
     public function test_smart_assignment_notification_sent(): void

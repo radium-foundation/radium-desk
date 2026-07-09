@@ -321,6 +321,26 @@ class WorkforceCalendarTest extends TestCase
         $this->assertSame(TeamAvailabilityStatus::Offline, app(\App\Services\Operations\TeamAvailabilityService::class)->statusFor($agent));
     }
 
+    public function test_unconfigured_work_schedule_shows_warning_on_user_edit(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agent = User::factory()->create([
+            'first_name' => 'Jayram',
+            'last_name' => '',
+            'name' => 'Jayram',
+            'is_active' => true,
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)
+            ->get(route('users.edit', $agent))
+            ->assertOk()
+            ->assertSee('Work schedule is not saved yet', false)
+            ->assertSee('Morning Telegram briefings', false);
+    }
+
     public function test_work_calendar_supports_future_presence_fields(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 09:20:00', 'Asia/Kolkata'));

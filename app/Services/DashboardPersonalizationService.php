@@ -240,6 +240,10 @@ class DashboardPersonalizationService
             return $user;
         }
 
+        if ($queue === self::QUEUE_WAITING_CUSTOMER && $this->operationsRoles->usesSupportQueues($user)) {
+            return $user;
+        }
+
         return null;
     }
 

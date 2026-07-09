@@ -14,6 +14,7 @@ class TeamWorkBriefingService
 {
     public function __construct(
         private readonly OperationsRoleService $roleService,
+        private readonly OperationsQueueClassifier $queueClassifier,
     ) {}
 
     public function buildFor(User $user, ?Carbon $at = null): TeamWorkBriefing
@@ -24,8 +25,12 @@ class TeamWorkBriefingService
         return new TeamWorkBriefing(
             date: $at->toDateString(),
             supportBySlot: $this->supportCountsBySlot($user, $at, $snapshot),
-            followUpCount: $snapshot->incidentsForQueue(OperationQueue::WaitingCustomer->value, $user)->count(),
-            priorityCount: $snapshot->incidentsForQueue(OperationQueue::Attention->value, $user)->count(),
+            followUpCount: $snapshot->incidentsForQueue(OperationQueue::WaitingCustomer->value, $user)
+                ->filter(fn (Incident $incident): bool => $this->queueClassifier->isAssignedWaitingCustomer($incident, $user))
+                ->count(),
+            priorityCount: $snapshot->incidentsForQueue(OperationQueue::Attention->value, $user)
+                ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $user->id)
+                ->count(),
         );
     }
 

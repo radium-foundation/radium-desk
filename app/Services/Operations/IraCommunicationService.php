@@ -44,7 +44,6 @@ class IraCommunicationService
         'customer.sla_danger',
         'workload.low_staffing',
         'workload.high_open_cases',
-        'customer.high_waiting',
     ];
 
     public function __construct(
@@ -133,6 +132,29 @@ class IraCommunicationService
     public function dailyBriefingRecipients(): array
     {
         return $this->ownerUsers()->all();
+    }
+
+    /**
+     * @return list<User>
+     */
+    public function opsDigestRecipients(): array
+    {
+        return $this->operationsAdminUsers()->all();
+    }
+
+    /**
+     * @return list<IraNotification>
+     */
+    public function sendOpsDigest(User $user, IraMorningBriefing $briefing, string $period): array
+    {
+        return $this->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::OpsDigest,
+            context: [
+                'user_id' => $user->id,
+                'briefing' => $briefing,
+                'dedupe_key' => 'ops_digest:'.$briefing->snapshot->date.':'.$period,
+            ],
+        ));
     }
 
     /**
@@ -345,7 +367,8 @@ class IraCommunicationService
             IraNotificationType::IntegrationFailure => $this->ownerUsers(),
             IraNotificationType::UnassignedScheduledWork,
             IraNotificationType::WaitingCustomerRisk,
-            IraNotificationType::TeamAvailabilityIssue => $this->operationsAdminUsers(),
+            IraNotificationType::TeamAvailabilityIssue,
+            IraNotificationType::OpsDigest => $this->operationsAdminUsers(),
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
@@ -359,6 +382,7 @@ class IraCommunicationService
         return match ($input->event) {
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
+            IraNotificationType::OpsDigest,
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
@@ -391,6 +415,7 @@ class IraCommunicationService
         if (in_array($input->event, [
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
+            IraNotificationType::OpsDigest,
             IraNotificationType::SupportSlotReminder,
         ], true)) {
             return Cache::has($this->cooldownCacheKey($user, $input));
@@ -410,6 +435,7 @@ class IraCommunicationService
         $ttlSeconds = in_array($input->event, [
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
+            IraNotificationType::OpsDigest,
             IraNotificationType::SupportSlotReminder,
         ], true)
             ? max(60, now()->secondsUntilEndOfDay())
@@ -435,6 +461,7 @@ class IraCommunicationService
     {
         return match ($input->event) {
             IraNotificationType::DailyBriefing => $this->formatDailyBriefing($user, $input),
+            IraNotificationType::OpsDigest => $this->formatOpsDigest($user, $input),
             IraNotificationType::TeamDailyBriefing => $this->formatTeamDailyBriefing($user, $input),
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment => $this->formatAssignment($input, 'New support assigned'),
@@ -462,6 +489,25 @@ class IraCommunicationService
         );
 
         return ['Daily Ira Briefing', $formatted->telegramMessage];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function formatOpsDigest(User $user, IraCommunicationInput $input): array
+    {
+        $briefing = $input->context['briefing'] ?? null;
+
+        if (! $briefing instanceof IraMorningBriefing) {
+            return ['Operations Digest', 'Operations digest is unavailable.'];
+        }
+
+        $message = $this->briefingFormatter->formatOpsDigest(
+            briefing: $briefing,
+            recipientFirstName: $user->firstName() ?: null,
+        );
+
+        return ['Operations Digest', $message];
     }
 
     /**

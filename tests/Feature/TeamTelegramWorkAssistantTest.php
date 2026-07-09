@@ -8,8 +8,10 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\SupportAppointmentTimeSlot;
+use App\Enums\WaitingReason;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Models\Incident;
+use App\Models\IncidentWaitingState;
 use App\Models\IraNotification;
 use App\Models\LeaveRequest;
 use App\Models\Order;
@@ -17,6 +19,7 @@ use App\Models\SupportAppointment;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\TeamWorkBriefingService;
 use App\Services\ServiceCaseAssignmentService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -270,6 +273,31 @@ class TeamTelegramWorkAssistantTest extends TestCase
         Http::assertNothingSent();
     }
 
+    public function test_follow_up_count_is_scoped_to_recipient(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agentA = $this->createSupportAgentWithTelegram('Briefing Agent A', '101010101');
+        $agentB = $this->createSupportAgentWithTelegram('Briefing Agent B', '202020202');
+        $creator = User::factory()->create(['is_active' => true]);
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        for ($index = 1; $index <= 2; $index++) {
+            $this->createAssignedWaitingCase("RD-BRIEF-WAIT-A-{$index}", $creator, $agentA);
+        }
+
+        for ($index = 1; $index <= 3; $index++) {
+            $this->createAssignedWaitingCase("RD-BRIEF-WAIT-B-{$index}", $creator, $agentB);
+        }
+
+        $briefingService = app(TeamWorkBriefingService::class);
+
+        $this->assertSame(2, $briefingService->buildFor($agentA)->followUpCount);
+        $this->assertSame(3, $briefingService->buildFor($agentB)->followUpCount);
+
+        Carbon::setTestNow();
+    }
+
     private function createSupportAgentWithTelegram(
         string $name,
         string $chatId,
@@ -372,5 +400,21 @@ class TeamTelegramWorkAssistantTest extends TestCase
         ]);
 
         return [$incident->fresh(['order']), $appointment];
+    }
+
+    private function createAssignedWaitingCase(string $orderId, User $creator, User $assignee): Incident
+    {
+        $incident = $this->createOpenIncident($orderId, 'Waiting Customer', 'FM220');
+        $incident->update(['assigned_to_user_id' => $assignee->id]);
+
+        IncidentWaitingState::query()->create([
+            'incident_id' => $incident->id,
+            'waiting_reason' => WaitingReason::SerialNumber,
+            'started_at' => now(),
+            'sla_paused' => true,
+            'created_by' => $creator->id,
+        ]);
+
+        return $incident->fresh(['activeWaitingState', 'order', 'supportAppointments', 'assignee']);
     }
 }

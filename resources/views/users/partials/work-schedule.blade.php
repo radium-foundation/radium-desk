@@ -17,6 +17,13 @@
             Official working calendar used before availability status for smart assignment.
         </p>
 
+        @if(($schedule['configured'] ?? true) === false)
+            <div class="alert alert-warning py-2 small mb-3" role="alert">
+                Work schedule is not saved yet. Defaults shown below are for editing only.
+                Morning Telegram briefings and calendar-based delivery will not run until you save.
+            </div>
+        @endif
+
         <form method="POST" action="{{ route('users.work-schedule.update', $user) }}">
             @csrf
             @method('PUT')

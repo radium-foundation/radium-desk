@@ -16,6 +16,7 @@ enum IraNotificationType: string
     case SupportSlotReminder = 'support_slot_reminder';
     case ManualAssignment = 'manual_assignment';
     case Reassignment = 'reassignment';
+    case OpsDigest = 'ops_digest';
 
     public function label(): string
     {
@@ -32,6 +33,7 @@ enum IraNotificationType: string
             self::TeamAvailabilityIssue => 'Team Availability Issue',
             self::IntegrationFailure => 'Integration Failure',
             self::UnusualBacklog => 'Unusual Backlog',
+            self::OpsDigest => 'Operations Digest',
         };
     }
 }
