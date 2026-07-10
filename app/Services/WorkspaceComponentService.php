@@ -16,6 +16,7 @@ use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\SerialValidation\SerialInsightService;
 use App\Enums\WhatsAppTemplate;
@@ -29,6 +30,7 @@ class WorkspaceComponentService
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
         private readonly RequestCorrectSerialEligibilityService $requestCorrectSerialEligibilityService,
+        private readonly CustomerNotRespondingEligibilityService $customerNotRespondingEligibilityService,
         private readonly SerialInsightService $serialInsightService,
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
         private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
@@ -63,6 +65,8 @@ class WorkspaceComponentService
                 && $this->requestSerialEligibilityService->canShowAction($incident),
             WorkspaceComponent::RequestCorrectSerial => $user->can('update', $incident)
                 && $this->requestCorrectSerialEligibilityService->canShowAction($incident),
+            WorkspaceComponent::CustomerNotResponding => $user->can('update', $incident)
+                && $this->customerNotRespondingEligibilityService->canShowAction($incident),
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
         };
 
@@ -135,6 +139,10 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 ...$this->requestCorrectSerialWorkspaceFields($requestContext, $incident),
             ],
+            WorkspaceComponent::CustomerNotResponding => [
+                'incident' => $incident,
+                ...$this->customerNotRespondingWorkspaceFields($requestContext, $incident),
+            ],
             WorkspaceComponent::LinkOrder => [
                 'incident' => $incident,
                 ...$this->linkOrderWorkspaceFields($requestContext, $incident),
@@ -187,6 +195,34 @@ class WorkspaceComponentService
                     'whatsapp' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],
                     'email' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],
                 ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function customerNotRespondingWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $incident->loadMissing(['order', 'activeWaitingState']);
+        $order = $incident->order;
+        $channelAvailability = $this->channelAvailabilityService->forCallbackSchedule($order);
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.customer-not-responding', $incident),
+            'workspaceContext' => $requestContext->context->value,
+            'customerName' => $order?->customer_name,
+            'customerPhone' => $order?->customer_phone,
+            'supportReference' => $incident->reference_no,
+            'channelAvailability' => $channelAvailability,
+            'canSendRequest' => $this->channelAvailabilityService->hasDeliverableChannel($channelAvailability),
+            'interaktTemplateDiagnostics' => $this->interaktTemplateConfigurationValidator
+                ->diagnosticsFor(WhatsAppTemplate::CallbackSchedule),
+            'hasActiveCustomerNotRespondingWaitingState' => $incident->activeWaitingState !== null
+                && $incident->activeWaitingState->waiting_reason === \App\Enums\WaitingReason::CustomerNotResponding,
         ];
     }
 

@@ -96,6 +96,17 @@
             </button>
         @endif
 
+        @if($canCustomerNotResponding ?? false)
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm customer-360-quick-action"
+                    data-workspace-trigger="customer-not-responding"
+                    data-workspace-incident-id="{{ $incident->id }}"
+                    data-workspace-context="customer"
+                    title="Send callback schedule message when customer is not responding">
+                <span aria-hidden="true">📵</span> Customer Not Responding
+            </button>
+        @endif
+
         @if($canLinkOrder ?? false)
             <button type="button"
                     class="btn btn-outline-secondary btn-sm customer-360-quick-action"

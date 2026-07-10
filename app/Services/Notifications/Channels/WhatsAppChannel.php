@@ -31,6 +31,7 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::RequestSerialNumber,
             NotificationType::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup,
+            NotificationType::CallbackSchedule,
             NotificationType::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed => true,
         };
@@ -84,6 +85,7 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::RequestSerialNumber => WhatsAppTemplate::RequestSerialNumber,
             NotificationType::RequestCorrectSerial => WhatsAppTemplate::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup => WhatsAppTemplate::CustomerWaitingFollowup,
+            NotificationType::CallbackSchedule => WhatsAppTemplate::CallbackSchedule,
             NotificationType::SupportAppointmentBooked => WhatsAppTemplate::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed => WhatsAppTemplate::RepairCompleted,
         };
@@ -127,13 +129,15 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::RequestSerialNumber,
             NotificationType::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup,
+            NotificationType::CallbackSchedule,
             NotificationType::ServiceCaseClosed,
         ], true)) {
             return $context;
         }
 
         return array_merge($context, match ($message->type) {
-            NotificationType::CustomerWaitingFollowup => $this->customerWaitingFollowupTemplateVariables($message),
+            NotificationType::CustomerWaitingFollowup,
+            NotificationType::CallbackSchedule => $this->customerWaitingFollowupTemplateVariables($message),
             NotificationType::ServiceCaseClosed => $this->serviceCaseClosedTemplateVariables($message),
             default => $this->requestSerialTemplateVariables($message),
         });

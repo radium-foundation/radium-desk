@@ -13,6 +13,7 @@ enum WhatsAppTemplate: string
     case AmcReminder = 'amc_reminder';
     case SupportAppointmentBooked = 'support_appointment_booked';
     case CustomerWaitingFollowup = 'customer_waiting_followup';
+    case CallbackSchedule = 'callback_schedule';
 
     public function purposeLabel(): string
     {
@@ -26,6 +27,7 @@ enum WhatsAppTemplate: string
             self::AmcReminder => 'AMC Reminder',
             self::SupportAppointmentBooked => 'Support Appointment Booked',
             self::CustomerWaitingFollowup => 'Customer Waiting Follow-up',
+            self::CallbackSchedule => 'Callback Schedule',
         };
     }
 }

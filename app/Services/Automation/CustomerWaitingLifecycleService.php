@@ -246,6 +246,7 @@ TEXT;
             WaitingReason::SerialNumber,
             WaitingReason::Photos,
             WaitingReason::CustomerApproval,
+            WaitingReason::CustomerNotResponding,
             WaitingReason::Other,
         ];
     }

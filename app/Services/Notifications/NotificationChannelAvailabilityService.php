@@ -44,6 +44,17 @@ class NotificationChannelAvailabilityService
     /**
      * @return array{whatsapp: array<string, mixed>, email: array<string, mixed>}
      */
+    public function forCallbackSchedule(?Order $order): array
+    {
+        return [
+            'whatsapp' => $this->assessWhatsApp($order, WhatsAppTemplate::CallbackSchedule),
+            'email' => $this->assessEmailForNotificationType($order, NotificationType::CallbackSchedule),
+        ];
+    }
+
+    /**
+     * @return array{whatsapp: array<string, mixed>, email: array<string, mixed>}
+     */
     public function forSupportAppointmentBooked(?Order $order): array
     {
         return [

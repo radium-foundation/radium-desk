@@ -11,6 +11,7 @@ enum WaitingReason: string
     case Photos = 'photos';
     case DevicePickup = 'device_pickup';
     case Other = 'other';
+    case CustomerNotResponding = 'customer_not_responding';
 
     public function label(): string
     {

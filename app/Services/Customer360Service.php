@@ -22,6 +22,7 @@ use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
@@ -41,6 +42,7 @@ class Customer360Service
         private readonly RadiumBoxSyncErrorFormatter $syncErrorFormatter,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
         private readonly RequestCorrectSerialEligibilityService $requestCorrectSerialEligibilityService,
+        private readonly CustomerNotRespondingEligibilityService $customerNotRespondingEligibilityService,
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
         private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
         private readonly RequestCorrectSerialCommunicationHistoryService $requestCorrectSerialCommunicationHistoryService,
@@ -94,6 +96,7 @@ class Customer360Service
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
             'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
+            'canCustomerNotResponding' => $this->customerNotRespondingEligibilityService->canShowAction($incident),
             'canLinkOrder' => auth()->user() !== null
                 && $this->inquiryOrderLinkEligibilityService->canShowAction($incident, auth()->user()),
             'serialRequestState' => $this->serialRequestState($order),
@@ -663,6 +666,7 @@ class Customer360Service
             ],
             'canRequestSerialNumber' => false,
             'canRequestCorrectSerial' => false,
+            'canCustomerNotResponding' => false,
             'canLinkOrder' => false,
             'serialRequestState' => [
                 'requested' => false,

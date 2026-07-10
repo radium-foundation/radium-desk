@@ -19,6 +19,7 @@ use App\Services\WorkspaceRemarkActionService;
 use App\Services\WorkspaceLinkOrderActionService;
 use App\Services\WorkspaceRequestCorrectSerialActionService;
 use App\Services\WorkspaceRequestSerialActionService;
+use App\Services\WorkspaceCustomerNotRespondingActionService;
 use App\Services\WorkspaceResolveActionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceCloseActionService $closeActionService,
         private readonly WorkspaceRequestSerialActionService $requestSerialActionService,
         private readonly WorkspaceRequestCorrectSerialActionService $requestCorrectSerialActionService,
+        private readonly WorkspaceCustomerNotRespondingActionService $customerNotRespondingActionService,
         private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
@@ -151,6 +153,22 @@ class WorkspaceActionController extends Controller
         $requestContext = $this->contextResolver->resolve($request, $incident);
 
         $response = $this->requestCorrectSerialActionService->send(
+            incident: $incident,
+            actor: $request->user(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function customerNotResponding(Request $request, Incident $incident): JsonResponse
+    {
+        $this->authorize('update', $incident);
+
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->customerNotRespondingActionService->send(
             incident: $incident,
             actor: $request->user(),
             requestContext: $requestContext,

@@ -31,6 +31,11 @@ class NotificationMailTemplateRegistry
                 view: 'emails.notifications.customer-waiting-followup',
                 requiredVariables: ['customer_name', 'reference', 'booking_url'],
             ),
+            NotificationType::CallbackSchedule => new NotificationMailTemplateDefinition(
+                subject: 'We tried reaching you - schedule your callback',
+                view: 'emails.notifications.callback-schedule',
+                requiredVariables: ['customer_name', 'reference', 'booking_url'],
+            ),
             NotificationType::SupportAppointmentBooked => new NotificationMailTemplateDefinition(
                 subject: 'Your Support Appointment Is Confirmed',
                 view: 'emails.notifications.support-appointment-booked',
@@ -62,6 +67,11 @@ class NotificationMailTemplateRegistry
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
             ],
             NotificationType::CustomerWaitingFollowup => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'reference' => trim((string) ($message->incident->reference_no ?? '')),
+                'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
+            ],
+            NotificationType::CallbackSchedule => [
                 'customer_name' => $this->resolveCustomerName($message),
                 'reference' => trim((string) ($message->incident->reference_no ?? '')),
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),

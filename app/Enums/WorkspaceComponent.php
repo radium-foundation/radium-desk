@@ -14,6 +14,7 @@ enum WorkspaceComponent: string
     case BatchDeviceModel = 'batch-device-model';
     case RequestSerialNumber = 'request-serial';
     case RequestCorrectSerial = 'request-correct-serial';
+    case CustomerNotResponding = 'customer-not-responding';
     case LinkOrder = 'link-order';
 
     public function view(): string
@@ -29,6 +30,7 @@ enum WorkspaceComponent: string
             self::BatchDeviceModel => 'dashboard.fragments.batch-device-model-form',
             self::RequestSerialNumber => 'customer-360.fragments.request-serial-form',
             self::RequestCorrectSerial => 'customer-360.fragments.request-correct-serial-form',
+            self::CustomerNotResponding => 'customer-360.fragments.customer-not-responding-form',
             self::LinkOrder => 'customer-360.fragments.link-order-form',
         };
     }

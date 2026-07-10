@@ -70,6 +70,11 @@ return [
             'default_reminder_policy_key' => 'customer_waiting_default',
             'pause_sla' => false,
         ],
+        'customer_not_responding' => [
+            'label' => 'Customer Not Responding',
+            'default_reminder_policy_key' => 'customer_waiting_default',
+            'pause_sla' => true,
+        ],
     ],
 
     /*

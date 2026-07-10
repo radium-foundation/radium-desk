@@ -102,5 +102,16 @@ return [
             // support_schedule_followup (en): static header "Support Reminder"; body {{1}} = customer name; body {{2}} = support request reference;
             // CTA "Book Support" dynamic URL /support/schedule/{{1}}?source=whatsapp with tracked token in {{1}}.
         ],
+        'callback_schedule' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_CALLBACK_SCHEDULE_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_CALLBACK_SCHEDULE', 'callback_schedule'),
+            'language_code' => env('INTERAKT_TEMPLATE_CALLBACK_SCHEDULE_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_CALLBACK_SCHEDULE_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_CALLBACK_SCHEDULE_DISPLAY', 'Callback Schedule'),
+            'purpose' => 'Callback Schedule',
+            'internal_note' => 'Could not reach customer; asked them to schedule a callback via approved WhatsApp template.',
+            // callback_schedule (en): body {{1}} = customer name, {{2}} = RD/support reference;
+            // CTA "Schedule Callback" dynamic URL /support/schedule/{{1}}?source=whatsapp with tracked token in {{1}}.
+        ],
     ],
 ];

@@ -27,6 +27,7 @@ class EmailChannel implements NotificationChannel
             NotificationType::RequestSerialNumber,
             NotificationType::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup,
+            NotificationType::CallbackSchedule,
             NotificationType::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed => true,
         };

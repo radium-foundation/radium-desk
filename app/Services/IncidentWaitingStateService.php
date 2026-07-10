@@ -185,6 +185,22 @@ class IncidentWaitingStateService
         );
     }
 
+    public function ensureCustomerNotRespondingWaitingState(Incident $incident, User $actor): IncidentWaitingState
+    {
+        $existing = $this->activeFor($incident);
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        return $this->start(
+            incident: $incident,
+            reason: WaitingReason::CustomerNotResponding,
+            actor: $actor,
+            pauseSla: true,
+        );
+    }
+
     public function clear(Incident $incident, User $actor, ?Carbon $clearedAt = null): IncidentWaitingState
     {
         return DB::transaction(function () use ($incident, $actor, $clearedAt): IncidentWaitingState {

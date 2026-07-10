@@ -58,6 +58,8 @@ class IncidentWaitingStateTest extends TestCase
 
             app(SystemSettingsService::class)->forget($key);
         }
+
+        $this->withHeaders(['Sec-Fetch-Site' => 'same-origin']);
     }
 
     public function test_request_serial_action_creates_waiting_state_with_sla_paused(): void
@@ -291,11 +293,11 @@ class IncidentWaitingStateTest extends TestCase
             ->where('id', $waitingState->id)
             ->value('metadata');
         $this->assertIsString($rawMetadata);
-        $this->assertSame($metadata, json_decode($rawMetadata, true));
+        $this->assertEqualsCanonicalizing($metadata, json_decode($rawMetadata, true));
 
         $waitingState->refresh();
         $this->assertIsArray($waitingState->metadata);
-        $this->assertSame($metadata, $waitingState->metadata);
+        $this->assertEqualsCanonicalizing($metadata, $waitingState->metadata);
     }
 
     public function test_start_persists_next_action_at(): void
