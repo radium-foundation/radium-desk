@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\ServiceCaseCloseException;
 use App\Services\SerialValidation\SerialPlaceholderService;
+use App\Services\Operations\BusinessHoursSlaCalculator;
 use App\Services\SettingService;
 use App\Support\AppDateFormatter;
 use Illuminate\Database\Eloquent\Builder;
@@ -276,7 +277,10 @@ class Incident extends Model
         }
 
         $now ??= now();
-        $hoursPending = (int) $this->created_at->diffInHours($now);
+        $slaCalculator = app(BusinessHoursSlaCalculator::class);
+        $hoursPending = $slaCalculator->isEnabled()
+            ? $slaCalculator->elapsedBusinessHours($this, $now)
+            : (int) $this->created_at->diffInHours($now);
         $settings = app(SettingService::class);
 
         if ($this->high_priority) {
