@@ -54,7 +54,7 @@ class NotificationActionHandler implements ActionHandler
         $blockReason = $this->customerAutomationEligibility->blockReason($incident);
 
         if ($blockReason !== null) {
-            return ActionHandlerResult::failure(
+            return ActionHandlerResult::skipped(
                 'Automated customer notification blocked for enquiry/spam case.',
                 metadata: [
                     'blocked' => true,

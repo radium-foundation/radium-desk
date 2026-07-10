@@ -109,8 +109,13 @@ class NotificationActionHandlerTest extends TestCase
         $result = $handler->handle($plannedAction);
 
         $this->assertFalse($result->success);
+        $this->assertTrue($result->skipped);
         $this->assertTrue($result->metadata['blocked'] ?? false);
         $this->assertSame('unverified_inquiry_recovery', $result->metadata['block_reason'] ?? null);
+        $this->assertSame(
+            'Automated customer notification blocked for enquiry/spam case.',
+            $result->errorMessage,
+        );
     }
 
     public function test_returns_failure_when_notification_mapping_is_missing(): void

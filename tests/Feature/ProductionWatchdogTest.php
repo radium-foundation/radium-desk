@@ -54,6 +54,24 @@ class ProductionWatchdogTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_watchdog_ignores_skipped_enquiry_spam_automation_blocks(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        $this->createSkippedEnquirySpamAutomationExecutions(3);
+
+        $alerts = app(ProductionWatchdogService::class)->collectCriticalAlerts();
+
+        $automationAlerts = array_values(array_filter(
+            $alerts,
+            fn ($alert) => $alert->key === 'automation:failures',
+        ));
+
+        $this->assertSame([], $automationAlerts);
+    }
+
     public function test_watchdog_sends_critical_automation_alert_to_superadmin(): void
     {
         Http::fake([
@@ -181,6 +199,54 @@ class ProductionWatchdogTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertStringContainsString('Affected: 3', $results[0]->message);
         $this->assertSame($owner->id, $results[0]->user_id);
+    }
+
+    private function createSkippedEnquirySpamAutomationExecutions(int $count): void
+    {
+        $actor = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RD-WATCHDOG-SKIP-'.uniqid(),
+            'customer_name' => 'Test Customer',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+        ]);
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Watchdog skipped block test case',
+            'description' => 'Test case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $actor->id,
+        ]);
+        $waitingState = IncidentWaitingState::query()->create([
+            'incident_id' => $incident->id,
+            'waiting_reason' => WaitingReason::SerialNumber,
+            'started_at' => now()->subHour(),
+            'sla_paused' => true,
+            'reminder_policy_key' => 'request_serial',
+            'created_by' => $actor->id,
+            'updated_by' => $actor->id,
+        ]);
+
+        for ($index = 0; $index < $count; $index++) {
+            AutomationExecution::query()->create([
+                'waiting_state_id' => $waitingState->id,
+                'policy_key' => 'request_serial',
+                'schedule_step' => $index + 1,
+                'action_type' => AutomationPolicyActionType::WhatsAppTemplate,
+                'action_key' => 'request_serial_number',
+                'channel' => 'whatsapp',
+                'status' => AutomationExecutionStatus::Skipped,
+                'idempotency_key' => 'watchdog.skipped.test.'.$index.'.'.uniqid(),
+                'error_message' => 'Automated customer notification blocked for enquiry/spam case.',
+                'started_at' => now(),
+                'completed_at' => now(),
+            ]);
+        }
     }
 
     private function createFailedAutomationExecutions(int $count): void

@@ -12,6 +12,7 @@ readonly class ActionHandlerResult
         public ?string $externalId = null,
         public ?string $errorMessage = null,
         public array $metadata = [],
+        public bool $skipped = false,
     ) {}
 
     public static function success(?string $externalId = null, array $metadata = []): self
@@ -29,6 +30,19 @@ readonly class ActionHandlerResult
             success: false,
             errorMessage: $errorMessage,
             metadata: $metadata,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    public static function skipped(string $message, array $metadata = []): self
+    {
+        return new self(
+            success: false,
+            errorMessage: $message,
+            metadata: $metadata,
+            skipped: true,
         );
     }
 }

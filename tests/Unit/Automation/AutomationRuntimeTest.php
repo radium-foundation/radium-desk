@@ -163,6 +163,68 @@ class AutomationRuntimeTest extends TestCase
         ]);
     }
 
+    public function test_runtime_persists_skipped_execution_for_enquiry_spam_notification_block(): void
+    {
+        Carbon::setTestNow('2026-07-01 09:00:00');
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $reference = app(IncidentReferenceService::class)->generate();
+
+        $order = Order::query()->create([
+            'order_id' => Order::inquiryOrderIdFromReference($reference),
+            'serial_number' => null,
+            'product_name' => null,
+            'device_model' => null,
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => $reference,
+            'category' => 'Missed Call Recovery',
+            'source' => IncidentSource::Call,
+            'title' => 'Enquiry automation block case',
+            'description' => 'Enquiry automation block case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        app(IncidentWaitingStateService::class)->start(
+            incident: $incident,
+            reason: WaitingReason::SerialNumber,
+            actor: $agent,
+            reminderPolicyKey: 'serial_number_default',
+        );
+
+        $waitingState = IncidentWaitingState::query()->firstOrFail();
+        $dueActions = app(AutomationPolicyService::class)->dueActions($waitingState, Carbon::parse('2026-07-01 09:00:00'));
+        $plannedActions = app(ExecutionPlanner::class)->plan($waitingState, [$dueActions[0]]);
+
+        $notificationDispatcher = Mockery::mock(NotificationDispatcher::class);
+        $notificationDispatcher->shouldNotReceive('send');
+
+        $runtime = new AutomationRuntime(
+            app(AutomationIdempotencyKeyGenerator::class),
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class), app(\App\Services\Notifications\CustomerAutomationEligibilityService::class))],
+        );
+
+        $result = $runtime->execute($waitingState, $plannedActions);
+
+        $this->assertSame(AutomationExecutionStatus::Skipped, $result->results[0]->status);
+        $this->assertTrue($result->results[0]->wasSkipped());
+        $this->assertDatabaseHas('automation_executions', [
+            'waiting_state_id' => $waitingState->id,
+            'status' => AutomationExecutionStatus::Skipped->value,
+            'error_message' => 'Automated customer notification blocked for enquiry/spam case.',
+        ]);
+    }
+
     public function test_runtime_persists_failed_executions(): void
     {
         [$waitingState, $plannedActions] = $this->makePlannedActions();

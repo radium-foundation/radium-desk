@@ -212,6 +212,21 @@ class AutomationRuntime
             );
         }
 
+        if ($handlerResult->skipped) {
+            $execution->update([
+                'status' => AutomationExecutionStatus::Skipped,
+                'external_id' => $handlerResult->externalId,
+                'error_message' => $handlerResult->errorMessage,
+                'metadata' => $handlerResult->metadata,
+                'completed_at' => Carbon::now(),
+            ]);
+
+            return new AutomationExecutionResult(
+                execution: $execution->fresh(),
+                status: AutomationExecutionStatus::Skipped,
+            );
+        }
+
         $execution->update([
             'status' => AutomationExecutionStatus::Failed,
             'external_id' => $handlerResult->externalId,
