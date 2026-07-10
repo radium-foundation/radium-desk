@@ -27,6 +27,8 @@ class Customer360ExecutiveSummaryTest extends TestCase
         ]);
 
         $this->seed(RolePermissionSeeder::class);
+
+        $this->withHeaders(['Sec-Fetch-Site' => 'same-origin']);
     }
 
     public function test_customer360_renders_executive_summary_before_health_card(): void
@@ -121,9 +123,14 @@ class Customer360ExecutiveSummaryTest extends TestCase
 
         $this->assertStringContainsString('Serial Intelligence', $summaryHtml);
         $this->assertStringContainsString('product code', $summaryHtml);
-        $this->assertStringContainsString('WhatsApp', $summaryHtml);
-        $this->assertStringContainsString('Serial number गलत लग रहा है', $summaryHtml);
+        $this->assertStringContainsString('Request the correct serial number from the customer before closing this case.', $summaryHtml);
+        $this->assertStringContainsString('Request the customer to share the correct serial number via WhatsApp.', $summaryHtml);
         $this->assertStringContainsString('Send request', $summaryHtml);
+
+        preg_match("/data-ira-summary-en='([^']+)'/", $summaryHtml, $matches);
+        $this->assertNotEmpty($matches[1] ?? null);
+        $englishPayload = html_entity_decode((string) $matches[1], ENT_QUOTES);
+        $this->assertDoesNotMatchRegularExpression('/[\x{0900}-\x{097F}]/u', $englishPayload);
     }
 
     /**

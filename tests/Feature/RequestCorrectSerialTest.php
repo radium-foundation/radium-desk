@@ -53,7 +53,7 @@ class RequestCorrectSerialTest extends TestCase
 
         $this->assertSame(SerialInsightStatus::Suspicious, $insight->status);
         $this->assertSame(
-            'Serial number गलत लग रहा है. Customer को सही serial WhatsApp पर भेजने के लिए कहें.',
+            'Request the customer to share the correct serial number via WhatsApp.',
             $insight->suggestedAction,
         );
     }
@@ -106,7 +106,7 @@ class RequestCorrectSerialTest extends TestCase
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('Serial number गलत लग रहा है. Customer को सही serial WhatsApp पर भेजने के लिए कहें.', $summaryHtml);
+        $this->assertStringContainsString('Request the correct serial number from the customer before closing this case.', $summaryHtml);
         $this->assertStringContainsString('Send request', $summaryHtml);
         $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $summaryHtml);
     }

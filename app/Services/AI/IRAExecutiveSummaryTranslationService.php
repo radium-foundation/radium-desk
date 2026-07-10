@@ -85,6 +85,17 @@ class IRAExecutiveSummaryTranslationService
             'Prioritize resolution, assign ownership, and send the customer an immediate status update.' => 'समाधान को प्राथमिकता दें, जिम्मेदारी सौंपें, और ग्राहक को तत्काल स्थिति अपडेट भेजें।',
             'Review incident details and contact the customer with the next update.' => 'घटना विवरण देखें और अगले अपडेट के साथ ग्राहक से संपर्क करें।',
             'Service is blocked only by missing device identification.' => 'सेवा केवल डिवाइस पहचान के अभाव में अवरुद्ध है।',
+            'Serial number needs verification.' => 'सीरियल नंबर की पुष्टि आवश्यक है।',
+            'Current serial confidence is' => 'वर्तमान सीरियल विश्वास',
+            'The current serial number looks incorrect and should be confirmed with the customer before proceeding.' => 'वर्तमान सीरियल नंबर गलत लग रहा है और आगे बढ़ने से पहले ग्राहक से पुष्टि करनी चाहिए।',
+            'The current serial number needs verification before warranty or repair work can proceed safely.' => 'वारंटी या मरम्मत से पहले वर्तमान सीरियल नंबर की पुष्टि आवश्यक है।',
+            'This case is blocked until the device serial number is received from the customer.' => 'ग्राहक से सीरियल नंबर मिलने तक यह केस अवरुद्ध है।',
+            'The customer has tried contacting multiple times and needs a prioritized callback.' => 'ग्राहक ने कई बार संपर्क किया है और प्राथमिकता वाले कॉलबैक की आवश्यकता है।',
+            'Request the correct serial number from the customer before closing this case.' => 'केस बंद करने से पहले ग्राहक से सही सीरियल नंबर माँगें।',
+            'Request the serial number from the customer immediately.' => 'ग्राहक से तुरंत सीरियल नंबर माँगें।',
+            'Prioritize callback now and update the customer immediately.' => 'अभी कॉलबैक को प्राथमिकता दें और ग्राहक को तुरंत अपडेट करें।',
+            'Review prior technician notes and communicate a proactive repair plan.' => 'पिछले तकनीशियन नोट्स देखें और सक्रिय मरम्मत योजना साझा करें।',
+            'Prioritize resolution and send the customer an immediate status update.' => 'समाधान को प्राथमिकता दें और ग्राहक को तत्काल स्थिति अपडेट भेजें।',
         ];
     }
 }

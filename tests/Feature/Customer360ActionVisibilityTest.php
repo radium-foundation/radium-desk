@@ -171,6 +171,54 @@ class Customer360ActionVisibilityTest extends TestCase
         );
     }
 
+    public function test_needs_verification_warning_serial_maps_to_request_correct_serial_action(): void
+    {
+        [$agent, $incident] = $this->createAssignedIncident([
+            'order_id' => 'RD-VIS-WARNING',
+            'serial_number' => 'B47C11929',
+            'product_name' => 'Access FM220 L1',
+            'device_model' => 'Access FM220 L1',
+        ]);
+
+        $insight = app(\App\Services\SerialValidation\SerialInsightService::class)->analyze($incident->order);
+        $this->assertSame('warning', $insight->status->value);
+        $this->assertSame('Needs verification', $insight->status->label());
+        $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
+
+        $html = $this->customer360Html($agent, $incident);
+        $this->assertStringContainsString('Recommended Actions', $html);
+        $this->assertStringContainsString('Serial number needs verification', $html);
+        $this->assertStringContainsString('Request Correct Serial', $html);
+    }
+
+    public function test_needs_verification_hides_recommended_action_while_waiting_for_customer(): void
+    {
+        [$agent, $incident] = $this->createAssignedIncident([
+            'order_id' => 'RD-VIS-WAITING-WARN',
+            'serial_number' => 'B47C11929',
+            'product_name' => 'Access FM220 L1',
+            'device_model' => 'Access FM220 L1',
+        ]);
+
+        IncidentWaitingState::query()->create([
+            'incident_id' => $incident->id,
+            'waiting_reason' => WaitingReason::SerialNumber,
+            'started_at' => Carbon::parse('2026-07-10 09:00:00'),
+            'sla_paused' => true,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $incident = $incident->fresh(['activeWaitingState', 'order']);
+
+        $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
+        $this->assertFalse(app(\App\Services\Customer360\Customer360ActionVisibilityService::class)->forIncident($incident)['canRequestCorrectSerial']);
+
+        $html = $this->customer360Html($agent, $incident);
+        $this->assertStringNotContainsString('Recommended Actions', $html);
+        $this->assertStringNotContainsString('Request Correct Serial', $html);
+    }
+
     /**
      * @param  array<string, mixed>  $orderOverrides
      * @return array{0: User, 1: Incident}

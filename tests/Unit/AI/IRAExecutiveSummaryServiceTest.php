@@ -13,6 +13,7 @@ use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\Support\AIContextFactory;
 use Tests\TestCase;
 
@@ -81,13 +82,11 @@ class IRAExecutiveSummaryServiceTest extends TestCase
             customerSummary: ['open_cases' => 1],
         );
 
-        $this->assertCount(4, $summary->executiveSummary);
-        $this->assertStringContainsString('FM 220', $summary->executiveSummary[0]);
-        $this->assertStringContainsString('serial number is still missing', $summary->executiveSummary[1]);
-        $this->assertStringContainsString('Warranty cannot yet be verified', $summary->executiveSummary[2]);
-        $this->assertStringContainsString('beyond SLA', $summary->executiveSummary[3]);
-        $this->assertStringContainsString('serial-number pending case', $summary->opinion);
-        $this->assertStringContainsString('Request the serial immediately', $summary->recommendation);
+        $this->assertLessThanOrEqual(4, count($summary->executiveSummary));
+        $this->assertStringContainsString('serial number is still missing', $summary->executiveSummary[0]);
+        $this->assertStringContainsString('beyond SLA', implode(' ', $summary->executiveSummary));
+        $this->assertStringContainsString('blocked until the device serial number', $summary->opinion);
+        $this->assertSame('Request the serial number from the customer immediately.', $summary->recommendation);
     }
 
     public function test_builds_suspicious_serial_warning_in_executive_summary(): void
@@ -134,9 +133,48 @@ class IRAExecutiveSummaryServiceTest extends TestCase
 
         $this->assertNotNull($summary->serialInsight);
         $this->assertSame('suspicious', $summary->serialInsight->status->value);
-        $this->assertStringContainsString('product code', $summary->executiveSummary[1]);
+        $this->assertStringContainsString('Serial number needs verification', $summary->executiveSummary[0]);
+        $this->assertStringContainsString('MFS 110', $summary->executiveSummary[0]);
+        $this->assertStringNotContainsString('product code', $summary->executiveSummary[0]);
         $this->assertStringContainsString('incorrect', $summary->opinion);
-        $this->assertStringContainsString('WhatsApp', $summary->recommendation);
+        $this->assertSame(
+            'Request the correct serial number from the customer before closing this case.',
+            $summary->recommendation,
+        );
+    }
+
+    public function test_english_output_contains_no_hindi_text(): void
+    {
+        $summary = $this->buildSuspiciousSerialSummary();
+
+        $payload = implode("\n", [
+            ...$summary->executiveSummary,
+            $summary->opinion,
+            $summary->recommendation,
+            (string) $summary->serialInsight?->explanation,
+            (string) $summary->serialInsight?->suggestedAction,
+        ]);
+
+        $this->assertDoesNotMatchRegularExpression('/[\x{0900}-\x{097F}]/u', $payload);
+    }
+
+    public function test_duplicate_ira_signals_are_merged(): void
+    {
+        $summary = $this->buildSuspiciousSerialSummary();
+
+        $this->assertCount(1, $summary->executiveSummary);
+        $this->assertStringNotContainsString('product code', implode(' ', $summary->executiveSummary));
+        $this->assertStringNotContainsString('WhatsApp', $summary->recommendation);
+        $this->assertStringNotContainsString('serial number needs verification', Str::lower($summary->opinion));
+    }
+
+    public function test_opinion_and_recommendation_are_single_sentence_actions(): void
+    {
+        $summary = $this->buildSuspiciousSerialSummary();
+
+        $this->assertSame(1, substr_count($summary->opinion, '.'));
+        $this->assertSame(1, substr_count($summary->recommendation, '.'));
+        $this->assertLessThanOrEqual(4, count($summary->executiveSummary));
     }
 
     public function test_translation_service_translates_executive_summary_payload(): void
@@ -154,5 +192,49 @@ class IRAExecutiveSummaryServiceTest extends TestCase
         $this->assertStringContainsString('ग्राहक ने खरीदा', $translated['executive_summary'][0]);
         $this->assertStringContainsString('सीरियल-नंबर लंबित केस', $translated['opinion']);
         $this->assertStringContainsString('तुरंत सीरियल माँगें', $translated['recommendation']);
+    }
+
+    private function buildSuspiciousSerialSummary(): \App\Data\AI\IRAExecutiveSummaryDTO
+    {
+        $agent = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-ENGLISH',
+            'serial_number' => '54SAXXC5514586',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'English Output Customer',
+            'customer_phone' => '9123456789',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'English output case',
+            'description' => 'Bad serial.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $context = AIContextFactory::make([
+            'serialMissing' => false,
+            'deviceModel' => 'MFS 110',
+            'warrantyStatus' => 'Not Available',
+            'customerSummary' => ['open_cases' => 1],
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+
+        return app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 1],
+        );
     }
 }

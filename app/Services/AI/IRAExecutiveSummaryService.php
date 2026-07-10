@@ -9,6 +9,7 @@ use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Operations\OperationsInsightDTO;
 use App\Data\SerialInsight;
 use App\Enums\Operations\OperationsInsightCategory;
+use App\Enums\SerialInsightConfidence;
 use App\Enums\SerialInsightStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
@@ -22,6 +23,7 @@ class IRAExecutiveSummaryService
     public function __construct(
         private readonly SerialInsightService $serialInsightService,
     ) {}
+
     /**
      * @param  list<OperationsInsightDTO>  $operationsAdvisorInsights
      */
@@ -95,16 +97,12 @@ class IRAExecutiveSummaryService
         $model = DeviceModelFormatter::shortDisplay($context->deviceModel) ?: 'device';
         $openCases = max(1, (int) ($customerSummary['open_cases'] ?? 0));
         $repairLabel = $openCases === 1 ? 'one active repair' : "{$openCases} active repairs";
+        $hasSerialConcern = $this->hasSerialConcern($context, $serialInsight);
 
-        $lines[] = "Customer purchased {$this->withArticle($model)} and currently has {$repairLabel}.";
-
-        if ($serialInsight !== null && in_array($serialInsight->status, [
-            SerialInsightStatus::Suspicious,
-            SerialInsightStatus::Warning,
-        ], true)) {
-            $lines[] = $serialInsight->explanation;
-        } elseif ($context->serialMissing) {
-            $lines[] = 'The device serial number is still missing, causing service delay.';
+        if ($hasSerialConcern) {
+            $lines[] = $this->serialExecutiveSummaryLine($context, $serialInsight, $model, $repairLabel);
+        } else {
+            $lines[] = "Customer purchased {$this->withArticle($model)} and currently has {$repairLabel}.";
         }
 
         $waitingLifecycleLine = $this->customerWaitingLifecycleLine($context);
@@ -113,10 +111,12 @@ class IRAExecutiveSummaryService
             $lines[] = $waitingLifecycleLine;
         }
 
-        $warrantyLine = $this->warrantySummaryLine($context, $response);
+        if (! $hasSerialConcern) {
+            $warrantyLine = $this->warrantySummaryLine($context, $response);
 
-        if ($warrantyLine !== null) {
-            $lines[] = $warrantyLine;
+            if ($warrantyLine !== null) {
+                $lines[] = $warrantyLine;
+            }
         }
 
         $slaLine = $this->slaSummaryLine($incident, $context, $response);
@@ -127,7 +127,7 @@ class IRAExecutiveSummaryService
 
         $repeatContactLine = trim((string) ($context->operationalIntelligence->repeatContactSummary ?? ''));
 
-        if ($repeatContactLine !== '') {
+        if ($repeatContactLine !== '' && ! $this->lineAlreadyCoversRepeatContact($lines, $repeatContactLine)) {
             $lines[] = $repeatContactLine;
         }
 
@@ -135,7 +135,7 @@ class IRAExecutiveSummaryService
             $lines[] = 'Review the current service case context before contacting the customer.';
         }
 
-        return $lines;
+        return $this->deduplicateLines($lines);
     }
 
     /**
@@ -154,27 +154,27 @@ class IRAExecutiveSummaryService
         if (is_array($lifecycleHistory) && ($lifecycleHistory['auto_closed'] ?? false)) {
             $reasonLabel = $lifecycleHistory['resolution_reason_label'] ?? 'Customer not responding';
 
-            return "This case was auto-closed after a follow-up reminder because the customer did not respond. Reason: {$reasonLabel}. Review prior timeline before contacting the customer again.";
+            return "This case was auto-closed after the customer did not respond to a follow-up reminder ({$reasonLabel}).";
         }
 
         if ($serialInsight?->status === SerialInsightStatus::Suspicious) {
-            return 'This serial number looks incorrect and should be verified with the customer before warranty or repair work proceeds.';
+            return 'The current serial number looks incorrect and should be confirmed with the customer before proceeding.';
+        }
+
+        if ($serialInsight?->status === SerialInsightStatus::Warning) {
+            return 'The current serial number needs verification before warranty or repair work can proceed safely.';
         }
 
         if ($context->serialMissing || $serialInsight?->status === SerialInsightStatus::Missing) {
-            return 'This appears to be a straightforward serial-number pending case. Obtaining the serial should unblock warranty validation and allow engineering to proceed.';
+            return 'This case is blocked until the device serial number is received from the customer.';
         }
 
         if ($context->operationalIntelligence->repeatContactHighUrgency) {
-            return 'Customer tried contacting multiple times. Prioritize callback.';
+            return 'The customer has tried contacting multiple times and needs a prioritized callback.';
         }
 
         if ($context->customerIntelligence->repeatIssueDetected) {
-            $summary = trim((string) ($context->customerIntelligence->repeatIssueSummary ?? ''));
-
-            return $summary !== ''
-                ? "This customer has experienced repeat failures and deserves proactive handling. {$summary}"
-                : 'This customer has experienced repeat failures and deserves proactive handling.';
+            return 'This customer has experienced repeat failures and deserves proactive handling.';
         }
 
         if ($context->isWarrantyExpired()) {
@@ -194,13 +194,13 @@ class IRAExecutiveSummaryService
         $primaryInsight = $operationsAdvisorInsights[0] ?? null;
 
         if ($primaryInsight !== null) {
-            return $primaryInsight->recommendation;
+            return $this->firstSentence($primaryInsight->recommendation);
         }
 
         $explanation = trim((string) ($response->recommendationExplanation ?? ''));
 
         return $explanation !== ''
-            ? $explanation
+            ? $this->firstSentence($explanation)
             : 'This case can proceed with standard service handling once the next dependency is cleared.';
     }
 
@@ -216,24 +216,12 @@ class IRAExecutiveSummaryService
         if (in_array($serialInsight?->status, [
             SerialInsightStatus::Suspicious,
             SerialInsightStatus::Warning,
-        ], true) && filled($serialInsight?->suggestedAction)) {
-            return (string) $serialInsight->suggestedAction;
+        ], true)) {
+            return 'Request the correct serial number from the customer before closing this case.';
         }
 
         if ($context->serialMissing || $serialInsight?->status === SerialInsightStatus::Missing) {
-            $parts = ['Request the serial immediately'];
-
-            if ($this->warrantyNeedsVerification($context, $response)) {
-                $parts[] = 'verify warranty once received';
-            }
-
-            if ($this->hasHighSlaRisk($context, $operationsAdvisorInsights)) {
-                $parts[] = 'proactively update the customer regarding SLA';
-            } else {
-                $parts[] = 'confirm next steps with the customer';
-            }
-
-            return $this->joinRecommendationParts($parts).'.';
+            return 'Request the serial number from the customer immediately.';
         }
 
         if ($context->isWarrantyExpired()) {
@@ -241,15 +229,15 @@ class IRAExecutiveSummaryService
         }
 
         if ($context->operationalIntelligence->repeatContactHighUrgency) {
-            return 'Prioritize callback now, confirm ownership stays with the assigned agent, and update the customer immediately.';
+            return 'Prioritize callback now and update the customer immediately.';
         }
 
         if ($context->customerIntelligence->repeatIssueDetected) {
-            return 'Review prior technician notes, assign senior support if needed, and communicate a proactive repair plan.';
+            return 'Review prior technician notes and communicate a proactive repair plan.';
         }
 
         if ($this->hasHighSlaRisk($context, $operationsAdvisorInsights)) {
-            return 'Prioritize resolution, assign ownership, and send the customer an immediate status update.';
+            return 'Prioritize resolution and send the customer an immediate status update.';
         }
 
         $primaryAction = $response->suggestedNextActions[0] ?? null;
@@ -258,15 +246,117 @@ class IRAExecutiveSummaryService
             $description = trim($primaryAction->description);
 
             return $description !== ''
-                ? $primaryAction->title.': '.$description.'.'
-                : $primaryAction->title.'.';
+                ? $this->firstSentence($primaryAction->title.': '.$description)
+                : $this->firstSentence($primaryAction->title);
         }
 
         $advisorRecommendation = $operationsAdvisorInsights[0]?->recommendation;
 
         return filled($advisorRecommendation)
-            ? $advisorRecommendation
+            ? $this->firstSentence($advisorRecommendation)
             : 'Review incident details and contact the customer with the next update.';
+    }
+
+    private function serialExecutiveSummaryLine(
+        \App\Data\AI\AIContextDTO $context,
+        ?SerialInsight $serialInsight,
+        string $model,
+        string $repairLabel,
+    ): string {
+        $purchaseContext = "Customer purchased {$this->withArticle($model)} and currently has {$repairLabel}.";
+
+        if ($serialInsight === null) {
+            return 'Serial number needs verification. '.$purchaseContext;
+        }
+
+        $confidenceLabel = Str::lower($serialInsight->confidence->label());
+
+        if (in_array($serialInsight->status, [
+            SerialInsightStatus::Suspicious,
+            SerialInsightStatus::Warning,
+        ], true)) {
+            return "Serial number needs verification. {$purchaseContext} Current serial confidence is {$confidenceLabel}.";
+        }
+
+        if ($context->serialMissing || $serialInsight->status === SerialInsightStatus::Missing) {
+            return 'The device serial number is still missing, causing service delay.';
+        }
+
+        return $purchaseContext;
+    }
+
+    private function hasSerialConcern(
+        \App\Data\AI\AIContextDTO $context,
+        ?SerialInsight $serialInsight,
+    ): bool {
+        if ($context->serialMissing || $serialInsight?->status === SerialInsightStatus::Missing) {
+            return true;
+        }
+
+        return in_array($serialInsight?->status, [
+            SerialInsightStatus::Suspicious,
+            SerialInsightStatus::Warning,
+        ], true);
+    }
+
+    /**
+     * @param  list<string>  $lines
+     */
+    private function lineAlreadyCoversRepeatContact(array $lines, string $repeatContactLine): bool
+    {
+        $normalizedRepeat = Str::lower($repeatContactLine);
+
+        foreach ($lines as $line) {
+            $normalizedLine = Str::lower($line);
+
+            if (Str::contains($normalizedLine, 'callback')
+                && Str::contains($normalizedRepeat, 'callback')) {
+                return true;
+            }
+
+            if (Str::contains($normalizedLine, 'contacted')
+                && Str::contains($normalizedRepeat, 'contacted')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<string>  $lines
+     * @return list<string>
+     */
+    private function deduplicateLines(array $lines): array
+    {
+        $unique = [];
+        $seen = [];
+
+        foreach ($lines as $line) {
+            $normalized = Str::lower(trim($line));
+
+            if ($normalized === '' || isset($seen[$normalized])) {
+                continue;
+            }
+
+            $seen[$normalized] = true;
+            $unique[] = $line;
+        }
+
+        return $unique;
+    }
+
+    private function firstSentence(string $text): string
+    {
+        $trimmed = trim($text);
+
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $sentence = preg_split('/(?<=[.!?])\s+/', $trimmed, 2)[0] ?? $trimmed;
+
+        return rtrim($sentence, '.').'.';
     }
 
     private function customerWaitingLifecycleLine(\App\Data\AI\AIContextDTO $context): ?string
@@ -397,23 +487,5 @@ class IRAExecutiveSummaryService
         $article = in_array($first, ['a', 'e', 'i', 'o', 'u'], true) ? 'an' : 'a';
 
         return "{$article} {$model}";
-    }
-
-    /**
-     * @param  list<string>  $parts
-     */
-    private function joinRecommendationParts(array $parts): string
-    {
-        if ($parts === []) {
-            return '';
-        }
-
-        if (count($parts) === 1) {
-            return $parts[0];
-        }
-
-        $last = array_pop($parts);
-
-        return implode(', ', $parts).' and '.$last;
     }
 }

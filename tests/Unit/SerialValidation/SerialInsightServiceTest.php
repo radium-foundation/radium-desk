@@ -32,9 +32,9 @@ class SerialInsightServiceTest extends TestCase
 
         $this->assertSame(SerialInsightStatus::Suspicious, $insight->status);
         $this->assertSame(SerialInsightConfidence::Medium, $insight->confidence);
-        $this->assertStringContainsString('FM220 pattern', $insight->explanation);
+        $this->assertStringContainsString('FM 220 pattern', $insight->explanation);
         $this->assertStringContainsString('WhatsApp', (string) $insight->suggestedAction);
-        $this->assertStringContainsString('सही serial', (string) $insight->suggestedAction);
+        $this->assertDoesNotMatchRegularExpression('/[\x{0900}-\x{097F}]/u', (string) $insight->suggestedAction);
     }
 
     public function test_detects_product_code_submitted_as_serial(): void

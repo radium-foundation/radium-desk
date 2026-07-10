@@ -15,9 +15,11 @@ use Illuminate\Support\Str;
 
 class SerialInsightService
 {
-    private const SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP = 'Serial number गलत लग रहा है. Customer को सही serial WhatsApp पर भेजने के लिए कहें.';
+    private const SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP = 'Request the customer to share the correct serial number via WhatsApp.';
 
-    private const SUGGEST_REQUEST_SERIAL_VIA_WHATSAPP = 'Customer को WhatsApp पर serial number भेजने के लिए कहें।';
+    private const SUGGEST_REQUEST_SERIAL_VIA_WHATSAPP = 'Request the customer to share the device serial number via WhatsApp.';
+
+    private const SUGGEST_VERIFY_SERIAL_VIA_RADIUMBOX = 'Verify the serial number in RadiumBox before proceeding.';
 
     public function __construct(
         private readonly SerialValidationService $serialValidationService,
@@ -97,7 +99,7 @@ class SerialInsightService
             return new SerialInsight(
                 status: SerialInsightStatus::Suspicious,
                 confidence: SerialInsightConfidence::High,
-                explanation: 'Customer ने शायद product code भेजा है serial नहीं।',
+                explanation: 'Customer may have submitted a product code instead of a serial number.',
                 suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $technicalReason,
             );
@@ -108,7 +110,7 @@ class SerialInsightService
             return new SerialInsight(
                 status: SerialInsightStatus::Suspicious,
                 confidence: SerialInsightConfidence::High,
-                explanation: 'Serial RadiumBox data से match नहीं हो रहा।',
+                explanation: 'Serial number does not match RadiumBox data.',
                 suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $technicalReason,
             );
@@ -131,7 +133,7 @@ class SerialInsightService
                 status: SerialInsightStatus::Warning,
                 confidence: SerialInsightConfidence::Medium,
                 explanation: 'Product mapping is unclear; confirm device model before trusting this serial.',
-                suggestedAction: 'RadiumBox से serial verify करें।',
+                suggestedAction: self::SUGGEST_VERIFY_SERIAL_VIA_RADIUMBOX,
                 technicalReason: $validation->reason,
             );
         }
@@ -140,7 +142,7 @@ class SerialInsightService
             status: SerialInsightStatus::Warning,
             confidence: SerialInsightConfidence::Low,
             explanation: 'Serial number needs a quick manual review.',
-            suggestedAction: 'RadiumBox से serial verify करें।',
+            suggestedAction: self::SUGGEST_VERIFY_SERIAL_VIA_RADIUMBOX,
             technicalReason: $technicalReason,
         );
     }
@@ -164,21 +166,21 @@ class SerialInsightService
         $productKey = Str::upper(str_replace(' ', '', $productLabel));
 
         if (Str::contains($productKey, 'FM220')) {
-            return 'यह serial FM220 pattern जैसा नहीं लग रहा।';
+            return 'This serial does not match the expected FM 220 pattern.';
         }
 
         if (Str::contains($productKey, 'MFS110')) {
-            return 'यह serial MFS 110 pattern जैसा नहीं लग रहा।';
+            return 'This serial does not match the expected MFS 110 pattern.';
         }
 
         if (Str::contains($productKey, 'MIS100')) {
-            return 'यह serial MIS 100 pattern जैसा नहीं लग रहा।';
+            return 'This serial does not match the expected MIS 100 pattern.';
         }
 
         if (Str::contains($productKey, 'MSOE3')) {
-            return 'यह serial MSO E3 pattern जैसा नहीं लग रहा।';
+            return 'This serial does not match the expected MSO E3 pattern.';
         }
 
-        return "यह serial {$productLabel} pattern जैसा नहीं लग रहा।";
+        return "This serial does not match the expected {$productLabel} pattern.";
     }
 }
