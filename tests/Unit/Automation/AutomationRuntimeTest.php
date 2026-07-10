@@ -24,6 +24,7 @@ use App\Services\Automation\AutomationNotificationTypeResolver;
 use App\Services\Automation\AutomationRuntime;
 use App\Services\Automation\ExecutionPlanner;
 use App\Services\Automation\Handlers\NotificationActionHandler;
+use App\Services\Automation\Handlers\NotifyTeamActionHandler;
 use App\Services\AutomationPolicyService;
 use App\Services\IncidentReferenceService;
 use App\Services\IncidentWaitingStateService;
@@ -158,7 +159,7 @@ class AutomationRuntimeTest extends TestCase
             'waiting_state_id' => $waitingState->id,
             'action_key' => 'serial_number_escalation',
             'status' => AutomationExecutionStatus::Skipped->value,
-            'error_message' => 'No action handler is registered for this action type.',
+            'error_message' => AutomationRuntime::MISSING_HANDLER_ERROR_MESSAGE,
         ]);
     }
 
@@ -414,6 +415,97 @@ class AutomationRuntimeTest extends TestCase
         $this->assertTrue($secondRun->results[0]->wasSkipped());
         $this->assertTrue($secondRun->results[0]->skippedExisting);
         $this->assertSame(1, AutomationExecution::query()->count());
+    }
+
+    public function test_container_runtime_resolves_notify_team_handler_for_day_seven_escalation(): void
+    {
+        [$waitingState] = $this->makePlannedActions();
+
+        $plannedActions = app(ExecutionPlanner::class)->plan(
+            $waitingState,
+            app(AutomationPolicyService::class)->dueActions(
+                $waitingState,
+                Carbon::parse('2026-07-08 12:00:00'),
+            ),
+        );
+
+        $escalationAction = collect($plannedActions)
+            ->first(fn ($action) => $action->scheduleStep === 7
+                && $action->actionKey === 'serial_number_escalation');
+
+        $this->assertNotNull($escalationAction);
+        $this->assertSame('serial_number_default', $escalationAction->policyKey);
+        $this->assertSame(AutomationPolicyActionType::NotifyTeam, $escalationAction->actionType);
+
+        $runtime = app(AutomationRuntime::class);
+        $result = $runtime->execute($waitingState, [$escalationAction]);
+
+        $this->assertSame(AutomationExecutionStatus::Success, $result->results[0]->status);
+        $this->assertDatabaseHas('automation_executions', [
+            'waiting_state_id' => $waitingState->id,
+            'policy_key' => 'serial_number_default',
+            'schedule_step' => 7,
+            'action_type' => AutomationPolicyActionType::NotifyTeam->value,
+            'action_key' => 'serial_number_escalation',
+            'status' => AutomationExecutionStatus::Success->value,
+        ]);
+    }
+
+    public function test_runtime_retries_skipped_execution_when_handler_was_missing_but_is_now_registered(): void
+    {
+        [$waitingState] = $this->makePlannedActions();
+
+        $plannedActions = app(ExecutionPlanner::class)->plan(
+            $waitingState,
+            app(AutomationPolicyService::class)->dueActions(
+                $waitingState,
+                Carbon::parse('2026-07-08 12:00:00'),
+            ),
+        );
+
+        $escalationAction = collect($plannedActions)
+            ->first(fn ($action) => $action->actionKey === 'serial_number_escalation');
+
+        $this->assertNotNull($escalationAction);
+
+        $idempotencyKey = app(AutomationIdempotencyKeyGenerator::class)->generate(
+            waitingStateId: $waitingState->id,
+            policyKey: 'serial_number_default',
+            scheduleStep: 7,
+            actionType: AutomationPolicyActionType::NotifyTeam,
+            channel: null,
+        );
+
+        AutomationExecution::query()->create([
+            'waiting_state_id' => $waitingState->id,
+            'policy_key' => 'serial_number_default',
+            'schedule_step' => 7,
+            'action_type' => AutomationPolicyActionType::NotifyTeam,
+            'action_key' => 'serial_number_escalation',
+            'status' => AutomationExecutionStatus::Skipped,
+            'idempotency_key' => $idempotencyKey,
+            'error_message' => AutomationRuntime::MISSING_HANDLER_ERROR_MESSAGE,
+            'started_at' => Carbon::parse('2026-07-01 08:00:00'),
+            'completed_at' => Carbon::parse('2026-07-01 08:00:00'),
+        ]);
+
+        $runtime = new AutomationRuntime(
+            app(AutomationIdempotencyKeyGenerator::class),
+            [
+                app(NotificationActionHandler::class),
+                app(NotifyTeamActionHandler::class),
+            ],
+        );
+
+        $result = $runtime->execute($waitingState, [$escalationAction]);
+
+        $this->assertSame(AutomationExecutionStatus::Success, $result->results[0]->status);
+        $this->assertSame(1, AutomationExecution::query()->count());
+        $this->assertDatabaseHas('automation_executions', [
+            'idempotency_key' => $idempotencyKey,
+            'status' => AutomationExecutionStatus::Success->value,
+            'error_message' => null,
+        ]);
     }
 
     public function test_idempotency_key_is_deterministic_for_same_action(): void

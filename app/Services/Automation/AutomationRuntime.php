@@ -18,6 +18,8 @@ class AutomationRuntime
 {
     private const PENDING_STALE_AFTER_SECONDS = 3600;
 
+    public const MISSING_HANDLER_ERROR_MESSAGE = 'No action handler is registered for this action type.';
+
     /**
      * @param  array<int, ActionHandler>  $handlers
      */
@@ -112,9 +114,14 @@ class AutomationRuntime
         return match ($existing->status) {
             AutomationExecutionStatus::Failed => true,
             AutomationExecutionStatus::Pending => $this->isPendingStale($existing),
-            AutomationExecutionStatus::Success,
-            AutomationExecutionStatus::Skipped => false,
+            AutomationExecutionStatus::Skipped => $this->wasSkippedDueToMissingHandler($existing),
+            AutomationExecutionStatus::Success => false,
         };
+    }
+
+    private function wasSkippedDueToMissingHandler(AutomationExecution $existing): bool
+    {
+        return $existing->error_message === self::MISSING_HANDLER_ERROR_MESSAGE;
     }
 
     private function isPendingStale(AutomationExecution $execution): bool
@@ -169,7 +176,7 @@ class AutomationRuntime
                 plannedAction: $plannedAction,
                 idempotencyKey: $idempotencyKey,
                 status: AutomationExecutionStatus::Skipped,
-                errorMessage: 'No action handler is registered for this action type.',
+                errorMessage: self::MISSING_HANDLER_ERROR_MESSAGE,
             ),
         );
 
