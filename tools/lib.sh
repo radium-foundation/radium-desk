@@ -248,6 +248,12 @@ health_check() {
         return 1
     fi
 
+    print_warning "Validating Cashfree configuration..."
+    if ! php_exec cashfree:validate-config; then
+        print_error "Health check failed: Cashfree configuration is invalid"
+        return 1
+    fi
+
     print_success "Health check passed (${app_url}/, HTTP ${http_status})"
     return 0
 }

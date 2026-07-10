@@ -5,6 +5,7 @@ namespace App\Infrastructure\IntegrationHealth\Probes;
 use App\Infrastructure\IntegrationHealth\Contracts\IntegrationHealthProbe;
 use App\Infrastructure\IntegrationHealth\IntegrationHealthSnapshot;
 use App\Models\CashfreeWebhookLog;
+use App\Services\Cashfree\CashfreeConfigurationValidator;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use Illuminate\Support\Facades\Schema;
@@ -13,6 +14,7 @@ class CashfreeIntegrationHealthProbe implements IntegrationHealthProbe
 {
     public function __construct(
         private readonly CashfreePaymentIntegrityService $integrityService,
+        private readonly CashfreeConfigurationValidator $configurationValidator,
     ) {}
 
     public function key(): string
@@ -27,6 +29,12 @@ class CashfreeIntegrationHealthProbe implements IntegrationHealthProbe
 
     public function probe(): IntegrationHealthSnapshot
     {
+        $configurationFailures = $this->configurationValidator->failures();
+
+        if ($configurationFailures !== []) {
+            return $this->misconfiguredSnapshot($configurationFailures[0]);
+        }
+
         if (! Schema::hasTable('cashfree_webhook_logs')) {
             return $this->unknownSnapshot('Webhook log table unavailable.');
         }
@@ -92,6 +100,21 @@ class CashfreeIntegrationHealthProbe implements IntegrationHealthProbe
             key: $this->key(),
             label: $this->label(),
             connectionStatus: 'unknown',
+            lastSuccessAt: null,
+            lastFailureAt: null,
+            lastSyncAt: null,
+            retryCount: 0,
+            averageResponseTimeMs: null,
+            lastErrorMessage: $message,
+        );
+    }
+
+    private function misconfiguredSnapshot(string $message): IntegrationHealthSnapshot
+    {
+        return new IntegrationHealthSnapshot(
+            key: $this->key(),
+            label: $this->label(),
+            connectionStatus: 'degraded',
             lastSuccessAt: null,
             lastFailureAt: null,
             lastSyncAt: null,
