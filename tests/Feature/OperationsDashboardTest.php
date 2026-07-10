@@ -577,6 +577,22 @@ class OperationsDashboardTest extends TestCase
         $this->assertSame(1, $summary->tomorrow);
     }
 
+    public function test_support_intelligence_counts_unassigned_scheduled_cases(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createSupportAgent('Shipra');
+        $creator = User::factory()->create();
+
+        $this->createScheduledAppointment($agent, $creator, 'RD-SI-ASSIGNED', '2026-07-06');
+        $this->createScheduledAppointment(null, $creator, 'RD-SI-UNASSIGNED-1', '2026-07-06');
+        $this->createScheduledAppointment(null, $creator, 'RD-SI-UNASSIGNED-2', '2026-07-07');
+
+        $summary = app(OperationsSupportIntelligenceService::class)->summary();
+
+        $this->assertSame(2, $summary->unassignedScheduled);
+    }
+
     public function test_support_intelligence_counts_waiting_serial_customers_correctly(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
@@ -764,7 +780,7 @@ class OperationsDashboardTest extends TestCase
     }
 
     private function createScheduledAppointment(
-        User $assignee,
+        ?User $assignee,
         User $creator,
         string $orderId,
         string $preferredDate,
@@ -791,7 +807,7 @@ class OperationsDashboardTest extends TestCase
             'status' => IncidentStatus::Open,
             'created_by' => $creator->id,
             'updated_by' => $creator->id,
-            'assigned_to_user_id' => $assignee->id,
+            'assigned_to_user_id' => $assignee?->id,
         ]);
 
         SupportAppointment::query()->create([

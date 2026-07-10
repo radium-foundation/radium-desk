@@ -6,6 +6,7 @@ use App\Models\BonvoiceCallAlert;
 use App\Models\BonvoiceCallEvent;
 use App\Models\User;
 use App\Notifications\IncomingCallAssistNotification;
+use App\Support\BonvoiceCallStatuses;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -20,6 +21,10 @@ class BonvoiceLiveCallAssistService
     public function maybeNotify(BonvoiceCallEvent $event): ?BonvoiceCallAlert
     {
         if (! $this->isInbound($event)) {
+            return null;
+        }
+
+        if (! BonvoiceCallStatuses::isRingingStatus($event->status)) {
             return null;
         }
 

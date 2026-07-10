@@ -6,6 +6,7 @@ use App\Data\Operations\MissingSerialAutomationQualitySummary;
 use App\Data\Operations\SupportIntelligenceSummary;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
+use App\Enums\SupportAppointmentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
@@ -36,6 +37,7 @@ class OperationsSupportIntelligenceService
         $pendingToday = $this->pendingAppointmentsOnDate($today, $snapshot);
         $completedToday = max(0, $scheduledToday - $pendingToday);
         $missedOverdue = $this->missedOverdueCount($today);
+        $unassignedScheduled = $this->unassignedScheduledCount($snapshot);
 
         $activeAppointments = fn () => SupportAppointment::query()
             ->whereHas('incident', fn ($query) => $query->whereIn('status', IncidentStatus::operationallyActive()));
@@ -60,6 +62,7 @@ class OperationsSupportIntelligenceService
             completedToday: $completedToday,
             pendingToday: $pendingToday,
             missedOverdue: $missedOverdue,
+            unassignedScheduled: $unassignedScheduled,
             tomorrow: $tomorrowCount,
             nextSevenDays: $nextSevenDaysCount,
             serialRequested: $serialSummary->autoRequested,
@@ -142,7 +145,15 @@ class OperationsSupportIntelligenceService
     private function appointmentsOnDate(Carbon $date)
     {
         return SupportAppointment::query()
+            ->scheduled()
             ->whereDate('preferred_date', $date->toDateString());
+    }
+
+    private function unassignedScheduledCount(DashboardSnapshot $snapshot): int
+    {
+        return $snapshot->incidentsForQueue(OperationQueue::Scheduled->value)
+            ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === null)
+            ->count();
     }
 
     private function serialStillWaitingCount(): int

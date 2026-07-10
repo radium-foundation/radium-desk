@@ -74,7 +74,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
 
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: 'call-live-known-001',
-            status: 'ANSWERED',
+            status: 'Ringing',
         ))->assertOk();
 
         $this->assertDatabaseHas('bonvoice_call_alerts', [
@@ -107,7 +107,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: 'call-live-unknown-001',
             sourceNumber: '9111222333',
-            status: 'ANSWERED',
+            status: 'Ringing',
         ))->assertOk();
 
         $this->assertDatabaseHas('bonvoice_call_alerts', [
@@ -149,7 +149,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
 
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: 'call-live-dup-001',
-            status: 'ANSWERED',
+            status: 'Ringing',
             eventId: 'evt-dup-1',
         ))->assertOk();
 
@@ -185,7 +185,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: 'call-live-no-agent-001',
             destinationNumber: '1800123456',
-            status: 'ANSWERED',
+            status: 'Ringing',
         ))->assertOk();
 
         $this->assertDatabaseMissing('bonvoice_call_alerts', [
@@ -260,7 +260,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
 
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: 'call-live-notify-fail-001',
-            status: 'ANSWERED',
+            status: 'Ringing',
         ))->assertOk();
 
         $this->assertDatabaseHas('bonvoice_webhook_logs', [
@@ -340,7 +340,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
 
         $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
             callId: 'call-live-prefer-active-001',
-            status: 'ANSWERED',
+            status: 'Ringing',
         ))->assertOk();
 
         $this->assertDatabaseHas('bonvoice_call_alerts', [
@@ -354,13 +354,44 @@ class BonvoiceLiveCallAssistTest extends TestCase
         });
     }
 
+    public function test_terminal_only_webhook_does_not_create_alert(): void
+    {
+        Notification::fake();
+
+        $agent = User::factory()->create([
+            'bonvoice_extension' => '1800123456',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD-LIVE-TERMINAL',
+            'serial_number' => 'SN-LIVE-TERMINAL',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-live-terminal-only-001',
+            status: 'ANSWERED',
+        ))->assertOk();
+
+        $this->assertDatabaseMissing('bonvoice_call_alerts', [
+            'call_id' => 'call-live-terminal-only-001',
+        ]);
+
+        Notification::assertNothingSent();
+    }
+
     /**
      * @return array<string, mixed>
      */
     private function inboundCallPayload(
         string $callId = 'call-live-001',
         string $leg = 'A',
-        string $status = 'ANSWERED',
+        string $status = 'Ringing',
         string $eventId = 'evt-live-001',
         string $sourceNumber = '9876543210',
         string $destinationNumber = '1800123456',

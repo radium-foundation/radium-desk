@@ -4,14 +4,29 @@ const parseTime = (timeValue) => {
     return { hours, minutes };
 };
 
-const isSunday = (dateString) => {
+const isSunday = (dateString, timezone) => {
     if (!dateString) {
         return false;
     }
 
-    const date = new Date(`${dateString}T12:00:00`);
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        weekday: 'short',
+    });
 
-    return date.getDay() === 0;
+    return formatter.format(new Date(`${dateString}T12:00:00Z`)) === 'Sun';
+};
+
+const nextAvailableDate = (dateString, timezone) => {
+    let candidate = dateString;
+
+    for (let attempts = 0; attempts < 7 && isSunday(candidate, timezone); attempts += 1) {
+        const date = new Date(`${candidate}T12:00:00Z`);
+        date.setUTCDate(date.getUTCDate() + 1);
+        candidate = date.toISOString().slice(0, 10);
+    }
+
+    return candidate;
 };
 
 const currentMinutes = (config) => {
@@ -35,7 +50,7 @@ const isSlotAvailable = (config, dateString, slotValue) => {
         return true;
     }
 
-    if (isSunday(dateString)) {
+    if (isSunday(dateString, config.timezone)) {
         return false;
     }
 
@@ -118,11 +133,14 @@ export const initSupportAppointmentForm = (root = document) => {
     }
 
     const refreshAvailability = () => {
-        const selectedDate = dateInput.value;
+        let selectedDate = dateInput.value;
 
-        if (isSunday(selectedDate)) {
+        if (selectedDate && isSunday(selectedDate, config.timezone)) {
+            const adjustedDate = nextAvailableDate(selectedDate, config.timezone);
+            dateInput.value = adjustedDate;
+            selectedDate = adjustedDate;
             setDateFieldMessage(dateInput, config.sundayUnavailableMessage);
-            dateInput.setCustomValidity(config.sundayUnavailableMessage);
+            dateInput.setCustomValidity('');
         } else if (
             selectedDate === config.today
             && availableSlotsForDate(config, selectedDate).length === 0

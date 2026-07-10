@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\WaitingReason;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
@@ -328,6 +329,30 @@ class OperationsModelFoundationTest extends TestCase
         $this->assertSame(2, $adminStats['open_cases']);
     }
 
+    public function test_my_scheduled_today_kpi_is_scoped_to_assignee(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agentA = User::factory()->create();
+        $agentA->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $agentB = User::factory()->create();
+        $agentB->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->createScheduledIncident($creator, $agentA, 'RD-SCHED-A1', '2026-07-06');
+        $this->createScheduledIncident($creator, $agentA, 'RD-SCHED-A2', '2026-07-06');
+        $this->createScheduledIncident($creator, $agentB, 'RD-SCHED-B1', '2026-07-06');
+
+        $agentAStats = app(DashboardService::class)->statsFor($agentA);
+        $agentBStats = app(DashboardService::class)->statsFor($agentB);
+
+        $this->assertSame(2, $agentAStats['my_scheduled_today']);
+        $this->assertSame(1, $agentBStats['my_scheduled_today']);
+    }
+
     public function test_operational_kpi_counts_do_not_issue_queries_after_snapshot_load(): void
     {
         $creator = User::factory()->create();
@@ -399,5 +424,19 @@ class OperationsModelFoundationTest extends TestCase
             'updated_by' => $creator->id,
             'assigned_to_user_id' => $assignee?->id,
         ]);
+    }
+
+    private function createScheduledIncident(User $creator, User $assignee, string $orderId, string $preferredDate): Incident
+    {
+        $incident = $this->createIncident($orderId, $creator, $assignee);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => $preferredDate,
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876543210',
+        ]);
+
+        return $incident;
     }
 }

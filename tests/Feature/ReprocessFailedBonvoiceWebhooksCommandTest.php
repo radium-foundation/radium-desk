@@ -151,7 +151,7 @@ class ReprocessFailedBonvoiceWebhooksCommandTest extends TestCase
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $this->createFailedLog([
-            'payload' => $this->inboundCallPayload(status: 'ANSWERED'),
+            'payload' => $this->inboundCallPayload(status: 'Ringing'),
             'processing_error' => BonvoiceWebhookAuthVerifier::ERROR_INVALID_AUTHORIZATION,
         ]);
 

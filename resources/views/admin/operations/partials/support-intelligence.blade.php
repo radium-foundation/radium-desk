@@ -12,12 +12,13 @@
     $completedToday = (int) ($today['completed'] ?? 0);
     $pendingToday = (int) ($today['pending'] ?? 0);
     $missedOverdue = (int) ($today['missed_overdue'] ?? 0);
+    $unassignedScheduled = (int) ($today['unassigned_scheduled'] ?? 0);
     $tomorrow = (int) ($upcoming['tomorrow'] ?? 0);
     $nextSevenDays = (int) ($upcoming['next_seven_days'] ?? 0);
     $serialRequested = (int) ($customerResponse['serial_requested'] ?? 0);
     $serialReceived = (int) ($customerResponse['serial_received'] ?? 0);
     $serialResponsePending = (int) ($customerResponse['serial_response_pending'] ?? $customerResponse['still_waiting'] ?? 0);
-    $showDetails = $missedOverdue > 0 || $serialResponsePending > 0;
+    $showDetails = $missedOverdue > 0 || $serialResponsePending > 0 || $unassignedScheduled > 0;
 
     $workloadCards = collect($teamWorkload)
         ->map(function (array $member): array {
@@ -92,6 +93,16 @@
                     <span class="text-muted">Missed Appointments</span>
                     <strong @class(['d-block', 'text-danger' => $missedOverdue > 0])>{{ number_format($missedOverdue) }}</strong>
                 </div>
+                @if ($unassignedScheduled > 0)
+                    <div class="col-6 col-md-3">
+                        <span class="text-muted">Unassigned scheduled</span>
+                        <strong class="d-block text-warning">
+                            <a href="{{ route('dashboard', ['filter' => 'scheduled']) }}" class="text-warning text-decoration-none">
+                                {{ number_format($unassignedScheduled) }}
+                            </a>
+                        </strong>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
@@ -109,6 +120,14 @@
                             <dd class="col-5 text-end mb-1">{{ number_format($completedToday) }}</dd>
                             <dt class="col-7">Pending</dt>
                             <dd class="col-5 text-end mb-1">{{ number_format($pendingToday) }}</dd>
+                            @if ($unassignedScheduled > 0)
+                                <dt class="col-7">Unassigned scheduled</dt>
+                                <dd class="col-5 text-end mb-1 text-warning fw-semibold">
+                                    <a href="{{ route('dashboard', ['filter' => 'scheduled']) }}" class="text-warning text-decoration-none">
+                                        {{ number_format($unassignedScheduled) }}
+                                    </a>
+                                </dd>
+                            @endif
                             @if ($missedOverdue > 0)
                                 <dt class="col-7">Missed Appointments</dt>
                                 <dd class="col-5 text-end mb-0 text-danger fw-semibold">{{ number_format($missedOverdue) }}</dd>

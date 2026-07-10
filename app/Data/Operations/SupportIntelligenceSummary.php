@@ -13,6 +13,7 @@ readonly class SupportIntelligenceSummary
         public int $completedToday,
         public int $pendingToday,
         public int $missedOverdue,
+        public int $unassignedScheduled,
         public int $tomorrow,
         public int $nextSevenDays,
         public int $serialRequested,
@@ -33,6 +34,7 @@ readonly class SupportIntelligenceSummary
                 'completed' => $this->completedToday,
                 'pending' => $this->pendingToday,
                 'missed_overdue' => $this->missedOverdue,
+                'unassigned_scheduled' => $this->unassignedScheduled,
             ],
             'upcoming' => [
                 'tomorrow' => $this->tomorrow,

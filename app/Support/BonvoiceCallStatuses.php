@@ -10,6 +10,9 @@ class BonvoiceCallStatuses
     /** @var list<string> */
     public const ANSWERED = ['ANSWERED', 'COMPLETED'];
 
+    /** @var list<string> */
+    public const RINGING = ['RINGING', 'RING'];
+
     public static function normalize(?string $status): ?string
     {
         if ($status === null || trim($status) === '') {
@@ -31,6 +34,13 @@ class BonvoiceCallStatuses
         $normalized = self::normalize($status);
 
         return $normalized !== null && in_array($normalized, self::ANSWERED, true);
+    }
+
+    public static function isRingingStatus(?string $status): bool
+    {
+        $normalized = self::normalize($status);
+
+        return $normalized !== null && in_array($normalized, self::RINGING, true);
     }
 
     public static function transitionedToMissed(?string $previous, ?string $current): bool

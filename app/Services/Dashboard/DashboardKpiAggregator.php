@@ -72,6 +72,7 @@ class DashboardKpiAggregator
         $myWork = $snapshot->myWorkIncidents($user);
         $attention = $snapshot->incidentsForFilter('my_attention', $user);
         $scheduledToday = $snapshot->incidentsForQueue(OperationQueue::Scheduled->value, $user)
+            ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $user->id)
             ->filter(function (Incident $incident) use ($today): bool {
                 $appointments = $incident->relationLoaded('supportAppointments')
                     ? $incident->supportAppointments
