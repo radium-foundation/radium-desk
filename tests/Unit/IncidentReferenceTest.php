@@ -202,6 +202,29 @@ class IncidentReferenceTest extends TestCase
         $this->assertSame(42, ReferenceSequence::query()->find(ReferenceSequence::SC)?->current_value);
     }
 
+    public function test_generate_outside_outer_transaction_commits_sequence_independently(): void
+    {
+        $this->syncSequenceTo(50);
+
+        // Preferred call pattern used by Cashfree + customer intake.
+        $reference = app(IncidentReferenceService::class)->generate();
+        $this->assertSame('SC00051', $reference);
+        $this->assertSame(51, ReferenceSequence::query()->find(ReferenceSequence::SC)?->current_value);
+
+        DB::transaction(function (): void {
+            Order::query()->create([
+                'order_id' => 'RD-LOCK-SCOPE',
+                'serial_number' => 'SN-LOCK-SCOPE',
+                'product_name' => 'MFS 110',
+                'device_model' => 'MFS 110',
+                'status' => 'active',
+                'created_by' => User::factory()->create()->id,
+            ]);
+        });
+
+        $this->assertSame(51, ReferenceSequence::query()->find(ReferenceSequence::SC)?->current_value);
+    }
+
     public function test_format_reference_helper_matches_existing_output(): void
     {
         $this->assertSame('SC00001', IncidentReferenceService::formatReference(1));

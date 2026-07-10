@@ -140,40 +140,42 @@ class CustomerIntakeService
         bool $highPriority = false,
         bool $assignOnCreate = true,
     ): Incident {
-        return DB::transaction(function () use ($user, $intent, $source, $customerName, $phone, $serialNumber, $product, $notes, $highPriority, $assignOnCreate): Incident {
-            $reference = $this->incidentReferenceService->generate();
-            $inquiryOrderId = Order::inquiryOrderIdFromReference($reference);
+        $normalizedSerial = null;
 
-            $normalizedSerial = null;
-
-            if ($intent->requiresSerial()) {
-                if ($serialNumber === null || trim($serialNumber) === '') {
-                    throw ValidationException::withMessages([
-                        'serial_number' => 'Serial number is required for existing device service.',
-                    ]);
-                }
-
-                if ($product === null || trim($product) === '') {
-                    throw ValidationException::withMessages([
-                        'product' => 'Product is required for existing device service.',
-                    ]);
-                }
-
-                $originalSerial = strtoupper(trim($serialNumber));
-                $validation = $this->serialValidationService->assertValid($originalSerial, $product);
-                $normalizedSerial = $validation->normalizedSerial;
-
-                $serialOwner = Order::query()
-                    ->where('serial_number', $normalizedSerial)
-                    ->first();
-
-                if ($serialOwner !== null) {
-                    throw ValidationException::withMessages([
-                        'serial_number' => 'This serial number belongs to a different order.',
-                    ]);
-                }
+        if ($intent->requiresSerial()) {
+            if ($serialNumber === null || trim($serialNumber) === '') {
+                throw ValidationException::withMessages([
+                    'serial_number' => 'Serial number is required for existing device service.',
+                ]);
             }
 
+            if ($product === null || trim($product) === '') {
+                throw ValidationException::withMessages([
+                    'product' => 'Product is required for existing device service.',
+                ]);
+            }
+
+            $originalSerial = strtoupper(trim($serialNumber));
+            $validation = $this->serialValidationService->assertValid($originalSerial, $product);
+            $normalizedSerial = $validation->normalizedSerial;
+
+            $serialOwner = Order::query()
+                ->where('serial_number', $normalizedSerial)
+                ->first();
+
+            if ($serialOwner !== null) {
+                throw ValidationException::withMessages([
+                    'serial_number' => 'This serial number belongs to a different order.',
+                ]);
+            }
+        }
+
+        // Allocate SC outside the intake unit-of-work so reference_sequences
+        // FOR UPDATE is not held across order/incident creation.
+        $reference = $this->incidentReferenceService->generate();
+        $inquiryOrderId = Order::inquiryOrderIdFromReference($reference);
+
+        return DB::transaction(function () use ($user, $intent, $source, $customerName, $phone, $normalizedSerial, $product, $notes, $highPriority, $assignOnCreate, $reference, $inquiryOrderId): Incident {
             $order = Order::query()->create([
                 'order_id' => $inquiryOrderId,
                 'customer_name' => $customerName,

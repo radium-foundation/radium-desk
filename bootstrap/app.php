@@ -118,6 +118,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/missing-serial-automation.log'));
 
+        $schedule->command('cashfree:auto-recover-missing')
+            ->cron(sprintf('*/%d * * * *', max(1, (int) config('cashfree.auto_recover.schedule_interval_minutes', 5))))
+            ->when(fn (): bool => (bool) config('cashfree.auto_recover.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/cashfree-auto-recover.log'));
+
         // Legacy backfill remains available for manual/admin use.
         // $schedule->command('radiumbox:backfill-orders --limit=50')
         //     ->hourly()

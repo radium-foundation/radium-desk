@@ -746,6 +746,12 @@ class IraCommunicationService
 
             $key = (string) ($card['key'] ?? 'integration');
 
+            // Cashfree missing-order healing is owned by cashfree:auto-recover-missing.
+            // That path notifies Ira only when automatic recovery fails, avoiding hourly noise.
+            if ($key === 'cashfree' && (bool) config('cashfree.auto_recover.enabled', true)) {
+                continue;
+            }
+
             $failures[] = [
                 'label' => (string) ($card['label'] ?? 'Integration'),
                 'message' => (string) ($card['detail'] ?? 'Integration health warning.'),

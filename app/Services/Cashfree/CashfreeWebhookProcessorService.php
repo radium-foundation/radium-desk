@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\Outbox\OutboxProcessorService;
 use App\Services\ServiceCaseAssignmentService;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -62,20 +63,72 @@ class CashfreeWebhookProcessorService
     }
 
     /**
-     * Persist order, incident, webhook status, and pending outbox events in one transaction.
-     * Secondary operations must run only after this commits successfully.
+     * Persist order, incident, webhook status, and pending outbox events.
+     * Retries transient MySQL deadlock / lock-wait failures.
+     * SC references are allocated outside the payment transaction so the
+     * sequence row lock is not held across order/incident/outbox writes.
      */
     private function persistSuccessfulPayment(
         CashfreeWebhookLog $webhookLog,
         array $payload,
     ): ?CashfreeWebhookDeferredContext {
-        return DB::transaction(function () use ($webhookLog, $payload): ?CashfreeWebhookDeferredContext {
-            $cfPaymentId = $this->payloadParser->cfPaymentId($payload);
+        $maxAttempts = max(1, (int) config('cashfree.persist_retry.max_attempts', 3));
+        $sleepMilliseconds = max(0, (int) config('cashfree.persist_retry.sleep_milliseconds', 100));
+        $attempt = 0;
 
-            if ($cfPaymentId === null) {
-                throw new RuntimeException('Cashfree webhook payload is missing cf_payment_id.');
+        while (true) {
+            $attempt++;
+
+            try {
+                return $this->attemptPersistSuccessfulPayment($webhookLog, $payload);
+            } catch (QueryException $exception) {
+                if (! $this->isRetryableContention($exception) || $attempt >= $maxAttempts) {
+                    throw $exception;
+                }
+
+                Log::warning('[Cashfree Webhook] Retrying payment persistence after DB contention.', [
+                    'webhook_log_id' => $webhookLog->id,
+                    'cf_payment_id' => $webhookLog->cf_payment_id,
+                    'attempt' => $attempt,
+                    'max_attempts' => $maxAttempts,
+                    'error_code' => $exception->errorInfo[1] ?? null,
+                    'message' => $exception->getMessage(),
+                ]);
+
+                if ($sleepMilliseconds > 0) {
+                    usleep($sleepMilliseconds * 1000 * $attempt);
+                }
             }
+        }
+    }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function attemptPersistSuccessfulPayment(
+        CashfreeWebhookLog $webhookLog,
+        array $payload,
+    ): ?CashfreeWebhookDeferredContext {
+        $cfPaymentId = $this->payloadParser->cfPaymentId($payload);
+
+        if ($cfPaymentId === null) {
+            throw new RuntimeException('Cashfree webhook payload is missing cf_payment_id.');
+        }
+
+        $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
+
+        if ($existingIncident !== null) {
+            $this->markProcessed($webhookLog, $existingIncident);
+
+            return null;
+        }
+
+        // Allocate SC outside the payment unit-of-work so reference_sequences
+        // FOR UPDATE is released before order/incident/outbox writes begin.
+        $referenceNo = $this->incidentReferenceService->generate();
+        $systemUser = $this->resolveSystemUser();
+
+        return DB::transaction(function () use ($webhookLog, $payload, $cfPaymentId, $referenceNo, $systemUser): ?CashfreeWebhookDeferredContext {
             $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
 
             if ($existingIncident !== null) {
@@ -84,9 +137,8 @@ class CashfreeWebhookProcessorService
                 return null;
             }
 
-            $systemUser = $this->resolveSystemUser();
             $order = $this->createOrder($payload, $cfPaymentId, $systemUser);
-            $incident = $this->createServiceRequest($order, $payload, $systemUser);
+            $incident = $this->createServiceRequest($order, $payload, $systemUser, $referenceNo);
 
             $this->markProcessed($webhookLog, $incident);
             $this->reliabilityMetrics->recordOrderCreated();
@@ -101,6 +153,23 @@ class CashfreeWebhookProcessorService
 
             return $deferredContext;
         });
+    }
+
+    private function isRetryableContention(QueryException $exception): bool
+    {
+        $driverCode = (int) ($exception->errorInfo[1] ?? 0);
+
+        // MySQL / MariaDB: 1213 deadlock, 1205 lock wait timeout.
+        if (in_array($driverCode, [1213, 1205], true)) {
+            return true;
+        }
+
+        $message = $exception->getMessage();
+
+        return str_contains($message, '1213')
+            || str_contains($message, 'Deadlock')
+            || str_contains($message, '1205')
+            || str_contains($message, 'Lock wait timeout');
     }
 
     private function dispatchDeferredOperationsSafely(
@@ -191,13 +260,17 @@ class CashfreeWebhookProcessorService
     /**
      * @param  array<string, mixed>  $payload
      */
-    private function createServiceRequest(Order $order, array $payload, User $systemUser): Incident
-    {
+    private function createServiceRequest(
+        Order $order,
+        array $payload,
+        User $systemUser,
+        string $referenceNo,
+    ): Incident {
         $orderId = $this->payloadParser->orderId($payload) ?? $order->order_id;
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => $this->incidentReferenceService->generate(),
+            'reference_no' => $referenceNo,
             'category' => 'General',
             'source' => IncidentSource::Cashfree,
             'title' => 'Cashfree payment — '.$orderId,

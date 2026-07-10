@@ -5,6 +5,14 @@ namespace App\Services;
 use App\Models\ReferenceSequence;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Allocates SC reference numbers from the reference_sequences table.
+ *
+ * The row lock must only cover lock → increment → return. Callers that wrap
+ * larger unit-of-work transactions (Cashfree payment persistence, customer
+ * intake, etc.) must call generate() before opening that outer transaction so
+ * InnoDB does not hold the sequence lock across order/incident writes.
+ */
 class IncidentReferenceService
 {
     private const PREFIX = 'SC';
