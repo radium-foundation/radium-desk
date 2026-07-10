@@ -43,6 +43,11 @@ class BonvoiceCallStatuses
         return $normalized !== null && in_array($normalized, self::RINGING, true);
     }
 
+    public static function isLiveAssistEligibleStatus(?string $status): bool
+    {
+        return self::isRingingStatus($status) || self::isAnsweredStatus($status);
+    }
+
     public static function transitionedToMissed(?string $previous, ?string $current): bool
     {
         if (! self::isMissedStatus($current)) {

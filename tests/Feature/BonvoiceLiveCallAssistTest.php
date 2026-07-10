@@ -354,7 +354,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
         });
     }
 
-    public function test_terminal_only_webhook_does_not_create_alert(): void
+    public function test_answered_inbound_webhook_creates_one_live_assist_alert(): void
     {
         Notification::fake();
 
@@ -364,8 +364,8 @@ class BonvoiceLiveCallAssistTest extends TestCase
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         Order::query()->create([
-            'order_id' => 'RD-LIVE-TERMINAL',
-            'serial_number' => 'SN-LIVE-TERMINAL',
+            'order_id' => 'RD-LIVE-ANSWERED',
+            'serial_number' => 'SN-LIVE-ANSWERED',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'customer_phone' => '9876543210',
@@ -373,16 +373,111 @@ class BonvoiceLiveCallAssistTest extends TestCase
             'created_by' => $agent->id,
         ]);
 
-        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
-            callId: 'call-live-terminal-only-001',
+        $this->postJson('/api/webhooks/bonvoice', $this->productionInboundCallPayload(
+            callId: 'call-live-answered-001',
             status: 'ANSWERED',
         ))->assertOk();
 
+        $this->assertSame(1, BonvoiceCallAlert::query()->where('call_id', 'call-live-answered-001')->count());
+        Notification::assertSentToTimes($agent, IncomingCallAssistNotification::class, 1);
+    }
+
+    public function test_duplicate_answered_same_call_id_does_not_duplicate_alert(): void
+    {
+        Notification::fake();
+
+        $agent = User::factory()->create([
+            'bonvoice_extension' => '1800123456',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD-LIVE-ANSWERED-DUP',
+            'serial_number' => 'SN-LIVE-ANSWERED-DUP',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->productionInboundCallPayload(
+            callId: 'call-live-answered-dup-001',
+            status: 'ANSWERED',
+            eventId: 'evt-answered-dup-1',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->productionInboundCallPayload(
+            callId: 'call-live-answered-dup-001',
+            status: 'ANSWERED',
+            eventId: 'evt-answered-dup-2',
+        ))->assertOk();
+
+        $this->assertSame(1, BonvoiceCallAlert::query()->where('call_id', 'call-live-answered-dup-001')->count());
+        Notification::assertSentToTimes($agent, IncomingCallAssistNotification::class, 1);
+    }
+
+    public function test_noanswer_does_not_create_live_assist_alert(): void
+    {
+        Notification::fake();
+
+        $agent = User::factory()->create([
+            'bonvoice_extension' => '1800123456',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD-LIVE-NOANSWER',
+            'serial_number' => 'SN-LIVE-NOANSWER',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->productionInboundCallPayload(
+            callId: 'call-live-noanswer-001',
+            status: 'NOANSWER',
+        ))->assertOk();
+
         $this->assertDatabaseMissing('bonvoice_call_alerts', [
-            'call_id' => 'call-live-terminal-only-001',
+            'call_id' => 'call-live-noanswer-001',
         ]);
 
         Notification::assertNothingSent();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function productionInboundCallPayload(
+        string $callId,
+        string $status,
+        string $eventId = 'evt-production-001',
+        string $sourceNumber = '9876543210',
+        string $destinationNumber = '1800123456',
+    ): array {
+        return [
+            'SourceNumber' => $sourceNumber,
+            'DestinationNumber' => $destinationNumber,
+            'DisplayNumber' => '1204404276',
+            'StartTime' => Carbon::parse('2026-07-10 10:49:42')->toDateTimeString(),
+            'EndTime' => Carbon::parse('2026-07-10 10:52:39')->toDateTimeString(),
+            'CallDuration' => '131',
+            'Status' => $status,
+            'Direction' => 'Inbound',
+            'ResourceURL' => 'https://backend.pbx.bonvoice.com/example/recording.mp3',
+            'DTMF' => null,
+            'callBackParentID' => null,
+            'Network' => 'gsm',
+            'DataSource' => 'Bonvoice',
+            'AccountID' => 'acct-001',
+            'callType' => '2',
+            'callID' => $callId,
+            'callerCountryCode' => '91',
+            'eventID' => $eventId,
+        ];
     }
 
     /**

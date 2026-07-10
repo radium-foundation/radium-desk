@@ -213,6 +213,27 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_unmatched_missed_call_with_production_dtmf_creates_inquiry_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->productionInboundCallPayload(
+            callId: 'call-unmatched-dtmf-001',
+            status: 'NOANSWER',
+            sourceNumber: '9123456789',
+            dtmf: '2',
+        ))->assertOk();
+
+        $incident = Incident::query()->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)->first();
+        $this->assertNotNull($incident);
+        $this->assertTrue($incident->order?->isInquiryOrder());
+
+        Carbon::setTestNow();
+    }
+
     public function test_matched_missed_call_dispatches_order_enrichment(): void
     {
         Queue::fake([RadiumBoxOrderEnrichmentJob::class]);
@@ -519,6 +540,37 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
             'eventID' => $eventId,
             'callBackParentID' => null,
             'callBackParams' => $callBackParams,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function productionInboundCallPayload(
+        string $callId,
+        string $status,
+        string $sourceNumber = '9876543210',
+        ?string $dtmf = null,
+    ): array {
+        return [
+            'SourceNumber' => $sourceNumber,
+            'DestinationNumber' => '1800123456',
+            'DisplayNumber' => '1204404276',
+            'StartTime' => Carbon::now('Asia/Kolkata')->toDateTimeString(),
+            'EndTime' => Carbon::now('Asia/Kolkata')->toDateTimeString(),
+            'CallDuration' => '45',
+            'Status' => $status,
+            'Direction' => 'Inbound',
+            'ResourceURL' => null,
+            'DTMF' => $dtmf,
+            'callBackParentID' => null,
+            'Network' => 'gsm',
+            'DataSource' => 'Bonvoice',
+            'AccountID' => 'acct-001',
+            'callType' => '2',
+            'callID' => $callId,
+            'callerCountryCode' => '91',
+            'eventID' => $callId.'-evt',
         ];
     }
 }

@@ -24,7 +24,7 @@ class BonvoiceLiveCallAssistService
             return null;
         }
 
-        if (! BonvoiceCallStatuses::isRingingStatus($event->status)) {
+        if (! BonvoiceCallStatuses::isLiveAssistEligibleStatus($event->status)) {
             return null;
         }
 

@@ -147,7 +147,7 @@ class BonvoiceMissedCallRecoveryService
     }
 
     /**
-     * Initial interaction gate — refine after real BonVoice payload samples.
+     * Production payloads use DTMF; legacy/test payloads may use callBackParams.
      */
     private function hasCustomerInteraction(BonvoiceCallEvent $event): bool
     {
@@ -159,8 +159,28 @@ class BonvoiceMissedCallRecoveryService
             return true;
         }
 
-        // Reserved for future answered / customer-action signals from payload samples.
-        return false;
+        return $this->hasNonEmptyDtmf($event->payload);
+    }
+
+    private function hasNonEmptyDtmf(mixed $payload): bool
+    {
+        if (! is_array($payload)) {
+            return false;
+        }
+
+        $dtmf = $payload['DTMF'] ?? $payload['dtmf'] ?? null;
+
+        if ($dtmf === null) {
+            return false;
+        }
+
+        if (is_string($dtmf)) {
+            $trimmed = trim($dtmf);
+
+            return $trimmed !== '' && strtolower($trimmed) !== 'null';
+        }
+
+        return is_numeric($dtmf) || is_bool($dtmf);
     }
 
     private function hasNonEmptyCallbackParams(mixed $callbackParams): bool
