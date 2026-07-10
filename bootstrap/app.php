@@ -98,6 +98,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-risk-alerts.log'));
 
+        $schedule->command('watchdog:send-critical-alerts')
+            ->cron(sprintf('*/%d * * * *', max(1, (int) config('ira.watchdog.schedule_interval_minutes', 5))))
+            ->when(fn (): bool => (bool) config('ira.watchdog.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/watchdog-critical-alerts.log'));
+
         $schedule->command('team-telegram:send-daily-briefings')
             ->everyFifteenMinutes()
             ->when(fn (): bool => (bool) config('team_telegram.enabled', true))

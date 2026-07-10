@@ -47,6 +47,7 @@ readonly class IraOwnerReportData
      *     highlights: list<array{name: string, metric: string, value: int|string}>,
      *     bottlenecks: list<array{name: string, metric: string, value: int|string}>,
      * }  $people
+     * @param  array<string, mixed>  $systemHealth
      */
     public function __construct(
         public string $date,
@@ -57,6 +58,7 @@ readonly class IraOwnerReportData
         public array $attendance,
         public array $people,
         public IraOperationalSnapshotData $snapshot,
+        public array $systemHealth = [],
     ) {}
 
     /**
@@ -73,6 +75,7 @@ readonly class IraOwnerReportData
             'attendance' => $this->attendance,
             'people' => $this->people,
             'snapshot' => $this->snapshot->toArray(),
+            'system_health' => $this->systemHealth,
         ];
     }
 
@@ -90,6 +93,7 @@ readonly class IraOwnerReportData
             attendance: is_array($payload['attendance'] ?? null) ? $payload['attendance'] : [],
             people: is_array($payload['people'] ?? null) ? $payload['people'] : [],
             snapshot: IraOperationalSnapshotData::fromArray(is_array($payload['snapshot'] ?? null) ? $payload['snapshot'] : []),
+            systemHealth: is_array($payload['system_health'] ?? null) ? $payload['system_health'] : [],
         );
     }
 }

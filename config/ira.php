@@ -24,4 +24,12 @@ return [
         'owner_morning_report_time' => env('IRA_OWNER_MORNING_REPORT_TIME', '10:00'),
         'owner_evening_report_time' => env('IRA_OWNER_EVENING_REPORT_TIME', '20:00'),
     ],
+
+    'watchdog' => [
+        'enabled' => (bool) env('IRA_WATCHDOG_ENABLED', true),
+        'schedule_interval_minutes' => max(1, (int) env('IRA_WATCHDOG_INTERVAL_MINUTES', 5)),
+        'automation_failure_threshold' => max(1, (int) env('IRA_WATCHDOG_AUTOMATION_FAILURE_THRESHOLD', 3)),
+        'interakt_failure_threshold' => max(1, (int) env('IRA_WATCHDOG_INTERAKT_FAILURE_THRESHOLD', 3)),
+        'radiumbox_min_success_rate' => (float) env('IRA_WATCHDOG_RADIUMBOX_MIN_SUCCESS_RATE', 80),
+    ],
 ];

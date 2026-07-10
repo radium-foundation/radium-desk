@@ -169,6 +169,80 @@ class IraOwnerReportFormatter
             }
         }
 
+        $sections = [...$sections, ...$this->systemHealthSections($report->systemHealth)];
+
+        return $sections;
+    }
+
+    /**
+     * @param  array<string, mixed>  $systemHealth
+     * @return list<string>
+     */
+    private function systemHealthSections(array $systemHealth): array
+    {
+        if ($systemHealth === []) {
+            return [];
+        }
+
+        $webhooks = is_array($systemHealth['webhook_health'] ?? null) ? $systemHealth['webhook_health'] : [];
+        $queue = is_array($systemHealth['queue_health'] ?? null) ? $systemHealth['queue_health'] : [];
+        $automation = is_array($systemHealth['automation_executions'] ?? null) ? $systemHealth['automation_executions'] : [];
+        $cashfree = is_array($systemHealth['cashfree_reconciliation'] ?? null) ? $systemHealth['cashfree_reconciliation'] : [];
+        $bonvoice = is_array($systemHealth['bonvoice_calls'] ?? null) ? $systemHealth['bonvoice_calls'] : [];
+        $whatsapp = is_array($systemHealth['whatsapp_delivery'] ?? null) ? $systemHealth['whatsapp_delivery'] : [];
+        $radiumbox = is_array($systemHealth['radiumbox'] ?? null) ? $systemHealth['radiumbox'] : [];
+
+        $sections = [
+            '',
+            '🛡 System Health',
+            $this->bullet(sprintf(
+                'Uptime: %.1f%% (%d incident(s))',
+                (float) ($systemHealth['uptime_percent'] ?? 100),
+                (int) ($systemHealth['downtime_incidents'] ?? 0),
+            )),
+            $this->bullet(sprintf(
+                'Webhooks today — CF: %d ok / %d fail, BV: %d ok / %d fail',
+                (int) ($webhooks['cashfree_processed'] ?? 0),
+                (int) ($webhooks['cashfree_failed'] ?? 0),
+                (int) ($webhooks['bonvoice_processed'] ?? 0),
+                (int) ($webhooks['bonvoice_failed'] ?? 0),
+            )),
+            $this->bullet(sprintf(
+                'Queue: %s — %s',
+                (string) ($queue['status'] ?? 'Unknown'),
+                (string) ($queue['detail'] ?? ''),
+            )),
+            $this->bullet(sprintf(
+                'Automation: %d run, %d ok, %d failed',
+                (int) ($automation['total'] ?? 0),
+                (int) ($automation['success'] ?? 0),
+                (int) ($automation['failed'] ?? 0),
+            )),
+            $this->bullet(sprintf(
+                'Cashfree: %d paid, %d desk, %d missing',
+                (int) ($cashfree['successful_payments'] ?? 0),
+                (int) ($cashfree['desk_orders'] ?? 0),
+                (int) ($cashfree['missing_orders'] ?? 0),
+            )),
+            $this->bullet(sprintf(
+                'BonVoice: %d calls (%d inbound, %d missed)',
+                (int) ($bonvoice['total'] ?? 0),
+                (int) ($bonvoice['inbound'] ?? 0),
+                (int) ($bonvoice['missed'] ?? 0),
+            )),
+            $this->bullet(sprintf(
+                'WhatsApp: %d sent, %d delivered, %d failed',
+                (int) ($whatsapp['sent'] ?? 0),
+                (int) ($whatsapp['delivered'] ?? 0),
+                (int) ($whatsapp['failed'] ?? 0),
+            )),
+            $this->bullet(sprintf(
+                'RadiumBox: %d failed sync, %.1f%% success (24h)',
+                (int) ($radiumbox['failed_syncs'] ?? 0),
+                (float) ($radiumbox['success_rate_24h'] ?? 0),
+            )),
+        ];
+
         return $sections;
     }
 

@@ -11,17 +11,18 @@ use App\Data\Operations\TeamWorkBriefing;
 use App\Enums\AI\AIRiskLevel;
 use App\Enums\IraNotificationType;
 use App\Enums\NotificationChannelType;
+use App\Enums\OperationQueue;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\IraNotification;
 use App\Models\User;
+use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Notifications\IraNotificationCategoryMapper;
 use App\Services\Notifications\NotificationAuthorityService;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Notifications\NotificationRecipientResolver;
 use App\Services\Telegram\TelegramBotService;
-use Database\Seeders\RolePermissionSeeder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -33,7 +34,7 @@ use Illuminate\Support\Facades\Cache;
  * - Daily operational briefings (owners)
  * - High-priority operational risk alerts (owners / ops admins)
  *
- * The standard {@see \App\Services\Notifications\NotificationDispatcher} stack
+ * The standard {@see NotificationDispatcher} stack
  * (email, WhatsApp, desktop, incident TelegramChannel) remains responsible for
  * customer-facing and general app notifications.
  */
@@ -342,6 +343,51 @@ class IraCommunicationService
     /**
      * @return list<IraNotification>
      */
+    public function sendCriticalAlerts(): array
+    {
+        $watchdog = app(ProductionWatchdogService::class);
+        $results = [];
+
+        foreach ($watchdog->collectCriticalAlerts() as $alert) {
+            $results = [
+                ...$results,
+                ...$this->dispatch(new IraCommunicationInput(
+                    event: IraNotificationType::CriticalSystemAlert,
+                    context: $alert->toContext(),
+                )),
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
+     * @return list<IraNotification>
+     */
+    public function sendTeamAnnouncement(
+        User $recipient,
+        string $message,
+        User $sender,
+        ?string $subject = null,
+    ): array {
+        $dedupeKey = 'announcement:'.md5($message.':'.$recipient->id.':'.now()->timestamp);
+
+        return $this->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::TeamAnnouncement,
+            context: [
+                'user_id' => $recipient->id,
+                'message' => $message,
+                'subject' => $subject,
+                'sender_name' => $sender->name,
+                'dedupe_key' => $dedupeKey,
+                'force_notify' => true,
+            ],
+        ));
+    }
+
+    /**
+     * @return list<IraNotification>
+     */
     public function sendOperationalAlerts(IraMorningBriefing $briefing): array
     {
         $results = $this->sendRiskAlerts($briefing);
@@ -415,7 +461,8 @@ class IraCommunicationService
             IraNotificationType::DailyBriefing,
             IraNotificationType::RiskAlert,
             IraNotificationType::UnusualBacklog,
-            IraNotificationType::IntegrationFailure => $this->ownerUsers(),
+            IraNotificationType::IntegrationFailure,
+            IraNotificationType::CriticalSystemAlert => $this->ownerUsers(),
             IraNotificationType::UnassignedScheduledWork,
             IraNotificationType::WaitingCustomerRisk,
             IraNotificationType::TeamAvailabilityIssue,
@@ -424,7 +471,8 @@ class IraCommunicationService
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
             IraNotificationType::TeamDailyBriefing,
-            IraNotificationType::SupportSlotReminder => collect(),
+            IraNotificationType::SupportSlotReminder,
+            IraNotificationType::TeamAnnouncement => collect(),
         };
     }
 
@@ -468,8 +516,10 @@ class IraCommunicationService
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
-            IraNotificationType::SupportSlotReminder => true,
+            IraNotificationType::SupportSlotReminder,
+            IraNotificationType::TeamAnnouncement => true,
             IraNotificationType::IntegrationFailure => true,
+            IraNotificationType::CriticalSystemAlert => true,
             IraNotificationType::UnassignedScheduledWork => (int) ($input->context['unassigned_scheduled'] ?? $input->recommendation?->context['unassigned_scheduled'] ?? 0) > 0,
             IraNotificationType::WaitingCustomerRisk => $input->insight !== null,
             IraNotificationType::TeamAvailabilityIssue => $input->insight !== null,
@@ -553,6 +603,8 @@ class IraCommunicationService
             IraNotificationType::Reassignment => $this->formatAssignment($input, 'Support reassigned to you'),
             IraNotificationType::SupportSlotReminder => $this->formatSupportSlotReminder($input),
             IraNotificationType::IntegrationFailure => $this->formatIntegrationFailure($input),
+            IraNotificationType::CriticalSystemAlert => $this->formatCriticalSystemAlert($input),
+            IraNotificationType::TeamAnnouncement => $this->formatTeamAnnouncement($input),
             default => $this->formatRiskAlert($input),
         };
     }
@@ -746,6 +798,59 @@ class IraCommunicationService
     /**
      * @return array{0: string, 1: string}
      */
+    private function formatCriticalSystemAlert(IraCommunicationInput $input): array
+    {
+        $label = (string) ($input->context['label'] ?? 'System');
+        $detail = (string) ($input->context['message'] ?? 'Critical system issue detected.');
+        $affectedCount = (int) ($input->context['affected_count'] ?? 0);
+        $orderIds = $input->context['order_ids'] ?? [];
+
+        $lines = [
+            '🚨 Critical Alert',
+            '',
+            "{$label}: {$detail}",
+        ];
+
+        if ($affectedCount > 0) {
+            $lines[] = '';
+            $lines[] = "Affected: {$affectedCount}";
+        }
+
+        if (is_array($orderIds) && $orderIds !== []) {
+            $visible = array_slice(array_map('strval', $orderIds), 0, 5);
+            $lines[] = 'Orders: '.implode(', ', $visible);
+
+            if (count($orderIds) > 5) {
+                $lines[] = '+'.(count($orderIds) - 5).' more';
+            }
+        }
+
+        return ["{$label} Alert", implode("\n", $lines)];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function formatTeamAnnouncement(IraCommunicationInput $input): array
+    {
+        $subject = trim((string) ($input->context['subject'] ?? ''));
+        $senderName = (string) ($input->context['sender_name'] ?? 'Management');
+        $message = trim((string) ($input->context['message'] ?? ''));
+
+        $lines = [
+            $subject !== '' ? "📢 {$subject}" : '📢 Team Announcement',
+            '',
+            "From: {$senderName}",
+            '',
+            $message !== '' ? $message : 'No message body provided.',
+        ];
+
+        return ['Team Announcement', implode("\n", $lines)];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
     private function formatIntegrationFailure(IraCommunicationInput $input): array
     {
         $integration = (string) ($input->context['label'] ?? 'Integration');
@@ -814,11 +919,11 @@ class IraCommunicationService
 
     private function unassignedScheduledCount(): int
     {
-        $snapshot = \App\Services\Dashboard\DashboardSnapshot::load();
+        $snapshot = DashboardSnapshot::load();
 
         return $snapshot
-            ->incidentsForQueue(\App\Enums\OperationQueue::Scheduled->value)
-            ->filter(fn (\App\Models\Incident $incident): bool => $incident->assigned_to_user_id === null)
+            ->incidentsForQueue(OperationQueue::Scheduled->value)
+            ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === null)
             ->count();
     }
 

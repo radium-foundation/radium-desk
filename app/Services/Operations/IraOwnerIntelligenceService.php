@@ -10,6 +10,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\OperationQueue;
 use App\Enums\PerformancePeriod;
+use App\Enums\WorkSessionEndReason;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\LeaveRequest;
@@ -28,6 +29,7 @@ class IraOwnerIntelligenceService
         private readonly TeamPerformanceMetricsService $performanceMetricsService,
         private readonly WorkCalendarService $workCalendarService,
         private readonly OperationsRoleService $roleService,
+        private readonly ProductionEveningHealthService $eveningHealthService,
     ) {}
 
     public function buildMorningReport(?Carbon $at = null): IraOwnerReportData
@@ -63,6 +65,7 @@ class IraOwnerIntelligenceService
             attendance: $this->buildAttendanceSection($at),
             people: $this->buildPeopleSection($at),
             snapshot: $snapshot,
+            systemHealth: $this->eveningHealthService->build($at),
         );
     }
 
@@ -282,10 +285,10 @@ class IraOwnerIntelligenceService
             'on_time_logins' => $evaluated->where('on_time_login', true)->count(),
             'late_logins' => $evaluated->where('on_time_login', false)->count(),
             'manual_logouts' => $sessions
-                ->where('ended_reason', \App\Enums\WorkSessionEndReason::ManualLogout)
+                ->where('ended_reason', WorkSessionEndReason::ManualLogout)
                 ->count(),
             'timeout_events' => $sessions
-                ->where('ended_reason', \App\Enums\WorkSessionEndReason::AwayTimeout)
+                ->where('ended_reason', WorkSessionEndReason::AwayTimeout)
                 ->count(),
             'extra_working_members' => array_slice($extraWorking, 0, 5),
             'away_timeout_members' => array_slice($awayTimeouts, 0, 5),
@@ -433,7 +436,7 @@ class IraOwnerIntelligenceService
         return WorkSession::query()
             ->where('user_id', $userId)
             ->whereDate('work_date', $at->toDateString())
-            ->where('ended_reason', \App\Enums\WorkSessionEndReason::AwayTimeout)
+            ->where('ended_reason', WorkSessionEndReason::AwayTimeout)
             ->count();
     }
 

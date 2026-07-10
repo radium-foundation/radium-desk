@@ -18,6 +18,8 @@ enum IraNotificationType: string
     case Reassignment = 'reassignment';
     case OpsDigest = 'ops_digest';
     case OwnerIntelligenceReport = 'owner_intelligence_report';
+    case CriticalSystemAlert = 'critical_system_alert';
+    case TeamAnnouncement = 'team_announcement';
 
     public function label(): string
     {
@@ -36,6 +38,8 @@ enum IraNotificationType: string
             self::UnusualBacklog => 'Unusual Backlog',
             self::OpsDigest => 'Operations Digest',
             self::OwnerIntelligenceReport => 'Owner Intelligence Report',
+            self::CriticalSystemAlert => 'Critical System Alert',
+            self::TeamAnnouncement => 'Team Announcement',
         };
     }
 }

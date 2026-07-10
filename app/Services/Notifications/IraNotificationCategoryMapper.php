@@ -24,6 +24,8 @@ class IraNotificationCategoryMapper
             IraNotificationType::UnassignedScheduledWork,
             IraNotificationType::TeamAvailabilityIssue => NotificationCategory::Escalation,
             IraNotificationType::IntegrationFailure => NotificationCategory::SystemHealth,
+            IraNotificationType::CriticalSystemAlert => NotificationCategory::SystemHealth,
+            IraNotificationType::TeamAnnouncement => NotificationCategory::Assignment,
         };
     }
 }

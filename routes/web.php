@@ -1,35 +1,30 @@
 <?php
 
 use App\Http\Controllers\ApprovalNumberController;
-use App\Http\Controllers\SupportAppointmentController;
-use App\Http\Controllers\SupportScheduleRedirectController;
-use App\Http\Controllers\TeamAvailabilityController;
-use App\Http\Controllers\TeamPerformanceController;
-use App\Http\Controllers\MyPerformanceController;
-use App\Http\Controllers\TeamWorkScheduleController;
-use App\Http\Controllers\AutomationOperationsController;
-use App\Http\Controllers\CompanyHolidayController;
-use App\Http\Controllers\LeaveRequestController;
-use App\Http\Controllers\OperationalSystemSettingsController;
-use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
+use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\ChangelogController;
+use App\Http\Controllers\CompanyHolidayController;
+use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\DashboardWorkspaceActionController;
 use App\Http\Controllers\DashboardWorkspaceComponentController;
-use App\Http\Controllers\IncidentController;
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\NotificationPollController;
-use App\Http\Controllers\IraOperationsBrainController;
-use App\Http\Controllers\OperationsDashboardController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
 use App\Http\Controllers\DeviceModelController;
+use App\Http\Controllers\IncidentController;
+use App\Http\Controllers\IraOperationsBrainController;
+use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\MyPerformanceController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationPollController;
+use App\Http\Controllers\OperationalSystemSettingsController;
+use App\Http\Controllers\OperationsDashboardController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderDeviceModelController;
 use App\Http\Controllers\OrderLegacyVerificationController;
 use App\Http\Controllers\OrderSerialController;
@@ -46,6 +41,12 @@ use App\Http\Controllers\SettingProductController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SettingSourceController;
 use App\Http\Controllers\SettingsSectionController;
+use App\Http\Controllers\SupportAppointmentController;
+use App\Http\Controllers\SupportScheduleRedirectController;
+use App\Http\Controllers\TeamAvailabilityController;
+use App\Http\Controllers\TeamPerformanceController;
+use App\Http\Controllers\TeamTelegramBroadcastController;
+use App\Http\Controllers\TeamWorkScheduleController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkspaceActionController;
 use App\Http\Controllers\WorkspaceComponentController;
@@ -174,6 +175,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.operations.ira.feedback');
     Route::post('/admin/operations/radiumbox/batch-recover', [OperationsDashboardController::class, 'batchRecoverRadiumBox'])
         ->name('admin.operations.radiumbox.batch-recover');
+    Route::post('/admin/operations/telegram/broadcast', [TeamTelegramBroadcastController::class, 'store'])
+        ->name('admin.operations.telegram.broadcast');
 
     Route::resource('leave-requests', LeaveRequestController::class)->except(['edit', 'update', 'destroy']);
     Route::post('leave-requests/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])
