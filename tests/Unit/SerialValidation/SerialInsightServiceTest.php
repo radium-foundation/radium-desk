@@ -328,6 +328,42 @@ class SerialInsightServiceTest extends TestCase
         }
     }
 
+    public function test_mantra_mis100_model_with_mis100v2_serial_returns_model_name_guidance(): void
+    {
+        $order = $this->createOrder('RD-MANTRA-MIS-MODEL', 'MIS100V2', 'Mantra MIS100');
+
+        $insight = app(SerialInsightService::class)->analyze($order);
+
+        $this->assertSame(SerialInsightStatus::Suspicious, $insight->status);
+        $this->assertSame(SerialInsightConfidence::High, $insight->confidence);
+        $this->assertStringContainsString('product code', $insight->explanation);
+        $this->assertStringContainsString('back-side photo', $insight->explanation);
+        $this->assertNotSame('No IRA validation rules are configured for this product.', $insight->technicalReason);
+    }
+
+    public function test_mantra_mis100_model_with_valid_serial_passes(): void
+    {
+        $order = $this->createOrder('RD-MANTRA-MIS-VALID', '6300791', 'Mantra MIS100');
+
+        $insight = app(SerialInsightService::class)->analyze($order);
+
+        $this->assertSame(SerialInsightStatus::Valid, $insight->status);
+        $this->assertSame(SerialInsightConfidence::High, $insight->confidence);
+        $this->assertFalse($insight->isActionable());
+    }
+
+    public function test_production_rd3443036_mantra_mis100_with_model_serial_uses_mis_profile(): void
+    {
+        $order = $this->createOrder('RD3443036', 'MIS100V2', 'Mantra MIS100');
+
+        $insight = app(SerialInsightService::class)->analyze($order);
+
+        $this->assertTrue($insight->isActionable());
+        $this->assertStringContainsString('product code', $insight->explanation);
+        $this->assertStringContainsString('back-side photo', $insight->explanation);
+        $this->assertNotSame('No IRA validation rules are configured for this product.', $insight->technicalReason);
+    }
+
     public function test_rd3443036_style_case_gives_clear_ira_guidance(): void
     {
         $order = $this->createOrder('RD3443036', '8011332', 'MIS 100');

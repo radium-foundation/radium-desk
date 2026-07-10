@@ -74,8 +74,11 @@ class CanonicalProductResolverTest extends TestCase
         return [
             'mfs110' => ['MFS110', 'MFS 110'],
             'mis100' => ['MIS100', 'MIS 100'],
+            'mantra mis100' => ['Mantra MIS100', 'MIS 100'],
             'msoe3' => ['MSOE3', 'MSO E3'],
+            'morpho mso' => ['Morpho MSO1300 E3', 'MSO E3'],
             'fm220' => ['FM220', 'FM 220'],
+            'startek fm220' => ['Startek FM220', 'FM 220'],
             'pb1000' => ['PB1000', 'PB 1000'],
             'marc11' => ['MARC11', 'MARC 11'],
         ];

@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 class SerialModelPatternProfileService
 {
     public function __construct(
+        private readonly ProductModelAliasNormalizer $aliasNormalizer,
         private readonly CanonicalProductResolver $productResolver,
     ) {}
 
@@ -18,7 +19,8 @@ class SerialModelPatternProfileService
         string $serial,
         SerialValidationResult $validation,
     ): SerialPatternAssessment {
-        $canonicalProduct = $this->productResolver->resolve($productLabel);
+        $canonicalProduct = $this->resolveProfileProduct($validation->product)
+            ?? $this->resolveProfileProduct($productLabel);
         $profile = $this->profileFor($canonicalProduct);
         $normalizedSerial = $this->normalizeSerial($serial);
         $normalizedCompact = $this->compactSerial($normalizedSerial);
@@ -229,5 +231,15 @@ class SerialModelPatternProfileService
         $label = $canonicalProduct ?? $productLabel;
 
         return strtoupper(str_replace(' ', '', $label));
+    }
+
+    private function resolveProfileProduct(?string $productLabel): ?string
+    {
+        if (! filled($productLabel)) {
+            return null;
+        }
+
+        return $this->aliasNormalizer->resolve($productLabel)
+            ?? $this->productResolver->resolve($productLabel);
     }
 }

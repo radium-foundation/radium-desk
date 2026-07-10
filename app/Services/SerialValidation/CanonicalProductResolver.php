@@ -10,6 +10,7 @@ class CanonicalProductResolver
      * @param  list<string>|null  $supportedProducts
      */
     public function __construct(
+        private readonly ProductModelAliasNormalizer $aliasNormalizer,
         private readonly ?array $supportedProducts = null,
     ) {}
 
@@ -20,6 +21,11 @@ class CanonicalProductResolver
         }
 
         $supportedProducts = $this->supportedProducts ?? config('serial_validation.supported_products', []);
+        $fromAlias = $this->aliasNormalizer->resolve($product);
+
+        if ($fromAlias !== null && in_array($fromAlias, $supportedProducts, true)) {
+            return $fromAlias;
+        }
         $shortDisplay = DeviceModelFormatter::shortDisplay($product);
 
         if ($shortDisplay !== null && in_array($shortDisplay, $supportedProducts, true)) {
