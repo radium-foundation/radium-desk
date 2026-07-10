@@ -3,7 +3,6 @@
 namespace App\Services\Interakt;
 
 use App\Enums\IncidentStatus;
-use App\Enums\SerialValidationSeverity;
 use App\Enums\WhatsAppTemplate;
 use App\Models\Incident;
 use App\Models\Order;
@@ -70,8 +69,6 @@ class RequestSerialNumberEligibilityService
 
         $validation = $this->serialValidationService->validateForOrder((string) $serial, $order);
 
-        return in_array($validation->severity, [
-            SerialValidationSeverity::Fail,
-        ], true) || $validation->status->isPending();
+        return $validation->status->isPending();
     }
 }

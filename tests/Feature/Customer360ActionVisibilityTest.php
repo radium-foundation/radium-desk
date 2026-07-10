@@ -143,16 +143,37 @@ class Customer360ActionVisibilityTest extends TestCase
         );
     }
 
+    public function test_production_rd3443036_product_code_serial_shows_request_correct_serial_only(): void
+    {
+        [$agent, $incident] = $this->createAssignedIncident([
+            'order_id' => 'RD3443036',
+            'serial_number' => 'MIS100V2',
+            'product_name' => 'Mantra MIS100',
+            'device_model' => 'Mantra MIS100',
+        ]);
+
+        $this->assertFalse(app(RequestSerialNumberEligibilityService::class)->canShowAction($incident));
+        $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
+
+        $html = $this->customer360Html($agent, $incident);
+        $this->assertStringContainsString('Request Correct Serial', $html);
+        $this->assertStringNotContainsString('Request Serial Number', $html);
+        $this->assertStringNotContainsString('Serial number missing', $html);
+    }
+
     public function test_request_correct_serial_only_appears_for_suspicious_serial(): void
     {
         [$agent, $incident] = $this->createAssignedIncident([
             'serial_number' => '54SAXXC5514586',
         ]);
 
+        $this->assertFalse(app(RequestSerialNumberEligibilityService::class)->canShowAction($incident));
         $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
 
         $html = $this->customer360Html($agent, $incident);
         $this->assertStringContainsString('Serial number needs verification', $html);
+        $this->assertStringNotContainsString('Request Serial Number', $html);
+        $this->assertStringNotContainsString('Serial number missing', $html);
         $this->assertStringContainsString(
             'The current serial number may be incorrect. Request customer to share correct serial photo.',
             $html,
@@ -183,12 +204,15 @@ class Customer360ActionVisibilityTest extends TestCase
         $insight = app(\App\Services\SerialValidation\SerialInsightService::class)->analyze($incident->order);
         $this->assertSame('warning', $insight->status->value);
         $this->assertSame('Needs verification', $insight->status->label());
+        $this->assertFalse(app(RequestSerialNumberEligibilityService::class)->canShowAction($incident));
         $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
 
         $html = $this->customer360Html($agent, $incident);
         $this->assertStringContainsString('Recommended Actions', $html);
         $this->assertStringContainsString('Serial number needs verification', $html);
         $this->assertStringContainsString('Request Correct Serial', $html);
+        $this->assertStringNotContainsString('Request Serial Number', $html);
+        $this->assertStringNotContainsString('Serial number missing', $html);
     }
 
     public function test_needs_verification_hides_recommended_action_while_waiting_for_customer(): void
