@@ -41,6 +41,8 @@ class RequestCorrectSerialTest extends TestCase
         ]);
 
         $this->seed(RolePermissionSeeder::class);
+
+        $this->withHeaders(['Sec-Fetch-Site' => 'same-origin']);
     }
 
     public function test_serial_insight_suggests_correct_serial_confirmation_for_suspicious_serial(): void
@@ -90,6 +92,7 @@ class RequestCorrectSerialTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
+            ->assertSee('Serial number needs verification', false)
             ->assertSee('Request Correct Serial', false)
             ->assertSee('data-workspace-trigger="request-correct-serial"', false);
     }

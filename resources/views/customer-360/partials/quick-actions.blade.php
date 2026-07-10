@@ -63,67 +63,83 @@
             id="customer-360-recommended-actions-heading">
             Recommended Actions
         </h3>
-        <div class="customer-360-quick-actions customer-360-quick-actions--recommended"
+        <div class="customer-360-recommended-actions"
              aria-labelledby="customer-360-recommended-actions-heading">
             @if($serialRequestState['requested'] ?? false)
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm customer-360-quick-action customer-360-quick-action--serial-requested"
-                        disabled
-                        title="Serial number request already sent">
-                    <span class="customer-360-serial-requested-content">
-                        <span class="customer-360-serial-requested-label">
-                            <span aria-hidden="true">✓</span> Serial Requested
-                        </span>
+                <article class="customer-360-recommended-action-card customer-360-recommended-action-card--completed">
+                    <h4 class="customer-360-recommended-action-title">Serial number requested</h4>
+                    <p class="customer-360-recommended-action-description">
+                        Waiting for customer to share device serial number.
+                    </p>
+                    <p class="customer-360-recommended-action-status">
+                        <span aria-hidden="true">✓</span> Request sent
                         @if(filled($serialRequestState['requested_at_label'] ?? null))
-                            <span class="customer-360-serial-requested-at">{{ $serialRequestState['requested_at_label'] }}</span>
+                            <span class="customer-360-recommended-action-status-at">{{ $serialRequestState['requested_at_label'] }}</span>
                         @endif
-                    </span>
-                </button>
+                    </p>
+                </article>
             @elseif($canRequestSerialNumber ?? false)
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm customer-360-quick-action"
-                        data-workspace-trigger="request-serial"
-                        data-workspace-incident-id="{{ $incident->id }}"
-                        data-workspace-context="customer"
-                        title="Send approved WhatsApp template to request serial number">
-                    <span aria-hidden="true">📱</span> Request Serial Number
-                </button>
+                <article class="customer-360-recommended-action-card">
+                    <h4 class="customer-360-recommended-action-title">Serial number missing</h4>
+                    <p class="customer-360-recommended-action-description">
+                        Ask customer to provide device serial number.
+                    </p>
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm customer-360-recommended-action-button"
+                            data-workspace-trigger="request-serial"
+                            data-workspace-incident-id="{{ $incident->id }}"
+                            data-workspace-context="customer">
+                        Request Serial Number
+                    </button>
+                </article>
             @endif
 
             @if($correctSerialRequestState['requested'] ?? false)
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm customer-360-quick-action customer-360-quick-action--serial-requested"
-                        disabled
-                        title="Serial correction request already sent">
-                    <span class="customer-360-serial-requested-content">
-                        <span class="customer-360-serial-requested-label">
-                            <span aria-hidden="true">✓</span> Correction Requested
-                        </span>
+                <article class="customer-360-recommended-action-card customer-360-recommended-action-card--completed">
+                    <h4 class="customer-360-recommended-action-title">Serial correction requested</h4>
+                    <p class="customer-360-recommended-action-description">
+                        Waiting for customer to share correct serial photo.
+                    </p>
+                    <p class="customer-360-recommended-action-status">
+                        <span aria-hidden="true">✓</span> Request sent
                         @if(filled($correctSerialRequestState['requested_at_label'] ?? null))
-                            <span class="customer-360-serial-requested-at">{{ $correctSerialRequestState['requested_at_label'] }}</span>
+                            <span class="customer-360-recommended-action-status-at">{{ $correctSerialRequestState['requested_at_label'] }}</span>
                         @endif
-                    </span>
-                </button>
+                    </p>
+                </article>
             @elseif($canRequestCorrectSerial ?? false)
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm customer-360-quick-action"
-                        data-workspace-trigger="request-correct-serial"
-                        data-workspace-incident-id="{{ $incident->id }}"
-                        data-workspace-context="customer"
-                        title="Ask customer to confirm the correct device serial number">
-                    <span aria-hidden="true">🔁</span> Request Correct Serial
-                </button>
+                <article class="customer-360-recommended-action-card">
+                    <h4 class="customer-360-recommended-action-title">Serial number needs verification</h4>
+                    <p class="customer-360-recommended-action-description">
+                        The current serial number may be incorrect. Request customer to share correct serial photo.
+                    </p>
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm customer-360-recommended-action-button"
+                            data-workspace-trigger="request-correct-serial"
+                            data-workspace-incident-id="{{ $incident->id }}"
+                            data-workspace-context="customer">
+                        Request Correct Serial
+                    </button>
+                    <p class="customer-360-recommended-action-note">
+                        Moves case to Waiting Customer after sending request.
+                    </p>
+                </article>
             @endif
 
             @if($canCustomerNotResponding ?? false)
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm customer-360-quick-action"
-                        data-workspace-trigger="customer-not-responding"
-                        data-workspace-incident-id="{{ $incident->id }}"
-                        data-workspace-context="customer"
-                        title="Send callback schedule message when customer is not responding">
-                    <span aria-hidden="true">📵</span> Customer Not Responding
-                </button>
+                <article class="customer-360-recommended-action-card">
+                    <h4 class="customer-360-recommended-action-title">Customer unreachable</h4>
+                    <p class="customer-360-recommended-action-description">
+                        Send callback scheduling link and pause until customer responds.
+                    </p>
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm customer-360-recommended-action-button"
+                            data-workspace-trigger="customer-not-responding"
+                            data-workspace-incident-id="{{ $incident->id }}"
+                            data-workspace-context="customer">
+                        Customer Not Responding
+                    </button>
+                </article>
             @endif
 
             @if($canLinkOrder ?? false)

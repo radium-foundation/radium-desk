@@ -296,7 +296,8 @@ class Customer360DrawerTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Serial Requested', $html);
+        $this->assertStringContainsString('Serial number requested', $html);
+        $this->assertStringContainsString('Request sent', $html);
         $this->assertStringContainsString(
             AppDateFormatter::format($sentAt, RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT),
             $html,
@@ -316,8 +317,10 @@ class Customer360DrawerTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-workspace-trigger="request-serial"', false)
+            ->assertSee('Serial number missing', false)
+            ->assertSee('Ask customer to provide device serial number.', false)
             ->assertSee('Request Serial Number', false)
-            ->assertDontSee('Serial Requested', false);
+            ->assertDontSee('Serial number requested', false);
     }
 
     /**

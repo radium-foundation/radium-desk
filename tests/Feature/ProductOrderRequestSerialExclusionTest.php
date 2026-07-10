@@ -73,7 +73,7 @@ class ProductOrderRequestSerialExclusionTest extends TestCase
         $this->assertFalse(app(RequestSerialNumberEligibilityService::class)->canShowAction($incident));
         $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
         $this->assertStringNotContainsString('Request Serial Number', $html);
-        $this->assertStringNotContainsString('Serial Requested', $html);
+        $this->assertStringNotContainsString('Serial number requested', $html);
     }
 
     public function test_rde_order_hides_serial_requested_state_even_when_prior_contact_exists(): void
@@ -100,7 +100,7 @@ class ProductOrderRequestSerialExclusionTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringNotContainsString('Serial Requested', $html);
+        $this->assertStringNotContainsString('Serial number requested', $html);
         $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
     }
 
