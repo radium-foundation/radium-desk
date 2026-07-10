@@ -20,7 +20,7 @@ class ReviewLeaveRequestRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'review_notes' => ['nullable', 'string', 'max:2000'],
+            'review_notes' => ['required', 'string', 'max:2000'],
         ];
     }
 }

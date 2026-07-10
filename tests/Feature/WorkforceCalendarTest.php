@@ -183,8 +183,8 @@ class WorkforceCalendarTest extends TestCase
         $this->assertTrue($leaveService->canReview($owner, $operationsLeave));
         $this->assertFalse($leaveService->canReview($operationsAdmin, $operationsLeave));
 
-        $leaveService->approve($supportLeave, $operationsAdmin);
-        $leaveService->approve($operationsLeave, $owner);
+        $leaveService->approve($supportLeave, $operationsAdmin, 'Approved for planned leave');
+        $leaveService->approve($operationsLeave, $owner, 'Approved for operations leave');
 
         $this->assertSame(LeaveRequestStatus::Approved, $supportLeave->fresh()->status);
         $this->assertSame(LeaveRequestStatus::Approved, $operationsLeave->fresh()->status);

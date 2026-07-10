@@ -106,7 +106,7 @@ class WorkforceAuthorityServiceTest extends TestCase
         $this->assertContains('availability_offline', $this->authority->blockReasons($agent));
     }
 
-    public function test_admin_role_excluded_from_normal_assignment(): void
+    public function test_admin_role_excluded_from_normal_assignment_but_tracked_for_attendance(): void
     {
         $admin = User::factory()->create([
             'availability_status' => TeamAvailabilityStatus::Available,
@@ -125,14 +125,16 @@ class WorkforceAuthorityServiceTest extends TestCase
             'weekly_off_days' => [Carbon::SUNDAY],
         ]);
 
-        $this->assertNull(app(PresenceEngineService::class)->startSession($admin->fresh(['workSchedule'])));
+        $admin = $admin->fresh(['workSchedule']);
 
-        $this->assertFalse($this->authority->isOnDuty($admin));
+        $this->assertNotNull(app(PresenceEngineService::class)->startSession($admin));
+
+        $this->assertTrue($this->authority->isOnDuty($admin));
         $this->assertFalse($this->authority->isEligibleForNormalAssignment($admin));
         $this->assertContains('not_assignment_pool', $this->authority->blockReasons($admin));
     }
 
-    public function test_attendance_tracked_roles_include_hardware_team(): void
+    public function test_attendance_tracked_roles_include_admin_and_exclude_superadmin(): void
     {
         $hardwareUser = User::factory()->create();
         $hardwareUser->assignRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
@@ -140,11 +142,19 @@ class WorkforceAuthorityServiceTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
+        $operationsAdmin = User::factory()->create();
+        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+
+        $owner = User::factory()->create();
+        $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
         $roleService = app(\App\Services\Operations\OperationsRoleService::class);
 
         $this->assertTrue($roleService->isAttendanceTracked($hardwareUser));
         $this->assertFalse($roleService->isNormalAssignmentPool($hardwareUser));
-        $this->assertFalse($roleService->isAttendanceTracked($admin));
+        $this->assertTrue($roleService->isAttendanceTracked($admin));
+        $this->assertTrue($roleService->isAttendanceTracked($operationsAdmin));
+        $this->assertFalse($roleService->isAttendanceTracked($owner));
         $this->assertFalse($roleService->isNormalAssignmentPool($admin));
     }
 

@@ -316,7 +316,7 @@ class TeamPerformanceIntelligenceTest extends TestCase
         );
     }
 
-    public function test_team_metrics_exclude_admin_tier_users(): void
+    public function test_team_metrics_include_admin_tier_users_but_exclude_superadmin(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -324,11 +324,15 @@ class TeamPerformanceIntelligenceTest extends TestCase
         $admin = User::factory()->create(['name' => 'Ops Admin']);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
+        $owner = User::factory()->create(['name' => 'Owner']);
+        $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
         $teamMetrics = app(TeamPerformanceMetricsService::class)->teamMetrics(PerformancePeriod::Today);
         $userIds = collect($teamMetrics)->map(fn ($metrics) => $metrics->userId)->all();
 
-        $this->assertNotContains($admin->id, $userIds);
-        $this->assertCount(1, $teamMetrics);
+        $this->assertContains($admin->id, $userIds);
+        $this->assertNotContains($owner->id, $userIds);
+        $this->assertCount(2, $teamMetrics);
 
         Carbon::setTestNow();
     }

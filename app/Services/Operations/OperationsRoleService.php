@@ -80,11 +80,7 @@ class OperationsRoleService
 
     public function isAttendanceTracked(User $user): bool
     {
-        return $user->hasAnyRole([
-            ...RolePermissionSeeder::SUPPORT_TEAM_ROLES,
-            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
-            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
-        ]);
+        return $user->hasAnyRole($this->attendanceTrackedRoleSlugs());
     }
 
     public function isNormalAssignmentPool(User $user): bool
@@ -101,6 +97,8 @@ class OperationsRoleService
             ...RolePermissionSeeder::SUPPORT_TEAM_ROLES,
             RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ];
     }
 }

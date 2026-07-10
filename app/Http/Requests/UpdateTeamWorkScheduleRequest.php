@@ -19,7 +19,7 @@ class UpdateTeamWorkScheduleRequest extends FormRequest
     {
         return [
             'work_start_time' => ['required', 'date_format:H:i'],
-            'work_end_time' => ['required', 'date_format:H:i', 'after:work_start_time'],
+            'work_end_time' => ['required', 'date_format:H:i'],
             'lunch_start_time' => ['nullable', 'date_format:H:i', 'required_with:lunch_end_time'],
             'lunch_end_time' => ['nullable', 'date_format:H:i', 'required_with:lunch_start_time', 'after:lunch_start_time'],
             'short_break_count' => ['required', 'integer', 'min:0', 'max:10'],

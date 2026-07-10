@@ -38,7 +38,21 @@ class LeaveRequestService
             'status' => LeaveRequestStatus::Pending,
         ]);
 
-        $this->notifyApproversOfSubmission($leaveRequest->fresh(['user']));
+        $leaveRequest = $leaveRequest->fresh(['user']);
+
+        $this->auditLogService->log(
+            userId: $requester->id,
+            event: 'leave.submitted',
+            auditable: $leaveRequest,
+            newValues: [
+                'requester_id' => $requester->id,
+                'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'],
+                'status' => LeaveRequestStatus::Pending->value,
+            ],
+        );
+
+        $this->notifyApproversOfSubmission($leaveRequest);
 
         return $leaveRequest;
     }
@@ -46,6 +60,7 @@ class LeaveRequestService
     public function approve(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
     {
         $this->assertCanReview($reviewer, $leaveRequest);
+        $this->assertReviewNotesProvided($reviewNotes);
 
         if ($leaveRequest->status !== LeaveRequestStatus::Pending) {
             throw ValidationException::withMessages([
@@ -62,6 +77,8 @@ class LeaveRequestService
 
         $leaveRequest = $leaveRequest->fresh(['user', 'reviewer']);
 
+        $this->auditLeaveDecision($leaveRequest, $reviewer, 'leave.approved');
+
         $this->notifyRequesterOfDecision($leaveRequest);
 
         return $leaveRequest;
@@ -70,6 +87,7 @@ class LeaveRequestService
     public function reject(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
     {
         $this->assertCanReview($reviewer, $leaveRequest);
+        $this->assertReviewNotesProvided($reviewNotes);
 
         if ($leaveRequest->status !== LeaveRequestStatus::Pending) {
             throw ValidationException::withMessages([
@@ -86,6 +104,8 @@ class LeaveRequestService
 
         $leaveRequest = $leaveRequest->fresh(['user', 'reviewer']);
 
+        $this->auditLeaveDecision($leaveRequest, $reviewer, 'leave.rejected');
+
         $this->notifyRequesterOfDecision($leaveRequest);
 
         return $leaveRequest;
@@ -99,7 +119,7 @@ class LeaveRequestService
 
         $requester = $leaveRequest->user;
 
-        if ($requester === null) {
+        if ($requester === null || $reviewer->id === $requester->id) {
             return false;
         }
 
@@ -110,17 +130,8 @@ class LeaveRequestService
             return $reviewer->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN);
         }
 
-        if ($requester->hasAnyRole([
-            RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
-            RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
-            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
-            RolePermissionSeeder::ROLE_AGENT,
-        ])) {
-            return $reviewer->hasAnyRole([
-                RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ]);
+        if ($requester->hasAnyRole($this->employeeLeaveRequesterRoles())) {
+            return $reviewer->hasRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
         }
 
         return false;
@@ -182,17 +193,63 @@ class LeaveRequestService
      */
     private function eligibleApprovers(LeaveRequest $leaveRequest): Collection
     {
+        $requester = $leaveRequest->user;
+
+        if ($requester === null) {
+            return collect();
+        }
+
+        $approverRoles = $requester->hasAnyRole([
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+            RolePermissionSeeder::ROLE_ADMIN,
+        ])
+            ? [RolePermissionSeeder::ROLE_SUPERADMIN]
+            : [RolePermissionSeeder::ROLE_OPERATIONS_ADMIN];
+
         return User::query()
             ->where('is_active', true)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', [
-                RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-                RolePermissionSeeder::ROLE_ADMIN,
-                RolePermissionSeeder::ROLE_SUPERADMIN,
-            ]))
+            ->whereHas('roles', fn ($query) => $query->whereIn('name', $approverRoles))
             ->get()
-            ->filter(fn (User $reviewer): bool => $reviewer->id !== $leaveRequest->user_id
-                && $this->canReview($reviewer, $leaveRequest))
+            ->filter(fn (User $reviewer): bool => $this->canReview($reviewer, $leaveRequest))
             ->values();
+    }
+
+    private function assertReviewNotesProvided(?string $reviewNotes): void
+    {
+        if (blank($reviewNotes)) {
+            throw ValidationException::withMessages([
+                'review_notes' => 'A review note is required when approving or rejecting leave.',
+            ]);
+        }
+    }
+
+    private function auditLeaveDecision(LeaveRequest $leaveRequest, User $reviewer, string $event): void
+    {
+        $this->auditLogService->log(
+            userId: $reviewer->id,
+            event: $event,
+            auditable: $leaveRequest,
+            newValues: [
+                'reviewer_id' => $reviewer->id,
+                'reviewed_at' => $leaveRequest->reviewed_at?->toIso8601String(),
+                'status' => $leaveRequest->status->value,
+                'review_notes' => $leaveRequest->review_notes,
+            ],
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function employeeLeaveRequesterRoles(): array
+    {
+        return [
+            RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
+            RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
+            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+            RolePermissionSeeder::ROLE_AGENT,
+            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
+        ];
     }
 
     private function dispatchLeaveNotification(

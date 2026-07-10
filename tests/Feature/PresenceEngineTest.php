@@ -93,7 +93,7 @@ class PresenceEngineTest extends TestCase
         $this->assertSame(TeamAvailabilityStatus::Busy, $agent->availability_status);
     }
 
-    public function test_admin_login_does_not_create_workforce_session(): void
+    public function test_admin_login_creates_workforce_session(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
 
@@ -110,7 +110,27 @@ class PresenceEngineTest extends TestCase
             'password' => 'password',
         ])->assertRedirect(route('dashboard'));
 
-        $this->assertNull(WorkSession::query()->where('user_id', $admin->id)->first());
+        $this->assertNotNull(WorkSession::query()->where('user_id', $admin->id)->first());
+    }
+
+    public function test_superadmin_login_does_not_create_workforce_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
+
+        $owner = User::factory()->create([
+            'name' => 'Owner',
+            'password' => bcrypt('password'),
+            'availability_status' => TeamAvailabilityStatus::Offline,
+            'availability_updated_at' => now(),
+        ]);
+        $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $this->post(route('login'), [
+            'email' => $owner->email,
+            'password' => 'password',
+        ])->assertRedirect(route('dashboard'));
+
+        $this->assertNull(WorkSession::query()->where('user_id', $owner->id)->first());
     }
 
     public function test_logout_closes_session(): void

@@ -61,8 +61,8 @@
                             <form method="POST" action="{{ route('leave-requests.approve', $leaveRequest) }}">
                                 @csrf
                                 <div class="mb-3">
-                                    <label for="approve_review_notes" class="form-label">Notes (optional)</label>
-                                    <textarea id="approve_review_notes" name="review_notes" rows="3" class="form-control">{{ old('review_notes') }}</textarea>
+                                    <label for="approve_review_notes" class="form-label">Notes (required)</label>
+                                    <textarea id="approve_review_notes" name="review_notes" rows="3" class="form-control" required>{{ old('review_notes') }}</textarea>
                                 </div>
                                 <button type="submit" class="btn btn-success w-100">Approve</button>
                             </form>
@@ -70,8 +70,8 @@
                             <form method="POST" action="{{ route('leave-requests.reject', $leaveRequest) }}">
                                 @csrf
                                 <div class="mb-3">
-                                    <label for="reject_review_notes" class="form-label">Rejection notes (optional)</label>
-                                    <textarea id="reject_review_notes" name="review_notes" rows="3" class="form-control"></textarea>
+                                    <label for="reject_review_notes" class="form-label">Rejection notes (required)</label>
+                                    <textarea id="reject_review_notes" name="review_notes" rows="3" class="form-control" required></textarea>
                                 </div>
                                 <button type="submit" class="btn btn-outline-danger w-100">Reject</button>
                             </form>

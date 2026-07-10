@@ -90,8 +90,13 @@ class WorkCalendarService
             return false;
         }
 
-        $start = $this->timeOnDate($schedule->work_start_time, $at);
-        $end = $this->timeOnDate($schedule->work_end_time, $at);
+        $window = $this->resolveShiftWindow($schedule, $at);
+
+        if ($window === null) {
+            return false;
+        }
+
+        [$start, $end] = $window;
 
         return $at->gte($start) && $at->lt($end);
     }
@@ -105,8 +110,13 @@ class WorkCalendarService
 
     public function isWithinWorkingHours(TeamMemberWorkSchedule $schedule, Carbon $at): bool
     {
-        $start = $this->timeOnDate($schedule->work_start_time, $at);
-        $end = $this->timeOnDate($schedule->work_end_time, $at);
+        $window = $this->resolveShiftWindow($schedule, $at);
+
+        if ($window === null) {
+            return false;
+        }
+
+        [$start, $end] = $window;
 
         if ($at->lt($start) || $at->gte($end)) {
             return false;
@@ -159,7 +169,24 @@ class WorkCalendarService
 
     public function expectedWorkEndAt(TeamMemberWorkSchedule $schedule, Carbon $date): Carbon
     {
-        return $this->timeOnDate($schedule->work_end_time, $date->copy()->startOfDay());
+        $window = $this->resolveShiftWindow($schedule, $date);
+
+        if ($window !== null) {
+            return $window[1];
+        }
+
+        $startToday = $this->timeOnDate($schedule->work_start_time, $date);
+        $endToday = $this->timeOnDate($schedule->work_end_time, $date);
+
+        if ($this->isOvernightSchedule($schedule) && $date->lt($startToday)) {
+            return $endToday;
+        }
+
+        if ($this->isOvernightSchedule($schedule)) {
+            return $endToday->copy()->addDay();
+        }
+
+        return $endToday;
     }
 
     public function isLateLogin(User $user, Carbon $loginAt): bool
@@ -242,19 +269,19 @@ class WorkCalendarService
 
         $start = $this->expectedWorkStartAt($schedule, $at);
 
-        if ($at->lt($start)) {
+        if ($this->isWithinWorkingHours($schedule, $at)) {
+            if ($this->isDuringLunch($schedule, $at)) {
+                return $this->buildStatusSnapshot(WorkCalendarDayStatus::Lunch, $schedule, $at);
+            }
+
+            return $this->buildStatusSnapshot(WorkCalendarDayStatus::Working, $schedule, $at);
+        }
+
+        if ($this->isBeforeShiftStart($schedule, $at) && ! $this->isInOvernightPostShiftGap($schedule, $at)) {
             return $this->buildStatusSnapshot(WorkCalendarDayStatus::StartsLater, $schedule, $at);
         }
 
-        if ($this->isDuringLunch($schedule, $at)) {
-            return $this->buildStatusSnapshot(WorkCalendarDayStatus::Lunch, $schedule, $at);
-        }
-
-        if (! $this->isWithinWorkingHours($schedule, $at)) {
-            return $this->buildStatusSnapshot(WorkCalendarDayStatus::OutsideHours, $schedule, $at);
-        }
-
-        return $this->buildStatusSnapshot(WorkCalendarDayStatus::Working, $schedule, $at);
+        return $this->buildStatusSnapshot(WorkCalendarDayStatus::OutsideHours, $schedule, $at);
     }
 
     /**
@@ -287,12 +314,75 @@ class WorkCalendarService
         return $date->copy()->setTimeFromTimeString($this->normalizeTimeString($time));
     }
 
+    public function isOvernightSchedule(TeamMemberWorkSchedule $schedule): bool
+    {
+        $startMinutes = $this->minutesFromMidnight($schedule->work_start_time);
+        $endMinutes = $this->minutesFromMidnight($schedule->work_end_time);
+
+        return $endMinutes <= $startMinutes;
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}|null
+     */
+    public function resolveShiftWindow(TeamMemberWorkSchedule $schedule, Carbon $at): ?array
+    {
+        $startToday = $this->timeOnDate($schedule->work_start_time, $at);
+        $endToday = $this->timeOnDate($schedule->work_end_time, $at);
+
+        if (! $this->isOvernightSchedule($schedule)) {
+            return [$startToday, $endToday];
+        }
+
+        $endNextDay = $endToday->copy()->addDay();
+
+        if ($at->gte($startToday) && $at->lt($endNextDay)) {
+            return [$startToday, $endNextDay];
+        }
+
+        $startYesterday = $startToday->copy()->subDay();
+
+        if ($at->gte($startYesterday) && $at->lt($endToday)) {
+            return [$startYesterday, $endToday];
+        }
+
+        return null;
+    }
+
+    private function isBeforeShiftStart(TeamMemberWorkSchedule $schedule, Carbon $at): bool
+    {
+        return $at->lt($this->expectedWorkStartAt($schedule, $at));
+    }
+
+    private function isInOvernightPostShiftGap(TeamMemberWorkSchedule $schedule, Carbon $at): bool
+    {
+        if (! $this->isOvernightSchedule($schedule)) {
+            return false;
+        }
+
+        $startToday = $this->timeOnDate($schedule->work_start_time, $at);
+        $endToday = $this->timeOnDate($schedule->work_end_time, $at);
+
+        return $at->gte($endToday) && $at->lt($startToday);
+    }
+
     private function minutesBetweenTimes(mixed $start, mixed $end): int
     {
-        $startAt = Carbon::today()->setTimeFromTimeString($this->normalizeTimeString($start));
-        $endAt = Carbon::today()->setTimeFromTimeString($this->normalizeTimeString($end));
+        $startMinutes = $this->minutesFromMidnight($start);
+        $endMinutes = $this->minutesFromMidnight($end);
 
-        return max(0, (int) $startAt->diffInMinutes($endAt));
+        if ($endMinutes <= $startMinutes) {
+            return (24 * 60 - $startMinutes) + $endMinutes;
+        }
+
+        return max(0, $endMinutes - $startMinutes);
+    }
+
+    private function minutesFromMidnight(mixed $time): int
+    {
+        $at = Carbon::today()->setTimeFromTimeString($this->normalizeTimeString($time));
+
+        return ($at->hour * 60) + $at->minute;
     }
 
     private function normalizeTimeString(mixed $time): string

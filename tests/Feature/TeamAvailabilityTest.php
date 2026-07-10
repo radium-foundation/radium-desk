@@ -170,7 +170,7 @@ class TeamAvailabilityTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_admin_user_excluded_from_team_overview(): void
+    public function test_admin_user_appears_in_team_overview_when_on_duty(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -187,6 +187,22 @@ class TeamAvailabilityTest extends TestCase
             'weekly_off_days' => [Carbon::SUNDAY],
         ]);
         app(PresenceEngineService::class)->startSession($admin->fresh(['workSchedule']));
+
+        $members = app(TeamAvailabilityOverviewService::class)->members();
+
+        $this->assertCount(1, $members);
+        $this->assertSame($admin->id, $members[0]['id']);
+        $this->assertTrue($members[0]['on_duty']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_superadmin_user_excluded_from_team_overview(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $owner = User::factory()->create(['name' => 'Owner']);
+        $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
         $this->assertSame([], app(TeamAvailabilityOverviewService::class)->members());
 

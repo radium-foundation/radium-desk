@@ -113,7 +113,7 @@ class LeaveRequestServiceTest extends TestCase
             ], 200),
         ]);
 
-        $this->service->approve($leaveRequest, $operationsAdmin);
+        $this->service->approve($leaveRequest, $operationsAdmin, 'Approved for planned leave');
 
         Notification::assertSentTo($supportAgent, LeaveRequestDecisionNotification::class);
         Http::assertSentCount(1);
@@ -183,13 +183,16 @@ class LeaveRequestServiceTest extends TestCase
         ]);
     }
 
-    public function test_existing_leave_approval_logic_unchanged(): void
+    public function test_leave_approval_hierarchy_uses_operations_admin_and_superadmin_tiers(): void
     {
         $supportAgent = User::factory()->create();
         $supportAgent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
         $operationsAdmin = User::factory()->create();
         $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $owner = User::factory()->create();
         $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
@@ -207,13 +210,15 @@ class LeaveRequestServiceTest extends TestCase
         ]);
 
         $this->assertTrue($this->service->canReview($operationsAdmin, $supportLeave));
+        $this->assertFalse($this->service->canReview($admin, $supportLeave));
+        $this->assertFalse($this->service->canReview($owner, $supportLeave));
         $this->assertFalse($this->service->canReview($supportAgent, $supportLeave));
 
         $this->assertTrue($this->service->canReview($owner, $operationsLeave));
         $this->assertFalse($this->service->canReview($operationsAdmin, $operationsLeave));
 
-        $this->service->approve($supportLeave, $operationsAdmin);
-        $this->service->approve($operationsLeave, $owner);
+        $this->service->approve($supportLeave, $operationsAdmin, 'Approved for planned leave');
+        $this->service->approve($operationsLeave, $owner, 'Approved for operations leave');
 
         $this->assertSame(LeaveRequestStatus::Approved, $supportLeave->fresh()->status);
         $this->assertSame(LeaveRequestStatus::Approved, $operationsLeave->fresh()->status);
