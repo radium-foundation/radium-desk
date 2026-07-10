@@ -192,6 +192,230 @@ class AutomationRuntimeTest extends TestCase
         ]);
     }
 
+    public function test_runtime_retries_after_previous_failure_without_duplicate_insert(): void
+    {
+        [$waitingState, $plannedActions] = $this->makePlannedActions();
+        $idempotencyKey = app(AutomationIdempotencyKeyGenerator::class)->generate(
+            waitingStateId: $waitingState->id,
+            policyKey: 'serial_number_default',
+            scheduleStep: 0,
+            actionType: AutomationPolicyActionType::WhatsAppTemplate,
+            channel: null,
+        );
+
+        AutomationExecution::query()->create([
+            'waiting_state_id' => $waitingState->id,
+            'policy_key' => 'serial_number_default',
+            'schedule_step' => 0,
+            'action_type' => AutomationPolicyActionType::WhatsAppTemplate,
+            'action_key' => 'request_serial_number',
+            'status' => AutomationExecutionStatus::Failed,
+            'idempotency_key' => $idempotencyKey,
+            'error_message' => 'WhatsApp dispatch failed.',
+            'started_at' => Carbon::parse('2026-07-01 08:00:00'),
+            'completed_at' => Carbon::parse('2026-07-01 08:00:00'),
+        ]);
+
+        $notificationDispatcher = Mockery::mock(NotificationDispatcher::class);
+        $notificationDispatcher->shouldReceive('send')
+            ->once()
+            ->andReturn(NotificationDispatchResult::fromResults([
+                NotificationResult::success(
+                    channel: NotificationChannelType::WhatsApp,
+                    externalId: 'msg-runtime-retry-001',
+                ),
+            ]));
+
+        $runtime = new AutomationRuntime(
+            app(AutomationIdempotencyKeyGenerator::class),
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class), app(\App\Services\Notifications\CustomerAutomationEligibilityService::class))],
+        );
+
+        $result = $runtime->execute($waitingState, $plannedActions);
+
+        $this->assertSame(AutomationExecutionStatus::Success, $result->results[0]->status);
+        $this->assertSame(1, AutomationExecution::query()->count());
+        $this->assertDatabaseHas('automation_executions', [
+            'idempotency_key' => $idempotencyKey,
+            'status' => AutomationExecutionStatus::Success->value,
+            'external_id' => 'msg-runtime-retry-001',
+            'error_message' => null,
+        ]);
+    }
+
+    public function test_runtime_recovers_stale_pending_execution(): void
+    {
+        [$waitingState, $plannedActions] = $this->makePlannedActions();
+        $idempotencyKey = app(AutomationIdempotencyKeyGenerator::class)->generate(
+            waitingStateId: $waitingState->id,
+            policyKey: 'serial_number_default',
+            scheduleStep: 0,
+            actionType: AutomationPolicyActionType::WhatsAppTemplate,
+            channel: null,
+        );
+
+        AutomationExecution::query()->create([
+            'waiting_state_id' => $waitingState->id,
+            'policy_key' => 'serial_number_default',
+            'schedule_step' => 0,
+            'action_type' => AutomationPolicyActionType::WhatsAppTemplate,
+            'action_key' => 'request_serial_number',
+            'status' => AutomationExecutionStatus::Pending,
+            'idempotency_key' => $idempotencyKey,
+            'started_at' => Carbon::parse('2026-07-01 07:00:00'),
+            'completed_at' => null,
+        ]);
+
+        $notificationDispatcher = Mockery::mock(NotificationDispatcher::class);
+        $notificationDispatcher->shouldReceive('send')
+            ->once()
+            ->andReturn(NotificationDispatchResult::fromResults([
+                NotificationResult::success(
+                    channel: NotificationChannelType::WhatsApp,
+                    externalId: 'msg-runtime-stale-001',
+                ),
+            ]));
+
+        $runtime = new AutomationRuntime(
+            app(AutomationIdempotencyKeyGenerator::class),
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class), app(\App\Services\Notifications\CustomerAutomationEligibilityService::class))],
+        );
+
+        $result = $runtime->execute($waitingState, $plannedActions);
+
+        $this->assertSame(AutomationExecutionStatus::Success, $result->results[0]->status);
+        $this->assertSame(1, AutomationExecution::query()->count());
+        $this->assertDatabaseHas('automation_executions', [
+            'idempotency_key' => $idempotencyKey,
+            'status' => AutomationExecutionStatus::Success->value,
+            'external_id' => 'msg-runtime-stale-001',
+        ]);
+    }
+
+    public function test_runtime_skips_recent_pending_execution_owned_by_another_worker(): void
+    {
+        [$waitingState, $plannedActions] = $this->makePlannedActions();
+        $idempotencyKey = app(AutomationIdempotencyKeyGenerator::class)->generate(
+            waitingStateId: $waitingState->id,
+            policyKey: 'serial_number_default',
+            scheduleStep: 0,
+            actionType: AutomationPolicyActionType::WhatsAppTemplate,
+            channel: null,
+        );
+
+        AutomationExecution::query()->create([
+            'waiting_state_id' => $waitingState->id,
+            'policy_key' => 'serial_number_default',
+            'schedule_step' => 0,
+            'action_type' => AutomationPolicyActionType::WhatsAppTemplate,
+            'action_key' => 'request_serial_number',
+            'status' => AutomationExecutionStatus::Pending,
+            'idempotency_key' => $idempotencyKey,
+            'started_at' => Carbon::parse('2026-07-01 08:30:00'),
+            'completed_at' => null,
+        ]);
+
+        $notificationDispatcher = Mockery::mock(NotificationDispatcher::class);
+        $notificationDispatcher->shouldReceive('send')->never();
+
+        $runtime = new AutomationRuntime(
+            app(AutomationIdempotencyKeyGenerator::class),
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class), app(\App\Services\Notifications\CustomerAutomationEligibilityService::class))],
+        );
+
+        $result = $runtime->execute($waitingState, $plannedActions);
+
+        $this->assertTrue($result->results[0]->wasSkipped());
+        $this->assertTrue($result->results[0]->skippedExisting);
+        $this->assertSame(1, AutomationExecution::query()->count());
+        $this->assertDatabaseHas('automation_executions', [
+            'idempotency_key' => $idempotencyKey,
+            'status' => AutomationExecutionStatus::Pending->value,
+        ]);
+    }
+
+    public function test_runtime_handles_duplicate_key_race_without_escaping_sql_exception(): void
+    {
+        [$waitingState, $plannedActions] = $this->makePlannedActions();
+        $idempotencyKey = app(AutomationIdempotencyKeyGenerator::class)->generate(
+            waitingStateId: $waitingState->id,
+            policyKey: 'serial_number_default',
+            scheduleStep: 0,
+            actionType: AutomationPolicyActionType::WhatsAppTemplate,
+            channel: null,
+        );
+
+        $notificationDispatcher = Mockery::mock(NotificationDispatcher::class);
+        $notificationDispatcher->shouldReceive('send')->never();
+
+        AutomationExecution::creating(function (AutomationExecution $model) use ($waitingState, $idempotencyKey): void {
+            static $seeded = false;
+
+            if ($seeded || $model->idempotency_key !== $idempotencyKey) {
+                return;
+            }
+
+            $seeded = true;
+
+            AutomationExecution::withoutEvents(function () use ($waitingState, $idempotencyKey): void {
+                AutomationExecution::query()->create([
+                    'waiting_state_id' => $waitingState->id,
+                    'policy_key' => 'serial_number_default',
+                    'schedule_step' => 0,
+                    'action_type' => AutomationPolicyActionType::WhatsAppTemplate,
+                    'action_key' => 'request_serial_number',
+                    'status' => AutomationExecutionStatus::Success,
+                    'idempotency_key' => $idempotencyKey,
+                    'external_id' => 'msg-runtime-race-001',
+                    'started_at' => Carbon::parse('2026-07-01 08:00:00'),
+                    'completed_at' => Carbon::parse('2026-07-01 08:00:00'),
+                ]);
+            });
+        });
+
+        $runtime = new AutomationRuntime(
+            app(AutomationIdempotencyKeyGenerator::class),
+            [new NotificationActionHandler($notificationDispatcher, app(AutomationNotificationTypeResolver::class), app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class), app(CustomerWaitingLifecycleService::class), app(\App\Services\Notifications\CustomerAutomationEligibilityService::class))],
+        );
+
+        $result = $runtime->execute($waitingState, $plannedActions);
+
+        $this->assertTrue($result->results[0]->wasSkipped());
+        $this->assertTrue($result->results[0]->skippedExisting);
+        $this->assertSame(1, AutomationExecution::query()->count());
+    }
+
+    public function test_runtime_does_not_duplicate_terminal_skipped_execution(): void
+    {
+        [$waitingState] = $this->makePlannedActions();
+
+        $plannedActions = app(ExecutionPlanner::class)->plan(
+            $waitingState,
+            app(AutomationPolicyService::class)->dueActions(
+                $waitingState,
+                Carbon::parse('2026-07-08 12:00:00'),
+            ),
+        );
+
+        $escalationAction = collect($plannedActions)
+            ->first(fn ($action) => $action->actionKey === 'serial_number_escalation');
+
+        $this->assertNotNull($escalationAction);
+
+        $runtime = new AutomationRuntime(
+            app(AutomationIdempotencyKeyGenerator::class),
+            [app(NotificationActionHandler::class)],
+        );
+
+        $firstRun = $runtime->execute($waitingState, [$escalationAction]);
+        $secondRun = $runtime->execute($waitingState, [$escalationAction]);
+
+        $this->assertTrue($firstRun->results[0]->wasSkipped());
+        $this->assertTrue($secondRun->results[0]->wasSkipped());
+        $this->assertTrue($secondRun->results[0]->skippedExisting);
+        $this->assertSame(1, AutomationExecution::query()->count());
+    }
+
     public function test_idempotency_key_is_deterministic_for_same_action(): void
     {
         $generator = app(AutomationIdempotencyKeyGenerator::class);

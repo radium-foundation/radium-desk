@@ -10,10 +10,14 @@ use App\Enums\AutomationExecutionStatus;
 use App\Enums\AutomationPolicyActionType;
 use App\Models\AutomationExecution;
 use App\Models\IncidentWaitingState;
+use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 
 class AutomationRuntime
 {
+    private const PENDING_STALE_AFTER_SECONDS = 3600;
+
     /**
      * @param  array<int, ActionHandler>  $handlers
      */
@@ -48,39 +52,142 @@ class AutomationRuntime
 
         $existing = AutomationExecution::query()
             ->where('idempotency_key', $idempotencyKey)
-            ->where('status', AutomationExecutionStatus::Success)
             ->first();
 
         if ($existing !== null) {
-            return new AutomationExecutionResult(
-                execution: $existing,
-                status: AutomationExecutionStatus::Skipped,
-                skippedExisting: true,
-            );
+            return $this->handleExistingExecution($plannedAction, $existing);
         }
 
         $handler = $this->resolveHandler($plannedAction->actionType);
 
         if ($handler === null) {
-            $execution = $this->createExecutionRecord(
+            return $this->persistTerminalSkippedExecution($plannedAction, $idempotencyKey);
+        }
+
+        try {
+            $execution = AutomationExecution::query()->create(
+                $this->executionAttributes(
+                    plannedAction: $plannedAction,
+                    idempotencyKey: $idempotencyKey,
+                    status: AutomationExecutionStatus::Pending,
+                ),
+            );
+        } catch (QueryException|UniqueConstraintViolationException $exception) {
+            if (! $this->isUniqueConstraintViolation($exception)) {
+                throw $exception;
+            }
+
+            $existing = AutomationExecution::query()
+                ->where('idempotency_key', $idempotencyKey)
+                ->firstOrFail();
+
+            return $this->handleExistingExecution($plannedAction, $existing);
+        }
+
+        return $this->executeHandler($plannedAction, $handler, $execution);
+    }
+
+    private function handleExistingExecution(
+        PlannedAutomationAction $plannedAction,
+        AutomationExecution $existing,
+    ): AutomationExecutionResult {
+        if ($this->shouldRetryExistingExecution($existing)) {
+            return $this->retryExistingExecution($plannedAction, $existing);
+        }
+
+        return $this->skipExistingExecution($existing);
+    }
+
+    private function skipExistingExecution(AutomationExecution $existing): AutomationExecutionResult
+    {
+        return new AutomationExecutionResult(
+            execution: $existing->fresh(),
+            status: AutomationExecutionStatus::Skipped,
+            skippedExisting: true,
+        );
+    }
+
+    private function shouldRetryExistingExecution(AutomationExecution $existing): bool
+    {
+        return match ($existing->status) {
+            AutomationExecutionStatus::Failed => true,
+            AutomationExecutionStatus::Pending => $this->isPendingStale($existing),
+            AutomationExecutionStatus::Success,
+            AutomationExecutionStatus::Skipped => false,
+        };
+    }
+
+    private function isPendingStale(AutomationExecution $execution): bool
+    {
+        if ($execution->started_at === null) {
+            return true;
+        }
+
+        return $execution->started_at->lte(
+            Carbon::now()->subSeconds(self::PENDING_STALE_AFTER_SECONDS),
+        );
+    }
+
+    private function retryExistingExecution(
+        PlannedAutomationAction $plannedAction,
+        AutomationExecution $existing,
+    ): AutomationExecutionResult {
+        $handler = $this->resolveHandler($plannedAction->actionType);
+
+        if ($handler === null) {
+            return $this->skipExistingExecution($existing);
+        }
+
+        $execution = $this->resetExecutionForRetry($existing);
+
+        return $this->executeHandler($plannedAction, $handler, $execution);
+    }
+
+    private function resetExecutionForRetry(AutomationExecution $execution): AutomationExecution
+    {
+        $now = Carbon::now();
+
+        $execution->update([
+            'status' => AutomationExecutionStatus::Pending,
+            'external_id' => null,
+            'error_message' => null,
+            'metadata' => null,
+            'started_at' => $now,
+            'completed_at' => null,
+        ]);
+
+        return $execution->fresh();
+    }
+
+    private function persistTerminalSkippedExecution(
+        PlannedAutomationAction $plannedAction,
+        string $idempotencyKey,
+    ): AutomationExecutionResult {
+        $execution = AutomationExecution::query()->firstOrCreate(
+            ['idempotency_key' => $idempotencyKey],
+            $this->executionAttributes(
                 plannedAction: $plannedAction,
                 idempotencyKey: $idempotencyKey,
                 status: AutomationExecutionStatus::Skipped,
                 errorMessage: 'No action handler is registered for this action type.',
-            );
-
-            return new AutomationExecutionResult(
-                execution: $execution,
-                status: AutomationExecutionStatus::Skipped,
-            );
-        }
-
-        $execution = $this->createExecutionRecord(
-            plannedAction: $plannedAction,
-            idempotencyKey: $idempotencyKey,
-            status: AutomationExecutionStatus::Pending,
+            ),
         );
 
+        if (! $execution->wasRecentlyCreated) {
+            return $this->handleExistingExecution($plannedAction, $execution);
+        }
+
+        return new AutomationExecutionResult(
+            execution: $execution,
+            status: AutomationExecutionStatus::Skipped,
+        );
+    }
+
+    private function executeHandler(
+        PlannedAutomationAction $plannedAction,
+        ActionHandler $handler,
+        AutomationExecution $execution,
+    ): AutomationExecutionResult {
         $handlerResult = $handler->handle($plannedAction);
 
         if ($handlerResult->success) {
@@ -123,17 +230,20 @@ class AutomationRuntime
         return null;
     }
 
-    private function createExecutionRecord(
+    /**
+     * @return array<string, mixed>
+     */
+    private function executionAttributes(
         PlannedAutomationAction $plannedAction,
         string $idempotencyKey,
         AutomationExecutionStatus $status,
         ?string $errorMessage = null,
         ?string $externalId = null,
         array $metadata = [],
-    ): AutomationExecution {
+    ): array {
         $now = Carbon::now();
 
-        return AutomationExecution::query()->create([
+        return [
             'waiting_state_id' => $plannedAction->waitingState->id,
             'policy_key' => $plannedAction->policyKey,
             'schedule_step' => $plannedAction->scheduleStep,
@@ -147,6 +257,17 @@ class AutomationRuntime
             'metadata' => $metadata === [] ? null : $metadata,
             'started_at' => $now,
             'completed_at' => $status === AutomationExecutionStatus::Pending ? null : $now,
-        ]);
+        ];
+    }
+
+    private function isUniqueConstraintViolation(QueryException|UniqueConstraintViolationException $exception): bool
+    {
+        if ($exception instanceof UniqueConstraintViolationException) {
+            return true;
+        }
+
+        $sqlState = $exception->errorInfo[0] ?? null;
+
+        return in_array($sqlState, ['23000', '23505', '2067'], true);
     }
 }
