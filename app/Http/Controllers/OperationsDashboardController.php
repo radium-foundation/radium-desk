@@ -49,7 +49,7 @@ class OperationsDashboardController extends Controller
         $iraBriefingFormatted = $needsIra && $iraBriefing !== null
             ? $this->iraBriefingFormatter->format($iraBriefing)
             : null;
-        $advisorInsights = $needsAdvisor ? $this->advisorService->platformInsights() : [];
+        $advisorInsights = $needsAdvisor ? $this->advisorService->platformInsights(dashboard: $dashboard) : [];
 
         return response()->json([
             'generated_at' => $dashboard->generatedAt->toIso8601String(),

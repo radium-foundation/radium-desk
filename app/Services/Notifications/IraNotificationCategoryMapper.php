@@ -12,7 +12,8 @@ class IraNotificationCategoryMapper
         return match ($type) {
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing => NotificationCategory::DailySummary,
-            IraNotificationType::OpsDigest => NotificationCategory::DailySummary,
+            IraNotificationType::OpsDigest,
+            IraNotificationType::OwnerIntelligenceReport => NotificationCategory::DailySummary,
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,

@@ -39,6 +39,7 @@ class IraNotificationCategoryMapperTest extends TestCase
             'unassigned scheduled work' => [IraNotificationType::UnassignedScheduledWork, NotificationCategory::Escalation],
             'team availability issue' => [IraNotificationType::TeamAvailabilityIssue, NotificationCategory::Escalation],
             'integration failure' => [IraNotificationType::IntegrationFailure, NotificationCategory::SystemHealth],
+            'owner intelligence report' => [IraNotificationType::OwnerIntelligenceReport, NotificationCategory::DailySummary],
         ];
     }
 }

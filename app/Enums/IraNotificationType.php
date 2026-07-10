@@ -17,6 +17,7 @@ enum IraNotificationType: string
     case ManualAssignment = 'manual_assignment';
     case Reassignment = 'reassignment';
     case OpsDigest = 'ops_digest';
+    case OwnerIntelligenceReport = 'owner_intelligence_report';
 
     public function label(): string
     {
@@ -34,6 +35,7 @@ enum IraNotificationType: string
             self::IntegrationFailure => 'Integration Failure',
             self::UnusualBacklog => 'Unusual Backlog',
             self::OpsDigest => 'Operations Digest',
+            self::OwnerIntelligenceReport => 'Owner Intelligence Report',
         };
     }
 }

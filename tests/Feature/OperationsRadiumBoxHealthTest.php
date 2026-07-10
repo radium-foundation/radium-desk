@@ -30,6 +30,15 @@ class OperationsRadiumBoxHealthTest extends TestCase
     public function test_operations_dashboard_includes_radiumbox_health_widget(): void
     {
         $admin = $this->createAdminUser();
+        $actor = User::factory()->create();
+
+        Order::query()->create([
+            'order_id' => 'RD-RADIUMBOX-WIDGET',
+            'serial_number' => null,
+            'status' => 'active',
+            'created_by' => $actor->id,
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Pending,
+        ]);
 
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))

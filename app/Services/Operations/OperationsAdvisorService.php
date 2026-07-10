@@ -43,9 +43,9 @@ class OperationsAdvisorService
     /**
      * @return list<OperationsInsightDTO>
      */
-    public function platformInsights(bool $useCache = true): array
+    public function platformInsights(bool $useCache = true, ?\App\Data\Operations\OperationsDashboardData $dashboard = null): array
     {
-        if ($useCache) {
+        if ($useCache && $dashboard === null) {
             $cached = Cache::get(self::PLATFORM_CACHE_KEY);
 
             if (is_array($cached) && $this->isCachedInsightList($cached)) {
@@ -53,9 +53,11 @@ class OperationsAdvisorService
             }
         }
 
-        $insights = $this->buildPlatformInsights();
+        $insights = $this->buildPlatformInsights($dashboard);
 
-        Cache::put(self::PLATFORM_CACHE_KEY, $insights, now()->addSeconds(self::CACHE_TTL_SECONDS));
+        if ($dashboard === null) {
+            Cache::put(self::PLATFORM_CACHE_KEY, $insights, now()->addSeconds(self::CACHE_TTL_SECONDS));
+        }
 
         return $insights;
     }
@@ -212,10 +214,10 @@ class OperationsAdvisorService
     /**
      * @return list<OperationsInsightDTO>
      */
-    private function buildPlatformInsights(): array
+    private function buildPlatformInsights(?\App\Data\Operations\OperationsDashboardData $dashboard = null): array
     {
         $snapshot = new OperationsAdvisorSnapshot(
-            $this->dashboardService->dashboardData(),
+            $dashboard ?? $this->dashboardService->dashboardData(),
             $this->enrichmentSyncStore,
         );
         $insights = [
@@ -464,7 +466,7 @@ class OperationsAdvisorService
         $emailFailed = (int) ($channelTotals['email']['failed'] ?? 0);
         $whatsappSkipped = (int) ($channelTotals['whatsapp']['skipped'] ?? 0);
         $emailSkipped = (int) ($channelTotals['email']['skipped'] ?? 0);
-        $successRate = $metrics['success_rate'];
+        $successRate = $metrics['success_rate'] ?? null;
 
         if ($whatsappFailed > 0) {
             $insights[] = new OperationsInsightDTO(

@@ -83,6 +83,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-ops-digest.log'));
 
+        $schedule->command('ira:send-owner-intelligence --period=morning')
+            ->dailyAt(config('ira.communication.owner_morning_report_time', '10:00'))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ira-owner-intelligence.log'));
+
+        $schedule->command('ira:send-owner-intelligence --period=evening')
+            ->dailyAt(config('ira.communication.owner_evening_report_time', '20:00'))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ira-owner-intelligence.log'));
+
         $schedule->command('ira:send-risk-alerts')
             ->hourly()
             ->withoutOverlapping()

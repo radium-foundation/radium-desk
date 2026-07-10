@@ -21,5 +21,7 @@ return [
     'communication' => [
         'cooldown_minutes' => (int) env('IRA_NOTIFICATION_COOLDOWN_MINUTES', 60),
         'daily_briefing_time' => env('IRA_DAILY_BRIEFING_TIME', '08:00'),
+        'owner_morning_report_time' => env('IRA_OWNER_MORNING_REPORT_TIME', '10:00'),
+        'owner_evening_report_time' => env('IRA_OWNER_EVENING_REPORT_TIME', '20:00'),
     ],
 ];

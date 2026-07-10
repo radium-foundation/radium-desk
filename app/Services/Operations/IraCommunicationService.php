@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Data\Operations\IraCommunicationInput;
 use App\Data\Operations\IraMorningBriefing;
 use App\Data\Operations\IraOperationalRisk;
+use App\Data\Operations\IraOwnerReportData;
 use App\Data\Operations\SupportSlotReminderItem;
 use App\Data\Operations\TeamWorkBriefing;
 use App\Enums\AI\AIRiskLevel;
@@ -53,6 +54,7 @@ class IraCommunicationService
         private readonly OperationsRoleService $roleService,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly IraBriefingFormatter $briefingFormatter,
+        private readonly IraOwnerReportFormatter $ownerReportFormatter,
         private readonly TeamWorkBriefingFormatter $teamBriefingFormatter,
         private readonly NotificationRecipientResolver $recipientResolver,
         private readonly NotificationAuthorityService $notificationAuthority,
@@ -118,20 +120,35 @@ class IraCommunicationService
                 continue;
             }
 
-            $sendResult = $this->telegramBot->sendMessage(
-                chatId: (string) $user->telegram_chat_id,
-                text: $message,
-            );
+            $telegramParts = $this->telegramMessageParts($user, $input, $message);
+            $deliveryFailed = false;
+            $deliveryError = null;
 
-            if ($sendResult->success) {
-                $results[] = $this->notificationService->markSent($notification);
-                $this->recordCooldown($user, $input);
-            } else {
+            foreach ($telegramParts as $part) {
+                $sendResult = $this->telegramBot->sendMessage(
+                    chatId: (string) $user->telegram_chat_id,
+                    text: $part,
+                );
+
+                if (! $sendResult->success) {
+                    $deliveryFailed = true;
+                    $deliveryError = (string) $sendResult->error;
+
+                    break;
+                }
+            }
+
+            if ($deliveryFailed) {
                 $results[] = $this->notificationService->markFailed(
                     $notification,
-                    (string) $sendResult->error,
+                    (string) $deliveryError,
                 );
+
+                continue;
             }
+
+            $results[] = $this->notificationService->markSent($notification);
+            $this->recordCooldown($user, $input);
         }
 
         return $results;
@@ -151,6 +168,29 @@ class IraCommunicationService
     public function opsDigestRecipients(): array
     {
         return $this->operationsAdminUsers()->all();
+    }
+
+    /**
+     * @return list<User>
+     */
+    public function ownerIntelligenceRecipients(): array
+    {
+        return $this->ownerUsers()->all();
+    }
+
+    /**
+     * @return list<IraNotification>
+     */
+    public function sendOwnerIntelligenceReport(User $user, IraOwnerReportData $report): array
+    {
+        return $this->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::OwnerIntelligenceReport,
+            context: [
+                'user_id' => $user->id,
+                'report' => $report,
+                'dedupe_key' => 'owner_intel:'.$report->date.':'.$report->period,
+            ],
+        ));
     }
 
     /**
@@ -424,6 +464,7 @@ class IraCommunicationService
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
             IraNotificationType::OpsDigest,
+            IraNotificationType::OwnerIntelligenceReport,
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
@@ -457,6 +498,7 @@ class IraCommunicationService
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
             IraNotificationType::OpsDigest,
+            IraNotificationType::OwnerIntelligenceReport,
             IraNotificationType::SupportSlotReminder,
         ], true)) {
             return Cache::has($this->cooldownCacheKey($user, $input));
@@ -477,6 +519,7 @@ class IraCommunicationService
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
             IraNotificationType::OpsDigest,
+            IraNotificationType::OwnerIntelligenceReport,
             IraNotificationType::SupportSlotReminder,
         ], true)
             ? max(60, now()->secondsUntilEndOfDay())
@@ -503,6 +546,7 @@ class IraCommunicationService
         return match ($input->event) {
             IraNotificationType::DailyBriefing => $this->formatDailyBriefing($user, $input),
             IraNotificationType::OpsDigest => $this->formatOpsDigest($user, $input),
+            IraNotificationType::OwnerIntelligenceReport => $this->formatOwnerIntelligenceReport($user, $input),
             IraNotificationType::TeamDailyBriefing => $this->formatTeamDailyBriefing($user, $input),
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment => $this->formatAssignment($input, 'New support assigned'),
@@ -549,6 +593,50 @@ class IraCommunicationService
         );
 
         return ['Operations Digest', $message];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function formatOwnerIntelligenceReport(User $user, IraCommunicationInput $input): array
+    {
+        $report = $input->context['report'] ?? null;
+
+        if (! $report instanceof IraOwnerReportData) {
+            return ['Owner Intelligence Report', 'Owner intelligence report is unavailable.'];
+        }
+
+        $parts = $this->ownerReportFormatter->formatTelegramMessages(
+            report: $report,
+            recipientFirstName: $user->firstName() ?: null,
+        );
+
+        $title = $report->period === 'evening'
+            ? 'Owner Performance Report'
+            : 'Owner Intelligence Report';
+
+        return [$title, implode("\n\n---\n\n", $parts)];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function telegramMessageParts(User $user, IraCommunicationInput $input, string $message): array
+    {
+        if ($input->event !== IraNotificationType::OwnerIntelligenceReport) {
+            return [$message];
+        }
+
+        $report = $input->context['report'] ?? null;
+
+        if (! $report instanceof IraOwnerReportData) {
+            return [$message];
+        }
+
+        return $this->ownerReportFormatter->formatTelegramMessages(
+            report: $report,
+            recipientFirstName: $user->firstName() ?: null,
+        );
     }
 
     /**
@@ -682,6 +770,10 @@ class IraCommunicationService
 
         if (($context['briefing'] ?? null) instanceof TeamWorkBriefing) {
             $context['briefing'] = $context['briefing']->toArray();
+        }
+
+        if (($context['report'] ?? null) instanceof IraOwnerReportData) {
+            $context['report'] = $context['report']->toArray();
         }
 
         return array_filter([
