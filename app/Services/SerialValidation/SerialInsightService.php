@@ -3,6 +3,7 @@
 namespace App\Services\SerialValidation;
 
 use App\Data\SerialInsight;
+use App\Data\SerialValidation\SerialPatternAssessment;
 use App\Data\SerialValidationResult;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SerialInsightConfidence;
@@ -25,6 +26,7 @@ class SerialInsightService
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
+        private readonly SerialModelPatternProfileService $patternProfileService,
     ) {}
 
     public function analyze(Order $order): SerialInsight
@@ -53,24 +55,18 @@ class SerialInsightService
         $productLabel = DeviceModelFormatter::shortDisplay(
             $order->device_model ?: $order->product_name,
         ) ?: ($validation->product ?? 'device');
+        $assessment = $this->patternProfileService->assess($productLabel, $serial, $validation);
 
         if ($validation->status === SerialValidationStatus::Valid && ! $validation->requiresRadiumBoxVerification) {
-            return new SerialInsight(
-                status: SerialInsightStatus::Valid,
-                confidence: SerialInsightConfidence::High,
-                explanation: "Serial number matches the expected {$productLabel} format.",
-                technicalReason: $validation->reason,
-            );
+            return $this->buildValidInsight($validation, $productLabel, $assessment);
+        }
+
+        if ($validation->status === SerialValidationStatus::Valid && $validation->requiresRadiumBoxVerification) {
+            return $this->buildRadiumBoxVerificationInsight($validation, $productLabel, $assessment);
         }
 
         if ($validation->status === SerialValidationStatus::Warning) {
-            return new SerialInsight(
-                status: SerialInsightStatus::Warning,
-                confidence: SerialInsightConfidence::Medium,
-                explanation: "Serial number looks unusual for {$productLabel}; verify with RadiumBox before proceeding.",
-                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
-                technicalReason: $validation->reason,
-            );
+            return $this->buildWarningInsight($validation, $productLabel, $assessment);
         }
 
         if ($validation->status === SerialValidationStatus::Pending) {
@@ -83,7 +79,88 @@ class SerialInsightService
             );
         }
 
-        return $this->buildSuspiciousInsight($order, $validation, $productLabel, $serial);
+        return $this->buildSuspiciousInsight($order, $validation, $productLabel, $serial, $assessment);
+    }
+
+    private function buildValidInsight(
+        SerialValidationResult $validation,
+        string $productLabel,
+        SerialPatternAssessment $assessment,
+    ): SerialInsight {
+        if ($this->needsCrossModelVerification($assessment)) {
+            return new SerialInsight(
+                status: SerialInsightStatus::Warning,
+                confidence: SerialInsightConfidence::Medium,
+                explanation: $this->patternProfileService->crossModelVerificationExplanation($productLabel, $assessment),
+                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
+                technicalReason: $validation->reason,
+            );
+        }
+
+        return new SerialInsight(
+            status: SerialInsightStatus::Valid,
+            confidence: SerialInsightConfidence::High,
+            explanation: "Serial number matches the expected {$productLabel} format.",
+            technicalReason: $validation->reason,
+        );
+    }
+
+    private function buildRadiumBoxVerificationInsight(
+        SerialValidationResult $validation,
+        string $productLabel,
+        SerialPatternAssessment $assessment,
+    ): SerialInsight {
+        if ($this->needsCrossModelVerification($assessment)) {
+            return new SerialInsight(
+                status: SerialInsightStatus::Warning,
+                confidence: SerialInsightConfidence::Medium,
+                explanation: $this->patternProfileService->crossModelVerificationExplanation($productLabel, $assessment),
+                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
+                technicalReason: $validation->reason,
+            );
+        }
+
+        if ($validation->corrected) {
+            return new SerialInsight(
+                status: SerialInsightStatus::Warning,
+                confidence: SerialInsightConfidence::Medium,
+                explanation: "Serial number was auto-corrected for {$productLabel}; verify with RadiumBox before proceeding. {$assessment->failureGuidance}",
+                suggestedAction: self::SUGGEST_VERIFY_SERIAL_VIA_RADIUMBOX,
+                technicalReason: $validation->reason,
+            );
+        }
+
+        return new SerialInsight(
+            status: SerialInsightStatus::Valid,
+            confidence: SerialInsightConfidence::High,
+            explanation: "Serial number matches the expected {$productLabel} format.",
+            suggestedAction: self::SUGGEST_VERIFY_SERIAL_VIA_RADIUMBOX,
+            technicalReason: $validation->reason,
+        );
+    }
+
+    private function buildWarningInsight(
+        SerialValidationResult $validation,
+        string $productLabel,
+        SerialPatternAssessment $assessment,
+    ): SerialInsight {
+        if ($assessment->hasHighConfidenceWrongSignal()) {
+            return new SerialInsight(
+                status: SerialInsightStatus::Suspicious,
+                confidence: SerialInsightConfidence::High,
+                explanation: $this->patternProfileService->patternMismatchExplanation($productLabel, $validation, $assessment),
+                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
+                technicalReason: $validation->reason,
+            );
+        }
+
+        return new SerialInsight(
+            status: SerialInsightStatus::Warning,
+            confidence: SerialInsightConfidence::Medium,
+            explanation: "Serial number looks unusual for {$productLabel}; verify with RadiumBox before proceeding. {$assessment->failureGuidance}",
+            suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
+            technicalReason: $validation->reason,
+        );
     }
 
     private function buildSuspiciousInsight(
@@ -91,15 +168,16 @@ class SerialInsightService
         SerialValidationResult $validation,
         string $productLabel,
         string $serial,
+        SerialPatternAssessment $assessment,
     ): SerialInsight {
         $syncStatus = $this->syncStore->status($order->id);
         $technicalReason = $validation->reason;
 
-        if ($this->looksLikeProductCode($serial, $validation)) {
+        if ($this->looksLikeProductCode($serial, $validation, $assessment)) {
             return new SerialInsight(
                 status: SerialInsightStatus::Suspicious,
                 confidence: SerialInsightConfidence::High,
-                explanation: 'Customer may have submitted a product code instead of a serial number.',
+                explanation: 'Customer may have submitted a product code instead of a serial number. '.$assessment->failureGuidance,
                 suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $technicalReason,
             );
@@ -117,11 +195,16 @@ class SerialInsightService
         }
 
         if ($validation->isFail()) {
-            $patternExplanation = $this->patternMismatchExplanation($productLabel, $validation);
+            $confidence = $this->resolveFailureConfidence($assessment, $syncStatus);
+            $patternExplanation = $this->patternProfileService->patternMismatchExplanation(
+                $productLabel,
+                $validation,
+                $assessment,
+            );
 
             return new SerialInsight(
                 status: SerialInsightStatus::Suspicious,
-                confidence: SerialInsightConfidence::Medium,
+                confidence: $confidence,
                 explanation: $patternExplanation,
                 suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $technicalReason,
@@ -147,11 +230,50 @@ class SerialInsightService
         );
     }
 
-    private function looksLikeProductCode(string $serial, SerialValidationResult $validation): bool
+    private function needsCrossModelVerification(SerialPatternAssessment $assessment): bool
     {
+        return $assessment->crossModelHint !== null
+            || ($assessment->matchesVerifiedWrong && ! $assessment->matchesVerifiedValid);
+    }
+
+    private function resolveFailureConfidence(
+        SerialPatternAssessment $assessment,
+        RadiumBoxEnrichmentSyncStatus $syncStatus,
+    ): SerialInsightConfidence {
+        if ($assessment->hasHighConfidenceWrongSignal()) {
+            return SerialInsightConfidence::High;
+        }
+
+        if ($syncStatus === RadiumBoxEnrichmentSyncStatus::Synced) {
+            return SerialInsightConfidence::High;
+        }
+
+        return SerialInsightConfidence::Medium;
+    }
+
+    private function looksLikeProductCode(
+        string $serial,
+        SerialValidationResult $validation,
+        SerialPatternAssessment $assessment,
+    ): bool {
         $reason = Str::lower((string) $validation->reason);
 
         if (Str::contains($reason, ['product label', 'part number', 'placeholder text', 'voltage specification'])) {
+            return true;
+        }
+
+        if ($assessment->wrongPatternReason !== null
+            && Str::contains(Str::lower($assessment->wrongPatternReason), [
+                'model name',
+                'model or part',
+                'part number',
+                'product label',
+            ])) {
+            return true;
+        }
+
+        if ($this->patternProfileService->looksLikeKnownWrongEntry($validation->product, $serial)
+            && Str::contains(Str::lower((string) $assessment->wrongPatternReason), ['model', 'part'])) {
             return true;
         }
 
@@ -159,28 +281,5 @@ class SerialInsightService
 
         return Str::startsWith($normalized, ['54SAXX', 'PFSPL', 'FPSPL', 'P/N'])
             || in_array($normalized, ['MFS110', 'MIS100', 'FM220', 'MSOE3', 'PB1000', 'MARC11', 'KAMAL'], true);
-    }
-
-    private function patternMismatchExplanation(string $productLabel, SerialValidationResult $validation): string
-    {
-        $productKey = Str::upper(str_replace(' ', '', $productLabel));
-
-        if (Str::contains($productKey, 'FM220')) {
-            return 'This serial does not match the expected FM 220 pattern.';
-        }
-
-        if (Str::contains($productKey, 'MFS110')) {
-            return 'This serial does not match the expected MFS 110 pattern.';
-        }
-
-        if (Str::contains($productKey, 'MIS100')) {
-            return 'This serial does not match the expected MIS 100 pattern.';
-        }
-
-        if (Str::contains($productKey, 'MSOE3')) {
-            return 'This serial does not match the expected MSO E3 pattern.';
-        }
-
-        return "This serial does not match the expected {$productLabel} pattern.";
     }
 }
