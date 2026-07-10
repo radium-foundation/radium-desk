@@ -10,6 +10,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\ServiceCaseAssignmentEligibilityService;
 use App\Services\ServiceCaseAssignmentService;
 use App\Services\SettingService;
@@ -217,7 +218,11 @@ class OperationsSupportOwnershipTest extends TestCase
         ]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        return $user;
+        if ($availability !== TeamAvailabilityStatus::Offline) {
+            app(PresenceEngineService::class)->startSession($user);
+        }
+
+        return $user->fresh();
     }
 
     private function createOrderWithIncident(

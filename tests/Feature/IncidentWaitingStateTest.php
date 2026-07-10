@@ -373,11 +373,14 @@ class IncidentWaitingStateTest extends TestCase
     {
         [$agent, $incident] = $this->createOpenIncidentWithoutSerial();
 
-        app(IncidentWaitingStateService::class)->start(
+        $waitingState = app(IncidentWaitingStateService::class)->start(
             incident: $incident,
             reason: WaitingReason::Payment,
             actor: $agent,
         );
+
+        // start() derives a default next_action_at; clear it to verify the UI guard.
+        $waitingState->update(['next_action_at' => null]);
 
         $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
 

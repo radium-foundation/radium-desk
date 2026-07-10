@@ -2,9 +2,14 @@
 
 namespace Tests\Feature\MissingSerial;
 
+use App\Enums\AutomationExecutionStatus;
+use App\Enums\AutomationPolicyActionType;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\MissingSerialAutomationStatus;
+use App\Enums\WaitingReason;
+use App\Models\AutomationExecution;
+use App\Models\IncidentWaitingState;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\WhatsAppTemplateDispatchStatus;
 use App\Enums\WhatsAppTemplateTriggerSource;
@@ -14,7 +19,9 @@ use App\Models\Order;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
+use App\Services\Automation\AutomationSchedulerService;
 use App\Services\IncidentReferenceService;
+use App\Services\IncidentWaitingStateService;
 use App\Services\MissingSerial\MissingSerialAutomationAuditService;
 use App\Services\MissingSerial\MissingSerialAutomationService;
 use App\Services\OrderSerialService;
@@ -332,6 +339,70 @@ class MissingSerialAutomationTest extends TestCase
             'auditable_id' => $order->id,
             'event' => MissingSerialAutomationAuditService::EVENT_REQUEST_SENT,
         ]);
+    }
+
+    public function test_day_seven_notify_team_escalation_executes_via_automation_scheduler(): void
+    {
+        $coordinator = User::factory()->create(['is_active' => true]);
+        $coordinator->assignRole(RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR);
+
+        SystemSetting::query()->updateOrCreate(
+            ['key' => 'automation.scheduler.enabled'],
+            ['value' => '1'],
+        );
+        app(SystemSettingsService::class)->forget('automation.scheduler.enabled');
+
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-NOTIFY-'.uniqid(),
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Cashfree,
+            'title' => 'Missing serial automation case',
+            'description' => 'Awaiting serial.',
+            'status' => IncidentStatus::AwaitingProductDetails,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        app(IncidentWaitingStateService::class)->start(
+            incident: $incident,
+            reason: WaitingReason::SerialNumber,
+            actor: $agent,
+            reminderPolicyKey: 'serial_number_default',
+            startedAt: Carbon::parse('2026-07-01 09:00:00'),
+        );
+
+        $waitingState = IncidentWaitingState::query()->firstOrFail();
+
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-08 12:00:00'));
+
+        $this->assertDatabaseHas('automation_executions', [
+            'waiting_state_id' => $waitingState->id,
+            'policy_key' => 'serial_number_default',
+            'schedule_step' => 7,
+            'action_type' => AutomationPolicyActionType::NotifyTeam->value,
+            'action_key' => 'serial_number_escalation',
+            'status' => AutomationExecutionStatus::Success->value,
+        ]);
+
+        $incident->refresh();
+
+        $this->assertTrue($incident->high_priority);
+        $this->assertSame($coordinator->id, $incident->assigned_to_user_id);
     }
 
     public function test_new_due_order_is_processed_when_older_candidates_exceed_batch_limit(): void

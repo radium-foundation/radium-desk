@@ -18,6 +18,7 @@
         </include>
     </source>
     <php>
+        <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_NAME" value="Radium Desk"/>
         <env name="APP_VERSION" value="4.0.0"/>

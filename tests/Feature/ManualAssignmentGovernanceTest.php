@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\Operations\SmartAssignmentService;
 use App\Services\ServiceCaseAssignmentService;
+use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class ManualAssignmentGovernanceTest extends TestCase
@@ -133,6 +135,36 @@ class ManualAssignmentGovernanceTest extends TestCase
         $candidateIds = collect($candidates)->pluck('id')->all();
 
         $this->assertEmpty($candidateIds);
+    }
+
+    public function test_shift_admin_fallback_skips_superadmin(): void
+    {
+        $superadmin = User::factory()->create([
+            'name' => 'Ravi Owner',
+            'email' => 'info@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $fallbackAdmin = $this->createAdmin('dileep@radiumbox.com', 'Dileep Admin');
+
+        app(SettingService::class)->setMany([
+            'assignment.timezone' => 'Asia/Kolkata',
+            'assignment.day_shift_start' => '09:00',
+            'assignment.day_shift_end' => '18:30',
+            'assignment.day_shift_admin_user_id' => (string) $superadmin->id,
+            'assignment.night_shift_admin_user_id' => (string) $superadmin->id,
+            'assignment.fallback_admin_1_user_id' => (string) $fallbackAdmin->id,
+            'assignment.fallback_admin_2_user_id' => '',
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-06-24 14:00:00', 'Asia/Kolkata'));
+
+        $assignee = app(ServiceCaseAssignmentService::class)->resolveAssignee();
+
+        $this->assertTrue($assignee->is($fallbackAdmin));
+
+        Carbon::setTestNow();
     }
 
     private function createAdmin(string $email, string $name): User

@@ -115,7 +115,7 @@ class InteraktFlowWebhookTest extends TestCase
         $payload = $this->officialFlowResponsePayload(
             responseJson: [
                 'flow_token' => $flowToken,
-                'preferred_date' => now()->addDays(2)->toDateString(),
+                'preferred_date' => app(SupportScheduleAvailabilityService::class)->nextBookableDate()->toDateString(),
                 'preferred_time_slot' => SupportAppointmentTimeSlot::Evening->value,
                 'phone_number' => '9123456789',
             ],

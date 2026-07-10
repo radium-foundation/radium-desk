@@ -95,6 +95,7 @@ class AppServiceProvider extends ServiceProvider
                 [
                     $app->make(NotificationActionHandler::class),
                     $app->make(\App\Services\Automation\Handlers\AutoCloseActionHandler::class),
+                    $app->make(\App\Services\Automation\Handlers\NotifyTeamActionHandler::class),
                 ],
             );
         });

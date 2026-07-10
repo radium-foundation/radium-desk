@@ -11,6 +11,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Inquiry\InquiryOrderLinkService;
 use App\Services\Outbox\OutboxProcessorService;
 use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Database\QueryException;
@@ -33,6 +34,7 @@ class CashfreeWebhookProcessorService
         private readonly CashfreeWebhookOutboxWriter $outboxWriter,
         private readonly OutboxProcessorService $outboxProcessorService,
         private readonly CashfreeWebhookReliabilityMetrics $reliabilityMetrics,
+        private readonly InquiryOrderLinkService $inquiryOrderLinkService,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -138,7 +140,14 @@ class CashfreeWebhookProcessorService
             }
 
             $order = $this->createOrder($payload, $cfPaymentId, $systemUser);
-            $incident = $this->createServiceRequest($order, $payload, $systemUser, $referenceNo);
+            $phone = $this->payloadParser->customerPhone($payload);
+            $linkableIncident = $this->inquiryOrderLinkService->findLinkableInquiryIncident($order, $phone);
+
+            if ($linkableIncident !== null) {
+                $incident = $this->inquiryOrderLinkService->linkToOrder($linkableIncident, $order, $systemUser);
+            } else {
+                $incident = $this->createServiceRequest($order, $payload, $systemUser, $referenceNo);
+            }
 
             $this->markProcessed($webhookLog, $incident);
             $this->reliabilityMetrics->recordOrderCreated();

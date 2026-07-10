@@ -795,10 +795,7 @@ class ServiceCaseAssignmentService
             return null;
         }
 
-        if (! $assignee->hasAnyRole([
-            RolePermissionSeeder::ROLE_ADMIN,
-            RolePermissionSeeder::ROLE_SUPERADMIN,
-        ])) {
+        if (! $assignee->hasRole(RolePermissionSeeder::ROLE_ADMIN)) {
             return null;
         }
 

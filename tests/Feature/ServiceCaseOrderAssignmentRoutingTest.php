@@ -8,7 +8,9 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Enums\TeamAvailabilityStatus;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\ServiceCaseAssignmentService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
@@ -51,10 +53,13 @@ class ServiceCaseOrderAssignmentRoutingTest extends TestCase
             'name' => $name,
             'email' => $email,
             'is_active' => true,
+            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_updated_at' => now(),
         ]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        app(PresenceEngineService::class)->startSession($user);
 
-        return $user;
+        return $user->fresh();
     }
 
     private function createIncident(string $orderId, ?User $actor = null): Incident

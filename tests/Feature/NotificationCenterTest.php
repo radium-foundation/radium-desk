@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
+use App\Enums\TeamAvailabilityStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Operations\PresenceEngineService;
 use App\Notifications\HighPriorityServiceCaseNotification;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
@@ -58,10 +60,16 @@ class NotificationCenterTest extends TestCase
     {
         Notification::fake();
 
-        $assignee = $this->createAssigneeAdmin();
+        $this->createAssigneeAdmin();
 
-        $agent = User::factory()->create(['name' => 'Agent User']);
+        $agent = User::factory()->create([
+            'name' => 'Agent User',
+            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_updated_at' => now(),
+        ]);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        app(PresenceEngineService::class)->startSession($agent);
+        $agent = $agent->fresh();
 
         $response = $this->actingAs($agent)->post(route('service-requests.quick.store'), [
             'action' => 'new_contact',
@@ -79,8 +87,8 @@ class NotificationCenterTest extends TestCase
 
         $response->assertRedirect(route('dashboard'));
 
-        Notification::assertSentTo($assignee, ServiceCaseAssignedNotification::class);
-        Notification::assertSentTo($assignee, HighPriorityServiceCaseNotification::class);
+        Notification::assertSentTo($agent, ServiceCaseAssignedNotification::class);
+        Notification::assertSentTo($agent, HighPriorityServiceCaseNotification::class);
     }
 
     public function test_reassignment_sends_notification_to_new_assignee(): void
