@@ -244,11 +244,33 @@ class NotificationDispatchHardeningTest extends TestCase
 
 class TestableNotificationDispatcher extends \App\Services\Notifications\NotificationDispatcher
 {
-    public function resolveEnabledChannels(NotificationType $type): array
+    /**
+     * @param  array<int, NotificationChannelType>|null  $allowedChannels
+     * @return array<int, NotificationChannel>
+     */
+    public function resolveEnabledChannels(NotificationType $type, ?array $allowedChannels = null): array
     {
-        return array_values(array_filter(
+        $channels = array_values(array_filter(
             $this->channels(),
             fn (NotificationChannel $channel): bool => $channel->supports($type),
+        ));
+
+        if ($allowedChannels === null) {
+            return $channels;
+        }
+
+        $allowed = array_map(
+            fn (NotificationChannelType $channel): string => $channel->value,
+            $allowedChannels,
+        );
+
+        return array_values(array_filter(
+            $channels,
+            fn (NotificationChannel $channel): bool => in_array(
+                $this->channelTypeFor($channel)?->value,
+                $allowed,
+                true,
+            ),
         ));
     }
 

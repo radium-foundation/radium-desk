@@ -83,6 +83,46 @@ class Customer360ExecutiveSummaryTest extends TestCase
             ->assertJsonPath('recommendation', fn ($line) => str_contains((string) $line, 'तुरंत'));
     }
 
+    public function test_executive_summary_includes_serial_intelligence_for_invalid_serial(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-INVALID',
+            'serial_number' => '54SAXXC5514586',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Invalid Serial Customer',
+            'customer_email' => 'invalid@example.com',
+            'customer_phone' => '9123456782',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Invalid serial case',
+            'description' => 'Bad serial.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $summaryHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.executive-summary', $incident))
+            ->assertOk()
+            ->json('html');
+
+        $this->assertStringContainsString('Serial Intelligence', $summaryHtml);
+        $this->assertStringContainsString('product code', $summaryHtml);
+        $this->assertStringContainsString('WhatsApp', $summaryHtml);
+    }
+
     /**
      * @return array{0: User, 1: Incident}
      */

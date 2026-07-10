@@ -31,6 +31,11 @@ class NotificationMailTemplateRegistry
                 view: 'emails.notifications.support-appointment-booked',
                 requiredVariables: ['customer_name', 'order_id', 'preferred_date', 'preferred_time_slot'],
             ),
+            NotificationType::ServiceCaseClosed => new NotificationMailTemplateDefinition(
+                subject: 'Your Service Case Is Complete',
+                view: 'emails.notifications.service-case-closed',
+                requiredVariables: ['customer_name', 'reference'],
+            ),
         };
     }
 
@@ -54,6 +59,10 @@ class NotificationMailTemplateRegistry
                 'order_id' => (string) ($message->variables['order_id'] ?? ''),
                 'preferred_date' => (string) ($message->variables['preferred_date'] ?? ''),
                 'preferred_time_slot' => (string) ($message->variables['preferred_time_slot'] ?? ''),
+            ],
+            NotificationType::ServiceCaseClosed => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'reference' => trim((string) ($message->incident->reference_no ?? '')),
             ],
         };
 

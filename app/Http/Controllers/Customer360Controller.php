@@ -11,6 +11,8 @@ use App\Services\AI\AIWorkbenchAuditService;
 use App\Services\AI\IRAExecutiveSummaryTranslationService;
 use App\Services\Customer360\Customer360DrawerProfiler;
 use App\Services\Customer360Service;
+use App\Enums\RadiumBoxSyncTrigger;
+use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,11 +26,15 @@ class Customer360Controller extends Controller
         private readonly AIWorkbenchAuditService $workbenchAuditService,
         private readonly IRAExecutiveSummaryTranslationService $executiveSummaryTranslationService,
         private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
+        private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
     ) {}
 
     public function show(Incident $incident): Response
     {
         $this->authorize('view', $incident);
+
+        $incident->loadMissing('order');
+        $this->maybeTriggerRadiumBoxSync($incident);
 
         $profiler = new Customer360DrawerProfiler;
         $startedAt = microtime(true);
@@ -270,5 +276,19 @@ class Customer360Controller extends Controller
         ])->render();
 
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+    }
+
+    private function maybeTriggerRadiumBoxSync(Incident $incident): void
+    {
+        $order = $incident->order;
+
+        if ($order === null) {
+            return;
+        }
+
+        $this->radiumBoxAutoSyncTriggerService->maybeDispatch(
+            $order,
+            RadiumBoxSyncTrigger::Customer360Open,
+        );
     }
 }

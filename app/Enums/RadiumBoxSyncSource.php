@@ -7,6 +7,7 @@ enum RadiumBoxSyncSource: string
     case Background = 'background';
     case Scheduler = 'scheduler';
     case Manual = 'manual';
+    case Trigger = 'trigger';
 
     public function label(): string
     {
@@ -14,6 +15,7 @@ enum RadiumBoxSyncSource: string
             self::Background => 'Background',
             self::Scheduler => 'Scheduler',
             self::Manual => 'Manual',
+            self::Trigger => 'Auto trigger',
         };
     }
 }

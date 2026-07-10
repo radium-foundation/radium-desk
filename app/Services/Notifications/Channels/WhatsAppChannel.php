@@ -30,7 +30,8 @@ class WhatsAppChannel implements NotificationChannel
         return match ($type) {
             NotificationType::RequestSerialNumber,
             NotificationType::CustomerWaitingFollowup,
-            NotificationType::SupportAppointmentBooked => true,
+            NotificationType::SupportAppointmentBooked,
+            NotificationType::ServiceCaseClosed => true,
         };
     }
 
@@ -82,6 +83,7 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::RequestSerialNumber => WhatsAppTemplate::RequestSerialNumber,
             NotificationType::CustomerWaitingFollowup => WhatsAppTemplate::CustomerWaitingFollowup,
             NotificationType::SupportAppointmentBooked => WhatsAppTemplate::SupportAppointmentBooked,
+            NotificationType::ServiceCaseClosed => WhatsAppTemplate::RepairCompleted,
         };
     }
 
@@ -119,12 +121,17 @@ class WhatsAppChannel implements NotificationChannel
     {
         $context = $message->metadata;
 
-        if (! in_array($message->type, [NotificationType::RequestSerialNumber, NotificationType::CustomerWaitingFollowup], true)) {
+        if (! in_array($message->type, [
+            NotificationType::RequestSerialNumber,
+            NotificationType::CustomerWaitingFollowup,
+            NotificationType::ServiceCaseClosed,
+        ], true)) {
             return $context;
         }
 
         return array_merge($context, match ($message->type) {
             NotificationType::CustomerWaitingFollowup => $this->customerWaitingFollowupTemplateVariables($message),
+            NotificationType::ServiceCaseClosed => $this->serviceCaseClosedTemplateVariables($message),
             default => $this->requestSerialTemplateVariables($message),
         });
     }
@@ -157,6 +164,29 @@ class WhatsAppChannel implements NotificationChannel
             'button_values' => [
                 '0' => [$linkToken->token],
             ],
+        ];
+    }
+
+    /**
+     * repair_completed: body {{1}} = customer name, {{2}} = service case reference.
+     *
+     * @return array{body_values: list<string>}
+     */
+    private function serviceCaseClosedTemplateVariables(NotificationMessage $message): array
+    {
+        $message->incident->loadMissing('order');
+        $order = $message->incident->order;
+
+        if (! $order instanceof Order) {
+            return [];
+        }
+
+        $customerName = trim((string) ($order->customer_name ?? ''));
+        $customerName = $customerName !== '' ? $customerName : 'Customer';
+        $reference = trim((string) ($message->incident->reference_no ?? ''));
+
+        return [
+            'body_values' => [$customerName, $reference],
         ];
     }
 

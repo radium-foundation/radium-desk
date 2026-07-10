@@ -11,6 +11,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class LegacyOrderDiscoveryTest extends TestCase
@@ -33,6 +34,7 @@ class LegacyOrderDiscoveryTest extends TestCase
     public function test_legacy_imported_closed_case_is_discoverable_via_quick_create_search(): void
     {
         Http::fake();
+        Queue::fake();
 
         $agent = User::factory()->create(['name' => 'Discovery Agent']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -84,6 +86,7 @@ class LegacyOrderDiscoveryTest extends TestCase
         Http::fake([
             'admin.radiumbox.com/*' => Http::response([], 500),
         ]);
+        Queue::fake();
 
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);

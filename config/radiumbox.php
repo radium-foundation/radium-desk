@@ -16,4 +16,9 @@ return [
         'max_recovery_attempts' => (int) env('RADIUMBOX_MAX_RECOVERY_ATTEMPTS', 10),
         'schedule_interval_minutes' => (int) env('RADIUMBOX_RECOVERY_INTERVAL_MINUTES', 15),
     ],
+
+    'auto_sync' => [
+        'enabled' => filter_var(env('RADIUMBOX_AUTO_SYNC_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+        'min_interval_minutes' => (int) env('RADIUMBOX_AUTO_SYNC_MIN_INTERVAL_MINUTES', 30),
+    ],
 ];

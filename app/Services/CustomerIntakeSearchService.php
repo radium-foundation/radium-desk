@@ -6,11 +6,13 @@ use App\Data\CustomerIntakeSearchResult;
 use App\Enums\CustomerIdentityType;
 use App\Enums\IncidentStatus;
 use App\Enums\WorkspaceContext;
+use App\Enums\RadiumBoxSyncTrigger;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\LegacyOrder\LegacyOrderLookupService;
+use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use Illuminate\Support\Collection;
 
 class CustomerIntakeSearchService
@@ -19,6 +21,7 @@ class CustomerIntakeSearchService
         private readonly InteraktCustomerMatcher $customerMatcher,
         private readonly LegacyOrderLookupService $legacyOrderLookupService,
         private readonly SettingService $settingService,
+        private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
     ) {}
 
     /**
@@ -131,6 +134,7 @@ class CustomerIntakeSearchService
 
         if ($matches->isNotEmpty()) {
             $classification = $this->classifyFromMatches($matches);
+            $this->triggerRadiumBoxSyncForMatches($matches);
 
             return new CustomerIntakeSearchResult(
                 classification: $classification,
@@ -342,6 +346,19 @@ class CustomerIntakeSearchService
         }
 
         return CustomerIdentityType::Legacy;
+    }
+
+    /**
+     * @param  Collection<int, Order>  $matches
+     */
+    private function triggerRadiumBoxSyncForMatches(Collection $matches): void
+    {
+        foreach ($matches as $order) {
+            $this->radiumBoxAutoSyncTriggerService->maybeDispatch(
+                $order,
+                RadiumBoxSyncTrigger::OrderSearchMatch,
+            );
+        }
     }
 
     private function normalizeOptional(?string $value): ?string

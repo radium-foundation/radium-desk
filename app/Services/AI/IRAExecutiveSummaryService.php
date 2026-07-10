@@ -7,14 +7,21 @@ use App\Data\AI\AIIncidentBundle;
 use App\Data\AI\AIResponseDTO;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Operations\OperationsInsightDTO;
+use App\Data\SerialInsight;
 use App\Enums\Operations\OperationsInsightCategory;
+use App\Enums\SerialInsightStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
+use App\Models\Order;
+use App\Services\SerialValidation\SerialInsightService;
 use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Str;
 
 class IRAExecutiveSummaryService
 {
+    public function __construct(
+        private readonly SerialInsightService $serialInsightService,
+    ) {}
     /**
      * @param  list<OperationsInsightDTO>  $operationsAdvisorInsights
      */
@@ -44,18 +51,33 @@ class IRAExecutiveSummaryService
         array $customerSummary,
         array $operationsAdvisorInsights = [],
     ): IRAExecutiveSummaryDTO {
+        $serialInsight = $this->resolveSerialInsight($incident);
+
         $executiveSummary = $this->buildExecutiveSummary(
             $incident,
             $response,
             $context,
             $customerSummary,
+            $serialInsight,
         );
 
         return new IRAExecutiveSummaryDTO(
             executiveSummary: array_slice($executiveSummary, 0, 4),
-            opinion: $this->buildOpinion($response, $context, $operationsAdvisorInsights),
-            recommendation: $this->buildRecommendation($response, $context, $operationsAdvisorInsights),
+            opinion: $this->buildOpinion($response, $context, $operationsAdvisorInsights, $serialInsight),
+            recommendation: $this->buildRecommendation($response, $context, $operationsAdvisorInsights, $serialInsight),
+            serialInsight: $serialInsight,
         );
+    }
+
+    private function resolveSerialInsight(Incident $incident): ?SerialInsight
+    {
+        $order = $incident->order;
+
+        if (! $order instanceof Order) {
+            return null;
+        }
+
+        return $this->serialInsightService->analyze($order);
     }
 
     /**
@@ -67,6 +89,7 @@ class IRAExecutiveSummaryService
         AIResponseDTO $response,
         \App\Data\AI\AIContextDTO $context,
         array $customerSummary,
+        ?SerialInsight $serialInsight = null,
     ): array {
         $lines = [];
         $model = DeviceModelFormatter::shortDisplay($context->deviceModel) ?: 'device';
@@ -75,7 +98,12 @@ class IRAExecutiveSummaryService
 
         $lines[] = "Customer purchased {$this->withArticle($model)} and currently has {$repairLabel}.";
 
-        if ($context->serialMissing) {
+        if ($serialInsight !== null && in_array($serialInsight->status, [
+            SerialInsightStatus::Suspicious,
+            SerialInsightStatus::Warning,
+        ], true)) {
+            $lines[] = $serialInsight->explanation;
+        } elseif ($context->serialMissing) {
             $lines[] = 'The device serial number is still missing, causing service delay.';
         }
 
@@ -111,8 +139,23 @@ class IRAExecutiveSummaryService
         AIResponseDTO $response,
         \App\Data\AI\AIContextDTO $context,
         array $operationsAdvisorInsights,
+        ?SerialInsight $serialInsight = null,
     ): string {
-        if ($context->serialMissing) {
+        $lifecycleHistory = is_array($context->waitingState)
+            ? ($context->waitingState['lifecycle_history'] ?? null)
+            : null;
+
+        if (is_array($lifecycleHistory) && ($lifecycleHistory['auto_closed'] ?? false)) {
+            $reasonLabel = $lifecycleHistory['resolution_reason_label'] ?? 'Customer not responding';
+
+            return "This case was auto-closed after a follow-up reminder because the customer did not respond. Reason: {$reasonLabel}. Review prior timeline before contacting the customer again.";
+        }
+
+        if ($serialInsight?->status === SerialInsightStatus::Suspicious) {
+            return 'This serial number looks incorrect and should be verified with the customer before warranty or repair work proceeds.';
+        }
+
+        if ($context->serialMissing || $serialInsight?->status === SerialInsightStatus::Missing) {
             return 'This appears to be a straightforward serial-number pending case. Obtaining the serial should unblock warranty validation and allow engineering to proceed.';
         }
 
@@ -138,16 +181,6 @@ class IRAExecutiveSummaryService
             return "Service progress depends on {$reason}; keep the customer informed while waiting.";
         }
 
-        $lifecycleHistory = is_array($context->waitingState)
-            ? ($context->waitingState['lifecycle_history'] ?? null)
-            : null;
-
-        if (is_array($lifecycleHistory) && ($lifecycleHistory['auto_closed'] ?? false)) {
-            $reasonLabel = $lifecycleHistory['resolution_reason_label'] ?? 'Customer not responding';
-
-            return "This case was auto-closed after a follow-up reminder because the customer did not respond. Reason: {$reasonLabel}. Review prior timeline before contacting the customer again.";
-        }
-
         $primaryInsight = $operationsAdvisorInsights[0] ?? null;
 
         if ($primaryInsight !== null) {
@@ -168,8 +201,16 @@ class IRAExecutiveSummaryService
         AIResponseDTO $response,
         \App\Data\AI\AIContextDTO $context,
         array $operationsAdvisorInsights,
+        ?SerialInsight $serialInsight = null,
     ): string {
-        if ($context->serialMissing) {
+        if (in_array($serialInsight?->status, [
+            SerialInsightStatus::Suspicious,
+            SerialInsightStatus::Warning,
+        ], true) && filled($serialInsight?->suggestedAction)) {
+            return (string) $serialInsight->suggestedAction;
+        }
+
+        if ($context->serialMissing || $serialInsight?->status === SerialInsightStatus::Missing) {
             $parts = ['Request the serial immediately'];
 
             if ($this->warrantyNeedsVerification($context, $response)) {

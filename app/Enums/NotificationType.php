@@ -8,4 +8,5 @@ enum NotificationType: string
     case CustomerWaitingFollowup = 'customer_waiting_followup';
     case SupportAppointmentBooked = 'support_appointment_booked';
     case SupportAppointmentAssigned = 'support_appointment_assigned';
+    case ServiceCaseClosed = 'service_case_closed';
 }

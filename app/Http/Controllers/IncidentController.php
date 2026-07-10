@@ -9,7 +9,9 @@ use App\Http\Requests\UpdateIncidentRequest;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Enums\RadiumBoxSyncTrigger;
 use App\Services\IncidentReferenceService;
+use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Services\ServiceCaseActivityTimelineService;
 use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Http\JsonResponse;
@@ -23,6 +25,7 @@ class IncidentController extends Controller
         private readonly IncidentReferenceService $referenceService,
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
+        private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
     ) {
         $this->authorizeResource(Incident::class, 'incident');
     }
@@ -122,6 +125,13 @@ class IncidentController extends Controller
             'approvalNumbers',
             'refundRequests',
         ]);
+
+        if ($incident->order !== null) {
+            $this->radiumBoxAutoSyncTriggerService->maybeDispatch(
+                $incident->order,
+                RadiumBoxSyncTrigger::WorkspaceOpen,
+            );
+        }
 
         return view('incidents.show', [
             'incident' => $incident,

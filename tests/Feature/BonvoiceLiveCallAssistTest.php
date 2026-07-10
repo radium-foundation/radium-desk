@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\BonvoiceCallAlertType;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\BonvoiceCallAlert;
 use App\Models\BonvoiceCallEvent;
 use App\Models\Incident;
@@ -18,6 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -42,6 +44,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
     public function test_existing_customer_creates_agent_alert_and_notification(): void
     {
         Notification::fake();
+        Queue::fake();
 
         $agent = User::factory()->create([
             'bonvoice_extension' => '1800123456',
@@ -50,7 +53,7 @@ class BonvoiceLiveCallAssistTest extends TestCase
 
         $order = Order::query()->create([
             'order_id' => 'RD3444319',
-            'serial_number' => 'SN-LIVE-1',
+            'serial_number' => null,
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'customer_name' => 'Known Customer',
@@ -92,6 +95,10 @@ class BonvoiceLiveCallAssistTest extends TestCase
             return $payload['title'] === '📞 Incoming Call'
                 && $payload['message'] === 'Customer Found: RD3444319'
                 && $payload['url'] === route('incidents.show', $incident);
+        });
+
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, function (RadiumBoxOrderEnrichmentJob $job) use ($order): bool {
+            return $job->orderId === $order->id;
         });
     }
 

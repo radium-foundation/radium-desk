@@ -243,6 +243,46 @@ class NotificationDispatcherTest extends TestCase
         $this->assertTrue($result->results[0]->retryable);
     }
 
+    public function test_send_with_allowed_channels_filters_to_requested_channels_only(): void
+    {
+        $this->setNotificationChannelEnabled('notifications.whatsapp.enabled', true);
+        $this->setNotificationChannelEnabled('notifications.email.enabled', true);
+
+        config([
+            'mail.enabled' => true,
+            'mail.default' => 'array',
+        ]);
+
+        [$message, $dispatch] = $this->makeMessage(withDispatch: true, customerEmail: 'customer@example.com');
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')
+            ->never();
+
+        $dispatcher = new NotificationDispatcher(
+            app(SystemSettingsService::class),
+            [
+                new WhatsAppChannel(
+                    $automationDispatcher,
+                    app(WhatsAppTemplateConfigurationResolver::class),
+                    app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+                ),
+                app(EmailChannel::class),
+            ],
+            app(NotificationAuditTrailService::class),
+        );
+
+        $result = $dispatcher->send(
+            NotificationType::RequestSerialNumber,
+            $message,
+            allowedChannels: [NotificationChannelType::Email],
+        );
+
+        $this->assertTrue($result->success);
+        $this->assertCount(1, $result->results);
+        $this->assertSame(NotificationChannelType::Email, $result->results[0]->channel);
+    }
+
     public function test_dispatch_result_aggregation_prefers_successful_channel_message(): void
     {
         $results = [

@@ -2,10 +2,13 @@
 
 namespace App\Services\Bonvoice;
 
+use App\Enums\RadiumBoxSyncTrigger;
 use App\Models\BonvoiceCallAlert;
 use App\Models\BonvoiceCallEvent;
+use App\Models\Order;
 use App\Models\User;
 use App\Notifications\IncomingCallAssistNotification;
+use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Support\BonvoiceCallStatuses;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +19,7 @@ class BonvoiceLiveCallAssistService
     public function __construct(
         private readonly BonvoiceAgentResolver $agentResolver,
         private readonly BonvoiceInboundCustomerResolver $customerResolver,
+        private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
     ) {}
 
     public function maybeNotify(BonvoiceCallEvent $event): ?BonvoiceCallAlert
@@ -61,6 +65,8 @@ class BonvoiceLiveCallAssistService
 
         $alert->loadMissing(['order', 'incident']);
 
+        $this->maybeTriggerRadiumBoxSync($match);
+
         $this->sendNotificationSafely($agent, $alert);
 
         return $alert;
@@ -93,5 +99,34 @@ class BonvoiceLiveCallAssistService
         $direction = strtolower((string) $event->direction);
 
         return in_array($direction, ['inbound', 'in', 'incoming'], true);
+    }
+
+    /**
+     * @param  array{
+     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     customer_phone: ?string,
+     *     order_id: ?int,
+     *     order_label: ?string,
+     *     incident_id: ?int,
+     * }  $match
+     */
+    private function maybeTriggerRadiumBoxSync(array $match): void
+    {
+        $orderId = $match['order_id'] ?? null;
+
+        if ($orderId === null) {
+            return;
+        }
+
+        $order = Order::query()->find($orderId);
+
+        if ($order === null) {
+            return;
+        }
+
+        $this->radiumBoxAutoSyncTriggerService->maybeDispatch(
+            $order,
+            RadiumBoxSyncTrigger::BonvoiceLiveCallMatch,
+        );
     }
 }

@@ -33,6 +33,23 @@
     <div class="customer-360-executive-summary-body"
          data-ira-summary-content
          data-ira-summary-en='@json($summaryPayload)'>
+        @if($executiveSummary->serialInsight?->isActionable())
+            <div class="customer-360-executive-summary-section customer-360-serial-insight"
+                 data-ira-serial-insight>
+                <h3 class="customer-360-executive-summary-label">Serial Intelligence</h3>
+                <p class="customer-360-executive-summary-meta">
+                    Status: {{ $executiveSummary->serialInsight->status->label() }}
+                    · Confidence: {{ $executiveSummary->serialInsight->confidence->label() }}
+                </p>
+                <p class="customer-360-executive-summary-line">{{ $executiveSummary->serialInsight->explanation }}</p>
+                @if(filled($executiveSummary->serialInsight->suggestedAction))
+                    <p class="customer-360-executive-summary-text">
+                        "{{ $executiveSummary->serialInsight->suggestedAction }}"
+                    </p>
+                @endif
+            </div>
+        @endif
+
         <div class="customer-360-executive-summary-block" data-ira-summary-block="executive">
             @foreach($summaryLines as $line)
                 <p class="customer-360-executive-summary-line">{{ $line }}</p>

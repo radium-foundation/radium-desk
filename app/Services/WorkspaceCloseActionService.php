@@ -2,15 +2,23 @@
 
 namespace App\Services;
 
+use App\Data\NotificationDispatchResult;
+use App\Data\NotificationMessage;
 use App\Data\Workspace\WorkspaceActionResponse;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\IncidentStatus;
+use App\Enums\NotificationChannelType;
+use App\Enums\NotificationType;
 use App\Enums\ServiceCaseCloseExceptionReason;
+use App\Enums\WhatsAppTemplate;
+use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Concerns\BuildsWorkspaceValidationFailure;
+use App\Services\Notifications\NotificationDeliverySummaryFormatter;
+use App\Services\Notifications\NotificationDispatcher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +34,8 @@ class WorkspaceCloseActionService
         private readonly ServiceCaseCloseExceptionService $closeExceptionService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly WorkspaceRefreshRenderer $refreshRenderer,
+        private readonly NotificationDispatcher $notificationDispatcher,
+        private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
     ) {}
 
     /**
@@ -48,6 +58,9 @@ class WorkspaceCloseActionService
         WorkspaceRequestContext $requestContext,
         ?Request $request = null,
     ): WorkspaceActionResponse {
+        $notifyWhatsapp = (bool) ($payload['notify_whatsapp'] ?? false);
+        $notifyEmail = (bool) ($payload['notify_email'] ?? false);
+
         try {
             $freshIncident = $this->executeClose($incident, $actor, $payload, $request);
         } catch (ValidationException $exception) {
@@ -59,7 +72,19 @@ class WorkspaceCloseActionService
             );
         }
 
-        return $this->buildSuccessResponse($freshIncident, $requestContext, $actor);
+        $dispatchResult = null;
+
+        if ($notifyWhatsapp || $notifyEmail) {
+            $dispatchResult = $this->dispatchCloseNotifications(
+                incident: $freshIncident,
+                actor: $actor,
+                notifyWhatsapp: $notifyWhatsapp,
+                notifyEmail: $notifyEmail,
+                request: $request,
+            );
+        }
+
+        return $this->buildSuccessResponse($freshIncident, $requestContext, $actor, $dispatchResult);
     }
 
     /**
@@ -198,6 +223,7 @@ class WorkspaceCloseActionService
         Incident $incident,
         WorkspaceRequestContext $requestContext,
         User $actor,
+        ?NotificationDispatchResult $dispatchResult = null,
     ): WorkspaceActionResponse {
         $effects = $this->refreshPolicy->effectsFor(
             $requestContext->context,
@@ -213,13 +239,65 @@ class WorkspaceCloseActionService
         );
 
         $message = 'Service case closed.';
+        $toastVariant = 'success';
+
+        if ($dispatchResult !== null) {
+            $message .= "\n".$this->deliverySummaryFormatter->formatOperatorResult($dispatchResult);
+            $toastVariant = $this->resolveNotificationToastVariant($dispatchResult);
+        }
 
         return WorkspaceActionResponseBuilder::make('action', $incident->id)
             ->forContext($requestContext->context)
             ->success($message)
-            ->withToast($message, 'success')
+            ->withToast($message, $toastVariant)
             ->withUi(closeWorkspaceHost: $effects->closeWorkspaceHost)
             ->withRefresh($refresh)
             ->build();
+    }
+
+    private function dispatchCloseNotifications(
+        Incident $incident,
+        User $actor,
+        bool $notifyWhatsapp,
+        bool $notifyEmail,
+        ?Request $request = null,
+    ): NotificationDispatchResult {
+        $incident->loadMissing('order');
+
+        $allowedChannels = [];
+
+        if ($notifyWhatsapp) {
+            $allowedChannels[] = NotificationChannelType::WhatsApp;
+        }
+
+        if ($notifyEmail) {
+            $allowedChannels[] = NotificationChannelType::Email;
+        }
+
+        return $this->notificationDispatcher->send(
+            NotificationType::ServiceCaseClosed,
+            new NotificationMessage(
+                type: NotificationType::ServiceCaseClosed,
+                customer: $incident->order,
+                incident: $incident,
+                template: WhatsAppTemplate::RepairCompleted->value,
+                metadata: [
+                    'source' => 'workspace_close',
+                    'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,
+                ],
+                actor: $actor,
+                httpRequest: $request,
+            ),
+            allowedChannels: $allowedChannels,
+        );
+    }
+
+    private function resolveNotificationToastVariant(NotificationDispatchResult $dispatchResult): string
+    {
+        $hasFailure = collect($dispatchResult->results)->contains(
+            fn (\App\Data\NotificationResult $result): bool => ! $result->isSkipped() && ! $result->success,
+        );
+
+        return $hasFailure ? 'warning' : 'success';
     }
 }

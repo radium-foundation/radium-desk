@@ -90,6 +90,55 @@ class IRAExecutiveSummaryServiceTest extends TestCase
         $this->assertStringContainsString('Request the serial immediately', $summary->recommendation);
     }
 
+    public function test_builds_suspicious_serial_warning_in_executive_summary(): void
+    {
+        $agent = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-BAD-SERIAL',
+            'serial_number' => '54SAXXC5514586',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Bad Serial Customer',
+            'customer_phone' => '9123456781',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Bad serial',
+            'description' => 'Invalid serial.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $context = AIContextFactory::make([
+            'serialMissing' => false,
+            'deviceModel' => 'MFS 110',
+            'warrantyStatus' => 'Not Available',
+            'customerSummary' => ['open_cases' => 1],
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+        $summary = app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 1],
+        );
+
+        $this->assertNotNull($summary->serialInsight);
+        $this->assertSame('suspicious', $summary->serialInsight->status->value);
+        $this->assertStringContainsString('product code', $summary->executiveSummary[1]);
+        $this->assertStringContainsString('incorrect', $summary->opinion);
+        $this->assertStringContainsString('WhatsApp', $summary->recommendation);
+    }
+
     public function test_translation_service_translates_executive_summary_payload(): void
     {
         $translated = app(\App\Services\AI\IRAExecutiveSummaryTranslationService::class)

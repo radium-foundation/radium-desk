@@ -11,8 +11,10 @@ use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
+use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class Customer360RadiumBoxSyncTest extends TestCase
@@ -33,8 +35,10 @@ class Customer360RadiumBoxSyncTest extends TestCase
         ]);
     }
 
-    public function test_new_orders_default_to_not_synced_state(): void
+    public function test_customer360_open_triggers_background_sync_for_orders_missing_enrichment(): void
     {
+        Queue::fake();
+
         [$agent, $incident] = $this->createIncidentWithoutSerial();
 
         $this->assertSame(
@@ -45,10 +49,15 @@ class Customer360RadiumBoxSyncTest extends TestCase
         $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk();
-        $response->assertSee('Not Synced', false);
+        Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class);
+
+        $this->assertSame(
+            RadiumBoxEnrichmentSyncStatus::Pending,
+            $incident->order->fresh()->radiumbox_sync_status,
+        );
+        $response->assertSee('Pending', false);
         $response->assertSee('data-customer-360-sync-diagnostics', false);
-        $response->assertSee('data-customer-360-radiumbox-sync', false);
-        $response->assertSee('heroicon-arrow-path', false);
+        $response->assertDontSee('data-customer-360-radiumbox-sync', false);
     }
 
     public function test_customer_360_shows_pending_serial_state_with_diagnostics(): void

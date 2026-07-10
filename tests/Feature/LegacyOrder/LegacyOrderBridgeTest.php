@@ -13,6 +13,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class LegacyOrderBridgeTest extends TestCase
@@ -54,6 +55,7 @@ class LegacyOrderBridgeTest extends TestCase
     public function test_existing_desk_order_does_not_call_radiumbox_api(): void
     {
         Http::fake();
+        Queue::fake();
 
         $agent = User::factory()->create(['name' => 'Desk Agent']);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);

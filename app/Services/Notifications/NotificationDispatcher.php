@@ -37,10 +37,16 @@ class NotificationDispatcher
         private readonly NotificationAuditTrailService $auditTrail,
     ) {}
 
-    public function send(NotificationType $type, NotificationMessage $message): NotificationDispatchResult
-    {
+    /**
+     * @param  array<int, NotificationChannelType>|null  $allowedChannels
+     */
+    public function send(
+        NotificationType $type,
+        NotificationMessage $message,
+        ?array $allowedChannels = null,
+    ): NotificationDispatchResult {
         $startedAt = microtime(true);
-        $enabledChannels = $this->resolveEnabledChannels($type);
+        $enabledChannels = $this->resolveEnabledChannels($type, $allowedChannels);
 
         Log::info('notification.dispatch.started', [
             'notification_type' => $type->value,
@@ -134,14 +140,33 @@ class NotificationDispatcher
     }
 
     /**
+     * @param  array<int, NotificationChannelType>|null  $allowedChannels
      * @return array<int, NotificationChannel>
      */
-    public function resolveEnabledChannels(NotificationType $type): array
+    public function resolveEnabledChannels(NotificationType $type, ?array $allowedChannels = null): array
     {
-        return array_values(array_filter(
+        $channels = array_values(array_filter(
             $this->channels,
             fn (NotificationChannel $channel): bool => $channel->supports($type)
                 && $this->isChannelEnabled($channel),
+        ));
+
+        if ($allowedChannels === null) {
+            return $channels;
+        }
+
+        $allowed = array_map(
+            fn (NotificationChannelType $channel): string => $channel->value,
+            $allowedChannels,
+        );
+
+        return array_values(array_filter(
+            $channels,
+            fn (NotificationChannel $channel): bool => in_array(
+                $this->channelTypeFor($channel)?->value,
+                $allowed,
+                true,
+            ),
         ));
     }
 
