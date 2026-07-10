@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\WorkspaceLinkOrderRequest;
 use App\Http\Requests\WorkspaceActionRequest;
 use App\Http\Requests\WorkspaceAssignRequest;
 use App\Http\Requests\WorkspaceCloseRequest;
@@ -15,6 +16,7 @@ use App\Services\WorkspaceAssignActionService;
 use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
 use App\Services\WorkspaceRemarkActionService;
+use App\Services\WorkspaceLinkOrderActionService;
 use App\Services\WorkspaceRequestSerialActionService;
 use App\Services\WorkspaceResolveActionService;
 use Illuminate\Http\JsonResponse;
@@ -30,6 +32,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceResolveActionService $resolveActionService,
         private readonly WorkspaceCloseActionService $closeActionService,
         private readonly WorkspaceRequestSerialActionService $requestSerialActionService,
+        private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
 
@@ -132,6 +135,21 @@ class WorkspaceActionController extends Controller
         $response = $this->requestSerialActionService->send(
             incident: $incident,
             actor: $request->user(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function linkOrder(WorkspaceLinkOrderRequest $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->linkOrderActionService->link(
+            incident: $incident,
+            actor: $request->user(),
+            payload: $request->validated(),
             requestContext: $requestContext,
             request: $request,
         );

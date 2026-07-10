@@ -57,6 +57,7 @@
             'customer' => $customer,
             'device' => $device,
             'canRequestSerialNumber' => $canRequestSerialNumber ?? false,
+            'canLinkOrder' => $canLinkOrder ?? false,
             'serialRequestState' => $serialRequestState ?? ['requested' => false, 'requested_at' => null, 'requested_at_label' => null],
         ])
         @include('customer-360.partials.device-section', [

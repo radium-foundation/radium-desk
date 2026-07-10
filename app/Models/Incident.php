@@ -26,6 +26,7 @@ class Incident extends Model
 
     protected $fillable = [
         'order_id',
+        'inquiry_origin_order_id',
         'reference_no',
         'category',
         'source',
@@ -70,6 +71,18 @@ class Incident extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function inquiryOriginOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'inquiry_origin_order_id');
+    }
+
+    public function isOnInquiryOrder(): bool
+    {
+        $this->loadMissing('order');
+
+        return $this->order?->isInquiryOrder() ?? false;
     }
 
     public function creator(): BelongsTo

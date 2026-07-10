@@ -71,6 +71,17 @@
             </button>
         @endif
 
+        @if($canLinkOrder ?? false)
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm customer-360-quick-action"
+                    data-workspace-trigger="link-order"
+                    data-workspace-incident-id="{{ $incident->id }}"
+                    data-workspace-context="customer"
+                    title="Link this enquiry to the customer's real order">
+                <span aria-hidden="true">🔗</span> Link Order
+            </button>
+        @endif
+
         <button type="button"
                 class="btn btn-outline-secondary btn-sm customer-360-quick-action"
                 disabled

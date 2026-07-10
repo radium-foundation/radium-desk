@@ -14,6 +14,7 @@ use App\Services\DeviceModelSettingsService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -27,6 +28,7 @@ class WorkspaceComponentService
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
         private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
         private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
+        private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -53,6 +55,7 @@ class WorkspaceComponentService
             WorkspaceComponent::Timeline => $user->can('view', $incident),
             WorkspaceComponent::RequestSerialNumber => $user->can('update', $incident)
                 && $this->requestSerialEligibilityService->canShowAction($incident),
+            WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
         };
 
         if (! $authorized) {
@@ -120,7 +123,26 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 ...$this->requestSerialWorkspaceFields($requestContext, $incident),
             ],
+            WorkspaceComponent::LinkOrder => [
+                'incident' => $incident,
+                ...$this->linkOrderWorkspaceFields($requestContext, $incident),
+            ],
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function linkOrderWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.link-order', $incident),
+            'workspaceContext' => $requestContext->context->value,
+        ];
     }
 
     /**

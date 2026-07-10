@@ -135,6 +135,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.workspace.remark');
     Route::post('incidents/{incident}/workspace/request-serial', [WorkspaceActionController::class, 'requestSerial'])
         ->name('incidents.workspace.request-serial');
+    Route::patch('incidents/{incident}/workspace/link-order', [WorkspaceActionController::class, 'linkOrder'])
+        ->name('incidents.workspace.link-order');
     Route::patch('incidents/{incident}/workspace/resolve', [WorkspaceActionController::class, 'resolve'])
         ->name('incidents.workspace.resolve');
     Route::patch('incidents/{incident}/workspace/close', [WorkspaceActionController::class, 'close'])

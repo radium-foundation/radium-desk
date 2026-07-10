@@ -19,6 +19,7 @@ use App\Services\Customer360\Customer360SlaMetricsService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
@@ -36,6 +37,7 @@ class Customer360Service
         private readonly RadiumBoxSyncTimelineService $syncTimelineService,
         private readonly RadiumBoxSyncErrorFormatter $syncErrorFormatter,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
+        private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
         private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly AIService $aiService,
@@ -85,6 +87,8 @@ class Customer360Service
             'summary' => $summary,
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
+            'canLinkOrder' => auth()->user() !== null
+                && $this->inquiryOrderLinkEligibilityService->canShowAction($incident, auth()->user()),
             'serialRequestState' => $this->serialRequestState($order),
             'waitingStateCard' => $waitingStateCard,
             'supportAppointments' => $incident->supportAppointments,
@@ -592,6 +596,7 @@ class Customer360Service
                 'last_call' => null,
             ],
             'canRequestSerialNumber' => false,
+            'canLinkOrder' => false,
             'serialRequestState' => [
                 'requested' => false,
                 'requested_at' => null,

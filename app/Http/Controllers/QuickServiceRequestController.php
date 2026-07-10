@@ -10,6 +10,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Services\CustomerIntakeSearchService;
 use App\Services\CustomerIntakeService;
+use App\Services\Inquiry\InquiryOrderLinkService;
 use App\Services\QuickServiceRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,6 +21,7 @@ class QuickServiceRequestController extends Controller
         private readonly CustomerIntakeSearchService $customerIntakeSearchService,
         private readonly CustomerIntakeService $customerIntakeService,
         private readonly QuickServiceRequestService $quickServiceRequestService,
+        private readonly InquiryOrderLinkService $inquiryOrderLinkService,
     ) {}
 
     public function search(SearchCustomerIntakeRequest $request): JsonResponse
@@ -64,6 +66,22 @@ class QuickServiceRequestController extends Controller
                 return redirect()
                     ->route('orders.show', $order)
                     ->with('status', 'order-found');
+            }
+
+            $intakePhone = $request->string('phone')->trim()->toString() ?: null;
+            $linkableInquiry = $this->inquiryOrderLinkService->findLinkableInquiryIncident(
+                targetOrder: $order,
+                phone: $intakePhone,
+            );
+
+            if ($linkableInquiry !== null) {
+                $incident = $this->inquiryOrderLinkService->linkToOrder(
+                    incident: $linkableInquiry,
+                    targetOrder: $order,
+                    actor: $request->user(),
+                );
+
+                return $this->respondLinked($request, $incident, $order);
             }
 
             $incident = $this->customerIntakeService->createForExistingOrder(
@@ -130,6 +148,29 @@ class QuickServiceRequestController extends Controller
         }
 
         return $this->createdRedirect($incident);
+    }
+
+    private function respondLinked(
+        StoreCustomerIntakeRequest $request,
+        Incident $incident,
+        Order $order,
+    ): RedirectResponse|JsonResponse {
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Service Case '.$incident->display_reference.' linked to '.$order->order_id,
+                'incident_id' => $incident->id,
+                'display_reference' => $incident->display_reference,
+                'linked_order_id' => $order->order_id,
+                'customer_360_url' => route('dashboard.service-cases.customer-360', $incident),
+            ]);
+        }
+
+        return redirect()
+            ->route('dashboard')
+            ->with('status', 'service-case-linked')
+            ->with('service_case_reference', $incident->display_reference)
+            ->with('linked_order_id', $order->order_id)
+            ->with('open_customer_360_incident_id', $incident->id);
     }
 
     private function createdRedirect(Incident $incident): RedirectResponse
