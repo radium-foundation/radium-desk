@@ -68,6 +68,41 @@ class ServiceCaseCloseRequirementServiceTest extends TestCase
         $this->assertArrayNotHasKey('serial_number', $messages);
     }
 
+    public function test_suspicious_serial_blocks_normal_close(): void
+    {
+        $incident = $this->createIncident(
+            orderId: 'RD-DEVICE-3',
+            serialNumber: '54SAXXC5514586',
+        );
+
+        $messages = app(ServiceCaseCloseRequirementService::class)->validate(
+            incident: $incident,
+            serialNumberUnavailable: false,
+            referenceNumberUnavailable: false,
+        );
+
+        $this->assertSame(
+            'Serial number must be verified or corrected before closing this service case.',
+            $messages['serial_number'] ?? null,
+        );
+    }
+
+    public function test_suspicious_serial_close_bypassed_when_serial_unavailable_exception_selected(): void
+    {
+        $incident = $this->createIncident(
+            orderId: 'RD-DEVICE-4',
+            serialNumber: '54SAXXC5514586',
+        );
+
+        $messages = app(ServiceCaseCloseRequirementService::class)->validate(
+            incident: $incident,
+            serialNumberUnavailable: true,
+            referenceNumberUnavailable: false,
+        );
+
+        $this->assertArrayNotHasKey('serial_number', $messages);
+    }
+
     private function createIncident(string $orderId, ?string $serialNumber): Incident
     {
         $creator = User::factory()->create();

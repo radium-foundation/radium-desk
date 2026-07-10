@@ -152,11 +152,27 @@ class IncidentWaitingStateService
         app(DashboardSnapshotStore::class)->forget();
     }
 
-    public function ensureSerialWaitingState(Incident $incident, User $actor): IncidentWaitingState
+    /**
+     * @param  array<string, mixed>|null  $metadata
+     */
+    public function ensureSerialWaitingState(Incident $incident, User $actor, ?array $metadata = null): IncidentWaitingState
     {
         $existing = $this->activeFor($incident);
 
         if ($existing !== null) {
+            if ($metadata !== null) {
+                $merged = array_merge($existing->metadata ?? [], $metadata);
+
+                if ($merged !== ($existing->metadata ?? [])) {
+                    $existing->update([
+                        'metadata' => $merged,
+                        'updated_by' => $actor->id,
+                    ]);
+
+                    return $existing->fresh();
+                }
+            }
+
             return $existing;
         }
 
@@ -165,6 +181,7 @@ class IncidentWaitingStateService
             reason: WaitingReason::SerialNumber,
             actor: $actor,
             pauseSla: true,
+            metadata: $metadata,
         );
     }
 

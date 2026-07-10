@@ -32,6 +32,7 @@ class WorkspaceCloseActionService
         private readonly ServiceCaseStatusService $statusService,
         private readonly ServiceCaseCloseRequirementService $closeRequirementService,
         private readonly ServiceCaseCloseExceptionService $closeExceptionService,
+        private readonly CustomerUnreachableCloseEligibilityService $customerUnreachableCloseEligibilityService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly WorkspaceRefreshRenderer $refreshRenderer,
         private readonly NotificationDispatcher $notificationDispatcher,
@@ -143,6 +144,7 @@ class WorkspaceCloseActionService
         );
 
         $this->validateExceptionReasons($payload, $serialUnavailable, $referenceUnavailable);
+        $this->validateCustomerUnreachableCloseEligibility($incident, $actor, $payload, $serialUnavailable, $referenceUnavailable);
 
         return DB::transaction(function () use (
             $incident,
@@ -212,6 +214,57 @@ class WorkspaceCloseActionService
 
         if ($referenceUnavailable && ! filled($payload['reference_exception_reason'] ?? null)) {
             $messages['reference_exception_reason'] = 'Select a reason when reference number is unavailable.';
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     *
+     * @throws ValidationException
+     */
+    private function validateCustomerUnreachableCloseEligibility(
+        Incident $incident,
+        User $actor,
+        array $payload,
+        bool $serialUnavailable,
+        bool $referenceUnavailable,
+    ): void {
+        $messages = [];
+
+        if ($serialUnavailable && filled($payload['serial_exception_reason'] ?? null)) {
+            $reason = ServiceCaseCloseExceptionReason::tryFrom((string) $payload['serial_exception_reason']);
+
+            if ($reason !== null) {
+                $ineligibilityReason = $this->customerUnreachableCloseEligibilityService->ineligibilityReason(
+                    $incident,
+                    $reason,
+                    $actor,
+                );
+
+                if ($ineligibilityReason !== null) {
+                    $messages['serial_exception_reason'] = $ineligibilityReason;
+                }
+            }
+        }
+
+        if ($referenceUnavailable && filled($payload['reference_exception_reason'] ?? null)) {
+            $reason = ServiceCaseCloseExceptionReason::tryFrom((string) $payload['reference_exception_reason']);
+
+            if ($reason !== null) {
+                $ineligibilityReason = $this->customerUnreachableCloseEligibilityService->ineligibilityReason(
+                    $incident,
+                    $reason,
+                    $actor,
+                );
+
+                if ($ineligibilityReason !== null) {
+                    $messages['reference_exception_reason'] = $ineligibilityReason;
+                }
+            }
         }
 
         if ($messages !== []) {

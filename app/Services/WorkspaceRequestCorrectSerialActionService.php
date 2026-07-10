@@ -26,6 +26,7 @@ class WorkspaceRequestCorrectSerialActionService
         private readonly RequestCorrectSerialEligibilityService $eligibilityService,
         private readonly SerialInsightService $serialInsightService,
         private readonly RequestCorrectSerialAuditService $auditService,
+        private readonly IncidentWaitingStateService $waitingStateService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
@@ -120,13 +121,30 @@ class WorkspaceRequestCorrectSerialActionService
             request: $request,
         );
 
+        $waitingStateSuffix = 'Waiting state started.';
+
+        if ($this->waitingStateService->activeFor($incident) === null) {
+            $this->waitingStateService->ensureSerialWaitingState($incident, $actor, [
+                'serial_correction' => true,
+                'old_serial' => $order->serial_number,
+                'insight_status' => $insight->status->value,
+                'confidence' => $insight->confidence->value,
+                'technical_reason' => $insight->technicalReason,
+            ]);
+        } else {
+            $waitingStateSuffix = 'Waiting state already active.';
+        }
+
         $effects = $this->refreshPolicy->effectsFor(
             $requestContext->context,
             \App\Enums\WorkspaceComponent::RequestCorrectSerial,
             $incident,
         );
 
-        $message = $this->deliverySummaryFormatter->formatOperatorResult($dispatchResult);
+        $message = $this->deliverySummaryFormatter->formatOperatorResult(
+            $dispatchResult,
+            $waitingStateSuffix,
+        );
         $toastVariant = $this->resolveToastVariant($dispatchResult);
 
         return WorkspaceActionResponseBuilder::make('request-correct-serial', $incident->id)
