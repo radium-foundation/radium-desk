@@ -45,8 +45,10 @@ class OperationsRadiumBoxHealthService
     {
         $probeSnapshot = $this->probe->probe();
         $dailyStats = RadiumBoxIntegrationHealthProbe::dailyStats();
-        $attempts = max(1, $dailyStats['attempts']);
-        $successRate = round(($dailyStats['successes'] / $attempts) * 100, 1);
+        $attempts = $dailyStats['attempts'];
+        $successRate = $attempts > 0
+            ? round(($dailyStats['successes'] / $attempts) * 100, 1)
+            : 100.0;
 
         $statusCounts = $this->syncStatusCounts();
 
@@ -54,6 +56,7 @@ class OperationsRadiumBoxHealthService
             'enabled' => (bool) config('radiumbox.enabled'),
             'pending_syncs' => $statusCounts['pending'],
             'failed_syncs' => $statusCounts['failed'],
+            'sync_attempts_24h' => $attempts,
             'success_rate_24h' => $successRate,
             'average_sync_duration_ms' => $probeSnapshot->averageResponseTimeMs,
             'manual_retries_24h' => $dailyStats['manual_retries'],

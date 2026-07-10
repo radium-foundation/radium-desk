@@ -153,6 +153,17 @@ class OperationsRadiumBoxHealthTest extends TestCase
         $this->assertContains('RD-FAILED-1', array_column($widget['failed_orders'], 'order_id'));
     }
 
+    public function test_widget_reports_full_success_rate_when_no_sync_attempts(): void
+    {
+        Cache::forget('operations:radiumbox-health');
+
+        $widget = app(OperationsRadiumBoxHealthService::class)->widget(useCache: false);
+
+        $this->assertSame(0, $widget['sync_attempts_24h']);
+        $this->assertSame(100.0, $widget['success_rate_24h']);
+        $this->assertNull($widget['last_successful_sync_at']);
+    }
+
     private function createAdminUser(): User
     {
         $user = User::factory()->create([

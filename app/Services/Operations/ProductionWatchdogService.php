@@ -272,7 +272,11 @@ class ProductionWatchdogService
             ];
         }
 
-        if ((bool) ($widget['enabled'] ?? false) && $successRate < $minSuccessRate) {
+        if (
+            (bool) ($widget['enabled'] ?? false)
+            && $this->radiumBoxHasSyncActivity($widget)
+            && $successRate < $minSuccessRate
+        ) {
             return [
                 new ProductionCriticalAlert(
                     key: 'radiumbox:degraded',
@@ -286,6 +290,14 @@ class ProductionWatchdogService
         }
 
         return [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $widget
+     */
+    private function radiumBoxHasSyncActivity(array $widget): bool
+    {
+        return (int) ($widget['sync_attempts_24h'] ?? 0) > 0;
     }
 
     /**

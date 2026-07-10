@@ -9,6 +9,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\IraNotificationStatus;
 use App\Enums\IraNotificationType;
+use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\TeamBroadcastAudience;
 use App\Enums\WaitingReason;
 use App\Models\AutomationExecution;
@@ -161,6 +162,99 @@ class ProductionWatchdogTest extends TestCase
             'notification_type' => IraNotificationType::TeamAnnouncement->value,
             'status' => IraNotificationStatus::Sent->value,
         ]);
+    }
+
+    public function test_watchdog_does_not_alert_on_radiumbox_idle_state(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config([
+            'radiumbox.enabled' => true,
+            'ira.watchdog.radiumbox_min_success_rate' => 80,
+        ]);
+
+        Cache::forget('operations:radiumbox-health');
+
+        $alerts = app(ProductionWatchdogService::class)->collectCriticalAlerts();
+
+        $radiumBoxAlerts = array_values(array_filter(
+            $alerts,
+            fn ($alert) => str_starts_with($alert->key, 'radiumbox:'),
+        ));
+
+        $this->assertSame([], $radiumBoxAlerts);
+    }
+
+    public function test_watchdog_alerts_on_radiumbox_failed_syncs(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config(['radiumbox.enabled' => true]);
+
+        $actor = User::factory()->create();
+
+        Order::query()->create([
+            'order_id' => 'RD-WATCHDOG-RB-FAILED',
+            'customer_name' => 'Test Customer',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Failed,
+        ]);
+
+        Cache::forget('operations:radiumbox-health');
+
+        $alerts = app(ProductionWatchdogService::class)->collectCriticalAlerts();
+
+        $radiumBoxAlerts = array_values(array_filter(
+            $alerts,
+            fn ($alert) => str_starts_with($alert->key, 'radiumbox:'),
+        ));
+
+        $this->assertCount(1, $radiumBoxAlerts);
+        $this->assertSame('radiumbox:sync_failures', $radiumBoxAlerts[0]->key);
+        $this->assertSame(1, $radiumBoxAlerts[0]->affectedCount);
+    }
+
+    public function test_watchdog_alerts_on_radiumbox_degraded_success_rate_with_activity(): void
+    {
+        Http::fake([
+            'localhost/*' => Http::response('OK', 200),
+        ]);
+
+        config([
+            'radiumbox.enabled' => true,
+            'ira.watchdog.radiumbox_min_success_rate' => 80,
+        ]);
+
+        Cache::put(
+            'infrastructure:integration:radiumbox:stats:'.now()->format('Y-m-d'),
+            [
+                'attempts' => 10,
+                'successes' => 2,
+                'failures' => 8,
+                'manual_retries' => 0,
+                'scheduler_recoveries' => 0,
+            ],
+            now()->endOfDay(),
+        );
+        Cache::forget('operations:radiumbox-health');
+
+        $alerts = app(ProductionWatchdogService::class)->collectCriticalAlerts();
+
+        $radiumBoxAlerts = array_values(array_filter(
+            $alerts,
+            fn ($alert) => str_starts_with($alert->key, 'radiumbox:'),
+        ));
+
+        $this->assertCount(1, $radiumBoxAlerts);
+        $this->assertSame('radiumbox:degraded', $radiumBoxAlerts[0]->key);
+        $this->assertStringContainsString('20.0%', $radiumBoxAlerts[0]->message);
     }
 
     public function test_watchdog_records_uptime_probe(): void
