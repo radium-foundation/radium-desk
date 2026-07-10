@@ -51,7 +51,7 @@ class SupportAppointmentSmartAssignmentService
 
         $currentAssignee = $incident->assignee;
 
-        if ($currentAssignee !== null && $this->assignmentService->isSupportAgent($currentAssignee)) {
+        if ($currentAssignee !== null && $this->assignmentService->shouldRetainOperationalAssignee($incident)) {
             return $incident;
         }
 

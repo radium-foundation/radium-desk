@@ -100,6 +100,18 @@ class AutomationPolicyService
             return true;
         }
 
+        $waitingState->loadMissing(['incident.order', 'incident.supportAppointments']);
+        $incident = $waitingState->incident;
+
+        if ($action->type === AutomationPolicyActionType::WhatsAppTemplate
+            && $action->key === 'customer_waiting_followup') {
+            if ($incident !== null && $this->engagementService->hasEngagement($incident, $waitingState)) {
+                return false;
+            }
+
+            return true;
+        }
+
         if ($action->type !== AutomationPolicyActionType::AutoClose
             || $action->key !== 'customer_not_responding') {
             return true;
@@ -114,9 +126,6 @@ class AutomationPolicyService
         if (! CustomerWaitingLifecycleService::isAutoCloseCutoffReached($followupSentAt, $referenceAt)) {
             return false;
         }
-
-        $waitingState->loadMissing(['incident.order', 'incident.supportAppointments']);
-        $incident = $waitingState->incident;
 
         if ($incident !== null && $this->engagementService->hasEngagement($incident, $waitingState)) {
             return false;

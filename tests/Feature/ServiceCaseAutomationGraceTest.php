@@ -163,7 +163,35 @@ class ServiceCaseAutomationGraceTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_grace_period_expiry_assigns_via_round_robin(): void
+    public function test_missing_serial_grace_expiry_does_not_assign_agent(): void
+    {
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $this->createAgentUser('agent-b@test.com', 'Agent Beta');
+        $admin = $this->createAdminUser('avinash@radiumbox.com', 'Avinash Jha');
+        $this->configureAssignmentSettings($admin->id, $admin->id);
+
+        $actor = User::factory()->create();
+        $incident = $this->createIncidentWithoutSerial($actor);
+
+        app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $actor);
+
+        Carbon::setTestNow(now()->addSeconds(61));
+
+        $processed = app(ServiceCaseAutomationGraceService::class)->processExpiredGracePeriods();
+
+        $this->assertSame(1, $processed);
+        $incident->refresh();
+        $this->assertNull($incident->assigned_to_user_id);
+        $this->assertNull($incident->automation_pending_until);
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'service_case.assigned',
+            'auditable_id' => $incident->id,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_wrong_serial_grace_expiry_still_assigns_agent(): void
     {
         $agentA = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
         $this->createAgentUser('agent-b@test.com', 'Agent Beta');
@@ -171,7 +199,25 @@ class ServiceCaseAutomationGraceTest extends TestCase
         $this->configureAssignmentSettings($admin->id, $admin->id);
 
         $actor = User::factory()->create();
-        $incident = $this->createIncidentWithoutSerial($actor);
+        $order = Order::query()->create([
+            'order_id' => 'RD-WRONG-SERIAL-'.uniqid(),
+            'serial_number' => '54SAXXC5514586',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $actor->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Wrong serial grace test',
+            'description' => 'Invalid serial present.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $actor->id,
+        ]);
 
         app(ServiceCaseAssignmentService::class)->assignOnCreate($incident, $actor);
 
@@ -222,7 +268,7 @@ class ServiceCaseAutomationGraceTest extends TestCase
 
     public function test_expired_grace_processing_is_idempotent(): void
     {
-        $agent = $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
+        $this->createAgentUser('agent-a@test.com', 'Agent Alpha');
         $actor = User::factory()->create();
         $incident = $this->createIncidentWithoutSerial($actor);
 
@@ -235,8 +281,8 @@ class ServiceCaseAutomationGraceTest extends TestCase
         $this->assertSame(0, $service->processExpiredGracePeriods());
 
         $incident->refresh();
-        $this->assertSame($agent->id, $incident->assigned_to_user_id);
-        $this->assertSame(1, AuditLog::query()
+        $this->assertNull($incident->assigned_to_user_id);
+        $this->assertSame(0, AuditLog::query()
             ->where('auditable_id', $incident->id)
             ->where('event', 'service_case.assigned')
             ->count());

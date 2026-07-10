@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\NotificationLinkSource;
 use App\Enums\ServiceCaseCloseExceptionReason;
 use App\Enums\SupportAppointmentTimeSlot;
+use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WaitingReason;
 use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceContext;
@@ -20,17 +21,21 @@ use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\IncidentReferenceService;
+use App\Services\IncidentWaitingStateService;
 use App\Services\Notifications\NotificationLinkTrackingService;
 use App\Services\Operations\OperationsQueueClassifier;
+use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\SmartAssignmentService;
 use App\Services\SupportAppointmentService;
 use App\Services\SupportAppointmentUrlService;
 use App\Services\SystemSettingsService;
+use App\Notifications\ServiceCaseCustomerRespondedNotification;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class CustomerNotRespondingWorkflowTest extends TestCase
@@ -46,6 +51,7 @@ class CustomerNotRespondingWorkflowTest extends TestCase
             'interakt.base_url' => 'https://api.interakt.ai',
             'interakt.templates.callback_schedule.name' => 'callback_schedule',
             'interakt.templates.callback_schedule.language_code' => 'en',
+            'smart_assignment.enabled' => true,
         ]);
 
         $this->seed(RolePermissionSeeder::class);
@@ -216,6 +222,76 @@ class CustomerNotRespondingWorkflowTest extends TestCase
         $this->assertTrue($classifier->matchesMyWork($freshIncident, $agent));
     }
 
+    public function test_escalation_specialist_is_not_retained_as_normal_operational_assignee(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createEligibleAgent('agent@test.com', 'Normal Agent');
+        $specialist = User::factory()->create([
+            'name' => 'Escalation Specialist',
+            'email' => 'escalation@test.com',
+            'is_active' => true,
+        ]);
+        $specialist->assignRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST);
+
+        [, $incident] = $this->createAssignedCase($specialist);
+        $this->enableNotificationChannels();
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-callback-schedule-escalation'], 200),
+        ]);
+        Mail::fake();
+
+        $this->actingAs($specialist)->postJson(
+            route('incidents.workspace.customer-not-responding', $incident),
+            ['workspace_context' => 'customer'],
+        )->assertOk();
+
+        app(SupportAppointmentService::class)->book($incident->fresh(), [
+            'preferred_date' => '2026-07-10',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9123456782',
+        ]);
+
+        $freshIncident = $incident->fresh(['assignee', 'supportAppointments', 'activeWaitingState']);
+        $classifier = app(OperationsQueueClassifier::class);
+
+        $this->assertSame($agent->id, $freshIncident->assigned_to_user_id);
+        $this->assertNotSame($specialist->id, $freshIncident->assigned_to_user_id);
+        $this->assertFalse($classifier->matchesMyWork($freshIncident, $specialist));
+        $this->assertTrue($classifier->matchesMyWork($freshIncident, $agent));
+    }
+
+    public function test_customer_not_responding_booking_clears_waiting_state_and_wakes_agent(): void
+    {
+        Notification::fake();
+        Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Kolkata'));
+
+        [$agent, $incident] = $this->createAssignedCase();
+        $this->enableNotificationChannels();
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-callback-schedule-booking-clear'], 200),
+        ]);
+        Mail::fake();
+
+        $this->actingAs($agent)->postJson(
+            route('incidents.workspace.customer-not-responding', $incident),
+            ['workspace_context' => 'customer'],
+        )->assertOk();
+
+        $this->assertNotNull(app(IncidentWaitingStateService::class)->activeFor($incident->fresh()));
+
+        app(SupportAppointmentService::class)->book($incident->fresh(), [
+            'preferred_date' => '2026-07-10',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9123456782',
+        ]);
+
+        $this->assertNull(app(IncidentWaitingStateService::class)->activeFor($incident->fresh()));
+        Notification::assertSentTo($agent, ServiceCaseCustomerRespondedNotification::class);
+    }
+
     public function test_customer_not_responding_close_is_blocked_before_follow_up_is_sent(): void
     {
         $agent = User::factory()->create();
@@ -372,5 +448,20 @@ class CustomerNotRespondingWorkflowTest extends TestCase
             );
             app(SystemSettingsService::class)->forget($key);
         }
+    }
+
+    private function createEligibleAgent(string $email, string $name): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'email' => $email,
+            'is_active' => true,
+            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_updated_at' => now(),
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        app(PresenceEngineService::class)->startSession($user);
+
+        return $user->fresh();
     }
 }

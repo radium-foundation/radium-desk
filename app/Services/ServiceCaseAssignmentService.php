@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\IncidentStatus;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Setting;
@@ -248,7 +249,7 @@ class ServiceCaseAssignmentService
         );
     }
 
-    private function clearAutomationPending(Incident $incident, User $actor): Incident
+    public function clearAutomationPending(Incident $incident, User $actor): Incident
     {
         if ($incident->automation_pending_until === null) {
             return $incident;
@@ -291,7 +292,7 @@ class ServiceCaseAssignmentService
 
         $currentAssignee = $incident->assignee;
 
-        if ($currentAssignee !== null && $this->isSupportAgent($currentAssignee)) {
+        if ($currentAssignee !== null && $this->shouldRetainOperationalAssignee($incident)) {
             return $incident;
         }
 
@@ -318,6 +319,57 @@ class ServiceCaseAssignmentService
                 'reason' => 'validation_failed_support_queue',
             ],
         );
+    }
+
+    public function shouldRetainOperationalAssignee(Incident $incident): bool
+    {
+        $assignee = $incident->assignee;
+
+        if ($assignee === null) {
+            return false;
+        }
+
+        if ($this->isSupportAgent($assignee)) {
+            return true;
+        }
+
+        return $this->hasActiveEscalationOwnership($incident);
+    }
+
+    public function hasActiveEscalationOwnership(Incident $incident): bool
+    {
+        $assignee = $incident->assignee;
+
+        if ($assignee === null || ! $assignee->hasRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST)) {
+            return false;
+        }
+
+        $lastClosedAt = AuditLog::query()
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', 'service_case.status_changed')
+            ->orderByDesc('created_at')
+            ->get()
+            ->first(fn (AuditLog $log): bool => ($log->new_values['status'] ?? null) === IncidentStatus::Closed->value)
+            ?->created_at;
+
+        return AuditLog::query()
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', 'service_case.escalated')
+            ->orderByDesc('created_at')
+            ->get()
+            ->contains(function (AuditLog $log) use ($assignee, $lastClosedAt): bool {
+                if ((int) ($log->new_values['assigned_to_user_id'] ?? 0) !== (int) $assignee->id) {
+                    return false;
+                }
+
+                if ($lastClosedAt === null) {
+                    return true;
+                }
+
+                return $log->created_at !== null && $log->created_at->greaterThan($lastClosedAt);
+            });
     }
 
     public function reassign(Incident $incident, User $assignee, User $actor): Incident
@@ -766,13 +818,11 @@ class ServiceCaseAssignmentService
 
     public function isSupportAgent(User $user): bool
     {
-        return $user->hasAnyRole([
-            RolePermissionSeeder::ROLE_AGENT,
-            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
-        ]) && ! $user->hasAnyRole([
-            RolePermissionSeeder::ROLE_ADMIN,
-            RolePermissionSeeder::ROLE_SUPERADMIN,
-        ]);
+        return $user->hasRole(RolePermissionSeeder::ROLE_AGENT)
+            && ! $user->hasAnyRole([
+                RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_SUPERADMIN,
+            ]);
     }
 
     public function isShiftAdmin(User $user): bool

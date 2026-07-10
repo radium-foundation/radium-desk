@@ -26,12 +26,15 @@ use App\Services\IncidentWaitingStateService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\ServiceCaseActivityTimelineService;
 use App\Services\ServiceCaseStatusService;
+use App\Services\SupportAppointmentService;
 use App\Services\SystemSettingsService;
+use App\Notifications\ServiceCaseCustomerRespondedNotification;
 use Tests\Support\AIContextFactory;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class CustomerWaitingLifecycleTest extends TestCase
@@ -259,7 +262,11 @@ class CustomerWaitingLifecycleTest extends TestCase
         Carbon::setTestNow('2026-07-07 10:00:00');
         app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 10:00:00'));
 
-        $this->assertNotNull($waitingState->fresh()->customer_followup_sent_at);
+        $this->assertNull($waitingState->fresh()->customer_followup_sent_at);
+        $this->assertDatabaseMissing('automation_executions', [
+            'waiting_state_id' => $waitingState->id,
+            'action_key' => 'customer_waiting_followup',
+        ]);
         $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
 
         Carbon::setTestNow('2026-07-07 18:00:00');
@@ -280,6 +287,30 @@ class CustomerWaitingLifecycleTest extends TestCase
             'event' => CustomerWaitingLifecycleService::EVENT_AUTO_CLOSED,
             'auditable_id' => $incident->id,
         ]);
+    }
+
+    public function test_serial_number_waiting_appointment_booking_wakes_agent_but_keeps_waiting_state(): void
+    {
+        Notification::fake();
+
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-06 09:00:00'),
+            reason: WaitingReason::SerialNumber,
+        );
+
+        Carbon::setTestNow('2026-07-06 14:00:00');
+
+        app(SupportAppointmentService::class)->book($incident->fresh(), [
+            'preferred_date' => '2026-07-10',
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning->value,
+            'phone_number' => '9876543210',
+        ]);
+
+        $waitingState = $waitingState->fresh();
+
+        $this->assertNull($waitingState->cleared_at);
+        $this->assertTrue($incident->fresh()->hasActiveSupportAppointment());
+        Notification::assertSentTo($agent, ServiceCaseCustomerRespondedNotification::class);
     }
 
     public function test_customer_return_after_auto_close_shows_history_to_ira(): void

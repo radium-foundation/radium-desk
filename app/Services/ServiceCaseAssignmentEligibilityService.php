@@ -95,6 +95,16 @@ class ServiceCaseAssignmentEligibilityService
         return $this->validationSeverityForOrder($order) === SerialValidationSeverity::Warning;
     }
 
+    public function isWaitingForCustomerSerial(Order $order): bool
+    {
+        if ($order->isProductOrder() || $order->isInquiryOrder()) {
+            return false;
+        }
+
+        return ! filled(trim((string) $order->serial_number))
+            || $this->placeholderService->isPlaceholder((string) $order->serial_number);
+    }
+
     private function evaluateSingleIncident(int $incidentId, User $actor): void
     {
         DB::transaction(function () use ($incidentId, $actor): void {

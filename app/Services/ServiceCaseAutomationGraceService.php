@@ -151,6 +151,16 @@ class ServiceCaseAutomationGraceService
             }
 
             $this->automationMonitor->recordValidationFailed($incident, $actor);
+
+            $order = $incident->order;
+
+            if ($order !== null && $this->eligibilityService->isWaitingForCustomerSerial($order)) {
+                $this->automationMonitor->recordWaitingManualCorrection($incident, $actor);
+                $this->assignmentService->clearAutomationPending($incident, $actor);
+
+                return true;
+            }
+
             $this->automationMonitor->recordWaitingManualCorrection($incident, $actor);
 
             $this->assignmentService->assignViaRoundRobinAfterGracePeriod(

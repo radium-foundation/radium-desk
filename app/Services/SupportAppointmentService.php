@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\SupportAppointmentBookingSource;
 use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
+use App\Enums\WaitingReason;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
 use App\Models\User;
@@ -121,6 +122,7 @@ class SupportAppointmentService
         if ($result['should_notify']) {
             $this->sendConfirmationNotification($result['appointment'], $incident, $bookingSource);
             $this->assignAfterBooking($result['appointment'], $incident, $bookingSource);
+            $this->handleWaitingStateAfterBooking($incident);
         }
 
         return $result['appointment'];
@@ -266,6 +268,42 @@ class SupportAppointmentService
                 'appointment_id' => $appointment->id,
                 'incident_id' => $incident->id,
                 'booking_source' => $bookingSource->value,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function handleWaitingStateAfterBooking(Incident $incident): void
+    {
+        try {
+            $incident = $incident->fresh(['assignee', 'order', 'activeWaitingState', 'supportAppointments']);
+            $waitingStateService = app(IncidentWaitingStateService::class);
+            $waitingState = $waitingStateService->activeFor($incident);
+
+            if ($waitingState === null) {
+                return;
+            }
+
+            $reason = $waitingState->waiting_reason;
+            $systemUser = app(AutomationIdentityService::class)->systemUser();
+
+            if ($reason === WaitingReason::CustomerNotResponding) {
+                $waitingStateService->clear($incident, $systemUser);
+                $waitingStateService->wakeOwnerAfterCustomerResponse(
+                    $incident->fresh(['assignee', 'order', 'activeWaitingState', 'supportAppointments']),
+                    $reason,
+                );
+
+                return;
+            }
+
+            if ($reason === WaitingReason::SerialNumber) {
+                $waitingStateService->wakeOwnerAfterCustomerResponse($incident, $reason);
+            }
+        } catch (Throwable $exception) {
+            Log::error('support_appointment.book.waiting_state_unhandled', [
+                'incident_id' => $incident->id,
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
             ]);

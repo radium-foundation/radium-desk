@@ -104,7 +104,7 @@ class EscalationSpecialistAssignmentTest extends TestCase
         Carbon::setTestNow(now()->addSeconds(61));
 
         $this->assertSame(1, app(ServiceCaseAutomationGraceService::class)->processExpiredGracePeriods());
-        $this->assertSame($agent->id, $incident->fresh()->assigned_to_user_id);
+        $this->assertNull($incident->fresh()->assigned_to_user_id);
     }
 
     public function test_bonvoice_working_hours_round_robin_skips_escalation_specialist(): void
@@ -150,7 +150,7 @@ class EscalationSpecialistAssignmentTest extends TestCase
         Carbon::setTestNow(now()->addSeconds(61));
 
         $this->assertSame(1, app(ServiceCaseAutomationGraceService::class)->processExpiredGracePeriods());
-        $this->assertSame($agent->id, $incident->fresh()->assigned_to_user_id);
+        $this->assertNull($incident->fresh()->assigned_to_user_id);
     }
 
     public function test_support_appointment_smart_assignment_skips_escalation_specialist(): void
