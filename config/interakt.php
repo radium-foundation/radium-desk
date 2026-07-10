@@ -31,6 +31,17 @@ return [
             // Rollback template: order_confirm_manual_schedule (header {{1}} = order ID; body {{1}}/{{2}} as above).
             // Values are supplied at dispatch time by WhatsAppChannel for RequestSerialNumber notifications.
         ],
+        'request_correct_serial' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_REQUEST_CORRECT_SERIAL_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_REQUEST_CORRECT_SERIAL'),
+            'language_code' => env('INTERAKT_TEMPLATE_REQUEST_CORRECT_SERIAL_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REQUEST_CORRECT_SERIAL_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_REQUEST_CORRECT_SERIAL_DISPLAY', 'Serial Confirmation'),
+            'purpose' => 'Request Correct Serial',
+            'internal_note' => 'Asked customer to confirm the correct device serial number via approved WhatsApp template.',
+            // Same variable layout as request_serial_number: body {{1}} = customer name, {{2}} = order ID;
+            // CTA button uses tracked schedule token. Values supplied by WhatsAppChannel at dispatch time.
+        ],
         'repair_started' => [
             'enabled' => filter_var(env('INTERAKT_TEMPLATE_REPAIR_STARTED_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_REPAIR_STARTED'),

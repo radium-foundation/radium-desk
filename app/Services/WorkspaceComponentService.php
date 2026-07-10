@@ -12,9 +12,12 @@ use App\Models\Remark;
 use App\Models\User;
 use App\Services\DeviceModelSettingsService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
+use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
+use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
+use App\Services\SerialValidation\SerialInsightService;
 use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -25,9 +28,12 @@ class WorkspaceComponentService
         private readonly ServiceCaseAssignmentService $assignmentService,
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
+        private readonly RequestCorrectSerialEligibilityService $requestCorrectSerialEligibilityService,
+        private readonly SerialInsightService $serialInsightService,
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
         private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
         private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
+        private readonly RequestCorrectSerialCommunicationHistoryService $requestCorrectSerialCommunicationHistoryService,
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
     ) {}
 
@@ -55,6 +61,8 @@ class WorkspaceComponentService
             WorkspaceComponent::Timeline => $user->can('view', $incident),
             WorkspaceComponent::RequestSerialNumber => $user->can('update', $incident)
                 && $this->requestSerialEligibilityService->canShowAction($incident),
+            WorkspaceComponent::RequestCorrectSerial => $user->can('update', $incident)
+                && $this->requestCorrectSerialEligibilityService->canShowAction($incident),
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
         };
 
@@ -123,6 +131,10 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 ...$this->requestSerialWorkspaceFields($requestContext, $incident),
             ],
+            WorkspaceComponent::RequestCorrectSerial => [
+                'incident' => $incident,
+                ...$this->requestCorrectSerialWorkspaceFields($requestContext, $incident),
+            ],
             WorkspaceComponent::LinkOrder => [
                 'incident' => $incident,
                 ...$this->linkOrderWorkspaceFields($requestContext, $incident),
@@ -171,6 +183,42 @@ class WorkspaceComponentService
                 && $incident->activeWaitingState->waiting_reason === \App\Enums\WaitingReason::SerialNumber,
             'communicationHistory' => $order !== null
                 ? $this->requestSerialCommunicationHistoryService->forOrder($order)
+                : [
+                    'whatsapp' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],
+                    'email' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],
+                ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requestCorrectSerialWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $incident->loadMissing('order');
+        $order = $incident->order;
+        $channelAvailability = $this->channelAvailabilityService->forRequestCorrectSerial($order);
+        $insight = $order !== null ? $this->serialInsightService->analyze($order) : null;
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.request-correct-serial', $incident),
+            'workspaceContext' => $requestContext->context->value,
+            'customerName' => $order?->customer_name,
+            'customerPhone' => $order?->customer_phone,
+            'currentSerial' => $order?->serial_number,
+            'serialInsightStatus' => $insight?->status->label(),
+            'serialInsightConfidence' => $insight?->confidence->label(),
+            'serialInsightExplanation' => $insight?->explanation,
+            'channelAvailability' => $channelAvailability,
+            'canSendRequest' => $this->channelAvailabilityService->hasDeliverableChannel($channelAvailability),
+            'interaktTemplateDiagnostics' => $this->interaktTemplateConfigurationValidator
+                ->diagnosticsFor(WhatsAppTemplate::RequestCorrectSerial),
+            'communicationHistory' => $order !== null
+                ? $this->requestCorrectSerialCommunicationHistoryService->forOrder($order)
                 : [
                     'whatsapp' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],
                     'email' => ['status' => 'not_sent', 'status_label' => 'NOT SENT'],

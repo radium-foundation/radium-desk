@@ -31,11 +31,12 @@ class SerialLearningExportService
             validSerialCount: count($this->validSerials()),
             validSerials: $this->validSerials(),
             failedValidationCount: $failedResult->failureCount,
-            failedValidations: $this->failedValidations($failedResult),
+            failedValidations: $failedValidations = $this->failedValidations($failedResult),
             correctedHistoryCount: count($this->correctedHistory()),
             correctedHistory: $this->correctedHistory(),
             productMapping: $this->productMapping(),
             validationReasons: $this->validationReasons($failedResult),
+            insightAnalysis: $this->insightAnalysis($failedResult, $failedValidations),
         );
     }
 
@@ -206,5 +207,128 @@ class SerialLearningExportService
         arsort($reasons);
 
         return $reasons;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $failedValidations
+     * @return array<string, mixed>
+     */
+    private function insightAnalysis(
+        OrderIdentityValidationAnalysisBatchResult $result,
+        array $failedValidations,
+    ): array {
+        return [
+            'top_invalid_patterns' => $this->topInvalidPatterns($result),
+            'product_wise_failure_reasons' => $this->productWiseFailureReasons($result),
+            'confidence_tuning' => $this->confidenceTuning($failedValidations),
+        ];
+    }
+
+    /**
+     * @return list<array{pattern: string, count: int}>
+     */
+    private function topInvalidPatterns(OrderIdentityValidationAnalysisBatchResult $result): array
+    {
+        $patterns = [];
+
+        foreach ($result->failures as $failure) {
+            $groupKey = $failure->failureGroup->label();
+            $patterns[$groupKey] = ($patterns[$groupKey] ?? 0) + 1;
+
+            if (filled($failure->ruleFailed)) {
+                $ruleKey = 'Rule: '.$failure->ruleFailed;
+                $patterns[$ruleKey] = ($patterns[$ruleKey] ?? 0) + 1;
+            }
+        }
+
+        arsort($patterns);
+
+        return collect($patterns)
+            ->take(15)
+            ->map(fn (int $count, string $pattern): array => [
+                'pattern' => $pattern,
+                'count' => $count,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, array<string, int>>
+     */
+    private function productWiseFailureReasons(OrderIdentityValidationAnalysisBatchResult $result): array
+    {
+        $grouped = [];
+
+        foreach ($result->failures as $failure) {
+            $product = trim((string) ($failure->productName ?: $failure->deviceModel ?: 'unknown'));
+
+            if ($product === '') {
+                $product = 'unknown';
+            }
+
+            $reason = trim((string) ($failure->failureReason ?? 'unknown'));
+
+            if ($reason === '') {
+                $reason = 'unknown';
+            }
+
+            $grouped[$product][$reason] = ($grouped[$product][$reason] ?? 0) + 1;
+        }
+
+        foreach ($grouped as $product => $reasons) {
+            arsort($grouped[$product]);
+        }
+
+        ksort($grouped);
+
+        return $grouped;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $failedValidations
+     * @return array<string, mixed>
+     */
+    private function confidenceTuning(array $failedValidations): array
+    {
+        $distribution = [];
+
+        foreach ($failedValidations as $row) {
+            $key = ($row['insight_status'] ?? 'unknown').':'.($row['insight_confidence'] ?? 'unknown');
+            $distribution[$key] = ($distribution[$key] ?? 0) + 1;
+        }
+
+        ksort($distribution);
+
+        $total = array_sum($distribution);
+        $recommendations = [];
+
+        if ($total === 0) {
+            return [
+                'distribution' => $distribution,
+                'recommendations' => $recommendations,
+            ];
+        }
+
+        $suspiciousHigh = $distribution['suspicious:high'] ?? 0;
+        $warningMedium = $distribution['warning:medium'] ?? 0;
+        $warningLow = $distribution['warning:low'] ?? 0;
+
+        if ($suspiciousHigh / $total >= 0.4) {
+            $recommendations[] = 'High-confidence suspicious serials dominate failures; enable agent correct-serial outreach.';
+        }
+
+        if ($warningMedium + $warningLow > 0 && ($warningMedium + $warningLow) / $total >= 0.3) {
+            $recommendations[] = 'Many warning-tier serials need manual verification before automation.';
+        }
+
+        if (($distribution['suspicious:medium'] ?? 0) / $total >= 0.25) {
+            $recommendations[] = 'Medium-confidence suspicious cases benefit from SerialInsight review before customer contact.';
+        }
+
+        return [
+            'distribution' => $distribution,
+            'recommendations' => $recommendations,
+        ];
     }
 }

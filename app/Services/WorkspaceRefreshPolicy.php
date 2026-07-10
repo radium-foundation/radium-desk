@@ -93,6 +93,9 @@ class WorkspaceRefreshPolicy
             WorkspaceComponent::RequestSerialNumber => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),
+            WorkspaceComponent::RequestCorrectSerial => new WorkspaceRefreshEffects(
+                closeWorkspaceHost: true,
+            ),
             WorkspaceComponent::LinkOrder => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),

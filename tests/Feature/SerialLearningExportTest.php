@@ -83,6 +83,7 @@ class SerialLearningExportTest extends TestCase
         $this->assertIsString($contents);
         $this->assertStringContainsString('valid_serials', $contents);
         $this->assertStringContainsString('product_mapping', $contents);
+        $this->assertStringContainsString('insight_analysis', $contents);
 
         unlink($outputPath);
     }

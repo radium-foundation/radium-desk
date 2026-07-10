@@ -17,6 +17,7 @@ use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
 use App\Services\WorkspaceRemarkActionService;
 use App\Services\WorkspaceLinkOrderActionService;
+use App\Services\WorkspaceRequestCorrectSerialActionService;
 use App\Services\WorkspaceRequestSerialActionService;
 use App\Services\WorkspaceResolveActionService;
 use Illuminate\Http\JsonResponse;
@@ -32,6 +33,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceResolveActionService $resolveActionService,
         private readonly WorkspaceCloseActionService $closeActionService,
         private readonly WorkspaceRequestSerialActionService $requestSerialActionService,
+        private readonly WorkspaceRequestCorrectSerialActionService $requestCorrectSerialActionService,
         private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
@@ -133,6 +135,22 @@ class WorkspaceActionController extends Controller
         $requestContext = $this->contextResolver->resolve($request, $incident);
 
         $response = $this->requestSerialActionService->send(
+            incident: $incident,
+            actor: $request->user(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function requestCorrectSerial(Request $request, Incident $incident): JsonResponse
+    {
+        $this->authorize('update', $incident);
+
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->requestCorrectSerialActionService->send(
             incident: $incident,
             actor: $request->user(),
             requestContext: $requestContext,

@@ -23,6 +23,7 @@ class Customer360ExecutiveSummaryTest extends TestCase
         config([
             'interakt.api_key' => 'test-interakt-key',
             'interakt.templates.request_serial_number.name' => 'order_update_request_serial',
+            'interakt.templates.request_correct_serial.name' => 'order_update_request_correct_serial',
         ]);
 
         $this->seed(RolePermissionSeeder::class);
@@ -121,6 +122,8 @@ class Customer360ExecutiveSummaryTest extends TestCase
         $this->assertStringContainsString('Serial Intelligence', $summaryHtml);
         $this->assertStringContainsString('product code', $summaryHtml);
         $this->assertStringContainsString('WhatsApp', $summaryHtml);
+        $this->assertStringContainsString('Serial number गलत लग रहा है', $summaryHtml);
+        $this->assertStringContainsString('Send request', $summaryHtml);
     }
 
     /**

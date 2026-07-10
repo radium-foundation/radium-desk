@@ -15,6 +15,10 @@ use Illuminate\Support\Str;
 
 class SerialInsightService
 {
+    private const SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP = 'Serial number गलत लग रहा है. Customer को सही serial WhatsApp पर भेजने के लिए कहें.';
+
+    private const SUGGEST_REQUEST_SERIAL_VIA_WHATSAPP = 'Customer को WhatsApp पर serial number भेजने के लिए कहें।';
+
     public function __construct(
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
@@ -38,7 +42,7 @@ class SerialInsightService
                 status: SerialInsightStatus::Missing,
                 confidence: SerialInsightConfidence::High,
                 explanation: 'Device serial number is missing.',
-                suggestedAction: 'Customer से serial number माँगें।',
+                suggestedAction: self::SUGGEST_REQUEST_SERIAL_VIA_WHATSAPP,
                 technicalReason: (string) config('serial_validation.placeholder_reason', 'Waiting for customer serial'),
             );
         }
@@ -62,7 +66,7 @@ class SerialInsightService
                 status: SerialInsightStatus::Warning,
                 confidence: SerialInsightConfidence::Medium,
                 explanation: "Serial number looks unusual for {$productLabel}; verify with RadiumBox before proceeding.",
-                suggestedAction: 'RadiumBox से serial verify करें।',
+                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $validation->reason,
             );
         }
@@ -72,7 +76,7 @@ class SerialInsightService
                 status: SerialInsightStatus::Pending,
                 confidence: SerialInsightConfidence::High,
                 explanation: 'Serial number is still pending from the customer.',
-                suggestedAction: 'Customer से serial number माँगें।',
+                suggestedAction: self::SUGGEST_REQUEST_SERIAL_VIA_WHATSAPP,
                 technicalReason: $validation->reason,
             );
         }
@@ -94,7 +98,7 @@ class SerialInsightService
                 status: SerialInsightStatus::Suspicious,
                 confidence: SerialInsightConfidence::High,
                 explanation: 'Customer ने शायद product code भेजा है serial नहीं।',
-                suggestedAction: 'Serial number गलत लग रहा है. Customer को सही serial भेजने के लिए WhatsApp करें.',
+                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $technicalReason,
             );
         }
@@ -105,7 +109,7 @@ class SerialInsightService
                 status: SerialInsightStatus::Suspicious,
                 confidence: SerialInsightConfidence::High,
                 explanation: 'Serial RadiumBox data से match नहीं हो रहा।',
-                suggestedAction: 'Serial number गलत लग रहा है. Customer को सही serial भेजने के लिए WhatsApp करें.',
+                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $technicalReason,
             );
         }
@@ -117,7 +121,7 @@ class SerialInsightService
                 status: SerialInsightStatus::Suspicious,
                 confidence: SerialInsightConfidence::Medium,
                 explanation: $patternExplanation,
-                suggestedAction: 'Serial number गलत लग रहा है. Customer को सही serial भेजने के लिए WhatsApp करें.',
+                suggestedAction: self::SUGGEST_CORRECT_SERIAL_VIA_WHATSAPP,
                 technicalReason: $technicalReason,
             );
         }

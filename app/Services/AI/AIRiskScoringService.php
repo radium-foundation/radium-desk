@@ -20,6 +20,10 @@ class AIRiskScoringService
             $indicators[] = new AIRiskIndicatorDTO('High SLA Risk', AIRiskLevel::High);
         }
 
+        if ($context->operationalIntelligence->repeatContactHighUrgency) {
+            $indicators[] = new AIRiskIndicatorDTO('Repeat Contact Risk', AIRiskLevel::High);
+        }
+
         if ($context->customerIntelligence->repeatIssueDetected) {
             $indicators[] = new AIRiskIndicatorDTO('Repeat Failure Risk', AIRiskLevel::High);
         }

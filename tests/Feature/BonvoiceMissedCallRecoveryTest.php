@@ -380,10 +380,21 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
         $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
         $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
 
-        $order = $this->seedCustomerOrder('9876543210');
+        $this->seedCustomerOrder('9876543210');
+
+        $otherOrder = Order::query()->create([
+            'order_id' => 'RD-MCR-OTHER-'.uniqid(),
+            'serial_number' => 'SN-MCR-OTHER-'.uniqid(),
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Other Customer',
+            'customer_phone' => '9000000001',
+            'status' => 'active',
+            'created_by' => $nightAdmin->id,
+        ]);
 
         $otherCase = Incident::query()->create([
-            'order_id' => $order->id,
+            'order_id' => $otherOrder->id,
             'reference_no' => app(IncidentReferenceService::class)->generate(),
             'category' => 'General',
             'source' => IncidentSource::Email,
@@ -428,6 +439,204 @@ class BonvoiceMissedCallRecoveryTest extends TestCase
             'call_id' => 'call-missed-resolve-002',
             'link_type' => 'answered',
         ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_four_missed_calls_same_customer_create_one_incident_with_four_links(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->seedCustomerOrder('9876543210');
+
+        foreach (['call-four-001', 'call-four-002', 'call-four-003', 'call-four-004'] as $callId) {
+            $this->postMissedCall($callId);
+        }
+
+        $this->assertSame(1, Incident::query()->where('order_id', Order::query()->where('customer_phone', '9876543210')->value('id'))->whereIn('status', IncidentStatus::operationallyActive())->count());
+
+        $incident = Incident::query()
+            ->whereIn('status', IncidentStatus::operationallyActive())
+            ->whereHas('order', fn ($query) => $query->where('customer_phone', '9876543210'))
+            ->first();
+
+        $this->assertNotNull($incident);
+        $this->assertSame(4, $incident->missed_call_attempt_count);
+        $this->assertSame(4, IncidentBonvoiceCallLink::query()->where('incident_id', $incident->id)->where('link_type', 'missed')->count());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_missed_call_attaches_to_existing_general_service_case(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $order = $this->seedCustomerOrder('9876543210');
+
+        $generalCase = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Existing service case',
+            'description' => 'Open before missed call.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $nightAdmin->id,
+        ]);
+
+        $this->postMissedCall('call-general-merge-001');
+
+        $this->assertSame(1, Incident::query()->where('order_id', $order->id)->whereIn('status', IncidentStatus::operationallyActive())->count());
+        $generalCase->refresh();
+
+        $this->assertSame('General', $generalCase->category);
+        $this->assertSame(1, $generalCase->missed_call_attempt_count);
+        $this->assertDatabaseHas('incident_bonvoice_call_links', [
+            'incident_id' => $generalCase->id,
+            'call_id' => 'call-general-merge-001',
+            'link_type' => 'missed',
+        ]);
+        $this->assertDatabaseMissing('incidents', [
+            'order_id' => $order->id,
+            'category' => BonvoiceMissedCallRecoveryService::CATEGORY,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_assigned_agent_is_preserved_when_missed_call_merges(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+
+        $dayAdmin = $this->createAdminUser('day-admin@test.com', 'Day Admin');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $dayAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $assignedAgent = $this->createEligibleAgent('assigned-agent@test.com', 'Assigned Agent');
+        $roundRobinAgent = $this->createEligibleAgent('round-robin@test.com', 'Round Robin Agent');
+
+        $order = $this->seedCustomerOrder('9876543210');
+
+        $generalCase = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'Assigned service case',
+            'description' => 'Already assigned.',
+            'status' => IncidentStatus::Open,
+            'assigned_to_user_id' => $assignedAgent->id,
+            'created_by' => $assignedAgent->id,
+            'updated_by' => $assignedAgent->id,
+        ]);
+
+        $this->postMissedCall('call-preserve-agent-001');
+        $this->postMissedCall('call-preserve-agent-002');
+
+        $generalCase->refresh();
+
+        $this->assertSame($assignedAgent->id, $generalCase->assigned_to_user_id);
+        $this->assertNotSame($roundRobinAgent->id, $generalCase->assigned_to_user_id);
+        $this->assertSame(2, $generalCase->missed_call_attempt_count);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_answered_call_attaches_to_existing_general_case_without_resolving(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $order = $this->seedCustomerOrder('9876543210');
+
+        $generalCase = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Email,
+            'title' => 'General callback case',
+            'description' => 'Should stay open after answered call.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $nightAdmin->id,
+        ]);
+
+        $this->postMissedCall('call-general-answered-001');
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-general-answered-002',
+            status: 'Ringing',
+            eventId: 'evt-general-ringing-002',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-general-answered-002',
+            status: 'Answered',
+            agentStatus: 'On Call',
+            eventId: 'evt-general-answered-002',
+        ))->assertOk();
+
+        $generalCase->refresh();
+
+        $this->assertSame(IncidentStatus::Open, $generalCase->status);
+        $this->assertDatabaseHas('incident_bonvoice_call_links', [
+            'incident_id' => $generalCase->id,
+            'call_id' => 'call-general-answered-001',
+            'link_type' => 'missed',
+        ]);
+        $this->assertDatabaseHas('incident_bonvoice_call_links', [
+            'incident_id' => $generalCase->id,
+            'call_id' => 'call-general-answered-002',
+            'link_type' => 'answered',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'missed_call_recovery.answered_attached',
+            'auditable_id' => $generalCase->id,
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_closed_recovery_case_allows_new_incident_on_next_missed_call(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-09 22:00:00', 'Asia/Kolkata'));
+
+        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
+        $this->configureAssignmentSettings(dayAdminId: $nightAdmin->id, nightAdminId: $nightAdmin->id);
+
+        $this->seedCustomerOrder('9876543210');
+
+        $this->postMissedCall('call-closed-new-001');
+
+        $firstCase = Incident::query()
+            ->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)
+            ->firstOrFail();
+
+        $firstCase->update([
+            'status' => IncidentStatus::Closed,
+            'updated_by' => $nightAdmin->id,
+        ]);
+
+        $this->postMissedCall('call-closed-new-002');
+
+        $this->assertSame(2, Incident::query()
+            ->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)
+            ->count());
+
+        $secondCase = Incident::query()
+            ->where('category', BonvoiceMissedCallRecoveryService::CATEGORY)
+            ->where('id', '!=', $firstCase->id)
+            ->first();
+
+        $this->assertNotNull($secondCase);
+        $this->assertTrue($secondCase->isActive());
 
         Carbon::setTestNow();
     }

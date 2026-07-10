@@ -86,13 +86,29 @@ class NotificationTimelineEventMapper
         $status = strtolower((string) ($record['status'] ?? ''));
         $success = (bool) ($record['success'] ?? false);
         $channelLabel = $channel === NotificationChannelType::Email ? 'Email' : 'WhatsApp';
-        $title = $this->channelTitle($channelLabel, $status, $success);
+        $title = $this->channelTitle($channelLabel, $status, $success, $notificationType);
         $eventType = $channel === NotificationChannelType::Email
             ? TimelineEventType::Email
             : TimelineEventType::WhatsApp;
 
         [$statusLabel, $statusVariant] = $this->statusPresentation($status, $success);
         $detail = $this->channelDetail($record, $status);
+        $summaryFields = [
+            ['label' => 'Type', 'value' => $this->notificationTypeLabel($notificationType)],
+            ['label' => 'Channel', 'value' => $channelLabel],
+        ];
+
+        $serialCorrection = $auditLog->new_values['serial_correction'] ?? null;
+
+        if (is_array($serialCorrection)) {
+            if (filled($serialCorrection['old_serial'] ?? null)) {
+                $summaryFields[] = ['label' => 'Previous serial', 'value' => (string) $serialCorrection['old_serial']];
+            }
+
+            if (filled($serialCorrection['confidence'] ?? null)) {
+                $summaryFields[] = ['label' => 'Confidence', 'value' => (string) $serialCorrection['confidence']];
+            }
+        }
 
         return new TimelineEvent(
             type: $eventType,
@@ -108,20 +124,32 @@ class NotificationTimelineEventMapper
             detail: $detail,
             statusLabel: $statusLabel,
             statusVariant: $statusVariant,
-            summaryFields: [
-                ['label' => 'Type', 'value' => $notificationType],
-                ['label' => 'Channel', 'value' => $channelLabel],
-            ],
+            summaryFields: $summaryFields,
             filterTags: ['notifications'],
         );
     }
 
-    private function channelTitle(string $channelLabel, string $status, bool $success): string
+    private function notificationTypeLabel(string $notificationType): string
     {
+        return match ($notificationType) {
+            'request_correct_serial' => 'Request correct serial',
+            'request_serial_number' => 'Request serial number',
+            default => str_replace('_', ' ', $notificationType),
+        };
+    }
+
+    private function channelTitle(string $channelLabel, string $status, bool $success, string $notificationType = ''): string
+    {
+        $prefix = $notificationType === 'request_correct_serial'
+            ? 'Serial correction'
+            : $channelLabel;
+
         return match (true) {
-            $status === 'queued' => "{$channelLabel} queued",
-            $status === 'delivered' => "{$channelLabel} delivered",
-            $status === 'sent' && $success => "{$channelLabel} sent",
+            $status === 'queued' => "{$prefix} queued",
+            $status === 'delivered' => "{$prefix} delivered",
+            $status === 'sent' && $success => $notificationType === 'request_correct_serial'
+                ? 'Serial correction request sent'
+                : "{$channelLabel} sent",
             $status === 'retry' => "{$channelLabel} retry",
             ! $success => "{$channelLabel} failed",
             default => "{$channelLabel} sent",

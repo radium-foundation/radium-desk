@@ -21,6 +21,11 @@ class NotificationMailTemplateRegistry
                 view: 'emails.notifications.request-serial-number',
                 requiredVariables: ['customer_name', 'booking_url'],
             ),
+            NotificationType::RequestCorrectSerial => new NotificationMailTemplateDefinition(
+                subject: 'Please Confirm Your Device Serial Number',
+                view: 'emails.notifications.request-correct-serial',
+                requiredVariables: ['customer_name', 'order_id', 'booking_url'],
+            ),
             NotificationType::CustomerWaitingFollowup => new NotificationMailTemplateDefinition(
                 subject: 'Support Reminder: Request {reference} waiting for your response',
                 view: 'emails.notifications.customer-waiting-followup',
@@ -47,6 +52,13 @@ class NotificationMailTemplateRegistry
         $defaults = match ($message->type) {
             NotificationType::RequestSerialNumber => [
                 'customer_name' => $this->resolveCustomerName($message),
+                'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
+            ],
+            NotificationType::RequestCorrectSerial => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'order_id' => $message->customer instanceof Order
+                    ? trim((string) $message->customer->order_id)
+                    : '',
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
             ],
             NotificationType::CustomerWaitingFollowup => [

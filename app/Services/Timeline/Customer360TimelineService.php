@@ -9,6 +9,7 @@ use App\Services\AutomationIdentityService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\Timeline\Sources\AppointmentTimelineEventSource;
 use App\Services\Timeline\Sources\BonVoiceCallTimelineEventSource;
+use App\Services\Timeline\Sources\CorrectSerialRequestTimelineEventSource;
 use App\Services\Timeline\Sources\NotificationTimelineEventSource;
 use App\Services\Timeline\Sources\OrderCustomerTimelineSource;
 use App\Services\Timeline\Sources\RadiumBoxSyncTimelineEventSource;
@@ -99,6 +100,9 @@ class Customer360TimelineService
             app()->makeWith(NotificationTimelineEventSource::class, [
                 'order' => $order,
             ]),
+            new CorrectSerialRequestTimelineEventSource(
+                order: $order,
+            ),
             app()->makeWith(RadiumBoxSyncTimelineEventSource::class, [
                 'order' => $order,
             ]),

@@ -18,5 +18,7 @@ readonly class OperationalIntelligenceDTO
         public string $automationStatus,
         public string $timelineSummary,
         public string $internalRemarksSummary,
+        public ?string $repeatContactSummary = null,
+        public bool $repeatContactHighUrgency = false,
     ) {}
 }

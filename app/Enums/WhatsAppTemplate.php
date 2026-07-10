@@ -5,6 +5,7 @@ namespace App\Enums;
 enum WhatsAppTemplate: string
 {
     case RequestSerialNumber = 'request_serial_number';
+    case RequestCorrectSerial = 'request_correct_serial';
     case RepairStarted = 'repair_started';
     case RepairCompleted = 'repair_completed';
     case ReadyForDispatch = 'ready_for_dispatch';
@@ -17,6 +18,7 @@ enum WhatsAppTemplate: string
     {
         return match ($this) {
             self::RequestSerialNumber => 'Request Serial Number',
+            self::RequestCorrectSerial => 'Request Correct Serial',
             self::RepairStarted => 'Repair Started',
             self::RepairCompleted => 'Repair Completed',
             self::ReadyForDispatch => 'Ready for Dispatch',

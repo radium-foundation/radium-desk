@@ -4,6 +4,7 @@
     $displayValue = fn (?string $value) => filled($value) ? $value : 'Not Available';
     $lastPayment = $healthCard['last_payment'] ?? null;
     $lastCall = $healthCard['last_call'] ?? null;
+    $repeatContact = $healthCard['repeat_contact'] ?? null;
 @endphp
 
 <section class="customer-360-health-card" data-customer-360-section="health-card" aria-labelledby="customer-360-health-heading">
@@ -88,6 +89,22 @@
                     </time>
                 @else
                     <span class="customer-360-health-placeholder">No calls yet</span>
+                @endif
+            </dd>
+        </div>
+        <div @class([
+            'customer-360-health-item',
+            'customer-360-health-item--placeholder' => ! filled($repeatContact['summary'] ?? null),
+        ])>
+            <dt><i class="bi bi-telephone-forward" aria-hidden="true"></i> Call Activity Today</dt>
+            <dd>
+                @if(filled($repeatContact['summary'] ?? null))
+                    <span class="customer-360-health-value">{{ $repeatContact['summary'] }}</span>
+                    @if($repeatContact['high_urgency'] ?? false)
+                        <span class="badge text-bg-danger ms-1">Prioritize callback</span>
+                    @endif
+                @else
+                    <span class="customer-360-health-placeholder">No calls today</span>
                 @endif
             </dd>
         </div>

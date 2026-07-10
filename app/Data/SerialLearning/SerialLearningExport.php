@@ -10,6 +10,7 @@ readonly class SerialLearningExport
      * @param  list<array<string, mixed>>  $correctedHistory
      * @param  list<array<string, mixed>>  $productMapping
      * @param  array<string, int>  $validationReasons
+     * @param  array<string, mixed>  $insightAnalysis
      */
     public function __construct(
         public string $exportedAt,
@@ -21,6 +22,7 @@ readonly class SerialLearningExport
         public array $correctedHistory,
         public array $productMapping,
         public array $validationReasons,
+        public array $insightAnalysis = [],
     ) {}
 
     /**
@@ -44,6 +46,7 @@ readonly class SerialLearningExport
             ],
             'product_mapping' => $this->productMapping,
             'validation_reasons' => $this->validationReasons,
+            'insight_analysis' => $this->insightAnalysis,
         ];
     }
 }

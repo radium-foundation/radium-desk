@@ -14,9 +14,12 @@ use App\Services\AI\AIWorkbenchService;
 use App\Services\AI\CustomerScopeQueryCache;
 use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\Bonvoice\BonvoiceCustomerCallService;
+use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\Customer360\Customer360OperationsHealthService;
 use App\Services\Customer360\Customer360SlaMetricsService;
 use App\Services\Operations\OperationsAdvisorService;
+use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
+use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
@@ -37,8 +40,10 @@ class Customer360Service
         private readonly RadiumBoxSyncTimelineService $syncTimelineService,
         private readonly RadiumBoxSyncErrorFormatter $syncErrorFormatter,
         private readonly RequestSerialNumberEligibilityService $requestSerialEligibilityService,
+        private readonly RequestCorrectSerialEligibilityService $requestCorrectSerialEligibilityService,
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
         private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
+        private readonly RequestCorrectSerialCommunicationHistoryService $requestCorrectSerialCommunicationHistoryService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly AIService $aiService,
         private readonly OperationsAdvisorService $operationsAdvisorService,
@@ -47,6 +52,7 @@ class Customer360Service
         private readonly Customer360OperationsHealthService $operationsHealthService,
         private readonly Customer360SlaMetricsService $slaMetricsService,
         private readonly BonvoiceCustomerCallService $bonvoiceCustomerCallService,
+        private readonly BonvoiceCustomerContactIntelligenceService $bonvoiceContactIntelligenceService,
     ) {}
 
     /**
@@ -87,9 +93,11 @@ class Customer360Service
             'summary' => $summary,
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary),
             'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
+            'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
             'canLinkOrder' => auth()->user() !== null
                 && $this->inquiryOrderLinkEligibilityService->canShowAction($incident, auth()->user()),
             'serialRequestState' => $this->serialRequestState($order),
+            'correctSerialRequestState' => $this->correctSerialRequestState($order),
             'waitingStateCard' => $waitingStateCard,
             'supportAppointments' => $incident->supportAppointments,
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
@@ -136,6 +144,7 @@ class Customer360Service
             'html' => view('customer-360.partials.executive-summary', [
                 'incident' => $incident,
                 'executiveSummary' => $executiveSummary,
+                'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
             ])->render(),
         ];
     }
@@ -432,6 +441,10 @@ class Customer360Service
     ): array {
         $warranty = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
         $communication = $this->requestSerialCommunicationHistoryService->forCustomerPhone($order->customer_phone);
+        $repeatContact = $this->bonvoiceContactIntelligenceService->forCustomerPhone(
+            $order->customer_phone,
+            ($summary['open_cases'] ?? 0) > 0,
+        );
 
         return [
             'name' => $customer['name'],
@@ -444,6 +457,15 @@ class Customer360Service
             'last_email' => $communication['email'],
             'last_interaction_at' => null,
             'last_call' => $this->bonvoiceCustomerCallService->lastCallSummary($order->customer_phone),
+            'repeat_contact' => $repeatContact === null ? null : [
+                'summary' => $repeatContact->summaryLine,
+                'total_today' => $repeatContact->totalToday,
+                'missed_today' => $repeatContact->missedToday,
+                'answered_today' => $repeatContact->answeredToday,
+                'last_contact_at' => $repeatContact->lastContactAt,
+                'contacts_last_24_hours' => $repeatContact->contactsLast24Hours,
+                'high_urgency' => $repeatContact->highUrgency,
+            ],
         ];
     }
 
@@ -544,6 +566,50 @@ class Customer360Service
     }
 
     /**
+     * @return array{
+     *     requested: bool,
+     *     requested_at: \Illuminate\Support\Carbon|null,
+     *     requested_at_label: string|null,
+     * }
+     */
+    private function correctSerialRequestState(Order $order): array
+    {
+        if ($order->isProductOrder() || $order->isInquiryOrder()) {
+            return [
+                'requested' => false,
+                'requested_at' => null,
+                'requested_at_label' => null,
+            ];
+        }
+
+        $history = $this->requestCorrectSerialCommunicationHistoryService->forOrder($order);
+        $whatsappSent = ($history['whatsapp']['status'] ?? null) === 'sent';
+        $emailSent = ($history['email']['status'] ?? null) === 'sent';
+
+        if (! $whatsappSent && ! $emailSent) {
+            return [
+                'requested' => false,
+                'requested_at' => null,
+                'requested_at_label' => null,
+            ];
+        }
+
+        $requestedAt = $this->latestSerialRequestTimestamp(
+            $whatsappSent ? ($history['whatsapp']['last_sent_at'] ?? null) : null,
+            $emailSent ? ($history['email']['last_sent_at'] ?? null) : null,
+        );
+
+        return [
+            'requested' => true,
+            'requested_at' => $requestedAt,
+            'requested_at_label' => AppDateFormatter::format(
+                $requestedAt,
+                RequestCorrectSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
+            ),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function emptyDrawerData(Incident $incident): array
@@ -596,8 +662,14 @@ class Customer360Service
                 'last_call' => null,
             ],
             'canRequestSerialNumber' => false,
+            'canRequestCorrectSerial' => false,
             'canLinkOrder' => false,
             'serialRequestState' => [
+                'requested' => false,
+                'requested_at' => null,
+                'requested_at_label' => null,
+            ],
+            'correctSerialRequestState' => [
                 'requested' => false,
                 'requested_at' => null,
                 'requested_at_label' => null,

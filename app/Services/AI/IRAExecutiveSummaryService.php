@@ -125,6 +125,12 @@ class IRAExecutiveSummaryService
             $lines[] = $slaLine;
         }
 
+        $repeatContactLine = trim((string) ($context->operationalIntelligence->repeatContactSummary ?? ''));
+
+        if ($repeatContactLine !== '') {
+            $lines[] = $repeatContactLine;
+        }
+
         if ($lines === []) {
             $lines[] = 'Review the current service case context before contacting the customer.';
         }
@@ -157,6 +163,10 @@ class IRAExecutiveSummaryService
 
         if ($context->serialMissing || $serialInsight?->status === SerialInsightStatus::Missing) {
             return 'This appears to be a straightforward serial-number pending case. Obtaining the serial should unblock warranty validation and allow engineering to proceed.';
+        }
+
+        if ($context->operationalIntelligence->repeatContactHighUrgency) {
+            return 'Customer tried contacting multiple times. Prioritize callback.';
         }
 
         if ($context->customerIntelligence->repeatIssueDetected) {
@@ -228,6 +238,10 @@ class IRAExecutiveSummaryService
 
         if ($context->isWarrantyExpired()) {
             return 'Confirm chargeable repair expectations with the customer before engineering begins work.';
+        }
+
+        if ($context->operationalIntelligence->repeatContactHighUrgency) {
+            return 'Prioritize callback now, confirm ownership stays with the assigned agent, and update the customer immediately.';
         }
 
         if ($context->customerIntelligence->repeatIssueDetected) {

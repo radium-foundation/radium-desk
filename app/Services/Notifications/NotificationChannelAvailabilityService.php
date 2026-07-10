@@ -26,7 +26,18 @@ class NotificationChannelAvailabilityService
     {
         return [
             'whatsapp' => $this->assessWhatsApp($order, WhatsAppTemplate::RequestSerialNumber),
-            'email' => $this->assessEmail($order),
+            'email' => $this->assessEmailForNotificationType($order, NotificationType::RequestSerialNumber),
+        ];
+    }
+
+    /**
+     * @return array{whatsapp: array<string, mixed>, email: array<string, mixed>}
+     */
+    public function forRequestCorrectSerial(?Order $order): array
+    {
+        return [
+            'whatsapp' => $this->assessWhatsApp($order, WhatsAppTemplate::RequestCorrectSerial),
+            'email' => $this->assessEmailForNotificationType($order, NotificationType::RequestCorrectSerial),
         ];
     }
 

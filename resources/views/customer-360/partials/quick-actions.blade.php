@@ -71,6 +71,31 @@
             </button>
         @endif
 
+        @if($correctSerialRequestState['requested'] ?? false)
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm customer-360-quick-action customer-360-quick-action--serial-requested"
+                    disabled
+                    title="Serial correction request already sent">
+                <span class="customer-360-serial-requested-content">
+                    <span class="customer-360-serial-requested-label">
+                        <span aria-hidden="true">✓</span> Correction Requested
+                    </span>
+                    @if(filled($correctSerialRequestState['requested_at_label'] ?? null))
+                        <span class="customer-360-serial-requested-at">{{ $correctSerialRequestState['requested_at_label'] }}</span>
+                    @endif
+                </span>
+            </button>
+        @elseif($canRequestCorrectSerial ?? false)
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm customer-360-quick-action"
+                    data-workspace-trigger="request-correct-serial"
+                    data-workspace-incident-id="{{ $incident->id }}"
+                    data-workspace-context="customer"
+                    title="Ask customer to confirm the correct device serial number">
+                <span aria-hidden="true">🔁</span> Request Correct Serial
+            </button>
+        @endif
+
         @if($canLinkOrder ?? false)
             <button type="button"
                     class="btn btn-outline-secondary btn-sm customer-360-quick-action"

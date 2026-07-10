@@ -25,6 +25,7 @@ class EmailChannel implements NotificationChannel
     {
         return match ($type) {
             NotificationType::RequestSerialNumber,
+            NotificationType::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup,
             NotificationType::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed => true,

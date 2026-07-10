@@ -105,7 +105,7 @@ class BonvoiceMissedCallRecoveryService
         $enrichmentOrder = null;
 
         DB::transaction(function () use ($event, $recoveryPhone, $actor, $at, $match, &$enrichmentOrder): void {
-            $existing = $this->findOpenRecoveryCaseForUpdate($recoveryPhone);
+            $existing = $this->findActiveIncidentForContact($recoveryPhone, $match);
 
             if ($existing instanceof Incident) {
                 $this->mergeMissedCall($existing, $event, $recoveryPhone, $actor, $at);
@@ -336,34 +336,46 @@ class BonvoiceMissedCallRecoveryService
             return;
         }
 
+        if ($this->linkExists($event, BonvoiceCallLinkType::Answered)) {
+            return;
+        }
+
         $recoveryPhone = $this->resolveRecoveryPhone($event->customer_phone);
 
         if ($recoveryPhone === null) {
             return;
         }
 
+        $match = $this->customerResolver->resolve($event->customer_phone);
         $actor = $this->automationIdentity->systemUser();
 
-        DB::transaction(function () use ($event, $recoveryPhone, $actor): void {
-            $cases = Incident::query()
-                ->where('category', self::CATEGORY)
-                ->where('recovery_phone', $recoveryPhone)
-                ->whereIn('status', IncidentStatus::operationallyActive())
-                ->lockForUpdate()
-                ->get();
+        DB::transaction(function () use ($event, $recoveryPhone, $match, $actor): void {
+            $incident = $this->findActiveIncidentForContact($recoveryPhone, $match);
 
-            if ($cases->count() !== 1) {
-                return;
-            }
-
-            /** @var Incident $incident */
-            $incident = $cases->first();
-
-            if ($incident->status === IncidentStatus::Resolved) {
+            if (! $incident instanceof Incident) {
                 return;
             }
 
             $this->linkCall($incident, $event, BonvoiceCallLinkType::Answered);
+
+            if ($incident->category !== self::CATEGORY) {
+                $this->auditLogService->log(
+                    userId: $actor->id,
+                    event: 'missed_call_recovery.answered_attached',
+                    auditable: $incident->fresh(),
+                    newValues: [
+                        'recovery_phone' => $recoveryPhone,
+                        'call_id' => $event->call_id,
+                        'category' => $incident->category,
+                    ],
+                );
+
+                return;
+            }
+
+            if ($incident->status === IncidentStatus::Resolved) {
+                return;
+            }
 
             $resolved = $this->statusService->updateStatus($incident, IncidentStatus::Resolved, $actor);
 
@@ -468,15 +480,112 @@ class BonvoiceMissedCallRecoveryService
         return $assigned;
     }
 
-    private function findOpenRecoveryCaseForUpdate(string $recoveryPhone): ?Incident
+    /**
+     * @param  array{
+     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     customer_phone: ?string,
+     *     order_id: ?int,
+     *     order_label: ?string,
+     *     incident_id: ?int,
+     * }  $match
+     */
+    private function findActiveIncidentForContact(string $recoveryPhone, array $match): ?Incident
     {
-        return Incident::query()
-            ->where('category', self::CATEGORY)
-            ->where('recovery_phone', $recoveryPhone)
-            ->whereIn('status', IncidentStatus::operationallyActive())
+        $activeStatuses = IncidentStatus::operationallyActive();
+
+        if ($match['incident_id'] !== null) {
+            $incident = Incident::query()
+                ->whereKey($match['incident_id'])
+                ->whereIn('status', $activeStatuses)
+                ->lockForUpdate()
+                ->first();
+
+            if ($incident instanceof Incident) {
+                return $incident;
+            }
+        }
+
+        if ($match['order_id'] !== null) {
+            $incident = Incident::query()
+                ->where('order_id', $match['order_id'])
+                ->whereIn('status', $activeStatuses)
+                ->lockForUpdate()
+                ->orderByDesc('id')
+                ->first();
+
+            if ($incident instanceof Incident) {
+                return $incident;
+            }
+        }
+
+        $phoneCandidates = $this->phoneMatchCandidates($recoveryPhone);
+
+        $incident = Incident::query()
+            ->whereIn('status', $activeStatuses)
+            ->where(function ($query) use ($phoneCandidates): void {
+                $query->whereIn('recovery_phone', $phoneCandidates)
+                    ->orWhereHas('order', function ($orderQuery) use ($phoneCandidates): void {
+                        $orderQuery->whereIn('customer_phone', $phoneCandidates);
+                    });
+            })
             ->lockForUpdate()
             ->orderByDesc('id')
             ->first();
+
+        if ($incident instanceof Incident) {
+            return $incident;
+        }
+
+        $serialNumber = $this->resolveSerialForMatching($match);
+
+        if ($serialNumber === null) {
+            return null;
+        }
+
+        return Incident::query()
+            ->whereIn('status', $activeStatuses)
+            ->whereHas('order', function ($orderQuery) use ($serialNumber): void {
+                $orderQuery->where('serial_number', $serialNumber);
+            })
+            ->lockForUpdate()
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * @param  array{
+     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     customer_phone: ?string,
+     *     order_id: ?int,
+     *     order_label: ?string,
+     *     incident_id: ?int,
+     * }  $match
+     */
+    private function resolveSerialForMatching(array $match): ?string
+    {
+        if ($match['order_id'] === null) {
+            return null;
+        }
+
+        $order = Order::query()->find($match['order_id']);
+
+        if ($order === null || $order->isInquiryOrder()) {
+            return null;
+        }
+
+        $serialNumber = trim((string) $order->serial_number);
+
+        return $serialNumber !== '' ? $serialNumber : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function phoneMatchCandidates(string $recoveryPhone): array
+    {
+        $storedPhones = $this->customerMatcher->matchingStoredPhones(null, null, $recoveryPhone);
+
+        return array_values(array_unique(array_filter([$recoveryPhone, ...$storedPhones])));
     }
 
     private function linkCall(Incident $incident, BonvoiceCallEvent $event, BonvoiceCallLinkType $linkType): void

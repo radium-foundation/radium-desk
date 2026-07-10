@@ -55,6 +55,7 @@ class NotificationAuditTrailService
                 'notification_type' => $message->type->value,
                 'source' => $message->metadata['source'] ?? null,
                 'trigger_source' => $message->metadata['trigger_source'] ?? null,
+                'serial_correction' => $message->metadata['serial_correction'] ?? null,
                 'aggregate_success' => $dispatchResult->success,
                 'aggregate_message' => $dispatchResult->message,
                 'channel_results' => $channelRecords,

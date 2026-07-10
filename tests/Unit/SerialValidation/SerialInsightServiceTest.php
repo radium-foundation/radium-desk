@@ -34,6 +34,7 @@ class SerialInsightServiceTest extends TestCase
         $this->assertSame(SerialInsightConfidence::Medium, $insight->confidence);
         $this->assertStringContainsString('FM220 pattern', $insight->explanation);
         $this->assertStringContainsString('WhatsApp', (string) $insight->suggestedAction);
+        $this->assertStringContainsString('सही serial', (string) $insight->suggestedAction);
     }
 
     public function test_detects_product_code_submitted_as_serial(): void
@@ -78,7 +79,8 @@ class SerialInsightServiceTest extends TestCase
 
         $this->assertSame(SerialInsightStatus::Missing, $insight->status);
         $this->assertTrue($insight->isActionable());
-        $this->assertStringContainsString('serial number माँगें', (string) $insight->suggestedAction);
+        $this->assertStringContainsString('WhatsApp', (string) $insight->suggestedAction);
+        $this->assertStringContainsString('serial number', (string) $insight->suggestedAction);
     }
 
     private function createOrder(string $orderId, ?string $serial, string $deviceModel): Order

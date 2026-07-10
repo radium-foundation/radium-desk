@@ -47,6 +47,18 @@
                         "{{ $executiveSummary->serialInsight->suggestedAction }}"
                     </p>
                 @endif
+                @if(in_array($executiveSummary->serialInsight->status, [
+                    \App\Enums\SerialInsightStatus::Suspicious,
+                    \App\Enums\SerialInsightStatus::Warning,
+                ], true) && ($canRequestCorrectSerial ?? false))
+                    <button type="button"
+                            class="btn btn-sm btn-primary mt-2"
+                            data-workspace-trigger="request-correct-serial"
+                            data-workspace-incident-id="{{ $incident->id }}"
+                            data-workspace-context="customer">
+                        Send request
+                    </button>
+                @endif
             </div>
         @endif
 

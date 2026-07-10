@@ -11,6 +11,7 @@ use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
+use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\Knowledge\KnowledgeEngine;
 use App\Services\Knowledge\KnowledgeIntelligenceMapper;
@@ -39,6 +40,7 @@ class IncidentAIContextBuilder
         private readonly Customer360TimelineService $customer360TimelineService,
         private readonly SerialPlaceholderService $serialPlaceholderService,
         private readonly AIRiskScoringService $riskScoringService,
+        private readonly BonvoiceCustomerContactIntelligenceService $contactIntelligenceService,
     ) {}
 
     public function build(
@@ -90,6 +92,11 @@ class IncidentAIContextBuilder
             $this->timelineSummary($timeline),
             $internalRemarksSummary,
             $this->queuePosition($incident),
+        );
+        $operationalIntelligence = $this->enrichOperationalIntelligenceWithContact(
+            $operationalIntelligence,
+            $incident,
+            $order,
         );
 
         $context = new AIContextDTO(
@@ -383,5 +390,40 @@ class IncidentAIContextBuilder
         }
 
         return trim($value);
+    }
+
+    private function enrichOperationalIntelligenceWithContact(
+        \App\Data\AI\OperationalIntelligenceDTO $operationalIntelligence,
+        Incident $incident,
+        ?Order $order,
+    ): \App\Data\AI\OperationalIntelligenceDTO {
+        $phone = trim((string) ($order?->customer_phone ?? $incident->recovery_phone ?? ''));
+
+        if ($phone === '') {
+            return $operationalIntelligence;
+        }
+
+        $contactIntelligence = $this->contactIntelligenceService->forCustomerPhone(
+            $phone,
+            $incident->isActive(),
+        );
+
+        if ($contactIntelligence === null) {
+            return $operationalIntelligence;
+        }
+
+        return new \App\Data\AI\OperationalIntelligenceDTO(
+            waitingState: $operationalIntelligence->waitingState,
+            slaState: $operationalIntelligence->slaState,
+            priority: $operationalIntelligence->priority,
+            assignment: $operationalIntelligence->assignment,
+            queuePosition: $operationalIntelligence->queuePosition,
+            automationHistory: $operationalIntelligence->automationHistory,
+            automationStatus: $operationalIntelligence->automationStatus,
+            timelineSummary: $operationalIntelligence->timelineSummary,
+            internalRemarksSummary: $operationalIntelligence->internalRemarksSummary,
+            repeatContactSummary: $contactIntelligence->summaryLine,
+            repeatContactHighUrgency: $contactIntelligence->highUrgency,
+        );
     }
 }
