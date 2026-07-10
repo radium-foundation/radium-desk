@@ -17,6 +17,7 @@ use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\Customer360\Customer360OperationsHealthService;
 use App\Services\Customer360\Customer360SlaMetricsService;
+use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
@@ -55,6 +56,7 @@ class Customer360Service
         private readonly Customer360SlaMetricsService $slaMetricsService,
         private readonly BonvoiceCustomerCallService $bonvoiceCustomerCallService,
         private readonly BonvoiceCustomerContactIntelligenceService $bonvoiceContactIntelligenceService,
+        private readonly Customer360ActionVisibilityService $actionVisibilityService,
     ) {}
 
     /**
@@ -84,6 +86,7 @@ class Customer360Service
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
         $summary = $scopeCache->customerSummary();
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
+        $actionVisibility = $this->actionVisibilityService->forIncident($incident, auth()->user());
 
         return [
             'incident' => $incident,
@@ -94,11 +97,13 @@ class Customer360Service
             'activeServices' => $activeServices,
             'summary' => $summary,
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary),
-            'canRequestSerialNumber' => $this->requestSerialEligibilityService->canShowAction($incident),
-            'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
-            'canCustomerNotResponding' => $this->customerNotRespondingEligibilityService->canShowAction($incident),
-            'canLinkOrder' => auth()->user() !== null
-                && $this->inquiryOrderLinkEligibilityService->canShowAction($incident, auth()->user()),
+            'canRequestSerialNumber' => $actionVisibility['canRequestSerialNumber'],
+            'canRequestCorrectSerial' => $actionVisibility['canRequestCorrectSerial'],
+            'canCustomerNotResponding' => $actionVisibility['canCustomerNotResponding'],
+            'canLinkOrder' => $actionVisibility['canLinkOrder'],
+            'isWaitingForCustomer' => $actionVisibility['isWaitingForCustomer'],
+            'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
+            'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
             'serialRequestState' => $this->serialRequestState($order),
             'correctSerialRequestState' => $this->correctSerialRequestState($order),
             'waitingStateCard' => $waitingStateCard,
@@ -668,6 +673,9 @@ class Customer360Service
             'canRequestCorrectSerial' => false,
             'canCustomerNotResponding' => false,
             'canLinkOrder' => false,
+            'isWaitingForCustomer' => false,
+            'hideWorkflowActions' => false,
+            'hasRecommendedActions' => false,
             'serialRequestState' => [
                 'requested' => false,
                 'requested_at' => null,

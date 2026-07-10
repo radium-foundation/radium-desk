@@ -9,7 +9,7 @@
         <div class="customer-360-waiting-card-header">
             <span class="customer-360-waiting-card-indicator" aria-hidden="true">🟡</span>
             <h2 class="customer-360-waiting-card-title" id="customer-360-waiting-heading">
-                Waiting for Customer
+                Waiting for customer response
             </h2>
         </div>
 

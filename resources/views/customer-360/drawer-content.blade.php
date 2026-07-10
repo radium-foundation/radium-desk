@@ -57,8 +57,13 @@
             'customer' => $customer,
             'device' => $device,
             'canRequestSerialNumber' => $canRequestSerialNumber ?? false,
+            'canRequestCorrectSerial' => $canRequestCorrectSerial ?? false,
+            'canCustomerNotResponding' => $canCustomerNotResponding ?? false,
             'canLinkOrder' => $canLinkOrder ?? false,
+            'hideWorkflowActions' => $hideWorkflowActions ?? false,
+            'hasRecommendedActions' => $hasRecommendedActions ?? false,
             'serialRequestState' => $serialRequestState ?? ['requested' => false, 'requested_at' => null, 'requested_at_label' => null],
+            'correctSerialRequestState' => $correctSerialRequestState ?? ['requested' => false, 'requested_at' => null, 'requested_at_label' => null],
         ])
         @include('customer-360.partials.device-section', [
             'device' => $device,

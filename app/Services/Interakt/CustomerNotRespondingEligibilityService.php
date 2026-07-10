@@ -6,12 +6,14 @@ use App\Enums\IncidentStatus;
 use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplate;
 use App\Models\Incident;
+use App\Services\Customer360\CustomerContactAttemptEvidenceService;
 use App\Services\IncidentWaitingStateService;
 
 class CustomerNotRespondingEligibilityService
 {
     public function __construct(
         private readonly IncidentWaitingStateService $waitingStateService,
+        private readonly CustomerContactAttemptEvidenceService $contactAttemptEvidenceService,
     ) {}
 
     public function isEligible(Incident $incident): bool
@@ -57,7 +59,24 @@ class CustomerNotRespondingEligibilityService
 
     public function canShowAction(Incident $incident): bool
     {
-        return $this->isEligible($incident)
-            && filled(config('interakt.templates.'.WhatsAppTemplate::CallbackSchedule->value.'.name'));
+        if (! $this->isEligible($incident)) {
+            return false;
+        }
+
+        $incident->loadMissing('activeWaitingState');
+
+        if ($incident->assigned_to_user_id === null) {
+            return false;
+        }
+
+        if ($this->waitingStateService->activeFor($incident) !== null) {
+            return false;
+        }
+
+        if (! $this->contactAttemptEvidenceService->hasEvidenceFor($incident)) {
+            return false;
+        }
+
+        return filled(config('interakt.templates.'.WhatsAppTemplate::CallbackSchedule->value.'.name'));
     }
 }

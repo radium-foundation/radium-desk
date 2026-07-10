@@ -210,7 +210,7 @@ class IncidentWaitingStateTest extends TestCase
 
         $response->assertOk()
             ->assertSee('data-customer-360-section="waiting-state"', false)
-            ->assertSee('Waiting for Customer', false)
+            ->assertSee('Waiting for customer response', false)
             ->assertSee('Serial Number', false)
             ->assertSee('Waiting', false)
             ->assertSee('Requested', false)

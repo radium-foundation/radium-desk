@@ -4516,6 +4516,14 @@ a:focus-visible .stat-card {
     background-color: #fff;
 }
 
+.customer-360-section-title--subsequent {
+    margin-top: 1rem;
+}
+
+.customer-360-quick-actions--recommended {
+    margin-top: 0.5rem;
+}
+
 .customer-360-quick-actions--secondary {
     margin-top: 0.5rem;
     padding-top: 0.5rem;
