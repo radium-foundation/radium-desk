@@ -51,11 +51,20 @@ describe('customer-360-more-menu', () => {
         expect(isMoreMenuOpen()).toBe(false);
     });
 
-    it('closes on window resize after open', () => {
+    it('closes on outside pointerdown after open', () => {
         const { toggle, menu } = setupDom();
 
         openMenu(toggle, menu);
-        window.dispatchEvent(new Event('resize'));
+        document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+
+        expect(isMoreMenuOpen()).toBe(false);
+    });
+
+    it('closes on Escape after open', () => {
+        const { toggle, menu } = setupDom();
+
+        openMenu(toggle, menu);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
         expect(isMoreMenuOpen()).toBe(false);
     });

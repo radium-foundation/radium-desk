@@ -1,7 +1,4 @@
-const MENU_GAP_PX = 6;
 const MENU_ANIM_MS = 140;
-const MENU_Z_INDEX = 1085;
-const MENU_MIN_WIDTH_PX = 176;
 
 /** @type {HTMLElement | null} */
 let activeMenu = null;
@@ -23,19 +20,6 @@ const clearCloseTimer = () => {
     }
 };
 
-const resetMenuStyles = (menu) => {
-    menu.classList.remove('is-open', 'is-open-up');
-    menu.style.position = '';
-    menu.style.top = '';
-    menu.style.left = '';
-    menu.style.right = '';
-    menu.style.bottom = '';
-    menu.style.minWidth = '';
-    menu.style.zIndex = '';
-    menu.style.visibility = '';
-    menu.style.transformOrigin = '';
-};
-
 export const closeMenu = () => {
     if (!activeMenu || !activeToggle) {
         return;
@@ -47,7 +31,7 @@ export const closeMenu = () => {
     activeMenu = null;
     activeToggle = null;
 
-    menu.classList.remove('is-open', 'is-open-up');
+    menu.classList.remove('is-open');
     toggle.setAttribute('aria-expanded', 'false');
 
     listenersAbort?.abort();
@@ -56,50 +40,8 @@ export const closeMenu = () => {
     clearCloseTimer();
     closeTimer = setTimeout(() => {
         menu.hidden = true;
-        resetMenuStyles(menu);
         closeTimer = null;
     }, MENU_ANIM_MS);
-};
-
-export const repositionMenu = (toggle, menu) => {
-    const rect = toggle.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const preferDesktop = window.matchMedia('(min-width: 576px)').matches;
-
-    menu.style.position = 'fixed';
-    menu.style.zIndex = String(MENU_Z_INDEX);
-    menu.style.minWidth = `${Math.max(rect.width, MENU_MIN_WIDTH_PX)}px`;
-    menu.style.visibility = 'hidden';
-    menu.hidden = false;
-
-    const menuHeight = menu.offsetHeight;
-    const menuWidth = menu.offsetWidth;
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const opensDown = preferDesktop
-        ? spaceBelow >= menuHeight + MENU_GAP_PX || spaceBelow >= spaceAbove
-        : spaceBelow >= menuHeight + MENU_GAP_PX;
-
-    const clampedRight = Math.max(8, Math.min(rect.right, viewportWidth - 8));
-    const left = Math.max(8, Math.min(clampedRight - menuWidth, viewportWidth - menuWidth - 8));
-
-    menu.style.left = `${left}px`;
-    menu.style.right = 'auto';
-
-    if (opensDown) {
-        menu.style.top = `${rect.bottom + MENU_GAP_PX}px`;
-        menu.style.bottom = 'auto';
-        menu.style.transformOrigin = 'top right';
-        menu.classList.remove('is-open-up');
-    } else {
-        menu.style.top = 'auto';
-        menu.style.bottom = `${viewportHeight - rect.top + MENU_GAP_PX}px`;
-        menu.style.transformOrigin = 'bottom right';
-        menu.classList.add('is-open-up');
-    }
-
-    menu.style.visibility = '';
 };
 
 export const openMenu = (toggle, menu) => {
@@ -119,12 +61,7 @@ export const openMenu = (toggle, menu) => {
     activeMenu = menu;
 
     toggle.setAttribute('aria-expanded', 'true');
-    repositionMenu(toggle, menu);
-
-    if (activeMenu !== menu) {
-        return;
-    }
-
+    menu.hidden = false;
     menu.classList.add('is-open');
 
     listenersAbort?.abort();
@@ -154,8 +91,6 @@ export const openMenu = (toggle, menu) => {
 
     document.addEventListener('pointerdown', handleOutsidePointer, { capture: true, signal });
     document.addEventListener('keydown', handleEscape, { signal });
-    window.addEventListener('resize', closeMenu, { signal });
-    window.addEventListener('scroll', closeMenu, { capture: true, passive: true, signal });
 
     const drawerBody = document.querySelector('[data-customer-360-body]');
 
@@ -203,7 +138,7 @@ export const initMoreMenu = (contentHost) => {
         contentHost.querySelectorAll('[data-c360-quick-more-menu]').forEach((node) => {
             if (node instanceof HTMLElement && node !== menu) {
                 node.hidden = true;
-                resetMenuStyles(node);
+                node.classList.remove('is-open');
             }
         });
 
