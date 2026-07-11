@@ -102,6 +102,9 @@ class WorkspaceRefreshPolicy
             WorkspaceComponent::LinkOrder => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),
+            WorkspaceComponent::CorrectCustomerDetails => new WorkspaceRefreshEffects(
+                closeWorkspaceHost: true,
+            ),
             default => new WorkspaceRefreshEffects(
                 preferRedirect: true,
                 closeWorkspaceHost: true,

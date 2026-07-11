@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\WorkspaceCorrectCustomerDetailsRequest;
 use App\Http\Requests\WorkspaceLinkOrderRequest;
 use App\Http\Requests\WorkspaceActionRequest;
 use App\Http\Requests\WorkspaceAssignRequest;
@@ -16,6 +17,7 @@ use App\Services\WorkspaceAssignActionService;
 use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
 use App\Services\WorkspaceRemarkActionService;
+use App\Services\WorkspaceCorrectCustomerDetailsActionService;
 use App\Services\WorkspaceLinkOrderActionService;
 use App\Services\WorkspaceRequestCorrectSerialActionService;
 use App\Services\WorkspaceRequestSerialActionService;
@@ -37,6 +39,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceRequestCorrectSerialActionService $requestCorrectSerialActionService,
         private readonly WorkspaceCustomerNotRespondingActionService $customerNotRespondingActionService,
         private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
+        private readonly WorkspaceCorrectCustomerDetailsActionService $correctCustomerDetailsActionService,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
 
@@ -183,6 +186,21 @@ class WorkspaceActionController extends Controller
         $requestContext = $this->contextResolver->resolve($request, $incident);
 
         $response = $this->linkOrderActionService->link(
+            incident: $incident,
+            actor: $request->user(),
+            payload: $request->validated(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function correctCustomerDetails(WorkspaceCorrectCustomerDetailsRequest $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->correctCustomerDetailsActionService->correct(
             incident: $incident,
             actor: $request->user(),
             payload: $request->validated(),

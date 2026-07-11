@@ -17,6 +17,7 @@ use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
+use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\SerialValidation\SerialInsightService;
 use App\Enums\WhatsAppTemplate;
@@ -37,6 +38,7 @@ class WorkspaceComponentService
         private readonly RequestSerialCommunicationHistoryService $requestSerialCommunicationHistoryService,
         private readonly RequestCorrectSerialCommunicationHistoryService $requestCorrectSerialCommunicationHistoryService,
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
+        private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -68,6 +70,7 @@ class WorkspaceComponentService
             WorkspaceComponent::CustomerNotResponding => $user->can('update', $incident)
                 && $this->customerNotRespondingEligibilityService->canShowAction($incident),
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
+            WorkspaceComponent::CorrectCustomerDetails => $this->customerCorrectionEligibilityService->canShowAction($incident, $user),
         };
 
         if (! $authorized) {
@@ -147,6 +150,10 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 ...$this->linkOrderWorkspaceFields($requestContext, $incident),
             ],
+            WorkspaceComponent::CorrectCustomerDetails => [
+                'incident' => $incident,
+                ...$this->correctCustomerDetailsWorkspaceFields($requestContext, $incident),
+            ],
         };
     }
 
@@ -162,6 +169,27 @@ class WorkspaceComponentService
         return [
             'workspaceActionUrl' => route('incidents.workspace.link-order', $incident),
             'workspaceContext' => $requestContext->context->value,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function correctCustomerDetailsWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $incident->loadMissing('order');
+        $order = $incident->order;
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.correct-customer-details', $incident),
+            'workspaceContext' => $requestContext->context->value,
+            'customerName' => $order?->customer_name,
+            'customerPhone' => $order?->customer_phone,
+            'customerEmail' => $order?->customer_email,
         ];
     }
 

@@ -16,6 +16,7 @@ import { initTooltips } from './tooltips';
 import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
 import { initActionDialog } from './workspace/action-dialog';
+import { initCorrectCustomerDetailsDialog } from './workspace/correct-customer-details-dialog';
 import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
@@ -578,6 +579,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (component === 'batch-transaction') {
                 initBatchTransactionForm(modalContent, showAppToast);
                 initTooltips(modalContent);
+            }
+
+            if (component === 'correct-customer-details') {
+                initCorrectCustomerDetailsDialog(modalContent);
             }
         },
         afterClose: (host) => {

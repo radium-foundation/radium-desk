@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
+use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 
 class Customer360ActionVisibilityService
@@ -16,6 +17,7 @@ class Customer360ActionVisibilityService
         private readonly RequestCorrectSerialEligibilityService $requestCorrectSerialEligibilityService,
         private readonly CustomerNotRespondingEligibilityService $customerNotRespondingEligibilityService,
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
+        private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
     ) {}
 
     /**
@@ -26,6 +28,7 @@ class Customer360ActionVisibilityService
      *     canRequestCorrectSerial: bool,
      *     canCustomerNotResponding: bool,
      *     canLinkOrder: bool,
+     *     canCorrectCustomerDetails: bool,
      *     hasRecommendedActions: bool,
      * }
      */
@@ -46,6 +49,8 @@ class Customer360ActionVisibilityService
         $canLinkOrder = ! $hideWorkflowActions
             && $user !== null
             && $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user);
+        $canCorrectCustomerDetails = $user !== null
+            && $this->customerCorrectionEligibilityService->canShowAction($incident, $user);
 
         $hasRecommendedActions = $canRequestSerialNumber
             || $canRequestCorrectSerial
@@ -59,6 +64,7 @@ class Customer360ActionVisibilityService
             'canRequestCorrectSerial' => $canRequestCorrectSerial,
             'canCustomerNotResponding' => $canCustomerNotResponding,
             'canLinkOrder' => $canLinkOrder,
+            'canCorrectCustomerDetails' => $canCorrectCustomerDetails,
             'hasRecommendedActions' => $hasRecommendedActions,
         ];
     }

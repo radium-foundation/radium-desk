@@ -142,6 +142,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.workspace.customer-not-responding');
     Route::patch('incidents/{incident}/workspace/link-order', [WorkspaceActionController::class, 'linkOrder'])
         ->name('incidents.workspace.link-order');
+    Route::patch('incidents/{incident}/workspace/correct-customer-details', [WorkspaceActionController::class, 'correctCustomerDetails'])
+        ->name('incidents.workspace.correct-customer-details');
     Route::patch('incidents/{incident}/workspace/resolve', [WorkspaceActionController::class, 'resolve'])
         ->name('incidents.workspace.resolve');
     Route::patch('incidents/{incident}/workspace/close', [WorkspaceActionController::class, 'close'])

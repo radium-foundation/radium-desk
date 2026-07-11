@@ -155,6 +155,19 @@
         </div>
     @endif
 
+    @if($canCorrectCustomerDetails ?? false)
+        <div class="customer-360-quick-actions customer-360-quick-actions--admin mt-3">
+            <button type="button"
+                    class="btn btn-outline-secondary btn-sm customer-360-quick-action"
+                    data-workspace-trigger="correct-customer-details"
+                    data-workspace-incident-id="{{ $incident->id }}"
+                    data-workspace-context="customer"
+                    title="Correct customer name, phone, or email on the order">
+                <span aria-hidden="true">✏️</span> Correct Customer Details
+            </button>
+        </div>
+    @endif
+
     <div class="customer-360-quick-actions customer-360-quick-actions--secondary">
         @if($order)
             <a href="{{ route('orders.show', $order) }}"
