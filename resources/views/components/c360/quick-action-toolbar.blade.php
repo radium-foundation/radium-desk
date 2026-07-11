@@ -195,7 +195,7 @@
             <span>Email</span>
         </button>
 
-        <div class="c360-quick-toolbar-more-wrap">
+        <div class="c360-quick-toolbar-more-wrap" data-c360-quick-more-wrap>
             <button type="button"
                     class="c360-quick-toolbar-btn c360-quick-toolbar-btn--more"
                     data-c360-quick-more-toggle
