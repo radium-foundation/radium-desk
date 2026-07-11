@@ -8,10 +8,11 @@
     $reasons = is_array($viewModel['reasons'] ?? null) ? $viewModel['reasons'] : [];
     $secondaryActions = is_array($viewModel['secondary_actions'] ?? null) ? $viewModel['secondary_actions'] : [];
     $confidenceLevel = $confidence['level'] ?? 'medium';
+    $signalCount = count($reasons);
     $confidencePercent = match ($confidenceLevel) {
-        'high' => 85,
-        'low' => 35,
-        default => 60,
+        'high' => min(95, 82 + ($signalCount * 2)),
+        'low' => max(28, 35 + $signalCount),
+        default => min(88, 58 + ($signalCount * 3)),
     };
 @endphp
 
@@ -24,7 +25,7 @@
     <div class="c360-ira-command-center-header">
         <h3 class="c360-ira-command-center-heading" id="c360-ira-advisor-card-heading">
             <i class="bi bi-stars c360-ira-sparkle" aria-hidden="true"></i>
-            IRA Advisor
+            IRA advisor
         </h3>
         <span class="c360-ira-readonly-badge">Rule-based</span>
     </div>
@@ -33,7 +34,7 @@
         <div class="c360-ira-section">
             <h4 class="c360-ira-section-label">
                 <i class="bi bi-stars" aria-hidden="true"></i>
-                IRA Recommendation
+                Recommendation
             </h4>
             <p class="c360-ira-recommendation-text">
                 {{ $recommendedAction['label'] ?? '' }}
@@ -41,7 +42,7 @@
         </div>
 
         <div class="c360-ira-section c360-ira-section--action">
-            <h4 class="c360-ira-section-label">Primary Action</h4>
+            <h4 class="c360-ira-section-label">Primary action</h4>
             <div class="c360-ira-primary-action c360-ira-primary-action--display" role="status">
                 <i class="bi {{ $recommendedAction['icon'] ?? 'bi-lightbulb' }}" aria-hidden="true"></i>
                 <span>{{ $recommendedAction['label'] ?? '' }}</span>
@@ -49,26 +50,17 @@
         </div>
 
         <div class="c360-ira-section">
-            <div class="c360-ira-confidence-header">
-                <h4 class="c360-ira-section-label mb-0">Confidence</h4>
-                <span @class([
-                    'c360-ira-confidence-label',
-                    'c360-ira-confidence-label--' . $confidenceLevel,
-                ])>{{ $confidence['label'] ?? 'Medium' }}</span>
-            </div>
-            <div class="c360-ira-confidence-bar"
-                 role="progressbar"
-                 aria-valuenow="{{ $confidencePercent }}"
-                 aria-valuemin="0"
-                 aria-valuemax="100">
-                <span class="c360-ira-confidence-fill c360-ira-confidence-fill--{{ $confidenceLevel }}"
-                      style="width: {{ $confidencePercent }}%"></span>
-            </div>
+            <x-c360.ira-confidence
+                :level="$confidenceLevel"
+                :label="$confidence['label'] ?? 'Medium'"
+                :percent="$confidencePercent"
+                :signal-count="$signalCount"
+            />
         </div>
 
         @if($reasons !== [])
             <div class="c360-ira-section">
-                <h4 class="c360-ira-section-label">Why?</h4>
+                <h4 class="c360-ira-section-label">Why this recommendation</h4>
                 <ul class="c360-ira-why-list">
                     @foreach($reasons as $reason)
                         <li>{{ $reason }}</li>
@@ -78,21 +70,23 @@
         @endif
 
         @if($secondaryActions !== [])
-            <details class="c360-ira-explain">
-                <summary class="c360-ira-explain-summary">
+            <details class="c360-ira-collapse" data-c360-ira-collapse>
+                <summary class="c360-ira-collapse-summary">
                     <span>More actions</span>
                     <i class="bi bi-chevron-down" aria-hidden="true"></i>
                 </summary>
-                <ul class="c360-ira-secondary-list" role="list">
-                    @foreach($secondaryActions as $action)
-                        <li class="c360-ira-secondary-item"
-                            role="listitem"
-                            data-c360-advisor-action="{{ $action['key'] ?? '' }}">
-                            <i class="bi {{ $action['icon'] ?? 'bi-circle' }}" aria-hidden="true"></i>
-                            <span>{{ $action['label'] ?? '' }}</span>
-                        </li>
-                    @endforeach
-                </ul>
+                <div class="c360-ira-collapse-body">
+                    <ul class="c360-ira-secondary-list" role="list">
+                        @foreach($secondaryActions as $action)
+                            <li class="c360-ira-secondary-item"
+                                role="listitem"
+                                data-c360-advisor-action="{{ $action['key'] ?? '' }}">
+                                <i class="bi {{ $action['icon'] ?? 'bi-circle' }}" aria-hidden="true"></i>
+                                <span>{{ $action['label'] ?? '' }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
             </details>
         @endif
     </div>

@@ -46,10 +46,11 @@ class Customer360ExecutiveSummaryTest extends TestCase
             ->json('html');
 
         $this->assertStringContainsString('data-customer-360-section="executive-summary"', $summaryHtml);
-        $this->assertStringContainsString('IRA Command Center', $summaryHtml);
+        $this->assertStringContainsString('IRA command center', $summaryHtml);
         $this->assertStringContainsString('AI · Read only', $summaryHtml);
         $this->assertStringContainsString('Explain', $summaryHtml);
-        $this->assertStringContainsString('IRA Recommendation', $summaryHtml);
+        $this->assertStringContainsString('Recommendation', $summaryHtml);
+        $this->assertStringContainsString('Why this recommendation', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-lang-toggle', $summaryHtml);
         $this->assertStringContainsString('data-ira-translate-url', $summaryHtml);
 

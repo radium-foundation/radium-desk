@@ -19,12 +19,12 @@
 
     $healthStatus = match (true) {
         $highUrgency => ['status' => 'critical', 'label' => 'Critical'],
-        $openCases > 0 || $contactsToday > 0 => ['status' => 'attention', 'label' => 'Needs Attention'],
+        $openCases > 0 || $contactsToday > 0 => ['status' => 'attention', 'label' => 'Needs attention'],
         default => ['status' => 'healthy', 'label' => 'Healthy'],
     };
 
     $statusLabel = ($isWaitingForCustomer || is_array($waitingStateCard))
-        ? 'Waiting Customer'
+        ? 'Waiting customer'
         : $incident->status->label();
 
     $statusVariant = ($isWaitingForCustomer || is_array($waitingStateCard))
@@ -46,9 +46,9 @@
     };
 
     $slaLabel = match ($slaStatus) {
-        ServiceCaseSlaStatus::Overdue => 'SLA Breached',
-        ServiceCaseSlaStatus::Warning => 'SLA Warning',
-        ServiceCaseSlaStatus::Paused => 'SLA Paused',
+        ServiceCaseSlaStatus::Overdue => 'SLA breached',
+        ServiceCaseSlaStatus::Warning => 'SLA warning',
+        ServiceCaseSlaStatus::Paused => 'SLA paused',
         default => 'Within SLA',
     };
 
@@ -60,6 +60,9 @@
     $customerName = filled($healthCard['name'] ?? null)
         ? $healthCard['name']
         : ($order->customer_name ?? null);
+    $assignedAgent = filled($incident->assignee?->name)
+        ? $incident->assignee->name
+        : null;
 @endphp
 
 <header {{ $attributes->merge(['class' => 'c360-ops-header']) }}
@@ -69,7 +72,7 @@
         <span class="c360-ops-header-sc font-monospace">{{ $incident->display_reference }}</span>
         <x-c360.chip :value="$statusLabel" :variant="$statusVariant" class="c360-chip--status" />
         @if($incident->high_priority)
-            <x-c360.chip value="High Priority" variant="danger" icon="bi-flag-fill" />
+            <x-c360.chip value="High priority" variant="danger" icon="bi-flag-fill" />
         @endif
         <x-c360.chip :value="$slaLabel" :variant="$slaVariant" />
         <x-c360.chip :value="$healthStatus['label']" :variant="$healthStatus['status']" class="c360-chip--health" />
@@ -100,5 +103,9 @@
                 <span class="c360-ops-header-meta-value">{{ $customerName }}</span>
             </span>
         @endif
+        <span class="c360-ops-header-meta-item" role="listitem">
+            <span class="c360-ops-header-meta-label">Assigned agent</span>
+            <span class="c360-ops-header-meta-value">{{ $assignedAgent ?? 'Unassigned' }}</span>
+        </span>
     </div>
 </header>

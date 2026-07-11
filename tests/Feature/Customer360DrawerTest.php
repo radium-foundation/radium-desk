@@ -79,8 +79,11 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('data-customer-360-copy="serial"', false);
         $response->assertSee('data-customer-360-copy="order-id"', false);
         $response->assertSee('aria-label="Copy Customer Phone"', false);
-        $response->assertSee('Last Call', false);
+        $response->assertSee('Customer snapshot', false);
+        $response->assertSee('Assigned agent', false);
+        $response->assertSee('Current device', false);
         $response->assertSee('Unavailable', false);
+        $response->assertDontSee('data-c360-ops-status-bar', false);
     }
 
     public function test_customer_360_health_card_shows_whatsapp_communication_timestamp(): void

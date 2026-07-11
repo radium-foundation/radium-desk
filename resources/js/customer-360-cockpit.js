@@ -141,6 +141,26 @@ const renderPaletteResults = (resultsContainer, results, activeIndex) => {
     });
 };
 
+export const bindIraDisclosures = (root) => {
+    const scope = root ?? document;
+
+    scope.querySelectorAll('[data-c360-ira-collapse]').forEach((details) => {
+        if (details.dataset.c360IraCollapseBound === 'true') {
+            return;
+        }
+
+        details.dataset.c360IraCollapseBound = 'true';
+
+        details.addEventListener('toggle', () => {
+            if (!(details instanceof HTMLDetailsElement)) {
+                return;
+            }
+
+            details.classList.toggle('is-expanded', details.open);
+        });
+    });
+};
+
 export const initCustomer360Cockpit = ({
     drawer,
     contentHost,
@@ -502,6 +522,7 @@ export const initCustomer360Cockpit = ({
     };
 
     document.addEventListener('keydown', handleKeydown);
+    bindIraDisclosures(contentHost);
 
     return {
         openPalette,

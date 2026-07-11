@@ -7,7 +7,7 @@
          data-customer-360-section="customer-insights-card"
          aria-labelledby="c360-insights-card-heading">
     <div class="c360-insights-card-header">
-        <h3 class="c360-insights-card-heading" id="c360-insights-card-heading">Customer Insights</h3>
+        <h3 class="c360-insights-card-heading" id="c360-insights-card-heading">Customer insights</h3>
         <p class="c360-insights-card-subtitle mb-0">Deterministic signals from customer history.</p>
     </div>
 

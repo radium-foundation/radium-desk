@@ -4,7 +4,7 @@
 
 @if(count($entries) > 0)
     <section class="customer-360-sync-history" aria-labelledby="customer-360-sync-history-heading">
-        <h4 class="customer-360-sync-history-title" id="customer-360-sync-history-heading">Synchronization History</h4>
+        <h4 class="customer-360-sync-history-title" id="customer-360-sync-history-heading">Synchronization history</h4>
         <ol class="customer-360-sync-history-list">
             @foreach($entries as $entry)
                 @php

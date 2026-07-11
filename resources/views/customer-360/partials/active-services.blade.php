@@ -1,5 +1,5 @@
 <section class="customer-360-section" data-customer-360-section="active-services" aria-labelledby="customer-360-services-heading">
-    <h3 class="customer-360-section-title" id="customer-360-services-heading">Active Services</h3>
+    <h3 class="customer-360-section-title" id="customer-360-services-heading">Active services</h3>
 
     @if($activeServices === [])
         <p class="customer-360-empty-text mb-0">Not Available</p>

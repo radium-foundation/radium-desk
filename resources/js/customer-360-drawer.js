@@ -1,6 +1,6 @@
 import { getWorkspaceSession } from './workspace/session';
 import { initUnifiedTimeline } from './unified-timeline';
-import { initCustomer360Cockpit } from './customer-360-cockpit';
+import { initCustomer360Cockpit, bindIraDisclosures } from './customer-360-cockpit';
 
 const SESSION_REASON = 'customer-360-drawer';
 
@@ -578,6 +578,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             if (payload.html) {
                 placeholder.outerHTML = payload.html;
                 bindExecutiveSummaryTranslation();
+                bindIraDisclosures(contentHost);
                 initTooltips?.(contentHost);
             }
         } catch (error) {
@@ -620,6 +621,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             if (payload.html) {
                 placeholder.outerHTML = payload.html;
                 initUnifiedTimeline(contentHost);
+                bindIraDisclosures(contentHost);
                 configureTimelinePolling();
             }
         } catch (error) {

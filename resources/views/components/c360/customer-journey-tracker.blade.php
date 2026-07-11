@@ -4,6 +4,8 @@
 ])
 
 @php
+    use Illuminate\Support\Str;
+
     $steps = is_array($milestones) ? array_values($milestones) : [];
     $total = count($steps);
     $activeIndex = is_int($currentIndex) ? $currentIndex : ($total > 0 ? $total - 1 : 0);
@@ -28,10 +30,19 @@
             @foreach($steps as $index => $step)
                 @php
                     $state = $index < $activeIndex ? 'completed' : ($index === $activeIndex ? 'current' : 'pending');
-                    $label = is_array($step) ? ($step['label'] ?? '') : (string) $step;
+                    $fullLabel = is_array($step) ? ($step['label'] ?? '') : (string) $step;
+                    $shortLabel = Str::length($fullLabel) > 14
+                        ? Str::limit($fullLabel, 12, '…')
+                        : $fullLabel;
                 @endphp
-                <span @class(['c360-journey-label', 'c360-journey-label--' . $state]) role="listitem">
-                    {{ $label }}
+                <span @class([
+                    'c360-journey-label',
+                    'c360-journey-label--' . $state,
+                    'c360-journey-label--alt' => $index % 2 === 1,
+                ])
+                      role="listitem"
+                      title="{{ $fullLabel }}">
+                    {{ $shortLabel }}
                 </span>
             @endforeach
         </div>

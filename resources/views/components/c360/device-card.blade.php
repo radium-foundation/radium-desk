@@ -11,6 +11,20 @@
     $canManualSync = (bool) ($device['can_manual_sync'] ?? false);
     $showDiagnostics = (bool) ($device['show_sync_diagnostics'] ?? false);
     $warranty = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? null;
+    $modelShort = $device['model_short'] ?? null;
+    $modelCanonical = $device['model_canonical'] ?? null;
+    $syncLabel = match (true) {
+        $isPending => 'Syncing',
+        $isFailed => 'Sync failed',
+        $hasSerial => 'Synced',
+        default => $device['sync_status_label'] ?? 'Not synced',
+    };
+    $syncVariant = match (true) {
+        $isPending => 'waiting',
+        $isFailed => 'danger',
+        $hasSerial => 'success',
+        default => 'neutral',
+    };
 @endphp
 
 <section {{ $attributes->merge(['class' => 'c360-device-card']) }}
@@ -21,36 +35,32 @@
             <i class="bi bi-hdd-stack"></i>
         </div>
         <div class="c360-device-card-title-wrap">
-            <h3 class="c360-device-card-heading" id="c360-device-card-heading">Current Device</h3>
+            <h3 class="c360-device-card-heading" id="c360-device-card-heading">Current device</h3>
             <p class="c360-device-card-model mb-0">
-                @if(filled($device['model_short'] ?? null))
-                    {{ $device['model_short'] }}
-                @elseif(filled($device['model_canonical'] ?? null))
-                    {{ $device['model_canonical'] }}
+                @if(filled($modelShort))
+                    {{ $modelShort }}
+                @elseif(filled($modelCanonical))
+                    {{ $modelCanonical }}
                 @else
                     <x-c360.unavailable-pill />
                 @endif
             </p>
-            @if(filled($device['model_canonical'] ?? null) && ($device['model_canonical'] ?? null) !== ($device['model_short'] ?? null) && filled($device['model_short'] ?? null))
-                <p class="c360-device-card-model-canonical mb-0">{{ $device['model_canonical'] }}</p>
+            @if(filled($modelCanonical) && $modelCanonical !== $modelShort && filled($modelShort))
+                <p class="c360-device-card-model-canonical mb-0">{{ $modelCanonical }}</p>
             @endif
         </div>
     </div>
 
-    <div class="c360-device-card-chips">
-        <div class="c360-device-card-chip-row">
-            <span class="c360-device-card-chip-label">Serial</span>
-            <span class="c360-device-card-chip-value">
+    <div class="c360-device-card-rows">
+        <div class="c360-device-card-row">
+            <span class="c360-device-card-row-label">Serial</span>
+            <span class="c360-device-card-row-value">
                 @if($hasSerial)
                     <x-customer-360-inline-copy
                         :value="$device['serial_number']"
                         label="Serial Number"
                         copy-key="serial"
                     />
-                @elseif($isPending)
-                    <x-c360.status-banner variant="waiting" icon="⏳">Syncing</x-c360.status-banner>
-                @elseif($isFailed)
-                    <x-c360.status-banner variant="danger" icon="✖">Sync failed</x-c360.status-banner>
                 @else
                     <x-c360.unavailable-pill />
                 @endif
@@ -67,18 +77,9 @@
             </span>
         </div>
 
-        @if($hasSerial && ($device['show_sync_freshness'] ?? false))
-            <x-c360.chip
-                value="{{ $device['last_synced_relative'] ?? $device['last_synced_label'] ?? 'Synced' }}"
-                variant="success"
-                icon="bi-check-circle"
-                class="c360-chip--compact"
-            />
-        @endif
-
-        <div class="c360-device-card-chip-row">
-            <span class="c360-device-card-chip-label">{{ ($device['is_inquiry'] ?? false) ? 'Case' : 'Order' }}</span>
-            <span class="c360-device-card-chip-value font-monospace">
+        <div class="c360-device-card-row">
+            <span class="c360-device-card-row-label">{{ ($device['is_inquiry'] ?? false) ? 'Case' : 'Order' }}</span>
+            <span class="c360-device-card-row-value font-monospace">
                 @if($device['is_inquiry'] ?? false)
                     @if(filled($device['case_reference'] ?? null))
                         <x-customer-360-inline-copy
@@ -100,15 +101,24 @@
                 @endif
             </span>
         </div>
+    </div>
 
+    <div class="c360-device-card-status-chips">
+        <x-c360.chip :value="$syncLabel" :variant="$syncVariant" class="c360-chip--compact" />
+        @if($hasSerial && ($device['show_sync_freshness'] ?? false))
+            <x-c360.chip
+                :value="$device['last_synced_relative'] ?? $device['last_synced_label'] ?? 'Synced'"
+                variant="neutral"
+                icon="bi-clock"
+                class="c360-chip--compact"
+            />
+        @endif
         @if(filled($warranty))
-            <x-c360.chip :value="'Warranty: ' . $warranty" variant="neutral" class="c360-chip--compact" />
+            <x-c360.chip :value="$warranty" variant="neutral" class="c360-chip--compact" />
         @endif
-
         @if(filled($device['service_reference'] ?? null))
-            <x-c360.chip :value="'Service: ' . $device['service_reference']" variant="info" class="c360-chip--compact" />
+            <x-c360.chip :value="$device['service_reference']" variant="info" class="c360-chip--compact" />
         @endif
-
         @if($device['is_inquiry'] ?? false)
             <x-c360.chip value="Enquiry" variant="neutral" class="c360-chip--compact" />
         @endif
@@ -120,7 +130,7 @@
             <dl class="c360-device-card-diagnostics-grid">
                 <div>
                     <dt>Status</dt>
-                    <dd>{{ $device['sync_status_label'] ?? 'Not Synced' }}</dd>
+                    <dd>{{ $device['sync_status_label'] ?? 'Not synced' }}</dd>
                 </div>
                 @if(filled($device['last_attempt_at'] ?? null))
                     <div>

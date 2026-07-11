@@ -12,7 +12,7 @@
 @else
     <x-c360.empty-state
         icon="bi-stars"
-        title="IRA Command Center unavailable"
+        title="IRA command center unavailable"
         description="Executive summary will load when IRA has enough data for this case."
         action-label="Open IRA AI"
         action-icon="bi-stars"

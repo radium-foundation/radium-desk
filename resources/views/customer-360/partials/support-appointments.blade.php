@@ -11,7 +11,7 @@
     <div class="customer-360-support-appointments-header">
         <span class="customer-360-support-appointments-indicator" aria-hidden="true">📅</span>
         <h2 class="customer-360-support-appointments-title" id="customer-360-support-appointments-heading">
-            Scheduled Support
+            Scheduled support
         </h2>
     </div>
 

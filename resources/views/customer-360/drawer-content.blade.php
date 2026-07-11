@@ -56,15 +56,6 @@
         :waitingStateCard="$waitingStateCard ?? null"
     />
 
-    <x-c360.ops-status-bar
-        :incident="$incident"
-        :order="$order"
-        :device="$device"
-        :healthCard="$healthCard"
-        :isWaitingForCustomer="$isWaitingForCustomer ?? false"
-        :waitingStateCard="$waitingStateCard ?? null"
-    />
-
     <x-c360.quick-action-toolbar
         :incident="$incident"
         :order="$order"

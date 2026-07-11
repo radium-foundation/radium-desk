@@ -18,7 +18,7 @@
          aria-labelledby="c360-health-card-heading">
     <div class="c360-health-card-header">
         <div class="c360-health-card-heading-wrap">
-            <h3 class="c360-health-card-heading" id="c360-health-card-heading">Customer Health</h3>
+            <h3 class="c360-health-card-heading" id="c360-health-card-heading">Customer health</h3>
             <p class="c360-health-card-subtitle mb-0">Snapshot of customer engagement and service activity.</p>
         </div>
         <span @class([
