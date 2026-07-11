@@ -13,7 +13,11 @@ return new class extends Migration
     {
         Schema::create('customer_data_correction_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('customer_data_correction_id')->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('customer_data_correction_id');
+            $table->foreign('customer_data_correction_id', 'cdc_items_correction_fk')
+                ->references('id')
+                ->on('customer_data_corrections')
+                ->cascadeOnDelete();
             $table->string('field_name');
             $table->text('old_value')->nullable();
             $table->text('new_value')->nullable();
