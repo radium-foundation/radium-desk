@@ -56,8 +56,14 @@ class Order extends Model
         'completed_at',
         'transaction_assigned_by',
         'customer_name',
+        'customer_name_locked_at',
+        'customer_name_locked_by',
         'customer_email',
+        'customer_email_locked_at',
+        'customer_email_locked_by',
         'customer_phone',
+        'customer_phone_locked_at',
+        'customer_phone_locked_by',
         'gst_number',
         'invoice_number',
         'purchase_year',
@@ -94,6 +100,9 @@ class Order extends Model
             'amc_details' => 'array',
             'legacy_order_date' => 'datetime',
             'legacy_imported_at' => 'datetime',
+            'customer_name_locked_at' => 'datetime',
+            'customer_phone_locked_at' => 'datetime',
+            'customer_email_locked_at' => 'datetime',
         ];
     }
 
@@ -168,6 +177,21 @@ class Order extends Model
     public function isSerialLocked(): bool
     {
         return filled($this->serial_number);
+    }
+
+    public function isCustomerNameLocked(): bool
+    {
+        return $this->customer_name_locked_at !== null;
+    }
+
+    public function isCustomerPhoneLocked(): bool
+    {
+        return $this->customer_phone_locked_at !== null;
+    }
+
+    public function isCustomerEmailLocked(): bool
+    {
+        return $this->customer_email_locked_at !== null;
     }
 
     public function isMissingSerialNumber(): bool
@@ -404,6 +428,21 @@ class Order extends Model
     public function serialEnterer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'serial_entered_by_user_id');
+    }
+
+    public function customerNameLocker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'customer_name_locked_by');
+    }
+
+    public function customerPhoneLocker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'customer_phone_locked_by');
+    }
+
+    public function customerEmailLocker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'customer_email_locked_by');
     }
 
     public function deviceModel(): BelongsTo

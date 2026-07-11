@@ -4,31 +4,48 @@
     'workspaceContext' => null,
     'showSerialAction' => true,
     'canCorrectSerialNumber' => false,
+    'variant' => 'card',
 ])
 
 @php
     $serialNumber = filled($order?->serial_number) ? trim((string) $order->serial_number) : null;
+    $orderId = $order?->order_id;
     $productName = $order?->displayDeviceModelName();
     $orderDate = $order?->displayOrderDate();
     $lastUpdated = $order?->updated_at;
     $lastUpdatedBy = $order?->updater?->name;
+    $isSidebar = $variant === 'sidebar';
 @endphp
 
-<section {{ $attributes->merge(['class' => 'c360-dialog-identity']) }}
+<section {{ $attributes->merge([
+    'class' => 'c360-dialog-identity'.($isSidebar ? ' c360-dialog-identity--sidebar' : ''),
+]) }}
          aria-labelledby="c360-identity-summary-heading">
     <h3 class="visually-hidden" id="c360-identity-summary-heading">Identity Summary</h3>
 
     <dl class="c360-dialog-identity-dl">
         <div class="c360-dialog-identity-row">
             <dt><span aria-hidden="true">📦</span> Order ID</dt>
-            <dd class="font-monospace fw-semibold">{{ $order?->order_id ?? '—' }}</dd>
+            <dd class="c360-dialog-identity-value">
+                <span class="font-monospace fw-semibold">{{ filled($orderId) ? $orderId : '—' }}</span>
+                @if(filled($orderId))
+                    <x-c360.copy-button
+                        :value="$orderId"
+                        label="Order ID"
+                        toast="Order ID copied" />
+                @endif
+            </dd>
         </div>
 
         <div class="c360-dialog-identity-row">
-            <dt><span aria-hidden="true">🔢</span> Serial Number</dt>
-            <dd>
+            <dt><span aria-hidden="true">🔢</span> Serial</dt>
+            <dd class="c360-dialog-identity-value">
                 @if($serialNumber !== null)
                     <span class="font-monospace fw-semibold">{{ $serialNumber }}</span>
+                    <x-c360.copy-button
+                        :value="$serialNumber"
+                        label="Serial"
+                        toast="Serial copied" />
                 @else
                     <span class="c360-dialog-serial-missing">
                         <span aria-hidden="true">⚠</span> No Serial Assigned
@@ -57,7 +74,7 @@
         @endif
 
         <div class="c360-dialog-identity-row">
-            <dt><span aria-hidden="true">👤</span> Last Updated By</dt>
+            <dt><span aria-hidden="true">👤</span> Updated By</dt>
             <dd>{{ filled($lastUpdatedBy) ? $lastUpdatedBy : '—' }}</dd>
         </div>
     </dl>

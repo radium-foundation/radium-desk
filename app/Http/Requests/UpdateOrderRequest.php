@@ -42,6 +42,21 @@ class UpdateOrderRequest extends FormRequest
             $serialRules[] = Rule::unique('orders', 'serial_number')->ignore($order->id);
         }
 
+        $customerNameRules = ['nullable', 'string', 'max:255'];
+        if ($order->isCustomerNameLocked() && ! $this->user()?->can('unlockProtectedIdentityFields', $order)) {
+            $customerNameRules[] = Rule::in([(string) ($order->customer_name ?? '')]);
+        }
+
+        $customerEmailRules = ['nullable', 'email', 'max:255'];
+        if ($order->isCustomerEmailLocked() && ! $this->user()?->can('unlockProtectedIdentityFields', $order)) {
+            $customerEmailRules[] = Rule::in([(string) ($order->customer_email ?? '')]);
+        }
+
+        $customerPhoneRules = ['nullable', 'string', 'max:50'];
+        if ($order->isCustomerPhoneLocked() && ! $this->user()?->can('unlockProtectedIdentityFields', $order)) {
+            $customerPhoneRules[] = Rule::in([(string) ($order->customer_phone ?? '')]);
+        }
+
         return [
             'order_id' => [
                 'required',
@@ -52,9 +67,9 @@ class UpdateOrderRequest extends FormRequest
             'serial_number' => $serialRules,
             'product_name' => ['required', 'string', 'max:255'],
             'device_model' => ['required', 'string', 'max:255'],
-            'customer_name' => ['nullable', 'string', 'max:255'],
-            'customer_email' => ['nullable', 'email', 'max:255'],
-            'customer_phone' => ['nullable', 'string', 'max:50'],
+            'customer_name' => $customerNameRules,
+            'customer_email' => $customerEmailRules,
+            'customer_phone' => $customerPhoneRules,
             'status' => ['required', Rule::enum(OrderStatus::class)],
             'correction_reason' => [
                 Rule::requiredIf(fn (): bool => $order->isTransactionLocked()),

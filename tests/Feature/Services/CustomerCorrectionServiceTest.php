@@ -57,6 +57,9 @@ class CustomerCorrectionServiceTest extends TestCase
         $this->assertSame('9876543210', $updatedOrder->customer_phone);
         $this->assertSame('old@example.com', $updatedOrder->customer_email);
         $this->assertSame($actor->id, $updatedOrder->updated_by);
+        $this->assertTrue($updatedOrder->isCustomerNameLocked());
+        $this->assertSame($actor->id, $updatedOrder->customer_name_locked_by);
+        $this->assertNotNull($updatedOrder->customer_name_locked_at);
 
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,

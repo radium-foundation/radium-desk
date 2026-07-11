@@ -45,6 +45,7 @@ use App\Services\Timeline\Sources\AppointmentTimelineEventSource;
 use App\Services\Timeline\Sources\BonVoiceCallTimelineEventSource;
 use App\Services\Timeline\Sources\CorrectSerialRequestTimelineEventSource;
 use App\Services\Timeline\Sources\CustomerDataCorrectionTimelineEventSource;
+use App\Services\Timeline\Sources\CustomerIdentityProtectionTimelineEventSource;
 use App\Services\Timeline\Sources\NotificationTimelineEventSource;
 use App\Services\Timeline\Sources\RadiumBoxSyncTimelineEventSource;
 use App\Services\Timeline\Sources\ServiceCaseLifecycleTimelineEventSource;
@@ -78,6 +79,7 @@ class AppServiceProvider extends ServiceProvider
                 new ClassTimelineSourceFactory($app, ServiceCaseLifecycleTimelineEventSource::class),
                 new ClassTimelineSourceFactory($app, BonVoiceCallTimelineEventSource::class),
                 new ClassTimelineSourceFactory($app, CustomerDataCorrectionTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, CustomerIdentityProtectionTimelineEventSource::class),
             ]);
         });
         $this->app->scoped(DashboardSnapshotStore::class);

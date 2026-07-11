@@ -1,7 +1,11 @@
 import {
+    animateDialogStep,
     buildFieldChanges,
     initChangeDetection,
     renderReviewCards,
+    renderReviewVerificationSource,
+    renderValidationBannerHtml,
+    VALIDATION_MESSAGES,
 } from './c360-dialog';
 import { csrfToken } from './http';
 
@@ -13,12 +17,6 @@ const FIELD_DEFINITIONS = [
         originalDatasetKey: 'originalSerialNumber',
     },
 ];
-
-const VALIDATION_LABELS = {
-    pass: '✓ Verified',
-    warning: '⚠ Needs review',
-    fail: '✕ Validation failed',
-};
 
 const DEBOUNCE_MS = 350;
 
@@ -49,63 +47,23 @@ const renderReviewReason = (form) => {
     reasonText.textContent = reason;
 };
 
-const applyValidationBadge = (element, severity, reasonElement, reason) => {
+const renderValidationBanner = (element, type, message, detail = null) => {
     if (!(element instanceof HTMLElement)) {
         return;
     }
 
-    element.classList.remove(
-        'c360-dialog-serial-validation-badge--pass',
-        'c360-dialog-serial-validation-badge--warning',
-        'c360-dialog-serial-validation-badge--fail',
-    );
-
-    if (!severity) {
-        element.textContent = '—';
+    if (!type) {
+        element.innerHTML = '';
         return;
     }
 
-    element.classList.add(`c360-dialog-serial-validation-badge--${severity}`);
-    element.textContent = VALIDATION_LABELS[severity] ?? severity;
-
-    if (reasonElement instanceof HTMLElement) {
-        if (reason) {
-            reasonElement.textContent = reason;
-            reasonElement.classList.remove('d-none');
-        } else {
-            reasonElement.textContent = '';
-            reasonElement.classList.add('d-none');
-        }
-    }
-};
-
-const applyDuplicateBadge = (element, duplicate, duplicateOrderId) => {
-    if (!(element instanceof HTMLElement)) {
-        return;
-    }
-
-    element.classList.remove(
-        'c360-dialog-serial-duplicate-badge--clear',
-        'c360-dialog-serial-duplicate-badge--conflict',
-    );
-
-    if (duplicate) {
-        element.classList.add('c360-dialog-serial-duplicate-badge--conflict');
-        element.textContent = duplicateOrderId
-            ? `Used by order ${duplicateOrderId}`
-            : 'Used by another order';
-        return;
-    }
-
-    element.classList.add('c360-dialog-serial-duplicate-badge--clear');
-    element.textContent = 'No duplicate detected';
+    element.innerHTML = renderValidationBannerHtml({ type, message, detail });
 };
 
 const renderLiveValidation = (form, preview) => {
     const container = form.querySelector('[data-correct-serial-live-validation]');
-    const badge = form.querySelector('[data-correct-serial-live-validation-badge]');
-    const reason = form.querySelector('[data-correct-serial-live-validation-reason]');
-    const duplicateBadge = form.querySelector('[data-correct-serial-live-duplicate-badge]');
+    const validationBanner = form.querySelector('[data-correct-serial-live-validation-banner]');
+    const duplicateBanner = form.querySelector('[data-correct-serial-live-duplicate-banner]');
     const normalized = form.querySelector('[data-correct-serial-live-normalized]');
 
     if (!(container instanceof HTMLElement)) {
@@ -114,12 +72,31 @@ const renderLiveValidation = (form, preview) => {
 
     if (!preview || preview.normalized_serial === '') {
         container.classList.add('d-none');
+        renderValidationBanner(validationBanner, null);
+        renderValidationBanner(duplicateBanner, null);
         return;
     }
 
     container.classList.remove('d-none');
-    applyValidationBadge(badge, preview.severity, reason, preview.reason);
-    applyDuplicateBadge(duplicateBadge, preview.duplicate, preview.duplicate_order_id);
+    container.classList.remove('c360-dialog-validation-stack--expand');
+    void container.offsetWidth;
+    container.classList.add('c360-dialog-validation-stack--expand');
+    renderValidationBanner(
+        validationBanner,
+        preview.severity,
+        VALIDATION_MESSAGES[preview.severity] ?? 'Validation status',
+        preview.reason || null,
+    );
+    renderValidationBanner(
+        duplicateBanner,
+        preview.duplicate ? 'duplicate-conflict' : 'duplicate-clear',
+        preview.duplicate ? 'Already assigned' : 'Available',
+        preview.duplicate
+            ? (preview.duplicate_order_id
+                ? `Used by order ${preview.duplicate_order_id}`
+                : 'Used by another order')
+            : 'No duplicate detected',
+    );
 
     if (normalized instanceof HTMLElement) {
         if (preview.corrected && preview.normalized_serial) {
@@ -134,9 +111,8 @@ const renderLiveValidation = (form, preview) => {
 
 const renderReviewValidation = (form, preview) => {
     const container = form.querySelector('[data-correct-serial-review-validation]');
-    const badge = form.querySelector('[data-correct-serial-review-validation-badge]');
-    const reason = form.querySelector('[data-correct-serial-review-validation-reason]');
-    const duplicateBadge = form.querySelector('[data-correct-serial-review-duplicate-badge]');
+    const validationBanner = form.querySelector('[data-correct-serial-review-validation-banner]');
+    const duplicateBanner = form.querySelector('[data-correct-serial-review-duplicate-banner]');
 
     if (!(container instanceof HTMLElement)) {
         return;
@@ -144,12 +120,31 @@ const renderReviewValidation = (form, preview) => {
 
     if (!preview || preview.normalized_serial === '') {
         container.classList.add('d-none');
+        renderValidationBanner(validationBanner, null);
+        renderValidationBanner(duplicateBanner, null);
         return;
     }
 
     container.classList.remove('d-none');
-    applyValidationBadge(badge, preview.severity, reason, preview.reason);
-    applyDuplicateBadge(duplicateBadge, preview.duplicate, preview.duplicate_order_id);
+    container.classList.remove('c360-dialog-validation-stack--expand');
+    void container.offsetWidth;
+    container.classList.add('c360-dialog-validation-stack--expand');
+    renderValidationBanner(
+        validationBanner,
+        preview.severity,
+        VALIDATION_MESSAGES[preview.severity] ?? 'Validation status',
+        preview.reason || null,
+    );
+    renderValidationBanner(
+        duplicateBanner,
+        preview.duplicate ? 'duplicate-conflict' : 'duplicate-clear',
+        preview.duplicate ? 'Already assigned' : 'Available',
+        preview.duplicate
+            ? (preview.duplicate_order_id
+                ? `Used by order ${preview.duplicate_order_id}`
+                : 'Used by another order')
+            : 'No duplicate detected',
+    );
 };
 
 const fetchPreview = async (form, serialNumber) => {
@@ -194,6 +189,7 @@ const setStep = (form, step, preview = null) => {
 
     const isReview = step === 'review';
     const changes = buildFieldChanges(form, FIELD_DEFINITIONS);
+    const activeStep = isReview ? reviewStep : editStep;
 
     editStep?.classList.toggle('d-none', isReview);
     reviewStep?.classList.toggle('d-none', !isReview);
@@ -205,8 +201,14 @@ const setStep = (form, step, preview = null) => {
     if (isReview) {
         renderReviewCards(reviewList, changes);
         renderReviewReason(form);
+        renderReviewVerificationSource(form, {
+            sectionSelector: '[data-correct-serial-number-review-source]',
+            textSelector: '[data-correct-serial-number-review-source-text]',
+        });
         renderReviewValidation(form, preview);
     }
+
+    animateDialogStep(activeStep);
 };
 
 export const initCorrectSerialNumberDialog = (root) => {

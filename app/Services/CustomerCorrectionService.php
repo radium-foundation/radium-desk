@@ -13,6 +13,7 @@ class CustomerCorrectionService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly OrderIdentityProtectionService $identityProtection,
     ) {}
 
     public function apply(Order $order, CustomerCorrectionData $data, User $actor): Order
@@ -49,7 +50,11 @@ class CustomerCorrectionService
                 $orderUpdates[$fieldName] = $change['new'];
             }
 
-            $orderUpdates['updated_by'] = $actor->id;
+            $orderUpdates = [
+                ...$orderUpdates,
+                ...$this->identityProtection->lockAttributesForFields($order, array_keys($changes), $actor),
+                'updated_by' => $actor->id,
+            ];
 
             $order->update($orderUpdates);
 

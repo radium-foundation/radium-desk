@@ -48,7 +48,7 @@
     </div>
 
     <x-c360.modal-footer>
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Link Order</button>
+        <button type="button" class="btn c360-dialog-btn-ghost" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn c360-dialog-btn-primary">Link Order</button>
     </x-c360.modal-footer>
 </form>

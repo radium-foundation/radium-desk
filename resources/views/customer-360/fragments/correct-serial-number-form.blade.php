@@ -13,8 +13,8 @@
       data-workspace-action-form="correct-serial-number"
       data-correct-serial-number-dialog
       data-c360-dialog
-      data-c360-success-title="Serial number corrected successfully"
-      data-c360-success-items="Audit recorded|Validation updated|Customer360 refreshed"
+      data-c360-success-title="Serial number corrected"
+      data-c360-success-items="Updated Successfully|Audit Recorded|Timeline Updated|Customer360 Refreshed|Protected from Automatic RadiumBox Sync"
       data-original-serial-number="{{ $currentSerial }}"
       data-correct-serial-validation-url="{{ $workspaceValidationUrl }}"
       class="workspace-note-dialog c360-dialog correct-serial-number-dialog">
@@ -34,187 +34,184 @@
             </div>
         @endif
 
-        <x-c360.identity-summary
-            :order="$order"
-            :incident="$incident"
-            :workspace-context="$workspaceContext"
-            :show-serial-action="false" />
+        <x-c360.dialog-body-layout>
+            <x-slot:sidebar>
+                <x-c360.identity-summary
+                    :order="$order"
+                    :incident="$incident"
+                    :workspace-context="$workspaceContext"
+                    :show-serial-action="false"
+                    variant="sidebar" />
+            </x-slot:sidebar>
 
-        @if($currentValidation !== null || filled($currentDuplicateOrderId))
-            <x-c360.section-card
-                title="Current Serial Status"
-                heading-id="correct-serial-current-status-heading"
-                class="mb-3">
-                <div class="c360-dialog-serial-status">
-                    @if($currentValidation !== null)
-                        <div class="c360-dialog-serial-status-row">
-                            <span class="c360-dialog-serial-status-label">Validation</span>
-                            <span class="c360-dialog-serial-validation-badge c360-dialog-serial-validation-badge--{{ $currentValidation->severity->value }}"
-                                  data-correct-serial-current-validation>
-                                @if($currentValidation->severity === SerialValidationSeverity::Pass)
-                                    ✓ Verified
-                                @elseif($currentValidation->severity === SerialValidationSeverity::Warning)
-                                    ⚠ Needs review
-                                @else
-                                    ✕ Validation failed
-                                @endif
-                            </span>
-                        </div>
-                        @if(filled($currentValidation->reason))
-                            <p class="c360-dialog-serial-status-reason mb-0">{{ $currentValidation->reason }}</p>
-                        @endif
-                    @endif
+            <div data-correct-serial-number-step="edit" class="c360-dialog-step">
+                @if($currentValidation !== null || filled($currentDuplicateOrderId))
+                    <x-c360.section-card
+                        title="Current Serial Status"
+                        heading-id="correct-serial-current-status-heading"
+                        class="mb-3">
+                        <div class="c360-dialog-validation-stack" data-correct-serial-current-status>
+                            @if($currentValidation !== null)
+                                @php
+                                    $validationType = match ($currentValidation->severity) {
+                                        SerialValidationSeverity::Pass => 'pass',
+                                        SerialValidationSeverity::Warning => 'warning',
+                                        default => 'fail',
+                                    };
+                                    $validationMessage = match ($currentValidation->severity) {
+                                        SerialValidationSeverity::Pass => 'Serial format valid',
+                                        SerialValidationSeverity::Warning => 'Validation warning',
+                                        default => 'Invalid serial',
+                                    };
+                                @endphp
+                                <x-c360.validation-banner
+                                    :type="$validationType"
+                                    :message="$validationMessage"
+                                    :detail="filled($currentValidation->reason) ? $currentValidation->reason : null"
+                                    data-correct-serial-current-validation />
+                            @endif
 
-                    @if(filled($currentDuplicateOrderId))
-                        <div class="c360-dialog-serial-status-row mt-2">
-                            <span class="c360-dialog-serial-status-label">Duplicate</span>
-                            <span class="c360-dialog-serial-duplicate-badge">
-                                Used by order {{ $currentDuplicateOrderId }}
-                            </span>
+                            @if(filled($currentDuplicateOrderId))
+                                <x-c360.validation-banner
+                                    type="duplicate-conflict"
+                                    message="Already assigned"
+                                    :detail="'Used by order '.$currentDuplicateOrderId"
+                                    data-correct-serial-current-duplicate />
+                            @else
+                                <x-c360.validation-banner
+                                    type="duplicate-clear"
+                                    message="Available"
+                                    detail="No duplicate detected"
+                                    data-correct-serial-current-duplicate />
+                            @endif
                         </div>
-                    @else
-                        <div class="c360-dialog-serial-status-row mt-2">
-                            <span class="c360-dialog-serial-status-label">Duplicate</span>
-                            <span class="c360-dialog-serial-duplicate-badge c360-dialog-serial-duplicate-badge--clear">
-                                No duplicate detected
-                            </span>
-                        </div>
-                    @endif
-                </div>
-            </x-c360.section-card>
-        @endif
+                    </x-c360.section-card>
+                @endif
 
-        <div data-correct-serial-number-step="edit">
-            <x-c360.section-card
-                title="Corrected Serial"
-                heading-id="correct-serial-number-fields-heading"
-                class="mb-3">
-                <div class="c360-dialog-field mb-0">
-                    <label for="correct-serial-number" class="form-label">New Serial Number</label>
-                    <input type="text"
-                           id="correct-serial-number"
-                           name="serial_number"
-                           class="form-control font-monospace @error('serial_number') is-invalid @enderror"
-                           value="{{ $serialNumberValue }}"
-                           maxlength="100"
-                           autocomplete="off"
-                           spellcheck="false"
-                           data-c360-change-field
-                           data-correct-serial-number-input
-                           required>
-                    @error('serial_number')
-                        <div class="invalid-feedback d-block">{{ $message }}</div>
-                    @enderror
+                <x-c360.section-card
+                    title="Corrected Serial"
+                    heading-id="correct-serial-number-fields-heading"
+                    class="mb-3">
+                    <div class="c360-dialog-field mb-0">
+                        <label for="correct-serial-number" class="form-label">New Serial Number</label>
+                        <input type="text"
+                               id="correct-serial-number"
+                               name="serial_number"
+                               class="form-control font-monospace @error('serial_number') is-invalid @enderror"
+                               value="{{ $serialNumberValue }}"
+                               maxlength="100"
+                               autocomplete="off"
+                               spellcheck="false"
+                               data-c360-change-field
+                               data-correct-serial-number-input
+                               required>
+                        @error('serial_number')
+                            <div class="invalid-feedback d-block">{{ $message }}</div>
+                        @enderror
 
-                    <div class="c360-dialog-serial-live-validation d-none"
-                         data-correct-serial-live-validation
-                         aria-live="polite">
-                        <div class="c360-dialog-serial-status-row">
-                            <span class="c360-dialog-serial-status-label">Validation</span>
-                            <span class="c360-dialog-serial-validation-badge"
-                                  data-correct-serial-live-validation-badge></span>
+                        <div class="c360-dialog-validation-stack d-none c360-dialog-validation-stack--live"
+                             data-correct-serial-live-validation
+                             aria-live="polite">
+                            <div data-correct-serial-live-validation-banner></div>
+                            <div data-correct-serial-live-duplicate-banner></div>
+                            <p class="c360-dialog-serial-normalized mb-0 d-none"
+                               data-correct-serial-live-normalized></p>
                         </div>
-                        <p class="c360-dialog-serial-status-reason mb-0 d-none"
-                           data-correct-serial-live-validation-reason></p>
-                        <div class="c360-dialog-serial-status-row mt-2">
-                            <span class="c360-dialog-serial-status-label">Duplicate</span>
-                            <span class="c360-dialog-serial-duplicate-badge"
-                                  data-correct-serial-live-duplicate-badge></span>
-                        </div>
-                        <p class="c360-dialog-serial-normalized mb-0 d-none"
-                           data-correct-serial-live-normalized></p>
                     </div>
-                </div>
 
-                <x-c360.change-status class="mt-3 mb-0" />
-            </x-c360.section-card>
+                    <x-c360.change-status class="mt-3 mb-0" />
+                </x-c360.section-card>
 
-            <x-c360.section-card
-                title="Reason"
-                heading-id="correct-serial-number-reason-heading">
-                <div class="c360-dialog-field mb-0">
-                    <label for="correct-serial-reason" class="form-label">
-                        Why is this serial being corrected? <span class="text-danger">*</span>
-                    </label>
-                    <textarea id="correct-serial-reason"
-                              name="reason"
-                              rows="4"
-                              class="form-control @error('reason') is-invalid @enderror"
-                              maxlength="2000"
-                              placeholder="e.g. Customer confirmed the correct serial over a verified call."
-                              required>{{ $reasonValue }}</textarea>
-                    @error('reason')
-                        <div class="invalid-feedback d-block">{{ $message }}</div>
-                    @enderror
-                </div>
-            </x-c360.section-card>
-        </div>
+                <x-c360.section-card
+                    title="Reason"
+                    heading-id="correct-serial-number-reason-heading"
+                    class="mb-3">
+                    <x-c360.reason-field
+                        id="correct-serial-reason"
+                        name="reason"
+                        label="Why is this serial being corrected?"
+                        :value="$reasonValue" />
+                </x-c360.section-card>
 
-        <div class="d-none" data-correct-serial-number-step="review" aria-live="polite">
-            <x-c360.section-card title="Review" heading-id="correct-serial-number-review-heading">
-                <div class="alert alert-warning py-2 px-3 small d-none mb-3"
-                     role="alert"
-                     data-correct-serial-number-no-changes>
-                    Serial number was not changed.
-                </div>
+                <x-c360.section-card
+                    title="Verification"
+                    heading-id="correct-serial-verification-heading"
+                    class="mb-0">
+                    <x-c360.verification-source />
+                </x-c360.section-card>
+            </div>
 
-                <div class="c360-dialog-review-list"
-                     data-correct-serial-number-review-list></div>
-
-                <section class="c360-dialog-review-reason d-none"
-                         data-correct-serial-number-review-reason
-                         aria-labelledby="correct-serial-number-review-reason-heading">
-                    <h4 class="c360-dialog-review-reason-title"
-                        id="correct-serial-number-review-reason-heading">
-                        Reason
-                    </h4>
-                    <p class="c360-dialog-review-reason-text mb-0"
-                       data-correct-serial-number-review-reason-text></p>
-                </section>
-
-                <div class="c360-dialog-serial-review-validation mt-3 d-none"
-                     data-correct-serial-review-validation>
-                    <div class="c360-dialog-serial-status-row">
-                        <span class="c360-dialog-serial-status-label">Validation</span>
-                        <span class="c360-dialog-serial-validation-badge"
-                              data-correct-serial-review-validation-badge></span>
+            <div class="d-none c360-dialog-step"
+                 data-correct-serial-number-step="review"
+                 aria-live="polite">
+                <x-c360.section-card title="Review" heading-id="correct-serial-number-review-heading">
+                    <div class="alert alert-warning py-2 px-3 small d-none mb-3"
+                         role="alert"
+                         data-correct-serial-number-no-changes>
+                        Serial number was not changed.
                     </div>
-                    <p class="c360-dialog-serial-status-reason mb-0"
-                       data-correct-serial-review-validation-reason></p>
-                    <div class="c360-dialog-serial-status-row mt-2">
-                        <span class="c360-dialog-serial-status-label">Duplicate</span>
-                        <span class="c360-dialog-serial-duplicate-badge"
-                              data-correct-serial-review-duplicate-badge></span>
-                    </div>
-                </div>
-            </x-c360.section-card>
 
-            <x-c360.timeline-preview
-                class="mt-3"
-                :items="[
-                    'Validate serial number',
-                    'Update order serial',
-                    'Record audit log',
-                    'Refresh Customer360',
-                ]" />
-        </div>
+                    <div class="c360-dialog-review-list"
+                         data-correct-serial-number-review-list></div>
+
+                    <section class="c360-dialog-review-card c360-dialog-review-reason-card d-none"
+                             data-correct-serial-number-review-reason
+                             aria-labelledby="correct-serial-number-review-reason-heading">
+                        <h4 class="c360-dialog-review-card-title"
+                            id="correct-serial-number-review-reason-heading">
+                            Reason
+                        </h4>
+                        <p class="c360-dialog-review-reason-text mb-0"
+                           data-correct-serial-number-review-reason-text></p>
+                    </section>
+
+                    <section class="c360-dialog-review-card c360-dialog-review-source-card d-none"
+                             data-correct-serial-number-review-source
+                             aria-labelledby="correct-serial-number-review-source-heading">
+                        <h4 class="c360-dialog-review-card-title"
+                            id="correct-serial-number-review-source-heading">
+                            Verification Source
+                        </h4>
+                        <p class="c360-dialog-review-source-text mb-0"
+                           data-correct-serial-number-review-source-text></p>
+                    </section>
+
+                    <div class="c360-dialog-validation-stack mt-3 d-none"
+                         data-correct-serial-review-validation>
+                        <div data-correct-serial-review-validation-banner></div>
+                        <div data-correct-serial-review-duplicate-banner></div>
+                    </div>
+                </x-c360.section-card>
+
+                <x-c360.impact-checklist
+                    class="mt-3"
+                    :items="[
+                        'Customer360',
+                        'Search',
+                        'Timeline',
+                        'Audit',
+                        'Future WhatsApp',
+                        'Future Email',
+                    ]" />
+            </div>
+        </x-c360.dialog-body-layout>
     </div>
 
     <x-c360.modal-footer>
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn c360-dialog-btn-ghost" data-bs-dismiss="modal">Cancel</button>
         <button type="button"
-                class="btn btn-outline-secondary d-none"
+                class="btn c360-dialog-btn-ghost d-none"
                 data-correct-serial-number-back>
             Back
         </button>
         <button type="button"
-                class="btn btn-outline-primary"
+                class="btn c360-dialog-btn-primary"
                 data-correct-serial-number-review
                 disabled>
             Review Changes
         </button>
         <button type="submit"
-                class="btn btn-primary d-none"
+                class="btn c360-dialog-btn-primary d-none"
                 data-correct-serial-number-confirm>
             Confirm Correction
         </button>

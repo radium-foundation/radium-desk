@@ -55,6 +55,7 @@ class OrderIdentityRepairService
         private readonly ServiceCaseAutomationStatusService $automationStatusService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
         private readonly AuditLogService $auditLogService,
+        private readonly OrderIdentityProtectionService $identityProtection,
     ) {}
 
     public function countPendingRepairs(bool $activeOnly = false): int
@@ -890,11 +891,27 @@ class OrderIdentityRepairService
             $updates['product_name'] = $enrichment->deviceModel;
         }
 
+        $updates = [
+            ...$updates,
+            ...$this->identityProtection->buildExternalIdentityUpdates($order, [
+                'customer_name' => $enrichment->customerName,
+                'customer_phone' => $enrichment->customerPhone,
+                'customer_email' => $enrichment->customerEmail,
+            ]),
+        ];
+
         return $updates;
     }
 
     private function shouldReplaceSerial(Order $order): bool
     {
+        if ($order->isSerialLocked()
+            && ! $this->isValueMissing($order->serial_number)
+            && ! $this->isPlaceholderValue($order->serial_number)
+            && ! $this->isSerialInvalid($order)) {
+            return false;
+        }
+
         if ($this->isValueMissing($order->serial_number) || $this->isPlaceholderValue($order->serial_number)) {
             return true;
         }

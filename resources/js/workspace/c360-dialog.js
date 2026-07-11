@@ -59,21 +59,64 @@ export const renderReviewCards = (listElement, changes) => {
     }
 
     listElement.innerHTML = changes.map((change) => `
-        <article class="c360-dialog-review-card">
+        <article class="c360-dialog-review-card c360-dialog-review-card--premium">
             <h4 class="c360-dialog-review-card-title">${escapeHtml(change.label)}</h4>
             <div class="c360-dialog-review-values">
                 <div class="c360-dialog-review-value">
                     <span class="c360-dialog-review-value-label">Current</span>
-                    <span class="c360-dialog-review-value-text">${escapeHtml(formatDisplayValue(change.current))}</span>
+                    <span class="c360-dialog-review-value-text c360-dialog-review-value-text--current">${escapeHtml(formatDisplayValue(change.current))}</span>
                 </div>
                 <div class="c360-dialog-review-arrow" aria-hidden="true">↓</div>
                 <div class="c360-dialog-review-value c360-dialog-review-value--new">
                     <span class="c360-dialog-review-value-label">New</span>
-                    <span class="c360-dialog-review-value-text">${escapeHtml(formatDisplayValue(change.next))}</span>
+                    <span class="c360-dialog-review-value-text c360-dialog-review-value-text--new">${escapeHtml(formatDisplayValue(change.next))}</span>
                 </div>
             </div>
         </article>
     `).join('');
+};
+
+export const getSelectedVerificationSource = (form) => {
+    const selected = form.querySelector('[data-c360-verification-source-input]:checked');
+
+    if (!(selected instanceof HTMLInputElement)) {
+        return '';
+    }
+
+    return selected.value.trim();
+};
+
+export const renderReviewVerificationSource = (form, {
+    sectionSelector,
+    textSelector,
+}) => {
+    const section = form.querySelector(sectionSelector);
+    const text = form.querySelector(textSelector);
+    const source = getSelectedVerificationSource(form);
+
+    if (!(section instanceof HTMLElement) || !(text instanceof HTMLElement)) {
+        return;
+    }
+
+    if (source === '') {
+        section.classList.add('d-none');
+        text.textContent = '';
+        return;
+    }
+
+    section.classList.remove('d-none');
+    text.textContent = source;
+};
+
+export const animateDialogStep = (stepElement) => {
+    if (!(stepElement instanceof HTMLElement)) {
+        return;
+    }
+
+    stepElement.classList.remove('c360-dialog-step--enter');
+    // Force reflow so the animation can replay.
+    void stepElement.offsetWidth;
+    stepElement.classList.add('c360-dialog-step--enter');
 };
 
 export const updateChangeStatus = (form, changes) => {
@@ -133,8 +176,10 @@ const parseSuccessItems = (dialogElement) => {
 };
 
 export const renderSuccessStateHtml = ({ title, items }) => `
-    <div class="c360-dialog-success">
-        <div class="c360-dialog-success-icon" aria-hidden="true">✓</div>
+    <div class="c360-dialog-success c360-dialog-success--premium c360-dialog-success--animate">
+        <div class="c360-dialog-success-icon" aria-hidden="true">
+            <span class="c360-dialog-success-icon-mark">✓</span>
+        </div>
         <h3 class="c360-dialog-success-title">${escapeHtml(title)}</h3>
         ${items.length > 0 ? `
             <ul class="c360-dialog-success-list mb-0">
@@ -189,4 +234,41 @@ export const maybeShowSuccessState = async (host, data) => {
     await showSuccessState(host, dialogElement);
 
     return true;
+};
+
+export const renderValidationBannerHtml = ({
+    type,
+    message,
+    detail = null,
+    icon = null,
+}) => {
+    const icons = {
+        pass: '✅',
+        warning: '⚠',
+        fail: '❌',
+        'duplicate-clear': '✅',
+        'duplicate-conflict': '❌',
+        info: 'ℹ',
+    };
+    const resolvedIcon = icon ?? icons[type] ?? 'ℹ';
+    const detailHtml = detail
+        ? `<p class="c360-dialog-validation-banner-detail mb-0">${escapeHtml(detail)}</p>`
+        : '';
+
+    return `
+        <div class="c360-dialog-validation-banner c360-dialog-validation-banner--${escapeHtml(type)} c360-dialog-validation-banner--animate"
+             role="status">
+            <span class="c360-dialog-validation-banner-icon" aria-hidden="true">${resolvedIcon}</span>
+            <div class="c360-dialog-validation-banner-content">
+                <p class="c360-dialog-validation-banner-message mb-0">${escapeHtml(message)}</p>
+                ${detailHtml}
+            </div>
+        </div>
+    `;
+};
+
+export const VALIDATION_MESSAGES = {
+    pass: 'Serial format valid',
+    warning: 'Validation warning',
+    fail: 'Invalid serial',
 };

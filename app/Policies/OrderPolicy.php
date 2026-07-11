@@ -86,4 +86,10 @@ class OrderPolicy
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ]);
     }
+
+    public function unlockProtectedIdentityFields(User $user, Order $order): bool
+    {
+        return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)
+            && $user->can('orders.update');
+    }
 }

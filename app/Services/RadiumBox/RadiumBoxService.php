@@ -4,12 +4,14 @@ namespace App\Services\RadiumBox;
 
 use App\Data\EnrichmentPersistenceResult;
 use App\Models\Order;
+use App\Services\OrderIdentityProtectionService;
 use Illuminate\Support\Facades\Log;
 
 class RadiumBoxService
 {
     public function __construct(
         private readonly RadiumBoxClient $client,
+        private readonly OrderIdentityProtectionService $identityProtection,
     ) {}
 
     public function enrichOrderForWorkspace(Order $order): Order
@@ -159,6 +161,15 @@ class RadiumBoxService
         if (! $order->hasDeviceModelAssigned() && ! filled($order->device_model) && filled($enrichment->deviceModel)) {
             $updates['device_model'] = $enrichment->deviceModel;
         }
+
+        $updates = [
+            ...$updates,
+            ...$this->identityProtection->buildExternalIdentityUpdates($order, [
+                'customer_name' => $enrichment->customerName,
+                'customer_phone' => $enrichment->customerPhone,
+                'customer_email' => $enrichment->customerEmail,
+            ]),
+        ];
 
         return $updates;
     }

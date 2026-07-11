@@ -1,7 +1,9 @@
 import {
+    animateDialogStep,
     buildFieldChanges,
     initChangeDetection,
     renderReviewCards,
+    renderReviewVerificationSource,
 } from './c360-dialog';
 
 const FIELD_DEFINITIONS = [
@@ -59,6 +61,7 @@ const setStep = (form, step) => {
 
     const isReview = step === 'review';
     const changes = buildFieldChanges(form, FIELD_DEFINITIONS);
+    const activeStep = isReview ? reviewStep : editStep;
 
     editStep?.classList.toggle('d-none', isReview);
     reviewStep?.classList.toggle('d-none', !isReview);
@@ -70,7 +73,13 @@ const setStep = (form, step) => {
     if (isReview) {
         renderReviewCards(reviewList, changes);
         renderReviewReason(form);
+        renderReviewVerificationSource(form, {
+            sectionSelector: '[data-correct-customer-details-review-source]',
+            textSelector: '[data-correct-customer-details-review-source-text]',
+        });
     }
+
+    animateDialogStep(activeStep);
 };
 
 export const initCorrectCustomerDetailsDialog = (root) => {
