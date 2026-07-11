@@ -77,13 +77,19 @@ export const renderReviewCards = (listElement, changes) => {
 };
 
 export const getSelectedVerificationSource = (form) => {
-    const selected = form.querySelector('[data-c360-verification-source-input]:checked');
+    const selectedRadio = form.querySelector('[data-c360-verification-source-input]:checked');
 
-    if (!(selected instanceof HTMLInputElement)) {
-        return '';
+    if (selectedRadio instanceof HTMLInputElement) {
+        return selectedRadio.value.trim();
     }
 
-    return selected.value.trim();
+    const selectedSelect = form.querySelector('select[data-c360-verification-source-input]');
+
+    if (selectedSelect instanceof HTMLSelectElement) {
+        return selectedSelect.value.trim();
+    }
+
+    return '';
 };
 
 export const renderReviewVerificationSource = (form, {
@@ -119,7 +125,29 @@ export const animateDialogStep = (stepElement) => {
     stepElement.classList.add('c360-dialog-step--enter');
 };
 
-export const updateChangeStatus = (form, changes) => {
+export const formatChangeStatusText = (changes, changeStatusFormat = null) => {
+    const count = changes.length;
+
+    if (count === 0) {
+        return changeStatusFormat?.unchanged ?? 'No changes detected';
+    }
+
+    if (typeof changeStatusFormat?.changed === 'function') {
+        return changeStatusFormat.changed(count);
+    }
+
+    return changeStatusFormat?.changed ?? '✓ Changed';
+};
+
+export const formatReviewButtonText = (count, reviewButtonFormat = null, defaultText = 'Review Changes') => {
+    if (count === 0 || typeof reviewButtonFormat !== 'function') {
+        return defaultText;
+    }
+
+    return reviewButtonFormat(count);
+};
+
+export const updateChangeStatus = (form, changes, options = {}) => {
     const statusElement = form.querySelector('[data-c360-change-status]');
     const statusText = form.querySelector('[data-c360-change-status-text]');
     const hasChanges = changes.length > 0;
@@ -130,7 +158,7 @@ export const updateChangeStatus = (form, changes) => {
     }
 
     if (statusText instanceof HTMLElement) {
-        statusText.textContent = hasChanges ? '✓ Changed' : 'No changes detected';
+        statusText.textContent = formatChangeStatusText(changes, options.changeStatusFormat);
     }
 
     return hasChanges;
@@ -140,16 +168,26 @@ export const initChangeDetection = (form, {
     fieldDefinitions,
     reviewButton = null,
     onChangesUpdate = null,
+    changeStatusFormat = null,
+    reviewButtonFormat = null,
 }) => {
     const resolvedReviewButton = reviewButton
         ?? form.querySelector('[data-correct-customer-details-review]');
+    const defaultReviewButtonText = resolvedReviewButton instanceof HTMLButtonElement
+        ? resolvedReviewButton.textContent.trim()
+        : 'Review Changes';
 
     const refresh = () => {
         const changes = buildFieldChanges(form, fieldDefinitions);
-        const hasChanges = updateChangeStatus(form, changes);
+        const hasChanges = updateChangeStatus(form, changes, { changeStatusFormat });
 
         if (resolvedReviewButton instanceof HTMLButtonElement) {
             resolvedReviewButton.disabled = !hasChanges;
+            resolvedReviewButton.textContent = formatReviewButtonText(
+                changes.length,
+                reviewButtonFormat,
+                defaultReviewButtonText,
+            );
         }
 
         onChangesUpdate?.(changes, hasChanges);

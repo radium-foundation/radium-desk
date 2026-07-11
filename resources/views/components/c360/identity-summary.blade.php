@@ -14,11 +14,14 @@
     $orderDate = $order?->displayOrderDate();
     $lastUpdated = $order?->updated_at;
     $lastUpdatedBy = $order?->updater?->name;
-    $isSidebar = $variant === 'sidebar';
+    $isCompactSidebar = $variant === 'compact-sidebar';
+    $isSidebar = $variant === 'sidebar' || $isCompactSidebar;
 @endphp
 
 <section {{ $attributes->merge([
-    'class' => 'c360-dialog-identity'.($isSidebar ? ' c360-dialog-identity--sidebar' : ''),
+    'class' => 'c360-dialog-identity'
+        .($isSidebar ? ' c360-dialog-identity--sidebar' : '')
+        .($isCompactSidebar ? ' c360-dialog-identity--compact-sidebar' : ''),
 ]) }}
          aria-labelledby="c360-identity-summary-heading">
     <h3 class="visually-hidden" id="c360-identity-summary-heading">Identity Summary</h3>
@@ -84,7 +87,7 @@
             <span class="c360-dialog-serial-action-label">Need to correct serial?</span>
             @if($canCorrectSerialNumber)
                 <button type="button"
-                        class="btn btn-link btn-sm p-0 c360-dialog-serial-action-btn"
+                        class="btn btn-sm c360-dialog-serial-action-btn{{ $isCompactSidebar ? ' c360-dialog-serial-action-btn--ghost' : ' btn-link p-0' }}"
                         data-workspace-trigger="correct-serial-number"
                         data-workspace-incident-id="{{ $incident->id }}"
                         data-workspace-context="{{ $workspaceContext }}">
@@ -92,7 +95,7 @@
                 </button>
             @else
                 <button type="button"
-                        class="btn btn-link btn-sm p-0 c360-dialog-serial-action-btn"
+                        class="btn btn-sm c360-dialog-serial-action-btn{{ $isCompactSidebar ? ' c360-dialog-serial-action-btn--ghost' : ' btn-link p-0' }}"
                         disabled
                         aria-disabled="true"
                         title="Serial correction is not available for your role or this case">

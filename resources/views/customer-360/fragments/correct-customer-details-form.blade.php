@@ -40,14 +40,14 @@
                     :incident="$incident"
                     :workspace-context="$workspaceContext"
                     :can-correct-serial-number="$canCorrectSerialNumber ?? false"
-                    variant="sidebar" />
+                    variant="compact-sidebar" />
             </x-slot:sidebar>
 
             <div data-correct-customer-details-step="edit" class="c360-dialog-step">
                 <x-c360.section-card
-                    title="Customer Details"
+                    title="Customer details"
                     heading-id="correct-customer-details-fields-heading"
-                    class="mb-3">
+                    class="mb-2">
                     <div class="c360-dialog-form-grid">
                         <div class="c360-dialog-field">
                             <label for="correct-customer-name" class="form-label">Customer Name</label>
@@ -95,25 +95,27 @@
                         </div>
                     </div>
 
-                    <x-c360.change-status class="mt-3 mb-0" />
+                    <x-c360.change-status class="mt-2 mb-0" unchanged-text="No changes" />
                 </x-c360.section-card>
 
                 <x-c360.section-card
-                    title="Reason"
+                    title="Correction reason"
                     heading-id="correct-customer-details-reason-heading"
-                    class="mb-3">
+                    class="mb-2">
                     <x-c360.reason-field
                         id="correct-customer-reason"
                         name="reason"
                         label="Why are these details being corrected?"
-                        :value="$reasonValue" />
+                        :value="$reasonValue"
+                        compact
+                        show-counter />
                 </x-c360.section-card>
 
                 <x-c360.section-card
                     title="Verification"
                     heading-id="correct-customer-verification-heading"
                     class="mb-0">
-                    <x-c360.verification-source />
+                    <x-c360.verification-source variant="select" />
                 </x-c360.section-card>
             </div>
 
