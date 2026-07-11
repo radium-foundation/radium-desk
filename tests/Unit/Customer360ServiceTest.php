@@ -6,6 +6,9 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Enums\SupportAppointmentStatus;
+use App\Enums\SupportAppointmentTimeSlot;
+use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\Customer360\Customer360DrawerProfiler;
 use App\Services\Customer360Service;
@@ -232,6 +235,48 @@ class Customer360ServiceTest extends TestCase
         $data = app(Customer360Service::class)->drawerData($incident);
 
         $this->assertSame('Pending', collect($data['activeServices'])->firstWhere('label', 'RD Service')['status']);
+        $this->assertSame('Not Available', collect($data['activeServices'])->firstWhere('label', 'Warranty')['status']);
+        $this->assertSame('Not Available', collect($data['activeServices'])->firstWhere('label', 'AMC')['status']);
+    }
+
+    public function test_active_service_chip_shows_scheduled_when_appointment_exists(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-360-SCHED',
+            'serial_number' => 'SN-360-SCHED',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-360-SCHED',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Scheduled case',
+            'description' => 'Scheduled case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876502222',
+            'status' => SupportAppointmentStatus::Scheduled,
+        ]);
+
+        $data = app(Customer360Service::class)->drawerData($incident->fresh());
+
+        $this->assertSame('Scheduled', collect($data['activeServices'])->firstWhere('label', 'RD Service')['status']);
         $this->assertSame('Not Available', collect($data['activeServices'])->firstWhere('label', 'Warranty')['status']);
         $this->assertSame('Not Available', collect($data['activeServices'])->firstWhere('label', 'AMC')['status']);
     }

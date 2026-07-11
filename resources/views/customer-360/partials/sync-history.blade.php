@@ -22,8 +22,12 @@
                         <span class="customer-360-sync-history-label">{{ $entry['title'] ?? '' }}</span>
                     </div>
                     <div class="customer-360-sync-history-meta">
-                        <span class="customer-360-sync-history-date">{{ $entry['date'] ?? '' }}</span>
-                        <span class="customer-360-sync-history-time">{{ $entry['time'] ?? '' }}</span>
+                        @if(filled($entry['subtitle'] ?? null))
+                            <span class="customer-360-sync-history-subtitle">{{ $entry['subtitle'] }}</span>
+                        @else
+                            <span class="customer-360-sync-history-date">{{ $entry['date'] ?? '' }}</span>
+                            <span class="customer-360-sync-history-time">{{ $entry['time'] ?? '' }}</span>
+                        @endif
                         @if(filled($entry['actor_name'] ?? null))
                             <span class="customer-360-sync-history-actor">{{ $entry['actor_name'] }}</span>
                         @endif

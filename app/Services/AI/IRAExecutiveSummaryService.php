@@ -15,6 +15,7 @@ use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\SerialValidation\SerialInsightService;
+use App\Support\AppDateFormatter;
 use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Str;
 
@@ -105,10 +106,18 @@ class IRAExecutiveSummaryService
             $lines[] = "Customer purchased {$this->withArticle($model)} and currently has {$repairLabel}.";
         }
 
-        $waitingLifecycleLine = $this->customerWaitingLifecycleLine($context);
+        $waitingLifecycleLine = $context->hasScheduledSupportAppointment()
+            ? null
+            : $this->customerWaitingLifecycleLine($context);
 
         if ($waitingLifecycleLine !== null) {
             $lines[] = $waitingLifecycleLine;
+        }
+
+        $appointmentLine = $this->scheduledSupportAppointmentLine($context);
+
+        if ($appointmentLine !== null) {
+            $lines[] = $appointmentLine;
         }
 
         if (! $hasSerialConcern) {
@@ -173,6 +182,10 @@ class IRAExecutiveSummaryService
             return 'The customer has tried contacting multiple times and needs a prioritized callback.';
         }
 
+        if ($context->hasScheduledSupportAppointment()) {
+            return $this->scheduledSupportAppointmentOpinion($context);
+        }
+
         if ($context->customerIntelligence->repeatIssueDetected) {
             return 'This customer has experienced repeat failures and deserves proactive handling.';
         }
@@ -232,6 +245,10 @@ class IRAExecutiveSummaryService
             return 'Prioritize callback now and update the customer immediately.';
         }
 
+        if ($context->hasScheduledSupportAppointment()) {
+            return $this->scheduledSupportAppointmentRecommendation($context);
+        }
+
         if ($context->customerIntelligence->repeatIssueDetected) {
             return 'Review prior technician notes and communicate a proactive repair plan.';
         }
@@ -242,7 +259,7 @@ class IRAExecutiveSummaryService
 
         $primaryAction = $response->suggestedNextActions[0] ?? null;
 
-        if ($primaryAction !== null) {
+        if ($primaryAction !== null && ! $this->isCustomerReminderAction($primaryAction->title, $primaryAction->description)) {
             $description = trim($primaryAction->description);
 
             return $description !== ''
@@ -487,5 +504,70 @@ class IRAExecutiveSummaryService
         $article = in_array($first, ['a', 'e', 'i', 'o', 'u'], true) ? 'an' : 'a';
 
         return "{$article} {$model}";
+    }
+
+    private function scheduledSupportAppointmentLine(\App\Data\AI\AIContextDTO $context): ?string
+    {
+        $appointment = $context->scheduledSupportAppointment;
+
+        if ($appointment === null) {
+            return null;
+        }
+
+        $dateLabel = AppDateFormatter::format($appointment['preferred_date'], 'd M Y');
+        $slotLabel = trim((string) ($appointment['time_slot_label'] ?? ''));
+
+        $scheduleDetails = $slotLabel !== ''
+            ? "{$dateLabel} ({$slotLabel})"
+            : $dateLabel;
+
+        $line = "Customer booked a support appointment for {$scheduleDetails}.";
+
+        $assigneeName = trim((string) ($appointment['assignee_name'] ?? ''));
+
+        if ($assigneeName !== '') {
+            $line .= " Next action belongs to {$assigneeName}.";
+        } else {
+            $line .= ' Next action belongs to the assigned agent.';
+        }
+
+        return $line;
+    }
+
+    private function scheduledSupportAppointmentOpinion(\App\Data\AI\AIContextDTO $context): string
+    {
+        $appointment = $context->scheduledSupportAppointment;
+
+        if ($appointment === null) {
+            return 'Customer has a support appointment scheduled; prepare for the visit.';
+        }
+
+        $dateLabel = AppDateFormatter::format($appointment['preferred_date'], 'd M Y');
+        $assigneeName = trim((string) ($appointment['assignee_name'] ?? ''));
+
+        if ($assigneeName !== '') {
+            return "Customer has a support appointment on {$dateLabel}; {$assigneeName} should lead the follow-up.";
+        }
+
+        return "Customer has a support appointment on {$dateLabel}; the assigned agent should lead the follow-up.";
+    }
+
+    private function scheduledSupportAppointmentRecommendation(\App\Data\AI\AIContextDTO $context): string
+    {
+        $appointment = $context->scheduledSupportAppointment;
+        $assigneeName = trim((string) ($appointment['assignee_name'] ?? ''));
+
+        if ($assigneeName !== '') {
+            return "Prepare for the scheduled support visit and coordinate appointment follow-up with {$assigneeName}.";
+        }
+
+        return 'Prepare for the scheduled support visit and coordinate appointment follow-up with the assigned agent.';
+    }
+
+    private function isCustomerReminderAction(string $title, string $description): bool
+    {
+        $combined = Str::lower(trim($title.' '.$description));
+
+        return Str::contains($combined, ['reminder', 'follow-up reminder', 'follow up reminder', 'nudge customer']);
     }
 }

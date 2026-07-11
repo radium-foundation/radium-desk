@@ -20,6 +20,8 @@ use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\ServiceCaseActivityTimelineService;
 use App\Services\ServiceCaseAutomationStatusService;
 use App\Services\Timeline\Customer360TimelineService;
+use App\Support\Customer360\RdServiceStatusResolver;
+use App\Support\Customer360\ScheduledSupportAppointmentContext;
 use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -41,6 +43,8 @@ class IncidentAIContextBuilder
         private readonly SerialPlaceholderService $serialPlaceholderService,
         private readonly AIRiskScoringService $riskScoringService,
         private readonly BonvoiceCustomerContactIntelligenceService $contactIntelligenceService,
+        private readonly RdServiceStatusResolver $rdServiceStatusResolver,
+        private readonly ScheduledSupportAppointmentContext $scheduledSupportAppointmentContext,
     ) {}
 
     public function build(
@@ -58,7 +62,10 @@ class IncidentAIContextBuilder
             ?? ($order !== null ? ($this->enrichmentSyncStore->metadata($order->id) ?? []) : []);
 
         $activeServices = $snapshot?->activeServices
-            ?? ($order !== null ? $this->activeServices($order, $enrichmentMetadata) : []);
+            ?? ($order !== null ? $this->activeServices($incident, $order, $enrichmentMetadata) : []);
+
+        $scheduledSupportAppointment = $snapshot?->scheduledSupportAppointment
+            ?? $this->scheduledSupportAppointmentContext->forIncident($incident);
 
         $warrantyStatus = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
         $waitingState = $snapshot?->waitingStateCard
@@ -130,6 +137,7 @@ class IncidentAIContextBuilder
             businessIntelligence: $businessIntelligence,
             internalRemarksCount: $internalRemarksCount,
             knowledge: $knowledge,
+            scheduledSupportAppointment: $scheduledSupportAppointment,
         );
 
         $riskIndicators = $this->riskScoringService->score($context);
@@ -165,6 +173,7 @@ class IncidentAIContextBuilder
             businessIntelligence: $context->businessIntelligence,
             internalRemarksCount: $context->internalRemarksCount,
             knowledge: $context->knowledge,
+            scheduledSupportAppointment: $context->scheduledSupportAppointment,
         );
     }
 
@@ -172,7 +181,7 @@ class IncidentAIContextBuilder
      * @param  array<string, mixed>  $enrichmentMetadata
      * @return list<array{label: string, status: string, variant: string}>
      */
-    private function activeServices(Order $order, array $enrichmentMetadata): array
+    private function activeServices(Incident $incident, Order $order, array $enrichmentMetadata): array
     {
         if ($order->isInquiryOrder()) {
             return [
@@ -186,12 +195,13 @@ class IncidentAIContextBuilder
 
         $warranty = $this->normalizeServiceStatus($enrichmentMetadata['warranty'] ?? null);
         $amc = $this->normalizeServiceStatus($enrichmentMetadata['amc'] ?? null);
+        $rdService = $this->rdServiceStatusResolver->resolve($incident, $order);
 
         return [
             [
                 'label' => 'RD Service',
-                'status' => $order->isTransactionLocked() ? 'Active' : 'Pending',
-                'variant' => $order->isTransactionLocked() ? 'success' : 'warning',
+                'status' => $rdService['status'],
+                'variant' => $rdService['variant'],
             ],
             [
                 'label' => 'Warranty',

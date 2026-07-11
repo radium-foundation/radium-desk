@@ -59,12 +59,18 @@ class RadiumBoxSyncTimelineService
             ));
         }
 
-        foreach ($auditLogs as $auditLog) {
-            $mapped = $this->mapAuditLog($auditLog);
+        foreach ($this->collapseConsecutiveSchedulerRecoveries($auditLogs) as $item) {
+            if ($item instanceof AuditLog) {
+                $mapped = $this->mapAuditLog($item);
 
-            if ($mapped !== null) {
-                $entries->push($mapped);
+                if ($mapped !== null) {
+                    $entries->push($mapped);
+                }
+
+                continue;
             }
+
+            $entries->push($this->formatSchedulerRecoveryGroup($item['count'], $item['last_occurred_at']));
         }
 
         return $entries
@@ -73,6 +79,69 @@ class RadiumBoxSyncTimelineService
             ->values()
             ->map(fn (array $entry): array => array_diff_key($entry, ['occurred_at_timestamp' => true]))
             ->all();
+    }
+
+    /**
+     * @return list<AuditLog|array{count: int, last_occurred_at: mixed}>
+     */
+    private function collapseConsecutiveSchedulerRecoveries(Collection $auditLogs): array
+    {
+        $sorted = $auditLogs->sortBy('created_at')->values();
+        $output = [];
+        $recoveryGroup = collect();
+
+        foreach ($sorted as $auditLog) {
+            if ($auditLog->event === RadiumBoxSyncAuditService::EVENT_SCHEDULER_RECOVERY) {
+                $recoveryGroup->push($auditLog);
+
+                continue;
+            }
+
+            if ($recoveryGroup->isNotEmpty()) {
+                $output[] = $this->buildSchedulerRecoveryGroup($recoveryGroup);
+                $recoveryGroup = collect();
+            }
+
+            $output[] = $auditLog;
+        }
+
+        if ($recoveryGroup->isNotEmpty()) {
+            $output[] = $this->buildSchedulerRecoveryGroup($recoveryGroup);
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param  Collection<int, AuditLog>  $logs
+     * @return array{count: int, last_occurred_at: mixed}
+     */
+    private function buildSchedulerRecoveryGroup(Collection $logs): array
+    {
+        return [
+            'count' => $logs->count(),
+            'last_occurred_at' => $logs->last()?->created_at,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatSchedulerRecoveryGroup(int $count, mixed $occurredAt): array
+    {
+        $title = $count > 1
+            ? "Scheduler Recovery ({$count} attempts)"
+            : 'Scheduler Recovery';
+
+        return $this->formatEntry(
+            icon: 'scheduler',
+            title: $title,
+            occurredAt: $occurredAt,
+            actorName: null,
+            subtitle: $count > 1
+                ? 'Last attempt: '.AppDateFormatter::format($occurredAt, 'd M h:i A')
+                : null,
+        );
     }
 
     /**
@@ -99,12 +168,6 @@ class RadiumBoxSyncTimelineService
                 occurredAt: $occurredAt,
                 actorName: $this->resolveActorName($auditLog->user),
             ),
-            RadiumBoxSyncAuditService::EVENT_SCHEDULER_RECOVERY => $this->formatEntry(
-                icon: 'scheduler',
-                title: 'Scheduler Recovery',
-                occurredAt: $occurredAt,
-                actorName: null,
-            ),
             default => null,
         };
     }
@@ -117,6 +180,7 @@ class RadiumBoxSyncTimelineService
         string $title,
         mixed $occurredAt,
         ?string $actorName,
+        ?string $subtitle = null,
     ): array {
         return [
             'icon' => $icon,
@@ -124,6 +188,7 @@ class RadiumBoxSyncTimelineService
             'date' => AppDateFormatter::format($occurredAt, 'd M Y'),
             'time' => AppDateFormatter::format($occurredAt, 'h:i A'),
             'actor_name' => $actorName,
+            'subtitle' => $subtitle,
             'occurred_at_timestamp' => $occurredAt?->getTimestamp() ?? 0,
         ];
     }

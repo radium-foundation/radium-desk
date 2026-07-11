@@ -6,8 +6,11 @@ use App\Data\AI\OperationalIntelligenceDTO;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
+use App\Enums\SupportAppointmentStatus;
+use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\IncidentReferenceService;
@@ -192,6 +195,117 @@ class IRAExecutiveSummaryServiceTest extends TestCase
         $this->assertStringContainsString('ग्राहक ने खरीदा', $translated['executive_summary'][0]);
         $this->assertStringContainsString('सीरियल-नंबर लंबित केस', $translated['opinion']);
         $this->assertStringContainsString('तुरंत सीरियल माँगें', $translated['recommendation']);
+    }
+
+    public function test_scheduled_appointment_appears_in_executive_summary(): void
+    {
+        $agent = User::factory()->create(['name' => 'Support Agent']);
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-APPT',
+            'serial_number' => 'SN-APPT-001',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-APPT',
+            'customer_name' => 'Appointment Customer',
+            'customer_phone' => '9123456790',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Scheduled support',
+            'description' => 'Customer booked appointment.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9123456790',
+            'status' => SupportAppointmentStatus::Scheduled,
+        ]);
+
+        $context = AIContextFactory::make([
+            'deviceModel' => 'MFS 110',
+            'warrantyStatus' => 'Active',
+            'customerSummary' => ['open_cases' => 1],
+            'scheduledSupportAppointment' => [
+                'preferred_date' => now()->addDay(),
+                'time_slot_label' => SupportAppointmentTimeSlot::Morning->label(),
+                'assignee_name' => 'Support',
+            ],
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+        $summary = app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 1],
+        );
+
+        $payload = implode(' ', $summary->executiveSummary);
+
+        $this->assertStringContainsString('booked a support appointment', $payload);
+        $this->assertStringContainsString('Morning (9 AM – 12 PM)', $payload);
+        $this->assertStringContainsString('Next action belongs to Support', $payload);
+    }
+
+    public function test_recommendation_changes_when_appointment_exists(): void
+    {
+        $agent = User::factory()->create(['name' => 'Ravi Agent']);
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-REC',
+            'serial_number' => '7881953',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-REC',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Appointment case',
+            'description' => 'Appointment case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $context = AIContextFactory::make([
+            'serialMissing' => false,
+            'scheduledSupportAppointment' => [
+                'preferred_date' => now()->addDay(),
+                'time_slot_label' => SupportAppointmentTimeSlot::Afternoon->label(),
+                'assignee_name' => 'Ravi',
+            ],
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+        $summary = app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 1],
+        );
+
+        $this->assertStringContainsString('appointment follow-up', Str::lower($summary->recommendation));
+        $this->assertStringContainsString('Ravi', $summary->recommendation);
+        $this->assertStringNotContainsString('Review incident details', $summary->recommendation);
+        $this->assertStringContainsString('support appointment', Str::lower($summary->opinion));
     }
 
     private function buildSuspiciousSerialSummary(): \App\Data\AI\IRAExecutiveSummaryDTO

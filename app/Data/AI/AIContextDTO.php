@@ -16,6 +16,7 @@ readonly class AIContextDTO
      * @param  list<array{title: string, type: string, occurred_at: Carbon}>  $recentActivities
      * @param  list<array{policy_key: string, action_type: string, status: string, occurred_at: Carbon|null}>  $automationHistory
      * @param  list<AIRiskIndicatorDTO>  $riskIndicators
+     * @param  array{preferred_date: Carbon, time_slot_label: ?string, assignee_name: ?string}|null  $scheduledSupportAppointment
      */
     public function __construct(
         public int $incidentId,
@@ -48,10 +49,16 @@ readonly class AIContextDTO
         public BusinessIntelligenceDTO $businessIntelligence,
         public int $internalRemarksCount,
         public KnowledgeResponseDTO $knowledge,
+        public ?array $scheduledSupportAppointment = null,
     ) {}
 
     public function isWarrantyExpired(): bool
     {
         return str_contains(strtolower($this->warrantyStatus), 'expired');
+    }
+
+    public function hasScheduledSupportAppointment(): bool
+    {
+        return $this->scheduledSupportAppointment !== null;
     }
 }

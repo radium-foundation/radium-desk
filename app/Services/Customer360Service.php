@@ -30,6 +30,8 @@ use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
+use App\Support\Customer360\RdServiceStatusResolver;
+use App\Support\Customer360\ScheduledSupportAppointmentContext;
 use App\Support\AppDateFormatter;
 use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Carbon;
@@ -57,6 +59,8 @@ class Customer360Service
         private readonly BonvoiceCustomerCallService $bonvoiceCustomerCallService,
         private readonly BonvoiceCustomerContactIntelligenceService $bonvoiceContactIntelligenceService,
         private readonly Customer360ActionVisibilityService $actionVisibilityService,
+        private readonly RdServiceStatusResolver $rdServiceStatusResolver,
+        private readonly ScheduledSupportAppointmentContext $scheduledSupportAppointmentContext,
     ) {}
 
     /**
@@ -87,7 +91,7 @@ class Customer360Service
         $fullModelName = $order->displayDeviceModelName();
         $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
         $customer = $this->customerSection($order);
-        $activeServices = $this->activeServices($order, $enrichmentMetadata);
+        $activeServices = $this->activeServices($incident, $order, $enrichmentMetadata);
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
         $summary = $scopeCache->customerSummary();
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
@@ -134,17 +138,19 @@ class Customer360Service
         }
 
         $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
-        $activeServices = $this->activeServices($order, $enrichmentMetadata);
+        $activeServices = $this->activeServices($incident, $order, $enrichmentMetadata);
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
         $summary = $scopeCache->customerSummary();
         $timeline = $this->customer360TimelineService->forOrder($order);
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
+        $scheduledSupportAppointment = $this->scheduledSupportAppointmentContext->forIncident($incident);
         $snapshot = new AIContextBuildSnapshot(
             customerSummary: $summary,
             activeServices: $activeServices,
             enrichmentMetadata: $enrichmentMetadata,
             timeline: $timeline,
             waitingStateCard: $waitingStateCard,
+            scheduledSupportAppointment: $scheduledSupportAppointment,
         );
         $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
         $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);
@@ -216,17 +222,19 @@ class Customer360Service
         }
 
         $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
-        $activeServices = $this->activeServices($order, $enrichmentMetadata);
+        $activeServices = $this->activeServices($incident, $order, $enrichmentMetadata);
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
         $summary = $scopeCache->customerSummary();
         $timeline = $this->customer360TimelineService->forOrder($order);
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
+        $scheduledSupportAppointment = $this->scheduledSupportAppointmentContext->forIncident($incident);
         $snapshot = new AIContextBuildSnapshot(
             customerSummary: $summary,
             activeServices: $activeServices,
             enrichmentMetadata: $enrichmentMetadata,
             timeline: $timeline,
             waitingStateCard: $waitingStateCard,
+            scheduledSupportAppointment: $scheduledSupportAppointment,
         );
         $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
         $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);
@@ -408,7 +416,7 @@ class Customer360Service
      * @param  array<string, mixed>  $enrichmentMetadata
      * @return list<array{label: string, status: string, variant: string}>
      */
-    private function activeServices(Order $order, array $enrichmentMetadata): array
+    private function activeServices(Incident $incident, Order $order, array $enrichmentMetadata): array
     {
         if ($order->isInquiryOrder()) {
             return [
@@ -422,12 +430,13 @@ class Customer360Service
 
         $warranty = $this->normalizeServiceStatus($enrichmentMetadata['warranty'] ?? null);
         $amc = $this->normalizeServiceStatus($enrichmentMetadata['amc'] ?? null);
+        $rdService = $this->rdServiceStatusResolver->resolve($incident, $order);
 
         return [
             [
                 'label' => 'RD Service',
-                'status' => $order->isTransactionLocked() ? 'Active' : 'Pending',
-                'variant' => $order->isTransactionLocked() ? 'success' : 'warning',
+                'status' => $rdService['status'],
+                'variant' => $rdService['variant'],
             ],
             [
                 'label' => 'Warranty',

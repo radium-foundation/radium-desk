@@ -93,6 +93,7 @@ class AIContextFactory
             'serialMissing' => false,
             'riskIndicators' => [new AIRiskIndicatorDTO('Data Quality Risk', AIRiskLevel::Medium)],
             'internalRemarksCount' => 0,
+            'scheduledSupportAppointment' => null,
         ];
 
         $data = array_merge($defaults, $overrides);
@@ -128,6 +129,7 @@ class AIContextFactory
             businessIntelligence: $businessIntelligence,
             internalRemarksCount: $data['internalRemarksCount'],
             knowledge: $overrides['knowledge'] ?? KnowledgeFactory::make(),
+            scheduledSupportAppointment: $data['scheduledSupportAppointment'],
         );
     }
 }
