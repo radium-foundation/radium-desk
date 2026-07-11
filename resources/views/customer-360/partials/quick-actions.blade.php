@@ -155,16 +155,28 @@
         </div>
     @endif
 
-    @if($canCorrectCustomerDetails ?? false)
+    @if(($canCorrectCustomerDetails ?? false) || ($canCorrectSerialNumber ?? false))
         <div class="customer-360-quick-actions customer-360-quick-actions--admin mt-3">
-            <button type="button"
-                    class="btn btn-outline-secondary btn-sm customer-360-quick-action"
-                    data-workspace-trigger="correct-customer-details"
-                    data-workspace-incident-id="{{ $incident->id }}"
-                    data-workspace-context="customer"
-                    title="Correct customer name, phone, or email on the order">
-                <span aria-hidden="true">✏️</span> Correct Customer Details
-            </button>
+            @if($canCorrectCustomerDetails ?? false)
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm customer-360-quick-action"
+                        data-workspace-trigger="correct-customer-details"
+                        data-workspace-incident-id="{{ $incident->id }}"
+                        data-workspace-context="customer"
+                        title="Correct customer name, phone, or email on the order">
+                    <span aria-hidden="true">✏️</span> Correct Customer Details
+                </button>
+            @endif
+            @if($canCorrectSerialNumber ?? false)
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm customer-360-quick-action"
+                        data-workspace-trigger="correct-serial-number"
+                        data-workspace-incident-id="{{ $incident->id }}"
+                        data-workspace-context="customer"
+                        title="Correct the serial number on the order">
+                    <span aria-hidden="true">🔢</span> Correct Serial Number
+                </button>
+            @endif
         </div>
     @endif
 

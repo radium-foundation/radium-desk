@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Data\AI\AIContextBuildSnapshot;
-use App\Data\AI\AIWorkbenchDTO;
 use App\Data\AI\CustomerJourneyBuildContext;
+use App\Data\AI\AIWorkbenchDTO;
 use App\Data\TimelineViewModel;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
@@ -31,6 +31,9 @@ use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
+use App\Support\Customer360\Customer360HealthCardPresenter;
+use App\Support\Customer360\Customer360InsightsPresenter;
+use App\Support\Customer360\Customer360IraAdvisorPresenter;
 use App\Support\Customer360\Journey\CustomerJourneyBuilder;
 use App\Support\Customer360\RdServiceStatusResolver;
 use App\Support\Customer360\ScheduledSupportAppointmentContext;
@@ -64,6 +67,9 @@ class Customer360Service
         private readonly RdServiceStatusResolver $rdServiceStatusResolver,
         private readonly ScheduledSupportAppointmentContext $scheduledSupportAppointmentContext,
         private readonly CustomerJourneyBuilder $customerJourneyBuilder,
+        private readonly Customer360HealthCardPresenter $healthCardPresenter,
+        private readonly Customer360InsightsPresenter $insightsPresenter,
+        private readonly Customer360IraAdvisorPresenter $iraAdvisorPresenter,
     ) {}
 
     /**
@@ -114,6 +120,7 @@ class Customer360Service
             'canCustomerNotResponding' => $actionVisibility['canCustomerNotResponding'],
             'canLinkOrder' => $actionVisibility['canLinkOrder'],
             'canCorrectCustomerDetails' => $actionVisibility['canCorrectCustomerDetails'],
+            'canCorrectSerialNumber' => $actionVisibility['canCorrectSerialNumber'],
             'isWaitingForCustomer' => $actionVisibility['isWaitingForCustomer'],
             'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
             'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
@@ -182,7 +189,7 @@ class Customer360Service
     }
 
     /**
-     * @return array{timeline: TimelineViewModel, html: string, operationsHealth: array<string, mixed>, slaMetrics: \App\Data\Customer360\Customer360SlaMetrics}
+     * @return array{timeline: TimelineViewModel, html: string, operationsHealth: array<string, mixed>, slaMetrics: \App\Data\Customer360\Customer360SlaMetrics|null, customerHealthCard: array<string, mixed>|null, customerInsights: list<array{key: string, label: string, description: string, icon: string}>, iraAdvisor: array<string, mixed>|null}
      */
     public function timelineTabPayload(Incident $incident, int $offset = 0): array
     {
@@ -194,17 +201,26 @@ class Customer360Service
         $slaMetrics = $order !== null
             ? $this->slaMetricsService->forOrder($order)
             : null;
+        $customerHealthCard = $this->customerHealthCardViewData($incident, $order);
+        $customerInsights = $this->customerInsightsViewData($incident, $order, $customerHealthCard);
+        $iraAdvisor = $this->iraAdvisorViewData($incident, $order, $customerHealthCard, $slaMetrics);
 
         return [
             'timeline' => $viewModel,
             'operationsHealth' => $operationsHealth,
             'slaMetrics' => $slaMetrics,
+            'customerHealthCard' => $customerHealthCard,
+            'customerInsights' => $customerInsights,
+            'iraAdvisor' => $iraAdvisor,
             'html' => view('customer-360.partials.timeline-tab', [
                 'timeline' => $viewModel,
                 'timelineLoadMoreUrl' => $timelineUrl,
                 'timelineRefreshUrl' => $timelineUrl,
                 'operationsHealth' => $operationsHealth,
                 'slaMetrics' => $slaMetrics,
+                'customerHealthCard' => $customerHealthCard,
+                'customerInsights' => $customerInsights,
+                'iraAdvisor' => $iraAdvisor,
             ])->render(),
         ];
     }
@@ -470,6 +486,103 @@ class Customer360Service
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    private function customerHealthCardViewData(Incident $incident, ?Order $order): ?array
+    {
+        if ($order === null) {
+            return null;
+        }
+
+        $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
+        $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
+        $summary = $scopeCache->customerSummary();
+        $healthCard = $this->healthCard(
+            $order,
+            $this->customerSection($order),
+            $this->activeServices($incident, $order, $enrichmentMetadata),
+            $summary,
+        );
+
+        return $this->healthCardPresenter->present($healthCard, $summary, $order->customer_phone);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $healthCardViewModel
+     * @return list<array{key: string, label: string, description: string, icon: string}>
+     */
+    private function customerInsightsViewData(Incident $incident, ?Order $order, ?array $healthCardViewModel): array
+    {
+        if ($order === null || $healthCardViewModel === null) {
+            return [];
+        }
+
+        $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
+
+        return $this->insightsPresenter->present(
+            $healthCardViewModel,
+            $scopeCache->customerSummary(),
+            $order->customer_phone,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $healthCardViewModel
+     * @return array<string, mixed>|null
+     */
+    private function iraAdvisorViewData(
+        Incident $incident,
+        ?Order $order,
+        ?array $healthCardViewModel,
+        ?\App\Data\Customer360\Customer360SlaMetrics $slaMetrics,
+    ): ?array {
+        if ($order === null) {
+            return null;
+        }
+
+        $incident->loadMissing(['activeWaitingState', 'assignee']);
+        $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
+        $activeServices = $this->activeServices($incident, $order, $enrichmentMetadata);
+        $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
+        $summary = $scopeCache->customerSummary();
+        $timeline = $this->customer360TimelineService->forOrder($order);
+        $waitingStateCard = $this->waitingStateService->customer360Card($incident);
+        $supportAppointment = $this->scheduledSupportAppointmentContext->forIncident($incident);
+        $customerJourney = $this->customerJourneyBuilder->forIncident($incident, new CustomerJourneyBuildContext(
+            incident: $incident,
+            waitingState: $waitingStateCard,
+            supportAppointment: $supportAppointment,
+            timeline: $timeline,
+        ));
+        $snapshot = new AIContextBuildSnapshot(
+            customerSummary: $summary,
+            activeServices: $activeServices,
+            enrichmentMetadata: $enrichmentMetadata,
+            timeline: $timeline,
+            waitingStateCard: $waitingStateCard,
+            supportAppointment: $supportAppointment,
+            customerJourney: $customerJourney,
+        );
+        $user = auth()->user();
+        $canEscalate = $user !== null
+            && app(ServiceCaseEscalationService::class)->canEscalate($incident, $user);
+
+        return $this->iraAdvisorPresenter->present([
+            'incident' => $incident,
+            'order' => $order,
+            'customerSummary' => $summary,
+            'healthCardViewModel' => $healthCardViewModel ?? [],
+            'waitingStateCard' => $waitingStateCard,
+            'supportAppointment' => $supportAppointment,
+            'customerJourney' => $customerJourney,
+            'slaMetrics' => $slaMetrics,
+            'operationsAdvisorInsights' => $this->operationsAdvisorService->incidentInsights($incident, $snapshot),
+            'actionVisibility' => $this->actionVisibilityService->forIncident($incident, $user),
+            'canEscalate' => $canEscalate,
+        ]);
+    }
+
+    /**
      * @param  array<string, string|null>  $customer
      * @param  list<array{label: string, status: string, variant: string}>  $activeServices
      * @param  array<string, int>  $summary
@@ -708,6 +821,7 @@ class Customer360Service
             'canCustomerNotResponding' => false,
             'canLinkOrder' => false,
             'canCorrectCustomerDetails' => false,
+            'canCorrectSerialNumber' => false,
             'isWaitingForCustomer' => false,
             'hideWorkflowActions' => false,
             'hasRecommendedActions' => false,

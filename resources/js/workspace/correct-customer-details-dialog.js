@@ -1,3 +1,9 @@
+import {
+    buildFieldChanges,
+    initChangeDetection,
+    renderReviewCards,
+} from './c360-dialog';
+
 const FIELD_DEFINITIONS = [
     {
         key: 'customer_name',
@@ -7,79 +13,39 @@ const FIELD_DEFINITIONS = [
     },
     {
         key: 'customer_phone',
-        label: 'Customer Phone',
+        label: 'Mobile Number',
         inputName: 'customer_phone',
         originalDatasetKey: 'originalCustomerPhone',
     },
     {
         key: 'customer_email',
-        label: 'Customer Email',
+        label: 'Email Address',
         inputName: 'customer_email',
         originalDatasetKey: 'originalCustomerEmail',
     },
 ];
 
-const normalizeValue = (value) => {
-    const trimmed = (value ?? '').trim();
+const renderReviewReason = (form) => {
+    const reasonSection = form.querySelector('[data-correct-customer-details-review-reason]');
+    const reasonText = form.querySelector('[data-correct-customer-details-review-reason-text]');
+    const reasonInput = form.querySelector('[name="reason"]');
 
-    return trimmed === '' ? null : trimmed;
-};
-
-const formatDisplayValue = (value) => {
-    if (value === null || value === undefined || String(value).trim() === '') {
-        return '—';
-    }
-
-    return String(value);
-};
-
-const buildChanges = (form) => {
-    const changes = [];
-
-    FIELD_DEFINITIONS.forEach((field) => {
-        const input = form.querySelector(`[name="${field.inputName}"]`);
-
-        if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) {
-            return;
-        }
-
-        const original = normalizeValue(form.dataset[field.originalDatasetKey]);
-        const next = normalizeValue(input.value);
-
-        if (original === next) {
-            return;
-        }
-
-        changes.push({
-            label: field.label,
-            current: original,
-            next,
-        });
-    });
-
-    return changes;
-};
-
-const renderReviewList = (listElement, changes) => {
-    if (!listElement) {
+    if (!(reasonSection instanceof HTMLElement) || !(reasonText instanceof HTMLElement)) {
         return;
     }
 
-    if (changes.length === 0) {
-        listElement.innerHTML = '';
+    const reason = reasonInput instanceof HTMLTextAreaElement
+        ? reasonInput.value.trim()
+        : '';
+
+    if (reason === '') {
+        reasonSection.classList.add('d-none');
+        reasonText.textContent = '';
         return;
     }
 
-    listElement.innerHTML = changes.map((change) => `
-        <div class="correct-customer-details-review-item mb-3">
-            <div class="small text-muted mb-1">${change.label}</div>
-            <div class="small">
-                <span class="text-muted">${formatDisplayValue(change.current)}</span>
-                <span class="mx-2" aria-hidden="true">→</span>
-                <strong>${formatDisplayValue(change.next)}</strong>
-            </div>
-        </div>
-    `).join('');
+    reasonSection.classList.remove('d-none');
+    reasonText.textContent = reason;
 };
 
 const setStep = (form, step) => {
@@ -92,7 +58,7 @@ const setStep = (form, step) => {
     const reviewList = form.querySelector('[data-correct-customer-details-review-list]');
 
     const isReview = step === 'review';
-    const changes = buildChanges(form);
+    const changes = buildFieldChanges(form, FIELD_DEFINITIONS);
 
     editStep?.classList.toggle('d-none', isReview);
     reviewStep?.classList.toggle('d-none', !isReview);
@@ -102,7 +68,8 @@ const setStep = (form, step) => {
     noChangesAlert?.classList.toggle('d-none', changes.length > 0);
 
     if (isReview) {
-        renderReviewList(reviewList, changes);
+        renderReviewCards(reviewList, changes);
+        renderReviewReason(form);
     }
 };
 
@@ -115,6 +82,11 @@ export const initCorrectCustomerDetailsDialog = (root) => {
 
     const reviewButton = form.querySelector('[data-correct-customer-details-review]');
     const backButton = form.querySelector('[data-correct-customer-details-back]');
+
+    initChangeDetection(form, {
+        fieldDefinitions: FIELD_DEFINITIONS,
+        reviewButton,
+    });
 
     reviewButton?.addEventListener('click', () => {
         if (!form.reportValidity()) {

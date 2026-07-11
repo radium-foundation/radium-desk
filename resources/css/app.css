@@ -4218,6 +4218,472 @@ a:focus-visible .stat-card {
     color: #64748b;
 }
 
+/* Customer360 Dialog Design System */
+.c360-dialog-header {
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding-bottom: 0.5rem;
+}
+
+.c360-dialog-header-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.c360-dialog-header-icon {
+    flex-shrink: 0;
+    font-size: 1.5rem;
+    line-height: 1.2;
+}
+
+.c360-dialog-header-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #0f172a;
+}
+
+.c360-dialog-header-subtitle {
+    margin-top: 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.c360-dialog-body {
+    padding-top: 0.25rem;
+}
+
+.c360-dialog-footer {
+    gap: 0.5rem;
+}
+
+.c360-dialog-identity {
+    margin-bottom: 1.25rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.75rem;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.c360-dialog-identity-dl {
+    margin: 0;
+}
+
+.c360-dialog-identity-row {
+    display: grid;
+    grid-template-columns: 9rem 1fr;
+    gap: 0.5rem 0.75rem;
+    margin: 0 0 0.5rem;
+}
+
+.c360-dialog-identity-row:last-child {
+    margin-bottom: 0;
+}
+
+.c360-dialog-identity-row dt {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.c360-dialog-identity-row dd {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.c360-dialog-serial-missing {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #b45309;
+    background: rgba(245, 158, 11, 0.14);
+}
+
+.c360-dialog-serial-action {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.c360-dialog-serial-action-label {
+    font-size: 0.8125rem;
+    color: #64748b;
+}
+
+.c360-dialog-serial-action-btn {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.c360-dialog-section {
+    margin-bottom: 1rem;
+    padding: 1rem 1.125rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.c360-dialog-section:last-child {
+    margin-bottom: 0;
+}
+
+.c360-dialog-section-title {
+    margin: 0 0 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.c360-dialog-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.25rem;
+}
+
+.c360-dialog-field {
+    margin-bottom: 0;
+}
+
+.c360-dialog-field--full {
+    grid-column: 1 / -1;
+}
+
+.c360-dialog-field .form-label {
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.c360-dialog-field .form-control {
+    font-size: 0.9375rem;
+    border-color: rgba(148, 163, 184, 0.45);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.c360-dialog-field .form-control:focus {
+    border-color: rgba(59, 130, 246, 0.55);
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.12);
+}
+
+.c360-dialog-change-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.375rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.c360-dialog-change-status--unchanged {
+    color: #64748b;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.c360-dialog-change-status--changed {
+    color: #15803d;
+    background: rgba(34, 197, 94, 0.14);
+}
+
+.c360-dialog-review-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.c360-dialog-review-card {
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.625rem;
+    background: #fff;
+}
+
+.c360-dialog-review-card-title {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.c360-dialog-review-values {
+    display: grid;
+    gap: 0.375rem;
+}
+
+.c360-dialog-review-value {
+    display: grid;
+    gap: 0.125rem;
+}
+
+.c360-dialog-review-value-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.c360-dialog-review-value-text {
+    font-size: 0.9375rem;
+    line-height: 1.45;
+    color: #334155;
+    word-break: break-word;
+}
+
+.c360-dialog-review-value--new .c360-dialog-review-value-text {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.c360-dialog-review-arrow {
+    display: flex;
+    justify-content: center;
+    font-size: 1rem;
+    line-height: 1;
+    color: #94a3b8;
+}
+
+.c360-dialog-review-reason {
+    margin-top: 1rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 0.625rem;
+    background: #f8fafc;
+}
+
+.c360-dialog-review-reason-title {
+    margin: 0 0 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.c360-dialog-review-reason-text {
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: #334155;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.c360-dialog-serial-status {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.c360-dialog-serial-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.c360-dialog-serial-status-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.c360-dialog-serial-status-reason {
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #475569;
+}
+
+.c360-dialog-serial-validation-badge,
+.c360-dialog-serial-duplicate-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.c360-dialog-serial-validation-badge--pass {
+    color: #166534;
+    background: rgba(34, 197, 94, 0.12);
+    border-color: rgba(34, 197, 94, 0.25);
+}
+
+.c360-dialog-serial-validation-badge--warning {
+    color: #92400e;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+.c360-dialog-serial-validation-badge--fail {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.c360-dialog-serial-duplicate-badge--clear {
+    color: #166534;
+    background: rgba(34, 197, 94, 0.08);
+    border-color: rgba(34, 197, 94, 0.18);
+}
+
+.c360-dialog-serial-duplicate-badge--conflict {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.18);
+}
+
+.c360-dialog-serial-live-validation {
+    margin-top: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.625rem;
+    background: rgba(248, 250, 252, 0.9);
+}
+
+.c360-dialog-serial-normalized {
+    margin-top: 0.5rem;
+    font-size: 0.8125rem;
+    color: #475569;
+}
+
+.c360-dialog-serial-review-validation {
+    padding: 0.75rem 0.875rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.625rem;
+    background: rgba(248, 250, 252, 0.9);
+}
+
+.c360-dialog-timeline-preview {
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 0.625rem;
+    background: rgba(59, 130, 246, 0.04);
+}
+
+.c360-dialog-timeline-preview-title {
+    margin: 0 0 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #334155;
+}
+
+.c360-dialog-timeline-preview-list {
+    display: grid;
+    gap: 0.375rem;
+    padding: 0;
+    list-style: none;
+}
+
+.c360-dialog-timeline-preview-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #334155;
+}
+
+.c360-dialog-timeline-preview-check {
+    flex-shrink: 0;
+    font-weight: 700;
+    color: #2563eb;
+}
+
+.c360-dialog-success {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 16rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+}
+
+.c360-dialog-success-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 4rem;
+    height: 4rem;
+    margin-bottom: 1rem;
+    border-radius: 999px;
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #15803d;
+    background: rgba(34, 197, 94, 0.14);
+}
+
+.c360-dialog-success-title {
+    margin: 0 0 1rem;
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #0f172a;
+}
+
+.c360-dialog-success-list {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0;
+    list-style: none;
+    text-align: left;
+}
+
+.c360-dialog-success-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #334155;
+}
+
+.c360-dialog-success-check {
+    flex-shrink: 0;
+    font-weight: 700;
+    color: #15803d;
+}
+
+@media (max-width: 575.98px) {
+    .c360-dialog-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .c360-dialog-identity-row {
+        grid-template-columns: 1fr;
+        gap: 0.125rem;
+    }
+
+    .c360-dialog-header-title {
+        font-size: 1.125rem;
+    }
+}
+
 .request-serial-dialog-waiting-state {
     font-size: 0.875rem;
     color: #0f172a;
@@ -5050,6 +5516,621 @@ a:focus-visible .stat-card {
 
 .customer-360-drawer-content .order-workspace-timeline-wrap--compact .order-workspace-timeline-item {
     padding-bottom: 0.625rem;
+}
+
+/* Customer360 Health Card */
+.c360-health-card {
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.c360-health-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.875rem;
+}
+
+.c360-health-card-heading-wrap {
+    min-width: 0;
+}
+
+.c360-health-card-heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-health-card-subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-health-card-status {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.c360-health-card-status--healthy {
+    color: #166534;
+    background: rgba(34, 197, 94, 0.14);
+}
+
+.c360-health-card-status--attention {
+    color: #a16207;
+    background: rgba(234, 179, 8, 0.18);
+}
+
+.c360-health-card-status--critical {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.14);
+}
+
+.c360-health-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem 1rem;
+    margin: 0;
+}
+
+.c360-health-card-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.c360-health-card-metric--wide {
+    grid-column: 1 / -1;
+}
+
+.c360-health-card-metric-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-health-card-metric-label .bi {
+    font-size: 0.75rem;
+    opacity: 0.85;
+}
+
+.c360-health-card-metric-value {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-health-card-metric-value--alert {
+    color: #b91c1c;
+}
+
+.c360-health-card-metric-placeholder {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--dashboard-color-muted, #64748b);
+    font-style: italic;
+}
+
+.c360-health-card-contact-channel {
+    display: block;
+}
+
+.c360-health-card-contact-time {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+@media (min-width: 768px) {
+    .c360-health-card-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .c360-health-card-metric--wide {
+        grid-column: span 1;
+    }
+}
+
+@media (min-width: 992px) {
+    .c360-health-card-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+/* Customer360 Insights Card */
+.c360-insights-card {
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.c360-insights-card-header {
+    margin-bottom: 0.875rem;
+}
+
+.c360-insights-card-heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-insights-card-subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-insights-list {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.625rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.c360-insight {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 0.625rem;
+    background: rgba(248, 250, 252, 0.85);
+}
+
+.c360-insight-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    color: #1d4ed8;
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.c360-insight-icon .bi {
+    font-size: 0.875rem;
+}
+
+.c360-insight-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.c360-insight-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-insight-description {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+@media (min-width: 768px) {
+    .c360-insights-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Customer360 IRA Advisor Card */
+.c360-ira-advisor-card {
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.c360-ira-advisor-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.875rem;
+}
+
+.c360-ira-advisor-card-heading-wrap {
+    min-width: 0;
+}
+
+.c360-ira-advisor-card-heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-ira-advisor-card-subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-ira-advisor-card-badge {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #1e40af;
+    background: rgba(59, 130, 246, 0.12);
+}
+
+.c360-ira-advisor-recommendation {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+}
+
+.c360-ira-advisor-primary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 0.625rem;
+    background: rgba(239, 246, 255, 0.7);
+}
+
+.c360-ira-advisor-primary-icon {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    color: #1d4ed8;
+    background: rgba(59, 130, 246, 0.16);
+}
+
+.c360-ira-advisor-primary-icon .bi {
+    font-size: 1rem;
+}
+
+.c360-ira-advisor-primary-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.c360-ira-advisor-primary-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-ira-advisor-primary-action {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-ira-advisor-confidence {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.c360-ira-advisor-confidence--high {
+    color: #166534;
+    background: rgba(34, 197, 94, 0.14);
+}
+
+.c360-ira-advisor-confidence--medium {
+    color: #a16207;
+    background: rgba(234, 179, 8, 0.18);
+}
+
+.c360-ira-advisor-confidence--low {
+    color: #475569;
+    background: rgba(148, 163, 184, 0.2);
+}
+
+.c360-ira-advisor-reasons-heading,
+.c360-ira-advisor-secondary-heading {
+    margin: 0 0 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-ira-advisor-reasons-list {
+    margin: 0;
+    padding-left: 1.125rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-ira-advisor-reasons-list li + li {
+    margin-top: 0.25rem;
+}
+
+.c360-ira-advisor-secondary-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.c360-ira-advisor-secondary-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.625rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--dashboard-color-heading, #0f172a);
+    background: rgba(248, 250, 252, 0.9);
+}
+
+.c360-ira-advisor-secondary-item .bi {
+    font-size: 0.8125rem;
+    color: #1d4ed8;
+}
+
+.c360-activity-panel {
+    margin-top: 0;
+}
+
+.c360-activity-panel-header {
+    margin-bottom: 0.875rem;
+}
+
+.c360-activity-panel-heading {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-activity-panel-subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-activity-panel-filters {
+    margin-bottom: 0.875rem;
+}
+
+.c360-activity-panel-feed {
+    gap: 1.25rem;
+}
+
+.c360-activity-panel-group-label {
+    margin-bottom: 0.625rem;
+}
+
+.c360-activity-panel-group-items {
+    display: grid;
+    gap: 0.625rem;
+    padding-left: 0;
+}
+
+.c360-activity-panel-group-items::before {
+    display: none;
+}
+
+.c360-activity-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.c360-activity-item:hover {
+    border-color: rgba(148, 163, 184, 0.45);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.c360-activity-item-icon {
+    position: static;
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.875rem;
+    border-width: 2px;
+}
+
+.c360-activity-item-body {
+    min-width: 0;
+}
+
+.c360-activity-item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.375rem;
+}
+
+.c360-activity-item-heading {
+    min-width: 0;
+}
+
+.c360-activity-item-type {
+    display: inline-flex;
+    margin-bottom: 0.25rem;
+    padding: 0.125rem 0.4375rem;
+    border-radius: 999px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: rgba(148, 163, 184, 0.16);
+    color: #475569;
+}
+
+.c360-activity-item-title {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-activity-item-time {
+    margin: 0;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+}
+
+.c360-activity-item-description {
+    margin-top: 0;
+    margin-bottom: 0.375rem;
+    white-space: pre-wrap;
+}
+
+.c360-activity-item-actor {
+    margin-top: 0.25rem;
+}
+
+.c360-activity-item-mentions {
+    margin-top: 0.25rem;
+}
+
+.c360-activity-item--payment .c360-activity-item-icon {
+    border-color: rgba(25, 135, 84, 0.45);
+    color: #198754;
+}
+
+.c360-activity-item--payment .c360-activity-item-type {
+    background: rgba(25, 135, 84, 0.12);
+    color: #15803d;
+}
+
+.c360-activity-item--service_case_created .c360-activity-item-icon,
+.c360-activity-item--assignment .c360-activity-item-icon {
+    border-color: rgba(13, 110, 253, 0.45);
+    color: #0d6efd;
+}
+
+.c360-activity-item--internal_note .c360-activity-item-icon {
+    border-color: rgba(255, 193, 7, 0.55);
+    color: #cc9a06;
+}
+
+.c360-activity-item--internal_note .c360-activity-item-type {
+    background: rgba(255, 193, 7, 0.16);
+    color: #a16207;
+}
+
+.c360-activity-item--whatsapp .c360-activity-item-icon,
+.c360-activity-item--whatsapp_template_sent .c360-activity-item-icon,
+.c360-activity-item--email .c360-activity-item-icon,
+.c360-activity-item--notification .c360-activity-item-icon,
+.c360-activity-item--ivr_call .c360-activity-item-icon {
+    border-color: rgba(37, 99, 235, 0.45);
+    color: #2563eb;
+}
+
+.c360-activity-item--whatsapp .c360-activity-item-type,
+.c360-activity-item--whatsapp_template_sent .c360-activity-item-type,
+.c360-activity-item--email .c360-activity-item-type,
+.c360-activity-item--notification .c360-activity-item-type,
+.c360-activity-item--ivr_call .c360-activity-item-type {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+}
+
+.c360-activity-item--appointment .c360-activity-item-icon {
+    border-color: rgba(13, 148, 136, 0.45);
+    color: #0f766e;
+}
+
+.c360-activity-item--appointment .c360-activity-item-type {
+    background: rgba(13, 148, 136, 0.12);
+    color: #0f766e;
+}
+
+.c360-activity-item--synchronization .c360-activity-item-icon,
+.c360-activity-item--automation .c360-activity-item-icon {
+    border-color: rgba(108, 117, 125, 0.45);
+    color: #6c757d;
+}
+
+.c360-activity-item--customer_correction .c360-activity-item-icon {
+    border-color: rgba(168, 85, 247, 0.45);
+    color: #9333ea;
+}
+
+.c360-activity-item--customer_correction .c360-activity-item-type {
+    background: rgba(168, 85, 247, 0.12);
+    color: #7e22ce;
+}
+
+.c360-activity-panel-load-more {
+    margin-top: 1rem;
+}
+
+@media (max-width: 575.98px) {
+    .c360-activity-item-header {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
 }
 
 /* Unified Customer Timeline */

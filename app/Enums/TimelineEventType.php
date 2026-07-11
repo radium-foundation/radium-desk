@@ -22,6 +22,7 @@ enum TimelineEventType: string
     case Synchronization = 'synchronization';
     case Appointment = 'appointment';
     case Notification = 'notification';
+    case CustomerCorrection = 'customer_correction';
 
     public function label(): string
     {
@@ -42,6 +43,7 @@ enum TimelineEventType: string
             self::Synchronization => 'Synchronization',
             self::Appointment => 'Appointment',
             self::Notification => 'Notification',
+            self::CustomerCorrection => 'Customer Correction',
         };
     }
 
@@ -64,6 +66,7 @@ enum TimelineEventType: string
             self::AiSummary => 'bi-stars',
             self::Synchronization => 'bi-arrow-repeat',
             self::Appointment => 'bi-calendar-check',
+            self::CustomerCorrection => 'bi-person-vcard',
         };
     }
 
@@ -82,7 +85,8 @@ enum TimelineEventType: string
             self::Synchronization,
             self::Appointment,
             self::Automation,
-            self::IvrCall => true,
+            self::IvrCall,
+            self::CustomerCorrection => true,
             default => false,
         };
     }
@@ -99,6 +103,7 @@ enum TimelineEventType: string
             self::ServiceCaseCreated,
             self::Assignment,
             self::InternalNote => 'support',
+            self::CustomerCorrection => 'customer',
             self::Synchronization => 'synchronization',
             self::Appointment => 'appointments',
             self::Automation => 'system',

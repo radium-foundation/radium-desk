@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\WorkspaceCorrectCustomerDetailsRequest;
+use App\Http\Requests\WorkspaceCorrectSerialNumberRequest;
 use App\Http\Requests\WorkspaceLinkOrderRequest;
 use App\Http\Requests\WorkspaceActionRequest;
 use App\Http\Requests\WorkspaceAssignRequest;
@@ -18,11 +19,13 @@ use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
 use App\Services\WorkspaceRemarkActionService;
 use App\Services\WorkspaceCorrectCustomerDetailsActionService;
+use App\Services\WorkspaceCorrectSerialNumberActionService;
 use App\Services\WorkspaceLinkOrderActionService;
 use App\Services\WorkspaceRequestCorrectSerialActionService;
 use App\Services\WorkspaceRequestSerialActionService;
 use App\Services\WorkspaceCustomerNotRespondingActionService;
 use App\Services\WorkspaceResolveActionService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -40,6 +43,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceCustomerNotRespondingActionService $customerNotRespondingActionService,
         private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
         private readonly WorkspaceCorrectCustomerDetailsActionService $correctCustomerDetailsActionService,
+        private readonly WorkspaceCorrectSerialNumberActionService $correctSerialNumberActionService,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
 
@@ -209,5 +213,41 @@ class WorkspaceActionController extends Controller
         );
 
         return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function correctSerialNumber(WorkspaceCorrectSerialNumberRequest $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->correctSerialNumberActionService->correct(
+            incident: $incident,
+            actor: $request->user(),
+            payload: $request->validated(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function validateCorrectSerialNumber(Request $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        try {
+            $preview = $this->correctSerialNumberActionService->preview(
+                incident: $incident,
+                actor: $request->user(),
+                serialNumber: $request->string('serial_number')->toString(),
+            );
+        } catch (AuthorizationException) {
+            abort(403);
+        }
+
+        return response()->json([
+            ...$preview,
+            'incident_id' => $incident->id,
+            'context' => $requestContext->context->value,
+        ]);
     }
 }

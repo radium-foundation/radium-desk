@@ -19,6 +19,8 @@ use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
+use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
+use App\Services\SerialValidation\SerialValidationService;
 use App\Services\SerialValidation\SerialInsightService;
 use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
@@ -39,6 +41,8 @@ class WorkspaceComponentService
         private readonly RequestCorrectSerialCommunicationHistoryService $requestCorrectSerialCommunicationHistoryService,
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
         private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
+        private readonly SerialCorrectionEligibilityService $serialCorrectionEligibilityService,
+        private readonly SerialValidationService $serialValidationService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -71,6 +75,7 @@ class WorkspaceComponentService
                 && $this->customerNotRespondingEligibilityService->canShowAction($incident),
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectCustomerDetails => $this->customerCorrectionEligibilityService->canShowAction($incident, $user),
+            WorkspaceComponent::CorrectSerialNumber => $this->serialCorrectionEligibilityService->canShowAction($incident, $user),
         };
 
         if (! $authorized) {
@@ -154,6 +159,10 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 ...$this->correctCustomerDetailsWorkspaceFields($requestContext, $incident),
             ],
+            WorkspaceComponent::CorrectSerialNumber => [
+                'incident' => $incident,
+                ...$this->correctSerialNumberWorkspaceFields($requestContext, $incident),
+            ],
         };
     }
 
@@ -175,6 +184,42 @@ class WorkspaceComponentService
     /**
      * @return array<string, mixed>
      */
+    private function correctSerialNumberWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $incident->loadMissing('order');
+        $order = $incident->order;
+        $currentSerial = filled($order?->serial_number)
+            ? trim((string) $order->serial_number)
+            : null;
+        $currentValidation = null;
+        $currentDuplicateOrderId = null;
+
+        if ($order !== null && $currentSerial !== null) {
+            $currentValidation = $this->serialValidationService->validateForOrder($currentSerial, $order);
+            $duplicateOwner = \App\Models\Order::query()
+                ->where('serial_number', $currentValidation->normalizedSerial)
+                ->whereKeyNot($order->id)
+                ->first();
+            $currentDuplicateOrderId = $duplicateOwner?->order_id;
+        }
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.correct-serial-number', $incident),
+            'workspaceValidationUrl' => route('incidents.workspace.correct-serial-number.validate', $incident),
+            'workspaceContext' => $requestContext->context->value,
+            'currentSerial' => $currentSerial,
+            'currentValidation' => $currentValidation,
+            'currentDuplicateOrderId' => $currentDuplicateOrderId,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function correctCustomerDetailsWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
     {
         if ($requestContext === null) {
@@ -190,6 +235,9 @@ class WorkspaceComponentService
             'customerName' => $order?->customer_name,
             'customerPhone' => $order?->customer_phone,
             'customerEmail' => $order?->customer_email,
+            'canCorrectSerialNumber' => $order !== null
+                && auth()->user() !== null
+                && $this->serialCorrectionEligibilityService->canShowAction($incident, auth()->user()),
         ];
     }
 

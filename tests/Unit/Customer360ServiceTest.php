@@ -202,9 +202,15 @@ class Customer360ServiceTest extends TestCase
         $this->assertInstanceOf(\App\Data\TimelineViewModel::class, $payload['timeline']);
         $this->assertIsArray($payload['operationsHealth']);
         $this->assertNotNull($payload['slaMetrics']);
-        $this->assertStringContainsString('Customer Timeline', $payload['html']);
+        $this->assertStringContainsString('Activity', $payload['html']);
+        $this->assertStringContainsString('Customer Health', $payload['html']);
+        $this->assertStringContainsString('data-customer-360-section="customer-health-card"', $payload['html']);
+        $this->assertIsArray($payload['customerInsights']);
+        $this->assertArrayHasKey('iraAdvisor', $payload);
         $this->assertStringContainsString('Operations Health', $payload['html']);
         $this->assertStringContainsString('SLA Metrics', $payload['html']);
+        $this->assertIsArray($payload['customerHealthCard']);
+        $this->assertSame('attention', $payload['customerHealthCard']['status']['status']);
     }
 
     public function test_active_services_show_not_available_when_enrichment_missing(): void

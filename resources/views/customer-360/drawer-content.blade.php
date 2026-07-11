@@ -61,6 +61,7 @@
             'canCustomerNotResponding' => $canCustomerNotResponding ?? false,
             'canLinkOrder' => $canLinkOrder ?? false,
             'canCorrectCustomerDetails' => $canCorrectCustomerDetails ?? false,
+            'canCorrectSerialNumber' => $canCorrectSerialNumber ?? false,
             'hideWorkflowActions' => $hideWorkflowActions ?? false,
             'hasRecommendedActions' => $hasRecommendedActions ?? false,
             'serialRequestState' => $serialRequestState ?? ['requested' => false, 'requested_at' => null, 'requested_at_label' => null],

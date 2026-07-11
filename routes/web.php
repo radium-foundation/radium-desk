@@ -144,6 +144,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.workspace.link-order');
     Route::patch('incidents/{incident}/workspace/correct-customer-details', [WorkspaceActionController::class, 'correctCustomerDetails'])
         ->name('incidents.workspace.correct-customer-details');
+    Route::patch('incidents/{incident}/workspace/correct-serial-number', [WorkspaceActionController::class, 'correctSerialNumber'])
+        ->name('incidents.workspace.correct-serial-number');
+    Route::post('incidents/{incident}/workspace/correct-serial-number/validate', [WorkspaceActionController::class, 'validateCorrectSerialNumber'])
+        ->name('incidents.workspace.correct-serial-number.validate');
     Route::patch('incidents/{incident}/workspace/resolve', [WorkspaceActionController::class, 'resolve'])
         ->name('incidents.workspace.resolve');
     Route::patch('incidents/{incident}/workspace/close', [WorkspaceActionController::class, 'close'])

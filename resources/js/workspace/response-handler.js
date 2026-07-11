@@ -1,4 +1,5 @@
 import { applyKpis as applyDashboardKpis } from '../live-dashboard';
+import { maybeShowSuccessState } from './c360-dialog';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -132,11 +133,16 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
 
         applyKpis(data.refresh);
 
+        let showedSuccessState = false;
+
         if (data.ui?.close_workspace_host) {
+            showedSuccessState = await maybeShowSuccessState(host, data);
             closeWorkspaceHost(host);
         }
 
-        showToast(data.toast, data.message);
+        if (! showedSuccessState) {
+            showToast(data.toast, data.message);
+        }
 
         if (lifecycle) {
             await lifecycle.run('afterSuccess', data, host);

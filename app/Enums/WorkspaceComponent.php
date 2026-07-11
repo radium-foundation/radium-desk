@@ -17,6 +17,7 @@ enum WorkspaceComponent: string
     case CustomerNotResponding = 'customer-not-responding';
     case LinkOrder = 'link-order';
     case CorrectCustomerDetails = 'correct-customer-details';
+    case CorrectSerialNumber = 'correct-serial-number';
 
     public function view(): string
     {
@@ -34,6 +35,7 @@ enum WorkspaceComponent: string
             self::CustomerNotResponding => 'customer-360.fragments.customer-not-responding-form',
             self::LinkOrder => 'customer-360.fragments.link-order-form',
             self::CorrectCustomerDetails => 'customer-360.fragments.correct-customer-details-form',
+            self::CorrectSerialNumber => 'customer-360.fragments.correct-serial-number-form',
         };
     }
 }

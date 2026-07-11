@@ -1,10 +1,10 @@
-<div class="customer-360-timeline-section"
+<div class="customer-360-activity-panel"
+     data-customer-360-activity-panel
      data-customer-360-timeline-section
      data-timeline-refresh-url="{{ $timelineRefreshUrl ?? $loadMoreUrl }}">
-    <x-timeline-renderer
+    <x-c360.activity-panel
         :viewModel="$viewModel"
-        heading="Customer Timeline"
-        :compact="true"
+        heading="Activity"
         :showFilters="true"
         :loadMoreUrl="$loadMoreUrl ?? null"
         emptyMessage="No customer activity recorded yet."

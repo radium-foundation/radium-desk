@@ -190,7 +190,7 @@ class CustomerTimelineTest extends TestCase
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('Customer Timeline', $timelineHtml);
+        $this->assertStringContainsString('Activity', $timelineHtml);
         $this->assertStringContainsString('data-unified-timeline', $timelineHtml);
         $this->assertStringContainsString('Payment received', $timelineHtml);
     }

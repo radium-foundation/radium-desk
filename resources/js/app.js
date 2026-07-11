@@ -17,6 +17,7 @@ import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
 import { initActionDialog } from './workspace/action-dialog';
 import { initCorrectCustomerDetailsDialog } from './workspace/correct-customer-details-dialog';
+import { initCorrectSerialNumberDialog } from './workspace/correct-serial-number-dialog';
 import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
@@ -583,6 +584,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (component === 'correct-customer-details') {
                 initCorrectCustomerDetailsDialog(modalContent);
+            }
+
+            if (component === 'correct-serial-number') {
+                initCorrectSerialNumberDialog(modalContent);
             }
         },
         afterClose: (host) => {

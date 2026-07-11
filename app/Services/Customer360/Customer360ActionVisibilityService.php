@@ -9,6 +9,7 @@ use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
+use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
 
 class Customer360ActionVisibilityService
 {
@@ -18,6 +19,7 @@ class Customer360ActionVisibilityService
         private readonly CustomerNotRespondingEligibilityService $customerNotRespondingEligibilityService,
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
         private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
+        private readonly SerialCorrectionEligibilityService $serialCorrectionEligibilityService,
     ) {}
 
     /**
@@ -29,6 +31,7 @@ class Customer360ActionVisibilityService
      *     canCustomerNotResponding: bool,
      *     canLinkOrder: bool,
      *     canCorrectCustomerDetails: bool,
+     *     canCorrectSerialNumber: bool,
      *     hasRecommendedActions: bool,
      * }
      */
@@ -51,6 +54,8 @@ class Customer360ActionVisibilityService
             && $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user);
         $canCorrectCustomerDetails = $user !== null
             && $this->customerCorrectionEligibilityService->canShowAction($incident, $user);
+        $canCorrectSerialNumber = $user !== null
+            && $this->serialCorrectionEligibilityService->canShowAction($incident, $user);
 
         $hasRecommendedActions = $canRequestSerialNumber
             || $canRequestCorrectSerial
@@ -65,6 +70,7 @@ class Customer360ActionVisibilityService
             'canCustomerNotResponding' => $canCustomerNotResponding,
             'canLinkOrder' => $canLinkOrder,
             'canCorrectCustomerDetails' => $canCorrectCustomerDetails,
+            'canCorrectSerialNumber' => $canCorrectSerialNumber,
             'hasRecommendedActions' => $hasRecommendedActions,
         ];
     }

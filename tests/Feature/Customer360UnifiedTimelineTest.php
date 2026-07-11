@@ -20,6 +20,8 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\RadiumBox\RadiumBoxSyncAuditService;
 use App\Services\RadiumBox\RadiumBoxSyncRecoveryService;
 use App\Services\ServiceCaseAutomationMonitorService;
+use App\Models\CustomerDataCorrection;
+use App\Models\CustomerDataCorrectionItem;
 use App\Services\Timeline\Customer360TimelineService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -93,6 +95,32 @@ class Customer360UnifiedTimelineTest extends TestCase
         $this->assertTrue($types->contains(TimelineEventType::Appointment));
     }
 
+    public function test_unified_timeline_includes_customer_detail_corrections(): void
+    {
+        [$agent, $incident, $order] = $this->createFixture();
+
+        $correction = CustomerDataCorrection::query()->create([
+            'order_id' => $order->id,
+            'corrected_by' => $agent->id,
+            'status' => 'applied',
+            'reason' => 'Customer confirmed spelling on call.',
+        ]);
+
+        CustomerDataCorrectionItem::query()->create([
+            'customer_data_correction_id' => $correction->id,
+            'field_name' => 'customer_name',
+            'old_value' => 'Timeline Customer',
+            'new_value' => 'Timeline Customer Updated',
+        ]);
+
+        $events = $this->flattenTimeline(app(Customer360TimelineService::class)->forIncident($incident));
+        $correctionEvent = $events->first(fn ($event) => $event->type === TimelineEventType::CustomerCorrection);
+
+        $this->assertNotNull($correctionEvent);
+        $this->assertSame('Customer details corrected', $correctionEvent->title);
+        $this->assertSame('Customer confirmed spelling on call.', $correctionEvent->summary);
+    }
+
     public function test_customer_360_timeline_tab_renders_operations_center_sections(): void
     {
         [$agent, $incident] = $this->createFixture();
@@ -104,10 +132,10 @@ class Customer360UnifiedTimelineTest extends TestCase
         $response->assertOk();
         $response->assertJsonStructure(['html', 'has_more', 'loaded_count']);
         $html = (string) $response->json('html');
-        $this->assertStringContainsString('Customer Timeline', $html);
+        $this->assertStringContainsString('Activity', $html);
         $this->assertStringContainsString('Operations Health', $html);
         $this->assertStringContainsString('SLA Metrics', $html);
-        $this->assertStringContainsString('data-customer-360-timeline-section', $html);
+        $this->assertStringContainsString('data-customer-360-activity-panel', $html);
     }
 
     public function test_timeline_endpoint_supports_json_refresh_payload(): void
@@ -120,7 +148,7 @@ class Customer360UnifiedTimelineTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonStructure(['html', 'has_more', 'loaded_count']);
-        $this->assertStringContainsString('data-customer-360-timeline-section', (string) $response->json('html'));
+        $this->assertStringContainsString('data-customer-360-activity-panel', (string) $response->json('html'));
     }
 
     public function test_timeline_events_support_new_filter_tags(): void

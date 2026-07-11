@@ -13,7 +13,7 @@ enum TimelineDayBucket: string
         return match ($this) {
             self::Today => 'Today',
             self::Yesterday => 'Yesterday',
-            self::Earlier => 'Earlier',
+            self::Earlier => 'Older',
         };
     }
 

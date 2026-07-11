@@ -38,6 +38,18 @@ use App\Services\SettingService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\SystemSettingsService;
 use App\Services\Timeline\Customer360TimelineRequestCache;
+use App\Services\Timeline\Customer360TimelineSourceRegistry;
+use App\Services\Timeline\Factories\ClassTimelineSourceFactory;
+use App\Services\Timeline\Factories\OrderCustomerTimelineSourceFactory;
+use App\Services\Timeline\Sources\AppointmentTimelineEventSource;
+use App\Services\Timeline\Sources\BonVoiceCallTimelineEventSource;
+use App\Services\Timeline\Sources\CorrectSerialRequestTimelineEventSource;
+use App\Services\Timeline\Sources\CustomerDataCorrectionTimelineEventSource;
+use App\Services\Timeline\Sources\NotificationTimelineEventSource;
+use App\Services\Timeline\Sources\RadiumBoxSyncTimelineEventSource;
+use App\Services\Timeline\Sources\ServiceCaseLifecycleTimelineEventSource;
+use App\Services\Timeline\Sources\WhatsAppTemplateDispatchTimelineSource;
+use App\Services\Timeline\Sources\WhatsAppTimelineEventSource;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
@@ -54,6 +66,20 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(RadiumBoxRequestCache::class);
         $this->app->singleton(Customer360TimelineRequestCache::class);
+        $this->app->singleton(Customer360TimelineSourceRegistry::class, function ($app): Customer360TimelineSourceRegistry {
+            return new Customer360TimelineSourceRegistry([
+                $app->make(OrderCustomerTimelineSourceFactory::class),
+                new ClassTimelineSourceFactory($app, WhatsAppTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, WhatsAppTemplateDispatchTimelineSource::class),
+                new ClassTimelineSourceFactory($app, NotificationTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, CorrectSerialRequestTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, RadiumBoxSyncTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, AppointmentTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, ServiceCaseLifecycleTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, BonVoiceCallTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, CustomerDataCorrectionTimelineEventSource::class),
+            ]);
+        });
         $this->app->scoped(DashboardSnapshotStore::class);
 
         $this->app->singleton(IraReasoningProvider::class, function ($app): IraReasoningProvider {
