@@ -68,11 +68,16 @@ class Customer360Service
             'order.deviceModel',
             'activeWaitingState',
             'assignee',
-            'supportAppointments' => fn ($query) => $query
-                ->where('status', SupportAppointmentStatus::Scheduled)
-                ->latest('preferred_date')
-                ->latest('id'),
         ]);
+
+        if ($incident->isActive()) {
+            $incident->loadMissing([
+                'supportAppointments' => fn ($query) => $query
+                    ->where('status', SupportAppointmentStatus::Scheduled)
+                    ->latest('preferred_date')
+                    ->latest('id'),
+            ]);
+        }
         $order = $incident->order;
 
         if ($order === null) {
@@ -107,7 +112,9 @@ class Customer360Service
             'serialRequestState' => $this->serialRequestState($order),
             'correctSerialRequestState' => $this->correctSerialRequestState($order),
             'waitingStateCard' => $waitingStateCard,
-            'supportAppointments' => $incident->supportAppointments,
+            'supportAppointments' => $incident->isActive()
+                ? $incident->supportAppointments
+                : collect(),
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),

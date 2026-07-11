@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Enums\IncidentStatus;
+use App\Enums\SupportAppointmentStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\SupportAppointment;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
@@ -73,10 +75,10 @@ class ServiceCaseStatusService
                 newValues: ['status' => $status->value],
             );
 
-            match ($status) {
-                IncidentStatus::Closed => $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor),
-                default => null,
-            };
+            if ($status === IncidentStatus::Closed) {
+                $this->completeScheduledSupportAppointments($freshIncident);
+                $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor);
+            }
 
             return $freshIncident;
         });
@@ -110,6 +112,14 @@ class ServiceCaseStatusService
 
             return $freshIncident;
         });
+    }
+
+    private function completeScheduledSupportAppointments(Incident $incident): void
+    {
+        SupportAppointment::query()
+            ->where('incident_id', $incident->id)
+            ->where('status', SupportAppointmentStatus::Scheduled)
+            ->update(['status' => SupportAppointmentStatus::Completed]);
     }
 
     private function validateAgentResolutionRequirements(Incident $incident, User $actor): void
