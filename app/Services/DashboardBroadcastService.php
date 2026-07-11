@@ -179,6 +179,33 @@ class DashboardBroadcastService
                 'notificationUnreadBadge' => $badge,
                 'latestNotifications' => $latestNotifications,
             ])->render(),
+            interaction: $notification->data['interaction'] ?? null,
+        ));
+    }
+
+    /**
+     * @param  array{
+     *     channel: string,
+     *     status: string,
+     *     call_id: string,
+     *     incident_id: ?int,
+     *     customer_phone: ?string,
+     *     customer_name: ?string,
+     *     direction: string,
+     *     reference_label: string,
+     * }  $interaction
+     */
+    public function incomingCallInteraction(User $recipient, array $interaction): void
+    {
+        broadcast(new NotificationCreated(
+            recipient: $recipient,
+            notificationId: 'incoming-call-'.$interaction['call_id'].'-'.$interaction['status'],
+            title: '',
+            message: '',
+            url: '',
+            unreadCount: $recipient->unreadNotifications()->count(),
+            bellHtml: '',
+            interaction: $interaction,
         ));
     }
 

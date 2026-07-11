@@ -5,9 +5,9 @@ namespace Tests\Feature;
 use App\Enums\BonvoiceCallAlertType;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Events\Dashboard\NotificationCreated;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\BonvoiceCallAlert;
-use App\Models\BonvoiceCallEvent;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -17,6 +17,7 @@ use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
@@ -453,6 +454,261 @@ class BonvoiceLiveCallAssistTest extends TestCase
         ]);
 
         Notification::assertNothingSent();
+    }
+
+    public function test_feature_flag_disabled_notification_has_no_interaction_payload(): void
+    {
+        Notification::fake();
+        config(['bonvoice.auto_open_customer360' => false]);
+
+        $agent = $this->createAgentWithKnownCustomer();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-flag-off-001',
+            status: 'Ringing',
+        ))->assertOk();
+
+        Notification::assertSentTo($agent, IncomingCallAssistNotification::class, function (IncomingCallAssistNotification $notification) use ($agent): bool {
+            $payload = $notification->toArray($agent);
+
+            return ! array_key_exists('interaction', $payload);
+        });
+    }
+
+    public function test_feature_flag_enabled_ringing_notification_includes_interaction_payload(): void
+    {
+        Notification::fake();
+        config(['bonvoice.auto_open_customer360' => true]);
+
+        $agent = $this->createAgentWithKnownCustomer();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-flag-on-ring-001',
+            status: 'Ringing',
+        ))->assertOk();
+
+        Notification::assertSentTo($agent, IncomingCallAssistNotification::class, function (IncomingCallAssistNotification $notification) use ($agent): bool {
+            $payload = $notification->toArray($agent);
+
+            return ($payload['interaction']['channel'] ?? null) === 'phone'
+                && ($payload['interaction']['direction'] ?? null) === 'inbound'
+                && ($payload['interaction']['status'] ?? null) === 'ringing'
+                && ($payload['interaction']['call_id'] ?? null) === 'call-flag-on-ring-001'
+                && ($payload['interaction']['customer_phone'] ?? null) === '9876543210'
+                && ($payload['interaction']['customer_name'] ?? null) === 'Known Customer'
+                && ($payload['interaction']['incident_id'] ?? null) !== null;
+        });
+    }
+
+    public function test_feature_flag_enabled_answered_call_broadcasts_auto_open_interaction(): void
+    {
+        Notification::fake();
+        Event::fake([NotificationCreated::class]);
+        config(['bonvoice.auto_open_customer360' => true]);
+
+        $agent = $this->createAgentWithKnownCustomer();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-flag-on-answer-001',
+            status: 'Ringing',
+            eventId: 'evt-flag-on-answer-ring',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-flag-on-answer-001',
+            status: 'ANSWERED',
+            eventId: 'evt-flag-on-answer-answered',
+        ))->assertOk();
+
+        Event::assertDispatched(NotificationCreated::class, function (NotificationCreated $event) use ($agent): bool {
+            return $event->recipient->is($agent)
+                && ($event->interaction['status'] ?? null) === 'answered'
+                && ($event->interaction['channel'] ?? null) === 'phone'
+                && ($event->interaction['direction'] ?? null) === 'inbound'
+                && ($event->interaction['call_id'] ?? null) === 'call-flag-on-answer-001'
+                && ($event->interaction['incident_id'] ?? null) !== null
+                && $event->bellHtml === '';
+        });
+    }
+
+    public function test_feature_flag_disabled_answered_call_does_not_broadcast_auto_open_interaction(): void
+    {
+        Notification::fake();
+        Event::fake([NotificationCreated::class]);
+        config(['bonvoice.auto_open_customer360' => false]);
+
+        $agent = $this->createAgentWithKnownCustomer();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-flag-off-answer-001',
+            status: 'Ringing',
+            eventId: 'evt-flag-off-answer-ring',
+        ))->assertOk();
+
+        Event::fake([NotificationCreated::class]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-flag-off-answer-001',
+            status: 'ANSWERED',
+            eventId: 'evt-flag-off-answer-answered',
+        ))->assertOk();
+
+        Event::assertNotDispatched(NotificationCreated::class, function (NotificationCreated $event): bool {
+            return ($event->interaction['status'] ?? null) === 'answered'
+                && $event->bellHtml === '';
+        });
+    }
+
+    public function test_duplicate_answered_webhook_broadcasts_auto_open_only_once(): void
+    {
+        Notification::fake();
+        Event::fake([NotificationCreated::class]);
+        config(['bonvoice.auto_open_customer360' => true]);
+
+        $this->createAgentWithKnownCustomer();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-dup-answered-001',
+            status: 'Ringing',
+            eventId: 'evt-dup-answered-ring',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-dup-answered-001',
+            status: 'ANSWERED',
+            eventId: 'evt-dup-answered-answered-1',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-dup-answered-001',
+            status: 'ANSWERED',
+            eventId: 'evt-dup-answered-answered-2',
+        ))->assertOk();
+
+        $answeredAutoOpenBroadcasts = collect(Event::dispatched(NotificationCreated::class))
+            ->filter(function (array $payload): bool {
+                $event = $payload[0] ?? null;
+
+                return $event instanceof NotificationCreated
+                    && ($event->interaction['status'] ?? null) === 'answered'
+                    && $event->bellHtml === '';
+            });
+
+        $this->assertCount(1, $answeredAutoOpenBroadcasts);
+    }
+
+    public function test_unknown_customer_answered_call_does_not_broadcast_auto_open_interaction(): void
+    {
+        Notification::fake();
+        Event::fake([NotificationCreated::class]);
+        config(['bonvoice.auto_open_customer360' => true]);
+
+        $agent = User::factory()->create([
+            'bonvoice_extension' => '1800123456',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-unknown-answer-001',
+            sourceNumber: '9111222333',
+            status: 'Ringing',
+            eventId: 'evt-unknown-answer-ring',
+        ))->assertOk();
+
+        Event::fake([NotificationCreated::class]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-unknown-answer-001',
+            sourceNumber: '9111222333',
+            status: 'ANSWERED',
+            eventId: 'evt-unknown-answer-answered',
+        ))->assertOk();
+
+        Event::assertNotDispatched(NotificationCreated::class, function (NotificationCreated $event): bool {
+            return ($event->interaction['status'] ?? null) === 'answered'
+                && $event->bellHtml === '';
+        });
+    }
+
+    public function test_known_customer_without_incident_does_not_broadcast_auto_open_interaction(): void
+    {
+        Notification::fake();
+        Event::fake([NotificationCreated::class]);
+        config(['bonvoice.auto_open_customer360' => true]);
+
+        $agent = User::factory()->create([
+            'bonvoice_extension' => '1800123456',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        Order::query()->create([
+            'order_id' => 'RD-NO-INCIDENT',
+            'serial_number' => 'SN-NO-INCIDENT',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'No Incident Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-no-incident-001',
+            status: 'Ringing',
+            eventId: 'evt-no-incident-ring',
+        ))->assertOk();
+
+        $this->assertDatabaseHas('bonvoice_call_alerts', [
+            'call_id' => 'call-no-incident-001',
+            'incident_id' => null,
+        ]);
+
+        Event::fake([NotificationCreated::class]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-no-incident-001',
+            status: 'ANSWERED',
+            eventId: 'evt-no-incident-answered',
+        ))->assertOk();
+
+        Event::assertNotDispatched(NotificationCreated::class, function (NotificationCreated $event): bool {
+            return ($event->interaction['status'] ?? null) === 'answered'
+                && $event->bellHtml === '';
+        });
+    }
+
+    private function createAgentWithKnownCustomer(): User
+    {
+        $agent = User::factory()->create([
+            'bonvoice_extension' => '1800123456',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD3444319',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Known Customer',
+            'customer_phone' => '9876543210',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Open case',
+            'description' => 'Live call assist test.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        return $agent;
     }
 
     /**

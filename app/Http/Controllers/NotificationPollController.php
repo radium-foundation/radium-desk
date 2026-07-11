@@ -22,7 +22,7 @@ class NotificationPollController extends Controller
 
         $since = $request->query('since');
         $newNotifications = $latestNotifications
-            ->filter(function ($notification) use ($since, $user) {
+            ->filter(function ($notification) use ($since) {
                 if ($notification->read_at !== null) {
                     return false;
                 }
@@ -34,13 +34,21 @@ class NotificationPollController extends Controller
                 return $notification->created_at?->toIso8601String() > $since;
             })
             ->take(5)
-            ->map(fn ($notification) => [
-                'id' => $notification->id,
-                'title' => $notification->data['title'] ?? 'Notification',
-                'message' => $notification->data['message'] ?? '',
-                'url' => $notification->data['url'] ?? route('notifications.index'),
-                'created_at' => $notification->created_at?->toIso8601String(),
-            ])
+            ->map(function ($notification) {
+                $item = [
+                    'id' => $notification->id,
+                    'title' => $notification->data['title'] ?? 'Notification',
+                    'message' => $notification->data['message'] ?? '',
+                    'url' => $notification->data['url'] ?? route('notifications.index'),
+                    'created_at' => $notification->created_at?->toIso8601String(),
+                ];
+
+                if (isset($notification->data['interaction'])) {
+                    $item['interaction'] = $notification->data['interaction'];
+                }
+
+                return $item;
+            })
             ->values();
 
         return response()->json([

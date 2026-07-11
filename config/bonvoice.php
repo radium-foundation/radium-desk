@@ -11,4 +11,8 @@ return [
         env('BONVOICE_MISSED_CALL_RECOVERY_ENABLED', false),
         FILTER_VALIDATE_BOOLEAN,
     ),
+    'auto_open_customer360' => filter_var(
+        env('BONVOICE_AUTO_OPEN_CUSTOMER360', false),
+        FILTER_VALIDATE_BOOLEAN,
+    ),
 ];

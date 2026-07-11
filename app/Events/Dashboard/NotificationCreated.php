@@ -23,6 +23,7 @@ class NotificationCreated implements ShouldBroadcastNow
         public string $url,
         public int $unreadCount,
         public string $bellHtml,
+        public ?array $interaction = null,
     ) {}
 
     /**
@@ -45,7 +46,7 @@ class NotificationCreated implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        return [
+        $payload = [
             'id' => $this->notificationId,
             'title' => $this->title,
             'message' => $this->message,
@@ -53,5 +54,11 @@ class NotificationCreated implements ShouldBroadcastNow
             'unread_count' => $this->unreadCount,
             'bell_html' => $this->bellHtml,
         ];
+
+        if ($this->interaction !== null) {
+            $payload['interaction'] = $this->interaction;
+        }
+
+        return $payload;
     }
 }

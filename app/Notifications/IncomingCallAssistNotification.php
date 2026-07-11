@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Enums\BonvoiceCallAlertType;
 use App\Models\BonvoiceCallAlert;
+use App\Support\Bonvoice\BonvoiceIncomingCallInteractionBuilder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Notifications\Notification;
 
@@ -28,11 +29,17 @@ class IncomingCallAssistNotification extends Notification
      */
     public function toArray(object $notifiable): array
     {
-        return [
+        $payload = [
             'title' => $this->title(),
             'message' => $this->message(),
             'url' => $this->actionUrl(),
         ];
+
+        if (config('bonvoice.auto_open_customer360')) {
+            $payload['interaction'] = BonvoiceIncomingCallInteractionBuilder::fromAlert($this->alert);
+        }
+
+        return $payload;
     }
 
     private function title(): string

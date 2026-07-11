@@ -1,4 +1,5 @@
 import { getWorkspaceSession } from './workspace/session';
+import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 
 const animateNotificationBell = () => {
     const bellButton = document.querySelector('.notification-bell-btn');
@@ -153,6 +154,7 @@ const pollNotifications = async (state) => {
 
         (data.new_notifications ?? []).forEach((item) => {
             showBrowserNotification(item);
+            maybeHandleIncomingCallInteraction(item.interaction);
         });
     } catch (error) {
         // Ignore transient network errors during background polling.

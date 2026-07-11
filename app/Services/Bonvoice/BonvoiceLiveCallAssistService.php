@@ -2,13 +2,16 @@
 
 namespace App\Services\Bonvoice;
 
+use App\Enums\BonvoiceCallAlertType;
 use App\Enums\RadiumBoxSyncTrigger;
 use App\Models\BonvoiceCallAlert;
 use App\Models\BonvoiceCallEvent;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\IncomingCallAssistNotification;
+use App\Services\DashboardBroadcastService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
+use App\Support\Bonvoice\BonvoiceIncomingCallInteractionBuilder;
 use App\Support\BonvoiceCallStatuses;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Log;
@@ -20,6 +23,7 @@ class BonvoiceLiveCallAssistService
         private readonly BonvoiceAgentResolver $agentResolver,
         private readonly BonvoiceInboundCustomerResolver $customerResolver,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     public function maybeNotify(BonvoiceCallEvent $event): ?BonvoiceCallAlert
@@ -72,6 +76,78 @@ class BonvoiceLiveCallAssistService
         return $alert;
     }
 
+    public function maybeBroadcastAnsweredAutoOpen(BonvoiceCallEvent $event, ?string $previousStatus): void
+    {
+        if (! config('bonvoice.auto_open_customer360')) {
+            return;
+        }
+
+        if (! BonvoiceCallStatuses::isInbound($event->direction)) {
+            return;
+        }
+
+        if (! BonvoiceCallStatuses::transitionedToAnswered($previousStatus, $event->status)) {
+            return;
+        }
+
+        if ($previousStatus === null) {
+            return;
+        }
+
+        $alert = BonvoiceCallAlert::query()
+            ->where('call_id', $event->call_id)
+            ->with(['order', 'incident', 'user'])
+            ->first();
+
+        if ($alert === null) {
+            if (config('app.debug')) {
+                Log::debug('bonvoice.auto_open_customer360.skipped_no_alert', [
+                    'call_id' => $event->call_id,
+                ]);
+            }
+
+            return;
+        }
+
+        if ($alert->alert_type === BonvoiceCallAlertType::UnknownCaller) {
+            if (config('app.debug')) {
+                Log::debug('bonvoice.auto_open_customer360.skipped_unknown_customer', [
+                    'call_id' => $event->call_id,
+                ]);
+            }
+
+            return;
+        }
+
+        if ($alert->incident_id === null) {
+            if (config('app.debug')) {
+                Log::debug('bonvoice.auto_open_customer360.skipped_no_incident', [
+                    'call_id' => $event->call_id,
+                ]);
+            }
+
+            return;
+        }
+
+        $agent = $alert->user ?? $this->agentResolver->resolveUserForCall($event);
+
+        if ($agent === null) {
+            return;
+        }
+
+        $interaction = BonvoiceIncomingCallInteractionBuilder::fromAlert($alert, 'answered');
+
+        $this->dashboardBroadcastService->incomingCallInteraction($agent, $interaction);
+
+        if (config('app.debug')) {
+            Log::debug('bonvoice.auto_open_customer360.broadcast', [
+                'call_id' => $event->call_id,
+                'incident_id' => $alert->incident_id,
+                'user_id' => $agent->id,
+            ]);
+        }
+    }
+
     private function sendNotificationSafely(User $agent, BonvoiceCallAlert $alert): void
     {
         try {
@@ -103,7 +179,7 @@ class BonvoiceLiveCallAssistService
 
     /**
      * @param  array{
-     *     alert_type: \App\Enums\BonvoiceCallAlertType,
+     *     alert_type: BonvoiceCallAlertType,
      *     customer_phone: ?string,
      *     order_id: ?int,
      *     order_label: ?string,

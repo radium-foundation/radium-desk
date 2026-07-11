@@ -15,6 +15,7 @@ import {
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
 import { getWorkspaceSession } from './workspace/session';
+import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -81,25 +82,33 @@ const handleNotificationCreated = (payload) => {
     const root = document.getElementById('notification-bell-root');
 
     if (!root) {
+        maybeHandleIncomingCallInteraction(payload.interaction);
+
         return;
     }
 
-    animateNotificationBell();
+    if (payload.bell_html) {
+        animateNotificationBell();
 
-    const unreadCount = Number(payload.unread_count ?? 0);
+        const unreadCount = Number(payload.unread_count ?? 0);
 
-    if (getWorkspaceSession().isActive('notification-dropdown')) {
-        updateUnreadBadge(root, unreadCount);
-    } else {
-        replaceNotificationBell(payload.bell_html);
+        if (getWorkspaceSession().isActive('notification-dropdown')) {
+            updateUnreadBadge(root, unreadCount);
+        } else {
+            replaceNotificationBell(payload.bell_html);
+        }
     }
 
-    showBrowserNotification({
-        id: payload.id,
-        title: payload.title,
-        message: payload.message,
-        url: payload.url,
-    });
+    if (payload.title && payload.message) {
+        showBrowserNotification({
+            id: payload.id,
+            title: payload.title,
+            message: payload.message,
+            url: payload.url,
+        });
+    }
+
+    maybeHandleIncomingCallInteraction(payload.interaction);
 };
 
 const createEchoInstance = (pageRoot) => {

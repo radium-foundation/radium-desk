@@ -23,7 +23,7 @@ class BonvoiceWebhookProcessorService
         BonvoiceWebhookLog $webhookLog,
         ?BonvoiceWebhookProcessOptions $options = null,
     ): BonvoiceWebhookLog {
-        $options ??= new BonvoiceWebhookProcessOptions();
+        $options ??= new BonvoiceWebhookProcessOptions;
         $payload = $webhookLog->payload ?? [];
 
         try {
@@ -49,6 +49,7 @@ class BonvoiceWebhookProcessorService
 
             if (! $options->suppressNotifications) {
                 $this->liveCallAssistService->maybeNotify($callEvent);
+                $this->liveCallAssistService->maybeBroadcastAnsweredAutoOpen($callEvent, $previousStatus);
             }
 
             if (! $options->suppressRecovery) {
