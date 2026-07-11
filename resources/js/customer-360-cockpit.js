@@ -135,7 +135,7 @@ const renderPaletteResults = (resultsContainer, results, activeIndex) => {
         if (result.type === 'action') {
             const badge = document.createElement('span');
             badge.className = 'c360-command-palette-result-badge';
-            badge.textContent = 'Action';
+            badge.textContent = result.action?.type === 'status' ? 'Sent' : 'Action';
             item.appendChild(badge);
         }
 
@@ -274,6 +274,10 @@ export const initCustomer360Cockpit = ({
         }
 
         const action = result.action ?? {};
+
+        if (action.type === 'status') {
+            return;
+        }
 
         if (action.type === 'link' && action.href) {
             window.open(action.href, '_blank', 'noopener,noreferrer');

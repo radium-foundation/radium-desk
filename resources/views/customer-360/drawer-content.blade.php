@@ -1,4 +1,6 @@
 @php
+    use App\Support\Customer360\RequestCorrectSerialMenuPresenter;
+
     $phone = trim((string) ($customer['mobile'] ?? $healthCard['phone'] ?? ''));
     $email = trim((string) ($customer['email'] ?? $healthCard['email'] ?? ''));
     $serial = $device['serial_number'] ?? ($order?->serial_number);
@@ -8,15 +10,40 @@
     $referenceNumber = $order?->transaction_id ?? $incident->display_reference;
     $orderId = $order?->order_id;
 
+    $requestCorrectSerialMenu = RequestCorrectSerialMenuPresenter::resolve(
+        (bool) ($canRequestCorrectSerial ?? false),
+        $correctSerialRequestState ?? ['requested' => false],
+    );
+
     $paletteActions = [
         ['id' => 'open-order', 'label' => 'Open Order', 'icon' => 'bi-box-arrow-up-right', 'type' => 'link', 'href' => $order ? route('orders.show', $order) : null, 'keywords' => ['order']],
         ['id' => 'open-case', 'label' => 'Open Case', 'icon' => 'bi-folder2-open', 'type' => 'link', 'href' => route('incidents.show', $incident), 'keywords' => ['case', 'incident']],
         ['id' => 'correct-customer', 'label' => 'Correct Customer', 'icon' => 'bi-person-gear', 'type' => 'trigger', 'trigger' => 'correct-customer-details', 'enabled' => (bool) ($correctCustomerDetailsEligibility['allowed'] ?? false), 'disabledReason' => $correctCustomerDetailsEligibility['reason'] ?? 'Action is not available.', 'keywords' => ['customer', 'details']],
         ['id' => 'correct-serial', 'label' => 'Correct Serial', 'icon' => 'bi-upc', 'type' => 'trigger', 'trigger' => 'correct-serial-number', 'enabled' => (bool) ($correctSerialNumberEligibility['allowed'] ?? false), 'disabledReason' => $correctSerialNumberEligibility['reason'] ?? 'Action is not available.', 'keywords' => ['serial']],
         ['id' => 'schedule-appointment', 'label' => 'Schedule Appointment', 'icon' => 'bi-calendar-event', 'type' => 'tab', 'tab' => 'overview', 'anchor' => 'support-appointments', 'keywords' => ['appointment', 'schedule']],
-        ['id' => 'request-correct-serial', 'label' => 'Request Correct Serial', 'icon' => 'bi-camera', 'type' => 'trigger', 'trigger' => 'request-correct-serial', 'enabled' => (bool) ($canRequestCorrectSerial ?? false), 'keywords' => ['serial', 'request']],
         ['id' => 'refund', 'label' => 'Refund', 'icon' => 'bi-arrow-counterclockwise', 'type' => 'link', 'href' => route('refunds.create'), 'keywords' => ['refund']],
     ];
+
+    if ($requestCorrectSerialMenu['visible']) {
+        $paletteActions[] = $requestCorrectSerialMenu['type'] === 'trigger'
+            ? [
+                'id' => 'request-correct-serial',
+                'label' => $requestCorrectSerialMenu['label'],
+                'icon' => 'bi-camera',
+                'type' => 'trigger',
+                'trigger' => 'request-correct-serial',
+                'enabled' => true,
+                'keywords' => ['serial', 'request'],
+            ]
+            : [
+                'id' => 'request-correct-serial',
+                'label' => $requestCorrectSerialMenu['label'],
+                'icon' => 'bi-check-circle',
+                'type' => 'status',
+                'enabled' => false,
+                'keywords' => ['serial', 'request'],
+            ];
+    }
 
     $paletteActions = array_values(array_filter($paletteActions, function (array $action): bool {
         if (($action['type'] ?? '') === 'link') {
@@ -29,6 +56,10 @@
             }
 
             return (bool) ($action['enabled'] ?? true);
+        }
+
+        if (($action['type'] ?? '') === 'status') {
+            return true;
         }
 
         return true;

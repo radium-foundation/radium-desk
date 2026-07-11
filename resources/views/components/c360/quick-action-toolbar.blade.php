@@ -19,12 +19,19 @@
 ])
 
 @php
+    use App\Support\Customer360\RequestCorrectSerialMenuPresenter;
+
     $phone = trim((string) ($customer['mobile'] ?? ''));
     $phoneDigits = preg_replace('/\D+/', '', $phone) ?? '';
     $whatsappUrl = strlen($phoneDigits) >= 10
         ? 'https://wa.me/'.(str_starts_with($phoneDigits, '91') ? $phoneDigits : '91'.$phoneDigits)
         : null;
     $telUrl = $phone !== '' ? 'tel:'.$phone : null;
+
+    $requestCorrectSerialMenu = RequestCorrectSerialMenuPresenter::resolve(
+        (bool) $canRequestCorrectSerial,
+        $correctSerialRequestState,
+    );
 
     $primaryAction = null;
     $moreActions = [];
@@ -43,19 +50,21 @@
                 'icon' => 'bi-upc-scan',
                 'trigger' => 'request-serial',
             ];
-        } elseif ($correctSerialRequestState['requested'] ?? false) {
-            $primaryAction = [
-                'type' => 'status',
-                'label' => 'Correction requested',
-                'icon' => 'bi-check-circle',
-            ];
-        } elseif ($canRequestCorrectSerial) {
-            $primaryAction = [
-                'type' => 'trigger',
-                'label' => 'Request Correct Serial',
-                'icon' => 'bi-camera',
-                'trigger' => 'request-correct-serial',
-            ];
+        } elseif ($requestCorrectSerialMenu['visible']) {
+            if ($requestCorrectSerialMenu['type'] === 'trigger') {
+                $primaryAction = [
+                    'type' => 'trigger',
+                    'label' => $requestCorrectSerialMenu['label'],
+                    'icon' => 'bi-camera',
+                    'trigger' => 'request-correct-serial',
+                ];
+            } else {
+                $primaryAction = [
+                    'type' => 'status',
+                    'label' => $requestCorrectSerialMenu['label'],
+                    'icon' => 'bi-check-circle',
+                ];
+            }
         } elseif ($canCustomerNotResponding) {
             $primaryAction = [
                 'type' => 'trigger',
@@ -75,8 +84,24 @@
         if ($canRequestSerialNumber && ($primaryAction['trigger'] ?? null) !== 'request-serial' && ! ($serialRequestState['requested'] ?? false)) {
             $moreActions[] = ['type' => 'trigger', 'label' => 'Request Serial', 'trigger' => 'request-serial', 'icon' => 'bi-upc-scan', 'enabled' => true];
         }
-        if ($canRequestCorrectSerial && ($primaryAction['trigger'] ?? null) !== 'request-correct-serial' && ! ($correctSerialRequestState['requested'] ?? false)) {
-            $moreActions[] = ['type' => 'trigger', 'label' => 'Request Correct Serial', 'trigger' => 'request-correct-serial', 'icon' => 'bi-camera', 'enabled' => true];
+        if ($requestCorrectSerialMenu['visible']
+            && ($primaryAction['trigger'] ?? null) !== 'request-correct-serial'
+            && ! (($primaryAction['type'] ?? '') === 'status' && $requestCorrectSerialMenu['type'] === 'status')) {
+            if ($requestCorrectSerialMenu['type'] === 'trigger') {
+                $moreActions[] = [
+                    'type' => 'trigger',
+                    'label' => $requestCorrectSerialMenu['label'],
+                    'trigger' => 'request-correct-serial',
+                    'icon' => 'bi-camera',
+                    'enabled' => true,
+                ];
+            } else {
+                $moreActions[] = [
+                    'type' => 'status',
+                    'label' => $requestCorrectSerialMenu['label'],
+                    'icon' => 'bi-check-circle',
+                ];
+            }
         }
         if ($canCustomerNotResponding && ($primaryAction['trigger'] ?? null) !== 'customer-not-responding') {
             $moreActions[] = ['type' => 'trigger', 'label' => 'Customer Not Responding', 'trigger' => 'customer-not-responding', 'icon' => 'bi-hourglass-split', 'enabled' => true];
@@ -84,6 +109,14 @@
         if ($canLinkOrder && ($primaryAction['trigger'] ?? null) !== 'link-order') {
             $moreActions[] = ['type' => 'trigger', 'label' => 'Link Order', 'trigger' => 'link-order', 'icon' => 'bi-link-45deg', 'enabled' => true];
         }
+    }
+
+    if ($hideWorkflowActions && $requestCorrectSerialMenu['status'] === 'pending') {
+        $moreActions[] = [
+            'type' => 'status',
+            'label' => $requestCorrectSerialMenu['label'],
+            'icon' => 'bi-check-circle',
+        ];
     }
 
     if ($showIdentityCorrectionActions) {
@@ -240,6 +273,15 @@
                                 <span class="c360-quick-toolbar-more-item-hint">🔒 {{ $disabledReason }}</span>
                             @endunless
                         </button>
+                    @elseif(($action['type'] ?? '') === 'status')
+                        <span class="c360-quick-toolbar-more-item c360-quick-toolbar-more-item--status"
+                              role="menuitem"
+                              aria-disabled="true">
+                            <span class="c360-quick-toolbar-more-item-main">
+                                <i class="bi {{ $action['icon'] }}" aria-hidden="true"></i>
+                                <span>{{ $action['label'] }}</span>
+                            </span>
+                        </span>
                     @else
                         <a href="{{ $action['href'] }}"
                            class="c360-quick-toolbar-more-item"

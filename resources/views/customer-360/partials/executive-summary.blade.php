@@ -7,6 +7,7 @@
         :executiveSummary="$executiveSummary"
         :incident="$incident"
         :canRequestCorrectSerial="$canRequestCorrectSerial ?? false"
+        :correctSerialRequestState="$correctSerialRequestState ?? ['requested' => false]"
         :translateUrl="$translateUrl"
     />
 @else

@@ -1,4 +1,6 @@
 @php
+    use App\Support\Customer360\RequestCorrectSerialMenuPresenter;
+
     $phone = trim((string) ($customer['mobile'] ?? ''));
     $phoneDigits = preg_replace('/\D+/', '', $phone) ?? '';
     $whatsappUrl = strlen($phoneDigits) >= 10
@@ -7,6 +9,11 @@
     $telUrl = $phone !== '' ? 'tel:'.$phone : null;
     $hideWorkflowActions = $hideWorkflowActions ?? false;
     $hasRecommendedActions = $hasRecommendedActions ?? false;
+
+    $requestCorrectSerialMenu = RequestCorrectSerialMenuPresenter::resolve(
+        (bool) ($canRequestCorrectSerial ?? false),
+        $correctSerialRequestState ?? ['requested' => false],
+    );
 @endphp
 
 <section class="customer-360-section" data-customer-360-section="quick-actions" aria-labelledby="customer-360-actions-heading">
@@ -94,20 +101,20 @@
                 </article>
             @endif
 
-            @if($correctSerialRequestState['requested'] ?? false)
+            @if($requestCorrectSerialMenu['status'] === 'pending')
                 <article class="customer-360-recommended-action-card customer-360-recommended-action-card--completed">
                     <h4 class="customer-360-recommended-action-title">Serial correction requested</h4>
                     <p class="customer-360-recommended-action-description">
                         Waiting for customer to share correct serial photo.
                     </p>
                     <p class="customer-360-recommended-action-status">
-                        <span aria-hidden="true">✓</span> Request sent
-                        @if(filled($correctSerialRequestState['requested_at_label'] ?? null))
-                            <span class="customer-360-recommended-action-status-at">{{ $correctSerialRequestState['requested_at_label'] }}</span>
+                        <span aria-hidden="true">✓</span> Serial Requested
+                        @if(filled($requestCorrectSerialMenu['requested_at_label'] ?? null))
+                            <span class="customer-360-recommended-action-status-at">{{ $requestCorrectSerialMenu['requested_at_label'] }}</span>
                         @endif
                     </p>
                 </article>
-            @elseif($canRequestCorrectSerial ?? false)
+            @elseif($requestCorrectSerialMenu['status'] === 're-request')
                 <article class="customer-360-recommended-action-card">
                     <h4 class="customer-360-recommended-action-title">Serial number needs verification</h4>
                     <p class="customer-360-recommended-action-description">
@@ -118,7 +125,24 @@
                             data-workspace-trigger="request-correct-serial"
                             data-workspace-incident-id="{{ $incident->id }}"
                             data-workspace-context="customer">
-                        Request Correct Serial
+                        Re-request Serial
+                    </button>
+                    <p class="customer-360-recommended-action-note">
+                        Moves case to Waiting Customer after sending request.
+                    </p>
+                </article>
+            @elseif($requestCorrectSerialMenu['status'] === 'available')
+                <article class="customer-360-recommended-action-card">
+                    <h4 class="customer-360-recommended-action-title">Serial number needs verification</h4>
+                    <p class="customer-360-recommended-action-description">
+                        The current serial number may be incorrect. Request customer to share correct serial photo.
+                    </p>
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm customer-360-recommended-action-button"
+                            data-workspace-trigger="request-correct-serial"
+                            data-workspace-incident-id="{{ $incident->id }}"
+                            data-workspace-context="customer">
+                        Request Serial
                     </button>
                     <p class="customer-360-recommended-action-note">
                         Moves case to Waiting Customer after sending request.

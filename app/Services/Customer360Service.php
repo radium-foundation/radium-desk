@@ -202,6 +202,9 @@ class Customer360Service
                 'incident' => $incident,
                 'executiveSummary' => $executiveSummary,
                 'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
+                'correctSerialRequestState' => $order !== null
+                    ? $this->correctSerialRequestState($order)
+                    : ['requested' => false],
             ])->render(),
         ];
     }

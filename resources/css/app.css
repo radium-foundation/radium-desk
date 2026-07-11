@@ -8837,6 +8837,16 @@ body.customer-360-drawer-open {
     }
 }
 
+.c360-quick-toolbar-more-item--status {
+    color: #15803d;
+    background: rgba(34, 197, 94, 0.08);
+    cursor: default;
+}
+
+.c360-quick-toolbar-more-item--status:hover {
+    background: rgba(34, 197, 94, 0.08);
+}
+
 .c360-quick-toolbar-more-item:hover {
     background: #f1f5f9;
 }
@@ -9000,6 +9010,13 @@ body.customer-360-drawer-open {
 .c360-ira-primary-action--display {
     cursor: default;
     text-align: center;
+}
+
+.c360-ira-primary-action--sent {
+    border-color: rgba(34, 197, 94, 0.28);
+    background: rgba(34, 197, 94, 0.1);
+    color: #15803d;
+    box-shadow: none;
 }
 
 .c360-ira-confidence-header {

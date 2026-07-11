@@ -2,12 +2,19 @@
     'executiveSummary',
     'incident',
     'canRequestCorrectSerial' => false,
+    'correctSerialRequestState' => ['requested' => false],
     'translateUrl' => null,
 ])
 
 @php
     use App\Enums\SerialInsightStatus;
     use App\Enums\ServiceCaseSlaStatus;
+    use App\Support\Customer360\RequestCorrectSerialMenuPresenter;
+
+    $requestCorrectSerialMenu = RequestCorrectSerialMenuPresenter::resolve(
+        (bool) ($canRequestCorrectSerial ?? false),
+        $correctSerialRequestState,
+    );
 
     $summaryLines = $executiveSummary->executiveSummary ?? [];
     $summaryPayload = [
@@ -96,7 +103,10 @@
             SerialInsightStatus::Suspicious,
             SerialInsightStatus::Warning,
         ], true)
-        && ($canRequestCorrectSerial ?? false);
+        && in_array($requestCorrectSerialMenu['status'], ['available', 're-request'], true);
+    $serialActionLabel = $requestCorrectSerialMenu['status'] === 're-request'
+        ? 'Re-request serial'
+        : 'Send request';
 @endphp
 
 <section {{ $attributes->merge(['class' => 'c360-ira-command-center']) }}
@@ -147,8 +157,13 @@
                         data-workspace-incident-id="{{ $incident->id }}"
                         data-workspace-context="customer">
                     <i class="bi bi-send" aria-hidden="true"></i>
-                    Send request
+                    {{ $serialActionLabel }}
                 </button>
+            @elseif($requestCorrectSerialMenu['status'] === 'pending')
+                <div class="c360-ira-primary-action c360-ira-primary-action--display c360-ira-primary-action--sent" role="status">
+                    <i class="bi bi-check-circle" aria-hidden="true"></i>
+                    <span>Serial Requested</span>
+                </div>
             @else
                 <div class="c360-ira-primary-action c360-ira-primary-action--display" role="status">
                     <i class="bi bi-lightning-charge" aria-hidden="true"></i>

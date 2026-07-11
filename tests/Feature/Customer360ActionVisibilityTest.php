@@ -154,7 +154,8 @@ class Customer360ActionVisibilityTest extends TestCase
 
         $html = $this->customer360Html($agent, $incident);
         $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $html);
-        $this->assertStringContainsString('Request Correct Serial', $html);
+        $this->assertStringContainsString('Request Serial', $html);
+        $this->assertStringNotContainsString('Request Correct Serial', $html);
         $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
         $this->assertStringNotContainsString('Serial number missing', $html);
     }
@@ -170,7 +171,8 @@ class Customer360ActionVisibilityTest extends TestCase
 
         $html = $this->customer360Html($agent, $incident);
         $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $html);
-        $this->assertStringContainsString('Request Correct Serial', $html);
+        $this->assertStringContainsString('Request Serial', $html);
+        $this->assertStringNotContainsString('Request Correct Serial', $html);
         $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
         $this->assertStringNotContainsString('Serial number missing', $html);
 
@@ -202,7 +204,8 @@ class Customer360ActionVisibilityTest extends TestCase
 
         $html = $this->customer360Html($agent, $incident);
         $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $html);
-        $this->assertStringContainsString('Request Correct Serial', $html);
+        $this->assertStringContainsString('Request Serial', $html);
+        $this->assertStringNotContainsString('Request Correct Serial', $html);
         $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
         $this->assertStringNotContainsString('Serial number missing', $html);
     }
