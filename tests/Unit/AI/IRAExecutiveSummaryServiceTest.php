@@ -202,7 +202,7 @@ class IRAExecutiveSummaryServiceTest extends TestCase
         $agent = User::factory()->create(['name' => 'Support Agent']);
         $order = Order::query()->create([
             'order_id' => 'RD-EXEC-APPT',
-            'serial_number' => 'SN-APPT-001',
+            'serial_number' => '7881953',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'transaction_id' => 'TXN-APPT',
@@ -237,11 +237,12 @@ class IRAExecutiveSummaryServiceTest extends TestCase
             'deviceModel' => 'MFS 110',
             'warrantyStatus' => 'Active',
             'customerSummary' => ['open_cases' => 1],
-            'scheduledSupportAppointment' => [
-                'preferred_date' => now()->addDay(),
-                'time_slot_label' => SupportAppointmentTimeSlot::Morning->label(),
-                'assignee_name' => 'Support',
-            ],
+            'supportAppointment' => $this->appointmentContext(
+                preferredDate: now()->addDay(),
+                status: SupportAppointmentStatus::Scheduled,
+                slot: SupportAppointmentTimeSlot::Morning,
+                assigneeName: 'Support',
+            ),
         ]);
 
         $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
@@ -254,9 +255,9 @@ class IRAExecutiveSummaryServiceTest extends TestCase
 
         $payload = implode(' ', $summary->executiveSummary);
 
-        $this->assertStringContainsString('booked a support appointment', $payload);
+        $this->assertStringContainsString('scheduled support appointment', $payload);
         $this->assertStringContainsString('Morning (9 AM – 12 PM)', $payload);
-        $this->assertStringContainsString('Next action belongs to Support', $payload);
+        $this->assertSame('Await scheduled support.', $summary->opinion);
     }
 
     public function test_recommendation_changes_when_appointment_exists(): void
@@ -287,11 +288,12 @@ class IRAExecutiveSummaryServiceTest extends TestCase
 
         $context = AIContextFactory::make([
             'serialMissing' => false,
-            'scheduledSupportAppointment' => [
-                'preferred_date' => now()->addDay(),
-                'time_slot_label' => SupportAppointmentTimeSlot::Afternoon->label(),
-                'assignee_name' => 'Ravi',
-            ],
+            'supportAppointment' => $this->appointmentContext(
+                preferredDate: now()->addDay(),
+                status: SupportAppointmentStatus::Scheduled,
+                slot: SupportAppointmentTimeSlot::Afternoon,
+                assigneeName: 'Ravi',
+            ),
         ]);
 
         $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
@@ -302,10 +304,273 @@ class IRAExecutiveSummaryServiceTest extends TestCase
             customerSummary: ['open_cases' => 1],
         );
 
-        $this->assertStringContainsString('appointment follow-up', Str::lower($summary->recommendation));
+        $this->assertStringContainsString('contact the customer as scheduled', Str::lower($summary->recommendation));
         $this->assertStringContainsString('Ravi', $summary->recommendation);
         $this->assertStringNotContainsString('Review incident details', $summary->recommendation);
-        $this->assertStringContainsString('support appointment', Str::lower($summary->opinion));
+        $this->assertSame('Await scheduled support.', $summary->opinion);
+    }
+
+    public function test_completed_appointment_on_closed_incident_appears_in_executive_summary(): void
+    {
+        $agent = User::factory()->create(['name' => 'Support Agent']);
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-COMPLETE',
+            'serial_number' => '7881954',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-COMPLETE',
+            'customer_name' => 'Completed Customer',
+            'customer_phone' => '9123456791',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Completed support',
+            'description' => 'Support completed.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $preferredDate = now()->subDay();
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => $preferredDate->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9123456791',
+            'status' => SupportAppointmentStatus::Completed,
+        ]);
+
+        $context = AIContextFactory::make([
+            'incidentStatus' => IncidentStatus::Closed->label(),
+            'deviceModel' => 'MFS 110',
+            'customerSummary' => ['open_cases' => 0, 'closed_cases' => 1],
+            'supportAppointment' => $this->appointmentContext(
+                preferredDate: $preferredDate,
+                status: SupportAppointmentStatus::Completed,
+                slot: SupportAppointmentTimeSlot::Morning,
+                assigneeName: 'Support',
+            ),
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+        $summary = app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 0, 'closed_cases' => 1],
+        );
+
+        $payload = implode(' ', $summary->executiveSummary);
+
+        $this->assertStringContainsString('Customer booked support on', $payload);
+        $this->assertStringContainsString('Support completed', $payload);
+        $this->assertStringContainsString('Service case is now closed', $payload);
+        $this->assertSame(
+            'Customer has already received scheduled support. No further appointment reminders are required.',
+            $summary->opinion,
+        );
+        $this->assertSame(
+            'Review support outcome. Reopen only if customer reports the issue persists.',
+            $summary->recommendation,
+        );
+    }
+
+    public function test_cancelled_appointment_is_explained_in_executive_summary(): void
+    {
+        $agent = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-CANCEL',
+            'serial_number' => '7881955',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-CANCEL',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Cancelled appointment',
+            'description' => 'Appointment cancelled.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $preferredDate = now()->addDay();
+        $context = AIContextFactory::make([
+            'supportAppointment' => $this->appointmentContext(
+                preferredDate: $preferredDate,
+                status: SupportAppointmentStatus::Cancelled,
+                slot: SupportAppointmentTimeSlot::Afternoon,
+            ),
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+        $summary = app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 1],
+        );
+
+        $payload = implode(' ', $summary->executiveSummary);
+
+        $this->assertStringContainsString('cancelled the support appointment', $payload);
+        $this->assertStringContainsString('confirm whether the customer still needs assistance', Str::lower($summary->opinion));
+        $this->assertStringContainsString('rebook', Str::lower($summary->recommendation));
+    }
+
+    public function test_waiting_state_is_ignored_when_completed_appointment_exists(): void
+    {
+        $agent = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-WAIT',
+            'serial_number' => '7881956',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-WAIT',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Completed with waiting history',
+            'description' => 'Completed support after waiting.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $context = AIContextFactory::make([
+            'incidentStatus' => IncidentStatus::Closed->label(),
+            'waitingState' => [
+                'reason_label' => 'serial number',
+                'lifecycle_history' => [
+                    'customer_waiting_since' => now()->subDays(3),
+                    'waiting_reason_label' => 'serial number',
+                ],
+            ],
+            'supportAppointment' => $this->appointmentContext(
+                preferredDate: now()->subDay(),
+                status: SupportAppointmentStatus::Completed,
+                slot: SupportAppointmentTimeSlot::Morning,
+            ),
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+        $summary = app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 0, 'closed_cases' => 1],
+        );
+
+        $payload = implode(' ', $summary->executiveSummary);
+
+        $this->assertStringNotContainsString('Previously waited for serial', $payload);
+        $this->assertStringContainsString('Support completed', $payload);
+    }
+
+    public function test_legacy_case_without_appointment_still_uses_waiting_state(): void
+    {
+        $agent = User::factory()->create();
+        $order = Order::query()->create([
+            'order_id' => 'RD-EXEC-LEGACY',
+            'serial_number' => null,
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'transaction_id' => 'TXN-LEGACY',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Legacy waiting case',
+            'description' => 'Waiting for serial.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $waitingSince = now()->subDays(2);
+        $context = AIContextFactory::make([
+            'serialMissing' => true,
+            'waitingState' => [
+                'reason_label' => 'serial number',
+                'customer_waiting_since' => $waitingSince,
+            ],
+            'supportAppointment' => null,
+        ]);
+
+        $response = app(\App\Services\AI\AIService::class)->buildBundle($incident)->response;
+        $summary = app(IRAExecutiveSummaryService::class)->build(
+            incident: $incident,
+            response: $response,
+            context: $context,
+            customerSummary: ['open_cases' => 1],
+        );
+
+        $payload = implode(' ', $summary->executiveSummary);
+
+        $this->assertStringContainsString('Waiting for serial number since', $payload);
+        $this->assertStringContainsString('blocked until the device serial number', $summary->opinion);
+    }
+
+    /**
+     * @return array{
+     *     status: SupportAppointmentStatus,
+     *     preferred_date: \Illuminate\Support\Carbon,
+     *     preferred_time_slot: SupportAppointmentTimeSlot,
+     *     time_slot_label: string,
+     *     created_at: \Illuminate\Support\Carbon,
+     *     updated_at: \Illuminate\Support\Carbon,
+     *     completed_at: ?\Illuminate\Support\Carbon,
+     *     assignee_name: ?string,
+     *     is_active: bool,
+     *     is_completed: bool,
+     * }
+     */
+    private function appointmentContext(
+        \Illuminate\Support\Carbon $preferredDate,
+        SupportAppointmentStatus $status,
+        SupportAppointmentTimeSlot $slot,
+        ?string $assigneeName = null,
+    ): array {
+        $isCompleted = $status === SupportAppointmentStatus::Completed;
+        $timestamp = now();
+
+        return [
+            'status' => $status,
+            'preferred_date' => $preferredDate,
+            'preferred_time_slot' => $slot,
+            'time_slot_label' => $slot->label(),
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+            'completed_at' => $isCompleted ? $timestamp : null,
+            'assignee_name' => $assigneeName,
+            'is_active' => $status === SupportAppointmentStatus::Scheduled,
+            'is_completed' => $isCompleted,
+        ];
     }
 
     private function buildSuspiciousSerialSummary(): \App\Data\AI\IRAExecutiveSummaryDTO

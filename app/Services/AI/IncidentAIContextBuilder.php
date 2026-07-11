@@ -4,6 +4,7 @@ namespace App\Services\AI;
 
 use App\Data\AI\AIContextBuildSnapshot;
 use App\Data\AI\AIContextDTO;
+use App\Data\AI\CustomerJourneyBuildContext;
 use App\Data\Knowledge\KnowledgeResponseDTO;
 use App\Data\TimelineViewModel;
 use App\Enums\IncidentStatus;
@@ -20,6 +21,7 @@ use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\ServiceCaseActivityTimelineService;
 use App\Services\ServiceCaseAutomationStatusService;
 use App\Services\Timeline\Customer360TimelineService;
+use App\Support\Customer360\Journey\CustomerJourneyBuilder;
 use App\Support\Customer360\RdServiceStatusResolver;
 use App\Support\Customer360\ScheduledSupportAppointmentContext;
 use App\Support\DeviceModelFormatter;
@@ -45,6 +47,7 @@ class IncidentAIContextBuilder
         private readonly BonvoiceCustomerContactIntelligenceService $contactIntelligenceService,
         private readonly RdServiceStatusResolver $rdServiceStatusResolver,
         private readonly ScheduledSupportAppointmentContext $scheduledSupportAppointmentContext,
+        private readonly CustomerJourneyBuilder $customerJourneyBuilder,
     ) {}
 
     public function build(
@@ -64,7 +67,7 @@ class IncidentAIContextBuilder
         $activeServices = $snapshot?->activeServices
             ?? ($order !== null ? $this->activeServices($incident, $order, $enrichmentMetadata) : []);
 
-        $scheduledSupportAppointment = $snapshot?->scheduledSupportAppointment
+        $supportAppointment = $snapshot?->supportAppointment
             ?? $this->scheduledSupportAppointmentContext->forIncident($incident);
 
         $warrantyStatus = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
@@ -106,6 +109,19 @@ class IncidentAIContextBuilder
             $order,
         );
 
+        $journeyContext = new CustomerJourneyBuildContext(
+            incident: $incident,
+            lastPayment: $lastPayment,
+            waitingState: $waitingState,
+            supportAppointment: $supportAppointment,
+            serialMissing: $serialMissing,
+            deviceModel: $order !== null ? DeviceModelFormatter::shortDisplay($order->displayDeviceModelName()) : null,
+            timeline: $timeline,
+        );
+
+        $customerJourney = $snapshot?->customerJourney
+            ?? $this->customerJourneyBuilder->forIncident($incident, $journeyContext);
+
         $context = new AIContextDTO(
             incidentId: $incident->id,
             incidentReference: $incident->display_reference,
@@ -137,7 +153,8 @@ class IncidentAIContextBuilder
             businessIntelligence: $businessIntelligence,
             internalRemarksCount: $internalRemarksCount,
             knowledge: $knowledge,
-            scheduledSupportAppointment: $scheduledSupportAppointment,
+            supportAppointment: $supportAppointment,
+            customerJourney: $customerJourney,
         );
 
         $riskIndicators = $this->riskScoringService->score($context);
@@ -173,7 +190,8 @@ class IncidentAIContextBuilder
             businessIntelligence: $context->businessIntelligence,
             internalRemarksCount: $context->internalRemarksCount,
             knowledge: $context->knowledge,
-            scheduledSupportAppointment: $context->scheduledSupportAppointment,
+            supportAppointment: $context->supportAppointment,
+            customerJourney: $context->customerJourney,
         );
     }
 

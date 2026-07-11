@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\AI\AIContextBuildSnapshot;
 use App\Data\AI\AIWorkbenchDTO;
+use App\Data\AI\CustomerJourneyBuildContext;
 use App\Data\TimelineViewModel;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
@@ -30,6 +31,7 @@ use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
+use App\Support\Customer360\Journey\CustomerJourneyBuilder;
 use App\Support\Customer360\RdServiceStatusResolver;
 use App\Support\Customer360\ScheduledSupportAppointmentContext;
 use App\Support\AppDateFormatter;
@@ -61,6 +63,7 @@ class Customer360Service
         private readonly Customer360ActionVisibilityService $actionVisibilityService,
         private readonly RdServiceStatusResolver $rdServiceStatusResolver,
         private readonly ScheduledSupportAppointmentContext $scheduledSupportAppointmentContext,
+        private readonly CustomerJourneyBuilder $customerJourneyBuilder,
     ) {}
 
     /**
@@ -143,14 +146,21 @@ class Customer360Service
         $summary = $scopeCache->customerSummary();
         $timeline = $this->customer360TimelineService->forOrder($order);
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
-        $scheduledSupportAppointment = $this->scheduledSupportAppointmentContext->forIncident($incident);
+        $supportAppointment = $this->scheduledSupportAppointmentContext->forIncident($incident);
+        $customerJourney = $this->customerJourneyBuilder->forIncident($incident, new CustomerJourneyBuildContext(
+            incident: $incident,
+            waitingState: $waitingStateCard,
+            supportAppointment: $supportAppointment,
+            timeline: $timeline,
+        ));
         $snapshot = new AIContextBuildSnapshot(
             customerSummary: $summary,
             activeServices: $activeServices,
             enrichmentMetadata: $enrichmentMetadata,
             timeline: $timeline,
             waitingStateCard: $waitingStateCard,
-            scheduledSupportAppointment: $scheduledSupportAppointment,
+            supportAppointment: $supportAppointment,
+            customerJourney: $customerJourney,
         );
         $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
         $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);
@@ -227,14 +237,21 @@ class Customer360Service
         $summary = $scopeCache->customerSummary();
         $timeline = $this->customer360TimelineService->forOrder($order);
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
-        $scheduledSupportAppointment = $this->scheduledSupportAppointmentContext->forIncident($incident);
+        $supportAppointment = $this->scheduledSupportAppointmentContext->forIncident($incident);
+        $customerJourney = $this->customerJourneyBuilder->forIncident($incident, new CustomerJourneyBuildContext(
+            incident: $incident,
+            waitingState: $waitingStateCard,
+            supportAppointment: $supportAppointment,
+            timeline: $timeline,
+        ));
         $snapshot = new AIContextBuildSnapshot(
             customerSummary: $summary,
             activeServices: $activeServices,
             enrichmentMetadata: $enrichmentMetadata,
             timeline: $timeline,
             waitingStateCard: $waitingStateCard,
-            scheduledSupportAppointment: $scheduledSupportAppointment,
+            supportAppointment: $supportAppointment,
+            customerJourney: $customerJourney,
         );
         $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
         $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);

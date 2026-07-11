@@ -16,7 +16,19 @@ readonly class AIContextDTO
      * @param  list<array{title: string, type: string, occurred_at: Carbon}>  $recentActivities
      * @param  list<array{policy_key: string, action_type: string, status: string, occurred_at: Carbon|null}>  $automationHistory
      * @param  list<AIRiskIndicatorDTO>  $riskIndicators
-     * @param  array{preferred_date: Carbon, time_slot_label: ?string, assignee_name: ?string}|null  $scheduledSupportAppointment
+     * @param  array{
+     *     status: \App\Enums\SupportAppointmentStatus,
+     *     preferred_date: Carbon,
+     *     preferred_time_slot: \App\Enums\SupportAppointmentTimeSlot|null,
+     *     time_slot_label: ?string,
+     *     created_at: Carbon|null,
+     *     updated_at: Carbon|null,
+     *     completed_at: ?Carbon,
+     *     assignee_name: ?string,
+     *     is_active: bool,
+     *     is_completed: bool,
+     * }|null  $supportAppointment
+     * @param  CustomerJourneyDTO|null  $customerJourney
      */
     public function __construct(
         public int $incidentId,
@@ -49,7 +61,8 @@ readonly class AIContextDTO
         public BusinessIntelligenceDTO $businessIntelligence,
         public int $internalRemarksCount,
         public KnowledgeResponseDTO $knowledge,
-        public ?array $scheduledSupportAppointment = null,
+        public ?array $supportAppointment = null,
+        public ?CustomerJourneyDTO $customerJourney = null,
     ) {}
 
     public function isWarrantyExpired(): bool
@@ -57,8 +70,23 @@ readonly class AIContextDTO
         return str_contains(strtolower($this->warrantyStatus), 'expired');
     }
 
-    public function hasScheduledSupportAppointment(): bool
+    public function hasSupportAppointment(): bool
     {
-        return $this->scheduledSupportAppointment !== null;
+        return $this->supportAppointment !== null;
+    }
+
+    public function hasActiveSupportAppointment(): bool
+    {
+        return (bool) ($this->supportAppointment['is_active'] ?? false);
+    }
+
+    public function hasCompletedSupportAppointment(): bool
+    {
+        return (bool) ($this->supportAppointment['is_completed'] ?? false);
+    }
+
+    public function hasCustomerJourney(): bool
+    {
+        return $this->customerJourney !== null && $this->customerJourney->milestones !== [];
     }
 }

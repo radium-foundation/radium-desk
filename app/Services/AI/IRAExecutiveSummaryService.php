@@ -11,12 +11,13 @@ use App\Data\SerialInsight;
 use App\Enums\Operations\OperationsInsightCategory;
 use App\Enums\SerialInsightConfidence;
 use App\Enums\SerialInsightStatus;
-use App\Enums\ServiceCaseSlaStatus;
+use App\Enums\SupportAppointmentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Services\SerialValidation\SerialInsightService;
-use App\Support\AppDateFormatter;
+use App\Enums\ServiceCaseSlaStatus;
 use App\Support\DeviceModelFormatter;
+use App\Support\AppDateFormatter;
 use Illuminate\Support\Str;
 
 class IRAExecutiveSummaryService
@@ -106,18 +107,22 @@ class IRAExecutiveSummaryService
             $lines[] = "Customer purchased {$this->withArticle($model)} and currently has {$repairLabel}.";
         }
 
-        $waitingLifecycleLine = $context->hasScheduledSupportAppointment()
-            ? null
-            : $this->customerWaitingLifecycleLine($context);
+        if ($context->hasCustomerJourney()) {
+            foreach ($this->customerJourneyLines($context) as $journeyLine) {
+                $lines[] = $journeyLine;
+            }
+        } else {
+            $waitingLifecycleLine = $context->hasSupportAppointment()
+                ? null
+                : $this->customerWaitingLifecycleLine($context);
 
-        if ($waitingLifecycleLine !== null) {
-            $lines[] = $waitingLifecycleLine;
-        }
+            if ($waitingLifecycleLine !== null) {
+                $lines[] = $waitingLifecycleLine;
+            }
 
-        $appointmentLine = $this->scheduledSupportAppointmentLine($context);
-
-        if ($appointmentLine !== null) {
-            $lines[] = $appointmentLine;
+            foreach ($this->supportAppointmentLines($incident, $context) as $appointmentLine) {
+                $lines[] = $appointmentLine;
+            }
         }
 
         if (! $hasSerialConcern) {
@@ -182,8 +187,26 @@ class IRAExecutiveSummaryService
             return 'The customer has tried contacting multiple times and needs a prioritized callback.';
         }
 
-        if ($context->hasScheduledSupportAppointment()) {
-            return $this->scheduledSupportAppointmentOpinion($context);
+        $journeyOpinion = $this->customerJourneyOpinion($context);
+
+        if ($journeyOpinion !== null) {
+            return $journeyOpinion;
+        }
+
+        if ($context->hasCompletedSupportAppointment()) {
+            return $this->completedSupportAppointmentOpinion();
+        }
+
+        if ($context->hasActiveSupportAppointment()) {
+            return $this->activeSupportAppointmentOpinion($context);
+        }
+
+        if ($this->hasCancelledSupportAppointment($context)) {
+            return $this->cancelledSupportAppointmentOpinion($context);
+        }
+
+        if ($this->hasMissedSupportAppointment($context)) {
+            return 'Customer missed a scheduled support appointment; follow up to rebook support.';
         }
 
         if ($context->customerIntelligence->repeatIssueDetected) {
@@ -245,8 +268,26 @@ class IRAExecutiveSummaryService
             return 'Prioritize callback now and update the customer immediately.';
         }
 
-        if ($context->hasScheduledSupportAppointment()) {
-            return $this->scheduledSupportAppointmentRecommendation($context);
+        $journeyRecommendation = $this->customerJourneyRecommendation($context);
+
+        if ($journeyRecommendation !== null) {
+            return $journeyRecommendation;
+        }
+
+        if ($context->hasCompletedSupportAppointment()) {
+            return $this->completedSupportAppointmentRecommendation();
+        }
+
+        if ($context->hasActiveSupportAppointment()) {
+            return $this->activeSupportAppointmentRecommendation($context);
+        }
+
+        if ($this->hasCancelledSupportAppointment($context)) {
+            return $this->cancelledSupportAppointmentRecommendation($context);
+        }
+
+        if ($this->hasMissedSupportAppointment($context)) {
+            return 'Contact the customer to reschedule the missed support appointment.';
         }
 
         if ($context->customerIntelligence->repeatIssueDetected) {
@@ -506,62 +547,148 @@ class IRAExecutiveSummaryService
         return "{$article} {$model}";
     }
 
-    private function scheduledSupportAppointmentLine(\App\Data\AI\AIContextDTO $context): ?string
+    /**
+     * @return list<string>
+     */
+    private function supportAppointmentLines(Incident $incident, \App\Data\AI\AIContextDTO $context): array
     {
-        $appointment = $context->scheduledSupportAppointment;
+        $appointment = $context->supportAppointment;
+
+        if ($appointment === null) {
+            return [];
+        }
+
+        if ($context->hasCompletedSupportAppointment()) {
+            return $this->completedSupportAppointmentLines($incident, $context);
+        }
+
+        if ($context->hasActiveSupportAppointment()) {
+            $line = $this->activeSupportAppointmentSummaryLine($context);
+
+            return $line !== null ? [$line] : [];
+        }
+
+        if ($this->hasCancelledSupportAppointment($context)) {
+            $line = $this->cancelledSupportAppointmentSummaryLine($context);
+
+            return $line !== null ? [$line] : [];
+        }
+
+        if ($this->hasMissedSupportAppointment($context)) {
+            $scheduleDetails = $this->appointmentScheduleDetails($appointment);
+            $line = "Customer missed scheduled support on {$scheduleDetails}.";
+
+            return [$line];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function completedSupportAppointmentLines(Incident $incident, \App\Data\AI\AIContextDTO $context): array
+    {
+        $appointment = $context->supportAppointment;
+        $lines = [
+            'Customer booked support on '.$this->appointmentScheduleDetails($appointment).'.',
+            'Support completed.',
+        ];
+
+        if (! $incident->isActive()) {
+            $lines[] = 'Service case is now closed.';
+        }
+
+        return $lines;
+    }
+
+    private function activeSupportAppointmentSummaryLine(\App\Data\AI\AIContextDTO $context): ?string
+    {
+        $appointment = $context->supportAppointment;
 
         if ($appointment === null) {
             return null;
         }
 
-        $dateLabel = AppDateFormatter::format($appointment['preferred_date'], 'd M Y');
-        $slotLabel = trim((string) ($appointment['time_slot_label'] ?? ''));
-
-        $scheduleDetails = $slotLabel !== ''
-            ? "{$dateLabel} ({$slotLabel})"
-            : $dateLabel;
-
-        $line = "Customer booked a support appointment for {$scheduleDetails}.";
-
-        $assigneeName = trim((string) ($appointment['assignee_name'] ?? ''));
-
-        if ($assigneeName !== '') {
-            $line .= " Next action belongs to {$assigneeName}.";
-        } else {
-            $line .= ' Next action belongs to the assigned agent.';
-        }
-
-        return $line;
+        return 'Customer has a scheduled support appointment on '.$this->appointmentScheduleDetails($appointment).'.';
     }
 
-    private function scheduledSupportAppointmentOpinion(\App\Data\AI\AIContextDTO $context): string
+    private function cancelledSupportAppointmentSummaryLine(\App\Data\AI\AIContextDTO $context): ?string
     {
-        $appointment = $context->scheduledSupportAppointment;
+        $appointment = $context->supportAppointment;
 
         if ($appointment === null) {
-            return 'Customer has a support appointment scheduled; prepare for the visit.';
+            return null;
         }
 
-        $dateLabel = AppDateFormatter::format($appointment['preferred_date'], 'd M Y');
-        $assigneeName = trim((string) ($appointment['assignee_name'] ?? ''));
-
-        if ($assigneeName !== '') {
-            return "Customer has a support appointment on {$dateLabel}; {$assigneeName} should lead the follow-up.";
-        }
-
-        return "Customer has a support appointment on {$dateLabel}; the assigned agent should lead the follow-up.";
+        return 'Customer cancelled the support appointment scheduled for '.$this->appointmentScheduleDetails($appointment).'.';
     }
 
-    private function scheduledSupportAppointmentRecommendation(\App\Data\AI\AIContextDTO $context): string
+    /**
+     * @param  array<string, mixed>  $appointment
+     */
+    private function appointmentScheduleDetails(array $appointment): string
     {
-        $appointment = $context->scheduledSupportAppointment;
-        $assigneeName = trim((string) ($appointment['assignee_name'] ?? ''));
+        $dateLabel = AppDateFormatter::format($appointment['preferred_date'], 'd M');
+        $slotLabel = trim((string) ($appointment['time_slot_label'] ?? ''));
+
+        return $slotLabel !== ''
+            ? "{$dateLabel} ({$slotLabel})"
+            : $dateLabel;
+    }
+
+    private function completedSupportAppointmentOpinion(): string
+    {
+        return 'Customer has already received scheduled support. No further appointment reminders are required.';
+    }
+
+    private function completedSupportAppointmentRecommendation(): string
+    {
+        return 'Review support outcome. Reopen only if customer reports the issue persists.';
+    }
+
+    private function activeSupportAppointmentOpinion(\App\Data\AI\AIContextDTO $context): string
+    {
+        return 'Await scheduled support.';
+    }
+
+    private function activeSupportAppointmentRecommendation(\App\Data\AI\AIContextDTO $context): string
+    {
+        $assigneeName = trim((string) ($context->supportAppointment['assignee_name'] ?? ''));
 
         if ($assigneeName !== '') {
-            return "Prepare for the scheduled support visit and coordinate appointment follow-up with {$assigneeName}.";
+            return "{$assigneeName} should contact the customer as scheduled.";
         }
 
-        return 'Prepare for the scheduled support visit and coordinate appointment follow-up with the assigned agent.';
+        return 'Assigned agent should contact the customer as scheduled.';
+    }
+
+    private function cancelledSupportAppointmentOpinion(\App\Data\AI\AIContextDTO $context): string
+    {
+        return 'The scheduled support appointment was cancelled; confirm whether the customer still needs assistance.';
+    }
+
+    private function cancelledSupportAppointmentRecommendation(\App\Data\AI\AIContextDTO $context): string
+    {
+        return 'Confirm whether the customer still needs support and offer to rebook if required.';
+    }
+
+    private function hasCancelledSupportAppointment(\App\Data\AI\AIContextDTO $context): bool
+    {
+        $status = $context->supportAppointment['status'] ?? null;
+
+        return $status === SupportAppointmentStatus::Cancelled;
+    }
+
+    private function hasMissedSupportAppointment(\App\Data\AI\AIContextDTO $context): bool
+    {
+        $status = $context->supportAppointment['status'] ?? null;
+
+        if ($status instanceof SupportAppointmentStatus) {
+            return $status->value === 'missed';
+        }
+
+        return $status === 'missed';
     }
 
     private function isCustomerReminderAction(string $title, string $description): bool
@@ -569,5 +696,51 @@ class IRAExecutiveSummaryService
         $combined = Str::lower(trim($title.' '.$description));
 
         return Str::contains($combined, ['reminder', 'follow-up reminder', 'follow up reminder', 'nudge customer']);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function customerJourneyLines(\App\Data\AI\AIContextDTO $context): array
+    {
+        $journey = $context->customerJourney;
+
+        if ($journey === null || $journey->milestones === []) {
+            return [];
+        }
+
+        $titles = array_map(
+            fn ($milestone) => $milestone->title,
+            $journey->milestones,
+        );
+
+        return [
+            'Customer journey: '.implode(' → ', $titles),
+            $journey->confidence->summaryLine(),
+        ];
+    }
+
+    private function customerJourneyOpinion(\App\Data\AI\AIContextDTO $context): ?string
+    {
+        $journey = $context->customerJourney;
+
+        if ($journey === null) {
+            return null;
+        }
+
+        $conclusion = $journey->conclusion;
+
+        return $conclusion->headline.'. '.$conclusion->detail;
+    }
+
+    private function customerJourneyRecommendation(\App\Data\AI\AIContextDTO $context): ?string
+    {
+        $journey = $context->customerJourney;
+
+        if ($journey === null) {
+            return null;
+        }
+
+        return $this->firstSentence($journey->conclusion->recommendation);
     }
 }
