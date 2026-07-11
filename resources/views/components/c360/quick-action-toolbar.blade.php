@@ -8,6 +8,9 @@
     'canLinkOrder' => false,
     'canCorrectCustomerDetails' => false,
     'canCorrectSerialNumber' => false,
+    'correctCustomerDetailsEligibility' => ['allowed' => false, 'reason' => null],
+    'correctSerialNumberEligibility' => ['allowed' => false, 'reason' => null],
+    'showIdentityCorrectionActions' => false,
     'hideWorkflowActions' => false,
     'hasRecommendedActions' => false,
     'serialRequestState' => ['requested' => false],
@@ -70,24 +73,38 @@
         }
 
         if ($canRequestSerialNumber && ($primaryAction['trigger'] ?? null) !== 'request-serial' && ! ($serialRequestState['requested'] ?? false)) {
-            $moreActions[] = ['type' => 'trigger', 'label' => 'Request Serial', 'trigger' => 'request-serial', 'icon' => 'bi-upc-scan'];
+            $moreActions[] = ['type' => 'trigger', 'label' => 'Request Serial', 'trigger' => 'request-serial', 'icon' => 'bi-upc-scan', 'enabled' => true];
         }
         if ($canRequestCorrectSerial && ($primaryAction['trigger'] ?? null) !== 'request-correct-serial' && ! ($correctSerialRequestState['requested'] ?? false)) {
-            $moreActions[] = ['type' => 'trigger', 'label' => 'Request Correct Serial', 'trigger' => 'request-correct-serial', 'icon' => 'bi-camera'];
+            $moreActions[] = ['type' => 'trigger', 'label' => 'Request Correct Serial', 'trigger' => 'request-correct-serial', 'icon' => 'bi-camera', 'enabled' => true];
         }
         if ($canCustomerNotResponding && ($primaryAction['trigger'] ?? null) !== 'customer-not-responding') {
-            $moreActions[] = ['type' => 'trigger', 'label' => 'Customer Not Responding', 'trigger' => 'customer-not-responding', 'icon' => 'bi-hourglass-split'];
+            $moreActions[] = ['type' => 'trigger', 'label' => 'Customer Not Responding', 'trigger' => 'customer-not-responding', 'icon' => 'bi-hourglass-split', 'enabled' => true];
         }
         if ($canLinkOrder && ($primaryAction['trigger'] ?? null) !== 'link-order') {
-            $moreActions[] = ['type' => 'trigger', 'label' => 'Link Order', 'trigger' => 'link-order', 'icon' => 'bi-link-45deg'];
+            $moreActions[] = ['type' => 'trigger', 'label' => 'Link Order', 'trigger' => 'link-order', 'icon' => 'bi-link-45deg', 'enabled' => true];
         }
     }
 
-    if ($canCorrectCustomerDetails) {
-        $moreActions[] = ['type' => 'trigger', 'label' => 'Correct Customer', 'trigger' => 'correct-customer-details', 'icon' => 'bi-person-gear', 'shortcut' => 'correct-customer'];
-    }
-    if ($canCorrectSerialNumber) {
-        $moreActions[] = ['type' => 'trigger', 'label' => 'Correct Serial', 'trigger' => 'correct-serial-number', 'icon' => 'bi-upc', 'shortcut' => 'correct-serial'];
+    if ($showIdentityCorrectionActions) {
+        $moreActions[] = [
+            'type' => 'trigger',
+            'label' => 'Correct Customer',
+            'trigger' => 'correct-customer-details',
+            'icon' => 'bi-person-gear',
+            'shortcut' => 'correct-customer',
+            'enabled' => (bool) ($correctCustomerDetailsEligibility['allowed'] ?? false),
+            'disabledReason' => $correctCustomerDetailsEligibility['reason'] ?? 'Action is not available.',
+        ];
+        $moreActions[] = [
+            'type' => 'trigger',
+            'label' => 'Correct Serial',
+            'trigger' => 'correct-serial-number',
+            'icon' => 'bi-upc',
+            'shortcut' => 'correct-serial',
+            'enabled' => (bool) ($correctSerialNumberEligibility['allowed'] ?? false),
+            'disabledReason' => $correctSerialNumberEligibility['reason'] ?? 'Action is not available.',
+        ];
     }
     if ($supportAppointments !== null && $supportAppointments->isNotEmpty()) {
         $moreActions[] = ['type' => 'link', 'label' => 'Appointments', 'href' => route('incidents.show', $incident).'#support-appointments', 'icon' => 'bi-calendar-event'];
@@ -195,23 +212,43 @@
                  hidden>
                 @foreach($moreActions as $action)
                     @if(($action['type'] ?? '') === 'trigger')
+                        @php
+                            $actionEnabled = (bool) ($action['enabled'] ?? true);
+                            $disabledReason = trim((string) ($action['disabledReason'] ?? 'Action is not available.'));
+                        @endphp
                         <button type="button"
-                                class="c360-quick-toolbar-more-item"
+                                @class([
+                                    'c360-quick-toolbar-more-item',
+                                    'c360-quick-toolbar-more-item--disabled' => ! $actionEnabled,
+                                ])
                                 role="menuitem"
-                                data-workspace-trigger="{{ $action['trigger'] }}"
-                                data-workspace-incident-id="{{ $incident->id }}"
-                                data-workspace-context="customer"
-                                @if(filled($action['shortcut'] ?? null)) data-c360-shortcut-action="{{ $action['shortcut'] }}" @endif>
-                            <i class="bi {{ $action['icon'] }}" aria-hidden="true"></i>
-                            {{ $action['label'] }}
+                                @if($actionEnabled)
+                                    data-workspace-trigger="{{ $action['trigger'] }}"
+                                    data-workspace-incident-id="{{ $incident->id }}"
+                                    data-workspace-context="customer"
+                                    @if(filled($action['shortcut'] ?? null)) data-c360-shortcut-action="{{ $action['shortcut'] }}" @endif
+                                @else
+                                    disabled
+                                    title="🔒 {{ $disabledReason }}"
+                                    aria-disabled="true"
+                                @endif>
+                            <span class="c360-quick-toolbar-more-item-main">
+                                <i class="bi {{ $action['icon'] }}" aria-hidden="true"></i>
+                                <span>{{ $action['label'] }}</span>
+                            </span>
+                            @unless($actionEnabled)
+                                <span class="c360-quick-toolbar-more-item-hint">🔒 {{ $disabledReason }}</span>
+                            @endunless
                         </button>
                     @else
                         <a href="{{ $action['href'] }}"
                            class="c360-quick-toolbar-more-item"
                            role="menuitem"
                            @if(str_starts_with($action['href'], 'http')) target="_blank" rel="noopener noreferrer" @endif>
-                            <i class="bi {{ $action['icon'] }}" aria-hidden="true"></i>
-                            {{ $action['label'] }}
+                            <span class="c360-quick-toolbar-more-item-main">
+                                <i class="bi {{ $action['icon'] }}" aria-hidden="true"></i>
+                                <span>{{ $action['label'] }}</span>
+                            </span>
                         </a>
                     @endif
                 @endforeach

@@ -11,8 +11,8 @@
     $paletteActions = [
         ['id' => 'open-order', 'label' => 'Open Order', 'icon' => 'bi-box-arrow-up-right', 'type' => 'link', 'href' => $order ? route('orders.show', $order) : null, 'keywords' => ['order']],
         ['id' => 'open-case', 'label' => 'Open Case', 'icon' => 'bi-folder2-open', 'type' => 'link', 'href' => route('incidents.show', $incident), 'keywords' => ['case', 'incident']],
-        ['id' => 'correct-customer', 'label' => 'Correct Customer', 'icon' => 'bi-person-gear', 'type' => 'trigger', 'trigger' => 'correct-customer-details', 'enabled' => (bool) ($canCorrectCustomerDetails ?? false), 'keywords' => ['customer', 'details']],
-        ['id' => 'correct-serial', 'label' => 'Correct Serial', 'icon' => 'bi-upc', 'type' => 'trigger', 'trigger' => 'correct-serial-number', 'enabled' => (bool) ($canCorrectSerialNumber ?? false), 'keywords' => ['serial']],
+        ['id' => 'correct-customer', 'label' => 'Correct Customer', 'icon' => 'bi-person-gear', 'type' => 'trigger', 'trigger' => 'correct-customer-details', 'enabled' => (bool) ($correctCustomerDetailsEligibility['allowed'] ?? false), 'disabledReason' => $correctCustomerDetailsEligibility['reason'] ?? 'Action is not available.', 'keywords' => ['customer', 'details']],
+        ['id' => 'correct-serial', 'label' => 'Correct Serial', 'icon' => 'bi-upc', 'type' => 'trigger', 'trigger' => 'correct-serial-number', 'enabled' => (bool) ($correctSerialNumberEligibility['allowed'] ?? false), 'disabledReason' => $correctSerialNumberEligibility['reason'] ?? 'Action is not available.', 'keywords' => ['serial']],
         ['id' => 'schedule-appointment', 'label' => 'Schedule Appointment', 'icon' => 'bi-calendar-event', 'type' => 'tab', 'tab' => 'overview', 'anchor' => 'support-appointments', 'keywords' => ['appointment', 'schedule']],
         ['id' => 'request-correct-serial', 'label' => 'Request Correct Serial', 'icon' => 'bi-camera', 'type' => 'trigger', 'trigger' => 'request-correct-serial', 'enabled' => (bool) ($canRequestCorrectSerial ?? false), 'keywords' => ['serial', 'request']],
         ['id' => 'refund', 'label' => 'Refund', 'icon' => 'bi-arrow-counterclockwise', 'type' => 'link', 'href' => route('refunds.create'), 'keywords' => ['refund']],
@@ -24,6 +24,10 @@
         }
 
         if (($action['type'] ?? '') === 'trigger') {
+            if (in_array($action['id'] ?? '', ['correct-customer', 'correct-serial'], true)) {
+                return (bool) ($showIdentityCorrectionActions ?? false);
+            }
+
             return (bool) ($action['enabled'] ?? true);
         }
 
@@ -66,6 +70,9 @@
         :canLinkOrder="$canLinkOrder ?? false"
         :canCorrectCustomerDetails="$canCorrectCustomerDetails ?? false"
         :canCorrectSerialNumber="$canCorrectSerialNumber ?? false"
+        :correctCustomerDetailsEligibility="$correctCustomerDetailsEligibility ?? ['allowed' => false, 'reason' => null]"
+        :correctSerialNumberEligibility="$correctSerialNumberEligibility ?? ['allowed' => false, 'reason' => null]"
+        :showIdentityCorrectionActions="$showIdentityCorrectionActions ?? false"
         :hideWorkflowActions="$hideWorkflowActions ?? false"
         :hasRecommendedActions="$hasRecommendedActions ?? false"
         :serialRequestState="$serialRequestState ?? ['requested' => false]"

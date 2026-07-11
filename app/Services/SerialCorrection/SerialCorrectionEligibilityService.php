@@ -2,27 +2,38 @@
 
 namespace App\Services\SerialCorrection;
 
+use App\Data\Eligibility\EligibilityResult;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 
 class SerialCorrectionEligibilityService
 {
-    public function canShowAction(Incident $incident, User $user): bool
+    public function __construct(
+        private readonly IdentityCorrectionEligibilityEvaluator $evaluator,
+    ) {}
+
+    public function evaluate(Incident $incident, User $user): EligibilityResult
     {
-        if (! $user->can('update', $incident)) {
-            return false;
-        }
+        $result = $this->evaluator->evaluateBase(
+            $incident,
+            $user,
+            IdentityCorrectionEligibilityEvaluator::KIND_SERIAL,
+        );
 
-        $incident->loadMissing('order');
-
-        if ($incident->order === null) {
-            return false;
+        if (! $result->allowed) {
+            return $result;
         }
 
         if (! $incident->order->isSerialLocked()) {
-            return false;
+            return EligibilityResult::deny('No serial assigned yet.');
         }
 
-        return $user->can('correctIdentity', $incident->order);
+        return EligibilityResult::allow();
+    }
+
+    public function canShowAction(Incident $incident, User $user): bool
+    {
+        return $this->evaluate($incident, $user)->allowed;
     }
 }

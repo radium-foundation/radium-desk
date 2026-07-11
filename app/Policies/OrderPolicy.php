@@ -83,6 +83,7 @@ class OrderPolicy
 
         return $user->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ]);
     }

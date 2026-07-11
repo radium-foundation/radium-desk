@@ -1,6 +1,7 @@
 import { getWorkspaceSession } from './workspace/session';
 import { initUnifiedTimeline } from './unified-timeline';
 import { initCustomer360Cockpit, bindIraDisclosures } from './customer-360-cockpit';
+import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen } from './customer-360-more-menu';
 
 const SESSION_REASON = 'customer-360-drawer';
 
@@ -728,6 +729,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             drawerBody.scrollTop = 0;
         }
 
+        closeMoreMenu();
+
         hydrateLazySectionsForTab(tabKey);
     };
 
@@ -772,76 +775,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     };
 
     const bindCockpitInteractions = () => {
-        if (contentHost.dataset.c360CockpitBound === 'true') {
-            return;
-        }
-
-        contentHost.dataset.c360CockpitBound = 'true';
-
-        contentHost.addEventListener('click', (event) => {
-            const moreToggle = event.target.closest('[data-c360-quick-more-toggle]');
-
-            if (moreToggle) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                const wrap = moreToggle.closest('[data-c360-quick-toolbar]');
-                const menu = wrap?.querySelector('[data-c360-quick-more-menu]');
-
-                if (!(menu instanceof HTMLElement)) {
-                    return;
-                }
-
-                const isOpen = !menu.hidden;
-                contentHost.querySelectorAll('[data-c360-quick-more-menu]').forEach((node) => {
-                    if (node instanceof HTMLElement) {
-                        node.hidden = true;
-                    }
-                });
-                contentHost.querySelectorAll('[data-c360-quick-more-toggle]').forEach((node) => {
-                    if (node instanceof HTMLElement) {
-                        node.setAttribute('aria-expanded', 'false');
-                    }
-                });
-
-                if (!isOpen) {
-                    menu.hidden = false;
-                    moreToggle.setAttribute('aria-expanded', 'true');
-                }
-
-                return;
-            }
-
-            if (!event.target.closest('[data-c360-quick-more-menu]')) {
-                contentHost.querySelectorAll('[data-c360-quick-more-menu]').forEach((node) => {
-                    if (node instanceof HTMLElement) {
-                        node.hidden = true;
-                    }
-                });
-                contentHost.querySelectorAll('[data-c360-quick-more-toggle]').forEach((node) => {
-                    if (node instanceof HTMLElement) {
-                        node.setAttribute('aria-expanded', 'false');
-                    }
-                });
-            }
-        });
-
-        document.addEventListener('keydown', (event) => {
-            if (event.key !== 'Escape') {
-                return;
-            }
-
-            contentHost.querySelectorAll('[data-c360-quick-more-menu]').forEach((node) => {
-                if (node instanceof HTMLElement) {
-                    node.hidden = true;
-                }
-            });
-            contentHost.querySelectorAll('[data-c360-quick-more-toggle]').forEach((node) => {
-                if (node instanceof HTMLElement) {
-                    node.setAttribute('aria-expanded', 'false');
-                }
-            });
-        });
+        initMoreMenu(contentHost);
     };
 
     const bindExecutiveSummaryTranslation = () => {
@@ -1065,6 +999,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         fetchController = new AbortController();
 
         setError('');
+        closeMoreMenu();
         clearContent();
         setLoading(true);
 
@@ -1156,6 +1091,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         document.body.classList.remove('customer-360-drawer-open');
 
         getWorkspaceSession().release(SESSION_REASON);
+
+        closeMoreMenu();
 
         cockpitApi?.destroy?.();
         cockpitApi = null;
@@ -1253,6 +1190,13 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         if (shortcutHelp && !shortcutHelp.hidden) {
+            return;
+        }
+
+        if (isMoreMenuOpen()) {
+            event.preventDefault();
+            closeMoreMenu();
+
             return;
         }
 

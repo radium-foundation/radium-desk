@@ -2,23 +2,28 @@
 
 namespace App\Services\CustomerCorrection;
 
+use App\Data\Eligibility\EligibilityResult;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 
 class CustomerCorrectionEligibilityService
 {
+    public function __construct(
+        private readonly IdentityCorrectionEligibilityEvaluator $evaluator,
+    ) {}
+
+    public function evaluate(Incident $incident, User $user): EligibilityResult
+    {
+        return $this->evaluator->evaluateBase(
+            $incident,
+            $user,
+            IdentityCorrectionEligibilityEvaluator::KIND_CUSTOMER,
+        );
+    }
+
     public function canShowAction(Incident $incident, User $user): bool
     {
-        if (! $user->can('update', $incident)) {
-            return false;
-        }
-
-        $incident->loadMissing('order');
-
-        if ($incident->order === null) {
-            return false;
-        }
-
-        return $user->can('correctIdentity', $incident->order);
+        return $this->evaluate($incident, $user)->allowed;
     }
 }

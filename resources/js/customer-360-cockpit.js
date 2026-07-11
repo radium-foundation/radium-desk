@@ -1,3 +1,5 @@
+import { closeMenu as closeMoreMenu } from './customer-360-more-menu';
+
 const SEARCH_FIELDS = [
     { key: 'sc', label: 'SC Number', icon: 'bi-hash' },
     { key: 'reference', label: 'Reference Number', icon: 'bi-tag' },
@@ -209,7 +211,14 @@ export const initCustomer360Cockpit = ({
         );
 
         if (button instanceof HTMLElement) {
+            if (button.disabled) {
+                showToast?.(button.title?.replace(/^🔒\s*/, '') || 'Action is not available for this case.', 'danger');
+
+                return false;
+            }
+
             button.click();
+
             return true;
         }
 
@@ -273,6 +282,12 @@ export const initCustomer360Cockpit = ({
         }
 
         if (action.type === 'trigger' && action.trigger) {
+            if (action.enabled === false) {
+                showToast?.(action.disabledReason ?? 'Action is not available for this case.', 'danger');
+
+                return;
+            }
+
             triggerWorkspaceAction(action.trigger);
 
             return;
@@ -311,6 +326,8 @@ export const initCustomer360Cockpit = ({
         if (!palette || !(paletteInput instanceof HTMLInputElement)) {
             return;
         }
+
+        closeMoreMenu();
 
         palette.hidden = false;
         palette.classList.add('is-open');

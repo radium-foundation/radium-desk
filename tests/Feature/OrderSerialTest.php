@@ -281,10 +281,13 @@ class OrderSerialTest extends TestCase
             ->assertSee('Dashboard display: MFS 110', false);
     }
 
-    public function test_correct_identity_policy_is_admin_and_superadmin_only(): void
+    public function test_correct_identity_policy_allows_admin_operations_admin_and_superadmin(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $operationsAdmin = User::factory()->create();
+        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -303,6 +306,7 @@ class OrderSerialTest extends TestCase
         ]);
 
         $this->assertTrue($admin->can('correctIdentity', $order));
+        $this->assertTrue($operationsAdmin->can('correctIdentity', $order));
         $this->assertTrue($superadmin->can('correctIdentity', $order));
         $this->assertFalse($agent->can('correctIdentity', $order));
     }

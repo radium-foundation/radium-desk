@@ -2,6 +2,7 @@
 
 namespace App\Services\Customer360;
 
+use App\Data\Eligibility\EligibilityResult;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
@@ -32,6 +33,9 @@ class Customer360ActionVisibilityService
      *     canLinkOrder: bool,
      *     canCorrectCustomerDetails: bool,
      *     canCorrectSerialNumber: bool,
+     *     correctCustomerDetailsEligibility: array{allowed: bool, reason: string|null},
+     *     correctSerialNumberEligibility: array{allowed: bool, reason: string|null},
+     *     showIdentityCorrectionActions: bool,
      *     hasRecommendedActions: bool,
      * }
      */
@@ -52,10 +56,13 @@ class Customer360ActionVisibilityService
         $canLinkOrder = ! $hideWorkflowActions
             && $user !== null
             && $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user);
-        $canCorrectCustomerDetails = $user !== null
-            && $this->customerCorrectionEligibilityService->canShowAction($incident, $user);
-        $canCorrectSerialNumber = $user !== null
-            && $this->serialCorrectionEligibilityService->canShowAction($incident, $user);
+
+        $correctCustomerDetailsEligibility = $this->eligibilityPayload(
+            $user !== null ? $this->customerCorrectionEligibilityService->evaluate($incident, $user) : null,
+        );
+        $correctSerialNumberEligibility = $this->eligibilityPayload(
+            $user !== null ? $this->serialCorrectionEligibilityService->evaluate($incident, $user) : null,
+        );
 
         $hasRecommendedActions = $canRequestSerialNumber
             || $canRequestCorrectSerial
@@ -69,9 +76,30 @@ class Customer360ActionVisibilityService
             'canRequestCorrectSerial' => $canRequestCorrectSerial,
             'canCustomerNotResponding' => $canCustomerNotResponding,
             'canLinkOrder' => $canLinkOrder,
-            'canCorrectCustomerDetails' => $canCorrectCustomerDetails,
-            'canCorrectSerialNumber' => $canCorrectSerialNumber,
+            'canCorrectCustomerDetails' => $correctCustomerDetailsEligibility['allowed'],
+            'canCorrectSerialNumber' => $correctSerialNumberEligibility['allowed'],
+            'correctCustomerDetailsEligibility' => $correctCustomerDetailsEligibility,
+            'correctSerialNumberEligibility' => $correctSerialNumberEligibility,
+            'showIdentityCorrectionActions' => $user !== null,
             'hasRecommendedActions' => $hasRecommendedActions,
+        ];
+    }
+
+    /**
+     * @return array{allowed: bool, reason: string|null}
+     */
+    private function eligibilityPayload(?EligibilityResult $result): array
+    {
+        if ($result === null) {
+            return [
+                'allowed' => false,
+                'reason' => null,
+            ];
+        }
+
+        return [
+            'allowed' => $result->allowed,
+            'reason' => $result->reason,
         ];
     }
 }

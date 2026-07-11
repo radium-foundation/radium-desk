@@ -91,10 +91,25 @@ class Customer360Service
                     ->latest('id'),
             ]);
         }
+
+        $actionVisibility = $this->actionVisibilityService->forIncident($incident, auth()->user());
         $order = $incident->order;
 
         if ($order === null) {
-            return $this->emptyDrawerData($incident);
+            return array_merge($this->emptyDrawerData($incident), [
+                'canRequestSerialNumber' => $actionVisibility['canRequestSerialNumber'],
+                'canRequestCorrectSerial' => $actionVisibility['canRequestCorrectSerial'],
+                'canCustomerNotResponding' => $actionVisibility['canCustomerNotResponding'],
+                'canLinkOrder' => $actionVisibility['canLinkOrder'],
+                'canCorrectCustomerDetails' => $actionVisibility['canCorrectCustomerDetails'],
+                'canCorrectSerialNumber' => $actionVisibility['canCorrectSerialNumber'],
+                'correctCustomerDetailsEligibility' => $actionVisibility['correctCustomerDetailsEligibility'],
+                'correctSerialNumberEligibility' => $actionVisibility['correctSerialNumberEligibility'],
+                'showIdentityCorrectionActions' => $actionVisibility['showIdentityCorrectionActions'],
+                'isWaitingForCustomer' => $actionVisibility['isWaitingForCustomer'],
+                'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
+                'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
+            ]);
         }
 
         $fullModelName = $order->displayDeviceModelName();
@@ -121,6 +136,9 @@ class Customer360Service
             'canLinkOrder' => $actionVisibility['canLinkOrder'],
             'canCorrectCustomerDetails' => $actionVisibility['canCorrectCustomerDetails'],
             'canCorrectSerialNumber' => $actionVisibility['canCorrectSerialNumber'],
+            'correctCustomerDetailsEligibility' => $actionVisibility['correctCustomerDetailsEligibility'],
+            'correctSerialNumberEligibility' => $actionVisibility['correctSerialNumberEligibility'],
+            'showIdentityCorrectionActions' => $actionVisibility['showIdentityCorrectionActions'],
             'isWaitingForCustomer' => $actionVisibility['isWaitingForCustomer'],
             'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
             'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
@@ -822,6 +840,15 @@ class Customer360Service
             'canLinkOrder' => false,
             'canCorrectCustomerDetails' => false,
             'canCorrectSerialNumber' => false,
+            'correctCustomerDetailsEligibility' => [
+                'allowed' => false,
+                'reason' => 'This service case is not linked to an order.',
+            ],
+            'correctSerialNumberEligibility' => [
+                'allowed' => false,
+                'reason' => 'This service case is not linked to an order.',
+            ],
+            'showIdentityCorrectionActions' => false,
             'isWaitingForCustomer' => false,
             'hideWorkflowActions' => false,
             'hasRecommendedActions' => false,
