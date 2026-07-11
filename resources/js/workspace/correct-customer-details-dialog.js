@@ -1,7 +1,9 @@
 import {
     animateDialogStep,
     buildFieldChanges,
+    correctionDialogChangeOptions,
     initChangeDetection,
+    initReasonCounter,
     renderReviewCards,
     renderReviewVerificationSource,
 } from './c360-dialog';
@@ -82,30 +84,6 @@ const setStep = (form, step) => {
     animateDialogStep(activeStep);
 };
 
-const formatModifiedFieldsLabel = (count) => (
-    count === 1 ? '1 field modified' : `${count} fields modified`
-);
-
-const formatReviewChangesLabel = (count) => (
-    count === 1 ? 'Review 1 Change' : `Review ${count} Changes`
-);
-
-const initReasonCounter = (form) => {
-    const reasonInput = form.querySelector('[data-c360-reason-counter-input]');
-    const counterCurrent = form.querySelector('[data-c360-reason-counter-current]');
-
-    if (!(reasonInput instanceof HTMLTextAreaElement) || !(counterCurrent instanceof HTMLElement)) {
-        return;
-    }
-
-    const updateCounter = () => {
-        counterCurrent.textContent = String(reasonInput.value.length);
-    };
-
-    reasonInput.addEventListener('input', updateCounter);
-    updateCounter();
-};
-
 export const initCorrectCustomerDetailsDialog = (root) => {
     const form = root?.querySelector('[data-correct-customer-details-dialog]');
 
@@ -121,11 +99,7 @@ export const initCorrectCustomerDetailsDialog = (root) => {
     initChangeDetection(form, {
         fieldDefinitions: FIELD_DEFINITIONS,
         reviewButton,
-        changeStatusFormat: {
-            unchanged: 'No changes',
-            changed: formatModifiedFieldsLabel,
-        },
-        reviewButtonFormat: formatReviewChangesLabel,
+        ...correctionDialogChangeOptions,
     });
 
     reviewButton?.addEventListener('click', () => {

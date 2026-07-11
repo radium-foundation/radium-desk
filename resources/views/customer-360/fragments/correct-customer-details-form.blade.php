@@ -16,7 +16,7 @@
       data-original-customer-name="{{ $customerName }}"
       data-original-customer-phone="{{ $customerPhone }}"
       data-original-customer-email="{{ $customerEmail }}"
-      class="workspace-note-dialog c360-dialog correct-customer-details-dialog">
+      class="workspace-note-dialog c360-dialog c360-correction-dialog correct-customer-details-dialog">
     @csrf
     @method('PATCH')
     <input type="hidden" name="workspace_context" value="{{ $workspaceContext }}">
@@ -35,12 +35,11 @@
 
         <x-c360.dialog-body-layout>
             <x-slot:sidebar>
-                <x-c360.identity-summary
+                <x-c360.correction-dialog-sidebar
                     :order="$order"
                     :incident="$incident"
                     :workspace-context="$workspaceContext"
-                    :can-correct-serial-number="$canCorrectSerialNumber ?? false"
-                    variant="compact-sidebar" />
+                    :can-correct-serial-number="$canCorrectSerialNumber ?? false" />
             </x-slot:sidebar>
 
             <div data-correct-customer-details-step="edit" class="c360-dialog-step">
@@ -112,10 +111,10 @@
                 </x-c360.section-card>
 
                 <x-c360.section-card
-                    title="Verification"
+                    title="Verification source"
                     heading-id="correct-customer-verification-heading"
                     class="mb-0">
-                    <x-c360.verification-source variant="select" />
+                    <x-c360.verification-source />
                 </x-c360.section-card>
             </div>
 
@@ -148,7 +147,7 @@
                              aria-labelledby="correct-customer-details-review-source-heading">
                         <h4 class="c360-dialog-review-card-title"
                             id="correct-customer-details-review-source-heading">
-                            Verification Source
+                            Verification source
                         </h4>
                         <p class="c360-dialog-review-source-text mb-0"
                            data-correct-customer-details-review-source-text></p>

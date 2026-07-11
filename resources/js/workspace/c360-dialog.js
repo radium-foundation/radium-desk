@@ -125,6 +125,38 @@ export const animateDialogStep = (stepElement) => {
     stepElement.classList.add('c360-dialog-step--enter');
 };
 
+export const formatModifiedFieldsLabel = (count) => (
+    count === 1 ? '1 field modified' : `${count} fields modified`
+);
+
+export const formatReviewChangesLabel = (count) => (
+    count === 1 ? 'Review 1 Change' : `Review ${count} Changes`
+);
+
+export const correctionDialogChangeOptions = {
+    changeStatusFormat: {
+        unchanged: 'No changes',
+        changed: formatModifiedFieldsLabel,
+    },
+    reviewButtonFormat: formatReviewChangesLabel,
+};
+
+export const initReasonCounter = (form) => {
+    const reasonInput = form.querySelector('[data-c360-reason-counter-input]');
+    const counterCurrent = form.querySelector('[data-c360-reason-counter-current]');
+
+    if (!(reasonInput instanceof HTMLTextAreaElement) || !(counterCurrent instanceof HTMLElement)) {
+        return;
+    }
+
+    const updateCounter = () => {
+        counterCurrent.textContent = String(reasonInput.value.length);
+    };
+
+    reasonInput.addEventListener('input', updateCounter);
+    updateCounter();
+};
+
 export const formatChangeStatusText = (changes, changeStatusFormat = null) => {
     const count = changes.length;
 

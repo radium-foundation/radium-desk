@@ -1,7 +1,9 @@
 import {
     animateDialogStep,
     buildFieldChanges,
+    correctionDialogChangeOptions,
     initChangeDetection,
+    initReasonCounter,
     renderReviewCards,
     renderReviewVerificationSource,
     renderValidationBannerHtml,
@@ -225,6 +227,8 @@ export const initCorrectSerialNumberDialog = (root) => {
     let latestPreview = null;
     let debounceTimer = null;
 
+    initReasonCounter(form);
+
     const refreshPreview = async () => {
         if (!(serialInput instanceof HTMLInputElement)) {
             return;
@@ -245,6 +249,7 @@ export const initCorrectSerialNumberDialog = (root) => {
     initChangeDetection(form, {
         fieldDefinitions: FIELD_DEFINITIONS,
         reviewButton,
+        ...correctionDialogChangeOptions,
     });
 
     if (serialInput instanceof HTMLInputElement) {

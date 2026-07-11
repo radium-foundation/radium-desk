@@ -17,7 +17,7 @@
       data-c360-success-items="Updated Successfully|Audit Recorded|Timeline Updated|Customer360 Refreshed|Protected from Automatic RadiumBox Sync"
       data-original-serial-number="{{ $currentSerial }}"
       data-correct-serial-validation-url="{{ $workspaceValidationUrl }}"
-      class="workspace-note-dialog c360-dialog correct-serial-number-dialog">
+      class="workspace-note-dialog c360-dialog c360-correction-dialog correct-serial-number-dialog">
     @csrf
     @method('PATCH')
     <input type="hidden" name="workspace_context" value="{{ $workspaceContext }}">
@@ -36,21 +36,20 @@
 
         <x-c360.dialog-body-layout>
             <x-slot:sidebar>
-                <x-c360.identity-summary
+                <x-c360.correction-dialog-sidebar
                     :order="$order"
                     :incident="$incident"
                     :workspace-context="$workspaceContext"
-                    :show-serial-action="false"
-                    variant="sidebar" />
+                    :show-serial-action="false" />
             </x-slot:sidebar>
 
             <div data-correct-serial-number-step="edit" class="c360-dialog-step">
                 @if($currentValidation !== null || filled($currentDuplicateOrderId))
                     <x-c360.section-card
-                        title="Current Serial Status"
+                        title="Current serial status"
                         heading-id="correct-serial-current-status-heading"
-                        class="mb-3">
-                        <div class="c360-dialog-validation-stack" data-correct-serial-current-status>
+                        class="mb-2">
+                        <div class="c360-dialog-status-row" data-correct-serial-current-status>
                             @if($currentValidation !== null)
                                 @php
                                     $validationType = match ($currentValidation->severity) {
@@ -58,30 +57,32 @@
                                         SerialValidationSeverity::Warning => 'warning',
                                         default => 'fail',
                                     };
-                                    $validationMessage = match ($currentValidation->severity) {
-                                        SerialValidationSeverity::Pass => 'Serial format valid',
+                                    $validationLabel = match ($currentValidation->severity) {
+                                        SerialValidationSeverity::Pass => 'Valid format',
                                         SerialValidationSeverity::Warning => 'Validation warning',
                                         default => 'Invalid serial',
                                     };
+                                    $validationTitle = filled($currentValidation->reason)
+                                        ? $currentValidation->reason
+                                        : null;
                                 @endphp
-                                <x-c360.validation-banner
+                                <x-c360.status-chip
                                     :type="$validationType"
-                                    :message="$validationMessage"
-                                    :detail="filled($currentValidation->reason) ? $currentValidation->reason : null"
+                                    :label="$validationLabel"
+                                    :title="$validationTitle"
                                     data-correct-serial-current-validation />
                             @endif
 
                             @if(filled($currentDuplicateOrderId))
-                                <x-c360.validation-banner
+                                <x-c360.status-chip
                                     type="duplicate-conflict"
-                                    message="Already assigned"
-                                    :detail="'Used by order '.$currentDuplicateOrderId"
+                                    label="Already assigned"
+                                    :title="'Used by order '.$currentDuplicateOrderId"
                                     data-correct-serial-current-duplicate />
                             @else
-                                <x-c360.validation-banner
+                                <x-c360.status-chip
                                     type="duplicate-clear"
-                                    message="Available"
-                                    detail="No duplicate detected"
+                                    label="Available"
                                     data-correct-serial-current-duplicate />
                             @endif
                         </div>
@@ -89,9 +90,9 @@
                 @endif
 
                 <x-c360.section-card
-                    title="Corrected Serial"
+                    title="Corrected serial"
                     heading-id="correct-serial-number-fields-heading"
-                    class="mb-3">
+                    class="mb-2">
                     <div class="c360-dialog-field mb-0">
                         <label for="correct-serial-number" class="form-label">New Serial Number</label>
                         <input type="text"
@@ -119,22 +120,24 @@
                         </div>
                     </div>
 
-                    <x-c360.change-status class="mt-3 mb-0" />
+                    <x-c360.change-status class="mt-2 mb-0" unchanged-text="No changes" />
                 </x-c360.section-card>
 
                 <x-c360.section-card
-                    title="Reason"
+                    title="Correction reason"
                     heading-id="correct-serial-number-reason-heading"
-                    class="mb-3">
+                    class="mb-2">
                     <x-c360.reason-field
                         id="correct-serial-reason"
                         name="reason"
                         label="Why is this serial being corrected?"
-                        :value="$reasonValue" />
+                        :value="$reasonValue"
+                        compact
+                        show-counter />
                 </x-c360.section-card>
 
                 <x-c360.section-card
-                    title="Verification"
+                    title="Verification source"
                     heading-id="correct-serial-verification-heading"
                     class="mb-0">
                     <x-c360.verification-source />
@@ -170,7 +173,7 @@
                              aria-labelledby="correct-serial-number-review-source-heading">
                         <h4 class="c360-dialog-review-card-title"
                             id="correct-serial-number-review-source-heading">
-                            Verification Source
+                            Verification source
                         </h4>
                         <p class="c360-dialog-review-source-text mb-0"
                            data-correct-serial-number-review-source-text></p>
