@@ -56,19 +56,20 @@ export const applyTimelineFilter = (timeline, filterKey, emptyMessages) => {
     const list = timeline.querySelector('[data-timeline-list]');
     const loadMoreWrap = timeline.querySelector('[data-timeline-load-more-wrap]');
 
-    if (filterEmpty) {
-        const message = emptyMessages[filterKey] ?? emptyMessages.all;
+        if (filterEmpty) {
+            const message = emptyMessages[filterKey] ?? emptyMessages.all;
+            const messageTarget = filterEmpty.querySelector('[data-c360-empty-message]') ?? filterEmpty;
 
-        if (filterKey !== 'all' && events.length > 0 && visibleCount === 0) {
-            filterEmpty.textContent = message;
-            filterEmpty.classList.remove('d-none');
-            filterEmpty.hidden = false;
-        } else {
-            filterEmpty.textContent = '';
-            filterEmpty.classList.add('d-none');
-            filterEmpty.hidden = true;
+            if (filterKey !== 'all' && events.length > 0 && visibleCount === 0) {
+                messageTarget.textContent = message;
+                filterEmpty.classList.remove('d-none');
+                filterEmpty.hidden = false;
+            } else {
+                messageTarget.textContent = '';
+                filterEmpty.classList.add('d-none');
+                filterEmpty.hidden = true;
+            }
         }
-    }
 
     if (list) {
         list.hidden = filterKey !== 'all' && events.length > 0 && visibleCount === 0;

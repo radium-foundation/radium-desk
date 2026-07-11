@@ -1,5 +1,6 @@
 import { getWorkspaceSession } from './workspace/session';
 import { initUnifiedTimeline } from './unified-timeline';
+import { initCustomer360Cockpit } from './customer-360-cockpit';
 
 const SESSION_REASON = 'customer-360-drawer';
 
@@ -126,6 +127,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
     let timelinePollTimer = null;
+    let cockpitApi = null;
     const lazyTabState = {
         executiveSummary: false,
         timeline: false,
@@ -576,6 +578,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             if (payload.html) {
                 placeholder.outerHTML = payload.html;
                 bindExecutiveSummaryTranslation();
+                initTooltips?.(contentHost);
             }
         } catch (error) {
             logCustomer360Failure(loadUrl, null, 'executive-summary-load', error);
@@ -766,6 +769,79 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
     };
 
+    const bindCockpitInteractions = () => {
+        if (contentHost.dataset.c360CockpitBound === 'true') {
+            return;
+        }
+
+        contentHost.dataset.c360CockpitBound = 'true';
+
+        contentHost.addEventListener('click', (event) => {
+            const moreToggle = event.target.closest('[data-c360-quick-more-toggle]');
+
+            if (moreToggle) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const wrap = moreToggle.closest('[data-c360-quick-toolbar]');
+                const menu = wrap?.querySelector('[data-c360-quick-more-menu]');
+
+                if (!(menu instanceof HTMLElement)) {
+                    return;
+                }
+
+                const isOpen = !menu.hidden;
+                contentHost.querySelectorAll('[data-c360-quick-more-menu]').forEach((node) => {
+                    if (node instanceof HTMLElement) {
+                        node.hidden = true;
+                    }
+                });
+                contentHost.querySelectorAll('[data-c360-quick-more-toggle]').forEach((node) => {
+                    if (node instanceof HTMLElement) {
+                        node.setAttribute('aria-expanded', 'false');
+                    }
+                });
+
+                if (!isOpen) {
+                    menu.hidden = false;
+                    moreToggle.setAttribute('aria-expanded', 'true');
+                }
+
+                return;
+            }
+
+            if (!event.target.closest('[data-c360-quick-more-menu]')) {
+                contentHost.querySelectorAll('[data-c360-quick-more-menu]').forEach((node) => {
+                    if (node instanceof HTMLElement) {
+                        node.hidden = true;
+                    }
+                });
+                contentHost.querySelectorAll('[data-c360-quick-more-toggle]').forEach((node) => {
+                    if (node instanceof HTMLElement) {
+                        node.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') {
+                return;
+            }
+
+            contentHost.querySelectorAll('[data-c360-quick-more-menu]').forEach((node) => {
+                if (node instanceof HTMLElement) {
+                    node.hidden = true;
+                }
+            });
+            contentHost.querySelectorAll('[data-c360-quick-more-toggle]').forEach((node) => {
+                if (node instanceof HTMLElement) {
+                    node.setAttribute('aria-expanded', 'false');
+                }
+            });
+        });
+    };
+
     const bindExecutiveSummaryTranslation = () => {
         const summaryRoot = contentHost.querySelector('[data-ira-executive-summary]');
 
@@ -802,19 +878,22 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             if (executiveBlock) {
                 executiveBlock.innerHTML = '';
                 (payload.executive_summary ?? []).forEach((line) => {
-                    const paragraph = document.createElement('p');
-                    paragraph.className = 'customer-360-executive-summary-line';
-                    paragraph.textContent = line;
-                    executiveBlock.appendChild(paragraph);
+                    if (typeof line === 'string' && line.startsWith('Customer journey:')) {
+                        return;
+                    }
+
+                    const item = document.createElement('li');
+                    item.textContent = line;
+                    executiveBlock.appendChild(item);
                 });
             }
 
             if (opinionBlock) {
-                opinionBlock.textContent = `"${payload.opinion ?? ''}"`;
+                opinionBlock.textContent = payload.opinion ?? '';
             }
 
             if (recommendationBlock) {
-                recommendationBlock.textContent = `"${payload.recommendation ?? ''}"`;
+                recommendationBlock.textContent = payload.recommendation ?? '';
             }
         };
 
@@ -957,13 +1036,26 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     const finalizeDrawerContent = () => {
         try {
+            bindCockpitInteractions();
             bindDeviceSectionInteractions();
             syncTabState();
             configureDeviceSyncPolling();
             hydrateLazySectionsForTab(getPersistedTab() ?? 'overview');
+            bindCockpitChrome();
         } catch (error) {
             logCustomer360Failure(null, null, 'drawer-init', error);
         }
+    };
+
+    const bindCockpitChrome = () => {
+        cockpitApi?.destroy?.();
+        cockpitApi = initCustomer360Cockpit({
+            drawer,
+            contentHost,
+            activateTab,
+            showToast,
+            isOpen: () => drawer.classList.contains('is-open'),
+        });
     };
 
     const loadInitialContent = async (incidentId) => {
@@ -1063,6 +1155,9 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         getWorkspaceSession().release(SESSION_REASON);
 
+        cockpitApi?.destroy?.();
+        cockpitApi = null;
+
         clearContent();
         clearPersistedTab();
         resetLazyTabState();
@@ -1145,6 +1240,17 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape' || !drawer.classList.contains('is-open')) {
+            return;
+        }
+
+        const palette = drawer.querySelector('[data-c360-command-palette]');
+        const shortcutHelp = drawer.querySelector('[data-c360-shortcut-help]');
+
+        if (palette && !palette.hidden) {
+            return;
+        }
+
+        if (shortcutHelp && !shortcutHelp.hidden) {
             return;
         }
 

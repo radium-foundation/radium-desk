@@ -64,9 +64,8 @@ class Customer360ActionVisibilityTest extends TestCase
 
         $html = $this->customer360Html($agent, $incident->fresh());
 
-        $this->assertStringContainsString('Customer unreachable', $html);
-        $this->assertStringContainsString('Send callback scheduling link and pause until customer responds.', $html);
         $this->assertStringContainsString('Customer Not Responding', $html);
+        $this->assertStringContainsString('data-workspace-trigger="customer-not-responding"', $html);
         $this->assertTrue(app(CustomerNotRespondingEligibilityService::class)->canShowAction($incident->fresh()));
     }
 
@@ -110,7 +109,7 @@ class Customer360ActionVisibilityTest extends TestCase
         $this->assertStringNotContainsString('Serial number missing', $html);
         $this->assertStringNotContainsString('Customer unreachable', $html);
         $this->assertStringNotContainsString('Customer Not Responding', $html);
-        $this->assertStringContainsString('Quick Actions', $html);
+        $this->assertStringContainsString('data-customer-360-section="quick-actions"', $html);
         $this->assertStringContainsString('Call', $html);
     }
 
@@ -126,10 +125,8 @@ class Customer360ActionVisibilityTest extends TestCase
         $this->assertTrue(app(RequestSerialNumberEligibilityService::class)->canShowAction($missingSerialIncident));
 
         $missingSerialHtml = $this->customer360Html($agent, $missingSerialIncident);
-        $this->assertStringContainsString('Recommended Actions', $missingSerialHtml);
-        $this->assertStringContainsString('Serial number missing', $missingSerialHtml);
-        $this->assertStringContainsString('Ask customer to provide device serial number.', $missingSerialHtml);
-        $this->assertStringContainsString('Request Serial Number', $missingSerialHtml);
+        $this->assertStringContainsString('data-workspace-trigger="request-serial"', $missingSerialHtml);
+        $this->assertStringContainsString('Request Serial', $missingSerialHtml);
 
         [$agent, $resolvedSerialIncident] = $this->createAssignedIncident([
             'order_id' => 'RD-VIS-RESOLVED',
@@ -156,8 +153,9 @@ class Customer360ActionVisibilityTest extends TestCase
         $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
 
         $html = $this->customer360Html($agent, $incident);
+        $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $html);
         $this->assertStringContainsString('Request Correct Serial', $html);
-        $this->assertStringNotContainsString('Request Serial Number', $html);
+        $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
         $this->assertStringNotContainsString('Serial number missing', $html);
     }
 
@@ -171,15 +169,10 @@ class Customer360ActionVisibilityTest extends TestCase
         $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
 
         $html = $this->customer360Html($agent, $incident);
-        $this->assertStringContainsString('Serial number needs verification', $html);
-        $this->assertStringNotContainsString('Request Serial Number', $html);
-        $this->assertStringNotContainsString('Serial number missing', $html);
-        $this->assertStringContainsString(
-            'The current serial number may be incorrect. Request customer to share correct serial photo.',
-            $html,
-        );
+        $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $html);
         $this->assertStringContainsString('Request Correct Serial', $html);
-        $this->assertStringContainsString('Moves case to Waiting Customer after sending request.', $html);
+        $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
+        $this->assertStringNotContainsString('Serial number missing', $html);
 
         [$agent, $validIncident] = $this->createAssignedIncident([
             'serial_number' => '9620545',
@@ -208,10 +201,9 @@ class Customer360ActionVisibilityTest extends TestCase
         $this->assertTrue(app(RequestCorrectSerialEligibilityService::class)->canShowAction($incident));
 
         $html = $this->customer360Html($agent, $incident);
-        $this->assertStringContainsString('Recommended Actions', $html);
-        $this->assertStringContainsString('Serial number needs verification', $html);
+        $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $html);
         $this->assertStringContainsString('Request Correct Serial', $html);
-        $this->assertStringNotContainsString('Request Serial Number', $html);
+        $this->assertStringNotContainsString('data-workspace-trigger="request-serial"', $html);
         $this->assertStringNotContainsString('Serial number missing', $html);
     }
 

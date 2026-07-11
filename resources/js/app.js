@@ -22,6 +22,7 @@ import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
+import { buildSmartToastActions } from './customer-360-cockpit';
 import { getDashboardConfig } from './dashboard-config';
 import { initOperationsDashboard } from './operations-dashboard';
 import { initPresenceHeartbeat } from './presence-heartbeat';
@@ -221,7 +222,17 @@ const initMentionTextareas = (root = document) => {
     });
 };
 
-const showAppToast = (message, variant = 'success') => {
+const showAppToast = (messageOrOptions, variant = 'success') => {
+    const options = typeof messageOrOptions === 'object' && messageOrOptions !== null
+        ? messageOrOptions
+        : { message: messageOrOptions, variant };
+
+    const {
+        message,
+        variant: resolvedVariant = variant,
+        actions = [],
+    } = options;
+
     let container = document.querySelector('.toast-container');
 
     if (!container) {
@@ -231,15 +242,40 @@ const showAppToast = (message, variant = 'success') => {
     }
 
     const toastElement = document.createElement('div');
-    toastElement.className = `toast align-items-center text-bg-${variant} border-0`;
+    toastElement.className = `toast align-items-center text-bg-${resolvedVariant} border-0 app-toast`;
     toastElement.setAttribute('role', 'alert');
     toastElement.setAttribute('aria-live', 'assertive');
     toastElement.setAttribute('aria-atomic', 'true');
 
     const body = document.createElement('div');
-    body.className = 'toast-body';
-    body.style.whiteSpace = 'pre-line';
-    body.textContent = message ?? '';
+    body.className = 'toast-body app-toast-body';
+
+    const messageNode = document.createElement('div');
+    messageNode.className = 'app-toast-message';
+    messageNode.style.whiteSpace = 'pre-line';
+    messageNode.textContent = message ?? '';
+    body.appendChild(messageNode);
+
+    if (actions.length > 0) {
+        const actionsWrap = document.createElement('div');
+        actionsWrap.className = 'app-toast-actions';
+
+        actions.forEach((action) => {
+            const actionButton = document.createElement('button');
+            actionButton.type = 'button';
+            actionButton.className = 'app-toast-action';
+            actionButton.textContent = action.label ?? 'Open';
+
+            actionButton.addEventListener('click', () => {
+                action.onClick?.();
+                bootstrap.Toast.getOrCreateInstance(toastElement)?.hide();
+            });
+
+            actionsWrap.appendChild(actionButton);
+        });
+
+        body.appendChild(actionsWrap);
+    }
 
     const wrapper = document.createElement('div');
     wrapper.className = 'd-flex';
@@ -258,7 +294,7 @@ const showAppToast = (message, variant = 'success') => {
 
     const toast = bootstrap.Toast.getOrCreateInstance(toastElement, {
         autohide: true,
-        delay: 4500,
+        delay: actions.length > 0 ? 6500 : 4500,
     });
 
     toastElement.addEventListener('hidden.bs.toast', () => {
@@ -266,6 +302,19 @@ const showAppToast = (message, variant = 'success') => {
     });
 
     toast.show();
+};
+
+const createCustomer360AwareToast = (drawerRef) => (message, variant = 'success') => {
+    const drawerOpen = drawerRef.current?.isOpen?.() ?? false;
+    const actions = drawerOpen ? buildSmartToastActions(message) : [];
+
+    if (actions.length > 0) {
+        showAppToast({ message, variant, actions });
+
+        return;
+    }
+
+    showAppToast(message, variant);
 };
 
 const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, legacyVerificationModal } = {}) => {
@@ -526,10 +575,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const replaceServiceCaseRowFallback = createServiceCaseRowReplacer({ initTooltips });
     const dashboardTransactionsRef = { current: null };
     const dashboardSerialRef = { current: null };
+    const customer360DrawerRef = { current: null };
     let dashboardQuickFilter = null;
+    const showCustomer360AwareToast = createCustomer360AwareToast(customer360DrawerRef);
 
     const workspaceApi = initWorkspace({
-        showToast: showAppToast,
+        showToast: showCustomer360AwareToast,
         replaceServiceCaseRow: (...args) => (
             dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
         )(...args),
@@ -636,9 +687,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const customer360Drawer = initCustomer360Drawer({
             pageRoot,
-            showToast: showAppToast,
+            showToast: showCustomer360AwareToast,
             initTooltips,
         });
+        customer360DrawerRef.current = customer360Drawer;
 
         const dashboardLiveHooks = {
             onRowsUpdated: () => {

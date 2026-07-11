@@ -92,7 +92,6 @@ class RequestCorrectSerialTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Serial number needs verification', false)
             ->assertSee('Request Correct Serial', false)
             ->assertSee('data-workspace-trigger="request-correct-serial"', false)
             ->assertDontSee('Request Serial Number', false)

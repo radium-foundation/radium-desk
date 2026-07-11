@@ -69,11 +69,8 @@ class Customer360RadiumBoxSyncTest extends TestCase
         $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk();
-        $response->assertSee('Waiting for synchronization', false);
-        $response->assertSee('Sync Status', false);
-        $response->assertSee('Pending', false);
-        $response->assertDontSee('data-customer-360-radiumbox-sync', false);
-        $response->assertDontSee('heroicon-arrow-path', false);
+        $response->assertSee('Syncing', false);
+        $response->assertSee('data-customer-360-sync-diagnostics', false);
     }
 
     public function test_customer_360_shows_failed_serial_state_with_retry_button_and_diagnostics(): void
@@ -152,7 +149,7 @@ class Customer360RadiumBoxSyncTest extends TestCase
 
         $html = (string) $response->json('device_html');
         $this->assertStringContainsString('9389755', $html);
-        $this->assertStringContainsString('Synced from RadiumBox', $html);
+        $this->assertStringContainsString('bi-check-circle', $html);
         $this->assertStringNotContainsString('data-customer-360-sync-diagnostics', $html);
     }
 
@@ -171,8 +168,7 @@ class Customer360RadiumBoxSyncTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('SN-AVAILABLE', false);
-        $response->assertSee('Synced from RadiumBox', false);
-        $response->assertSee('customer-360-sync-freshness', false);
+        $response->assertSee('bi-check-circle', false);
         $response->assertDontSee('data-customer-360-sync-diagnostics', false);
     }
 
@@ -203,7 +199,7 @@ class Customer360RadiumBoxSyncTest extends TestCase
 
         $html = (string) $response->json('html');
         $this->assertStringContainsString('data-customer-360-device-section', $html);
-        $this->assertStringContainsString('Waiting for synchronization', $html);
+        $this->assertStringContainsString('Syncing', $html);
         $this->assertStringContainsString('data-should-poll-sync="true"', $html);
     }
 

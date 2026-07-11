@@ -10,7 +10,14 @@
     </div>
 
     @if($insights === [])
-        <p class="customer-360-ai-text customer-360-ai-text--muted">No incident-specific advisory insights at this time.</p>
+        <x-c360.empty-state
+            icon="bi-stars"
+            title="No IRA insights yet"
+            description="Advisory recommendations will appear when enough case context is available."
+            action-label="Open IRA AI"
+            action-icon="bi-stars"
+            data-c360-empty-open-tab="ai-assistant"
+        />
     @else
         <ul class="customer-360-ai-advisor-list">
             @foreach($insights as $insight)

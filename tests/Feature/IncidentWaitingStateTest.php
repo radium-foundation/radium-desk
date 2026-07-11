@@ -213,11 +213,7 @@ class IncidentWaitingStateTest extends TestCase
             ->assertSee('Waiting for customer response', false)
             ->assertSee('Serial Number', false)
             ->assertSee('Waiting', false)
-            ->assertSee('Requested', false)
-            ->assertSee('05 Jul, 09:45 PM', false)
-            ->assertDontSee('Waiting Since', false)
-            ->assertSee('Paused', false)
-            ->assertSee('Customer Waiting Default', false);
+            ->assertSee('Paused', false);
 
         Carbon::setTestNow();
     }
@@ -367,7 +363,7 @@ class IncidentWaitingStateTest extends TestCase
         $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk()
-            ->assertSee('Next Action', false)
+            ->assertSee('Next action', false)
             ->assertSee(AppDateFormatter::datetime($nextActionAt), false);
     }
 

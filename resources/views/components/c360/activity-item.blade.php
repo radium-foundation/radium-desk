@@ -34,6 +34,8 @@
          role="listitem"
          data-timeline-event
          data-timeline-filter="{{ implode(',', $event->allFilterTags()) }}">
+    <div class="c360-activity-item-indicator" aria-hidden="true"></div>
+
     <div class="c360-activity-item-icon unified-timeline-icon unified-timeline-icon--{{ $event->type->value }}"
          aria-hidden="true">
         <i class="bi {{ $event->iconClass() }}"></i>
@@ -83,10 +85,23 @@
         @endif
 
         @if($event->statusLabel)
-            <span @class([
-                'timeline-status-chip',
-                'timeline-status-chip--' . ($event->statusVariant ?? 'pending'),
-            ])>{{ $event->statusLabel }}</span>
+            @php
+                $statusVariant = match ($event->statusVariant ?? 'pending') {
+                    'success', 'sent', 'completed' => 'success',
+                    'failed', 'danger' => 'danger',
+                    'warning' => 'warning',
+                    default => 'info',
+                };
+                $statusIcon = match ($statusVariant) {
+                    'success' => '✓',
+                    'danger' => '✖',
+                    'warning' => '⚠',
+                    default => 'ⓘ',
+                };
+            @endphp
+            <x-c360.status-banner :variant="$statusVariant" :icon="$statusIcon" class="c360-status-banner--compact">
+                {{ $event->statusLabel }}
+            </x-c360.status-banner>
         @endif
 
         @if($event->actionUrl && $event->actionLabel)

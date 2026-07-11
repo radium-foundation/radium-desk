@@ -58,20 +58,28 @@
                 </button>
             @endforeach
         </div>
-        <div class="unified-timeline-filter-empty d-none"
+        <div class="c360-empty-state c360-empty-state--compact unified-timeline-filter-empty d-none"
              role="status"
              data-timeline-filter-empty
-             hidden></div>
+             hidden>
+            <div class="c360-empty-state-icon" aria-hidden="true">
+                <i class="bi bi-funnel"></i>
+            </div>
+            <p class="c360-empty-state-title mb-0" data-c360-empty-message></p>
+        </div>
         <template data-timeline-filter-empty-messages>@json($filterEmptyMessages)</template>
     @endif
 
     @if($viewModel->isEmpty())
-        <div class="c360-activity-panel-empty unified-timeline-empty"
-             role="status"
-             data-timeline-global-empty>
-            <i class="bi bi-clock-history" aria-hidden="true"></i>
-            <p class="mb-0">{{ $emptyMessage }}</p>
-        </div>
+        <x-c360.empty-state
+            icon="bi-clock-history"
+            title="No activity yet"
+            description="Customer interactions, system events, and support actions will appear here as they happen."
+            action-label="View all filters"
+            data-c360-empty-focus-timeline-filters
+            class="c360-activity-panel-empty unified-timeline-empty"
+            data-timeline-global-empty
+        />
     @else
         <div class="c360-activity-panel-feed unified-timeline" role="list" data-timeline-list>
             @foreach($viewModel->groups as $group)

@@ -46,9 +46,9 @@ class Customer360ExecutiveSummaryTest extends TestCase
             ->json('html');
 
         $this->assertStringContainsString('data-customer-360-section="executive-summary"', $summaryHtml);
-        $this->assertStringContainsString('IRA Executive Summary', $summaryHtml);
-        $this->assertStringContainsString('Read Only', $summaryHtml);
-        $this->assertStringContainsString('IRA Opinion', $summaryHtml);
+        $this->assertStringContainsString('IRA Command Center', $summaryHtml);
+        $this->assertStringContainsString('AI · Read only', $summaryHtml);
+        $this->assertStringContainsString('Explain', $summaryHtml);
         $this->assertStringContainsString('IRA Recommendation', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-lang-toggle', $summaryHtml);
         $this->assertStringContainsString('data-ira-translate-url', $summaryHtml);
@@ -121,7 +121,7 @@ class Customer360ExecutiveSummaryTest extends TestCase
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('Serial Intelligence', $summaryHtml);
+        $this->assertStringContainsString('data-ira-serial-insight', $summaryHtml);
         $this->assertStringContainsString('product code', $summaryHtml);
         $this->assertStringContainsString('Request the correct serial number from the customer before closing this case.', $summaryHtml);
         $this->assertStringContainsString('Request the customer to share the correct serial number via WhatsApp.', $summaryHtml);

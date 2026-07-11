@@ -4,17 +4,18 @@
     $showAppointmentPhone = ! filled($profilePhone ?? null);
 @endphp
 
-@if ($supportAppointments->isNotEmpty())
-    <section class="customer-360-support-appointments"
-             data-customer-360-section="support-appointments"
-             aria-labelledby="customer-360-support-appointments-heading">
-        <div class="customer-360-support-appointments-header">
-            <span class="customer-360-support-appointments-indicator" aria-hidden="true">📅</span>
-            <h2 class="customer-360-support-appointments-title" id="customer-360-support-appointments-heading">
-                Scheduled Support
-            </h2>
-        </div>
+<section class="customer-360-support-appointments"
+         data-customer-360-section="support-appointments"
+         id="support-appointments"
+         aria-labelledby="customer-360-support-appointments-heading">
+    <div class="customer-360-support-appointments-header">
+        <span class="customer-360-support-appointments-indicator" aria-hidden="true">📅</span>
+        <h2 class="customer-360-support-appointments-title" id="customer-360-support-appointments-heading">
+            Scheduled Support
+        </h2>
+    </div>
 
+    @if ($supportAppointments->isNotEmpty())
         <div class="customer-360-support-appointments-list">
             @foreach ($supportAppointments as $appointment)
                 <article class="customer-360-support-appointment-item">
@@ -63,5 +64,14 @@
                 </article>
             @endforeach
         </div>
-    </section>
-@endif
+    @else
+        <x-c360.empty-state
+            icon="bi-calendar-x"
+            title="No appointments scheduled"
+            description="Support visits and callback slots will show here once booked."
+            action-label="Open Timeline"
+            action-icon="bi-clock-history"
+            data-c360-empty-open-tab="timeline"
+        />
+    @endif
+</section>

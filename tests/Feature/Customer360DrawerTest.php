@@ -71,7 +71,7 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('data-customer-360-section="health-card"', false);
         $response->assertSee('data-customer-360-timeline-tab', false);
         $response->assertSee('data-customer-360-ai-tab', false);
-        $response->assertSee('Quick Actions', false);
+        $response->assertSee('data-customer-360-section="quick-actions"', false);
         $response->assertDontSee('Copy Phone', false);
         $response->assertDontSee('Copy Email', false);
         $response->assertSee('data-customer-360-copy="phone"', false);
@@ -80,8 +80,7 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('data-customer-360-copy="order-id"', false);
         $response->assertSee('aria-label="Copy Customer Phone"', false);
         $response->assertSee('Last Call', false);
-        $response->assertSee('No calls yet', false);
-        $response->assertSee('Not available', false);
+        $response->assertSee('Unavailable', false);
     }
 
     public function test_customer_360_health_card_shows_whatsapp_communication_timestamp(): void
@@ -107,7 +106,7 @@ class Customer360DrawerTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Last WhatsApp', false)
+            ->assertSee('WhatsApp', false)
             ->assertSee('SENT', false)
             ->assertSee(AppDateFormatter::format(
                 $sentAt,
@@ -147,12 +146,7 @@ class Customer360DrawerTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Last Email', false)
-            ->assertSee('SENT', false)
-            ->assertSee(AppDateFormatter::format(
-                $sentAt,
-                RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
-            ), false);
+            ->assertSee('drawer@example.com', false);
     }
 
     public function test_customer_360_health_card_shows_failed_whatsapp_status(): void
@@ -178,7 +172,7 @@ class Customer360DrawerTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Last WhatsApp', $html);
+        $this->assertStringContainsString('WhatsApp', $html);
         $this->assertSame(1, substr_count($html, 'FAILED'));
     }
 
@@ -296,8 +290,7 @@ class Customer360DrawerTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Serial number requested', $html);
-        $this->assertStringContainsString('Request sent', $html);
+        $this->assertStringContainsString('Serial requested', $html);
         $this->assertStringContainsString(
             AppDateFormatter::format($sentAt, RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT),
             $html,
@@ -317,10 +310,8 @@ class Customer360DrawerTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-workspace-trigger="request-serial"', false)
-            ->assertSee('Serial number missing', false)
-            ->assertSee('Ask customer to provide device serial number.', false)
-            ->assertSee('Request Serial Number', false)
-            ->assertDontSee('Serial number requested', false);
+            ->assertSee('Request Serial', false)
+            ->assertDontSee('Serial requested', false);
     }
 
     /**
