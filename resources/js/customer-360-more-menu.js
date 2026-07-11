@@ -119,17 +119,13 @@ export const openMenu = (toggle, menu) => {
     activeMenu = menu;
 
     toggle.setAttribute('aria-expanded', 'true');
-    menu.hidden = false;
+    repositionMenu(toggle, menu);
 
-    requestAnimationFrame(() => {
-        repositionMenu(toggle, menu);
+    if (activeMenu !== menu) {
+        return;
+    }
 
-        requestAnimationFrame(() => {
-            if (activeMenu === menu) {
-                menu.classList.add('is-open');
-            }
-        });
-    });
+    menu.classList.add('is-open');
 
     listenersAbort?.abort();
     listenersAbort = new AbortController();
