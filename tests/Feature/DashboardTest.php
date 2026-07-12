@@ -54,9 +54,10 @@ class DashboardTest extends TestCase
             ->assertOk()
             ->assertDontSee('New Service Request')
             ->assertSee('Search Customer')
+            ->assertSee('Active')
+            ->assertSee('Waiting')
             ->assertSee('My Work')
-            ->assertSee('Waiting Customer')
-            ->assertSee('My Active Work')
+            ->assertSee('agent-action-cards', false)
             ->assertSee('dashboard-operation-queues', false)
             ->assertDontSee('dashboard-module-nav', false)
             ->assertDontSee('>Team<', false)
@@ -71,7 +72,7 @@ class DashboardTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard', ['queue' => 'waiting_customer']))
             ->assertOk()
-            ->assertSee('Waiting Customer')
+            ->assertSee('Waiting')
             ->assertSee('aria-selected="true"', false);
     }
 

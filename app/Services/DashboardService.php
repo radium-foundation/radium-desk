@@ -9,6 +9,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
 use App\Models\User;
+use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Operations\OperationsRoleService;
@@ -59,6 +60,10 @@ class DashboardService
                 ...$stats,
                 ...$this->kpiAggregator->supportAgentKpis($snapshot, $user),
             ];
+
+            $nextAppointment = app(AgentNextAppointmentResolver::class)->resolve($snapshot, $user);
+
+            $stats['next_appointment'] = $nextAppointment?->toArray();
         }
 
         if ($user->can('refunds.view')) {

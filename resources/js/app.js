@@ -22,6 +22,7 @@ import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
+import { initAgentDashboard } from './agent-dashboard';
 import { buildSmartToastActions } from './customer-360-cockpit';
 import { getDashboardConfig } from './dashboard-config';
 import { initOperationsDashboard } from './operations-dashboard';
@@ -691,6 +692,15 @@ document.addEventListener('DOMContentLoaded', () => {
             initTooltips,
         });
         customer360DrawerRef.current = customer360Drawer;
+
+        const agentDashboardRef = { current: initAgentDashboard({
+            pageRoot,
+            showToast: showAppToast,
+        }) };
+
+        document.addEventListener('dashboard:live-refresh', (event) => {
+            agentDashboardRef.current?.updateNextAppointment?.(event.detail?.next_appointment ?? null);
+        });
 
         const dashboardLiveHooks = {
             onRowsUpdated: () => {

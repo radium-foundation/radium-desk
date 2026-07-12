@@ -1,4 +1,5 @@
 import { getWorkspaceSession } from './workspace/session';
+import { rememberLastCustomer } from './agent-dashboard';
 import { initUnifiedTimeline } from './unified-timeline';
 import { initCustomer360Cockpit, bindIraDisclosures } from './customer-360-cockpit';
 import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen } from './customer-360-more-menu';
@@ -125,6 +126,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     let activeIncidentId = null;
     let fetchController = null;
+    let pendingOpenOptions = {};
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
     let timelinePollTimer = null;
@@ -978,6 +980,21 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             configureDeviceSyncPolling();
             hydrateLazySectionsForTab(getPersistedTab() ?? 'overview');
             bindCockpitChrome();
+
+            const anchor = pendingOpenOptions.anchor;
+
+            if (anchor) {
+                const drawerBody = drawer.querySelector('[data-customer-360-body]');
+                const target = contentHost.querySelector(`#${CSS.escape(anchor)}`);
+
+                if (target && drawerBody) {
+                    requestAnimationFrame(() => {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                }
+            }
+
+            pendingOpenOptions = {};
         } catch (error) {
             logCustomer360Failure(null, null, 'drawer-init', error);
         }
@@ -1114,7 +1131,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         previouslyFocusedElement = null;
     };
 
-    const open = async (incidentId, referenceLabel = '') => {
+    const open = async (incidentId, referenceLabel = '', options = {}) => {
         if (activeIncidentId === incidentId && drawer.classList.contains('is-open')) {
             return;
         }
@@ -1126,10 +1143,19 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             : null;
 
         activeIncidentId = incidentId;
+        rememberLastCustomer(incidentId, referenceLabel);
+        pendingOpenOptions = {
+            tab: options.tab ?? null,
+            anchor: options.anchor ?? null,
+        };
 
         if (String(previousIncidentId) !== String(incidentId)) {
             clearPersistedTab();
             resetLazyTabState();
+        }
+
+        if (pendingOpenOptions.tab) {
+            setPersistedTab(pendingOpenOptions.tab);
         }
         drawer.classList.add('is-open');
         drawer.setAttribute('aria-hidden', 'false');
@@ -1235,7 +1261,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             return;
         }
 
-        open(incidentId, referenceLabel);
+        open(incidentId, referenceLabel, {
+            tab: event.detail?.tab ?? null,
+            anchor: event.detail?.anchor ?? null,
+        });
     }, { signal: customer360RefreshAbortController.signal });
 
     return {

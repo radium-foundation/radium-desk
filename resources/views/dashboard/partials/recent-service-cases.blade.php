@@ -11,6 +11,7 @@
     $operationQueues = $operationQueues ?? config('operations.queues', []);
     $personalization = app(DashboardPersonalizationService::class);
     $defaultQueue = $personalization->defaultQueueFor(auth()->user());
+    $hideZeroCountTabs = $personalization->hidesZeroCountQueueTabs(auth()->user());
     $myWorkSearchPlaceholder = 'Search order ID, case ID, serial, customer…';
     $searchPlaceholder = $activeQueue === DashboardPersonalizationService::QUEUE_MY_WORK
         ? $myWorkSearchPlaceholder
@@ -90,7 +91,9 @@
                                 $filterCountKey = $isActiveQueue && $legacyServiceCaseFilter !== $queueKey
                                     ? $legacyServiceCaseFilter
                                     : $queueKey;
+                                $queueCount = $serviceCaseFilterCounts[$filterCountKey] ?? 0;
                             @endphp
+                            @continue($hideZeroCountTabs && ! $isActiveQueue && $queueCount === 0)
                             <a href="{{ $queueUrl($queueKey) }}"
                                @class([
                                    'dashboard-case-filter-chip',
@@ -100,10 +103,14 @@
                                role="tab"
                                @if($isActiveQueue) aria-selected="true" @else aria-selected="false" @endif
                                @if($isActiveQueue) aria-current="page" @endif>
-                                <i class="bi {{ $queueMeta['icon'] ?? 'bi-inbox' }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
+                                @if(filled($queueMeta['emoji'] ?? null))
+                                    <span class="dashboard-case-filter-chip__emoji" aria-hidden="true">{{ $queueMeta['emoji'] }}</span>
+                                @else
+                                    <i class="bi {{ $queueMeta['icon'] ?? 'bi-inbox' }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
+                                @endif
                                 <span class="dashboard-case-filter-chip__label">{{ $queueMeta['label'] ?? $queueKey }}</span>
                                 <span class="dashboard-case-filter-chip__count"
-                                      data-dashboard-case-filter-count="{{ $filterCountKey }}">({{ $serviceCaseFilterCounts[$filterCountKey] ?? 0 }})</span>
+                                      data-dashboard-case-filter-count="{{ $filterCountKey }}">({{ $queueCount }})</span>
                             </a>
                         @endforeach
                     </div>

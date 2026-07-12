@@ -6,6 +6,7 @@ use App\Enums\ApprovalStatus;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\RefundStatus;
+use App\Enums\ServiceCaseSlaStatus;
 use App\Models\ApprovalNumber;
 use App\Models\Incident;
 use App\Models\RefundRequest;
@@ -58,6 +59,8 @@ class DashboardKpiAggregator
      * @return array{
      *     my_active_work: int,
      *     my_attention: int,
+     *     my_needs_attention: int,
+     *     my_needs_attention_breakdown: array{overdue: int, waiting_follow_ups: int, escalations: int},
      *     my_scheduled_today: int,
      *     my_waiting_follow_ups: int,
      *     my_completed_today: int,
@@ -71,6 +74,12 @@ class DashboardKpiAggregator
 
         $myWork = $snapshot->myWorkIncidents($user);
         $attention = $snapshot->incidentsForFilter('my_attention', $user);
+        $waitingFollowUps = $snapshot->incidentsForQueue(OperationQueue::WaitingCustomer->value, $user)
+            ->filter(fn (Incident $incident): bool => $classifier->isAssignedWaitingCustomer($incident, $user));
+        $needsAttention = $attention
+            ->merge($waitingFollowUps)
+            ->unique(fn (Incident $incident): int => $incident->id)
+            ->values();
         $scheduledToday = $snapshot->incidentsForQueue(OperationQueue::Scheduled->value, $user)
             ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $user->id)
             ->filter(function (Incident $incident) use ($today): bool {
@@ -83,8 +92,6 @@ class DashboardKpiAggregator
                         && $appointment->preferred_date->isSameDay($today),
                 );
             });
-        $waitingFollowUps = $snapshot->incidentsForQueue(OperationQueue::WaitingCustomer->value, $user)
-            ->filter(fn (Incident $incident): bool => $classifier->isAssignedWaitingCustomer($incident, $user));
         $completedToday = $snapshot->activeIncidents()
             ->filter(function (Incident $incident) use ($user, $today, $classifier): bool {
                 if ($incident->assigned_to_user_id !== $user->id || ! $classifier->isCompleted($incident)) {
@@ -99,10 +106,51 @@ class DashboardKpiAggregator
         return [
             'my_active_work' => $myWork->count(),
             'my_attention' => $attention->count(),
+            'my_needs_attention' => $needsAttention->count(),
+            'my_needs_attention_breakdown' => $this->needsAttentionBreakdown($needsAttention, $waitingFollowUps, $now),
             'my_scheduled_today' => $scheduledToday->count(),
             'my_waiting_follow_ups' => $waitingFollowUps->count(),
             'my_completed_today' => $completedToday->count(),
         ];
+    }
+
+    /**
+     * @return array{overdue: int, waiting_follow_ups: int, escalations: int}
+     */
+    private function needsAttentionBreakdown(Collection $needsAttention, Collection $waitingFollowUps, Carbon $now): array
+    {
+        $waitingIds = $waitingFollowUps->keyBy(fn (Incident $incident): int => $incident->id);
+        $breakdown = [
+            'overdue' => 0,
+            'waiting_follow_ups' => 0,
+            'escalations' => 0,
+        ];
+
+        foreach ($needsAttention as $incident) {
+            if ($waitingIds->has($incident->id)) {
+                $breakdown['waiting_follow_ups']++;
+
+                continue;
+            }
+
+            if ($incident->high_priority) {
+                $breakdown['escalations']++;
+
+                continue;
+            }
+
+            $slaStatus = $incident->slaStatus($now);
+
+            if (in_array($slaStatus, [ServiceCaseSlaStatus::Overdue, ServiceCaseSlaStatus::Warning], true)) {
+                $breakdown['overdue']++;
+
+                continue;
+            }
+
+            $breakdown['escalations']++;
+        }
+
+        return $breakdown;
     }
 
     /**

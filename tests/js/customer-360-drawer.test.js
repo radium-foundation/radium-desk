@@ -759,4 +759,58 @@ describe('initCustomer360Drawer', () => {
 
         expect(showToast).toHaveBeenCalledWith('✓ Device information synchronized successfully.');
     });
+
+    it('opens the requested tab and scrolls to the appointment anchor from customer360:open', async () => {
+        const pageRoot = setupDashboard();
+        const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+
+        vi.stubGlobal('localStorage', {
+            getItem: vi.fn(() => null),
+            setItem: vi.fn(),
+            removeItem: vi.fn(),
+        });
+
+        global.fetch = vi.fn().mockResolvedValue({
+            ok: true,
+            text: async () => `
+                <div data-customer-360-content>
+                    <button type="button" data-customer-360-tab="overview">Overview</button>
+                    <button type="button" data-customer-360-tab="timeline">Timeline</button>
+                    <div data-customer-360-tab-pane="overview">
+                        <section id="support-appointments">Appointments ready</section>
+                    </div>
+                    <div data-customer-360-tab-pane="timeline" class="d-none">Timeline</div>
+                </div>
+            `,
+        });
+
+        const scrollIntoView = vi.fn();
+        HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+        try {
+            initCustomer360Drawer({ pageRoot });
+
+            document.dispatchEvent(new CustomEvent('customer360:open', {
+                detail: {
+                    incidentId: '42',
+                    referenceLabel: 'SC-001',
+                    tab: 'overview',
+                    anchor: 'support-appointments',
+                },
+            }));
+
+            await vi.waitFor(() => {
+                expect(document.querySelector('[data-customer-360-drawer]')?.classList.contains('is-open')).toBe(true);
+            });
+
+            await vi.waitFor(() => {
+                expect(scrollIntoView).toHaveBeenCalled();
+            });
+
+            expect(document.querySelector('[data-customer-360-tab-pane="overview"]')?.classList.contains('d-none')).toBe(false);
+        } finally {
+            HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+            vi.unstubAllGlobals();
+        }
+    });
 });

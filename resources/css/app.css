@@ -10564,3 +10564,195 @@ body.customer-360-drawer-open {
 .customer-360-tab-pane {
     animation-duration: 0.17s;
 }
+
+/* Agent dashboard — minimalist action cards */
+.agent-dashboard-top {
+    margin-bottom: var(--dashboard-space-2);
+}
+
+.agent-action-cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--dashboard-space-2);
+}
+
+.agent-action-card {
+    display: flex;
+    gap: var(--dashboard-space-2);
+    padding: 1.5rem 1.375rem;
+    border: 1px solid var(--dashboard-color-border, rgba(15, 23, 42, 0.08));
+    border-radius: 1rem;
+    color: inherit;
+    min-height: 11rem;
+}
+
+.agent-action-card--empty {
+    cursor: default;
+}
+
+.agent-action-card__icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+    padding-top: 0.125rem;
+}
+
+.agent-action-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    min-width: 0;
+}
+
+.agent-action-card__title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--dashboard-color-muted);
+}
+
+.agent-action-card__metric {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.agent-action-card__value {
+    font-size: 2.25rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--dashboard-color-text);
+}
+
+.agent-action-card__value--time {
+    font-size: 2rem;
+}
+
+.agent-action-card__unit {
+    font-size: 0.9375rem;
+    color: var(--dashboard-color-muted);
+}
+
+.agent-action-card__hint,
+.agent-action-card__customer,
+.agent-action-card__empty-text {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    line-height: 1.45;
+}
+
+.agent-action-card__customer-label {
+    font-weight: 600;
+}
+
+.agent-action-card__cta {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--bs-primary);
+}
+
+.agent-action-card--attention .agent-action-card__value {
+    color: var(--bs-danger);
+}
+
+.agent-action-cards--with-sticky-banner {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-action-card__breakdown {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+    line-height: 1.5;
+}
+
+.agent-action-card__breakdown li::before {
+    content: '• ';
+}
+
+.agent-appointment-banner-sticky-host {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 1020;
+    margin-bottom: var(--dashboard-space-2);
+}
+
+.agent-appointment-banner-sticky-host.is-dismissed {
+    display: none;
+}
+
+.agent-appointment-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1.5rem 1.5rem 1.375rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(220, 53, 69, 0.25);
+    background: linear-gradient(180deg, rgba(220, 53, 69, 0.08), rgba(220, 53, 69, 0.03));
+}
+
+.agent-appointment-banner--imminent:not(.agent-appointment-banner--overdue) {
+    border-color: rgba(255, 193, 7, 0.35);
+    background: linear-gradient(180deg, rgba(255, 193, 7, 0.12), rgba(255, 193, 7, 0.04));
+}
+
+.agent-appointment-banner--overdue {
+    border-color: rgba(220, 53, 69, 0.45);
+    background: linear-gradient(180deg, rgba(220, 53, 69, 0.16), rgba(220, 53, 69, 0.06));
+}
+
+.agent-appointment-banner__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.agent-appointment-banner__title {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.agent-appointment-banner__time {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.agent-appointment-banner__detail {
+    font-size: 0.9375rem;
+    color: var(--dashboard-color-text);
+}
+
+.agent-appointment-banner__label {
+    font-weight: 600;
+    color: var(--dashboard-color-muted);
+}
+
+.agent-appointment-banner__cta {
+    align-self: flex-start;
+    margin-top: 0.5rem;
+}
+
+.agent-resume-customer {
+    white-space: nowrap;
+}
+
+.dashboard-case-filter-chip__emoji {
+    font-size: 0.875rem;
+    line-height: 1;
+}
+
+@media (max-width: 991.98px) {
+    .agent-action-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .agent-action-card {
+        min-height: auto;
+    }
+}

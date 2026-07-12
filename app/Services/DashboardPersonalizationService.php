@@ -116,8 +116,40 @@ class DashboardPersonalizationService
         $filtered = [];
 
         foreach ($available as $queueKey) {
-            if (isset($meta[$queueKey])) {
-                $filtered[$queueKey] = $meta[$queueKey];
+            if (! isset($meta[$queueKey])) {
+                continue;
+            }
+
+            $filtered[$queueKey] = $meta[$queueKey];
+
+            if ($this->operationsRoles->usesSupportQueues($user)) {
+                $filtered[$queueKey] = match ($queueKey) {
+                    self::QUEUE_MY_WORK => [
+                        'label' => 'Active',
+                        'icon' => 'bi-briefcase-fill',
+                        'tone' => 'primary',
+                        'emoji' => '🧰',
+                    ],
+                    self::QUEUE_SCHEDULED => [
+                        'label' => 'Appointments',
+                        'icon' => 'bi-calendar-check-fill',
+                        'tone' => 'info',
+                        'emoji' => '📅',
+                    ],
+                    self::QUEUE_WAITING_CUSTOMER => [
+                        'label' => 'Waiting',
+                        'icon' => 'bi-hourglass-split',
+                        'tone' => 'secondary',
+                        'emoji' => '⌛',
+                    ],
+                    self::QUEUE_COMPLETED => [
+                        'label' => 'Done',
+                        'icon' => 'bi-check-circle-fill',
+                        'tone' => 'success',
+                        'emoji' => '✅',
+                    ],
+                    default => $meta[$queueKey],
+                };
             }
         }
 
@@ -127,6 +159,11 @@ class DashboardPersonalizationService
     public function showsQueueNavigation(User $user): bool
     {
         return $this->availableQueuesFor($user) !== [];
+    }
+
+    public function hidesZeroCountQueueTabs(User $user): bool
+    {
+        return $this->operationsRoles->usesSupportQueues($user);
     }
 
     /**

@@ -12,41 +12,7 @@
     $usesAdminQueues = $currentUser !== null && $roles->usesAdminQueues($currentUser);
 
     if ($usesSupportQueues) {
-        $items[] = [
-            'label' => 'My Active Work',
-            'value' => $stats['my_active_work'] ?? 0,
-            'icon' => 'bi-briefcase',
-            'color' => 'primary',
-            'href' => route('dashboard', ['queue' => 'my_work']).'#dashboard-service-cases-panel',
-        ];
-        $items[] = [
-            'label' => 'My Attention',
-            'value' => $stats['my_attention'] ?? 0,
-            'icon' => 'bi-exclamation-triangle-fill',
-            'color' => 'danger',
-            'href' => route('dashboard', ['filter' => 'my_attention']).'#dashboard-service-cases-panel',
-        ];
-        $items[] = [
-            'label' => 'My Scheduled Today',
-            'value' => $stats['my_scheduled_today'] ?? 0,
-            'icon' => 'bi-calendar-check',
-            'color' => 'info',
-            'href' => route('dashboard', ['queue' => 'scheduled']).'#dashboard-service-cases-panel',
-        ];
-        $items[] = [
-            'label' => 'My Waiting Follow-ups',
-            'value' => $stats['my_waiting_follow_ups'] ?? 0,
-            'icon' => 'bi-hourglass-split',
-            'color' => 'warning',
-            'href' => route('dashboard', ['queue' => 'waiting_customer']).'#dashboard-service-cases-panel',
-        ];
-        $items[] = [
-            'label' => 'My Completed Today',
-            'value' => $stats['my_completed_today'] ?? 0,
-            'icon' => 'bi-check-circle',
-            'color' => 'success',
-            'href' => route('dashboard', ['queue' => 'completed']).'#dashboard-service-cases-panel',
-        ];
+        // Support agent cards are rendered via agent-action-cards partial.
     }
 
     if ($currentUser?->can('incidents.view') && ! $usesSupportQueues) {
@@ -85,7 +51,7 @@
         ];
     }
 
-    if ($currentUser?->can('refunds.view') && isset($stats['pending_refunds'])) {
+    if ($currentUser?->can('refunds.view') && isset($stats['pending_refunds']) && ! $usesSupportQueues) {
         $items[] = [
             'label' => 'Refunds',
             'value' => $stats['pending_refunds'],
@@ -100,6 +66,9 @@
 @endphp
 
 <div class="dashboard-kpi-strip" role="region" aria-label="Dashboard metrics">
+@if($usesSupportQueues ?? false)
+    @include('dashboard.partials.agent-action-cards', ['stats' => $stats])
+@else
 @if(request()->expectsJson())
     @if(isset($stats['total_users']))
         @include('dashboard.partials.kpi-strip-item', [
@@ -121,4 +90,5 @@
     @foreach($items as $item)
         @include('dashboard.partials.kpi-strip-item', $item)
     @endforeach
+@endif
 </div>
