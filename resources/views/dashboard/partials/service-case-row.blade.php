@@ -2,10 +2,10 @@
     use App\Enums\IncidentStatus;
     use App\Enums\OperationQueue;
     use App\Enums\SerialValidationSeverity;
-    use App\Enums\ServiceCaseSlaStatus;
     use App\Services\Operations\OperationsQueueClassifier;
     use App\Services\SerialValidation\SerialPlaceholderService;
     use App\Services\SerialValidation\SerialValidationService;
+    use App\Support\Dashboard\ScheduledAppointmentRowBadgePresenter;
 
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
@@ -27,9 +27,9 @@
     $searchText = strtolower(implode(' ', $searchParts));
     $queueClassifier = app(OperationsQueueClassifier::class);
     $operationQueue = $queueClassifier->classify($serviceCase);
-    $slaStatusForRisk = $serviceCase->slaStatus();
-    $showScheduledSlaRisk = $operationQueue === OperationQueue::Scheduled
-        && in_array($slaStatusForRisk, [ServiceCaseSlaStatus::Warning, ServiceCaseSlaStatus::Overdue], true);
+    $scheduledAppointmentBadge = $operationQueue === OperationQueue::Scheduled
+        ? app(ScheduledAppointmentRowBadgePresenter::class)->present($serviceCase)
+        : null;
     $serialValidation = null;
 
     if ($order !== null
@@ -63,13 +63,11 @@
     @endif
     <td class="case-reference-cell">
         <div class="d-flex flex-wrap align-items-center gap-1">
-            @if($showScheduledSlaRisk && $compactAgentLayout)
-                <span class="dashboard-sla-risk-dot"
-                      data-bs-toggle="tooltip"
-                      data-bs-placement="top"
-                      data-bs-title="SLA At Risk"
-                      aria-label="SLA at Risk"
-                      role="img">🔴</span>
+            @if($scheduledAppointmentBadge && $compactAgentLayout)
+                @include('dashboard.partials.scheduled-appointment-badge', [
+                    'badge' => $scheduledAppointmentBadge,
+                    'compact' => true,
+                ])
             @endif
             <a href="{{ route('incidents.show', $serviceCase) }}" class="case-reference-link text-decoration-none">
                 {{ $serviceCase->display_reference }}
@@ -77,9 +75,11 @@
             @if($serviceCase->high_priority)
                 @include('dashboard.partials.high-priority-badge')
             @endif
-            @if($showScheduledSlaRisk && ! $compactAgentLayout)
-                <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle"
-                      title="SLA at risk while case remains scheduled">SLA at risk</span>
+            @if($scheduledAppointmentBadge && ! $compactAgentLayout)
+                @include('dashboard.partials.scheduled-appointment-badge', [
+                    'badge' => $scheduledAppointmentBadge,
+                    'compact' => false,
+                ])
             @endif
         </div>
     </td>

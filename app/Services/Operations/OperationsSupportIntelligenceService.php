@@ -113,7 +113,7 @@ class OperationsSupportIntelligenceService
             ->count();
     }
 
-    private function isMissedOverdueAppointment(SupportAppointment $appointment, Carbon $today): bool
+    public function isMissedOverdueAppointment(SupportAppointment $appointment, Carbon $today): bool
     {
         if ($appointment->preferred_date === null || ! $appointment->preferred_date->lt($today)) {
             return false;

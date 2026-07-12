@@ -13,6 +13,12 @@ return [
         'evening' => '15:00',
     ],
 
+    'support_slot_ends' => [
+        'morning' => '12:00',
+        'afternoon' => '15:00',
+        'evening' => '18:00',
+    ],
+
     'appointment_reminders' => [
         'enabled' => (bool) env('TEAM_TELEGRAM_APPOINTMENT_REMINDERS_ENABLED', true),
         'schedule_interval_minutes' => max(1, (int) env('TEAM_TELEGRAM_APPOINTMENT_REMINDERS_INTERVAL', 1)),

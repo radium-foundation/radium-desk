@@ -305,7 +305,7 @@ class AgentDashboardRedesignTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_agent_dashboard_shows_sla_risk_dot_instead_of_text_badge(): void
+    public function test_agent_dashboard_shows_appointment_badge_dot_instead_of_text_badge(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -313,11 +313,7 @@ class AgentDashboardRedesignTest extends TestCase
         $creator = User::factory()->create();
         $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $incident = $this->createIncident('RD-SLA-DOT', $creator, $agent);
-        $incident->forceFill([
-            'created_at' => now()->subHours(72),
-            'updated_at' => now()->subHours(72),
-        ])->save();
+        $incident = $this->createIncident('RD-APPT-DOT', $creator, $agent);
 
         SupportAppointment::query()->create([
             'incident_id' => $incident->id,
@@ -333,11 +329,12 @@ class AgentDashboardRedesignTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard', ['queue' => 'scheduled']))
             ->assertOk()
-            ->assertSee('dashboard-sla-risk-dot', false)
-            ->assertSee('data-bs-title="SLA At Risk"', false)
-            ->assertSee('aria-label="SLA at Risk"', false)
+            ->assertSee('dashboard-appointment-badge-dot', false)
+            ->assertSee('data-bs-title="Due Now"', false)
+            ->assertSee('aria-label="Due Now"', false)
             ->assertSee($reference)
-            ->assertDontSee('SLA at risk');
+            ->assertDontSee('SLA at risk')
+            ->assertDontSee('SLA At Risk', false);
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -345,8 +342,8 @@ class AgentDashboardRedesignTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'scheduled']))
             ->assertOk()
-            ->assertSee('SLA at risk')
-            ->assertDontSee('dashboard-sla-risk-dot', false);
+            ->assertSee('Due Now')
+            ->assertDontSee('dashboard-appointment-badge-dot', false);
 
         Carbon::setTestNow();
     }

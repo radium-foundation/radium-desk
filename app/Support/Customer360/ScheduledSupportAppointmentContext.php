@@ -30,7 +30,7 @@ class ScheduledSupportAppointmentContext
             'assignee',
         ]);
 
-        $appointment = $this->resolveAppointment($incident);
+        $appointment = $this->appointmentForIncident($incident);
 
         if (! $appointment instanceof SupportAppointment) {
             return null;
@@ -52,7 +52,7 @@ class ScheduledSupportAppointmentContext
         ];
     }
 
-    private function resolveAppointment(Incident $incident): ?SupportAppointment
+    public function appointmentForIncident(Incident $incident): ?SupportAppointment
     {
         $scheduled = $incident->supportAppointments
             ->filter(fn (SupportAppointment $appointment): bool => $appointment->isScheduled())

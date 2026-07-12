@@ -116,7 +116,17 @@ class TeamTelegramQuietRulesService
 
     public function slotStartAt(SupportAppointmentTimeSlot $slot, Carbon $date): ?Carbon
     {
-        $configured = config('team_telegram.support_slots.'.$slot->value);
+        return $this->slotBoundaryAt($slot, $date, 'support_slots');
+    }
+
+    public function slotEndAt(SupportAppointmentTimeSlot $slot, Carbon $date): ?Carbon
+    {
+        return $this->slotBoundaryAt($slot, $date, 'support_slot_ends');
+    }
+
+    private function slotBoundaryAt(SupportAppointmentTimeSlot $slot, Carbon $date, string $configKey): ?Carbon
+    {
+        $configured = config('team_telegram.'.$configKey.'.'.$slot->value);
 
         if (! is_string($configured) || trim($configured) === '') {
             return null;
