@@ -13,6 +13,7 @@ use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Operations\OperationsRoleService;
+use App\Support\Dashboard\ScheduledAppointmentRowBadgePresenter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -170,7 +171,7 @@ class DashboardService
     /**
      * @return array<string, mixed>
      */
-    public function serviceCaseRowViewData(Incident $serviceCase, User $user): array
+    public function serviceCaseRowViewData(Incident $serviceCase, User $user, ?string $dashboardOperationQueue = null): array
     {
         $canManageTransactions = $user->hasAnyRole([
             RolePermissionSeeder::ROLE_ADMIN,
@@ -194,6 +195,7 @@ class DashboardService
             'legacyVerificationMode' => $order !== null
                 ? $verificationService->legacyVerificationMode($order)
                 : 'customer',
+            'isScheduledWorkspace' => $dashboardOperationQueue === DashboardPersonalizationService::QUEUE_SCHEDULED,
         ];
     }
 
@@ -369,21 +371,21 @@ class DashboardService
             $incidents = $this->filterIncidentsByQuickSearch($incidents, $searchQuery);
         }
 
-        return $this->sortIncidentsForDashboard($incidents, $prioritizeRecentAssignments);
+        return $this->sortIncidentsForDashboard($incidents, $prioritizeRecentAssignments, $filter);
     }
 
     /**
      * @param  Collection<int, Incident>  $cases
      * @return list<array{incident_id: int, html: string}>
      */
-    public function mapServiceCaseRows(Collection $cases, User $user): array
+    public function mapServiceCaseRows(Collection $cases, User $user, ?string $dashboardOperationQueue = null): array
     {
         return $cases
             ->map(fn (Incident $serviceCase): array => [
                 'incident_id' => $serviceCase->id,
                 'html' => view(
                     'dashboard.partials.service-case-row',
-                    $this->serviceCaseRowViewData($serviceCase, $user),
+                    $this->serviceCaseRowViewData($serviceCase, $user, $dashboardOperationQueue),
                 )->render(),
             ])
             ->values()
@@ -410,6 +412,7 @@ class DashboardService
         int $offset = 0,
         ?array $filterCounts = null,
         ?string $searchQuery = null,
+        ?string $dashboardOperationQueue = null,
     ): array {
         $normalizedSearchQuery = $searchQuery !== null ? trim($searchQuery) : null;
         $hasSearchQuery = $normalizedSearchQuery !== null && $normalizedSearchQuery !== '';
@@ -438,7 +441,7 @@ class DashboardService
         $loadedCount = $offset + $cases->count();
 
         return [
-            'rows' => $this->mapServiceCaseRows($cases, $user),
+            'rows' => $this->mapServiceCaseRows($cases, $user, $dashboardOperationQueue),
             'incident_ids' => $cases->pluck('id')->values(),
             'service_cases_empty' => $cases->isEmpty(),
             'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
@@ -473,8 +476,15 @@ class DashboardService
      * @param  Collection<int, Incident>  $incidents
      * @return Collection<int, Incident>
      */
-    private function sortIncidentsForDashboard(Collection $incidents, bool $prioritizeRecentAssignments = false): Collection
-    {
+    private function sortIncidentsForDashboard(
+        Collection $incidents,
+        bool $prioritizeRecentAssignments = false,
+        ?string $filter = null,
+    ): Collection {
+        if ($filter === DashboardPersonalizationService::QUEUE_SCHEDULED) {
+            return app(ScheduledAppointmentRowBadgePresenter::class)->sortIncidents($incidents);
+        }
+
         $now = now();
 
         return $incidents

@@ -114,6 +114,7 @@ class DashboardServiceCaseController extends Controller
             $pageSize,
             $offset,
             searchQuery: $searchQuery !== '' ? $searchQuery : null,
+            dashboardOperationQueue: $operationQueue,
         );
 
         return response()->json($payload);

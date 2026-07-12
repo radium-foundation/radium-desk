@@ -305,7 +305,7 @@ class AgentDashboardRedesignTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_scheduled_workspace_always_shows_appointment_accent_after_case_id(): void
+    public function test_scheduled_workspace_shows_appointment_column_instead_of_sla(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -338,30 +338,55 @@ class AgentDashboardRedesignTest extends TestCase
         $dueNowReference = $dueNowIncident->fresh()->display_reference;
         $scheduledReference = $scheduledIncident->fresh()->display_reference;
 
-        $this->actingAs($agent)
+        $response = $this->actingAs($agent)
             ->get(route('dashboard', ['queue' => 'scheduled']))
-            ->assertOk()
-            ->assertSee('dashboard-appointment-accent--due-now', false)
-            ->assertSee('data-bs-title="Due Now"', false)
-            ->assertSee('aria-label="Due Now"', false)
-            ->assertSee('dashboard-appointment-accent--scheduled', false)
-            ->assertSee('data-bs-title="Scheduled"', false)
+            ->assertOk();
+
+        $this->assertMatchesRegularExpression(
+            '/<th[^>]*appointment-status-cell[^>]*>\s*Appointment\s*<\/th>/',
+            $response->getContent(),
+        );
+
+        $response
+            ->assertSee('appointment-status-cell', false)
+            ->assertSee('appointment-status-pill--due-now', false)
+            ->assertSee('appointment-status-pill--scheduled', false)
+            ->assertSee('Today • Morning — Due Now', false)
+            ->assertSee('Tomorrow • Morning — Scheduled', false)
             ->assertSee($dueNowReference)
             ->assertSee($scheduledReference)
-            ->assertDontSee('dashboard-appointment-accent--starting-soon', false)
-            ->assertDontSee('>Scheduled<', false)
+            ->assertDontSee('dashboard-appointment-accent', false)
+            ->assertDontSee('sla-status--overdue', false)
             ->assertDontSee('SLA at risk')
             ->assertDontSee('SLA At Risk', false);
+
+        $dueNowRowPos = strpos($response->getContent(), 'id="service-case-row-'.$dueNowIncident->id.'"');
+        $scheduledRowPos = strpos($response->getContent(), 'id="service-case-row-'.$scheduledIncident->id.'"');
+
+        $this->assertNotFalse($dueNowRowPos);
+        $this->assertNotFalse($scheduledRowPos);
+        $this->assertLessThan($scheduledRowPos, $dueNowRowPos);
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $this->actingAs($admin)
+        $adminScheduledResponse = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'scheduled']))
             ->assertOk()
-            ->assertSee('dashboard-appointment-accent--due-now', false)
-            ->assertSee('dashboard-appointment-accent--scheduled', false)
-            ->assertDontSee('dashboard-appointment-badge', false);
+            ->assertSee('appointment-status-pill--due-now', false)
+            ->assertDontSee('sla-status--', false);
+
+        $this->assertMatchesRegularExpression(
+            '/<th[^>]*appointment-status-cell[^>]*>\s*Appointment\s*<\/th>/',
+            $adminScheduledResponse->getContent(),
+        );
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'attention']))
+            ->assertOk()
+            ->assertSee('<th class="sla-cell">', false)
+            ->assertDontSee('appointment-status-cell', false)
+            ->assertDontSee('appointment-status-pill', false);
 
         Carbon::setTestNow();
     }

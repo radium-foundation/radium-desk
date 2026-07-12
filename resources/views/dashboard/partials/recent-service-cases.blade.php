@@ -13,6 +13,7 @@
     $defaultQueue = $personalization->defaultQueueFor(auth()->user());
     $hideZeroCountTabs = $personalization->hidesZeroCountQueueTabs(auth()->user());
     $compactAgentLayout = $compactAgentLayout ?? false;
+    $isScheduledWorkspace = $activeQueue === DashboardPersonalizationService::QUEUE_SCHEDULED;
     $showFilterCount = ! $compactAgentLayout || $serviceCaseHasMore || $renderedServiceCaseCount !== $totalServiceCaseCount;
     $agentSearchPlaceholder = 'Search order, case or customer...';
     $myWorkSearchPlaceholder = 'Search order ID, case ID, serial, customer…';
@@ -42,6 +43,7 @@
      data-service-case-filter-total="{{ $totalServiceCaseCount }}"
      data-service-case-filter="{{ $legacyServiceCaseFilter }}"
      data-operation-queue="{{ $activeQueue }}"
+     @if($isScheduledWorkspace) data-scheduled-appointment-board="true" @endif
      @if($compactAgentLayout) data-agent-compact-layout="true" @endif>
     <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
@@ -230,7 +232,9 @@
                             <th>Order</th>
                             <th class="case-serial-cell">Serial</th>
                             <th>Status</th>
-                            <th class="sla-cell">SLA</th>
+                            <th @class(['sla-cell', 'appointment-status-cell' => $isScheduledWorkspace])>
+                                {{ $isScheduledWorkspace ? 'Appointment' : 'SLA' }}
+                            </th>
                             <th>Ref.</th>
                             <th class="d-none d-md-table-cell">Source</th>
                             <th class="d-none d-md-table-cell">People</th>
@@ -247,6 +251,7 @@
                             @include('dashboard.partials.service-case-row', [
                                 'serviceCase' => $serviceCase,
                                 'compactAgentLayout' => $compactAgentLayout,
+                                'isScheduledWorkspace' => $isScheduledWorkspace,
                                 'canManageTransactions' => $canManageTransactions,
                                 'canSelectRows' => $canManageTransactions,
                                 'canReassignServiceCases' => $canReassignServiceCases ?? false,

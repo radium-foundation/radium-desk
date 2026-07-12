@@ -1,8 +1,6 @@
 @php
     use App\Enums\IncidentStatus;
-    use App\Enums\OperationQueue;
     use App\Enums\SerialValidationSeverity;
-    use App\Services\Operations\OperationsQueueClassifier;
     use App\Services\SerialValidation\SerialPlaceholderService;
     use App\Services\SerialValidation\SerialValidationService;
     use App\Support\Dashboard\ScheduledAppointmentRowBadgePresenter;
@@ -25,12 +23,10 @@
         $order?->displayDeviceModelName(),
     ], fn ($value) => filled($value));
     $searchText = strtolower(implode(' ', $searchParts));
-    $queueClassifier = app(OperationsQueueClassifier::class);
-    $operationQueue = $queueClassifier->classify($serviceCase);
-    $scheduledAppointmentPresentation = $operationQueue === OperationQueue::Scheduled
+    $isScheduledWorkspace = (bool) ($isScheduledWorkspace ?? false);
+    $scheduledAppointmentPresentation = $isScheduledWorkspace
         ? app(ScheduledAppointmentRowBadgePresenter::class)->present($serviceCase)
         : null;
-    $scheduledAppointmentAccent = $scheduledAppointmentPresentation;
     $serialValidation = null;
 
     if ($order !== null
@@ -67,11 +63,6 @@
             <a href="{{ route('incidents.show', $serviceCase) }}" class="case-reference-link text-decoration-none">
                 {{ $serviceCase->display_reference }}
             </a>
-            @if($scheduledAppointmentAccent)
-                @include('dashboard.partials.scheduled-appointment-accent', [
-                    'badge' => $scheduledAppointmentAccent,
-                ])
-            @endif
             @if($serviceCase->high_priority)
                 @include('dashboard.partials.high-priority-badge')
             @endif
@@ -99,8 +90,18 @@
             —
         @endif
     </td>
-    <td class="sla-cell">
-        @include('dashboard.partials.sla-status', ['serviceCase' => $serviceCase])
+    <td @class(['sla-cell', 'appointment-status-cell' => $isScheduledWorkspace])>
+        @if($isScheduledWorkspace)
+            @if($scheduledAppointmentPresentation)
+                @include('dashboard.partials.scheduled-appointment-status-pill', [
+                    'badge' => $scheduledAppointmentPresentation,
+                ])
+            @else
+                —
+            @endif
+        @else
+            @include('dashboard.partials.sla-status', ['serviceCase' => $serviceCase])
+        @endif
     </td>
     @include('dashboard.partials.transaction-id-cell', [
         'serviceCase' => $serviceCase,

@@ -111,15 +111,51 @@ class ScheduledAppointmentRowBadgePresenterTest extends TestCase
 
         $this->assertNotNull($badge);
         $this->assertSame('Follow-up Required', $badge['label']);
+        $this->assertSame('Today • Afternoon', $badge['schedule_summary']);
 
         Carbon::setTestNow();
     }
 
-    private function createIncidentWithAppointment(string $preferredDate, SupportAppointmentTimeSlot $slot): Incident
+    public function test_sorts_incidents_by_appointment_urgency(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $presenter = app(ScheduledAppointmentRowBadgePresenter::class);
+
+        $scheduledFuture = $this->createIncidentWithAppointment(
+            preferredDate: now()->addDay()->toDateString(),
+            slot: SupportAppointmentTimeSlot::Morning,
+            orderId: 'RD-SORT-FUTURE',
+        );
+        $dueNow = $this->createIncidentWithAppointment(
+            preferredDate: now()->toDateString(),
+            slot: SupportAppointmentTimeSlot::Morning,
+            orderId: 'RD-SORT-DUE',
+        );
+        $missed = $this->createIncidentWithAppointment(
+            preferredDate: now()->subDay()->toDateString(),
+            slot: SupportAppointmentTimeSlot::Morning,
+            orderId: 'RD-SORT-MISSED',
+        );
+
+        $sorted = $presenter->sortIncidents(collect([$scheduledFuture, $dueNow, $missed]));
+
+        $this->assertSame(
+            [$missed->id, $dueNow->id, $scheduledFuture->id],
+            $sorted->pluck('id')->all(),
+        );
+
+        Carbon::setTestNow();
+    }
+
+    private function createIncidentWithAppointment(
+        string $preferredDate,
+        SupportAppointmentTimeSlot $slot,
+        ?string $orderId = null,
+    ): Incident {
         $agent = User::factory()->create();
         $order = Order::query()->create([
-            'order_id' => 'RD-BADGE-'.uniqid(),
+            'order_id' => $orderId ?? ('RD-BADGE-'.uniqid()),
             'serial_number' => 'SN-BADGE',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',

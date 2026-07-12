@@ -41,7 +41,7 @@ class DashboardLiveController extends Controller
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
-        return DB::transaction(function () use ($user, $serviceCaseFilter, $assignedTo, $prioritizeRecentAssignments, $limit): JsonResponse {
+        return DB::transaction(function () use ($user, $serviceCaseFilter, $assignedTo, $prioritizeRecentAssignments, $limit, $operationQueue): JsonResponse {
             $filterCounts = $user->can('incidents.view')
                 ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
                 : [];
@@ -54,6 +54,7 @@ class DashboardLiveController extends Controller
                     $prioritizeRecentAssignments,
                     $limit,
                     filterCounts: $filterCounts,
+                    dashboardOperationQueue: $operationQueue,
                 )
                 : [
                     'rows' => [],
