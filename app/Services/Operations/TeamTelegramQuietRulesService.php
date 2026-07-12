@@ -85,8 +85,13 @@ class TeamTelegramQuietRulesService
 
     public function shouldSendAppointmentReminder(User $user, ?Carbon $at = null): bool
     {
+        return $this->appointmentReminderExclusionReason($user, $at) === null;
+    }
+
+    public function appointmentReminderExclusionReason(User $user, ?Carbon $at = null): ?string
+    {
         if (! config('team_telegram.enabled', true)) {
-            return false;
+            return 'Team Telegram disabled';
         }
 
         $at ??= now();
@@ -95,14 +100,18 @@ class TeamTelegramQuietRulesService
         );
 
         if ($status === null) {
-            return false;
+            return 'Work calendar status unavailable';
         }
 
-        return ! in_array($status, [
+        if (in_array($status, [
             WorkCalendarDayStatus::LeaveApproved,
             WorkCalendarDayStatus::Holiday,
             WorkCalendarDayStatus::WeeklyOff,
-        ], true);
+        ], true)) {
+            return $status->label();
+        }
+
+        return null;
     }
 
     public function slotStartAt(SupportAppointmentTimeSlot $slot, Carbon $date): ?Carbon
