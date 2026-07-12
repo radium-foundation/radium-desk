@@ -282,7 +282,7 @@ class WorkspaceRemarkActionTest extends TestCase
                 'context' => WorkspaceContext::ServiceCase->value,
             ]))
             ->assertOk()
-            ->assertSee('Customer Action', false)
+            ->assertSee('Manage Case', false)
             ->assertSee('data-workspace-action-card="assign"', false);
 
         $this->actingAs($admin)

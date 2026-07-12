@@ -96,12 +96,13 @@ class WorkspaceActionDialogTest extends TestCase
         ]);
     }
 
-    public function test_action_component_fragment_renders_customer_action_dialog(): void
+    public function test_action_component_fragment_renders_manage_case_dialog(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $agent = $this->createAgentUser('agent@example.com', 'Support Agent');
         $this->createEscalationSpecialist('shubhanshi@radiumbox.com', 'Shubhanshi');
         $incident = $this->createIncident($admin, ['assigned_to_user_id' => $agent->id]);
+        $incident->load('order');
 
         $this->actingAs($agent)
             ->get(route('incidents.components.show', [
@@ -110,17 +111,21 @@ class WorkspaceActionDialogTest extends TestCase
                 'context' => WorkspaceContext::ServiceCase->value,
             ]))
             ->assertOk()
-            ->assertSee('Customer Action', false)
+            ->assertSee('Manage Case', false)
+            ->assertSee($incident->display_reference.' • '.$incident->order->order_id, false)
             ->assertSee('data-workspace-action-form="action"', false)
             ->assertSee('data-workspace-action-card="assign"', false)
             ->assertSee('data-workspace-action-card="close"', false)
-            ->assertSee('data-workspace-action-escalate', false)
-            ->assertSee('Notify Teammate', false)
-            ->assertSee('Telegram alert is sent during teammate working hours. Critical escalations notify immediately.', false)
+            ->assertSee('data-workspace-action-card="escalate"', false)
+            ->assertSee('workspace-action-segments', false)
+            ->assertSee('Transfer ownership to another engineer.', false)
+            ->assertSee('The assigned engineer will be notified.', false)
             ->assertSee('Notify Customer', false)
-            ->assertSee('data-workspace-action-notify="teammate"', false)
+            ->assertSee('data-workspace-action-remark', false)
             ->assertSee('data-mention-textarea', false)
-            ->assertSee('Done', false)
+            ->assertSee('workspace-action-submit--assign', false)
+            ->assertSee('Assign Engineer', false)
+            ->assertSee('data-workspace-action-submit', false)
             ->assertSee(route('incidents.workspace.action', $incident), false);
     }
 

@@ -620,6 +620,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const modalContent = document.querySelector('[data-workspace-modal-content]');
 
             modalHost?.classList.toggle('workspace-modal--compact', component === 'action' || component === 'remark');
+            modalHost?.classList.toggle('workspace-modal--action', component === 'action');
 
             if (component === 'remark' || component === 'action' || component === 'resolve' || component === 'close') {
                 initMentionTextareas(modalContent);
@@ -644,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         afterClose: (host) => {
             host?.classList.remove('workspace-modal--compact');
+            host?.classList.remove('workspace-modal--action');
         },
     });
 

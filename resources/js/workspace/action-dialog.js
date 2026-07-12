@@ -1,3 +1,33 @@
+const ACTION_LABELS = {
+    assign: 'Assign Engineer',
+    escalate: 'Escalate Case',
+    close: 'Close Case',
+    reopen: 'Reopen Case',
+};
+
+const ACTION_PLACEHOLDERS = {
+    assign: 'Reason for reassignment…',
+    escalate: 'Explain why this requires escalation…',
+    close: 'Closing summary…',
+    reopen: 'Reason for reopening…',
+};
+
+const SUBMIT_ACCENT_CLASSES = [
+    'workspace-action-submit--assign',
+    'workspace-action-submit--escalate',
+    'workspace-action-submit--close',
+    'workspace-action-submit--reopen',
+];
+
+const autoGrowTextarea = (textarea) => {
+    if (!(textarea instanceof HTMLTextAreaElement)) {
+        return;
+    }
+
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+};
+
 export const initActionDialog = (root = document) => {
     const form = root.querySelector('[data-workspace-action-dialog]');
 
@@ -8,8 +38,10 @@ export const initActionDialog = (root = document) => {
     const typeInput = form.querySelector('[data-workspace-action-type-input]');
     const cards = [...form.querySelectorAll('[data-workspace-action-card]')];
     const panels = [...form.querySelectorAll('[data-workspace-action-panel]')];
-    const escalateButton = form.querySelector('[data-workspace-action-escalate]');
+    const descriptions = [...form.querySelectorAll('[data-workspace-action-description]')];
+    const notifyNotes = [...form.querySelectorAll('[data-workspace-action-notify-note]')];
     const submitButton = form.querySelector('[data-workspace-action-submit]');
+    const remarkTextarea = form.querySelector('[data-workspace-action-remark]');
     const serialCheckbox = form.querySelector('#workspace_action_serial_unavailable');
     const referenceCheckbox = form.querySelector('#workspace_action_reference_unavailable');
     const serialDetail = form.querySelector('[data-workspace-exception-detail="serial"]');
@@ -36,6 +68,24 @@ export const initActionDialog = (root = document) => {
         });
     };
 
+    const updateSubmitButton = (actionType) => {
+        if (!submitButton) {
+            return;
+        }
+
+        submitButton.textContent = ACTION_LABELS[actionType] ?? 'Done';
+        submitButton.classList.remove(...SUBMIT_ACCENT_CLASSES);
+        submitButton.classList.add(`workspace-action-submit--${actionType}`);
+    };
+
+    const updateRemarkPlaceholder = (actionType) => {
+        if (!remarkTextarea) {
+            return;
+        }
+
+        remarkTextarea.placeholder = ACTION_PLACEHOLDERS[actionType] ?? 'Type a remark…';
+    };
+
     const setAction = (actionType) => {
         if (!typeInput) {
             return;
@@ -47,20 +97,21 @@ export const initActionDialog = (root = document) => {
             const isActive = card.dataset.workspaceActionCard === actionType;
             card.classList.toggle('is-active', isActive);
             card.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            card.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
 
-        if (escalateButton) {
-            const isEscalate = actionType === 'escalate';
-            escalateButton.classList.toggle('is-active', isEscalate);
-            escalateButton.setAttribute('aria-pressed', isEscalate ? 'true' : 'false');
-        }
+        descriptions.forEach((description) => {
+            const isActive = description.dataset.workspaceActionDescription === actionType;
+            description.classList.toggle('d-none', !isActive);
+        });
 
-        if (submitButton) {
-            const isEscalate = actionType === 'escalate';
-            submitButton.textContent = isEscalate ? 'Escalate' : 'Done';
-            submitButton.classList.toggle('btn-primary', ! isEscalate);
-            submitButton.classList.toggle('btn-outline-secondary', isEscalate);
-        }
+        notifyNotes.forEach((note) => {
+            const isActive = note.dataset.workspaceActionNotifyNote === actionType;
+            note.classList.toggle('d-none', !isActive);
+        });
+
+        updateSubmitButton(actionType);
+        updateRemarkPlaceholder(actionType);
 
         panels.forEach((panel) => {
             const isActive = panel.dataset.workspaceActionPanel === actionType;
@@ -99,10 +150,15 @@ export const initActionDialog = (root = document) => {
         card.addEventListener('click', () => {
             setAction(card.dataset.workspaceActionCard);
         });
-    });
 
-    escalateButton?.addEventListener('click', () => {
-        setAction('escalate');
+        card.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') {
+                return;
+            }
+
+            event.preventDefault();
+            setAction(card.dataset.workspaceActionCard);
+        });
     });
 
     serialCheckbox?.addEventListener('change', () => {
@@ -123,11 +179,16 @@ export const initActionDialog = (root = document) => {
         syncExceptionCustom(referenceReason, referenceCustom);
     });
 
+    remarkTextarea?.addEventListener('input', () => {
+        autoGrowTextarea(remarkTextarea);
+    });
+
     openExceptionsIfNeeded();
     syncExceptionDetail(serialCheckbox, serialDetail);
     syncExceptionDetail(referenceCheckbox, referenceDetail);
     syncExceptionCustom(serialReason, serialCustom);
     syncExceptionCustom(referenceReason, referenceCustom);
+    autoGrowTextarea(remarkTextarea);
 
     form.dataset.workspaceActionDialogInitialized = 'true';
 };
