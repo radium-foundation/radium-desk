@@ -30,10 +30,7 @@
     $scheduledAppointmentPresentation = $operationQueue === OperationQueue::Scheduled
         ? app(ScheduledAppointmentRowBadgePresenter::class)->present($serviceCase)
         : null;
-    $scheduledAppointmentAccent = is_array($scheduledAppointmentPresentation)
-        && ($scheduledAppointmentPresentation['label'] ?? '') !== 'Scheduled'
-        ? $scheduledAppointmentPresentation
-        : null;
+    $scheduledAppointmentAccent = $scheduledAppointmentPresentation;
     $serialValidation = null;
 
     if ($order !== null

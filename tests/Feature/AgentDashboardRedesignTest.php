@@ -305,7 +305,7 @@ class AgentDashboardRedesignTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_scheduled_workspace_shows_accent_only_for_exceptional_appointment_states(): void
+    public function test_scheduled_workspace_always_shows_appointment_accent_after_case_id(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -344,6 +344,8 @@ class AgentDashboardRedesignTest extends TestCase
             ->assertSee('dashboard-appointment-accent--due-now', false)
             ->assertSee('data-bs-title="Due Now"', false)
             ->assertSee('aria-label="Due Now"', false)
+            ->assertSee('dashboard-appointment-accent--scheduled', false)
+            ->assertSee('data-bs-title="Scheduled"', false)
             ->assertSee($dueNowReference)
             ->assertSee($scheduledReference)
             ->assertDontSee('dashboard-appointment-accent--starting-soon', false)
@@ -358,6 +360,7 @@ class AgentDashboardRedesignTest extends TestCase
             ->get(route('dashboard', ['queue' => 'scheduled']))
             ->assertOk()
             ->assertSee('dashboard-appointment-accent--due-now', false)
+            ->assertSee('dashboard-appointment-accent--scheduled', false)
             ->assertDontSee('dashboard-appointment-badge', false);
 
         Carbon::setTestNow();

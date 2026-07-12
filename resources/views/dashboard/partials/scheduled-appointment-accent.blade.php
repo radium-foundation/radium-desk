@@ -5,7 +5,7 @@
 @php
     $accentLabel = match ($badge['label'] ?? '') {
         'Follow-up Required' => 'Awaiting Update',
-        default => $badge['label'] ?? '',
+        default => $badge['label'] ?? 'Scheduled',
     };
 
     $accentClass = match ($badge['label'] ?? '') {
@@ -13,15 +13,13 @@
         'Due Now' => 'dashboard-appointment-accent--due-now',
         'Follow-up Required' => 'dashboard-appointment-accent--awaiting-update',
         'Missed' => 'dashboard-appointment-accent--missed',
-        default => null,
+        default => 'dashboard-appointment-accent--scheduled',
     };
 @endphp
 
-@if($accentClass)
-    <span @class(['dashboard-appointment-accent', $accentClass])
-          data-bs-toggle="tooltip"
-          data-bs-placement="top"
-          data-bs-title="{{ $accentLabel }}"
-          aria-label="{{ $accentLabel }}"
-          role="img"></span>
-@endif
+<span @class(['dashboard-appointment-accent', $accentClass])
+      data-bs-toggle="tooltip"
+      data-bs-placement="top"
+      data-bs-title="{{ $accentLabel }}"
+      aria-label="{{ $accentLabel }}"
+      role="img"></span>

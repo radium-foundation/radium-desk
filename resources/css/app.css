@@ -11050,12 +11050,16 @@ button.agent-kpi-tile {
 
 .dashboard-appointment-accent {
     display: inline-block;
-    width: 2.5px;
-    height: 1em;
-    border-radius: 2px;
-    margin-left: 0.4375rem;
+    width: 3px;
+    height: 1.15em;
+    border-radius: 999px;
+    margin-left: 6px;
     flex-shrink: 0;
     align-self: center;
+}
+
+.dashboard-appointment-accent--scheduled {
+    background-color: #d1d5db;
 }
 
 .dashboard-appointment-accent--starting-soon {
