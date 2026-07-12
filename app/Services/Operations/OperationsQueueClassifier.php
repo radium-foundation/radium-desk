@@ -178,6 +178,10 @@ class OperationsQueueClassifier
             return false;
         }
 
+        if ($incident->hasActiveSupportAppointment()) {
+            return false;
+        }
+
         return $this->automationStatusService->statusFor($incident) === ServiceCaseAutomationStatus::WaitingForCustomerSerial;
     }
 
