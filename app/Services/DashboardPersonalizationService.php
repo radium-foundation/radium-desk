@@ -273,6 +273,10 @@ class DashboardPersonalizationService
             return $user;
         }
 
+        if ($queue === self::QUEUE_COMPLETED && $this->operationsRoles->usesSupportQueues($user)) {
+            return $user;
+        }
+
         return null;
     }
 

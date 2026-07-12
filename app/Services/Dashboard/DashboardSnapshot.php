@@ -291,6 +291,12 @@ class DashboardSnapshot
             );
         }
 
+        if ($scopeUser !== null && $queue === OperationQueue::Completed->value) {
+            $incidents = $incidents->filter(
+                fn (Incident $incident): bool => $incident->assigned_to_user_id === $scopeUser->id,
+            );
+        }
+
         return $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] = $incidents->values();
     }
 

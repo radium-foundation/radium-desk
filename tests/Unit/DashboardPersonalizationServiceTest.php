@@ -88,6 +88,23 @@ class DashboardPersonalizationServiceTest extends TestCase
         ], $queues);
     }
 
+    public function test_support_agent_completed_queue_scopes_to_assignee(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->assertSame(
+            $agent->id,
+            $this->service->resolveAssignedToScope($agent, DashboardPersonalizationService::QUEUE_COMPLETED)?->id,
+        );
+        $this->assertNull(
+            $this->service->resolveAssignedToScope($admin, DashboardPersonalizationService::QUEUE_COMPLETED),
+        );
+    }
+
     public function test_admin_queue_navigation_includes_hardware_when_permitted(): void
     {
         $admin = User::factory()->create();

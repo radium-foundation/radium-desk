@@ -437,6 +437,80 @@ class AgentDashboardOwnershipTest extends TestCase
             ->assertSee('RD-SEARCH-ME', false);
     }
 
+    public function test_agent_done_queue_is_scoped_to_assigned_completed_cases(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agentA = $this->createAgent('Done Agent A');
+        $agentB = $this->createAgent('Done Agent B');
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $mineRecent = $this->createCompletedIncident('RD-DONE-A-1', $creator, $agentA, now());
+        $mineOlder = $this->createCompletedIncident('RD-DONE-A-2', $creator, $agentA, now()->subWeek());
+        $otherAgent = $this->createCompletedIncident('RD-DONE-B-1', $creator, $agentB, now()->subDay());
+        $unassigned = $this->createCompletedIncident('RD-DONE-UNASSIGNED', $creator, null, now()->subDay());
+
+        $personalization = app(DashboardPersonalizationService::class);
+
+        $this->assertSame(
+            $agentA->id,
+            $personalization->resolveAssignedToScope($agentA, DashboardPersonalizationService::QUEUE_COMPLETED)?->id,
+        );
+
+        $completedForAgentA = DashboardSnapshot::load()->incidentsForQueue('completed', $agentA);
+
+        $this->assertCount(2, $completedForAgentA);
+        $this->assertTrue($completedForAgentA->contains(fn (Incident $case): bool => $case->id === $mineRecent->id));
+        $this->assertTrue($completedForAgentA->contains(fn (Incident $case): bool => $case->id === $mineOlder->id));
+        $this->assertFalse($completedForAgentA->contains(fn (Incident $case): bool => $case->id === $otherAgent->id));
+        $this->assertFalse($completedForAgentA->contains(fn (Incident $case): bool => $case->id === $unassigned->id));
+
+        $filterCounts = app(DashboardService::class)->serviceCaseFilterCounts($agentA, $agentA);
+
+        $this->assertSame(2, $filterCounts['completed']);
+
+        $this->actingAs($agentA)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('dashboard-case-filter-chip__label">Done<', false)
+            ->assertSee('data-dashboard-case-filter-count="completed">2<', false);
+
+        $this->actingAs($agentA)
+            ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_COMPLETED]))
+            ->assertOk()
+            ->assertSee('RD-DONE-A-1')
+            ->assertSee('RD-DONE-A-2')
+            ->assertDontSee('RD-DONE-B-1')
+            ->assertDontSee('RD-DONE-UNASSIGNED');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->assertNull(
+            $personalization->resolveAssignedToScope($admin, DashboardPersonalizationService::QUEUE_COMPLETED),
+        );
+        $this->assertSame(4, DashboardSnapshot::load()->incidentsForQueue('completed')->count());
+
+        Carbon::setTestNow();
+    }
+
+    private function createCompletedIncident(
+        string $orderId,
+        User $creator,
+        ?User $assignee,
+        ?Carbon $completedAt = null,
+    ): Incident {
+        $incident = $this->createIncident($orderId, $creator, $assignee);
+
+        $incident->order?->update([
+            'transaction_id' => 'TX-'.$orderId,
+            'completed_at' => $completedAt ?? now(),
+        ]);
+
+        return $incident->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
+    }
+
     private function createOverdueAttentionCase(string $orderId, User $creator, User $assignee): Incident
     {
         $incident = $this->createIncident($orderId, $creator, $assignee);
