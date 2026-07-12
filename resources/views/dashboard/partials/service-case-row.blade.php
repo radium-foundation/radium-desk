@@ -27,8 +27,12 @@
     $searchText = strtolower(implode(' ', $searchParts));
     $queueClassifier = app(OperationsQueueClassifier::class);
     $operationQueue = $queueClassifier->classify($serviceCase);
-    $scheduledAppointmentBadge = $operationQueue === OperationQueue::Scheduled
+    $scheduledAppointmentPresentation = $operationQueue === OperationQueue::Scheduled
         ? app(ScheduledAppointmentRowBadgePresenter::class)->present($serviceCase)
+        : null;
+    $scheduledAppointmentAccent = is_array($scheduledAppointmentPresentation)
+        && ($scheduledAppointmentPresentation['label'] ?? '') !== 'Scheduled'
+        ? $scheduledAppointmentPresentation
         : null;
     $serialValidation = null;
 
@@ -63,23 +67,16 @@
     @endif
     <td class="case-reference-cell">
         <div class="d-flex flex-wrap align-items-center gap-1">
-            @if($scheduledAppointmentBadge && $compactAgentLayout)
-                @include('dashboard.partials.scheduled-appointment-badge', [
-                    'badge' => $scheduledAppointmentBadge,
-                    'compact' => true,
-                ])
-            @endif
             <a href="{{ route('incidents.show', $serviceCase) }}" class="case-reference-link text-decoration-none">
                 {{ $serviceCase->display_reference }}
             </a>
+            @if($scheduledAppointmentAccent)
+                @include('dashboard.partials.scheduled-appointment-accent', [
+                    'badge' => $scheduledAppointmentAccent,
+                ])
+            @endif
             @if($serviceCase->high_priority)
                 @include('dashboard.partials.high-priority-badge')
-            @endif
-            @if($scheduledAppointmentBadge && ! $compactAgentLayout)
-                @include('dashboard.partials.scheduled-appointment-badge', [
-                    'badge' => $scheduledAppointmentBadge,
-                    'compact' => false,
-                ])
             @endif
         </div>
     </td>

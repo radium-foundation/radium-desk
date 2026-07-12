@@ -305,7 +305,7 @@ class AgentDashboardRedesignTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_agent_dashboard_shows_appointment_badge_dot_instead_of_text_badge(): void
+    public function test_scheduled_workspace_shows_accent_only_for_exceptional_appointment_states(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -313,10 +313,10 @@ class AgentDashboardRedesignTest extends TestCase
         $creator = User::factory()->create();
         $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $incident = $this->createIncident('RD-APPT-DOT', $creator, $agent);
+        $dueNowIncident = $this->createIncident('RD-APPT-ACCENT', $creator, $agent);
 
         SupportAppointment::query()->create([
-            'incident_id' => $incident->id,
+            'incident_id' => $dueNowIncident->id,
             'preferred_date' => now()->toDateString(),
             'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
             'phone_number' => '9876543210',
@@ -324,15 +324,30 @@ class AgentDashboardRedesignTest extends TestCase
             'status' => SupportAppointmentStatus::Scheduled,
         ]);
 
-        $reference = $incident->fresh()->display_reference;
+        $scheduledIncident = $this->createIncident('RD-APPT-CALM', $creator, $agent);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $scheduledIncident->id,
+            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876543211',
+            'normalized_phone' => '9876543211',
+            'status' => SupportAppointmentStatus::Scheduled,
+        ]);
+
+        $dueNowReference = $dueNowIncident->fresh()->display_reference;
+        $scheduledReference = $scheduledIncident->fresh()->display_reference;
 
         $this->actingAs($agent)
             ->get(route('dashboard', ['queue' => 'scheduled']))
             ->assertOk()
-            ->assertSee('dashboard-appointment-badge-dot', false)
+            ->assertSee('dashboard-appointment-accent--due-now', false)
             ->assertSee('data-bs-title="Due Now"', false)
             ->assertSee('aria-label="Due Now"', false)
-            ->assertSee($reference)
+            ->assertSee($dueNowReference)
+            ->assertSee($scheduledReference)
+            ->assertDontSee('dashboard-appointment-accent--starting-soon', false)
+            ->assertDontSee('>Scheduled<', false)
             ->assertDontSee('SLA at risk')
             ->assertDontSee('SLA At Risk', false);
 
@@ -342,8 +357,8 @@ class AgentDashboardRedesignTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'scheduled']))
             ->assertOk()
-            ->assertSee('Due Now')
-            ->assertDontSee('dashboard-appointment-badge-dot', false);
+            ->assertSee('dashboard-appointment-accent--due-now', false)
+            ->assertDontSee('dashboard-appointment-badge', false);
 
         Carbon::setTestNow();
     }

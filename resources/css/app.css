@@ -11048,43 +11048,30 @@ button.agent-kpi-tile {
     text-decoration: none;
 }
 
-.agent-dashboard .dashboard-appointment-badge-dot {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+.dashboard-appointment-accent {
+    display: inline-block;
+    width: 2.5px;
+    height: 1em;
+    border-radius: 2px;
+    margin-left: 0.4375rem;
     flex-shrink: 0;
-    font-size: 0.5rem;
-    line-height: 1;
+    align-self: center;
 }
 
-.dashboard-appointment-badge--info {
-    background-color: rgba(var(--bs-info-rgb), 0.12);
-    border-color: rgba(var(--bs-info-rgb), 0.24);
-    color: var(--bs-info-text-emphasis, var(--bs-info));
+.dashboard-appointment-accent--starting-soon {
+    background-color: var(--dashboard-accent-primary, #0d6efd);
 }
 
-.dashboard-appointment-badge--warning {
-    background-color: rgba(var(--bs-warning-rgb), 0.14);
-    border-color: rgba(var(--bs-warning-rgb), 0.28);
-    color: var(--bs-warning-text-emphasis, var(--bs-warning));
+.dashboard-appointment-accent--due-now {
+    background-color: var(--dashboard-color-success, #198754);
 }
 
-.dashboard-appointment-badge--danger {
-    background-color: rgba(var(--bs-danger-rgb), 0.12);
-    border-color: rgba(var(--bs-danger-rgb), 0.24);
-    color: var(--bs-danger-text-emphasis, var(--bs-danger));
+.dashboard-appointment-accent--awaiting-update {
+    background-color: #fd7e14;
 }
 
-.dashboard-appointment-badge.dashboard-appointment-badge--info {
-    background-color: var(--bs-info-bg-subtle, rgba(var(--bs-info-rgb), 0.12));
-}
-
-.dashboard-appointment-badge.dashboard-appointment-badge--warning {
-    background-color: var(--bs-warning-bg-subtle, rgba(var(--bs-warning-rgb), 0.14));
-}
-
-.dashboard-appointment-badge.dashboard-appointment-badge--danger {
-    background-color: var(--bs-danger-bg-subtle, rgba(var(--bs-danger-rgb), 0.12));
+.dashboard-appointment-accent--missed {
+    background-color: var(--dashboard-color-danger, #dc3545);
 }
 
 @media (max-width: 991.98px) {
