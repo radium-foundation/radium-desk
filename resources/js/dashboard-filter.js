@@ -232,10 +232,18 @@ export const initDashboardQuickFilter = ({
     let debounceTimer = null;
     let searchRequestId = 0;
     let searchAbortController = null;
+    const alwaysOpen = container.dataset.dashboardQuickFilterAlwaysOpen === 'true';
 
-    const isExpanded = () => container.classList.contains('dashboard-quick-filter--expanded');
+    const isExpanded = () => alwaysOpen || container.classList.contains('dashboard-quick-filter--expanded');
 
     const openQuickFilter = () => {
+        if (alwaysOpen) {
+            input.focus();
+            input.select();
+
+            return;
+        }
+
         if (isExpanded()) {
             input.focus();
             input.select();
@@ -257,7 +265,7 @@ export const initDashboardQuickFilter = ({
     };
 
     const closeQuickFilter = () => {
-        if (!isExpanded()) {
+        if (alwaysOpen || !isExpanded()) {
             return;
         }
 
@@ -421,6 +429,13 @@ export const initDashboardQuickFilter = ({
     input.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             event.preventDefault();
+
+            if (alwaysOpen) {
+                input.blur();
+
+                return;
+            }
+
             closeQuickFilter();
 
             return;
@@ -435,6 +450,10 @@ export const initDashboardQuickFilter = ({
     });
 
     input.addEventListener('blur', () => {
+        if (alwaysOpen) {
+            return;
+        }
+
         window.setTimeout(() => {
             if (!isExpanded() || container.contains(document.activeElement)) {
                 return;
@@ -451,8 +470,13 @@ export const initDashboardQuickFilter = ({
         openQuickFilter();
     });
 
+    if (alwaysOpen) {
+        container.classList.add('dashboard-quick-filter--expanded');
+        control?.classList.remove('d-none');
+    }
+
     document.addEventListener('mousedown', (event) => {
-        if (!isExpanded() || container.contains(event.target)) {
+        if (alwaysOpen || !isExpanded() || container.contains(event.target)) {
             return;
         }
 

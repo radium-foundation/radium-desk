@@ -14,10 +14,13 @@
     $hideZeroCountTabs = $personalization->hidesZeroCountQueueTabs(auth()->user());
     $compactAgentLayout = $compactAgentLayout ?? false;
     $showFilterCount = ! $compactAgentLayout || $serviceCaseHasMore || $renderedServiceCaseCount !== $totalServiceCaseCount;
+    $agentSearchPlaceholder = 'Search order, case or customer...';
     $myWorkSearchPlaceholder = 'Search order ID, case ID, serial, customer…';
-    $searchPlaceholder = $activeQueue === DashboardPersonalizationService::QUEUE_MY_WORK
-        ? $myWorkSearchPlaceholder
-        : 'Search service cases…';
+    $searchPlaceholder = $compactAgentLayout
+        ? $agentSearchPlaceholder
+        : ($activeQueue === DashboardPersonalizationService::QUEUE_MY_WORK
+            ? $myWorkSearchPlaceholder
+            : 'Search service cases…');
 
     $queueUrl = function (string $queueKey) use ($defaultQueue): string {
         $params = [];
@@ -130,10 +133,37 @@
                     </div>
                 @endif
 
-                <div class="dashboard-quick-filter @if($compactAgentLayout) dashboard-quick-filter--agent @endif" data-dashboard-quick-filter>
+                @if($compactAgentLayout)
+                    <div class="dashboard-quick-filter dashboard-quick-filter--agent dashboard-quick-filter--always-open"
+                         data-dashboard-quick-filter
+                         data-dashboard-quick-filter-always-open="true">
+                        <label for="dashboard-quick-filter-input" class="visually-hidden">Search service cases</label>
+                        @if($showFilterCount)
+                            <span id="dashboard-quick-filter-count"
+                                  class="visually-hidden"
+                                  data-dashboard-filter-count
+                                  aria-live="polite">{{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} Showing</span>
+                        @endif
+                        <div class="dashboard-quick-filter__control"
+                             id="dashboard-quick-filter-control"
+                             data-dashboard-quick-filter-control>
+                            <span class="dashboard-quick-filter__icon" aria-hidden="true">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="search"
+                                   id="dashboard-quick-filter-input"
+                                   class="dashboard-quick-filter__input dashboard-u-focus-ring"
+                                   placeholder="{{ $searchPlaceholder }}"
+                                   autocomplete="off"
+                                   data-dashboard-quick-filter-input
+                                   @if($showFilterCount) aria-describedby="dashboard-quick-filter-count" @endif>
+                        </div>
+                    </div>
+                @else
+                <div class="dashboard-quick-filter" data-dashboard-quick-filter>
                     <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
                     <button type="button"
-                            class="dashboard-quick-filter__summary dashboard-u-focus-ring @if($compactAgentLayout) dashboard-quick-filter__summary--icon @endif @if(! $showFilterCount && ! $compactAgentLayout) d-none @endif"
+                            class="dashboard-quick-filter__summary dashboard-u-focus-ring @if(! $showFilterCount) d-none @endif"
                             data-dashboard-quick-filter-trigger
                             data-dashboard-filter-count-wrap
                             aria-expanded="false"
@@ -142,9 +172,6 @@
                             <span id="dashboard-quick-filter-count"
                                   data-dashboard-filter-count
                                   aria-live="polite">{{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} Showing</span>
-                        @elseif($compactAgentLayout)
-                            <i class="bi bi-search" aria-hidden="true"></i>
-                            <span class="visually-hidden">Search service cases</span>
                         @endif
                     </button>
                     <div class="dashboard-quick-filter__control d-none"
@@ -162,6 +189,7 @@
                                aria-describedby="dashboard-quick-filter-count">
                     </div>
                 </div>
+                @endif
             </div>
         </div>
     </div>

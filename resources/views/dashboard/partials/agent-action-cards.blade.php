@@ -29,17 +29,17 @@
     ])>
         <a href="{{ route('dashboard', ['queue' => 'my_work']) }}#dashboard-service-cases-panel"
            class="agent-kpi-tile agent-kpi-tile--work">
-            <span class="agent-kpi-tile__title">My Work</span>
+            <span class="agent-kpi-tile__title">Assigned Cases</span>
             <span class="agent-kpi-tile__value">{{ number_format($activeWork) }}</span>
             <span class="agent-kpi-tile__meta">Active {{ str('Case')->plural($activeWork) }}</span>
         </a>
 
         <a href="{{ route('dashboard', ['filter' => 'my_attention']) }}#dashboard-service-cases-panel"
            class="agent-kpi-tile agent-kpi-tile--attention">
-            <span class="agent-kpi-tile__title">Needs Attention</span>
+            <span class="agent-kpi-tile__title">Action Required</span>
             <span class="agent-kpi-tile__value">{{ number_format($needsAttention) }}</span>
             @if($overdueCount > 0 || $waitingCount > 0 || $escalationCount > 0)
-                <span class="agent-kpi-tile__chips" role="list" aria-label="Needs attention breakdown">
+                <span class="agent-kpi-tile__chips" role="list" aria-label="Action required breakdown">
                     @if($overdueCount > 0)
                         <span class="agent-kpi-chip agent-kpi-chip--overdue" role="listitem" aria-label="{{ number_format($overdueCount) }} overdue">
                             <span aria-hidden="true">🔴</span>
