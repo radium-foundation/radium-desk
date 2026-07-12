@@ -8795,8 +8795,7 @@ body.customer-360-drawer-open {
     padding: 0.375rem 0.625rem 0.25rem;
     font-size: 0.6875rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
     color: #94a3b8;
 }
 
@@ -8813,27 +8812,62 @@ body.customer-360-drawer-open {
     color: #991b1b;
 }
 
+.c360-quick-toolbar-more-item--warning {
+    color: #c2410c;
+}
+
+.c360-quick-toolbar-more-item--warning:hover {
+    background: rgba(249, 115, 22, 0.08);
+    color: #9a3412;
+}
+
 .c360-quick-toolbar-more-item {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
     width: 100%;
-    padding: 0.5rem 0.625rem;
+    padding: 0.4rem 0.625rem;
     border: none;
-    border-radius: 0.375rem;
+    border-radius: 6px;
     background: transparent;
     font-size: 0.8125rem;
     font-weight: 500;
     color: var(--dashboard-color-heading, #0f172a);
     text-decoration: none;
     cursor: pointer;
-    transition: background 0.12s ease;
+    transition: background-color 120ms ease;
+    box-shadow: none;
+}
+
+.c360-lucide-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    color: #64748b;
+}
+
+.c360-quick-toolbar-more-item--destructive .c360-lucide-icon,
+.c360-quick-toolbar-more-item--warning .c360-lucide-icon {
+    color: currentColor;
 }
 
 .c360-quick-toolbar-more-item-main {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.c360-quick-toolbar-more-item-chevron {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding-left: 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1;
+    font-weight: 400;
+    color: #94a3b8;
 }
 
 .c360-quick-toolbar-more-item--disabled {
@@ -8874,7 +8908,15 @@ body.customer-360-drawer-open {
 }
 
 .c360-quick-toolbar-more-item:hover {
-    background: #f1f5f9;
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.c360-quick-toolbar-more-item--destructive:hover {
+    background: #fef2f2;
+}
+
+.c360-quick-toolbar-more-item--warning:hover {
+    background: rgba(249, 115, 22, 0.08);
 }
 
 /* IRA Command Center */
@@ -10087,14 +10129,13 @@ body.customer-360-drawer-open {
 
 .c360-quick-toolbar-btn,
 .c360-quick-toolbar-primary,
-.c360-quick-toolbar-more-item {
+.c360-empty-state-action {
     transition: transform 0.14s ease, box-shadow 0.14s ease, background-color 0.14s ease;
 }
 
 .c360-quick-toolbar-btn:active:not(:disabled),
 .c360-quick-toolbar-primary:active:not(:disabled),
-.c360-empty-state-action:active,
-.c360-quick-toolbar-more-item:active {
+.c360-empty-state-action:active {
     transform: scale(0.97);
 }
 
@@ -10130,8 +10171,8 @@ body.customer-360-drawer-open {
 
     .c360-quick-toolbar-more-item {
         min-height: 2.75rem;
-        padding-top: 0.625rem;
-        padding-bottom: 0.625rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
     }
 
     .c360-command-palette {
@@ -10494,8 +10535,8 @@ body.customer-360-drawer-open {
 }
 
 .c360-quick-toolbar-more-item {
-    border-radius: 0.375rem;
-    transition: background-color 0.16s ease;
+    border-radius: 6px;
+    transition: background-color 120ms ease;
 }
 
 .c360-customer-snapshot-grid {

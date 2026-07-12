@@ -86,7 +86,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'request-serial',
                 label: 'Request Serial',
-                icon: 'bi-upc-scan',
+                icon: 'scan-barcode',
                 trigger: 'request-serial',
                 keywords: ['serial', 'request', 'communication'],
             );
@@ -98,7 +98,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'request-correct-serial',
                 label: 'Re-request Serial',
-                icon: 'bi-camera',
+                icon: 'camera',
                 trigger: 'request-correct-serial',
                 keywords: ['serial', 'request', 're-request', 'communication'],
             );
@@ -108,7 +108,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'customer-not-responding',
                 label: 'Customer Not Responding',
-                icon: 'bi-hourglass-split',
+                icon: 'hourglass',
                 trigger: 'customer-not-responding',
                 keywords: ['customer', 'waiting', 'callback', 'communication'],
             );
@@ -122,7 +122,7 @@ final class Customer360OverflowMenuPresenter
                     'id' => 'communication-'.$action['key'],
                     'type' => 'communication',
                     'label' => $action['name'],
-                    'icon' => $action['icon'],
+                    'icon' => Customer360OverflowMenuLucideIcon::resolve($action['icon']),
                     'trigger' => 'communication-action',
                     'communicationActionKey' => $action['key'],
                     'keywords' => $this->communicationKeywords($action),
@@ -136,7 +136,7 @@ final class Customer360OverflowMenuPresenter
                 'id' => 'request-correct-serial-pending',
                 'type' => 'status',
                 'label' => $requestCorrectSerialMenu['label'],
-                'icon' => 'bi-check-circle',
+                'icon' => 'circle-check',
             ];
         }
 
@@ -160,7 +160,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'correct-customer',
                 label: 'Correct Customer',
-                icon: 'bi-person-gear',
+                icon: 'user-cog',
                 trigger: 'correct-customer-details',
                 keywords: ['customer', 'details', 'identity'],
                 shortcut: 'correct-customer',
@@ -172,7 +172,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'correct-serial',
                 label: 'Correct Serial',
-                icon: 'bi-upc',
+                icon: 'barcode',
                 trigger: 'correct-serial-number',
                 keywords: ['serial', 'identity'],
                 shortcut: 'correct-serial',
@@ -198,7 +198,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'assign-engineer',
                 label: 'Assign Engineer',
-                icon: 'bi-person-check',
+                icon: 'user-check',
                 trigger: 'action',
                 workspaceActionType: 'assign',
                 keywords: ['assign', 'engineer', 'owner'],
@@ -209,10 +209,11 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'escalate-case',
                 label: 'Escalate',
-                icon: 'bi-arrow-up-circle',
+                icon: 'circle-arrow-up',
                 trigger: 'action',
                 workspaceActionType: 'escalate',
                 keywords: ['escalate', 'supervisor'],
+                accent: 'warning',
             );
         }
 
@@ -220,7 +221,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'reopen-case',
                 label: 'Reopen Case',
-                icon: 'bi-arrow-counterclockwise',
+                icon: 'rotate-ccw',
                 trigger: 'action',
                 workspaceActionType: 'reopen',
                 keywords: ['reopen', 'restore'],
@@ -232,7 +233,7 @@ final class Customer360OverflowMenuPresenter
                 $this->triggerItem(
                     id: 'close-case',
                     label: 'Close Case',
-                    icon: 'bi-check-circle',
+                    icon: 'circle-check',
                     trigger: 'action',
                     workspaceActionType: 'close',
                     keywords: ['close', 'resolve', 'complete'],
@@ -260,7 +261,7 @@ final class Customer360OverflowMenuPresenter
             $this->tabItem(
                 id: 'schedule-appointment',
                 label: 'Schedule Appointment',
-                icon: 'bi-calendar-plus',
+                icon: 'calendar-plus',
                 tab: 'overview',
                 anchor: 'support-appointments',
                 keywords: ['appointment', 'schedule'],
@@ -271,7 +272,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->linkItem(
                 id: 'view-appointments',
                 label: 'View Appointments',
-                icon: 'bi-calendar-event',
+                icon: 'calendar',
                 href: route('incidents.show', $incident).'#support-appointments',
                 keywords: ['appointment', 'view'],
             );
@@ -296,7 +297,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->triggerItem(
                 id: 'link-order',
                 label: 'Link Order',
-                icon: 'bi-link-45deg',
+                icon: 'link',
                 trigger: 'link-order',
                 keywords: ['order', 'link', 'inquiry'],
             );
@@ -306,7 +307,7 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->linkItem(
                 id: 'open-order',
                 label: 'Open Order',
-                icon: 'bi-box-arrow-up-right',
+                icon: 'external-link',
                 href: route('orders.show', $order),
                 keywords: ['order'],
             );
@@ -315,7 +316,7 @@ final class Customer360OverflowMenuPresenter
         $items[] = $this->linkItem(
             id: 'open-case',
             label: 'Open Case',
-            icon: 'bi-folder2-open',
+            icon: 'folder-open',
             href: route('incidents.show', $incident),
             keywords: ['case', 'incident'],
         );
@@ -338,9 +339,10 @@ final class Customer360OverflowMenuPresenter
             $items[] = $this->linkItem(
                 id: 'refund',
                 label: 'Refund',
-                icon: 'bi-arrow-counterclockwise',
+                icon: 'rotate-ccw',
                 href: route('refunds.create'),
                 keywords: ['refund', 'finance'],
+                destructive: true,
             );
         }
 
@@ -376,6 +378,7 @@ final class Customer360OverflowMenuPresenter
         array $keywords = [],
         ?string $workspaceActionType = null,
         ?string $shortcut = null,
+        ?string $accent = null,
     ): array {
         return array_filter([
             'id' => $id,
@@ -385,6 +388,7 @@ final class Customer360OverflowMenuPresenter
             'trigger' => $trigger,
             'workspaceActionType' => $workspaceActionType,
             'shortcut' => $shortcut,
+            'accent' => $accent,
             'keywords' => $keywords,
         ], fn (mixed $value): bool => $value !== null);
     }
@@ -399,15 +403,17 @@ final class Customer360OverflowMenuPresenter
         string $icon,
         string $href,
         array $keywords = [],
+        bool $destructive = false,
     ): array {
-        return [
+        return array_filter([
             'id' => $id,
             'type' => 'link',
             'label' => $label,
             'icon' => $icon,
             'href' => $href,
             'keywords' => $keywords,
-        ];
+            'destructive' => $destructive ? true : null,
+        ], fn (mixed $value): bool => $value !== null);
     }
 
     /**

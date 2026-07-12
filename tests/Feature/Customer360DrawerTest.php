@@ -131,6 +131,8 @@ class Customer360DrawerTest extends TestCase
         $this->assertStringContainsString('Close Case', $html);
         $this->assertStringContainsString('Schedule Appointment', $html);
         $this->assertStringContainsString('c360-quick-toolbar-more-item--destructive', $html);
+        $this->assertStringContainsString('c360-lucide-icon', $html);
+        $this->assertStringContainsString('c360-quick-toolbar-more-item-chevron', $html);
         $this->assertStringContainsString('data-workspace-trigger="action"', $html);
         $this->assertStringContainsString('data-workspace-action-type="assign"', $html);
         $this->assertStringContainsString('data-workspace-action-type="close"', $html);

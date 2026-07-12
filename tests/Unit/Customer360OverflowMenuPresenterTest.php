@@ -93,6 +93,7 @@ class Customer360OverflowMenuPresenterTest extends TestCase
             ->firstWhere('id', 'escalate-case');
 
         $this->assertSame('escalate', $escalate['workspaceActionType'] ?? null);
+        $this->assertSame('warning', $escalate['accent'] ?? null);
     }
 
     public function test_build_includes_reopen_case_when_closed(): void
@@ -127,6 +128,11 @@ class Customer360OverflowMenuPresenterTest extends TestCase
         )->pluck('label')->all();
 
         $this->assertSame(['Refund'], $financeLabels);
+
+        $refund = collect(collect($menu['groups'])->firstWhere('label', 'Finance')['items'])
+            ->firstWhere('id', 'refund');
+
+        $this->assertTrue((bool) ($refund['destructive'] ?? false));
     }
 
     public function test_build_includes_schedule_appointment_in_appointments_group(): void
