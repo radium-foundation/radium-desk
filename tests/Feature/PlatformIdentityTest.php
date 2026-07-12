@@ -84,8 +84,8 @@ class PlatformIdentityTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('brand/logo.svg', false);
-        $response->assertSee('Radium Desk', false);
-        $response->assertDontSee('Radium Service Desk', false);
+        $response->assertSee('Internal Operations Portal', false);
+        $response->assertDontSee('<h1 class="h4 fw-bold text-primary mb-1">', false);
     }
 
     public function test_changelog_page_is_accessible_and_renders_entries(): void

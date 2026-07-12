@@ -69,17 +69,22 @@ body {
     overflow-y: auto;
 }
 
-.app-sidebar .brand-logo,
-.guest-brand-logo {
-    width: 1.5rem;
-    height: 1.5rem;
+.app-sidebar .brand-mark-icon {
+    width: auto;
+    height: 30px;
     object-fit: contain;
+    flex-shrink: 0;
+    border: none;
 }
 
 .guest-brand-logo {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: auto;
+    height: auto;
+    max-width: 200px;
+    object-fit: contain;
     margin-inline: auto;
+    display: block;
+    border: none;
 }
 
 .app-version-footer {

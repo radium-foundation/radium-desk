@@ -22,9 +22,9 @@
                     <img src="{{ $branding->iconUrl() }}" alt="{{ $branding->companyName() }}" class="guest-brand-logo mb-2">
                 @else
                     <i class="bi bi-headset text-primary fs-2 d-block mb-2" aria-hidden="true"></i>
+                    <h1 class="h4 fw-bold text-primary mb-1">{{ $branding->appName() }}</h1>
                 @endif
-                <h1 class="h4 fw-bold text-primary mb-1">{{ $branding->appName() }}</h1>
-                <p class="text-muted small mb-0">Internal operations portal</p>
+                <p class="text-muted small mb-0">Internal Operations Portal</p>
             </div>
 
             @yield('content')
