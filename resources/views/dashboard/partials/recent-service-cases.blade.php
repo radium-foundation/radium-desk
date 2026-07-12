@@ -12,6 +12,8 @@
     $personalization = app(DashboardPersonalizationService::class);
     $defaultQueue = $personalization->defaultQueueFor(auth()->user());
     $hideZeroCountTabs = $personalization->hidesZeroCountQueueTabs(auth()->user());
+    $compactAgentLayout = $compactAgentLayout ?? false;
+    $showFilterCount = ! $compactAgentLayout || $serviceCaseHasMore || $renderedServiceCaseCount !== $totalServiceCaseCount;
     $myWorkSearchPlaceholder = 'Search order ID, case ID, serial, customer…';
     $searchPlaceholder = $activeQueue === DashboardPersonalizationService::QUEUE_MY_WORK
         ? $myWorkSearchPlaceholder
@@ -28,14 +30,19 @@
     };
 @endphp
 
-<div class="card border-0 shadow-sm dashboard-service-cases-card"
+<div @class([
+        'card border-0 shadow-sm dashboard-service-cases-card',
+        'dashboard-service-cases-card--agent' => $compactAgentLayout,
+    ])
      id="dashboard-service-cases-panel"
      data-service-cases-loaded="{{ $renderedServiceCaseCount }}"
      data-service-case-filter-total="{{ $totalServiceCaseCount }}"
      data-service-case-filter="{{ $legacyServiceCaseFilter }}"
-     data-operation-queue="{{ $activeQueue }}">
+     data-operation-queue="{{ $activeQueue }}"
+     @if($compactAgentLayout) data-agent-compact-layout="true" @endif>
     <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
+            @unless($compactAgentLayout)
             <div class="dashboard-cases-header__title-row">
                 <div class="dashboard-cases-header__brand">
                     <span class="dashboard-cases-header__icon" aria-hidden="true">
@@ -51,8 +58,9 @@
                     </a>
                 @endcan
             </div>
+            @endunless
 
-            <div class="dashboard-cases-toolbar">
+            <div class="dashboard-cases-toolbar @if($compactAgentLayout) dashboard-cases-toolbar--agent @endif">
                 @if($canManageTransactions ?? false)
                     <div class="dashboard-bulk-toolbar"
                          data-bulk-bar
@@ -81,7 +89,10 @@
                 @endif
 
                 @if($showsQueueNavigation ?? true)
-                    <div class="dashboard-case-filters dashboard-operation-queues"
+                    <div @class([
+                            'dashboard-case-filters dashboard-operation-queues',
+                            'dashboard-operation-queues--agent' => $compactAgentLayout,
+                        ])
                          role="tablist"
                          aria-label="Operational queues">
                         @foreach($operationQueues as $queueKey => $queueMeta)
@@ -97,35 +108,44 @@
                             <a href="{{ $queueUrl($queueKey) }}"
                                @class([
                                    'dashboard-case-filter-chip',
+                                   'dashboard-case-filter-chip--agent-pill' => $compactAgentLayout,
                                    'dashboard-case-filter-chip--' . ($queueMeta['tone'] ?? 'primary'),
                                    'is-active' => $isActiveQueue,
                                ])
                                role="tab"
                                @if($isActiveQueue) aria-selected="true" @else aria-selected="false" @endif
                                @if($isActiveQueue) aria-current="page" @endif>
-                                @if(filled($queueMeta['emoji'] ?? null))
-                                    <span class="dashboard-case-filter-chip__emoji" aria-hidden="true">{{ $queueMeta['emoji'] }}</span>
-                                @else
-                                    <i class="bi {{ $queueMeta['icon'] ?? 'bi-inbox' }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
-                                @endif
+                                @unless($compactAgentLayout)
+                                    @if(filled($queueMeta['emoji'] ?? null))
+                                        <span class="dashboard-case-filter-chip__emoji" aria-hidden="true">{{ $queueMeta['emoji'] }}</span>
+                                    @else
+                                        <i class="bi {{ $queueMeta['icon'] ?? 'bi-inbox' }} dashboard-case-filter-chip__icon" aria-hidden="true"></i>
+                                    @endif
+                                @endunless
                                 <span class="dashboard-case-filter-chip__label">{{ $queueMeta['label'] ?? $queueKey }}</span>
                                 <span class="dashboard-case-filter-chip__count"
-                                      data-dashboard-case-filter-count="{{ $filterCountKey }}">({{ $queueCount }})</span>
+                                      data-dashboard-case-filter-count="{{ $filterCountKey }}">{{ $compactAgentLayout ? $queueCount : '('.$queueCount.')' }}</span>
                             </a>
                         @endforeach
                     </div>
                 @endif
 
-                <div class="dashboard-quick-filter" data-dashboard-quick-filter>
+                <div class="dashboard-quick-filter @if($compactAgentLayout) dashboard-quick-filter--agent @endif" data-dashboard-quick-filter>
                     <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
                     <button type="button"
-                            class="dashboard-quick-filter__summary dashboard-u-focus-ring"
+                            class="dashboard-quick-filter__summary dashboard-u-focus-ring @if($compactAgentLayout) dashboard-quick-filter__summary--icon @endif @if(! $showFilterCount && ! $compactAgentLayout) d-none @endif"
                             data-dashboard-quick-filter-trigger
+                            data-dashboard-filter-count-wrap
                             aria-expanded="false"
                             aria-controls="dashboard-quick-filter-control">
-                        <span id="dashboard-quick-filter-count"
-                              data-dashboard-filter-count
-                              aria-live="polite">{{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} Showing</span>
+                        @if($showFilterCount)
+                            <span id="dashboard-quick-filter-count"
+                                  data-dashboard-filter-count
+                                  aria-live="polite">{{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} Showing</span>
+                        @elseif($compactAgentLayout)
+                            <i class="bi bi-search" aria-hidden="true"></i>
+                            <span class="visually-hidden">Search service cases</span>
+                        @endif
                     </button>
                     <div class="dashboard-quick-filter__control d-none"
                          id="dashboard-quick-filter-control"

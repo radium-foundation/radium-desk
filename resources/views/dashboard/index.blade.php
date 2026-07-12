@@ -5,11 +5,16 @@
 @section('content')
     @php
         use App\Services\DashboardPersonalizationService;
+        use App\Services\Operations\OperationsRoleService;
 
         $operationQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ATTENTION;
+        $usesAgentDashboard = auth()->user() && app(OperationsRoleService::class)->usesSupportQueues(auth()->user());
     @endphp
 
-    <div class="app-content-compact"
+    <div @class([
+            'app-content-compact',
+            'agent-dashboard' => $usesAgentDashboard,
+        ])
          id="dashboard-page"
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
@@ -32,10 +37,12 @@
          data-reverb-port="{{ config('broadcasting.connections.reverb.options.port') }}"
          data-reverb-scheme="{{ config('broadcasting.connections.reverb.options.scheme') }}"
          @endif>
-        <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-1 mb-1">
+        <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-1 @if($usesAgentDashboard) dashboard-header--agent @endif mb-1">
             <div>
-                <h1 class="h4 mb-0">Dashboard</h1>
-                <p class="text-muted small mb-0">Welcome back, {{ auth()->user()->firstName() }}.</p>
+                <h1 class="@if($usesAgentDashboard) dashboard-header__title dashboard-header__title--agent @else h4 @endif mb-0">Dashboard</h1>
+                @unless($usesAgentDashboard)
+                    <p class="text-muted small mb-0">Welcome back, {{ auth()->user()->firstName() }}.</p>
+                @endunless
             </div>
             <button type="button"
                     class="btn btn-sm btn-outline-primary agent-resume-customer d-none dashboard-u-focus-ring"
@@ -65,6 +72,7 @@
                     'canManageTransactions' => $canManageTransactions ?? false,
                     'canReassignServiceCases' => $canReassignServiceCases ?? false,
                     'canShowServiceCaseActions' => $canShowServiceCaseActions ?? false,
+                    'compactAgentLayout' => $usesAgentDashboard,
                 ])
             </div>
         @endif

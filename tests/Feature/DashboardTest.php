@@ -57,7 +57,7 @@ class DashboardTest extends TestCase
             ->assertSee('Active')
             ->assertSee('Waiting')
             ->assertSee('My Work')
-            ->assertSee('agent-action-cards', false)
+            ->assertSee('agent-kpi-grid', false)
             ->assertSee('dashboard-operation-queues', false)
             ->assertDontSee('dashboard-module-nav', false)
             ->assertDontSee('>Team<', false)

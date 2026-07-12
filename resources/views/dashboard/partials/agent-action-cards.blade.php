@@ -24,76 +24,65 @@
     @endif
 
     <div @class([
-        'agent-action-cards',
-        'agent-action-cards--with-sticky-banner' => $showBanner,
+        'agent-kpi-grid',
+        'agent-kpi-grid--two-up' => $showBanner,
     ])>
         <a href="{{ route('dashboard', ['queue' => 'my_work']) }}#dashboard-service-cases-panel"
-           class="agent-action-card agent-action-card--work dashboard-u-surface-card dashboard-u-transition dashboard-u-hover-lift dashboard-u-focus-ring">
-            <div class="agent-action-card__icon" aria-hidden="true">🧰</div>
-            <div class="agent-action-card__body">
-                <div class="agent-action-card__title">My Work</div>
-                <div class="agent-action-card__metric">
-                    <span class="agent-action-card__value">{{ number_format($activeWork) }}</span>
-                    <span class="agent-action-card__unit">Active {{ str('Case')->plural($activeWork) }}</span>
-                </div>
-                <div class="agent-action-card__cta">Open →</div>
-            </div>
+           class="agent-kpi-tile agent-kpi-tile--work">
+            <span class="agent-kpi-tile__title">My Work</span>
+            <span class="agent-kpi-tile__value">{{ number_format($activeWork) }}</span>
+            <span class="agent-kpi-tile__meta">Active {{ str('Case')->plural($activeWork) }}</span>
         </a>
 
         <a href="{{ route('dashboard', ['filter' => 'my_attention']) }}#dashboard-service-cases-panel"
-           class="agent-action-card agent-action-card--attention dashboard-u-surface-card dashboard-u-transition dashboard-u-hover-lift dashboard-u-focus-ring">
-            <div class="agent-action-card__icon" aria-hidden="true">⚠</div>
-            <div class="agent-action-card__body">
-                <div class="agent-action-card__title">Needs Attention</div>
-                <div class="agent-action-card__metric">
-                    <span class="agent-action-card__value">{{ number_format($needsAttention) }}</span>
-                    <span class="agent-action-card__unit">{{ str('Case')->plural($needsAttention) }}</span>
-                </div>
-                @if($needsAttention > 0)
-                    <ul class="agent-action-card__breakdown list-unstyled mb-0">
-                        @if($overdueCount > 0)
-                            <li>{{ number_format($overdueCount) }} Overdue</li>
-                        @endif
-                        @if($waitingCount > 0)
-                            <li>{{ number_format($waitingCount) }} Waiting Follow-ups</li>
-                        @endif
-                        @if($escalationCount > 0)
-                            <li>{{ number_format($escalationCount) }} {{ str('Escalation')->plural($escalationCount) }}</li>
-                        @endif
-                    </ul>
-                @endif
-                <div class="agent-action-card__cta">Review →</div>
-            </div>
+           class="agent-kpi-tile agent-kpi-tile--attention">
+            <span class="agent-kpi-tile__title">Needs Attention</span>
+            <span class="agent-kpi-tile__value">{{ number_format($needsAttention) }}</span>
+            @if($overdueCount > 0 || $waitingCount > 0 || $escalationCount > 0)
+                <span class="agent-kpi-tile__chips" role="list" aria-label="Needs attention breakdown">
+                    @if($overdueCount > 0)
+                        <span class="agent-kpi-chip agent-kpi-chip--overdue" role="listitem" aria-label="{{ number_format($overdueCount) }} overdue">
+                            <span aria-hidden="true">🔴</span>
+                            <span>{{ number_format($overdueCount) }}</span>
+                        </span>
+                    @endif
+                    @if($waitingCount > 0)
+                        <span class="agent-kpi-chip agent-kpi-chip--waiting" role="listitem" aria-label="{{ number_format($waitingCount) }} waiting">
+                            <span aria-hidden="true">🟡</span>
+                            <span>{{ number_format($waitingCount) }}</span>
+                        </span>
+                    @endif
+                    @if($escalationCount > 0)
+                        <span class="agent-kpi-chip agent-kpi-chip--escalation" role="listitem" aria-label="{{ number_format($escalationCount) }} {{ str('escalation')->plural($escalationCount) }}">
+                            <span aria-hidden="true">🟣</span>
+                            <span>{{ number_format($escalationCount) }}</span>
+                        </span>
+                    @endif
+                </span>
+            @endif
         </a>
 
         @unless($showBanner)
             @if(is_array($appointment))
-                <a href="#"
-                   class="agent-action-card agent-action-card--appointment dashboard-u-surface-card dashboard-u-transition dashboard-u-hover-lift dashboard-u-focus-ring"
-                   data-agent-open-customer-360="{{ $appointment['incident_id'] }}"
-                   data-agent-customer-name="{{ $appointment['customer_name'] }}"
-                   data-agent-open-appointment="true">
-                    <div class="agent-action-card__icon" aria-hidden="true">📅</div>
-                    <div class="agent-action-card__body">
-                        <div class="agent-action-card__title">Next Appointment</div>
-                        <div class="agent-action-card__metric">
-                            <span class="agent-action-card__value agent-action-card__value--time">{{ $appointment['time_label'] }}</span>
-                        </div>
-                        <p class="agent-action-card__hint mb-0">{{ $appointment['starts_in_label'] }}</p>
-                        <p class="agent-action-card__customer mb-0">
-                            <span class="agent-action-card__customer-label">Customer:</span>
-                            {{ $appointment['customer_name'] }}
-                        </p>
-                        <div class="agent-action-card__cta">Open Customer360 →</div>
-                    </div>
-                </a>
+                <button type="button"
+                        class="agent-kpi-tile agent-kpi-tile--appointment"
+                        data-agent-open-customer-360="{{ $appointment['incident_id'] }}"
+                        data-agent-customer-name="{{ $appointment['customer_name'] }}"
+                        data-agent-open-appointment="true">
+                    <span class="agent-kpi-tile__title">Next Appointment</span>
+                    <span class="agent-kpi-tile__value agent-kpi-tile__value--time">{{ $appointment['time_label'] }}</span>
+                    <span class="agent-kpi-tile__meta">{{ $appointment['starts_in_label'] }}</span>
+                    <span class="agent-kpi-tile__detail">{{ $appointment['customer_name'] }}</span>
+                    @if(filled($appointment['device_model'] ?? null))
+                        <span class="agent-kpi-tile__detail">{{ $appointment['device_model'] }}</span>
+                    @endif
+                </button>
             @else
-                <div class="agent-action-card agent-action-card--appointment agent-action-card--empty dashboard-u-surface-card">
-                    <div class="agent-action-card__icon" aria-hidden="true">📅</div>
-                    <div class="agent-action-card__body">
-                        <div class="agent-action-card__title">Next Appointment</div>
-                        <p class="agent-action-card__empty-text mb-0">No appointments today</p>
-                    </div>
+                <div class="agent-kpi-tile agent-kpi-tile--appointment agent-kpi-tile--empty agent-kpi-tile--static"
+                     role="status"
+                     aria-label="No appointments today">
+                    <span class="agent-kpi-tile__empty-icon" aria-hidden="true">📅</span>
+                    <span class="agent-kpi-tile__title">No Appointments Today</span>
                 </div>
             @endif
         @endunless

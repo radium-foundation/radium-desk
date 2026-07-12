@@ -39,11 +39,14 @@ class AgentDashboardRedesignTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('agent-action-cards', false)
+            ->assertSee('agent-kpi-grid', false)
             ->assertSee('My Work')
             ->assertSee('Needs Attention')
-            ->assertSee('Next Appointment')
-            ->assertSee('No appointments today')
+            ->assertSee('No Appointments Today')
+            ->assertSee('agent-kpi-tile--static', false)
+            ->assertDontSee('View Calendar')
+            ->assertDontSee('Open →')
+            ->assertDontSee('Review →')
             ->assertSee('Resume Last Customer', false)
             ->assertDontSee('My Active Work')
             ->assertDontSee('My Scheduled Today')
@@ -218,8 +221,8 @@ class AgentDashboardRedesignTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('agent-action-card__breakdown', false)
-            ->assertSee('Waiting Follow-ups');
+            ->assertSee('agent-kpi-tile__chips', false)
+            ->assertSee('agent-kpi-chip--waiting', false);
 
         Carbon::setTestNow();
     }
@@ -268,7 +271,7 @@ class AgentDashboardRedesignTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('agent-appointment-banner-sticky-host', false)
-            ->assertSee('agent-action-cards--with-sticky-banner', false)
+            ->assertSee('agent-kpi-grid--two-up', false)
             ->assertSee('data-agent-open-appointment="true"', false);
 
         Carbon::setTestNow();

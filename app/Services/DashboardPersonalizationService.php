@@ -126,27 +126,19 @@ class DashboardPersonalizationService
                 $filtered[$queueKey] = match ($queueKey) {
                     self::QUEUE_MY_WORK => [
                         'label' => 'Active',
-                        'icon' => 'bi-briefcase-fill',
-                        'tone' => 'primary',
-                        'emoji' => '🧰',
+                        'tone' => 'neutral',
                     ],
                     self::QUEUE_SCHEDULED => [
                         'label' => 'Appointments',
-                        'icon' => 'bi-calendar-check-fill',
-                        'tone' => 'info',
-                        'emoji' => '📅',
+                        'tone' => 'neutral',
                     ],
                     self::QUEUE_WAITING_CUSTOMER => [
                         'label' => 'Waiting',
-                        'icon' => 'bi-hourglass-split',
-                        'tone' => 'secondary',
-                        'emoji' => '⌛',
+                        'tone' => 'neutral',
                     ],
                     self::QUEUE_COMPLETED => [
                         'label' => 'Done',
-                        'icon' => 'bi-check-circle-fill',
-                        'tone' => 'success',
-                        'emoji' => '✅',
+                        'tone' => 'neutral',
                     ],
                     default => $meta[$queueKey],
                 };
