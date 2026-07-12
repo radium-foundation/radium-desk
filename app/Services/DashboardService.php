@@ -182,6 +182,7 @@ class DashboardService
 
         return [
             'serviceCase' => $serviceCase,
+            'compactAgentLayout' => app(OperationsRoleService::class)->usesSupportQueues($user),
             'canManageTransactions' => $canManageTransactions,
             'canSelectRows' => $canManageTransactions,
             'canReassignServiceCases' => $canManageTransactions,

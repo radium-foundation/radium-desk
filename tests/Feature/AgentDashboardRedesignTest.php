@@ -305,6 +305,52 @@ class AgentDashboardRedesignTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_agent_dashboard_shows_sla_risk_dot_instead_of_text_badge(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgent();
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $incident = $this->createIncident('RD-SLA-DOT', $creator, $agent);
+        $incident->forceFill([
+            'created_at' => now()->subHours(72),
+            'updated_at' => now()->subHours(72),
+        ])->save();
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => now()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876543210',
+            'normalized_phone' => '9876543210',
+            'status' => SupportAppointmentStatus::Scheduled,
+        ]);
+
+        $reference = $incident->fresh()->display_reference;
+
+        $this->actingAs($agent)
+            ->get(route('dashboard', ['queue' => 'scheduled']))
+            ->assertOk()
+            ->assertSee('dashboard-sla-risk-dot', false)
+            ->assertSee('data-bs-title="SLA At Risk"', false)
+            ->assertSee('aria-label="SLA at Risk"', false)
+            ->assertSee($reference)
+            ->assertDontSee('SLA at risk');
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'scheduled']))
+            ->assertOk()
+            ->assertSee('SLA at risk')
+            ->assertDontSee('dashboard-sla-risk-dot', false);
+
+        Carbon::setTestNow();
+    }
+
     private function createAgent(): User
     {
         $agent = User::factory()->create();

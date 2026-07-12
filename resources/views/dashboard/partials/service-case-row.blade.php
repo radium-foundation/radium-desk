@@ -41,6 +41,7 @@
     $actionTooltip = ($serialValidation?->severity === SerialValidationSeverity::Fail)
         ? 'Verify serial/device'
         : 'Action';
+    $compactAgentLayout = $compactAgentLayout ?? false;
 @endphp
 
 <tr id="service-case-row-{{ $serviceCase->id }}"
@@ -65,13 +66,21 @@
     @endif
     <td class="case-reference-cell">
         <div class="d-flex flex-wrap align-items-center gap-1">
+            @if($showScheduledSlaRisk && $compactAgentLayout)
+                <span class="dashboard-sla-risk-dot"
+                      data-bs-toggle="tooltip"
+                      data-bs-placement="top"
+                      data-bs-title="SLA At Risk"
+                      aria-label="SLA at Risk"
+                      role="img">🔴</span>
+            @endif
             <a href="{{ route('incidents.show', $serviceCase) }}" class="case-reference-link text-decoration-none">
                 {{ $serviceCase->display_reference }}
             </a>
             @if($serviceCase->high_priority)
                 @include('dashboard.partials.high-priority-badge')
             @endif
-            @if($showScheduledSlaRisk)
+            @if($showScheduledSlaRisk && ! $compactAgentLayout)
                 <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle"
                       title="SLA at risk while case remains scheduled">SLA at risk</span>
             @endif

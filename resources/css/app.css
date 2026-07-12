@@ -10907,6 +10907,15 @@ button.agent-kpi-tile {
     text-decoration: none;
 }
 
+.agent-dashboard .dashboard-sla-risk-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.5rem;
+    line-height: 1;
+}
+
 @media (max-width: 991.98px) {
     .agent-kpi-grid,
     .agent-kpi-grid--two-up {

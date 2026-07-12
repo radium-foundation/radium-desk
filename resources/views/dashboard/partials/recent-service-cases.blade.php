@@ -246,6 +246,7 @@
                         @forelse($recentServiceCases as $serviceCase)
                             @include('dashboard.partials.service-case-row', [
                                 'serviceCase' => $serviceCase,
+                                'compactAgentLayout' => $compactAgentLayout,
                                 'canManageTransactions' => $canManageTransactions,
                                 'canSelectRows' => $canManageTransactions,
                                 'canReassignServiceCases' => $canReassignServiceCases ?? false,
