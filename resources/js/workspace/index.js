@@ -26,9 +26,11 @@ const bindTriggers = (openComponent) => {
         const incidentId = trigger.dataset.workspaceIncidentId;
         const context = trigger.dataset.workspaceContext ?? resolvePageWorkspaceContext();
         const communicationActionKey = trigger.dataset.workspaceCommunicationActionKey ?? null;
+        const workspaceActionType = trigger.dataset.workspaceActionType ?? null;
 
         openComponent(incidentId, component, context, {
             communicationActionKey,
+            workspaceActionType,
         });
     });
 };

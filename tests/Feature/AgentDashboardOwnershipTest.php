@@ -113,7 +113,7 @@ class AgentDashboardOwnershipTest extends TestCase
             ->assertOk()
             ->assertSee('RD3442035')
             ->assertSee('serial-validation-indicator--fail', false)
-            ->assertSee('Verify serial/device', false);
+            ->assertSee('More actions', false);
 
         Carbon::setTestNow();
     }
@@ -147,8 +147,8 @@ class AgentDashboardOwnershipTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('dashboard-row-actions', false)
-            ->assertSee('data-workspace-trigger="action"', false)
-            ->assertSee('data-workspace-incident-id="'.$incident->id.'"', false);
+            ->assertSee('data-c360-open-more-menu', false)
+            ->assertSee('data-incident-id="'.$incident->id.'"', false);
     }
 
     public function test_agent_dashboard_hides_global_metrics_and_shows_personal_kpis(): void

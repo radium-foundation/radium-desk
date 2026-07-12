@@ -211,7 +211,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertOk()
             ->assertSee('dashboard-row-actions', false)
             ->assertSee('data-workspace-trigger="remark"', false)
-            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertSee('data-c360-open-more-menu', false)
             ->assertSee('aria-label="Add note for '.$incident->display_reference.'"', false);
     }
 

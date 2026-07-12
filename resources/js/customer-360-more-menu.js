@@ -97,6 +97,23 @@ export const openMenu = (toggle, menu) => {
     drawerBody?.addEventListener('scroll', closeMenu, { passive: true, signal });
 };
 
+export const openMoreMenuForHost = (contentHost) => {
+    if (!(contentHost instanceof HTMLElement)) {
+        return false;
+    }
+
+    const toggle = contentHost.querySelector('[data-c360-quick-more-toggle]');
+    const menu = toggle?.closest('[data-c360-quick-more-wrap]')?.querySelector('[data-c360-quick-more-menu]');
+
+    if (!(toggle instanceof HTMLElement) || !(menu instanceof HTMLElement)) {
+        return false;
+    }
+
+    openMenu(toggle, menu);
+
+    return true;
+};
+
 export const initMoreMenu = (contentHost) => {
     if (!contentHost || contentHost.dataset.c360MoreMenuInit === 'true') {
         return;
@@ -105,6 +122,30 @@ export const initMoreMenu = (contentHost) => {
     contentHost.dataset.c360MoreMenuInit = 'true';
 
     contentHost.addEventListener('click', (event) => {
+        const tabItem = event.target.closest('[data-c360-overflow-tab]');
+
+        if (tabItem instanceof HTMLElement && contentHost.contains(tabItem)) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const tabKey = tabItem.dataset.c360OverflowTab ?? 'overview';
+            const anchor = tabItem.dataset.c360OverflowAnchor ?? null;
+            const tabButton = contentHost.querySelector(`[data-customer-360-tab="${tabKey}"]`);
+
+            tabButton?.click();
+
+            if (anchor) {
+                window.setTimeout(() => {
+                    contentHost.querySelector(`#${CSS.escape(anchor)}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 120);
+            }
+
+            closeMenu();
+
+            return;
+        }
+
         const menuItem = event.target.closest('[data-c360-quick-more-menu] [role="menuitem"]');
 
         if (menuItem && contentHost.contains(menuItem) && isMoreMenuOpen()) {

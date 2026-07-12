@@ -115,9 +115,11 @@ class CommunicationActionExecutionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk();
-        $response->assertSee('Communication Actions');
+        $response->assertSee('💬', false);
+        $response->assertSee('>Communication<', false);
         $response->assertSee('Review Request');
         $response->assertDontSee('Refund Confirmation');
+        $response->assertDontSee('data-customer-360-section="communication-actions"', false);
     }
 
     /**

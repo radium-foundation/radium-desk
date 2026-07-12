@@ -205,10 +205,19 @@ export const initCustomer360Cockpit = ({
         }
     };
 
-    const triggerWorkspaceAction = (triggerName) => {
-        const button = contentHost.querySelector(
-            `[data-workspace-trigger="${triggerName}"][data-workspace-context="customer"]`,
-        );
+    const triggerWorkspaceAction = (triggerName, options = {}) => {
+        const { workspaceActionType = null, communicationActionKey = null } = options;
+        let selector = `[data-workspace-trigger="${triggerName}"][data-workspace-context="customer"]`;
+
+        if (workspaceActionType) {
+            selector += `[data-workspace-action-type="${workspaceActionType}"]`;
+        }
+
+        if (communicationActionKey) {
+            selector = `[data-workspace-trigger="communication-action"][data-workspace-communication-action-key="${communicationActionKey}"][data-workspace-context="customer"]`;
+        }
+
+        const button = contentHost.querySelector(selector);
 
         if (button instanceof HTMLElement) {
             if (button.disabled) {
@@ -292,7 +301,18 @@ export const initCustomer360Cockpit = ({
                 return;
             }
 
-            triggerWorkspaceAction(action.trigger);
+            triggerWorkspaceAction(action.trigger, {
+                workspaceActionType: action.workspaceActionType ?? null,
+                communicationActionKey: action.communicationActionKey ?? null,
+            });
+
+            return;
+        }
+
+        if (action.type === 'communication' && action.communicationActionKey) {
+            triggerWorkspaceAction('communication-action', {
+                communicationActionKey: action.communicationActionKey,
+            });
 
             return;
         }

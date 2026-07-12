@@ -35,6 +35,7 @@ use App\Services\Timeline\TimelineService;
 use App\Support\Customer360\Customer360HealthCardPresenter;
 use App\Support\Customer360\Customer360InsightsPresenter;
 use App\Support\Customer360\Customer360IraAdvisorPresenter;
+use App\Support\Customer360\Customer360OverflowMenuPresenter;
 use App\Support\Customer360\Journey\CustomerJourneyBuilder;
 use App\Support\Customer360\RdServiceStatusResolver;
 use App\Support\Customer360\ScheduledSupportAppointmentContext;
@@ -112,7 +113,7 @@ class Customer360Service
                 'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
                 'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
                 'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
-            ]);
+            ], $this->overflowMenuPayload($incident, null));
         }
 
         $fullModelName = $order->displayDeviceModelName();
@@ -155,6 +156,52 @@ class Customer360Service
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
             'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
+            ...$this->overflowMenuPayload(
+                $incident,
+                $order,
+                $this->serialRequestState($order),
+                $this->correctSerialRequestState($order),
+                $incident->isActive() ? $incident->supportAppointments : collect(),
+            ),
+        ];
+    }
+
+    /**
+     * @param  array{requested?: bool, requested_at_label?: string|null}  $serialRequestState
+     * @param  array{requested?: bool, requested_at_label?: string|null}  $correctSerialRequestState
+     * @return array{
+     *     overflowMenuGroups: list<array{label: string, items: list<array<string, mixed>>}>,
+     *     paletteActions: list<array<string, mixed>>,
+     * }
+     */
+    private function overflowMenuPayload(
+        Incident $incident,
+        ?Order $order,
+        array $serialRequestState = ['requested' => false],
+        array $correctSerialRequestState = ['requested' => false],
+        $supportAppointments = null,
+    ): array {
+        $user = auth()->user();
+
+        if ($user === null) {
+            return [
+                'overflowMenuGroups' => [],
+                'paletteActions' => [],
+            ];
+        }
+
+        $overflowMenu = app(Customer360OverflowMenuPresenter::class)->build(
+            $incident,
+            $user,
+            $order,
+            $serialRequestState,
+            $correctSerialRequestState,
+            $supportAppointments ?? collect(),
+        );
+
+        return [
+            'overflowMenuGroups' => $overflowMenu['groups'],
+            'paletteActions' => $overflowMenu['paletteActions'],
         ];
     }
 

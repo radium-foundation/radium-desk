@@ -70,7 +70,7 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertOk()
             ->assertSee('data-workspace-context="dashboard"', false)
             ->assertSee('id="workspace-context-slugs"', false)
-            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertSee('data-c360-open-more-menu', false)
             ->assertSee('data-workspace-incident-id="'.$incident->id.'"', false)
             ->assertSee('dashboard-actions-cell', false);
     }
@@ -86,7 +86,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertSee('data-c360-open-more-menu', false)
             ->assertSee('data-workspace-trigger="remark"', false)
             ->assertSee('dashboard-actions-cell', false);
     }
@@ -115,7 +115,7 @@ class WorkspaceDashboardAssignTest extends TestCase
             ]);
 
         $this->assertStringContainsString(
-            'data-workspace-trigger="action"',
+            'data-c360-open-more-menu',
             (string) $response->json('refresh.replace_row.html'),
         );
     }
@@ -131,7 +131,7 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertOk();
 
         $this->assertStringContainsString(
-            'data-workspace-trigger="action"',
+            'data-c360-open-more-menu',
             (string) $response->json('rows.0.html'),
         );
     }

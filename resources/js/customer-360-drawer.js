@@ -2,7 +2,7 @@ import { getWorkspaceSession } from './workspace/session';
 import { rememberLastCustomer } from './agent-dashboard';
 import { initUnifiedTimeline } from './unified-timeline';
 import { initCustomer360Cockpit, bindIraDisclosures } from './customer-360-cockpit';
-import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen } from './customer-360-more-menu';
+import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen, openMoreMenuForHost } from './customer-360-more-menu';
 
 const SESSION_REASON = 'customer-360-drawer';
 
@@ -94,7 +94,7 @@ const isInteractiveTarget = (target) => {
     }
 
     return Boolean(
-        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-row-actions, .dashboard-select-cell')
+        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-c360-open-more-menu], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-row-actions, .dashboard-select-cell')
     );
 };
 
@@ -995,6 +995,11 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             }
 
             pendingOpenOptions = {};
+            if (options.openMoreMenu) {
+                requestAnimationFrame(() => {
+                    openMoreMenuForHost(contentHost);
+                });
+            }
         } catch (error) {
             logCustomer360Failure(null, null, 'drawer-init', error);
         }
@@ -1133,6 +1138,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     const open = async (incidentId, referenceLabel = '', options = {}) => {
         if (activeIncidentId === incidentId && drawer.classList.contains('is-open')) {
+            if (options.openMoreMenu) {
+                openMoreMenuForHost(contentHost);
+            }
+
             return;
         }
 
@@ -1147,6 +1156,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         pendingOpenOptions = {
             tab: options.tab ?? null,
             anchor: options.anchor ?? null,
+            openMoreMenu: options.openMoreMenu ?? false,
         };
 
         if (String(previousIncidentId) !== String(incidentId)) {
@@ -1199,6 +1209,28 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     bindTabNavigation();
 
     root.addEventListener('click', handleRowClick);
+
+    const handleOpenMoreMenuClick = (event) => {
+        const trigger = event.target.closest('[data-c360-open-more-menu]');
+
+        if (!trigger || !root.contains(trigger)) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const incidentId = trigger.dataset.incidentId;
+        const referenceLabel = trigger.dataset.incidentReference?.trim() ?? '';
+
+        if (!incidentId) {
+            return;
+        }
+
+        open(incidentId, referenceLabel, { openMoreMenu: true });
+    };
+
+    root.addEventListener('click', handleOpenMoreMenuClick);
 
     closeButton?.addEventListener('click', close);
     backdrop?.addEventListener('click', close);
@@ -1264,8 +1296,22 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         open(incidentId, referenceLabel, {
             tab: event.detail?.tab ?? null,
             anchor: event.detail?.anchor ?? null,
+            openMoreMenu: event.detail?.openMoreMenu ?? false,
         });
     }, { signal: customer360RefreshAbortController.signal });
+
+    const autoOpenIncidentId = root.dataset.openCustomer360IncidentId?.trim() ?? '';
+    const autoOpenMoreMenu = root.dataset.openCustomer360MoreMenu === '1';
+
+    if (autoOpenIncidentId !== '') {
+        window.setTimeout(() => {
+            open(
+                autoOpenIncidentId,
+                root.dataset.openCustomer360Reference ?? '',
+                { openMoreMenu: autoOpenMoreMenu },
+            );
+        }, 0);
+    }
 
     return {
         open,

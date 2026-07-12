@@ -12,9 +12,9 @@
     $canUpdate = auth()->user()?->can('update', $serviceCase);
     $isClosed = $serviceCase->status === IncidentStatus::Closed;
     $canAssign = auth()->user()?->can('reassign', $serviceCase) && ! $isClosed;
-    $canAction = ($canAssign) || ($canUpdate && ! $isClosed) || ($canUpdate && $isClosed);
+    $canOpenMoreMenu = $canAssign || ($canUpdate && ! $isClosed) || ($canUpdate && $isClosed);
     $canShowRowActions = (auth()->user()?->can('create', \App\Models\Remark::class) && auth()->user()?->can('view', $serviceCase))
-        || $canAction;
+        || $canOpenMoreMenu;
     $searchParts = array_filter([
         $order?->order_id,
         $serviceCase->display_reference,
@@ -38,9 +38,6 @@
         $serialValidation = app(SerialValidationService::class)->validateForOrder((string) $order->serial_number, $order);
     }
 
-    $actionTooltip = ($serialValidation?->severity === SerialValidationSeverity::Fail)
-        ? 'Verify serial/device'
-        : 'Action';
     $compactAgentLayout = $compactAgentLayout ?? false;
 @endphp
 
@@ -178,17 +175,17 @@
                         </button>
                     @endcan
                 @endcan
-                @if($canAction)
+                @if($canOpenMoreMenu)
                     <button type="button"
                             class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
                             data-bs-toggle="tooltip"
                             data-bs-placement="top"
-                            data-bs-title="{{ $actionTooltip }}"
-                            data-workspace-trigger="action"
-                            data-workspace-incident-id="{{ $serviceCase->id }}"
-                            data-workspace-context="dashboard"
-                            aria-label="{{ $actionTooltip }} for {{ $serviceCase->display_reference }}">
-                        <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                            data-bs-title="More actions"
+                            data-c360-open-more-menu
+                            data-incident-id="{{ $serviceCase->id }}"
+                            data-incident-reference="{{ $serviceCase->display_reference }}"
+                            aria-label="More actions for {{ $serviceCase->display_reference }}">
+                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
                     </button>
                 @endif
             </div>

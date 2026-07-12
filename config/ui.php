@@ -61,6 +61,6 @@ return [
         'customer_order_heading' => 'Customer & Order Summary',
         'related_information_heading' => 'Related Information',
         'quick_actions_heading' => 'Quick Actions',
-        'shortcuts_hint' => 'Shortcuts: N note · A action · E edit · / search · Esc close dialog',
+        'shortcuts_hint' => 'Shortcuts: N note · E edit · / search · Esc close dialog',
     ],
 ];

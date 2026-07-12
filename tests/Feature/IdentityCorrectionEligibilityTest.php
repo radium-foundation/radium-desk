@@ -146,7 +146,7 @@ class IdentityCorrectionEligibilityTest extends TestCase
         $this->assertSame('Admin permission required.', $result->reason);
     }
 
-    public function test_customer_360_renders_disabled_identity_actions_with_reasons(): void
+    public function test_customer_360_hides_unavailable_identity_actions_for_agent(): void
     {
         [$agent, $incident] = $this->createIncident('9620545', RolePermissionSeeder::ROLE_AGENT);
 
@@ -155,11 +155,11 @@ class IdentityCorrectionEligibilityTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Correct Customer', $html);
-        $this->assertStringContainsString('Correct Serial', $html);
-        $this->assertStringContainsString('c360-quick-toolbar-more-item--disabled', $html);
-        $this->assertStringContainsString('Admin permission required.', $html);
+        $this->assertStringNotContainsString('Correct Customer', $html);
+        $this->assertStringNotContainsString('Correct Serial', $html);
+        $this->assertStringNotContainsString('c360-quick-toolbar-more-item--disabled', $html);
         $this->assertStringNotContainsString('data-workspace-trigger="correct-customer-details"', $html);
+        $this->assertStringNotContainsString('data-workspace-trigger="correct-serial-number"', $html);
     }
 
     public function test_customer_360_renders_enabled_identity_actions_for_admin(): void

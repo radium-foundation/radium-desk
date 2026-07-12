@@ -36,6 +36,12 @@ export const createFragmentLoader = ({
             url = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
         }
 
+        if (options.workspaceActionType) {
+            const parsedUrl = new URL(url, window.location.origin);
+            parsedUrl.searchParams.set('action', options.workspaceActionType);
+            url = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+        }
+
         return url;
     };
 

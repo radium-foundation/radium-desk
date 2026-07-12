@@ -58,12 +58,6 @@ export const initServiceCaseShow = () => {
             }
         }
 
-        if (key === 'a' && root.querySelector('[data-sc-action="assign"]')) {
-            event.preventDefault();
-            openModal('#assignModal');
-            return;
-        }
-
         if (key === 'e') {
             const editLink = root.querySelector('[data-sc-action="edit"]');
 

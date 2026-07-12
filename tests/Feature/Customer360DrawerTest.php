@@ -86,6 +86,58 @@ class Customer360DrawerTest extends TestCase
         $response->assertDontSee('data-c360-ops-status-bar', false);
     }
 
+    public function test_customer_360_overflow_menu_renders_grouped_case_actions(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-360-OVERFLOW',
+            'serial_number' => 'SN-360-OVERFLOW',
+            'product_name' => 'MFS 110 E3',
+            'device_model' => 'MFS 110 E3',
+            'transaction_id' => 'TXN-OVERFLOW',
+            'customer_name' => 'Overflow Customer',
+            'customer_email' => 'overflow@example.com',
+            'customer_phone' => '9123456781',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Overflow menu case',
+            'description' => 'Overflow menu case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $html = $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('c360-quick-toolbar-more-group-label', $html);
+        $this->assertStringContainsString('>Communication<', $html);
+        $this->assertStringContainsString('>Case<', $html);
+        $this->assertStringContainsString('>Appointments<', $html);
+        $this->assertStringContainsString('>Related<', $html);
+        $this->assertStringContainsString('Assign Engineer', $html);
+        $this->assertStringContainsString('Close Case', $html);
+        $this->assertStringContainsString('Schedule Appointment', $html);
+        $this->assertStringContainsString('c360-quick-toolbar-more-item--destructive', $html);
+        $this->assertStringContainsString('data-workspace-trigger="action"', $html);
+        $this->assertStringContainsString('data-workspace-action-type="assign"', $html);
+        $this->assertStringContainsString('data-workspace-action-type="close"', $html);
+        $this->assertStringContainsString('Open Case', $html);
+        $this->assertStringNotContainsString('data-customer-360-section="communication-actions"', $html);
+    }
+
     public function test_customer_360_health_card_shows_whatsapp_communication_timestamp(): void
     {
         [$agent, $incident] = $this->createHealthCardIncident();

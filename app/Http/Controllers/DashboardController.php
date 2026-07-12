@@ -51,6 +51,10 @@ class DashboardController extends Controller
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
 
+        $openCustomer360IncidentId = $request->query('open_customer_360', session('open_customer_360_incident_id'));
+        $openCustomer360MoreMenu = $request->boolean('open_more_menu');
+        $openCustomer360Reference = $request->query('open_customer_360_reference', session('service_case_reference'));
+
         $serviceCaseFilterCounts = $user->can('incidents.view')
             ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
             : [];
@@ -73,8 +77,9 @@ class DashboardController extends Controller
 
         return view('dashboard.index', [
             'stats' => $this->dashboardService->statsFor($user),
-            'openCustomer360IncidentId' => session('open_customer_360_incident_id'),
-            'openCustomer360Reference' => session('service_case_reference'),
+            'openCustomer360IncidentId' => $openCustomer360IncidentId,
+            'openCustomer360Reference' => $openCustomer360Reference,
+            'openCustomer360MoreMenu' => $openCustomer360MoreMenu,
             'recentServiceCases' => $recentServiceCases,
             'serviceCaseFilterCounts' => $serviceCaseFilterCounts,
             'serviceCaseTotalCount' => $serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count(),

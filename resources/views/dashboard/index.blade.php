@@ -27,6 +27,7 @@
          data-dashboard-load-more-url="{{ route('dashboard.service-cases.load-more') }}"
          data-open-customer-360-incident-id="{{ $openCustomer360IncidentId ?? '' }}"
          data-open-customer-360-reference="{{ $openCustomer360Reference ?? '' }}"
+         data-open-customer-360-more-menu="{{ ($openCustomer360MoreMenu ?? false) ? '1' : '' }}"
          data-customer-360-url="{{ url('dashboard/service-cases') }}"
          @if(isset($stats['next_appointment']) && is_array($stats['next_appointment']))
          data-next-appointment='@json($stats['next_appointment'])'

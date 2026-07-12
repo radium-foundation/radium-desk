@@ -181,7 +181,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $rowHtml = (string) $response->json('refresh.replace_row.html');
         $this->assertStringNotContainsString('data-workspace-trigger="resolve"', $rowHtml);
         $this->assertStringNotContainsString('data-workspace-trigger="close"', $rowHtml);
-        $this->assertStringContainsString('data-workspace-trigger="action"', $rowHtml);
+        $this->assertStringContainsString('data-c360-open-more-menu', $rowHtml);
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
@@ -528,7 +528,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertSee('data-c360-open-more-menu', false)
             ->assertDontSee('data-workspace-trigger="resolve"', false)
             ->assertDontSee('data-workspace-trigger="close"', false);
     }
@@ -544,7 +544,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertDontSee('data-workspace-trigger="action"', false)
+            ->assertDontSee('data-c360-open-more-menu', false)
             ->assertDontSee('data-workspace-trigger="resolve"', false)
             ->assertDontSee('data-workspace-trigger="close"', false);
     }

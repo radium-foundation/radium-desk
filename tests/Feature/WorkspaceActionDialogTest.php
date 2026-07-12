@@ -539,7 +539,7 @@ class WorkspaceActionDialogTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-workspace-trigger="action"', false)
+            ->assertSee('data-c360-open-more-menu', false)
             ->assertDontSee('data-workspace-trigger="resolve"', false)
             ->assertDontSee('data-workspace-trigger="close"', false);
     }
