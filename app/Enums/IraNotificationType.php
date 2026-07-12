@@ -14,6 +14,7 @@ enum IraNotificationType: string
     case UnusualBacklog = 'unusual_backlog';
     case TeamDailyBriefing = 'team_daily_briefing';
     case SupportSlotReminder = 'support_slot_reminder';
+    case SupportAppointmentReminder = 'support_appointment_reminder';
     case ManualAssignment = 'manual_assignment';
     case Reassignment = 'reassignment';
     case OpsDigest = 'ops_digest';
@@ -28,6 +29,7 @@ enum IraNotificationType: string
             self::SmartAssignment => 'Smart Assignment',
             self::TeamDailyBriefing => 'Team Daily Briefing',
             self::SupportSlotReminder => 'Support Slot Reminder',
+            self::SupportAppointmentReminder => 'Support Appointment Reminder',
             self::ManualAssignment => 'Manual Assignment',
             self::Reassignment => 'Reassignment',
             self::RiskAlert => 'Risk Alert',

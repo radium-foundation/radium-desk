@@ -3,6 +3,7 @@
 use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
+use App\Http\Controllers\AutomationHealthController;
 use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\ChangelogController;
@@ -178,6 +179,11 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/admin/automation', [AutomationOperationsController::class, 'index'])
         ->name('admin.automation.index');
+
+    Route::get('/admin/operations/automation-health', [AutomationHealthController::class, 'index'])
+        ->name('admin.operations.automation-health');
+    Route::get('/admin/operations/automation-health/executions/{execution}', [AutomationHealthController::class, 'show'])
+        ->name('admin.operations.automation-health.executions.show');
 
     Route::get('/admin/operations', [OperationsDashboardController::class, 'index'])
         ->name('admin.operations.index');

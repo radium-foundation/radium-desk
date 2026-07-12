@@ -12,4 +12,16 @@ return [
         'afternoon' => '12:00',
         'evening' => '15:00',
     ],
+
+    'appointment_reminders' => [
+        'enabled' => (bool) env('TEAM_TELEGRAM_APPOINTMENT_REMINDERS_ENABLED', true),
+        'schedule_interval_minutes' => max(1, (int) env('TEAM_TELEGRAM_APPOINTMENT_REMINDERS_INTERVAL', 1)),
+        'role_thresholds_minutes' => [
+            'default' => [30, 10, 0],
+            'support_specialist' => [30, 10, 0],
+            'agent' => [30, 10, 0],
+            'admin' => [30, 10, 0],
+            'escalation_specialist' => [30, 10, 0],
+        ],
+    ],
 ];

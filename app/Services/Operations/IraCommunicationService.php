@@ -6,7 +6,9 @@ use App\Data\Operations\IraCommunicationInput;
 use App\Data\Operations\IraMorningBriefing;
 use App\Data\Operations\IraOperationalRisk;
 use App\Data\Operations\IraOwnerReportData;
+use App\Data\Operations\SupportAppointmentReminderCandidate;
 use App\Data\Operations\SupportSlotReminderItem;
+use App\Support\Operations\AppointmentReminderMessageContext;
 use App\Data\Operations\TeamWorkBriefing;
 use App\Enums\AI\AIRiskLevel;
 use App\Enums\IraNotificationType;
@@ -236,6 +238,39 @@ class IraCommunicationService
                 'briefing' => $briefing,
                 'dedupe_key' => 'team_daily:'.$briefing->date,
             ],
+        ));
+    }
+
+    /**
+     * @return list<IraNotification>
+     */
+    public function sendSupportAppointmentReminder(SupportAppointmentReminderCandidate $candidate): array
+    {
+        $appointment = $candidate->appointment->loadMissing('incident.order');
+        $incident = $appointment->incident;
+        $order = $incident?->order;
+        $timeLabel = $candidate->startsAt->format('g:i A');
+        $appointmentType = AppointmentReminderMessageContext::appointmentTypeLabel($incident);
+
+        $context = [
+            'user_id' => $candidate->engineer->id,
+            'appointment_id' => $appointment->id,
+            'incident_id' => $incident?->id,
+            'engineer_name' => AppointmentReminderMessageContext::engineerDisplayName($candidate->engineer),
+            'customer_name' => $order?->customer_name ?? 'Customer',
+            'order_id' => $order?->order_id ?? 'Unknown',
+            'appointment_time' => $timeLabel,
+            'reminder_type' => $candidate->thresholdMinutes,
+            'reminder_label' => $candidate->reminderLabel(),
+        ];
+
+        if ($appointmentType !== null) {
+            $context['appointment_type'] = $appointmentType;
+        }
+
+        return $this->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::SupportAppointmentReminder,
+            context: $context,
         ));
     }
 
@@ -472,6 +507,7 @@ class IraCommunicationService
             IraNotificationType::Reassignment,
             IraNotificationType::TeamDailyBriefing,
             IraNotificationType::SupportSlotReminder,
+            IraNotificationType::SupportAppointmentReminder,
             IraNotificationType::TeamAnnouncement => collect(),
         };
     }
@@ -517,6 +553,7 @@ class IraCommunicationService
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
             IraNotificationType::SupportSlotReminder,
+            IraNotificationType::SupportAppointmentReminder,
             IraNotificationType::TeamAnnouncement => true,
             IraNotificationType::IntegrationFailure => true,
             IraNotificationType::CriticalSystemAlert => true,
@@ -552,6 +589,10 @@ class IraCommunicationService
             IraNotificationType::SupportSlotReminder,
         ], true)) {
             return Cache::has($this->cooldownCacheKey($user, $input));
+        }
+
+        if ($input->event === IraNotificationType::SupportAppointmentReminder) {
+            return false;
         }
 
         $cooldownMinutes = (int) config('ira.communication.cooldown_minutes', 60);
@@ -602,6 +643,7 @@ class IraCommunicationService
             IraNotificationType::ManualAssignment => $this->formatAssignment($input, 'New support assigned'),
             IraNotificationType::Reassignment => $this->formatAssignment($input, 'Support reassigned to you'),
             IraNotificationType::SupportSlotReminder => $this->formatSupportSlotReminder($input),
+            IraNotificationType::SupportAppointmentReminder => $this->formatSupportAppointmentReminder($input),
             IraNotificationType::IntegrationFailure => $this->formatIntegrationFailure($input),
             IraNotificationType::CriticalSystemAlert => $this->formatCriticalSystemAlert($input),
             IraNotificationType::TeamAnnouncement => $this->formatTeamAnnouncement($input),
@@ -773,6 +815,37 @@ class IraCommunicationService
         $lines[] = 'Review in My Work.';
 
         return [$heading, implode("\n", $lines)];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function formatSupportAppointmentReminder(IraCommunicationInput $input): array
+    {
+        $reminderLabel = (string) ($input->context['reminder_label'] ?? 'Appointment reminder');
+        $appointmentType = $input->context['appointment_type'] ?? null;
+
+        $lines = [
+            '📅 Appointment Reminder',
+            '',
+            '⏰ '.$reminderLabel,
+            '',
+            '👤 '.(string) ($input->context['customer_name'] ?? 'Customer'),
+            '',
+            '📦 '.(string) ($input->context['order_id'] ?? 'Unknown'),
+        ];
+
+        if (is_string($appointmentType) && $appointmentType !== '') {
+            $lines[] = '';
+            $lines[] = '🛠 '.$appointmentType;
+        }
+
+        $lines[] = '';
+        $lines[] = '🕒 '.(string) ($input->context['appointment_time'] ?? 'Unknown');
+        $lines[] = '';
+        $lines[] = '👨‍🔧 '.(string) ($input->context['engineer_name'] ?? 'Unknown');
+
+        return ['Appointment Reminder', implode("\n", $lines)];
     }
 
     /**

@@ -26,6 +26,7 @@ import { initAgentDashboard } from './agent-dashboard';
 import { buildSmartToastActions } from './customer-360-cockpit';
 import { getDashboardConfig } from './dashboard-config';
 import { initOperationsDashboard } from './operations-dashboard';
+import { initAutomationHealth } from './automation-health';
 import { initPresenceHeartbeat } from './presence-heartbeat';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from './customer-intake';
 import { initCopyableIdentifiers } from './copyable-identifiers';
@@ -773,5 +774,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initOperationsDashboard();
+    initAutomationHealth();
     initPresenceHeartbeat();
 });

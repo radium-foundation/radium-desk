@@ -18,7 +18,7 @@ class OperationsRecentAutomationActivityService
         }
 
         return AutomationExecution::query()
-            ->with(['waitingState.incident.order'])
+            ->with(['waitingState.incident.order', 'supportAppointment.incident.order'])
             ->latest('created_at')
             ->limit($limit)
             ->get()
@@ -31,7 +31,8 @@ class OperationsRecentAutomationActivityService
      */
     private function mapExecution(AutomationExecution $execution): array
     {
-        $incident = $execution->waitingState?->incident;
+        $incident = $execution->waitingState?->incident
+            ?? $execution->supportAppointment?->incident;
         $durationMs = null;
 
         if ($execution->started_at !== null && $execution->completed_at !== null) {
@@ -53,6 +54,13 @@ class OperationsRecentAutomationActivityService
 
     private function triggerLabel(AutomationExecution $execution): string
     {
+        if ($execution->policy_key === 'appointment-reminder') {
+            $threshold = $execution->schedule_step;
+            $appointmentId = $execution->support_appointment_id ?? $execution->metadata['appointment_id'] ?? 'unknown';
+
+            return "appointment-reminder · {$threshold}m · appointment {$appointmentId}";
+        }
+
         $actionKey = $execution->action_key;
         $policyKey = $execution->policy_key;
         $step = $execution->schedule_step;

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\AutomationPolicyActionType;
+use App\Models\IncidentWaitingState;
+use App\Models\SupportAppointment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -11,6 +13,7 @@ class AutomationExecution extends Model
 {
     protected $fillable = [
         'waiting_state_id',
+        'support_appointment_id',
         'policy_key',
         'schedule_step',
         'action_type',
@@ -39,5 +42,10 @@ class AutomationExecution extends Model
     public function waitingState(): BelongsTo
     {
         return $this->belongsTo(IncidentWaitingState::class, 'waiting_state_id');
+    }
+
+    public function supportAppointment(): BelongsTo
+    {
+        return $this->belongsTo(SupportAppointment::class, 'support_appointment_id');
     }
 }

@@ -17,7 +17,9 @@ class IraNotificationCategoryMapper
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
-            IraNotificationType::SupportSlotReminder => NotificationCategory::Assignment,
+            IraNotificationType::SupportSlotReminder,
+            IraNotificationType::SupportAppointmentReminder,
+            IraNotificationType::TeamAnnouncement => NotificationCategory::Assignment,
             IraNotificationType::RiskAlert,
             IraNotificationType::WaitingCustomerRisk,
             IraNotificationType::UnusualBacklog,
@@ -25,7 +27,6 @@ class IraNotificationCategoryMapper
             IraNotificationType::TeamAvailabilityIssue => NotificationCategory::Escalation,
             IraNotificationType::IntegrationFailure => NotificationCategory::SystemHealth,
             IraNotificationType::CriticalSystemAlert => NotificationCategory::SystemHealth,
-            IraNotificationType::TeamAnnouncement => NotificationCategory::Assignment,
         };
     }
 }

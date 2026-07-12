@@ -8,6 +8,7 @@ enum AutomationPolicyActionType: string
     case NotifyTeam = 'notify_team';
     case AutoClose = 'auto_close';
     case Custom = 'custom';
+    case AppointmentReminderTelegram = 'appointment_reminder_telegram';
 
     public static function tryFromConfig(string $value): ?self
     {

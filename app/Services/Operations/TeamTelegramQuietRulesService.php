@@ -83,6 +83,28 @@ class TeamTelegramQuietRulesService
         return $at->gte($slotStart) && $at->lt($slotStart->copy()->addHour());
     }
 
+    public function shouldSendAppointmentReminder(User $user, ?Carbon $at = null): bool
+    {
+        if (! config('team_telegram.enabled', true)) {
+            return false;
+        }
+
+        $at ??= now();
+        $status = WorkCalendarDayStatus::tryFrom(
+            (string) ($this->workCalendarService->todayStatusFor($user, $at)['status'] ?? ''),
+        );
+
+        if ($status === null) {
+            return false;
+        }
+
+        return ! in_array($status, [
+            WorkCalendarDayStatus::LeaveApproved,
+            WorkCalendarDayStatus::Holiday,
+            WorkCalendarDayStatus::WeeklyOff,
+        ], true);
+    }
+
     public function slotStartAt(SupportAppointmentTimeSlot $slot, Carbon $date): ?Carbon
     {
         $configured = config('team_telegram.support_slots.'.$slot->value);

@@ -76,9 +76,17 @@
             <ul class="nav flex-column">
                 <li class="nav-item">
                     @can('operations-dashboard.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.*')]) href="{{ route('admin.operations.index') }}" title="Operations Control Center">
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.index', 'admin.operations.live')]) href="{{ route('admin.operations.index') }}" title="Operations Control Center">
                             <i class="bi bi-sliders nav-icon me-2"></i>
                             <span class="nav-label">Operations</span>
+                        </a>
+                    @endcan
+                </li>
+                <li class="nav-item">
+                    @can('automation-operations.view')
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.automation-health*')]) href="{{ route('admin.operations.automation-health') }}" title="Automation Health">
+                            <i class="bi bi-heart-pulse nav-icon me-2"></i>
+                            <span class="nav-label">Automation Health</span>
                         </a>
                     @endcan
                 </li>

@@ -116,6 +116,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/team-telegram-slot-reminders.log'));
 
+        $schedule->command('team-telegram:send-appointment-reminders')
+            ->cron(sprintf(
+                '*/%d * * * *',
+                max(1, (int) config('team_telegram.appointment_reminders.schedule_interval_minutes', 1)),
+            ))
+            ->when(fn (): bool => (bool) config('team_telegram.enabled', true)
+                && (bool) config('team_telegram.appointment_reminders.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/team-telegram-appointment-reminders.log'));
+
         $schedule->command('automation:run')
             ->hourly()
             ->when(fn (): bool => app(SystemSettingsService::class)->getBool('automation.scheduler.enabled', false))

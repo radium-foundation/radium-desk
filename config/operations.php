@@ -87,4 +87,11 @@ return [
         'audit_log_limit' => (int) env('OPERATIONS_DASHBOARD_AUDIT_LOG_LIMIT', 2000),
         'automation_execution_limit' => (int) env('OPERATIONS_DASHBOARD_AUTOMATION_LIMIT', 1000),
     ],
+
+    'automation_health' => [
+        'stall_threshold_minutes' => (int) env('OPERATIONS_AUTOMATION_HEALTH_STALL_MINUTES', 120),
+        'warning_success_age_minutes' => (int) env('OPERATIONS_AUTOMATION_HEALTH_WARNING_SUCCESS_MINUTES', 60),
+        'activity_per_page' => (int) env('OPERATIONS_AUTOMATION_HEALTH_ACTIVITY_PER_PAGE', 50),
+        'failures_limit' => (int) env('OPERATIONS_AUTOMATION_HEALTH_FAILURES_LIMIT', 50),
+    ],
 ];
