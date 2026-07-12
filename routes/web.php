@@ -140,6 +140,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.workspace.request-correct-serial');
     Route::post('incidents/{incident}/workspace/customer-not-responding', [WorkspaceActionController::class, 'customerNotResponding'])
         ->name('incidents.workspace.customer-not-responding');
+    Route::post('incidents/{incident}/workspace/communication-actions/{key}', [WorkspaceActionController::class, 'communicationAction'])
+        ->name('incidents.workspace.communication-action');
     Route::patch('incidents/{incident}/workspace/link-order', [WorkspaceActionController::class, 'linkOrder'])
         ->name('incidents.workspace.link-order');
     Route::patch('incidents/{incident}/workspace/correct-customer-details', [WorkspaceActionController::class, 'correctCustomerDetails'])

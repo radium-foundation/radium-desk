@@ -221,6 +221,25 @@ class IncidentWaitingStateService
         });
     }
 
+    public function clearActiveIfPresent(
+        Incident $incident,
+        User $actor,
+        ?Carbon $clearedAt = null,
+    ): ?IncidentWaitingState {
+        $incident->unsetRelation('activeWaitingState');
+
+        $active = IncidentWaitingState::query()
+            ->where('incident_id', $incident->id)
+            ->active()
+            ->first();
+
+        if ($active === null) {
+            return null;
+        }
+
+        return $this->clear($incident, $actor, $clearedAt);
+    }
+
     /**
      * @return array<string, mixed>|null
      */

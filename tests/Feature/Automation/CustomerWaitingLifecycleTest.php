@@ -6,14 +6,17 @@ use App\Enums\AutomationExecutionStatus;
 use App\Enums\AutomationPolicyActionType;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\NotificationLinkSource;
 use App\Enums\NotificationType;
 use App\Enums\ServiceCaseCloseExceptionReason;
 use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\WaitingReason;
+use App\Models\AuditLog;
 use App\Models\AutomationExecution;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
+use App\Models\NotificationLinkClick;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\SystemSetting;
@@ -24,6 +27,8 @@ use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\IncidentReferenceService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
+use App\Services\Notifications\NotificationLinkTrackingService;
+use App\Services\RemarkService;
 use App\Services\ServiceCaseActivityTimelineService;
 use App\Services\ServiceCaseStatusService;
 use App\Services\SupportAppointmentService;
@@ -289,7 +294,7 @@ class CustomerWaitingLifecycleTest extends TestCase
         ]);
     }
 
-    public function test_serial_number_waiting_appointment_booking_wakes_agent_but_keeps_waiting_state(): void
+    public function test_serial_number_waiting_appointment_booking_clears_waiting_and_wakes_agent(): void
     {
         Notification::fake();
 
@@ -308,9 +313,118 @@ class CustomerWaitingLifecycleTest extends TestCase
 
         $waitingState = $waitingState->fresh();
 
-        $this->assertNull($waitingState->cleared_at);
+        $this->assertNotNull($waitingState->cleared_at);
         $this->assertTrue($incident->fresh()->hasActiveSupportAppointment());
         Notification::assertSentTo($agent, ServiceCaseCustomerRespondedNotification::class);
+    }
+
+    public function test_closing_incident_clears_active_waiting_state(): void
+    {
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-06 10:00:00'),
+        );
+
+        app(RemarkService::class)->createForRemarkable(
+            remarkable: $incident,
+            actor: $agent,
+            body: 'Resolving manually.',
+        );
+
+        $incident->order?->update(['transaction_id' => 'TXN-CLOSE-1']);
+
+        app(ServiceCaseStatusService::class)->updateStatus(
+            $incident->fresh(),
+            IncidentStatus::Closed,
+            $agent,
+        );
+
+        $this->assertNotNull($waitingState->fresh()->cleared_at);
+    }
+
+    public function test_timely_auto_close_notifies_customer(): void
+    {
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-06 10:00:00'),
+        );
+
+        Carbon::setTestNow('2026-07-07 10:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 10:00:00'));
+
+        Carbon::setTestNow('2026-07-07 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 18:00:00'));
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertNotNull($waitingState->fresh()->cleared_at);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => CustomerWaitingLifecycleService::EVENT_AUTO_CLOSED,
+            'auditable_id' => $incident->id,
+        ]);
+        $this->assertTrue(
+            (bool) data_get(
+                AuditLog::query()
+                    ->where('event', CustomerWaitingLifecycleService::EVENT_AUTO_CLOSED)
+                    ->where('auditable_id', $incident->id)
+                    ->latest('id')
+                    ->value('new_values'),
+                'customer_notified',
+            ),
+        );
+    }
+
+    public function test_overdue_auto_close_does_not_notify_old_customers(): void
+    {
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-01 10:00:00'),
+        );
+
+        $waitingState->update([
+            'customer_followup_sent_at' => Carbon::parse('2026-07-02 10:00:00'),
+        ]);
+
+        Carbon::setTestNow('2026-07-10 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-10 18:00:00'));
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertNotNull($waitingState->fresh()->cleared_at);
+        $this->assertFalse(
+            (bool) data_get(
+                AuditLog::query()
+                    ->where('event', CustomerWaitingLifecycleService::EVENT_AUTO_CLOSED)
+                    ->where('auditable_id', $incident->id)
+                    ->latest('id')
+                    ->value('new_values'),
+                'customer_notified',
+            ),
+        );
+    }
+
+    public function test_notification_link_click_does_not_block_auto_close(): void
+    {
+        [$agent, $incident, $waitingState] = $this->createWaitingScenario(
+            startedAt: Carbon::parse('2026-07-06 10:00:00'),
+        );
+
+        Carbon::setTestNow('2026-07-07 10:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 10:00:00'));
+
+        $token = app(NotificationLinkTrackingService::class)->issueToken(
+            incident: $incident,
+            source: NotificationLinkSource::WhatsApp,
+        );
+
+        NotificationLinkClick::query()->create([
+            'notification_link_token_id' => $token->id,
+            'incident_id' => $incident->id,
+            'order_id' => $incident->order_id,
+            'source' => NotificationLinkSource::WhatsApp,
+            'clicked_at' => Carbon::parse('2026-07-07 11:00:00'),
+        ]);
+
+        Carbon::setTestNow('2026-07-07 18:00:00');
+        app(AutomationSchedulerService::class)->run(Carbon::parse('2026-07-07 18:00:00'));
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertNotNull($waitingState->fresh()->cleared_at);
     }
 
     public function test_customer_return_after_auto_close_shows_history_to_ira(): void

@@ -33,7 +33,12 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule,
             NotificationType::SupportAppointmentBooked,
-            NotificationType::ServiceCaseClosed => true,
+            NotificationType::ServiceCaseClosed,
+            NotificationType::DriverInstallationGuide,
+            NotificationType::ReviewRequest,
+            NotificationType::RefundConfirmation,
+            NotificationType::BuyRdService,
+            NotificationType::BuyProduct => true,
         };
     }
 
@@ -88,6 +93,11 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::CallbackSchedule => WhatsAppTemplate::CallbackSchedule,
             NotificationType::SupportAppointmentBooked => WhatsAppTemplate::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed => WhatsAppTemplate::RepairCompleted,
+            NotificationType::DriverInstallationGuide => WhatsAppTemplate::DriverInstallationGuide,
+            NotificationType::ReviewRequest => WhatsAppTemplate::ReviewRequest,
+            NotificationType::RefundConfirmation => WhatsAppTemplate::RefundUpdate,
+            NotificationType::BuyRdService => WhatsAppTemplate::BuyRdService,
+            NotificationType::BuyProduct => WhatsAppTemplate::BuyProduct,
         };
     }
 
@@ -131,6 +141,11 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule,
             NotificationType::ServiceCaseClosed,
+            NotificationType::DriverInstallationGuide,
+            NotificationType::ReviewRequest,
+            NotificationType::RefundConfirmation,
+            NotificationType::BuyRdService,
+            NotificationType::BuyProduct,
         ], true)) {
             return $context;
         }
@@ -139,8 +154,32 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule => $this->customerWaitingFollowupTemplateVariables($message),
             NotificationType::ServiceCaseClosed => $this->serviceCaseClosedTemplateVariables($message),
+            NotificationType::DriverInstallationGuide,
+            NotificationType::ReviewRequest,
+            NotificationType::RefundConfirmation,
+            NotificationType::BuyRdService,
+            NotificationType::BuyProduct => $this->communicationActionTemplateVariables($message),
             default => $this->requestSerialTemplateVariables($message),
         });
+    }
+
+    /**
+     * @return array{body_values: list<string>}|array{}
+     */
+    private function communicationActionTemplateVariables(NotificationMessage $message): array
+    {
+        $bodyValues = $message->variables['whatsapp_body_values'] ?? null;
+
+        if (! is_array($bodyValues) || $bodyValues === []) {
+            return [];
+        }
+
+        return [
+            'body_values' => array_values(array_map(
+                fn (mixed $value): string => trim((string) $value),
+                $bodyValues,
+            )),
+        ];
     }
 
     /**

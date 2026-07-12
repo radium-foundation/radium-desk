@@ -29,7 +29,10 @@ class EmailChannel implements NotificationChannel
             NotificationType::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule,
             NotificationType::SupportAppointmentBooked,
-            NotificationType::ServiceCaseClosed => true,
+            NotificationType::ServiceCaseClosed,
+            NotificationType::DriverInstallationGuide,
+            NotificationType::ReviewRequest,
+            NotificationType::RefundConfirmation => true,
         };
     }
 

@@ -5662,6 +5662,63 @@ a:focus-visible .stat-card {
     padding-bottom: 0;
 }
 
+.customer-360-communication-actions {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.customer-360-communication-action-button {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--dashboard-border-subtle);
+    border-radius: 0.5rem;
+    background: var(--dashboard-color-surface, #fff);
+    text-align: left;
+}
+
+.customer-360-communication-action-button:hover,
+.customer-360-communication-action-button:focus-visible {
+    border-color: var(--dashboard-color-accent, #0d6efd);
+    background: var(--dashboard-color-surface-muted, rgba(13, 110, 253, 0.04));
+}
+
+.customer-360-communication-action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: var(--dashboard-color-surface-muted, rgba(0, 0, 0, 0.05));
+    color: var(--dashboard-color-text);
+    font-size: 1rem;
+}
+
+.customer-360-communication-action-copy {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.customer-360-communication-action-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--dashboard-color-text);
+}
+
+.customer-360-communication-action-description {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted);
+}
+
+.customer-360-communication-action-channels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
 .customer-360-section-title,
 .customer-360-drawer-content .order-workspace-section-title {
     font-size: 0.8125rem;

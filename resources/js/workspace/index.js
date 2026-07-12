@@ -25,9 +25,20 @@ const bindTriggers = (openComponent) => {
         const component = trigger.dataset.workspaceTrigger;
         const incidentId = trigger.dataset.workspaceIncidentId;
         const context = trigger.dataset.workspaceContext ?? resolvePageWorkspaceContext();
+        const communicationActionKey = trigger.dataset.workspaceCommunicationActionKey ?? null;
 
-        openComponent(incidentId, component, context);
+        openComponent(incidentId, component, context, {
+            communicationActionKey,
+        });
     });
+};
+
+export const openWorkspaceComponent = (incidentId, component, context = null, options = {}) => {
+    if (!workspaceApi) {
+        return Promise.resolve(false);
+    }
+
+    return workspaceApi.openComponent(incidentId, component, context, options);
 };
 
 export const initWorkspace = (hooks = {}) => {

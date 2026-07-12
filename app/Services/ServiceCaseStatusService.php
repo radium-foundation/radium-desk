@@ -17,6 +17,7 @@ class ServiceCaseStatusService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly IncidentWaitingStateService $waitingStateService,
     ) {}
 
     /**
@@ -76,6 +77,7 @@ class ServiceCaseStatusService
             );
 
             if ($status === IncidentStatus::Closed) {
+                $this->waitingStateService->clearActiveIfPresent($freshIncident, $actor);
                 $this->completeScheduledSupportAppointments($freshIncident);
                 $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor);
             }

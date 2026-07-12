@@ -16,6 +16,7 @@ use App\Services\ServiceCaseStatusService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class CustomerWaitingLegacyCleanupService
@@ -145,10 +146,7 @@ class CustomerWaitingLegacyCleanupService
                 );
 
                 $this->serviceCaseStatusService->updateStatus($incident, IncidentStatus::Closed, $actor);
-
-                if ($waitingState !== null && $waitingState->isActive()) {
-                    $this->waitingStateService->clear($incident, $actor);
-                }
+                $this->waitingStateService->clearActiveIfPresent($incident, $actor);
 
                 $this->auditLogService->log(
                     userId: $actor->id,
@@ -175,7 +173,13 @@ class CustomerWaitingLegacyCleanupService
             return 'close validation failed';
         } catch (QueryException) {
             return 'database error';
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
+            Log::warning('customer_waiting.legacy_cleanup_close_failed', [
+                'incident_id' => $incident->id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
             return 'close failed';
         }
     }

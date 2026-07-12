@@ -4,9 +4,13 @@ namespace App\Services\Automation;
 
 use App\Data\Automation\ActionHandlerResult;
 use App\Data\Automation\PlannedAutomationAction;
+use App\Data\NotificationMessage;
 use App\Enums\IncidentStatus;
+use App\Enums\NotificationType;
 use App\Enums\ServiceCaseCloseExceptionReason;
 use App\Enums\WaitingReason;
+use App\Enums\WhatsAppTemplate;
+use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
@@ -14,11 +18,14 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\IncidentWaitingStateService;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Services\RemarkService;
 use App\Services\ServiceCaseStatusService;
 use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class CustomerWaitingLifecycleService
 {
@@ -48,6 +55,7 @@ TEXT;
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly RemarkService $remarkService,
         private readonly ServiceCaseStatusService $serviceCaseStatusService,
+        private readonly NotificationDispatcher $notificationDispatcher,
     ) {}
 
     public function auditWaitingStarted(IncidentWaitingState $waitingState, User $actor): void
@@ -113,6 +121,21 @@ TEXT;
             ->gte(self::autoCloseCutoffAt($followupSentAt));
     }
 
+    /**
+     * Customer close notifications are only sent for timely auto-closes
+     * (same local calendar day as the 18:00 cutoff). Overdue backlog closes silently.
+     */
+    public static function shouldNotifyCustomerOnAutoClose(
+        Carbon $followupSentAt,
+        ?Carbon $referenceAt = null,
+    ): bool {
+        $referenceAt ??= Carbon::now();
+        $timezone = AppDateFormatter::timezone();
+        $cutoff = self::autoCloseCutoffAt($followupSentAt)->timezone($timezone);
+
+        return $referenceAt->copy()->timezone($timezone)->isSameDay($cutoff);
+    }
+
     public function autoCloseForNoResponse(PlannedAutomationAction $action): ActionHandlerResult
     {
         $waitingState = $action->waitingState->fresh(['incident.order', 'incident.supportAppointments']);
@@ -150,8 +173,9 @@ TEXT;
         }
 
         $actor = $this->automationIdentity->systemUser();
+        $shouldNotify = self::shouldNotifyCustomerOnAutoClose($followupSentAt);
 
-        return DB::transaction(function () use ($waitingState, $incident, $actor, $followupSentAt): ActionHandlerResult {
+        $result = DB::transaction(function () use ($waitingState, $incident, $actor, $followupSentAt, $shouldNotify): ActionHandlerResult {
             $this->remarkService->createForRemarkable(
                 remarkable: $incident,
                 actor: $actor,
@@ -160,7 +184,8 @@ TEXT;
 
             $this->serviceCaseStatusService->updateStatus($incident, IncidentStatus::Closed, $actor);
 
-            $this->waitingStateService->clear($incident, $actor);
+            // Status close already clears waiting; keep idempotent clear for safety.
+            $this->waitingStateService->clearActiveIfPresent($incident, $actor);
 
             $this->auditLogService->log(
                 userId: $actor->id,
@@ -178,6 +203,7 @@ TEXT;
                     'customer_followup_sent_at' => $followupSentAt->toIso8601String(),
                     'waiting_reason' => $waitingState->waiting_reason->value,
                     'waiting_reason_label' => $waitingState->waiting_reason->label(),
+                    'customer_notified' => $shouldNotify,
                 ],
             );
 
@@ -186,9 +212,48 @@ TEXT;
                 metadata: [
                     'resolution_reason' => ServiceCaseCloseExceptionReason::CustomerNotResponding->value,
                     'customer_followup_sent_at' => $followupSentAt->toIso8601String(),
+                    'customer_notified' => $shouldNotify,
                 ],
             );
         });
+
+        if ($result->success && $shouldNotify) {
+            $this->notifyCustomerOfAutoClose($incident->fresh(['order']), $actor);
+        }
+
+        return $result;
+    }
+
+    private function notifyCustomerOfAutoClose(Incident $incident, User $actor): void
+    {
+        $order = $incident->order;
+
+        if ($order === null) {
+            return;
+        }
+
+        try {
+            $this->notificationDispatcher->send(
+                NotificationType::ServiceCaseClosed,
+                new NotificationMessage(
+                    type: NotificationType::ServiceCaseClosed,
+                    customer: $order,
+                    incident: $incident,
+                    template: WhatsAppTemplate::RepairCompleted->value,
+                    metadata: [
+                        'source' => 'customer_waiting_auto_close',
+                        'trigger_source' => WhatsAppTemplateTriggerSource::Automation->value,
+                    ],
+                    actor: $actor,
+                ),
+            );
+        } catch (Throwable $exception) {
+            Log::warning('customer_waiting.auto_close_notification_failed', [
+                'incident_id' => $incident->id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+        }
     }
 
     /**

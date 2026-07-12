@@ -113,5 +113,41 @@ return [
             // callback_schedule (en): body {{1}} = customer name, {{2}} = RD/support reference;
             // CTA "Schedule Callback" dynamic URL /support/schedule/{{1}}?source=whatsapp with tracked token in {{1}}.
         ],
+        'driver_installation_guide' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE'),
+            'language_code' => env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE_DISPLAY', 'Driver Installation Guide'),
+            'purpose' => 'Driver Installation Guide',
+            'internal_note' => 'Sent driver installation instructions to the customer.',
+        ],
+        'review_request' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_REVIEW_REQUEST_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_REVIEW_REQUEST'),
+            'language_code' => env('INTERAKT_TEMPLATE_REVIEW_REQUEST_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REVIEW_REQUEST_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_REVIEW_REQUEST_DISPLAY', 'Review Request'),
+            'purpose' => 'Review Request',
+            'internal_note' => 'Asked the customer to leave a review after remote support.',
+        ],
+        'buy_rd_service' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_BUY_RD_SERVICE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_BUY_RD_SERVICE'),
+            'language_code' => env('INTERAKT_TEMPLATE_BUY_RD_SERVICE_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_BUY_RD_SERVICE_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_BUY_RD_SERVICE_DISPLAY', 'Buy RD Service'),
+            'purpose' => 'Buy RD Service',
+            'internal_note' => 'Shared RD Service purchase information with the customer.',
+        ],
+        'buy_product' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_BUY_PRODUCT_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_BUY_PRODUCT'),
+            'language_code' => env('INTERAKT_TEMPLATE_BUY_PRODUCT_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_BUY_PRODUCT_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_BUY_PRODUCT_DISPLAY', 'Buy Product'),
+            'purpose' => 'Buy Product',
+            'internal_note' => 'Shared product purchase information with the customer.',
+        ],
     ],
 ];

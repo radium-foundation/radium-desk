@@ -118,7 +118,7 @@ class NotificationChannelAvailabilityService
     /**
      * @return array{available: bool, label: string, reason: ?string, fallback_note: ?string}
      */
-    private function assessEmailForNotificationType(?Order $order, NotificationType $notificationType): array
+    public function assessEmailForNotificationType(?Order $order, NotificationType $notificationType): array
     {
         if (! $this->systemSettings->getBool('notifications.email.enabled', false)) {
             return $this->unavailable('Email', 'Email notifications disabled.', 'WhatsApp will still be used.');
@@ -172,20 +172,29 @@ class NotificationChannelAvailabilityService
     }
 
     /**
-     * @param  array{whatsapp: array<string, mixed>, email: array<string, mixed>}  $channels
+     * @param  array<string, array<string, mixed>>  $channels
      */
-    public function hasDeliverableChannel(array $channels): bool
+    public function hasAnyAvailableChannel(array $channels): bool
     {
-        return ($channels['whatsapp']['available'] ?? false) === true
-            || ($channels['email']['available'] ?? false) === true;
+        return collect($channels)->contains(
+            fn (array $channel): bool => ($channel['available'] ?? false) === true,
+        );
     }
 
     /**
      * @param  array{whatsapp: array<string, mixed>, email: array<string, mixed>}  $channels
      */
-    public function unavailableReason(array $channels): ?string
+    public function hasDeliverableChannel(array $channels): bool
     {
-        if ($this->hasDeliverableChannel($channels)) {
+        return $this->hasAnyAvailableChannel($channels);
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $channels
+     */
+    public function unavailableReasonForChannels(array $channels): ?string
+    {
+        if ($this->hasAnyAvailableChannel($channels)) {
             return null;
         }
 
@@ -200,6 +209,14 @@ class NotificationChannelAvailabilityService
         }
 
         return $reasons->implode(' ');
+    }
+
+    /**
+     * @param  array{whatsapp: array<string, mixed>, email: array<string, mixed>}  $channels
+     */
+    public function unavailableReason(array $channels): ?string
+    {
+        return $this->unavailableReasonForChannels($channels);
     }
 
     /**

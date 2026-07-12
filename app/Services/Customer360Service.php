@@ -19,6 +19,7 @@ use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\Customer360\Customer360OperationsHealthService;
 use App\Services\Customer360\Customer360SlaMetricsService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
+use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
@@ -70,6 +71,7 @@ class Customer360Service
         private readonly Customer360HealthCardPresenter $healthCardPresenter,
         private readonly Customer360InsightsPresenter $insightsPresenter,
         private readonly Customer360IraAdvisorPresenter $iraAdvisorPresenter,
+        private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
     ) {}
 
     /**
@@ -109,6 +111,7 @@ class Customer360Service
                 'isWaitingForCustomer' => $actionVisibility['isWaitingForCustomer'],
                 'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
                 'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
+                'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
             ]);
         }
 
@@ -151,6 +154,7 @@ class Customer360Service
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
+            'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
         ];
     }
 

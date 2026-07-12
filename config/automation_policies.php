@@ -52,15 +52,6 @@ return [
                         ],
                     ],
                 ],
-                [
-                    'day' => 30,
-                    'actions' => [
-                        [
-                            'type' => 'auto_close',
-                            'key' => 'close_case_no_response',
-                        ],
-                    ],
-                ],
             ],
         ],
         'customer_waiting_default' => [

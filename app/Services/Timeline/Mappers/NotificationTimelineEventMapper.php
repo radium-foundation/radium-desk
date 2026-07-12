@@ -134,6 +134,11 @@ class NotificationTimelineEventMapper
         return match ($notificationType) {
             'request_correct_serial' => 'Request correct serial',
             'request_serial_number' => 'Request serial number',
+            'driver_installation_guide' => 'Driver installation guide',
+            'review_request' => 'Review request',
+            'refund_confirmation' => 'Refund confirmation',
+            'buy_rd_service' => 'Buy RD Service',
+            'buy_product' => 'Buy product',
             default => str_replace('_', ' ', $notificationType),
         };
     }

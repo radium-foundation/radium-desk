@@ -26,10 +26,17 @@ export const createFragmentLoader = ({
             ?? null;
     };
 
-    const buildComponentUrl = (incidentId, component, context) => {
+    const buildComponentUrl = (incidentId, component, context, options = {}) => {
         const baseUrl = `/incidents/${incidentId}/components/${component}`;
+        let url = appendWorkspaceContextQuery(baseUrl, context);
 
-        return appendWorkspaceContextQuery(baseUrl, context);
+        if (options.communicationActionKey) {
+            const parsedUrl = new URL(url, window.location.origin);
+            parsedUrl.searchParams.set('key', options.communicationActionKey);
+            url = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+        }
+
+        return url;
     };
 
     const buildBatchComponentUrl = (component, incidentIds, context) => {
@@ -65,7 +72,7 @@ export const createFragmentLoader = ({
             ?? '<div class="p-4 text-danger small" data-workspace-error role="alert">Unable to load this action.</div>';
     };
 
-    const openComponent = async (incidentId, component, context = null) => {
+    const openComponent = async (incidentId, component, context = null, options = {}) => {
         const resolvedContext = resolveContext(context);
 
         if (!incidentId || !component || !resolvedContext) {
@@ -90,7 +97,7 @@ export const createFragmentLoader = ({
 
         try {
             const response = await workspaceFetch(
-                buildComponentUrl(incidentId, component, resolvedContext),
+                buildComponentUrl(incidentId, component, resolvedContext, options),
                 {
                     headers: workspaceFetchHeaders('text/html'),
                 },

@@ -29,8 +29,8 @@ class AutomationPolicyServiceTest extends TestCase
         $this->assertInstanceOf(AutomationPolicyDefinition::class, $policy);
         $this->assertSame('serial_number_default', $policy->key);
         $this->assertSame('Serial Number Default', $policy->label);
-        $this->assertCount(5, $policy->schedule);
-        $this->assertSame([0, 2, 5, 7, 30], array_map(
+        $this->assertCount(4, $policy->schedule);
+        $this->assertSame([0, 2, 5, 7], array_map(
             fn ($entry) => $entry->day,
             $policy->schedule,
         ));
@@ -42,10 +42,6 @@ class AutomationPolicyServiceTest extends TestCase
         $daySevenAction = $policy->schedule[3]->actions[0];
         $this->assertSame(AutomationPolicyActionType::NotifyTeam, $daySevenAction->type);
         $this->assertSame('serial_number_escalation', $daySevenAction->key);
-
-        $dayThirtyAction = $policy->schedule[4]->actions[0];
-        $this->assertSame(AutomationPolicyActionType::AutoClose, $dayThirtyAction->type);
-        $this->assertSame('close_case_no_response', $dayThirtyAction->key);
     }
 
     public function test_unknown_policy_throws_exception(): void

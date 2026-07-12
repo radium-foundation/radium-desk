@@ -105,6 +105,10 @@ class AutomationPolicyService
 
         if ($action->type === AutomationPolicyActionType::WhatsAppTemplate
             && $action->key === 'customer_waiting_followup') {
+            if ($waitingState->customer_followup_sent_at !== null) {
+                return false;
+            }
+
             if ($incident !== null && $this->engagementService->hasEngagement($incident, $waitingState)) {
                 return false;
             }

@@ -63,6 +63,24 @@ class NotificationActionHandler implements ActionHandler
             );
         }
 
+        if ($action->actionKey === 'customer_waiting_followup'
+            && ! CustomerWaitingLifecycleService::shouldNotifyCustomerOnAutoClose(
+                $action->scheduledAt,
+            )) {
+            $this->customerWaitingLifecycleService->recordFollowupSent(
+                $waitingState,
+                $action->scheduledAt,
+            );
+
+            return ActionHandlerResult::skipped(
+                'Follow-up suppressed for overdue waiting customer; stamped for silent auto-close.',
+                metadata: [
+                    'suppressed_overdue' => true,
+                    'scheduled_at' => $action->scheduledAt->toIso8601String(),
+                ],
+            );
+        }
+
         $dispatchResult = $this->notificationDispatcher->send(
             $notificationType,
             new NotificationMessage(

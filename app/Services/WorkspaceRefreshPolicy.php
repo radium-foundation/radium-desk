@@ -108,6 +108,9 @@ class WorkspaceRefreshPolicy
             WorkspaceComponent::CorrectSerialNumber => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),
+            WorkspaceComponent::CommunicationAction => new WorkspaceRefreshEffects(
+                closeWorkspaceHost: true,
+            ),
             default => new WorkspaceRefreshEffects(
                 preferRedirect: true,
                 closeWorkspaceHost: true,

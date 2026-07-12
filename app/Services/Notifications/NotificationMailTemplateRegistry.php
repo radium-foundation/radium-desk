@@ -46,6 +46,21 @@ class NotificationMailTemplateRegistry
                 view: 'emails.notifications.service-case-closed',
                 requiredVariables: ['customer_name', 'reference'],
             ),
+            NotificationType::DriverInstallationGuide => new NotificationMailTemplateDefinition(
+                subject: 'Driver Installation Guide for Your Biometric Device',
+                view: 'emails.notifications.driver-installation-guide',
+                requiredVariables: ['customer_name', 'reference_number'],
+            ),
+            NotificationType::ReviewRequest => new NotificationMailTemplateDefinition(
+                subject: 'How did we do? Share your feedback',
+                view: 'emails.notifications.review-request',
+                requiredVariables: ['customer_name', 'review_url'],
+            ),
+            NotificationType::RefundConfirmation => new NotificationMailTemplateDefinition(
+                subject: 'Your Refund Confirmation',
+                view: 'emails.notifications.refund-confirmation',
+                requiredVariables: ['customer_name', 'reference'],
+            ),
         };
     }
 
@@ -85,6 +100,22 @@ class NotificationMailTemplateRegistry
             NotificationType::ServiceCaseClosed => [
                 'customer_name' => $this->resolveCustomerName($message),
                 'reference' => trim((string) ($message->incident->reference_no ?? '')),
+            ],
+            NotificationType::DriverInstallationGuide => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'reference_number' => trim((string) ($message->variables['reference_number'] ?? $message->incident->reference_no ?? '')),
+                'order_id' => $message->customer instanceof Order
+                    ? trim((string) $message->customer->order_id)
+                    : '',
+            ],
+            NotificationType::ReviewRequest => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'review_url' => trim((string) ($message->variables['review_url'] ?? config('communication_actions.urls.review'))),
+            ],
+            NotificationType::RefundConfirmation => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'reference' => trim((string) ($message->variables['refund_reference'] ?? $message->incident->reference_no ?? '')),
+                'refund_amount' => trim((string) ($message->variables['refund_amount'] ?? '')),
             ],
         };
 

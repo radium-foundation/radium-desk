@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\WorkspaceCommunicationActionRequest;
 use App\Http\Requests\WorkspaceCorrectCustomerDetailsRequest;
 use App\Http\Requests\WorkspaceCorrectSerialNumberRequest;
 use App\Http\Requests\WorkspaceLinkOrderRequest;
@@ -24,6 +25,8 @@ use App\Services\WorkspaceLinkOrderActionService;
 use App\Services\WorkspaceRequestCorrectSerialActionService;
 use App\Services\WorkspaceRequestSerialActionService;
 use App\Services\WorkspaceCustomerNotRespondingActionService;
+use App\Services\CommunicationActions\CommunicationActionExecutorService;
+use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Services\WorkspaceResolveActionService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -44,6 +47,8 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
         private readonly WorkspaceCorrectCustomerDetailsActionService $correctCustomerDetailsActionService,
         private readonly WorkspaceCorrectSerialNumberActionService $correctSerialNumberActionService,
+        private readonly CommunicationActionExecutorService $communicationActionExecutorService,
+        private readonly CommunicationActionRegistry $communicationActionRegistry,
         private readonly WorkspaceContextResolver $contextResolver,
     ) {}
 
@@ -179,6 +184,36 @@ class WorkspaceActionController extends Controller
             incident: $incident,
             actor: $request->user(),
             requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function communicationAction(
+        WorkspaceCommunicationActionRequest $request,
+        Incident $incident,
+        string $key,
+    ): JsonResponse {
+        if (! $this->communicationActionRegistry->has($key)) {
+            abort(404);
+        }
+
+        $this->authorize('update', $incident);
+
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+        $validated = $request->validated();
+        $operatorInput = collect($validated)
+            ->except(['workspace_context', 'channels'])
+            ->all();
+
+        $response = $this->communicationActionExecutorService->execute(
+            actionKey: $key,
+            incident: $incident,
+            actor: $request->user(),
+            requestContext: $requestContext,
+            operatorInput: $operatorInput,
+            selectedChannels: $validated['channels'] ?? null,
             request: $request,
         );
 

@@ -14,6 +14,10 @@ enum WhatsAppTemplate: string
     case SupportAppointmentBooked = 'support_appointment_booked';
     case CustomerWaitingFollowup = 'customer_waiting_followup';
     case CallbackSchedule = 'callback_schedule';
+    case DriverInstallationGuide = 'driver_installation_guide';
+    case ReviewRequest = 'review_request';
+    case BuyRdService = 'buy_rd_service';
+    case BuyProduct = 'buy_product';
 
     public function purposeLabel(): string
     {
@@ -28,6 +32,10 @@ enum WhatsAppTemplate: string
             self::SupportAppointmentBooked => 'Support Appointment Booked',
             self::CustomerWaitingFollowup => 'Customer Waiting Follow-up',
             self::CallbackSchedule => 'Callback Schedule',
+            self::DriverInstallationGuide => 'Driver Installation Guide',
+            self::ReviewRequest => 'Review Request',
+            self::BuyRdService => 'Buy RD Service',
+            self::BuyProduct => 'Buy Product',
         };
     }
 }

@@ -22,6 +22,9 @@ use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
 use App\Services\SerialValidation\SerialValidationService;
 use App\Services\SerialValidation\SerialInsightService;
+use App\Services\CommunicationActions\CommunicationActionAvailabilityService;
+use App\Services\CommunicationActions\CommunicationActionEligibilityService;
+use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -43,6 +46,9 @@ class WorkspaceComponentService
         private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
         private readonly SerialCorrectionEligibilityService $serialCorrectionEligibilityService,
         private readonly SerialValidationService $serialValidationService,
+        private readonly CommunicationActionRegistry $communicationActionRegistry,
+        private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
+        private readonly CommunicationActionAvailabilityService $communicationActionAvailabilityService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -76,6 +82,7 @@ class WorkspaceComponentService
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectCustomerDetails => $this->customerCorrectionEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectSerialNumber => $this->serialCorrectionEligibilityService->canShowAction($incident, $user),
+            WorkspaceComponent::CommunicationAction => $this->canOpenCommunicationAction($incident, $user),
         };
 
         if (! $authorized) {
@@ -163,7 +170,58 @@ class WorkspaceComponentService
                 'incident' => $incident,
                 ...$this->correctSerialNumberWorkspaceFields($requestContext, $incident),
             ],
+            WorkspaceComponent::CommunicationAction => [
+                'incident' => $incident,
+                ...$this->communicationActionWorkspaceFields($requestContext, $incident),
+            ],
         };
+    }
+
+    private function canOpenCommunicationAction(Incident $incident, User $user): bool
+    {
+        $actionKey = (string) request()->query('key', '');
+
+        if ($actionKey === '' || ! $this->communicationActionRegistry->has($actionKey)) {
+            return false;
+        }
+
+        $definition = $this->communicationActionRegistry->get($actionKey);
+
+        return $user->can('update', $incident)
+            && $this->communicationActionEligibilityService->canShowAction($definition, $incident, $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function communicationActionWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $actionKey = (string) request()->query('key', '');
+        $definition = $this->communicationActionRegistry->get($actionKey);
+        $incident->loadMissing('order');
+        $order = $incident->order;
+        $channelAvailability = $this->communicationActionAvailabilityService->forDefinition($definition, $order);
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.communication-action', [
+                'incident' => $incident,
+                'key' => $definition->key->value,
+            ]),
+            'workspaceContext' => $requestContext->context->value,
+            'communicationAction' => $definition,
+            'customerName' => $order?->customer_name,
+            'customerPhone' => $order?->customer_phone,
+            'customerEmail' => $order?->customer_email,
+            'channelAvailability' => $channelAvailability,
+            'canSendAction' => $this->communicationActionAvailabilityService->hasDeliverableChannel($channelAvailability),
+            'interaktTemplateDiagnostics' => $definition->whatsappTemplate !== null
+                ? $this->interaktTemplateConfigurationValidator->diagnosticsFor($definition->whatsappTemplate)
+                : [],
+        ];
     }
 
     /**

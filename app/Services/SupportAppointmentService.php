@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Enums\SupportAppointmentBookingSource;
 use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
-use App\Enums\WaitingReason;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
 use App\Models\User;
@@ -288,19 +287,12 @@ class SupportAppointmentService
             $reason = $waitingState->waiting_reason;
             $systemUser = app(AutomationIdentityService::class)->systemUser();
 
-            if ($reason === WaitingReason::CustomerNotResponding) {
-                $waitingStateService->clear($incident, $systemUser);
-                $waitingStateService->wakeOwnerAfterCustomerResponse(
-                    $incident->fresh(['assignee', 'order', 'activeWaitingState', 'supportAppointments']),
-                    $reason,
-                );
-
-                return;
-            }
-
-            if ($reason === WaitingReason::SerialNumber) {
-                $waitingStateService->wakeOwnerAfterCustomerResponse($incident, $reason);
-            }
+            // Any appointment ends Waiting so the case can move to Scheduled.
+            $waitingStateService->clear($incident, $systemUser);
+            $waitingStateService->wakeOwnerAfterCustomerResponse(
+                $incident->fresh(['assignee', 'order', 'activeWaitingState', 'supportAppointments']),
+                $reason,
+            );
         } catch (Throwable $exception) {
             Log::error('support_appointment.book.waiting_state_unhandled', [
                 'incident_id' => $incident->id,

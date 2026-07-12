@@ -4,16 +4,20 @@ namespace App\Services\Automation;
 
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
-use App\Models\NotificationLinkClick;
 use Illuminate\Support\Carbon;
 
+/**
+ * Meaningful customer progress that should stop waiting reminders / auto-close.
+ *
+ * Passive clicks, WhatsApp/email opens, and portal opens are intentionally excluded.
+ */
 class CustomerWaitingEngagementService
 {
     public function hasEngagement(Incident $incident, ?IncidentWaitingState $waitingState = null): bool
     {
         return $this->hasActiveSupportAppointment($incident)
             || $this->hasSubmittedScheduleForm($incident, $waitingState)
-            || $this->hasCustomerResponseOrAction($incident, $waitingState);
+            || $this->hasProvidedRequestedInformation($incident, $waitingState);
     }
 
     public function hasActiveSupportAppointment(Incident $incident): bool
@@ -32,26 +36,37 @@ class CustomerWaitingEngagementService
         return $query->exists();
     }
 
-    public function hasCustomerResponseOrAction(Incident $incident, ?IncidentWaitingState $waitingState = null): bool
-    {
+    /**
+     * True when the customer provided the requested waiting input (e.g. serial).
+     */
+    public function hasProvidedRequestedInformation(
+        Incident $incident,
+        ?IncidentWaitingState $waitingState = null,
+    ): bool {
         $since = $waitingState?->started_at;
 
         $incident->loadMissing('order');
 
-        if ($incident->order !== null && $incident->order->isSerialLocked()) {
-            $serialEnteredAt = $incident->order->serial_entered_at;
-
-            if ($since === null || ($serialEnteredAt instanceof Carbon && $serialEnteredAt->gte($since))) {
-                return true;
-            }
+        if ($incident->order === null || ! $incident->order->isSerialLocked()) {
+            return false;
         }
 
-        $clickQuery = NotificationLinkClick::query()->where('incident_id', $incident->id);
+        $serialEnteredAt = $incident->order->serial_entered_at;
 
-        if ($since !== null) {
-            $clickQuery->where('clicked_at', '>=', $since);
+        if ($since === null) {
+            return true;
         }
 
-        return $clickQuery->exists();
+        return $serialEnteredAt instanceof Carbon && $serialEnteredAt->gte($since);
+    }
+
+    /**
+     * @deprecated Use hasProvidedRequestedInformation()
+     */
+    public function hasCustomerResponseOrAction(
+        Incident $incident,
+        ?IncidentWaitingState $waitingState = null,
+    ): bool {
+        return $this->hasProvidedRequestedInformation($incident, $waitingState);
     }
 }
