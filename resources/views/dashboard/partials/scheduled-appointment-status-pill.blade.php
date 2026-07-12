@@ -8,12 +8,12 @@
         default => $badge['label'] ?? 'Scheduled',
     };
 
-    $pillClass = match ($badge['label'] ?? '') {
-        'Starting Soon' => 'appointment-status-pill--starting-soon',
-        'Due Now' => 'appointment-status-pill--due-now',
-        'Follow-up Required' => 'appointment-status-pill--awaiting-update',
-        'Missed' => 'appointment-status-pill--missed',
-        default => 'appointment-status-pill--scheduled',
+    $dotClass = match ($badge['label'] ?? '') {
+        'Starting Soon' => 'appointment-status-dot--starting-soon',
+        'Due Now' => 'appointment-status-dot--due-now',
+        'Follow-up Required' => 'appointment-status-dot--awaiting-update',
+        'Missed' => 'appointment-status-dot--missed',
+        default => 'appointment-status-dot--scheduled',
     };
 
     $tooltip = filled($badge['schedule_summary'] ?? null)
@@ -21,8 +21,7 @@
         : ($badge['title'] ?? $label);
 @endphp
 
-<span @class(['appointment-status-pill', $pillClass])
+<span @class(['appointment-status-dot', $dotClass])
       title="{{ $tooltip }}"
-      aria-label="{{ $tooltip }}">
-    {{ $label }}
-</span>
+      aria-label="{{ $tooltip }}"
+      role="img"></span>
