@@ -46,7 +46,20 @@ class PlatformIdentityTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('<link rel="icon"', false);
-        $response->assertSee('favicon.svg', false);
+        $response->assertSee('brand/favicon.ico', false);
+    }
+
+    public function test_authenticated_sidebar_uses_brand_icon(): void
+    {
+        $user = User::factory()->create([
+            'is_active' => true,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('brand/icon.svg', false);
     }
 
     public function test_layout_includes_robots_meta_tag(): void
@@ -70,6 +83,7 @@ class PlatformIdentityTest extends TestCase
         $response = $this->get(route('login'));
 
         $response->assertOk();
+        $response->assertSee('brand/logo.svg', false);
         $response->assertSee('Radium Desk', false);
         $response->assertDontSee('Radium Service Desk', false);
     }

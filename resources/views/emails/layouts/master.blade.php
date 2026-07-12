@@ -30,6 +30,7 @@
 
     $infoBoxVariant = trim($__env->yieldContent('info_box_variant', 'info'));
     $infoBoxColors = $statusVariants[$infoBoxVariant] ?? $statusVariants['info'];
+    $branding = app(\App\Services\BrandingService::class);
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -37,7 +38,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>@yield('title', 'Radium Box')</title>
+    <title>@yield('title', $branding->companyName())</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f8f9fa; font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #212529; -webkit-text-size-adjust: 100%;">
     @hasSection('preheader')
@@ -152,7 +153,7 @@
                                 </div>
                             @else
                                 <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #6c757d; text-align: center;">
-                                    &copy; {{ date('Y') }} Radium Box. All rights reserved.
+                                    &copy; {{ date('Y') }} {{ $branding->companyName() }}. All rights reserved.
                                 </p>
                             @endif
                         </td>

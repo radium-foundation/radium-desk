@@ -28,31 +28,31 @@ class BrandingService
 
     public function logoUrl(): ?string
     {
-        return $this->assetUrlFromSetting('general.logo_path');
+        return $this->assetUrlFromSetting('general.logo_path')
+            ?? $this->defaultAssetUrl(config('branding.logo'));
+    }
+
+    public function iconUrl(): ?string
+    {
+        return $this->assetUrlFromSetting('general.icon_path')
+            ?? $this->defaultAssetUrl(config('branding.icon'));
     }
 
     public function faviconUrl(): ?string
     {
-        $configured = $this->assetUrlFromSetting('general.favicon_path');
-
-        if ($configured !== null) {
-            return $configured;
-        }
-
-        foreach (['favicon.ico', 'favicon.svg', 'favicon.png'] as $filename) {
-            $path = public_path($filename);
-
-            if (is_file($path) && filesize($path) > 0) {
-                return asset($filename);
-            }
-        }
-
-        return null;
+        return $this->assetUrlFromSetting('general.favicon_path')
+            ?? $this->defaultAssetUrl(config('branding.favicon'))
+            ?? $this->legacyPublicFaviconUrl();
     }
 
     public function hasLogo(): bool
     {
         return $this->logoUrl() !== null;
+    }
+
+    public function hasIcon(): bool
+    {
+        return $this->iconUrl() !== null;
     }
 
     private function assetUrlFromSetting(string $key): ?string
@@ -67,8 +67,30 @@ class BrandingService
             return Storage::disk('public')->url($path);
         }
 
-        if (is_file(public_path($path))) {
-            return asset($path);
+        return $this->defaultAssetUrl($path);
+    }
+
+    private function defaultAssetUrl(?string $path): ?string
+    {
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        if (! is_file(public_path($path))) {
+            return null;
+        }
+
+        return asset($path);
+    }
+
+    private function legacyPublicFaviconUrl(): ?string
+    {
+        foreach (['favicon.ico', 'favicon.svg', 'favicon.png'] as $filename) {
+            $path = public_path($filename);
+
+            if (is_file($path) && filesize($path) > 0) {
+                return asset($filename);
+            }
         }
 
         return null;

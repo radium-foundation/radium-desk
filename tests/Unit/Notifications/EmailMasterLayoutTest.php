@@ -2,10 +2,21 @@
 
 namespace Tests\Unit\Notifications;
 
+use Database\Seeders\SettingsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class EmailMasterLayoutTest extends TestCase
 {
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(SettingsSeeder::class);
+    }
+
     public function test_master_layout_renders_core_structure_and_logo(): void
     {
         $html = view('emails.layouts.master')->render();
@@ -13,8 +24,7 @@ class EmailMasterLayoutTest extends TestCase
         $this->assertStringContainsString('max-width: 600px', $html);
         $this->assertStringContainsString('background-color: #ffffff', $html);
         $this->assertStringContainsString('border: 1px solid #e9ecef', $html);
-        $this->assertStringContainsString('Radium Box', $html);
-        $this->assertStringContainsString('RB', $html);
+        $this->assertStringContainsString('brand/icon.svg', $html);
         $this->assertStringContainsString('All rights reserved.', $html);
     }
 

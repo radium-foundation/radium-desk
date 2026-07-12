@@ -18,6 +18,8 @@
                 @php($branding = app(\App\Services\BrandingService::class))
                 @if($branding->hasLogo())
                     <img src="{{ $branding->logoUrl() }}" alt="{{ $branding->companyName() }}" class="guest-brand-logo mb-2">
+                @elseif($branding->hasIcon())
+                    <img src="{{ $branding->iconUrl() }}" alt="{{ $branding->companyName() }}" class="guest-brand-logo mb-2">
                 @else
                     <i class="bi bi-headset text-primary fs-2 d-block mb-2" aria-hidden="true"></i>
                 @endif
