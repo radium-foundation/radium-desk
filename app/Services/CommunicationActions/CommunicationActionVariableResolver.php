@@ -9,6 +9,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
+use App\Services\CommunicationActions\Commercial\CommercialCatalogSupportService;
 use App\Services\CommunicationActions\DriverInstallationGuide\DriverInstallationGuideSupportService;
 use App\Services\CommunicationActions\RefundConfirmation\RefundConfirmationSupportService;
 
@@ -17,6 +18,7 @@ class CommunicationActionVariableResolver
     public function __construct(
         private readonly DriverInstallationGuideSupportService $driverInstallationGuideSupportService,
         private readonly RefundConfirmationSupportService $refundConfirmationSupportService,
+        private readonly CommercialCatalogSupportService $commercialCatalogSupportService,
     ) {}
 
     /**
@@ -52,22 +54,8 @@ class CommunicationActionVariableResolver
                 incident: $incident,
                 order: $order,
             ),
-            CommunicationActionKey::BuyRdService => array_merge($base, [
-                'purchase_url' => (string) config('communication_actions.urls.buy_rd_service'),
-                'whatsapp_body_values' => [
-                    $base['customer_name'],
-                    (string) config('communication_actions.urls.buy_rd_service'),
-                ],
-            ]),
-            CommunicationActionKey::BuyProduct => array_merge($base, [
-                'product_name' => trim((string) ($input['product_name'] ?? ($order?->product_name ?? ''))),
-                'purchase_url' => (string) config('communication_actions.urls.buy_product'),
-                'whatsapp_body_values' => array_values(array_filter([
-                    $base['customer_name'],
-                    trim((string) ($input['product_name'] ?? ($order?->product_name ?? ''))),
-                    (string) config('communication_actions.urls.buy_product'),
-                ], fn (string $value): bool => $value !== '')),
-            ]),
+            CommunicationActionKey::BuyRdService => $this->resolveBuyRdService($base, $order),
+            CommunicationActionKey::BuyProduct => $this->resolveBuyProduct($base, $order),
         };
 
         return array_merge($input, $resolved);
@@ -113,6 +101,44 @@ class CommunicationActionVariableResolver
                 $base['customer_name'],
                 $refundAmount,
                 $refundReference,
+            ], fn (string $value): bool => $value !== '')),
+        ]);
+    }
+
+    /**
+     * @param  array<string, string>  $base
+     * @return array<string, mixed>
+     */
+    private function resolveBuyRdService(array $base, ?Order $order): array
+    {
+        $buyRdServiceUrl = $this->commercialCatalogSupportService->resolveBuyRdServiceUrl($order) ?? '';
+
+        return array_merge($base, [
+            'company_name' => $this->commercialCatalogSupportService->companyName(),
+            'buy_rd_service_url' => $buyRdServiceUrl,
+            'support_contact' => $this->commercialCatalogSupportService->supportContact(),
+            'whatsapp_body_values' => array_values(array_filter([
+                $base['customer_name'],
+                $buyRdServiceUrl,
+            ], fn (string $value): bool => $value !== '')),
+        ]);
+    }
+
+    /**
+     * @param  array<string, string>  $base
+     * @return array<string, mixed>
+     */
+    private function resolveBuyProduct(array $base, ?Order $order): array
+    {
+        $buyDeviceUrl = $this->commercialCatalogSupportService->resolveBuyDeviceUrl($order) ?? '';
+
+        return array_merge($base, [
+            'company_name' => $this->commercialCatalogSupportService->companyName(),
+            'buy_device_url' => $buyDeviceUrl,
+            'support_contact' => $this->commercialCatalogSupportService->supportContact(),
+            'whatsapp_body_values' => array_values(array_filter([
+                $base['customer_name'],
+                $buyDeviceUrl,
             ], fn (string $value): bool => $value !== '')),
         ]);
     }

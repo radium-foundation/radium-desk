@@ -32,7 +32,9 @@ class EmailChannel implements NotificationChannel
             NotificationType::ServiceCaseClosed,
             NotificationType::DriverInstallationGuide,
             NotificationType::ReviewRequest,
-            NotificationType::RefundConfirmation => true,
+            NotificationType::RefundConfirmation,
+            NotificationType::BuyRdService,
+            NotificationType::BuyProduct => true,
         };
     }
 

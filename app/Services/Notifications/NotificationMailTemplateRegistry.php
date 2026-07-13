@@ -77,6 +77,26 @@ class NotificationMailTemplateRegistry
                     'support_contact',
                 ],
             ),
+            NotificationType::BuyRdService => new NotificationMailTemplateDefinition(
+                subject: 'Protect Your Device with RD Service',
+                view: 'emails.notifications.buy-rd-service',
+                requiredVariables: [
+                    'customer_name',
+                    'company_name',
+                    'buy_rd_service_url',
+                    'support_contact',
+                ],
+            ),
+            NotificationType::BuyProduct => new NotificationMailTemplateDefinition(
+                subject: 'Recommended Product for Your Device',
+                view: 'emails.notifications.buy-product',
+                requiredVariables: [
+                    'customer_name',
+                    'company_name',
+                    'buy_device_url',
+                    'support_contact',
+                ],
+            ),
         };
     }
 
@@ -145,6 +165,18 @@ class NotificationMailTemplateRegistry
                 'refund_reference' => trim((string) ($message->variables['refund_reference'] ?? '')),
                 'order_number' => trim((string) ($message->variables['order_number'] ?? '')),
                 'case_number' => trim((string) ($message->variables['case_number'] ?? $message->incident->reference_no ?? '')),
+                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
+            ],
+            NotificationType::BuyRdService => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
+                'buy_rd_service_url' => trim((string) ($message->variables['buy_rd_service_url'] ?? '')),
+                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
+            ],
+            NotificationType::BuyProduct => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
+                'buy_device_url' => trim((string) ($message->variables['buy_device_url'] ?? '')),
                 'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
             ],
         };

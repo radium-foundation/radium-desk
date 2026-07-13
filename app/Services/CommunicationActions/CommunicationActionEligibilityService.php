@@ -8,6 +8,8 @@ use App\Enums\CommunicationActionKey;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\CommunicationActions\BuyProduct\BuyProductEligibilityService;
+use App\Services\CommunicationActions\BuyRdService\BuyRdServiceEligibilityService;
 use App\Services\CommunicationActions\DriverInstallationGuide\DriverInstallationGuideEligibilityService;
 use App\Services\CommunicationActions\RefundConfirmation\RefundConfirmationEligibilityService;
 use App\Services\CommunicationActions\ReviewRequest\ReviewRequestEligibilityService;
@@ -19,6 +21,8 @@ class CommunicationActionEligibilityService
         private readonly DriverInstallationGuideEligibilityService $driverInstallationGuideEligibilityService,
         private readonly ReviewRequestEligibilityService $reviewRequestEligibilityService,
         private readonly RefundConfirmationEligibilityService $refundConfirmationEligibilityService,
+        private readonly BuyRdServiceEligibilityService $buyRdServiceEligibilityService,
+        private readonly BuyProductEligibilityService $buyProductEligibilityService,
     ) {}
     public function canShowAction(
         CommunicationActionDefinition $definition,
@@ -73,6 +77,10 @@ class CommunicationActionEligibilityService
             CommunicationActionKey::ReviewRequest => $this->reviewRequestEligibilityService
                 ->ineligibilityReason($incident),
             CommunicationActionKey::RefundConfirmation => $this->refundConfirmationEligibilityService
+                ->ineligibilityReason($incident),
+            CommunicationActionKey::BuyRdService => $this->buyRdServiceEligibilityService
+                ->ineligibilityReason($incident),
+            CommunicationActionKey::BuyProduct => $this->buyProductEligibilityService
                 ->ineligibilityReason($incident),
             default => null,
         };

@@ -5,8 +5,6 @@ use Database\Seeders\RolePermissionSeeder;
 return [
     'urls' => [
         'review' => env('COMMUNICATION_ACTION_REVIEW_URL', 'https://g.page/r/radiumbox/review'),
-        'buy_rd_service' => env('COMMUNICATION_ACTION_BUY_RD_SERVICE_URL', 'https://radiumbox.com/rd-service'),
-        'buy_product' => env('COMMUNICATION_ACTION_BUY_PRODUCT_URL', 'https://radiumbox.com/shop'),
     ],
 
     'support_contact' => env('COMMUNICATION_ACTION_SUPPORT_CONTACT', 'support@radiumbox.com'),
@@ -98,7 +96,7 @@ return [
             'name' => 'Buy RD Service',
             'description' => 'Share RD Service purchase information with the customer.',
             'icon' => 'bi-bag-check',
-            'channels' => ['whatsapp'],
+            'channels' => ['whatsapp', 'email'],
             'roles' => [
                 RolePermissionSeeder::ROLE_AGENT,
                 RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
@@ -123,7 +121,7 @@ return [
             'name' => 'Buy Product',
             'description' => 'Share product purchase information with the customer.',
             'icon' => 'bi-cart',
-            'channels' => ['whatsapp'],
+            'channels' => ['whatsapp', 'email'],
             'roles' => [
                 RolePermissionSeeder::ROLE_AGENT,
                 RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
@@ -136,13 +134,7 @@ return [
             'whatsapp_template' => 'buy_product',
             'timeline_label' => 'Product purchase link sent',
             'execution_mode' => 'manual',
-            'variables' => [
-                'product_name' => [
-                    'type' => 'text',
-                    'label' => 'Product Name',
-                    'required' => false,
-                ],
-            ],
+            'variables' => [],
             'automation' => [
                 'enabled' => false,
                 'future_trigger' => null,
