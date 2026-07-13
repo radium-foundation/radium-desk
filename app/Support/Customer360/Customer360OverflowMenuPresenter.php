@@ -5,7 +5,9 @@ namespace App\Support\Customer360;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Enums\CommunicationActionKey;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
+use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\WorkspaceActionDialogService;
 use Illuminate\Support\Collection;
@@ -16,6 +18,7 @@ final class Customer360OverflowMenuPresenter
         private readonly Customer360ActionVisibilityService $visibilityService,
         private readonly WorkspaceActionDialogService $workspaceActionDialogService,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
+        private readonly CommunicationActionTargetProviderRegistry $communicationActionTargetProviderRegistry,
     ) {}
 
     /**
@@ -114,22 +117,32 @@ final class Customer360OverflowMenuPresenter
             );
         }
 
-        $items = array_merge(
-            $items,
-            collect($this->communicationActionEligibilityService->menuItems($incident, $user))
-                ->filter(fn (array $action): bool => (bool) ($action['eligible'] ?? false))
-                ->map(fn (array $action): array => [
-                    'id' => 'communication-'.$action['key'],
-                    'type' => 'communication',
-                    'label' => $action['name'],
-                    'icon' => Customer360OverflowMenuLucideIcon::resolve($action['icon']),
-                    'trigger' => 'communication-action',
-                    'communicationActionKey' => $action['key'],
-                    'keywords' => $this->communicationKeywords($action),
-                ])
-                ->values()
-                ->all(),
-        );
+        $communicationMenuItems = collect($this->communicationActionEligibilityService->menuItems($incident, $user));
+
+        if ($this->communicationActionTargetProviderRegistry->hasEligibleCenterAction($incident, $user)) {
+            $items[] = $this->triggerItem(
+                id: 'communication-center',
+                label: 'Communication',
+                icon: 'message-square',
+                trigger: 'communication-action',
+                keywords: $this->communicationCenterKeywords($incident, $user),
+            );
+        }
+
+        $refundAction = $communicationMenuItems
+            ->firstWhere('key', CommunicationActionKey::RefundConfirmation->value);
+
+        if (($refundAction['eligible'] ?? false) === true) {
+            $items[] = [
+                'id' => 'communication-'.$refundAction['key'],
+                'type' => 'communication',
+                'label' => $refundAction['name'],
+                'icon' => Customer360OverflowMenuLucideIcon::resolve($refundAction['icon']),
+                'trigger' => 'communication-action',
+                'communicationActionKey' => $refundAction['key'],
+                'keywords' => $this->communicationKeywords($refundAction),
+            ];
+        }
 
         if ($visibility['hideWorkflowActions'] && $requestCorrectSerialMenu['status'] === 'pending') {
             $items[] = [
@@ -437,6 +450,21 @@ final class Customer360OverflowMenuPresenter
             'anchor' => $anchor,
             'keywords' => $keywords,
         ], fn (mixed $value): bool => $value !== null);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function communicationCenterKeywords(Incident $incident, User $user): array
+    {
+        return collect($this->communicationActionTargetProviderRegistry->eligibleCenterActions($incident, $user))
+            ->flatMap(fn (array $action): array => [
+                'communication',
+                strtolower($action['name']),
+            ])
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

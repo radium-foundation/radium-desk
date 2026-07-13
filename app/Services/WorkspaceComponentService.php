@@ -22,9 +22,11 @@ use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
 use App\Services\SerialValidation\SerialValidationService;
 use App\Services\SerialValidation\SerialInsightService;
+use App\Enums\CommunicationActionKey;
 use App\Services\CommunicationActions\CommunicationActionAvailabilityService;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\CommunicationActions\CommunicationActionRegistry;
+use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -49,6 +51,7 @@ class WorkspaceComponentService
         private readonly CommunicationActionRegistry $communicationActionRegistry,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly CommunicationActionAvailabilityService $communicationActionAvailabilityService,
+        private readonly CommunicationActionTargetProviderRegistry $communicationActionTargetProviderRegistry,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -92,6 +95,14 @@ class WorkspaceComponentService
 
     public function view(WorkspaceComponent $component): string
     {
+        if ($component === WorkspaceComponent::CommunicationAction) {
+            $actionKey = (string) request()->query('key', '');
+
+            if ($actionKey === CommunicationActionKey::RefundConfirmation->value) {
+                return 'customer-360.fragments.communication-action-refund-form';
+            }
+        }
+
         return $component->view();
     }
 
@@ -179,16 +190,23 @@ class WorkspaceComponentService
 
     private function canOpenCommunicationAction(Incident $incident, User $user): bool
     {
+        if (! $user->can('update', $incident)) {
+            return false;
+        }
+
         $actionKey = (string) request()->query('key', '');
 
-        if ($actionKey === '' || ! $this->communicationActionRegistry->has($actionKey)) {
+        if ($actionKey === '') {
+            return $this->communicationActionTargetProviderRegistry->hasEligibleCenterAction($incident, $user);
+        }
+
+        if (! $this->communicationActionRegistry->has($actionKey)) {
             return false;
         }
 
         $definition = $this->communicationActionRegistry->get($actionKey);
 
-        return $user->can('update', $incident)
-            && $this->communicationActionEligibilityService->canShowAction($definition, $incident, $user);
+        return $this->communicationActionEligibilityService->canShowAction($definition, $incident, $user);
     }
 
     /**
@@ -201,7 +219,48 @@ class WorkspaceComponentService
         }
 
         $actionKey = (string) request()->query('key', '');
-        $definition = $this->communicationActionRegistry->get($actionKey);
+
+        if ($actionKey === CommunicationActionKey::RefundConfirmation->value) {
+            return $this->refundCommunicationActionWorkspaceFields($requestContext, $incident);
+        }
+
+        $user = auth()->user();
+
+        if ($user === null) {
+            return [];
+        }
+
+        $selectedActionKey = $actionKey !== '' && $this->communicationActionTargetProviderRegistry->isCenterAction($actionKey)
+            ? $actionKey
+            : null;
+
+        $centerConfig = $this->communicationActionTargetProviderRegistry->buildCenterConfig(
+            incident: $incident,
+            user: $user,
+            selectedActionKey: $selectedActionKey,
+        );
+
+        if (($centerConfig['selectedActionKey'] ?? null) === null) {
+            return [];
+        }
+
+        return [
+            'communicationCenterMode' => true,
+            'workspaceActionUrl' => $centerConfig['actionUrls'][$centerConfig['selectedActionKey']],
+            'workspaceContext' => $requestContext->context->value,
+            'communicationCenterConfig' => $centerConfig,
+            'canSendAction' => (bool) ($centerConfig['selectedCanSend'] ?? false),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function refundCommunicationActionWorkspaceFields(
+        ?WorkspaceRequestContext $requestContext,
+        Incident $incident,
+    ): array {
+        $definition = $this->communicationActionRegistry->get(CommunicationActionKey::RefundConfirmation);
         $incident->loadMissing('order');
         $order = $incident->order;
         $channelAvailability = $this->communicationActionAvailabilityService->forDefinition($definition, $order);

@@ -42,6 +42,18 @@ class WorkspaceComponentController extends Controller
                     actionKey: $actionKey,
                     request: $request,
                 );
+            } elseif ($request->user() !== null) {
+                $centerConfig = app(\App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry::class)
+                    ->buildCenterConfig($incident, $request->user());
+
+                if (($centerConfig['selectedActionKey'] ?? null) !== null) {
+                    $this->communicationActionLifecycleService->recordOpened(
+                        incident: $incident,
+                        actor: $request->user(),
+                        actionKey: $centerConfig['selectedActionKey'],
+                        request: $request,
+                    );
+                }
             }
         }
 

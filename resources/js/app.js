@@ -18,6 +18,7 @@ import { csrfToken } from './workspace/http';
 import { initActionDialog } from './workspace/action-dialog';
 import { initCorrectCustomerDetailsDialog } from './workspace/correct-customer-details-dialog';
 import { initCorrectSerialNumberDialog } from './workspace/correct-serial-number-dialog';
+import { initCommunicationCenterForm } from './workspace/communication-center-form';
 import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
@@ -642,6 +643,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (component === 'correct-serial-number') {
                 initCorrectSerialNumberDialog(modalContent);
+            }
+
+            if (component === 'communication-action') {
+                initCommunicationCenterForm(modalContent);
             }
         },
         afterClose: (host) => {

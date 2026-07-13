@@ -7,6 +7,19 @@ return [
         'review' => env('COMMUNICATION_ACTION_REVIEW_URL', 'https://g.page/r/radiumbox/review'),
     ],
 
+    'review_platforms' => [
+        [
+            'key' => 'google',
+            'name' => 'Google Review',
+            'url' => env('COMMUNICATION_ACTION_REVIEW_URL', 'https://g.page/r/radiumbox/review'),
+        ],
+        [
+            'key' => 'trustpilot',
+            'name' => 'Trustpilot',
+            'url' => env('COMMUNICATION_ACTION_TRUSTPILOT_REVIEW_URL'),
+        ],
+    ],
+
     'support_contact' => env('COMMUNICATION_ACTION_SUPPORT_CONTACT', 'support@radiumbox.com'),
 
     'company_name' => env('COMMUNICATION_ACTION_COMPANY_NAME', 'Radium Box'),

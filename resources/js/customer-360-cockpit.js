@@ -215,6 +215,8 @@ export const initCustomer360Cockpit = ({
 
         if (communicationActionKey) {
             selector = `[data-workspace-trigger="communication-action"][data-workspace-communication-action-key="${communicationActionKey}"][data-workspace-context="customer"]`;
+        } else if (triggerName === 'communication-action') {
+            selector = `[data-workspace-trigger="communication-action"]:not([data-workspace-communication-action-key])[data-workspace-context="customer"]`;
         }
 
         const button = contentHost.querySelector(selector);
@@ -313,6 +315,12 @@ export const initCustomer360Cockpit = ({
             triggerWorkspaceAction('communication-action', {
                 communicationActionKey: action.communicationActionKey,
             });
+
+            return;
+        }
+
+        if (action.type === 'trigger' && action.trigger === 'communication-action' && ! action.communicationActionKey) {
+            triggerWorkspaceAction('communication-action');
 
             return;
         }

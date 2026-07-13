@@ -33,7 +33,11 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
-use App\Services\ChangelogService;
+use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
+use App\Services\CommunicationActions\Targets\DeviceModelDriverTargetProvider;
+use App\Services\CommunicationActions\Targets\DeviceModelProductTargetProvider;
+use App\Services\CommunicationActions\Targets\DeviceModelRdServiceTargetProvider;
+use App\Services\CommunicationActions\Targets\ReviewPlatformTargetProvider;
 use App\Services\SettingService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\SystemSettingsService;
@@ -125,6 +129,20 @@ class AppServiceProvider extends ServiceProvider
                     $app->make(\App\Services\Automation\Handlers\AutoCloseActionHandler::class),
                     $app->make(\App\Services\Automation\Handlers\NotifyTeamActionHandler::class),
                 ],
+            );
+        });
+
+        $this->app->singleton(CommunicationActionTargetProviderRegistry::class, function ($app): CommunicationActionTargetProviderRegistry {
+            return new CommunicationActionTargetProviderRegistry(
+                providers: [
+                    $app->make(DeviceModelDriverTargetProvider::class),
+                    $app->make(ReviewPlatformTargetProvider::class),
+                    $app->make(DeviceModelRdServiceTargetProvider::class),
+                    $app->make(DeviceModelProductTargetProvider::class),
+                ],
+                communicationActionRegistry: $app->make(\App\Services\CommunicationActions\CommunicationActionRegistry::class),
+                eligibilityService: $app->make(\App\Services\CommunicationActions\CommunicationActionEligibilityService::class),
+                availabilityService: $app->make(\App\Services\CommunicationActions\CommunicationActionAvailabilityService::class),
             );
         });
     }
