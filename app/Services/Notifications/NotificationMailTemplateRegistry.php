@@ -195,6 +195,10 @@ class NotificationMailTemplateRegistry
         $subject = $template->subject;
 
         foreach ($this->variablesFor($message) as $key => $value) {
+            if (! is_scalar($value)) {
+                continue;
+            }
+
             $subject = str_replace('{'.$key.'}', (string) $value, $subject);
         }
 

@@ -192,10 +192,7 @@ class CommunicationActionVariableResolver
             'restart_instructions' => $restartInstructions,
             'whatsapp_body_values' => array_values(array_filter([
                 $base['customer_name'],
-                $modelName,
                 $driverDownloadLink,
-                $caseNumber,
-                $supportContact,
             ], fn (string $value): bool => $value !== '')),
         ]);
     }

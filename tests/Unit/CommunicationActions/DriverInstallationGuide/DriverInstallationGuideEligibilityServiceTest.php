@@ -103,7 +103,10 @@ class DriverInstallationGuideEligibilityServiceTest extends TestCase
         $this->assertSame('support@radiumbox.com', $variables['support_contact']);
         $this->assertSame('Radium Box', $variables['company_name']);
         $this->assertNotSame('', $variables['case_number']);
-        $this->assertNotEmpty($variables['whatsapp_body_values']);
+        $this->assertSame([
+            'Test Customer',
+            'https://radiumbox.com/drivers/mfs-110',
+        ], $variables['whatsapp_body_values']);
     }
 
     /**
