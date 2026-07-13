@@ -61,6 +61,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
+use App\Services\ChangelogService;
 
 class AppServiceProvider extends ServiceProvider
 {
