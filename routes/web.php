@@ -16,6 +16,7 @@ use App\Http\Controllers\DashboardServiceCaseController;
 use App\Http\Controllers\DashboardWorkspaceActionController;
 use App\Http\Controllers\DashboardWorkspaceComponentController;
 use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
+use App\Http\Controllers\DeviceModelAliasController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IraOperationsBrainController;
@@ -245,6 +246,9 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/settings/device-models', [DeviceModelController::class, 'store'])->name('settings.device-models.store');
     Route::put('/settings/device-models/{deviceModel}', [DeviceModelController::class, 'update'])->name('settings.device-models.update');
     Route::patch('/settings/device-models/{deviceModel}/toggle', [DeviceModelController::class, 'toggle'])->name('settings.device-models.toggle');
+    Route::post('/settings/device-model-aliases', [DeviceModelAliasController::class, 'store'])->name('settings.device-model-aliases.store');
+    Route::put('/settings/device-model-aliases/{deviceModelAlias}', [DeviceModelAliasController::class, 'update'])->name('settings.device-model-aliases.update');
+    Route::delete('/settings/device-model-aliases/{deviceModelAlias}', [DeviceModelAliasController::class, 'destroy'])->name('settings.device-model-aliases.destroy');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
+use App\Services\DeviceModelAliasSettingsService;
 use App\Services\DeviceModelSettingsService;
 use App\Services\SettingService;
 use App\Services\ApplicationSettingsService;
@@ -15,6 +16,7 @@ class SettingsController extends Controller
         private readonly SettingService $settingService,
         private readonly ApplicationSettingsService $applicationSettingsService,
         private readonly DeviceModelSettingsService $deviceModelSettingsService,
+        private readonly DeviceModelAliasSettingsService $deviceModelAliasSettingsService,
     ) {
         $this->middleware(function ($request, $next) {
             $this->authorize('viewAny', SettingProduct::class);
@@ -63,6 +65,10 @@ class SettingsController extends Controller
             'deviceModels' => $this->deviceModelSettingsService->paginated(
                 search: request('search'),
             ),
+            'deviceModelAliases' => $this->deviceModelAliasSettingsService->paginated(
+                search: request('alias_search'),
+            ),
+            'deviceModelOptions' => $this->deviceModelAliasSettingsService->deviceModelOptions(),
             'adminUsers' => $this->applicationSettingsService->assignableAdminUsers(),
             'timezones' => timezone_identifiers_list(),
         ]);

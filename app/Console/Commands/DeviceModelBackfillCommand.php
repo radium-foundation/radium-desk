@@ -2,17 +2,15 @@
 
 namespace App\Console\Commands;
 
-use App\Models\DeviceModel;
 use App\Models\Order;
 use App\Services\AutomationIdentityService;
+use App\Services\DeviceModelAliasResolver;
 use App\Services\OrderDeviceModelService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Throwable;
 
 #[Signature('device-models:backfill
@@ -41,6 +39,7 @@ class DeviceModelBackfillCommand extends Command
     public function __construct(
         private readonly OrderDeviceModelService $orderDeviceModelService,
         private readonly AutomationIdentityService $automationIdentityService,
+        private readonly DeviceModelAliasResolver $deviceModelAliasResolver,
     ) {
         parent::__construct();
     }
@@ -62,7 +61,7 @@ class DeviceModelBackfillCommand extends Command
             $this->info('Dry run — no changes will be written. Pass --force to apply assignments.');
         }
 
-        $lookup = $this->buildDeviceModelLookup();
+        $this->deviceModelAliasResolver->warmLookup();
 
         if ($orderId !== null) {
             $order = Order::query()->where('order_id', $orderId)->first();
@@ -77,7 +76,7 @@ class DeviceModelBackfillCommand extends Command
                 return self::SUCCESS;
             }
 
-            $this->processOrder($order, $lookup, $dryRun);
+            $this->processOrder($order, $dryRun);
             $this->renderSummary($dryRun);
             $this->logCompletion($dryRun, $limit, $orderId);
 
@@ -111,8 +110,8 @@ class DeviceModelBackfillCommand extends Command
             ->orderBy('id')
             ->when($limit !== null, fn (Builder $query) => $query->limit($limit))
             ->cursor()
-            ->each(function (Order $order) use ($lookup, $dryRun): void {
-                $this->processOrder($order, $lookup, $dryRun);
+            ->each(function (Order $order) use ($dryRun): void {
+                $this->processOrder($order, $dryRun);
             });
 
         $this->renderSummary($dryRun);
@@ -156,10 +155,7 @@ class DeviceModelBackfillCommand extends Command
         return false;
     }
 
-    /**
-     * @param  array{by_name: array<string, DeviceModel>, by_code: array<string, DeviceModel>}  $lookup
-     */
-    private function processOrder(Order $order, array $lookup, bool $dryRun): void
+    private function processOrder(Order $order, bool $dryRun): void
     {
         $this->processed++;
 
@@ -170,18 +166,7 @@ class DeviceModelBackfillCommand extends Command
         }
 
         $rawModel = (string) $order->device_model;
-        $normalized = $this->normalizeModelLabel($rawModel);
-
-        if ($normalized === '') {
-            $this->unmatched++;
-            $this->recordUnmatched($rawModel);
-
-            return;
-        }
-
-        $deviceModel = $lookup['by_name'][$normalized]
-            ?? $lookup['by_code'][$normalized]
-            ?? null;
+        $deviceModel = $this->deviceModelAliasResolver->resolve($rawModel);
 
         if ($deviceModel === null) {
             $this->unmatched++;
@@ -214,50 +199,6 @@ class DeviceModelBackfillCommand extends Command
                 $exception->getMessage(),
             ));
         }
-    }
-
-    /**
-     * @return array{by_name: array<string, DeviceModel>, by_code: array<string, DeviceModel>}
-     */
-    private function buildDeviceModelLookup(): array
-    {
-        /** @var Collection<int, DeviceModel> $models */
-        $models = DeviceModel::query()
-            ->where('is_active', true)
-            ->get(['id', 'name', 'code', 'is_active']);
-
-        $byName = [];
-        $byCode = [];
-
-        foreach ($models as $model) {
-            $nameKey = $this->normalizeModelLabel($model->name);
-
-            if ($nameKey !== '' && ! array_key_exists($nameKey, $byName)) {
-                $byName[$nameKey] = $model;
-            }
-
-            if (! filled($model->code)) {
-                continue;
-            }
-
-            $codeKey = $this->normalizeModelLabel((string) $model->code);
-
-            if ($codeKey !== '' && ! array_key_exists($codeKey, $byCode)) {
-                $byCode[$codeKey] = $model;
-            }
-        }
-
-        return [
-            'by_name' => $byName,
-            'by_code' => $byCode,
-        ];
-    }
-
-    private function normalizeModelLabel(string $label): string
-    {
-        $collapsed = preg_replace('/\s+/', ' ', trim($label)) ?? trim($label);
-
-        return Str::lower($collapsed);
     }
 
     private function recordUnmatched(string $rawModel): void

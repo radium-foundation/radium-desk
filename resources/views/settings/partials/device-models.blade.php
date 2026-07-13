@@ -147,3 +147,5 @@
         <p class="small text-muted mt-3 mb-0">Deactivating a model hides it from assignment. Existing order assignments are preserved.</p>
     </div>
 </div>
+
+@include('settings.partials.device-model-aliases')

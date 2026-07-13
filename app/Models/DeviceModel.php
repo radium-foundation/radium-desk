@@ -30,4 +30,9 @@ class DeviceModel extends Model
     {
         return $this->hasMany(Order::class);
     }
+
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(DeviceModelAlias::class);
+    }
 }

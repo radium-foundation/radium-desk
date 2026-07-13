@@ -142,7 +142,21 @@ class DeviceModelSettingsTest extends TestCase
             ->get(route('settings.index', ['tab' => 'device-models', 'search' => 'Morpho']))
             ->assertOk()
             ->assertSee('Morpho 1300')
-            ->assertDontSee('MFS110');
+            ->assertSee('Morpho 1300 E3');
+
+        $paginated = app(\App\Services\DeviceModelSettingsService::class)
+            ->paginated(search: 'Morpho');
+
+        $this->assertTrue(
+            $paginated->getCollection()->every(
+                fn (DeviceModel $model): bool => str_contains($model->name, 'Morpho'),
+            ),
+        );
+        $this->assertFalse(
+            $paginated->getCollection()->contains(
+                fn (DeviceModel $model): bool => $model->name === 'MFS110',
+            ),
+        );
     }
 
     public function test_superadmin_can_deactivate_device_model(): void
