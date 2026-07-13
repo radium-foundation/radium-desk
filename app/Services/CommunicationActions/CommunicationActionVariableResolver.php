@@ -112,6 +112,7 @@ class CommunicationActionVariableResolver
     private function resolveBuyRdService(array $base, ?Order $order): array
     {
         $buyRdServiceUrl = $this->commercialCatalogSupportService->resolveBuyRdServiceUrl($order) ?? '';
+        $buttonSuffix = $this->urlPathSuffix($buyRdServiceUrl);
 
         return array_merge($base, [
             'company_name' => $this->commercialCatalogSupportService->companyName(),
@@ -119,7 +120,9 @@ class CommunicationActionVariableResolver
             'support_contact' => $this->commercialCatalogSupportService->supportContact(),
             'whatsapp_body_values' => array_values(array_filter([
                 $base['customer_name'],
-                $buyRdServiceUrl,
+            ], fn (string $value): bool => $value !== '')),
+            'whatsapp_button_values' => array_values(array_filter([
+                $buttonSuffix,
             ], fn (string $value): bool => $value !== '')),
         ]);
     }
@@ -131,6 +134,7 @@ class CommunicationActionVariableResolver
     private function resolveBuyProduct(array $base, ?Order $order): array
     {
         $buyDeviceUrl = $this->commercialCatalogSupportService->resolveBuyDeviceUrl($order) ?? '';
+        $buttonSuffix = $this->urlPathSuffix($buyDeviceUrl);
 
         return array_merge($base, [
             'company_name' => $this->commercialCatalogSupportService->companyName(),
@@ -138,7 +142,9 @@ class CommunicationActionVariableResolver
             'support_contact' => $this->commercialCatalogSupportService->supportContact(),
             'whatsapp_body_values' => array_values(array_filter([
                 $base['customer_name'],
-                $buyDeviceUrl,
+            ], fn (string $value): bool => $value !== '')),
+            'whatsapp_button_values' => array_values(array_filter([
+                $buttonSuffix,
             ], fn (string $value): bool => $value !== '')),
         ]);
     }
@@ -174,6 +180,7 @@ class CommunicationActionVariableResolver
         ?User $operator,
     ): array {
         $driverDownloadLink = $this->driverInstallationGuideSupportService->resolveDriverDownloadLink($order) ?? '';
+        $buttonSuffix = $this->urlPathSuffix($driverDownloadLink);
         $modelName = $this->driverInstallationGuideSupportService->resolveModelName($order);
         $supportContact = $this->driverInstallationGuideSupportService->supportContact();
         $companyName = $this->driverInstallationGuideSupportService->companyName();
@@ -192,9 +199,32 @@ class CommunicationActionVariableResolver
             'restart_instructions' => $restartInstructions,
             'whatsapp_body_values' => array_values(array_filter([
                 $base['customer_name'],
-                $driverDownloadLink,
+            ], fn (string $value): bool => $value !== '')),
+            'whatsapp_button_values' => array_values(array_filter([
+                $buttonSuffix,
             ], fn (string $value): bool => $value !== '')),
         ]);
+    }
+
+    /**
+     * Extract the path suffix from a URL for Meta WhatsApp dynamic URL buttons.
+     * Example: https://ra8.in/driver-mfs110 → driver-mfs110
+     */
+    private function urlPathSuffix(string $url): string
+    {
+        $url = trim($url);
+
+        if ($url === '') {
+            return '';
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! is_string($path) || $path === '' || $path === '/') {
+            return '';
+        }
+
+        return ltrim($path, '/');
     }
 
     /**

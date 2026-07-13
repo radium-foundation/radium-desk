@@ -99,14 +99,12 @@ class DriverInstallationGuideEligibilityServiceTest extends TestCase
         $this->assertSame('Test Customer', $variables['customer_name']);
         $this->assertSame('Agent Smith', $variables['agent_name']);
         $this->assertSame('MFS 110', $variables['model_name']);
-        $this->assertSame('https://radiumbox.com/drivers/mfs-110', $variables['driver_download_link']);
+        $this->assertSame('https://ra8.in/driver-mfs110', $variables['driver_download_link']);
         $this->assertSame('support@radiumbox.com', $variables['support_contact']);
         $this->assertSame('Radium Box', $variables['company_name']);
         $this->assertNotSame('', $variables['case_number']);
-        $this->assertSame([
-            'Test Customer',
-            'https://radiumbox.com/drivers/mfs-110',
-        ], $variables['whatsapp_body_values']);
+        $this->assertSame(['Test Customer'], $variables['whatsapp_body_values']);
+        $this->assertSame(['driver-mfs110'], $variables['whatsapp_button_values']);
     }
 
     /**
@@ -120,7 +118,7 @@ class DriverInstallationGuideEligibilityServiceTest extends TestCase
     ): array {
         $deviceModel ??= DeviceModel::query()->create([
             'name' => 'MFS 110',
-            'driver_download_url' => 'https://radiumbox.com/drivers/mfs-110',
+            'driver_download_url' => 'https://ra8.in/driver-mfs110',
             'display_order' => 1,
             'is_active' => true,
         ]);

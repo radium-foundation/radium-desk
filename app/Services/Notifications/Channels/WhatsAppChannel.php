@@ -164,22 +164,36 @@ class WhatsAppChannel implements NotificationChannel
     }
 
     /**
-     * @return array{body_values: list<string>}|array{}
+     * Maps Communication Action WhatsApp variables into Interakt dispatch context.
+     * Templates without dynamic buttons omit whatsapp_button_values and stay body-only.
+     *
+     * @return array{body_values?: list<string>, button_values?: array<string, list<string>>}
      */
     private function communicationActionTemplateVariables(NotificationMessage $message): array
     {
+        $variables = [];
+
         $bodyValues = $message->variables['whatsapp_body_values'] ?? null;
 
-        if (! is_array($bodyValues) || $bodyValues === []) {
-            return [];
-        }
-
-        return [
-            'body_values' => array_values(array_map(
+        if (is_array($bodyValues) && $bodyValues !== []) {
+            $variables['body_values'] = array_values(array_map(
                 fn (mixed $value): string => trim((string) $value),
                 $bodyValues,
-            )),
-        ];
+            ));
+        }
+
+        $buttonValues = $message->variables['whatsapp_button_values'] ?? null;
+
+        if (is_array($buttonValues) && $buttonValues !== []) {
+            $variables['button_values'] = [
+                '0' => array_values(array_map(
+                    fn (mixed $value): string => trim((string) $value),
+                    $buttonValues,
+                )),
+            ];
+        }
+
+        return $variables;
     }
 
     /**

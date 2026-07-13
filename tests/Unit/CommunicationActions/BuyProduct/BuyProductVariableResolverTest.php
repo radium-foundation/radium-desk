@@ -39,7 +39,7 @@ class BuyProductVariableResolverTest extends TestCase
 
         $deviceModel = DeviceModel::query()->create([
             'name' => 'MFS 110',
-            'buy_device_url' => 'https://radiumbox.com/shop/mfs-110',
+            'buy_device_url' => 'https://ra8.in/buy-mfs110',
             'display_order' => 1,
             'is_active' => true,
         ]);
@@ -79,11 +79,9 @@ class BuyProductVariableResolverTest extends TestCase
 
         $this->assertSame('Jane Catalog', $variables['customer_name']);
         $this->assertSame('Radium Box', $variables['company_name']);
-        $this->assertSame('https://radiumbox.com/shop/mfs-110', $variables['buy_device_url']);
+        $this->assertSame('https://ra8.in/buy-mfs110', $variables['buy_device_url']);
         $this->assertSame('support@radiumbox.com', $variables['support_contact']);
-        $this->assertSame([
-            'Jane Catalog',
-            'https://radiumbox.com/shop/mfs-110',
-        ], $variables['whatsapp_body_values']);
+        $this->assertSame(['Jane Catalog'], $variables['whatsapp_body_values']);
+        $this->assertSame(['buy-mfs110'], $variables['whatsapp_button_values']);
     }
 }

@@ -162,6 +162,100 @@ class WhatsAppChannelTest extends TestCase
         $this->assertTrue($result->retryable);
     }
 
+    public function test_send_passes_communication_action_body_and_button_values(): void
+    {
+        config([
+            'interakt.templates.driver_installation_guide.name' => 'driver_installation_guide',
+            'interakt.templates.driver_installation_guide.language_code' => 'en',
+        ]);
+
+        [$message, $dispatch] = $this->makeCommunicationActionMessage(
+            type: NotificationType::DriverInstallationGuide,
+            template: WhatsAppTemplate::DriverInstallationGuide,
+            variables: [
+                'customer_name' => 'Test Customer',
+                'whatsapp_body_values' => ['Test Customer'],
+                'whatsapp_button_values' => ['driver-mfs110'],
+            ],
+        );
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')
+            ->once()
+            ->with(
+                WhatsAppTemplate::DriverInstallationGuide,
+                $message->incident,
+                WhatsAppTemplateTriggerSource::Manual,
+                $message->actor,
+                Mockery::on(function (array $context): bool {
+                    return ($context['body_values'] ?? null) === ['Test Customer']
+                        && ($context['button_values'] ?? null) === ['0' => ['driver-mfs110']];
+                }),
+                $message->httpRequest,
+            )
+            ->andReturn(WhatsAppTemplateDispatchResult::success(
+                $dispatch,
+                'WhatsApp template sent successfully.',
+            ));
+
+        $channel = new WhatsAppChannel(
+            $automationDispatcher,
+            app(WhatsAppTemplateConfigurationResolver::class),
+            app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+        );
+        $result = $channel->send($message);
+
+        $this->assertTrue($result->success);
+    }
+
+    public function test_send_omits_button_values_when_communication_action_has_none(): void
+    {
+        config([
+            'interakt.templates.review_request.name' => 'review_request',
+            'interakt.templates.review_request.language_code' => 'en',
+        ]);
+
+        [$message, $dispatch] = $this->makeCommunicationActionMessage(
+            type: NotificationType::ReviewRequest,
+            template: WhatsAppTemplate::ReviewRequest,
+            variables: [
+                'customer_name' => 'Jane Customer',
+                'whatsapp_body_values' => ['Jane Customer', 'https://g.page/r/radiumbox/review'],
+            ],
+        );
+
+        $automationDispatcher = Mockery::mock(WhatsAppAutomationDispatcher::class);
+        $automationDispatcher->shouldReceive('dispatch')
+            ->once()
+            ->with(
+                WhatsAppTemplate::ReviewRequest,
+                $message->incident,
+                WhatsAppTemplateTriggerSource::Manual,
+                $message->actor,
+                Mockery::on(function (array $context): bool {
+                    return ($context['body_values'] ?? null) === [
+                        'Jane Customer',
+                        'https://g.page/r/radiumbox/review',
+                    ]
+                        && ! array_key_exists('button_values', $context);
+                }),
+                $message->httpRequest,
+            )
+            ->andReturn(WhatsAppTemplateDispatchResult::success(
+                $dispatch,
+                'WhatsApp template sent successfully.',
+            ));
+
+        $channel = new WhatsAppChannel(
+            $automationDispatcher,
+            app(WhatsAppTemplateConfigurationResolver::class),
+            app(\App\Services\Notifications\NotificationLinkTrackingService::class),
+        );
+        $result = $channel->send($message);
+
+        $this->assertTrue($result->success);
+    }
+
     /**
      * @return array{0: NotificationMessage, 1: WhatsAppTemplateDispatch}
      */
@@ -211,6 +305,71 @@ class WhatsAppChannelTest extends TestCase
             type: NotificationType::RequestSerialNumber,
             customer: $order,
             incident: $incident,
+            metadata: [
+                'source' => 'customer360',
+                'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,
+            ],
+            actor: $agent,
+        );
+
+        return [$message, $dispatch];
+    }
+
+    /**
+     * @param  array<string, mixed>  $variables
+     * @return array{0: NotificationMessage, 1: WhatsAppTemplateDispatch}
+     */
+    private function makeCommunicationActionMessage(
+        NotificationType $type,
+        WhatsAppTemplate $template,
+        array $variables,
+    ): array {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-WA-CA-'.uniqid(),
+            'serial_number' => 'SN-WA-CA',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_phone' => '9876543210',
+            'customer_name' => 'Test Customer',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Communication action WhatsApp channel case',
+            'description' => 'Communication action WhatsApp channel case.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $dispatch = WhatsAppTemplateDispatch::query()->make([
+            'incident_id' => $incident->id,
+            'order_id' => $order->id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => $template->value,
+            'template_name' => $template->value,
+            'template_display_name' => $template->value,
+            'template_purpose' => $template->value,
+            'trigger_source' => WhatsAppTemplateTriggerSource::Manual,
+            'customer_phone' => '9876543210',
+            'interakt_message_id' => 'msg-comm-action-001',
+        ]);
+        $dispatch->id = 202;
+
+        $message = new NotificationMessage(
+            type: $type,
+            customer: $order,
+            incident: $incident,
+            variables: $variables,
             metadata: [
                 'source' => 'customer360',
                 'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,

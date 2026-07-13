@@ -76,5 +76,6 @@ class ReviewRequestVariableResolverTest extends TestCase
             'Jane Customer',
             'https://g.page/r/radiumbox/review',
         ], $variables['whatsapp_body_values']);
+        $this->assertArrayNotHasKey('whatsapp_button_values', $variables);
     }
 }

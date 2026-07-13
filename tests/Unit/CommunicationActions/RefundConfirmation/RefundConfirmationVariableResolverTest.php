@@ -96,5 +96,6 @@ class RefundConfirmationVariableResolverTest extends TestCase
             '1,999.99',
             'REF-2026-000300',
         ], $variables['whatsapp_body_values']);
+        $this->assertArrayNotHasKey('whatsapp_button_values', $variables);
     }
 }
