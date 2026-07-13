@@ -16,15 +16,19 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\DisablesRequestForgeryProtection;
 use Tests\TestCase;
 
 class BuyRdServiceCommunicationActionTest extends TestCase
 {
+    use DisablesRequestForgeryProtection;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->disableRequestForgeryProtection();
 
         $this->seed(RolePermissionSeeder::class);
 
@@ -93,8 +97,8 @@ class BuyRdServiceCommunicationActionTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Buy RD Service')
-            ->assertSee('data-workspace-communication-action-key="buy_rd_service"', false);
+            ->assertSee('>Communication</span>', false)
+            ->assertDontSee('data-workspace-communication-action-key="buy_rd_service"', false);
     }
 
     public function test_buy_rd_service_is_unavailable_without_catalog_url(): void

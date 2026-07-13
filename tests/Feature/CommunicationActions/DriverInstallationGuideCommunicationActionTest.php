@@ -16,15 +16,19 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\DisablesRequestForgeryProtection;
 use Tests\TestCase;
 
 class DriverInstallationGuideCommunicationActionTest extends TestCase
 {
+    use DisablesRequestForgeryProtection;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->disableRequestForgeryProtection();
 
         $this->seed(RolePermissionSeeder::class);
 
@@ -94,8 +98,9 @@ class DriverInstallationGuideCommunicationActionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk();
-        $response->assertSee('Driver Installation Guide');
-        $response->assertSee('data-workspace-communication-action-key="driver_installation_guide"', false);
+        $response->assertSee('>Communication</span>', false);
+        $response->assertSee('data-workspace-trigger="communication-action"', false);
+        $response->assertDontSee('data-workspace-communication-action-key="driver_installation_guide"', false);
     }
 
     public function test_driver_installation_guide_is_hidden_without_driver_link(): void

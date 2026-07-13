@@ -5,6 +5,7 @@ namespace App\Services\CommunicationActions;
 use App\Data\CommunicationActions\CommunicationActionDefinition;
 use App\Data\CommunicationActions\CommunicationActionExecutionContext;
 use App\Enums\CommunicationActionKey;
+use App\Models\DeviceModel;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
@@ -41,21 +42,34 @@ class CommunicationActionVariableResolver
         ];
 
         $input = $this->sanitizeOperatorInput($definition, $operatorInput);
+        $communicationTarget = trim((string) ($operatorInput['communication_target'] ?? ''));
 
         $resolved = match ($definition->key) {
             CommunicationActionKey::DriverInstallationGuide => $this->resolveDriverInstallationGuide(
                 base: $base,
                 order: $order,
                 operator: $operator,
+                communicationTarget: $communicationTarget,
             ),
-            CommunicationActionKey::ReviewRequest => $this->resolveReviewRequest($base),
+            CommunicationActionKey::ReviewRequest => $this->resolveReviewRequest(
+                base: $base,
+                communicationTarget: $communicationTarget,
+            ),
             CommunicationActionKey::RefundConfirmation => $this->resolveRefundConfirmation(
                 base: $base,
                 incident: $incident,
                 order: $order,
             ),
-            CommunicationActionKey::BuyRdService => $this->resolveBuyRdService($base, $order),
-            CommunicationActionKey::BuyProduct => $this->resolveBuyProduct($base, $order),
+            CommunicationActionKey::BuyRdService => $this->resolveBuyRdService(
+                base: $base,
+                order: $order,
+                communicationTarget: $communicationTarget,
+            ),
+            CommunicationActionKey::BuyProduct => $this->resolveBuyProduct(
+                base: $base,
+                order: $order,
+                communicationTarget: $communicationTarget,
+            ),
         };
 
         return array_merge($input, $resolved);
@@ -109,9 +123,9 @@ class CommunicationActionVariableResolver
      * @param  array<string, string>  $base
      * @return array<string, mixed>
      */
-    private function resolveBuyRdService(array $base, ?Order $order): array
+    private function resolveBuyRdService(array $base, ?Order $order, string $communicationTarget = ''): array
     {
-        $buyRdServiceUrl = $this->commercialCatalogSupportService->resolveBuyRdServiceUrl($order) ?? '';
+        $buyRdServiceUrl = $this->resolveBuyRdServiceUrl($order, $communicationTarget) ?? '';
         $buttonSuffix = $this->urlPathSuffix($buyRdServiceUrl);
 
         return array_merge($base, [
@@ -131,9 +145,9 @@ class CommunicationActionVariableResolver
      * @param  array<string, string>  $base
      * @return array<string, mixed>
      */
-    private function resolveBuyProduct(array $base, ?Order $order): array
+    private function resolveBuyProduct(array $base, ?Order $order, string $communicationTarget = ''): array
     {
-        $buyDeviceUrl = $this->commercialCatalogSupportService->resolveBuyDeviceUrl($order) ?? '';
+        $buyDeviceUrl = $this->resolveBuyDeviceUrl($order, $communicationTarget) ?? '';
         $buttonSuffix = $this->urlPathSuffix($buyDeviceUrl);
 
         return array_merge($base, [
@@ -153,9 +167,9 @@ class CommunicationActionVariableResolver
      * @param  array<string, string>  $base
      * @return array<string, mixed>
      */
-    private function resolveReviewRequest(array $base): array
+    private function resolveReviewRequest(array $base, string $communicationTarget = ''): array
     {
-        $reviewUrl = trim((string) config('communication_actions.urls.review'));
+        $reviewUrl = $this->resolveReviewPlatformUrl($communicationTarget);
         $companyName = trim((string) config('communication_actions.company_name', 'Radium Box'));
         $supportContact = trim((string) config('communication_actions.support_contact', 'support@radiumbox.com'));
 
@@ -178,10 +192,21 @@ class CommunicationActionVariableResolver
         array $base,
         ?Order $order,
         ?User $operator,
+        string $communicationTarget = '',
     ): array {
-        $driverDownloadLink = $this->driverInstallationGuideSupportService->resolveDriverDownloadLink($order) ?? '';
+        $deviceModel = $this->resolveDeviceModelTarget($communicationTarget);
+
+        if ($deviceModel !== null) {
+            $driverDownloadLink = $this->driverInstallationGuideSupportService
+                ->resolveDriverDownloadLinkForDeviceModel($deviceModel) ?? '';
+            $modelName = $this->driverInstallationGuideSupportService
+                ->resolveModelNameForDeviceModel($deviceModel);
+        } else {
+            $driverDownloadLink = $this->driverInstallationGuideSupportService->resolveDriverDownloadLink($order) ?? '';
+            $modelName = $this->driverInstallationGuideSupportService->resolveModelName($order);
+        }
+
         $buttonSuffix = $this->urlPathSuffix($driverDownloadLink);
-        $modelName = $this->driverInstallationGuideSupportService->resolveModelName($order);
         $supportContact = $this->driverInstallationGuideSupportService->supportContact();
         $companyName = $this->driverInstallationGuideSupportService->companyName();
         $restartInstructions = $this->driverInstallationGuideSupportService->restartInstructions();
@@ -204,6 +229,56 @@ class CommunicationActionVariableResolver
                 $buttonSuffix,
             ], fn (string $value): bool => $value !== '')),
         ]);
+    }
+
+    private function resolveBuyRdServiceUrl(?Order $order, string $communicationTarget = ''): ?string
+    {
+        $deviceModel = $this->resolveDeviceModelTarget($communicationTarget);
+
+        if ($deviceModel !== null) {
+            return $this->commercialCatalogSupportService->resolveBuyRdServiceUrlForDeviceModel($deviceModel);
+        }
+
+        return $this->commercialCatalogSupportService->resolveBuyRdServiceUrl($order);
+    }
+
+    private function resolveBuyDeviceUrl(?Order $order, string $communicationTarget = ''): ?string
+    {
+        $deviceModel = $this->resolveDeviceModelTarget($communicationTarget);
+
+        if ($deviceModel !== null) {
+            return $this->commercialCatalogSupportService->resolveBuyDeviceUrlForDeviceModel($deviceModel);
+        }
+
+        return $this->commercialCatalogSupportService->resolveBuyDeviceUrl($order);
+    }
+
+    private function resolveReviewPlatformUrl(string $communicationTarget = ''): string
+    {
+        if ($communicationTarget !== '') {
+            foreach (config('communication_actions.review_platforms', []) as $platform) {
+                if (($platform['key'] ?? null) === $communicationTarget) {
+                    $url = trim((string) ($platform['url'] ?? ''));
+
+                    if ($url !== '') {
+                        return $url;
+                    }
+                }
+            }
+        }
+
+        return trim((string) config('communication_actions.urls.review'));
+    }
+
+    private function resolveDeviceModelTarget(string $communicationTarget): ?DeviceModel
+    {
+        if ($communicationTarget === '' || ! ctype_digit($communicationTarget)) {
+            return null;
+        }
+
+        return DeviceModel::query()
+            ->where('is_active', true)
+            ->find((int) $communicationTarget);
     }
 
     /**

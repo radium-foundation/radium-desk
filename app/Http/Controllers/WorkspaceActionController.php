@@ -204,8 +204,18 @@ class WorkspaceActionController extends Controller
         $requestContext = $this->contextResolver->resolve($request, $incident);
         $validated = $request->validated();
         $operatorInput = collect($validated)
-            ->except(['workspace_context', 'channels'])
+            ->except(['workspace_context', 'channels', 'communication_action_key'])
             ->all();
+
+        $selectedChannels = $validated['channels'] ?? null;
+
+        if ($selectedChannels === null && isset($validated['delivery_channel'])) {
+            $selectedChannels = match ($validated['delivery_channel']) {
+                'whatsapp' => ['whatsapp'],
+                'email' => ['email'],
+                default => null,
+            };
+        }
 
         $response = $this->communicationActionExecutorService->execute(
             actionKey: $key,

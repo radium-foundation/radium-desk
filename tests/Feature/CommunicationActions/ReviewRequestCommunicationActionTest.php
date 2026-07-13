@@ -18,15 +18,19 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use App\Support\AppDateFormatter;
+use Tests\Concerns\DisablesRequestForgeryProtection;
 use Tests\TestCase;
 
 class ReviewRequestCommunicationActionTest extends TestCase
 {
+    use DisablesRequestForgeryProtection;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->disableRequestForgeryProtection();
 
         $this->seed(RolePermissionSeeder::class);
 
@@ -96,8 +100,8 @@ class ReviewRequestCommunicationActionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk();
-        $response->assertSee('Review Request');
-        $response->assertSee('data-workspace-communication-action-key="review_request"', false);
+        $response->assertSee('>Communication</span>', false);
+        $response->assertDontSee('data-workspace-communication-action-key="review_request"', false);
     }
 
     public function test_review_request_is_unavailable_before_support_is_concluded(): void

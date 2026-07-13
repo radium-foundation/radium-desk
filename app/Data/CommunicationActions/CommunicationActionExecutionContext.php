@@ -136,14 +136,22 @@ readonly class CommunicationActionExecutionContext
      */
     public function toNotificationMetadata(): array
     {
-        return [
+        $operatorInput = $this->operatorInput();
+
+        return array_filter([
             'source' => $this->notificationSource(),
             'communication_action_key' => $this->action->key->value,
             'communication_action_label' => $this->action->timelineLabel,
             'communication_action_trigger_source' => $this->triggerSource->value,
             'communication_action_execution_mode' => $this->executionMode->value,
             'trigger_source' => $this->whatsappTriggerSource()->value,
-        ];
+            'communication_target' => filled($operatorInput['communication_target'] ?? null)
+                ? (string) $operatorInput['communication_target']
+                : null,
+            'delivery_channel' => filled($operatorInput['delivery_channel'] ?? null)
+                ? (string) $operatorInput['delivery_channel']
+                : null,
+        ], fn (mixed $value): bool => $value !== null);
     }
 
     private function notificationSource(): string

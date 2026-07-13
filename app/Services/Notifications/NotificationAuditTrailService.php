@@ -58,6 +58,8 @@ class NotificationAuditTrailService
                 'serial_correction' => $message->metadata['serial_correction'] ?? null,
                 'communication_action_key' => $message->metadata['communication_action_key'] ?? null,
                 'communication_action_label' => $message->metadata['communication_action_label'] ?? null,
+                'communication_target' => $message->metadata['communication_target'] ?? null,
+                'delivery_channel' => $message->metadata['delivery_channel'] ?? null,
                 'aggregate_success' => $dispatchResult->success,
                 'aggregate_message' => $dispatchResult->message,
                 'channel_results' => $channelRecords,

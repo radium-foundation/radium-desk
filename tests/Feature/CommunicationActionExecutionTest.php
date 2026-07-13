@@ -15,15 +15,19 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Tests\Concerns\DisablesRequestForgeryProtection;
 use Tests\TestCase;
 
 class CommunicationActionExecutionTest extends TestCase
 {
+    use DisablesRequestForgeryProtection;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        $this->disableRequestForgeryProtection();
 
         $this->seed(RolePermissionSeeder::class);
 

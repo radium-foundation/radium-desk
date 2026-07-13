@@ -2,6 +2,7 @@
 
 namespace App\Services\CommunicationActions\DriverInstallationGuide;
 
+use App\Models\DeviceModel;
 use App\Models\Order;
 
 class DriverInstallationGuideSupportService
@@ -22,6 +23,20 @@ class DriverInstallationGuideSupportService
         $url = trim((string) ($order->deviceModel?->driver_download_url ?? ''));
 
         return $url !== '' ? $url : null;
+    }
+
+    public function resolveDriverDownloadLinkForDeviceModel(DeviceModel $deviceModel): ?string
+    {
+        $url = trim((string) ($deviceModel->driver_download_url ?? ''));
+
+        return $url !== '' ? $url : null;
+    }
+
+    public function resolveModelNameForDeviceModel(DeviceModel $deviceModel): string
+    {
+        $modelName = trim((string) ($deviceModel->name ?? ''));
+
+        return $modelName !== '' ? $modelName : 'your device';
     }
 
     public function resolveModelName(?Order $order): string

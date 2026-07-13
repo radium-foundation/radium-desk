@@ -2,6 +2,7 @@
 
 namespace App\Services\CommunicationActions\Commercial;
 
+use App\Models\DeviceModel;
 use App\Models\Order;
 
 final class CommercialCatalogSupportService
@@ -34,6 +35,13 @@ final class CommercialCatalogSupportService
         return $url !== '' ? $url : null;
     }
 
+    public function resolveBuyRdServiceUrlForDeviceModel(DeviceModel $deviceModel): ?string
+    {
+        $url = trim((string) ($deviceModel->buy_rd_service_url ?? ''));
+
+        return $url !== '' ? $url : null;
+    }
+
     public function resolveBuyDeviceUrl(?Order $order): ?string
     {
         if ($order === null) {
@@ -43,6 +51,13 @@ final class CommercialCatalogSupportService
         $order->loadMissing('deviceModel');
 
         $url = trim((string) ($order->deviceModel?->buy_device_url ?? ''));
+
+        return $url !== '' ? $url : null;
+    }
+
+    public function resolveBuyDeviceUrlForDeviceModel(DeviceModel $deviceModel): ?string
+    {
+        $url = trim((string) ($deviceModel->buy_device_url ?? ''));
 
         return $url !== '' ? $url : null;
     }
