@@ -37,6 +37,7 @@ return [
             'whatsapp_template' => 'driver_installation_guide',
             'timeline_label' => 'Driver installation guide sent',
             'execution_mode' => 'manual',
+            'allowed_on_closed_incident' => true,
             'variables' => [],
             'automation' => [
                 'enabled' => false,
@@ -62,6 +63,7 @@ return [
             'whatsapp_template' => 'review_request',
             'timeline_label' => 'Review request sent',
             'execution_mode' => 'manual',
+            'allowed_on_closed_incident' => true,
             'variables' => [],
             'automation' => [
                 'enabled' => false,
@@ -84,6 +86,7 @@ return [
             'whatsapp_template' => 'refund_confirmation',
             'timeline_label' => 'Refund confirmation sent',
             'execution_mode' => 'manual',
+            'allowed_on_closed_incident' => true,
             'variables' => [],
             'automation' => [
                 'enabled' => false,
@@ -109,6 +112,7 @@ return [
             'whatsapp_template' => 'buy_rd_service',
             'timeline_label' => 'RD Service purchase link sent',
             'execution_mode' => 'manual',
+            'allowed_on_closed_incident' => true,
             'variables' => [],
             'automation' => [
                 'enabled' => false,
@@ -134,6 +138,7 @@ return [
             'whatsapp_template' => 'buy_product',
             'timeline_label' => 'Product purchase link sent',
             'execution_mode' => 'manual',
+            'allowed_on_closed_incident' => true,
             'variables' => [],
             'automation' => [
                 'enabled' => false,

@@ -41,4 +41,34 @@ class CommunicationActionRegistryTest extends TestCase
             $definition->allowedRoles,
         );
     }
+
+    public function test_production_actions_opt_into_closed_incident_availability(): void
+    {
+        $registry = app(CommunicationActionRegistry::class);
+
+        foreach ([
+            CommunicationActionKey::DriverInstallationGuide,
+            CommunicationActionKey::ReviewRequest,
+            CommunicationActionKey::RefundConfirmation,
+            CommunicationActionKey::BuyRdService,
+            CommunicationActionKey::BuyProduct,
+        ] as $actionKey) {
+            $this->assertTrue(
+                $registry->get($actionKey)->allowedOnClosedIncident,
+                "Expected [{$actionKey->value}] to allow closed incidents.",
+            );
+        }
+    }
+
+    public function test_definition_defaults_closed_incident_availability_to_false(): void
+    {
+        $definition = \App\Data\CommunicationActions\CommunicationActionDefinition::fromConfig([
+            'key' => 'review_request',
+            'name' => 'Future Action',
+            'notification_type' => 'review_request',
+            'channels' => ['whatsapp'],
+        ]);
+
+        $this->assertFalse($definition->allowedOnClosedIncident);
+    }
 }

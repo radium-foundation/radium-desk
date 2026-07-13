@@ -43,7 +43,7 @@ class BuyRdServiceEligibilityService
 
     private function isEligibleIncidentStatus(Incident $incident): bool
     {
-        if ($incident->status === IncidentStatus::Resolved) {
+        if (in_array($incident->status, [IncidentStatus::Resolved, IncidentStatus::Closed], true)) {
             return true;
         }
 

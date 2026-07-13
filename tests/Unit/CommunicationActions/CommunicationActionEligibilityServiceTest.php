@@ -97,10 +97,49 @@ class CommunicationActionEligibilityServiceTest extends TestCase
         $this->assertNotNull($refund['disabled_reason']);
     }
 
+    public function test_closed_incident_is_allowed_when_action_opts_in(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent, IncidentStatus::Closed);
+
+        $service = app(CommunicationActionEligibilityService::class);
+        $registry = app(CommunicationActionRegistry::class);
+
+        $this->assertTrue($registry->get(CommunicationActionKey::ReviewRequest)->allowedOnClosedIncident);
+        $this->assertNull($service->ineligibilityReason(
+            $registry->get(CommunicationActionKey::ReviewRequest),
+            $incident,
+            $agent,
+        ));
+    }
+
+    public function test_closed_incident_is_denied_when_action_does_not_opt_in(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent, IncidentStatus::Closed);
+
+        $actions = config('communication_actions.actions');
+        $actions['review_request']['allowed_on_closed_incident'] = false;
+        config(['communication_actions.actions' => $actions]);
+        $this->app->forgetInstance(CommunicationActionRegistry::class);
+
+        $reason = app(CommunicationActionEligibilityService::class)->ineligibilityReason(
+            app(CommunicationActionRegistry::class)->get(CommunicationActionKey::ReviewRequest),
+            $incident,
+            $agent,
+        );
+
+        $this->assertSame('Communication actions are unavailable on closed service cases.', $reason);
+    }
+
     /**
      * @return array{0: Incident}
      */
-    private function createIncident(User $actor): array
+    private function createIncident(User $actor, IncidentStatus $status = IncidentStatus::Resolved): array
     {
         $order = Order::query()->create([
             'order_id' => 'RD-COMM-001',
@@ -121,7 +160,7 @@ class CommunicationActionEligibilityServiceTest extends TestCase
             'source' => IncidentSource::Call,
             'title' => 'Communication action case',
             'description' => 'Communication action case.',
-            'status' => IncidentStatus::Resolved,
+            'status' => $status,
             'created_by' => $actor->id,
             'updated_by' => $actor->id,
             'assigned_to_user_id' => $actor->id,

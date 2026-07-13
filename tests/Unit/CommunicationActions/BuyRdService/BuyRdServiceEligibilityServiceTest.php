@@ -104,12 +104,32 @@ class BuyRdServiceEligibilityServiceTest extends TestCase
         );
     }
 
-    public function test_is_ineligible_when_case_is_closed(): void
+    public function test_is_eligible_when_case_is_closed_and_action_allows_closed_incidents(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         [$incident] = $this->createIncident($agent, IncidentStatus::Closed, withCatalogUrls: true);
+
+        $this->assertNull(app(BuyRdServiceEligibilityService::class)->ineligibilityReason($incident));
+        $this->assertTrue(app(CommunicationActionEligibilityService::class)->canShowAction(
+            app(CommunicationActionRegistry::class)->get(CommunicationActionKey::BuyRdService),
+            $incident,
+            $agent,
+        ));
+    }
+
+    public function test_is_ineligible_when_case_is_closed_and_action_disallows_closed_incidents(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent, IncidentStatus::Closed, withCatalogUrls: true);
+
+        $actions = config('communication_actions.actions');
+        $actions['buy_rd_service']['allowed_on_closed_incident'] = false;
+        config(['communication_actions.actions' => $actions]);
+        $this->app->forgetInstance(CommunicationActionRegistry::class);
 
         $reason = app(CommunicationActionEligibilityService::class)->ineligibilityReason(
             app(CommunicationActionRegistry::class)->get(CommunicationActionKey::BuyRdService),

@@ -49,11 +49,7 @@ class CommunicationActionEligibilityService
             return 'You do not have permission to run this communication action.';
         }
 
-        if ($incident->status === IncidentStatus::Closed
-            && ! in_array($definition->key, [
-                CommunicationActionKey::ReviewRequest,
-                CommunicationActionKey::RefundConfirmation,
-            ], true)) {
+        if ($incident->status === IncidentStatus::Closed && ! $definition->allowedOnClosedIncident) {
             return 'Communication actions are unavailable on closed service cases.';
         }
 

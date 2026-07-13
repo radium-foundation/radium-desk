@@ -29,6 +29,7 @@ readonly class CommunicationActionDefinition
         public CommunicationActionExecutionMode $executionMode,
         public array $variables,
         public CommunicationActionAutomationMetadata $automation,
+        public bool $allowedOnClosedIncident = false,
     ) {}
 
     /**
@@ -91,6 +92,10 @@ readonly class CommunicationActionDefinition
             executionMode: $executionMode,
             variables: $variables,
             automation: CommunicationActionAutomationMetadata::fromConfig($config['automation'] ?? []),
+            allowedOnClosedIncident: filter_var(
+                $config['allowed_on_closed_incident'] ?? false,
+                FILTER_VALIDATE_BOOL,
+            ),
         );
     }
 
