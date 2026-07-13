@@ -5,8 +5,10 @@ namespace Tests\Unit\CommunicationActions;
 use App\Enums\CommunicationActionKey;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Models\RefundRequest;
 use App\Models\User;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\CommunicationActions\CommunicationActionRegistry;
@@ -55,6 +57,19 @@ class CommunicationActionEligibilityServiceTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         [$incident] = $this->createIncident($admin);
+
+        RefundRequest::query()->create([
+            'order_id' => $incident->order_id,
+            'incident_id' => $incident->id,
+            'reference_no' => 'REF-2026-000600',
+            'amount' => 1200,
+            'reason' => 'Approved refund for admin eligibility.',
+            'status' => RefundStatus::Approved,
+            'requested_by' => $admin->id,
+            'reviewed_by' => $admin->id,
+            'reviewed_at' => now(),
+            'refund_transaction_id' => 'RFTX-600',
+        ]);
 
         $service = app(CommunicationActionEligibilityService::class);
         $registry = app(CommunicationActionRegistry::class);
@@ -106,7 +121,7 @@ class CommunicationActionEligibilityServiceTest extends TestCase
             'source' => IncidentSource::Call,
             'title' => 'Communication action case',
             'description' => 'Communication action case.',
-            'status' => IncidentStatus::Open,
+            'status' => IncidentStatus::Resolved,
             'created_by' => $actor->id,
             'updated_by' => $actor->id,
             'assigned_to_user_id' => $actor->id,

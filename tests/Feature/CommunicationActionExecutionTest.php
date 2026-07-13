@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CommunicationActions\CommunicationActionLifecycleAuditService;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use Database\Seeders\RolePermissionSeeder;
@@ -69,6 +70,79 @@ class CommunicationActionExecutionTest extends TestCase
             'auditable_type' => Incident::class,
             'auditable_id' => $incident->id,
         ]);
+
+        $dispatchAudit = AuditLog::query()
+            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->first();
+
+        $this->assertSame('review_request', $dispatchAudit->new_values['communication_action_key']);
+        $this->assertSame('Review request sent', $dispatchAudit->new_values['communication_action_label']);
+    }
+
+    public function test_opening_communication_action_dialog_records_opened_lifecycle_event(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'communication-action',
+            ]).'?workspace_context=customer&key='.CommunicationActionKey::ReviewRequest->value)
+            ->assertOk();
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => CommunicationActionLifecycleAuditService::EVENT,
+            'auditable_type' => Incident::class,
+            'auditable_id' => $incident->id,
+            'user_id' => $agent->id,
+        ]);
+
+        $lifecycleAudit = AuditLog::query()
+            ->where('event', CommunicationActionLifecycleAuditService::EVENT)
+            ->first();
+
+        $this->assertSame('opened', $lifecycleAudit->new_values['status']);
+        $this->assertSame('review_request', $lifecycleAudit->new_values['action_key']);
+    }
+
+    public function test_successful_execution_records_sent_and_completed_lifecycle_events(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        [$incident] = $this->createIncident($agent);
+
+        $this->enableNotificationChannels([
+            'notifications.whatsapp.enabled' => true,
+            'notifications.email.enabled' => false,
+            'whatsapp.api_enabled' => true,
+            'whatsapp.manual_templates_enabled' => true,
+        ]);
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-review-002'], 200),
+        ]);
+
+        $this->actingAs($agent)
+            ->postJson(route('incidents.workspace.communication-action', [
+                'incident' => $incident,
+                'key' => CommunicationActionKey::ReviewRequest->value,
+            ]), [
+                'workspace_context' => 'customer',
+            ])
+            ->assertOk();
+
+        $statuses = AuditLog::query()
+            ->where('event', CommunicationActionLifecycleAuditService::EVENT)
+            ->orderBy('id')
+            ->get()
+            ->map(fn (AuditLog $auditLog): string => (string) ($auditLog->new_values['status'] ?? ''))
+            ->all();
+
+        $this->assertSame(['sent', 'completed'], $statuses);
     }
 
     public function test_agent_cannot_execute_refund_confirmation(): void
@@ -118,8 +192,11 @@ class CommunicationActionExecutionTest extends TestCase
         $response->assertSee('💬', false);
         $response->assertSee('>Communication<', false);
         $response->assertSee('Review Request');
-        $response->assertDontSee('Refund Confirmation');
-        $response->assertDontSee('data-customer-360-section="communication-actions"', false);
+        $response->assertSee('data-customer-360-section="communication-actions"', false);
+        $response->assertSee('Communication Actions');
+        $response->assertSee('data-communication-action-key="refund_confirmation"', false);
+        $response->assertSee('You do not have permission to run this communication action.', false);
+        $response->assertDontSee('data-workspace-communication-action-key="refund_confirmation"', false);
     }
 
     /**
@@ -146,7 +223,7 @@ class CommunicationActionExecutionTest extends TestCase
             'source' => IncidentSource::Call,
             'title' => 'Communication action execution case',
             'description' => 'Communication action execution case.',
-            'status' => IncidentStatus::Open,
+            'status' => IncidentStatus::Resolved,
             'created_by' => $actor->id,
             'updated_by' => $actor->id,
             'assigned_to_user_id' => $actor->id,

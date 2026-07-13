@@ -9,11 +9,22 @@ return [
         'buy_product' => env('COMMUNICATION_ACTION_BUY_PRODUCT_URL', 'https://radiumbox.com/shop'),
     ],
 
+    'support_contact' => env('COMMUNICATION_ACTION_SUPPORT_CONTACT', 'support@radiumbox.com'),
+
+    'company_name' => env('COMMUNICATION_ACTION_COMPANY_NAME', 'Radium Box'),
+
+    'driver_installation_guide' => [
+        'restart_instructions' => env(
+            'COMMUNICATION_ACTION_DRIVER_RESTART_INSTRUCTIONS',
+            'Restart your computer after installing the driver, then reconnect the biometric device.',
+        ),
+    ],
+
     'actions' => [
         'driver_installation_guide' => [
             'key' => 'driver_installation_guide',
             'name' => 'Driver Installation Guide',
-            'description' => 'Send driver setup instructions to help the customer install their biometric device.',
+            'description' => 'Send driver setup instructions, download link, and basic restart guidance to help the customer install their biometric device.',
             'icon' => 'bi-download',
             'channels' => ['whatsapp', 'email'],
             'roles' => [
@@ -28,13 +39,7 @@ return [
             'whatsapp_template' => 'driver_installation_guide',
             'timeline_label' => 'Driver installation guide sent',
             'execution_mode' => 'manual',
-            'variables' => [
-                'reference_number' => [
-                    'type' => 'text',
-                    'label' => 'Reference Number',
-                    'required' => false,
-                ],
-            ],
+            'variables' => [],
             'automation' => [
                 'enabled' => false,
                 'future_trigger' => 'reference_number_added',
@@ -78,21 +83,10 @@ return [
                 RolePermissionSeeder::ROLE_SUPERADMIN,
             ],
             'notification_type' => 'refund_confirmation',
-            'whatsapp_template' => 'refund_update',
+            'whatsapp_template' => 'refund_confirmation',
             'timeline_label' => 'Refund confirmation sent',
             'execution_mode' => 'manual',
-            'variables' => [
-                'refund_amount' => [
-                    'type' => 'text',
-                    'label' => 'Refund Amount',
-                    'required' => false,
-                ],
-                'refund_reference' => [
-                    'type' => 'text',
-                    'label' => 'Refund Reference',
-                    'required' => false,
-                ],
-            ],
+            'variables' => [],
             'automation' => [
                 'enabled' => false,
                 'future_trigger' => null,

@@ -74,6 +74,14 @@ return [
             'display_name' => env('INTERAKT_TEMPLATE_REFUND_UPDATE_DISPLAY', 'Refund Update'),
             'purpose' => 'Refund Update',
         ],
+        'refund_confirmation' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_REFUND_CONFIRMATION_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_REFUND_CONFIRMATION'),
+            'language_code' => env('INTERAKT_TEMPLATE_REFUND_CONFIRMATION_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_REFUND_CONFIRMATION_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_REFUND_CONFIRMATION_DISPLAY', 'Refund Confirmation'),
+            'purpose' => 'Refund Confirmation',
+        ],
         'amc_reminder' => [
             'enabled' => filter_var(env('INTERAKT_TEMPLATE_AMC_REMINDER_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_AMC_REMINDER'),

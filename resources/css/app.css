@@ -9105,7 +9105,58 @@ body.customer-360-drawer-open {
 .c360-status-banner--warning { background: rgba(234, 179, 8, 0.12); color: #a16207; }
 .c360-status-banner--danger { background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
 .c360-status-banner--info { background: rgba(59, 130, 246, 0.1); color: #1d4ed8; }
+.c360-status-banner--muted { background: #f1f5f9; color: #64748b; }
 .c360-status-banner--waiting { background: rgba(234, 179, 8, 0.14); color: #92400e; }
+
+.customer-360-communication-actions {
+    display: grid;
+    gap: 0.625rem;
+}
+
+.customer-360-communication-action-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--dashboard-border-subtle, #e9ecef);
+    border-radius: 0.5rem;
+    background: #fff;
+}
+
+.customer-360-communication-action-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.customer-360-communication-action-card-icon {
+    display: inline-flex;
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.customer-360-communication-action-card-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.customer-360-communication-action-card-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.customer-360-communication-action-already-sent {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: #94a3b8;
+}
 
 /* Quick toolbar */
 .c360-quick-toolbar {

@@ -10,6 +10,7 @@ enum WhatsAppTemplate: string
     case RepairCompleted = 'repair_completed';
     case ReadyForDispatch = 'ready_for_dispatch';
     case RefundUpdate = 'refund_update';
+    case RefundConfirmation = 'refund_confirmation';
     case AmcReminder = 'amc_reminder';
     case SupportAppointmentBooked = 'support_appointment_booked';
     case CustomerWaitingFollowup = 'customer_waiting_followup';
@@ -28,6 +29,7 @@ enum WhatsAppTemplate: string
             self::RepairCompleted => 'Repair Completed',
             self::ReadyForDispatch => 'Ready for Dispatch',
             self::RefundUpdate => 'Refund Update',
+            self::RefundConfirmation => 'Refund Confirmation',
             self::AmcReminder => 'AMC Reminder',
             self::SupportAppointmentBooked => 'Support Appointment Booked',
             self::CustomerWaitingFollowup => 'Customer Waiting Follow-up',

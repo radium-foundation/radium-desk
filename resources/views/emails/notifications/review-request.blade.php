@@ -1,22 +1,26 @@
 @extends('emails.layouts.master')
 
-@section('title', 'Share Your Feedback')
+@section('title', 'How Was Your Experience with Radium?')
 
-@section('preheader', 'Tell us about your recent remote support experience.')
+@section('preheader', "We'd love your feedback.")
 
-@section('email_title', 'How Did We Do?')
+@section('email_title', 'How Was Your Experience with Radium?')
 
 @section('greeting')
-Dear {{ $customer_name }},
+Hello {{ $customer_name }},
 @endsection
 
 @section('content')
     <p style="margin: 0 0 16px;">
-        We hope your recent remote support session went smoothly. Your feedback helps us improve the support we provide.
+        Thank you for choosing {{ $company_name }}.
+    </p>
+
+    <p style="margin: 0 0 16px;">
+        We hope your recent support experience went well. Your feedback helps us improve the service we provide to customers like you.
     </p>
 
     <p style="margin: 0;">
-        Please take a moment to share your experience with us.
+        Please take a moment to share your experience on Google.
     </p>
 @endsection
 
@@ -24,8 +28,8 @@ Dear {{ $customer_name }},
 
 @section('cta_label', 'Leave a Review')
 
-@section('contact_email', 'support@radiumbox.com')
-
 @section('signature')
-Team Radium Box
+    Kind regards,<br><br>
+    Team {{ $company_name }}<br>
+    {{ $support_contact }}
 @endsection

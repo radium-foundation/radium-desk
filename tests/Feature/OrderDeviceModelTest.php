@@ -269,6 +269,65 @@ class OrderDeviceModelTest extends TestCase
             ->assertSee('Assigned At', false);
     }
 
+    public function test_order_edit_form_uses_searchable_device_model_dropdown(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $deviceModel = DeviceModel::query()->where('name', 'MFS110')->firstOrFail();
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-EDIT-MODEL',
+            'serial_number' => 'SN-EDIT-MODEL',
+            'product_name' => 'MFS110',
+            'device_model' => 'MFS110',
+            'device_model_id' => $deviceModel->id,
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertSee('order_device_model_search', false)
+            ->assertSee('order_device_model_select', false)
+            ->assertSee('MFS110', false);
+    }
+
+    public function test_order_update_stores_canonical_device_model_from_dropdown(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $deviceModel = DeviceModel::query()->where('name', 'L1')->firstOrFail();
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-UPDATE-MODEL',
+            'serial_number' => '7881954',
+            'product_name' => 'MFS110',
+            'device_model' => 'MFS110',
+            'status' => 'active',
+            'created_by' => $admin->id,
+        ]);
+
+        $this->actingAs($admin)
+            ->put(route('orders.update', $order), [
+                'order_id' => $order->order_id,
+                'serial_number' => $order->serial_number,
+                'product_name' => $order->product_name,
+                'device_model_id' => $deviceModel->id,
+                'status' => 'active',
+            ])
+            ->assertRedirect(route('orders.show', $order));
+
+        $order->refresh();
+
+        $this->assertSame($deviceModel->id, $order->device_model_id);
+        $this->assertSame('L1', $order->device_model);
+        $this->assertNotNull($order->device_model_assigned_at);
+        $this->assertSame($admin->id, $order->device_model_assigned_by_user_id);
+    }
+
     public function test_dashboard_does_not_show_bulk_device_model_action_for_admin(): void
     {
         $admin = User::factory()->create();

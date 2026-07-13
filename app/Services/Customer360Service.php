@@ -32,6 +32,7 @@ use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
+use App\Support\Customer360\Customer360CommunicationActionStatusPresenter;
 use App\Support\Customer360\Customer360HealthCardPresenter;
 use App\Support\Customer360\Customer360InsightsPresenter;
 use App\Support\Customer360\Customer360IraAdvisorPresenter;
@@ -73,6 +74,7 @@ class Customer360Service
         private readonly Customer360InsightsPresenter $insightsPresenter,
         private readonly Customer360IraAdvisorPresenter $iraAdvisorPresenter,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
+        private readonly Customer360CommunicationActionStatusPresenter $communicationActionStatusPresenter,
     ) {}
 
     /**
@@ -113,6 +115,7 @@ class Customer360Service
                 'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
                 'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
                 'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
+                'communicationActionStatuses' => $this->communicationActionStatusPresenter->forIncident($incident, auth()->user()),
             ], $this->overflowMenuPayload($incident, null));
         }
 
@@ -156,6 +159,7 @@ class Customer360Service
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
             'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
+            'communicationActionStatuses' => $this->communicationActionStatusPresenter->forIncident($incident, auth()->user()),
             ...$this->overflowMenuPayload(
                 $incident,
                 $order,
@@ -921,6 +925,7 @@ class Customer360Service
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
+            'communicationActionStatuses' => $this->communicationActionStatusPresenter->forIncident($incident, auth()->user()),
         ];
     }
 }

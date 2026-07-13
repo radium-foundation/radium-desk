@@ -25,12 +25,22 @@ class DeviceModelSettingsService
             ->withQueryString();
     }
 
-    public function create(string $name, ?string $code, ?string $brand, int $displayOrder): DeviceModel
-    {
+    public function create(
+        string $name,
+        ?string $code,
+        ?string $brand,
+        int $displayOrder,
+        ?string $driverDownloadUrl = null,
+        ?string $buyDeviceUrl = null,
+        ?string $buyRdServiceUrl = null,
+    ): DeviceModel {
         return DB::transaction(fn (): DeviceModel => DeviceModel::query()->create([
             'name' => $name,
             'code' => $code,
             'brand' => $brand,
+            'driver_download_url' => $driverDownloadUrl,
+            'buy_device_url' => $buyDeviceUrl,
+            'buy_rd_service_url' => $buyRdServiceUrl,
             'display_order' => $displayOrder,
             'is_active' => true,
         ]));
@@ -42,11 +52,17 @@ class DeviceModelSettingsService
         ?string $code,
         ?string $brand,
         int $displayOrder,
+        ?string $driverDownloadUrl = null,
+        ?string $buyDeviceUrl = null,
+        ?string $buyRdServiceUrl = null,
     ): DeviceModel {
         $deviceModel->update([
             'name' => $name,
             'code' => $code,
             'brand' => $brand,
+            'driver_download_url' => $driverDownloadUrl,
+            'buy_device_url' => $buyDeviceUrl,
+            'buy_rd_service_url' => $buyRdServiceUrl,
             'display_order' => $displayOrder,
         ]);
 
@@ -58,6 +74,29 @@ class DeviceModelSettingsService
         $deviceModel->update(['is_active' => $active]);
 
         return $deviceModel->fresh();
+    }
+
+    /**
+     * @return list<array{id: int, name: string}>
+     */
+    public function optionsForOrderForm(?int $includeInactiveId = null): array
+    {
+        return DeviceModel::query()
+            ->where(function ($query) use ($includeInactiveId): void {
+                $query->where('is_active', true);
+
+                if ($includeInactiveId !== null) {
+                    $query->orWhere('id', $includeInactiveId);
+                }
+            })
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (DeviceModel $model): array => [
+                'id' => $model->id,
+                'name' => $model->name,
+            ])
+            ->all();
     }
 
     /**

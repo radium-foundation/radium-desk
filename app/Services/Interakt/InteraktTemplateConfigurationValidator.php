@@ -37,6 +37,10 @@ class InteraktTemplateConfigurationValidator
             'name' => 'INTERAKT_TEMPLATE_REFUND_UPDATE',
             'language' => 'INTERAKT_TEMPLATE_REFUND_UPDATE_LANGUAGE',
         ],
+        'refund_confirmation' => [
+            'name' => 'INTERAKT_TEMPLATE_REFUND_CONFIRMATION',
+            'language' => 'INTERAKT_TEMPLATE_REFUND_CONFIRMATION_LANGUAGE',
+        ],
         'amc_reminder' => [
             'name' => 'INTERAKT_TEMPLATE_AMC_REMINDER',
             'language' => 'INTERAKT_TEMPLATE_AMC_REMINDER_LANGUAGE',

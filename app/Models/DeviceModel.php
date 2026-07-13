@@ -11,6 +11,9 @@ class DeviceModel extends Model
         'name',
         'code',
         'brand',
+        'driver_download_url',
+        'buy_device_url',
+        'buy_rd_service_url',
         'display_order',
         'is_active',
     ];

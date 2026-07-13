@@ -29,6 +29,9 @@ class DeviceModelController extends Controller
             code: $validated['code'] ?? null,
             brand: $validated['brand'] ?? null,
             displayOrder: (int) $validated['display_order'],
+            driverDownloadUrl: $validated['driver_download_url'] ?? null,
+            buyDeviceUrl: $validated['buy_device_url'] ?? null,
+            buyRdServiceUrl: $validated['buy_rd_service_url'] ?? null,
         );
 
         return redirect()
@@ -46,6 +49,9 @@ class DeviceModelController extends Controller
             code: $validated['code'] ?? null,
             brand: $validated['brand'] ?? null,
             displayOrder: (int) $validated['display_order'],
+            driverDownloadUrl: $validated['driver_download_url'] ?? null,
+            buyDeviceUrl: $validated['buy_device_url'] ?? null,
+            buyRdServiceUrl: $validated['buy_rd_service_url'] ?? null,
         );
 
         return redirect()

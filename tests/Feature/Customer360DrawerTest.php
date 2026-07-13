@@ -137,7 +137,9 @@ class Customer360DrawerTest extends TestCase
         $this->assertStringContainsString('data-workspace-action-type="assign"', $html);
         $this->assertStringContainsString('data-workspace-action-type="close"', $html);
         $this->assertStringContainsString('Open Case', $html);
-        $this->assertStringNotContainsString('data-customer-360-section="communication-actions"', $html);
+        $this->assertStringContainsString('data-customer-360-section="communication-actions"', $html);
+        $this->assertStringContainsString('Communication Actions', $html);
+        $this->assertStringContainsString('Review Request', $html);
     }
 
     public function test_customer_360_health_card_shows_whatsapp_communication_timestamp(): void
@@ -347,7 +349,8 @@ class Customer360DrawerTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Serial requested', $html);
+        $this->assertStringContainsString('Last WhatsApp', $html);
+        $this->assertStringContainsString('SENT', $html);
         $this->assertStringContainsString(
             AppDateFormatter::format($sentAt, RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT),
             $html,

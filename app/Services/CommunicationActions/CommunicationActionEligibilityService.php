@@ -4,14 +4,21 @@ namespace App\Services\CommunicationActions;
 
 use App\Data\CommunicationActions\CommunicationActionDefinition;
 use App\Enums\CommunicationActionExecutionMode;
+use App\Enums\CommunicationActionKey;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\CommunicationActions\DriverInstallationGuide\DriverInstallationGuideEligibilityService;
+use App\Services\CommunicationActions\RefundConfirmation\RefundConfirmationEligibilityService;
+use App\Services\CommunicationActions\ReviewRequest\ReviewRequestEligibilityService;
 
 class CommunicationActionEligibilityService
 {
     public function __construct(
         private readonly CommunicationActionRegistry $registry,
+        private readonly DriverInstallationGuideEligibilityService $driverInstallationGuideEligibilityService,
+        private readonly ReviewRequestEligibilityService $reviewRequestEligibilityService,
+        private readonly RefundConfirmationEligibilityService $refundConfirmationEligibilityService,
     ) {}
     public function canShowAction(
         CommunicationActionDefinition $definition,
@@ -38,7 +45,11 @@ class CommunicationActionEligibilityService
             return 'You do not have permission to run this communication action.';
         }
 
-        if ($incident->status === IncidentStatus::Closed) {
+        if ($incident->status === IncidentStatus::Closed
+            && ! in_array($definition->key, [
+                CommunicationActionKey::ReviewRequest,
+                CommunicationActionKey::RefundConfirmation,
+            ], true)) {
             return 'Communication actions are unavailable on closed service cases.';
         }
 
@@ -48,7 +59,23 @@ class CommunicationActionEligibilityService
             return 'Link an order before sending communication actions.';
         }
 
-        return null;
+        return $this->actionSpecificIneligibilityReason($definition, $incident, $user);
+    }
+
+    private function actionSpecificIneligibilityReason(
+        CommunicationActionDefinition $definition,
+        Incident $incident,
+        ?User $user,
+    ): ?string {
+        return match ($definition->key) {
+            CommunicationActionKey::DriverInstallationGuide => $this->driverInstallationGuideEligibilityService
+                ->ineligibilityReason($incident),
+            CommunicationActionKey::ReviewRequest => $this->reviewRequestEligibilityService
+                ->ineligibilityReason($incident),
+            CommunicationActionKey::RefundConfirmation => $this->refundConfirmationEligibilityService
+                ->ineligibilityReason($incident),
+            default => null,
+        };
     }
 
     /**

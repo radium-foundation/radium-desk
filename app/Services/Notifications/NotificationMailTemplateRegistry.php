@@ -47,19 +47,35 @@ class NotificationMailTemplateRegistry
                 requiredVariables: ['customer_name', 'reference'],
             ),
             NotificationType::DriverInstallationGuide => new NotificationMailTemplateDefinition(
-                subject: 'Driver Installation Guide for Your Biometric Device',
+                subject: 'Driver Installation Guide for Your Device',
                 view: 'emails.notifications.driver-installation-guide',
-                requiredVariables: ['customer_name', 'reference_number'],
+                requiredVariables: [
+                    'customer_name',
+                    'driver_download_link',
+                    'support_contact',
+                    'company_name',
+                ],
             ),
             NotificationType::ReviewRequest => new NotificationMailTemplateDefinition(
-                subject: 'How did we do? Share your feedback',
+                subject: 'How Was Your Experience with Radium?',
                 view: 'emails.notifications.review-request',
-                requiredVariables: ['customer_name', 'review_url'],
+                requiredVariables: [
+                    'customer_name',
+                    'company_name',
+                    'review_url',
+                    'support_contact',
+                ],
             ),
             NotificationType::RefundConfirmation => new NotificationMailTemplateDefinition(
-                subject: 'Your Refund Confirmation',
+                subject: 'Your Refund Has Been Processed',
                 view: 'emails.notifications.refund-confirmation',
-                requiredVariables: ['customer_name', 'reference'],
+                requiredVariables: [
+                    'customer_name',
+                    'company_name',
+                    'refund_amount',
+                    'refund_reference',
+                    'support_contact',
+                ],
             ),
         };
     }
@@ -103,19 +119,33 @@ class NotificationMailTemplateRegistry
             ],
             NotificationType::DriverInstallationGuide => [
                 'customer_name' => $this->resolveCustomerName($message),
+                'agent_name' => trim((string) ($message->variables['agent_name'] ?? $message->actor?->name ?? 'Support Team')),
+                'case_number' => trim((string) ($message->variables['case_number'] ?? $message->incident->reference_no ?? '')),
                 'reference_number' => trim((string) ($message->variables['reference_number'] ?? $message->incident->reference_no ?? '')),
+                'model_name' => trim((string) ($message->variables['model_name'] ?? '')),
+                'driver_download_link' => trim((string) ($message->variables['driver_download_link'] ?? '')),
+                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
+                'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
+                'support_booking_link' => $this->resolveSupportBookingLink($message),
+                'restart_instructions' => trim((string) ($message->variables['restart_instructions'] ?? '')),
                 'order_id' => $message->customer instanceof Order
                     ? trim((string) $message->customer->order_id)
                     : '',
             ],
             NotificationType::ReviewRequest => [
                 'customer_name' => $this->resolveCustomerName($message),
+                'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
                 'review_url' => trim((string) ($message->variables['review_url'] ?? config('communication_actions.urls.review'))),
+                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
             ],
             NotificationType::RefundConfirmation => [
                 'customer_name' => $this->resolveCustomerName($message),
-                'reference' => trim((string) ($message->variables['refund_reference'] ?? $message->incident->reference_no ?? '')),
+                'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
                 'refund_amount' => trim((string) ($message->variables['refund_amount'] ?? '')),
+                'refund_reference' => trim((string) ($message->variables['refund_reference'] ?? '')),
+                'order_number' => trim((string) ($message->variables['order_number'] ?? '')),
+                'case_number' => trim((string) ($message->variables['case_number'] ?? $message->incident->reference_no ?? '')),
+                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
             ],
         };
 
@@ -152,5 +182,20 @@ class NotificationMailTemplateRegistry
         }
 
         return 'Customer';
+    }
+
+    private function resolveSupportBookingLink(NotificationMessage $message): string
+    {
+        $explicitLink = trim((string) ($message->variables['support_booking_link'] ?? ''));
+
+        if ($explicitLink !== '') {
+            return $explicitLink;
+        }
+
+        if ($message->incident === null) {
+            return '';
+        }
+
+        return $this->supportAppointmentUrlService->bookingUrl($message->incident);
     }
 }

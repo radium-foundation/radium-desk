@@ -3,12 +3,12 @@
 namespace App\Services\CommunicationActions;
 
 use App\Data\CommunicationActions\CommunicationActionDefinition;
+use App\Data\CommunicationActions\CommunicationActionExecutionContext;
 use App\Data\NotificationMessage;
 use App\Data\Workspace\WorkspaceActionResponse;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\CommunicationActionExecutionMode;
 use App\Enums\NotificationChannelType;
-use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\User;
@@ -31,6 +31,8 @@ class CommunicationActionExecutorService
         private readonly NotificationDispatcher $notificationDispatcher,
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
+        private readonly CommunicationActionLifecycleService $lifecycleService,
+        private readonly CommunicationActionExecutionContextFactory $executionContextFactory,
     ) {}
 
     /**
@@ -86,11 +88,26 @@ class CommunicationActionExecutorService
 
         $incident->loadMissing('order');
         $channelAvailability = $this->availabilityService->forDefinition($definition, $incident->order);
+
+        $executionContext = $this->executionContextFactory->forWorkspaceExecution(
+            action: $definition,
+            incident: $incident,
+            operator: $actor,
+            workspaceContext: $requestContext->context,
+            operatorInput: $operatorInput,
+            selectedChannelValues: $selectedChannels,
+        );
+
+        $eligibleChannels = $this->resolveEligibleChannels($definition, $channelAvailability);
         $allowedChannels = $this->resolveAllowedChannels(
             definition: $definition,
             channelAvailability: $channelAvailability,
             selectedChannels: $selectedChannels,
         );
+
+        $executionContext = $executionContext
+            ->withEligibleChannels($eligibleChannels)
+            ->withSelectedChannels($allowedChannels);
 
         $channelBlockReason = $this->availabilityService->unavailableReason($channelAvailability);
 
@@ -103,26 +120,14 @@ class CommunicationActionExecutorService
             );
         }
 
-        $variables = $this->variableResolver->resolve($definition, $incident, $operatorInput);
+        $executionContext = $executionContext->withResolvedVariables(
+            $this->variableResolver->resolveFromContext($executionContext),
+        );
 
         $dispatchResult = $this->notificationDispatcher->send(
-            $definition->notificationType,
-            new NotificationMessage(
-                type: $definition->notificationType,
-                customer: $incident->order,
-                incident: $incident,
-                template: $definition->whatsappTemplate?->value,
-                variables: $variables,
-                metadata: [
-                    'source' => 'customer360',
-                    'communication_action_key' => $definition->key->value,
-                    'communication_action_label' => $definition->timelineLabel,
-                    'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,
-                ],
-                actor: $actor,
-                httpRequest: $request,
-            ),
-            allowedChannels: $allowedChannels,
+            $executionContext->action->notificationType,
+            $this->notificationMessageFromContext($executionContext, $request),
+            allowedChannels: $executionContext->selectedChannels,
         );
 
         if (! $dispatchResult->success) {
@@ -135,6 +140,18 @@ class CommunicationActionExecutorService
                 message: $message,
             );
         }
+
+        $sentChannels = collect($dispatchResult->results)
+            ->filter(fn (\App\Data\NotificationResult $result): bool => $result->countsTowardSuccess())
+            ->map(fn (\App\Data\NotificationResult $result): string => $result->channel->value)
+            ->values()
+            ->all();
+
+        $this->lifecycleService->recordSuccessfulExecutionFromContext(
+            context: $executionContext,
+            channels: $sentChannels,
+            request: $request,
+        );
 
         $effects = $this->refreshPolicy->effectsFor(
             $requestContext->context,
@@ -173,6 +190,36 @@ class CommunicationActionExecutorService
         }
 
         Validator::make($operatorInput, $rules)->validate();
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $channelAvailability
+     * @return list<NotificationChannelType>
+     */
+    private function resolveEligibleChannels(
+        CommunicationActionDefinition $definition,
+        array $channelAvailability,
+    ): array {
+        return collect($definition->channels)
+            ->filter(fn (NotificationChannelType $channel): bool => ($channelAvailability[$channel->value]['available'] ?? false) === true)
+            ->values()
+            ->all();
+    }
+
+    private function notificationMessageFromContext(
+        CommunicationActionExecutionContext $context,
+        ?Request $request,
+    ): NotificationMessage {
+        return new NotificationMessage(
+            type: $context->action->notificationType,
+            customer: $context->customer,
+            incident: $context->incident,
+            template: $context->action->whatsappTemplate?->value,
+            variables: $context->resolvedVariables,
+            metadata: $context->toNotificationMetadata(),
+            actor: $context->operator,
+            httpRequest: $request,
+        );
     }
 
     /**

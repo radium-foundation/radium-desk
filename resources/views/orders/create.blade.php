@@ -19,7 +19,7 @@
             <form method="POST" action="{{ route('orders.store') }}">
                 @csrf
 
-                @include('orders.partials.form', ['order' => $order])
+                @include('orders.partials.form', ['order' => $order, 'deviceModels' => $deviceModels ?? []])
 
                 <div class="d-flex flex-wrap gap-2 mt-4">
                     <button type="submit" class="btn btn-primary">Create Order</button>

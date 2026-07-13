@@ -95,7 +95,7 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::ServiceCaseClosed => WhatsAppTemplate::RepairCompleted,
             NotificationType::DriverInstallationGuide => WhatsAppTemplate::DriverInstallationGuide,
             NotificationType::ReviewRequest => WhatsAppTemplate::ReviewRequest,
-            NotificationType::RefundConfirmation => WhatsAppTemplate::RefundUpdate,
+            NotificationType::RefundConfirmation => WhatsAppTemplate::RefundConfirmation,
             NotificationType::BuyRdService => WhatsAppTemplate::BuyRdService,
             NotificationType::BuyProduct => WhatsAppTemplate::BuyProduct,
         };

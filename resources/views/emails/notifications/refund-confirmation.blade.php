@@ -1,39 +1,45 @@
 @extends('emails.layouts.master')
 
-@section('title', 'Refund Confirmation')
+@section('title', 'Your Refund Has Been Processed')
 
-@section('preheader', 'Your refund has been processed.')
+@section('preheader', 'Your refund has been successfully processed.')
 
-@section('email_title', 'Refund Confirmation')
+@section('email_title', 'Your Refund Has Been Processed')
 
 @section('greeting')
-Dear {{ $customer_name }},
+Hello {{ $customer_name }},
 @endsection
 
 @section('content')
     <p style="margin: 0 0 16px;">
-        This email confirms that your refund request has been processed.
+        Your refund has been successfully processed.
     </p>
 
-    @if(filled($reference ?? null))
+    @if(filled($refund_amount ?? null))
+        <p style="margin: 0 0 8px;">
+            <strong>Refund Amount</strong>
+        </p>
         <p style="margin: 0 0 16px;">
-            <strong>Reference:</strong> {{ $reference }}
+            {{ $refund_amount }}
         </p>
     @endif
 
-    @if(filled($refund_amount ?? null))
+    @if(filled($refund_reference ?? null))
+        <p style="margin: 0 0 8px;">
+            <strong>Reference Number</strong>
+        </p>
         <p style="margin: 0 0 16px;">
-            <strong>Refund Amount:</strong> {{ $refund_amount }}
+            {{ $refund_reference }}
         </p>
     @endif
 
     <p style="margin: 0;">
-        If you have any questions about this refund, reply to this email and our team will help.
+        If you have any questions, simply reply to this email.
     </p>
 @endsection
 
-@section('contact_email', 'support@radiumbox.com')
-
 @section('signature')
-Team Radium Box
+    Kind regards,<br><br>
+    Team {{ $company_name }}<br>
+    {{ $support_contact }}
 @endsection

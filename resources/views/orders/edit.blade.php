@@ -32,7 +32,7 @@
                 @csrf
                 @method('PUT')
 
-                @include('orders.partials.form', ['order' => $order, 'showStatus' => true])
+                @include('orders.partials.form', ['order' => $order, 'showStatus' => true, 'deviceModels' => $deviceModels ?? []])
 
                 @if($order->isTransactionLocked())
                     <div class="mt-4">

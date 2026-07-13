@@ -7,8 +7,10 @@ use App\Enums\OrderStatus;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\StoreOrderServiceCaseRequest;
 use App\Http\Requests\UpdateOrderRequest;
+use App\Models\DeviceModel;
 use App\Models\Order;
 use App\Services\AuditLogService;
+use App\Services\DeviceModelSettingsService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\QuickServiceRequestService;
 use App\Services\RadiumBox\RadiumBoxService;
@@ -21,6 +23,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
+use App\Models\User;
 
 class OrderController extends Controller
 {
@@ -33,6 +36,7 @@ class OrderController extends Controller
         private readonly SerialValidationService $serialValidationService,
         private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibilityService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly DeviceModelSettingsService $deviceModelSettingsService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -91,6 +95,7 @@ class OrderController extends Controller
             'order' => new Order([
                 'status' => OrderStatus::Active,
             ]),
+            'deviceModels' => $this->deviceModelSettingsService->optionsForOrderForm(),
         ]);
     }
 
@@ -102,10 +107,15 @@ class OrderController extends Controller
             $request->string('product_name')->toString(),
         );
 
-        $order = Order::query()->create([
-            ...collect($request->validated())->replace([
+        $validated = $this->applyDeviceModelSelection(
+            validated: collect($request->validated())->replace([
                 'serial_number' => $validation->normalizedSerial,
             ])->all(),
+            actor: $request->user(),
+        );
+
+        $order = Order::query()->create([
+            ...$validated,
             'status' => OrderStatus::Active,
             'created_by' => $request->user()->id,
             'updated_by' => $request->user()->id,
@@ -191,6 +201,7 @@ class OrderController extends Controller
     {
         return view('orders.edit', [
             'order' => $order,
+            'deviceModels' => $this->deviceModelSettingsService->optionsForOrderForm($order->device_model_id),
         ]);
     }
 
@@ -202,6 +213,11 @@ class OrderController extends Controller
         $previousDeviceModel = $order->device_model;
         $previousProductName = $order->product_name;
         $validated = collect($request->validated())->except('correction_reason')->all();
+        $validated = $this->applyDeviceModelSelection(
+            validated: $validated,
+            actor: $request->user(),
+            order: $order,
+        );
         $iraCorrection = null;
 
         if (array_key_exists('serial_number', $validated)) {
@@ -298,6 +314,30 @@ class OrderController extends Controller
         return redirect()
             ->route('orders.show', $order)
             ->with('status', 'order-updated');
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function applyDeviceModelSelection(array $validated, User $actor, ?Order $order = null): array
+    {
+        if (! array_key_exists('device_model_id', $validated) || $validated['device_model_id'] === null) {
+            return $validated;
+        }
+
+        $deviceModel = DeviceModel::query()->findOrFail((int) $validated['device_model_id']);
+        $validated['device_model'] = $deviceModel->name;
+
+        $assignmentChanged = $order === null
+            || (int) $order->device_model_id !== (int) $validated['device_model_id'];
+
+        if ($assignmentChanged) {
+            $validated['device_model_assigned_at'] = now();
+            $validated['device_model_assigned_by_user_id'] = $actor->id;
+        }
+
+        return $validated;
     }
 
     private function normalizeAuditValue(mixed $value): mixed

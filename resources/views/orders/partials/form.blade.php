@@ -41,17 +41,55 @@
     </div>
 
     <div class="col-md-6">
-        <label for="device_model" class="form-label">Device Model <span class="text-danger">*</span></label>
-        <input type="text" name="device_model" id="device_model"
-               class="form-control @error('device_model') is-invalid @enderror"
-               value="{{ old('device_model', $order->device_model) }}" required>
-        @error('device_model')
-            <div class="invalid-feedback">{{ $message }}</div>
-        @enderror
+        <label for="order_device_model_search" class="form-label">Device Model <span class="text-danger">*</span></label>
+        <input type="search"
+               id="order_device_model_search"
+               class="form-control form-control-sm mb-2"
+               placeholder="Search models..."
+               autocomplete="off"
+               data-device-model-search
+               data-device-model-select="order_device_model_select">
+        @include('dashboard.partials.device-model-select', [
+            'selectId' => 'order_device_model_select',
+            'fieldName' => 'device_model_id',
+            'deviceModels' => $deviceModels ?? [],
+            'selected' => old('device_model_id', $order->device_model_id),
+            'showLabel' => false,
+            'hasError' => $errors->has('device_model_id'),
+        ])
         @if($formattedDeviceModel)
             <div class="form-text">Dashboard display: {{ $formattedDeviceModel }}</div>
         @endif
+        @if(filled($order->device_model) && ! $order->device_model_id)
+            <div class="form-text">Legacy free-text model: {{ $order->device_model }}</div>
+        @endif
     </div>
+
+    @once
+        @push('scripts')
+            <script>
+                document.querySelectorAll('[data-device-model-search]').forEach((searchInput) => {
+                    const select = document.getElementById(searchInput.dataset.deviceModelSelect);
+
+                    if (!select) {
+                        return;
+                    }
+
+                    const options = Array.from(select.options).slice(1);
+
+                    searchInput.addEventListener('input', () => {
+                        const term = searchInput.value.trim().toLowerCase();
+
+                        options.forEach((option) => {
+                            const visible = term === '' || option.text.toLowerCase().includes(term);
+                            option.hidden = !visible;
+                            option.disabled = !visible;
+                        });
+                    });
+                });
+            </script>
+        @endpush
+    @endonce
 
     @if($showStatus)
         <div class="col-md-6">
