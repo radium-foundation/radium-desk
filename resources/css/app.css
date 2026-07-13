@@ -7683,6 +7683,16 @@ body.customer-360-drawer-open {
     font-size: 0.8125rem;
 }
 
+.workspace-close-notification-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+}
+
+.workspace-close-notification-options .form-check-label {
+    font-size: 0.8125rem;
+}
+
 @media (max-width: 575.98px) {
     [data-workspace-modal-host].workspace-modal--action .modal-dialog {
         margin: 0;

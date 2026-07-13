@@ -12,12 +12,33 @@ const ACTION_PLACEHOLDERS = {
     reopen: 'Reason for reopening…',
 };
 
+const REMARK_LABELS = {
+    assign: 'Remark',
+    escalate: 'Remark',
+    close: 'Closing Summary',
+    reopen: 'Remark',
+};
+
 const SUBMIT_ACCENT_CLASSES = [
     'workspace-action-submit--assign',
     'workspace-action-submit--escalate',
     'workspace-action-submit--close',
     'workspace-action-submit--reopen',
 ];
+
+const CLOSE_REASON_FIELDS = {
+    issue_resolved: ['resolution_type'],
+    customer_not_responding: ['contact_attempt', 'attempts'],
+    customer_cancelled: [],
+    reference_number_pending: ['expected_from', 'expected_date'],
+    serial_number_pending: ['expected_from', 'expected_date'],
+    warranty_rejected: [],
+    replacement_issued: ['replacement_order_id'],
+    payment_collected_offline: [],
+    duplicate_case: ['existing_case_id'],
+    approved_by_admin: ['approval_reference'],
+    other: [],
+};
 
 const autoGrowTextarea = (textarea) => {
     if (!(textarea instanceof HTMLTextAreaElement)) {
@@ -42,15 +63,10 @@ export const initActionDialog = (root = document) => {
     const notifyNotes = [...form.querySelectorAll('[data-workspace-action-notify-note]')];
     const submitButton = form.querySelector('[data-workspace-action-submit]');
     const remarkTextarea = form.querySelector('[data-workspace-action-remark]');
-    const serialCheckbox = form.querySelector('#workspace_action_serial_unavailable');
-    const referenceCheckbox = form.querySelector('#workspace_action_reference_unavailable');
-    const serialDetail = form.querySelector('[data-workspace-exception-detail="serial"]');
-    const referenceDetail = form.querySelector('[data-workspace-exception-detail="reference"]');
-    const serialReason = form.querySelector('#workspace_action_serial_reason');
-    const referenceReason = form.querySelector('#workspace_action_reference_reason');
-    const serialCustom = form.querySelector('[data-workspace-exception-custom="serial"]');
-    const referenceCustom = form.querySelector('[data-workspace-exception-custom="reference"]');
-    const exceptionsDetails = form.querySelector('.workspace-action-exceptions');
+    const remarkLabel = form.querySelector('[data-workspace-action-remark-label]');
+    const closeReasonSelect = form.querySelector('[data-workspace-close-reason]');
+    const closeNotificationFieldset = form.querySelector('[data-workspace-close-notification]');
+    const closeFieldGroups = [...form.querySelectorAll('[data-workspace-close-field-group]')];
 
     const togglePanelFields = (actionType, enabled) => {
         const panel = form.querySelector(`[data-workspace-action-panel="${actionType}"]`);
@@ -86,6 +102,46 @@ export const initActionDialog = (root = document) => {
         remarkTextarea.placeholder = ACTION_PLACEHOLDERS[actionType] ?? 'Type a remark…';
     };
 
+    const updateRemarkLabel = (actionType) => {
+        if (!remarkLabel) {
+            return;
+        }
+
+        const label = REMARK_LABELS[actionType] ?? 'Remark';
+        remarkLabel.innerHTML = `${label} <span class="text-danger">*</span>`;
+    };
+
+    const syncCloseReasonFields = () => {
+        if (!closeReasonSelect) {
+            return;
+        }
+
+        const reason = closeReasonSelect.value;
+        const visibleFields = new Set(CLOSE_REASON_FIELDS[reason] ?? []);
+
+        closeFieldGroups.forEach((group) => {
+            const fieldName = group.dataset.workspaceCloseFieldGroup;
+            group.classList.toggle('d-none', !visibleFields.has(fieldName));
+        });
+
+        if (closeNotificationFieldset) {
+            const selectedOption = closeReasonSelect.selectedOptions[0];
+            const showsNotification = selectedOption?.dataset.showsNotification === '1';
+            closeNotificationFieldset.classList.toggle('d-none', !showsNotification);
+
+            closeNotificationFieldset.querySelectorAll('input[type="radio"]').forEach((input) => {
+                input.disabled = !showsNotification;
+            });
+
+            if (!showsNotification) {
+                const noOption = closeNotificationFieldset.querySelector('input[value="no"]');
+                if (noOption) {
+                    noOption.checked = true;
+                }
+            }
+        }
+    };
+
     const setAction = (actionType) => {
         if (!typeInput) {
             return;
@@ -112,37 +168,16 @@ export const initActionDialog = (root = document) => {
 
         updateSubmitButton(actionType);
         updateRemarkPlaceholder(actionType);
+        updateRemarkLabel(actionType);
 
         panels.forEach((panel) => {
             const isActive = panel.dataset.workspaceActionPanel === actionType;
             panel.classList.toggle('d-none', !isActive);
             togglePanelFields(panel.dataset.workspaceActionPanel, isActive);
         });
-    };
 
-    const syncExceptionDetail = (checkbox, detail) => {
-        if (!detail) {
-            return;
-        }
-
-        detail.classList.toggle('d-none', !checkbox?.checked);
-    };
-
-    const syncExceptionCustom = (reasonSelect, customBlock) => {
-        if (!customBlock || !reasonSelect) {
-            return;
-        }
-
-        customBlock.classList.toggle('d-none', reasonSelect.value !== 'other');
-    };
-
-    const openExceptionsIfNeeded = () => {
-        if (!exceptionsDetails) {
-            return;
-        }
-
-        if (serialCheckbox?.checked || referenceCheckbox?.checked) {
-            exceptionsDetails.open = true;
+        if (actionType === 'close') {
+            syncCloseReasonFields();
         }
     };
 
@@ -161,33 +196,13 @@ export const initActionDialog = (root = document) => {
         });
     });
 
-    serialCheckbox?.addEventListener('change', () => {
-        syncExceptionDetail(serialCheckbox, serialDetail);
-        openExceptionsIfNeeded();
-    });
-
-    referenceCheckbox?.addEventListener('change', () => {
-        syncExceptionDetail(referenceCheckbox, referenceDetail);
-        openExceptionsIfNeeded();
-    });
-
-    serialReason?.addEventListener('change', () => {
-        syncExceptionCustom(serialReason, serialCustom);
-    });
-
-    referenceReason?.addEventListener('change', () => {
-        syncExceptionCustom(referenceReason, referenceCustom);
-    });
+    closeReasonSelect?.addEventListener('change', syncCloseReasonFields);
 
     remarkTextarea?.addEventListener('input', () => {
         autoGrowTextarea(remarkTextarea);
     });
 
-    openExceptionsIfNeeded();
-    syncExceptionDetail(serialCheckbox, serialDetail);
-    syncExceptionDetail(referenceCheckbox, referenceDetail);
-    syncExceptionCustom(serialReason, serialCustom);
-    syncExceptionCustom(referenceReason, referenceCustom);
+    syncCloseReasonFields();
     autoGrowTextarea(remarkTextarea);
 
     form.dataset.workspaceActionDialogInitialized = 'true';

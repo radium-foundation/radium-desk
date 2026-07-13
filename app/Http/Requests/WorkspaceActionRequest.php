@@ -8,6 +8,7 @@ use App\Enums\ServiceCaseCloseExceptionReason;
 use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceContext;
 use App\Http\Requests\Concerns\RequiresActionRemarkBody;
+use App\Http\Requests\Concerns\ValidatesCloseCaseV2Fields;
 use App\Models\Incident;
 use App\Services\WorkspaceActionDialogService;
 use App\Services\ServiceCaseEscalationService;
@@ -20,6 +21,7 @@ use Illuminate\Validation\ValidationException;
 class WorkspaceActionRequest extends FormRequest
 {
     use RequiresActionRemarkBody;
+    use ValidatesCloseCaseV2Fields;
 
     public function authorize(): bool
     {
@@ -72,37 +74,42 @@ class WorkspaceActionRequest extends FormRequest
                         ->whereNull('deleted_at')),
                 ],
             ],
-            WorkspaceActionType::Close => [
-                ...$rules,
-                'serial_number_unavailable' => ['sometimes', 'boolean'],
-                'reference_number_unavailable' => ['sometimes', 'boolean'],
-                'serial_exception_reason' => [
-                    Rule::requiredIf(fn (): bool => $this->boolean('serial_number_unavailable')),
-                    'nullable',
-                    'string',
-                    Rule::in(ServiceCaseCloseExceptionReason::values()),
+            WorkspaceActionType::Close => $this->isCloseV2()
+                ? [
+                    ...$rules,
+                    ...$this->closeCaseV2Rules(),
+                ]
+                : [
+                    ...$rules,
+                    'serial_number_unavailable' => ['sometimes', 'boolean'],
+                    'reference_number_unavailable' => ['sometimes', 'boolean'],
+                    'serial_exception_reason' => [
+                        Rule::requiredIf(fn (): bool => $this->boolean('serial_number_unavailable')),
+                        'nullable',
+                        'string',
+                        Rule::in(ServiceCaseCloseExceptionReason::values()),
+                    ],
+                    'serial_exception_reason_custom' => [
+                        Rule::requiredIf(fn (): bool => $this->input('serial_exception_reason') === ServiceCaseCloseExceptionReason::Other->value),
+                        'nullable',
+                        'string',
+                        'max:5000',
+                    ],
+                    'reference_exception_reason' => [
+                        Rule::requiredIf(fn (): bool => $this->boolean('reference_number_unavailable')),
+                        'nullable',
+                        'string',
+                        Rule::in(ServiceCaseCloseExceptionReason::values()),
+                    ],
+                    'reference_exception_reason_custom' => [
+                        Rule::requiredIf(fn (): bool => $this->input('reference_exception_reason') === ServiceCaseCloseExceptionReason::Other->value),
+                        'nullable',
+                        'string',
+                        'max:5000',
+                    ],
+                    'notify_whatsapp' => ['sometimes', 'boolean'],
+                    'notify_email' => ['sometimes', 'boolean'],
                 ],
-                'serial_exception_reason_custom' => [
-                    Rule::requiredIf(fn (): bool => $this->input('serial_exception_reason') === ServiceCaseCloseExceptionReason::Other->value),
-                    'nullable',
-                    'string',
-                    'max:5000',
-                ],
-                'reference_exception_reason' => [
-                    Rule::requiredIf(fn (): bool => $this->boolean('reference_number_unavailable')),
-                    'nullable',
-                    'string',
-                    Rule::in(ServiceCaseCloseExceptionReason::values()),
-                ],
-                'reference_exception_reason_custom' => [
-                    Rule::requiredIf(fn (): bool => $this->input('reference_exception_reason') === ServiceCaseCloseExceptionReason::Other->value),
-                    'nullable',
-                    'string',
-                    'max:5000',
-                ],
-                'notify_whatsapp' => ['sometimes', 'boolean'],
-                'notify_email' => ['sometimes', 'boolean'],
-            ],
             WorkspaceActionType::Reopen => [
                 ...$rules,
                 'assigned_to_user_id' => [
@@ -125,9 +132,11 @@ class WorkspaceActionRequest extends FormRequest
     {
         return [
             ...$this->actionRemarkBodyAttributes(),
+            ...$this->closeCaseV2Attributes(),
             'action_type' => 'action',
             'assigned_to_user_id' => 'assign to',
             'workspace_context' => 'workspace context',
+            'body' => $this->isCloseV2() ? 'closing summary' : 'remark',
             'serial_exception_reason' => 'serial number reason',
             'serial_exception_reason_custom' => 'serial number custom remark',
             'reference_exception_reason' => 'reference number reason',
@@ -151,6 +160,8 @@ class WorkspaceActionRequest extends FormRequest
             'notify_whatsapp' => $this->boolean('notify_whatsapp'),
             'notify_email' => $this->boolean('notify_email'),
         ]);
+
+        $this->prepareCloseCaseV2ForValidation();
     }
 
     protected function failedValidation(Validator $validator): void

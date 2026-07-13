@@ -105,6 +105,19 @@ describe('initActionDialog', () => {
         expect(document.querySelector('[data-workspace-action-card="assign"]').classList.contains('is-active')).toBe(true);
     });
 
+    it('updates remark label for close action', () => {
+        document.body.innerHTML = buildFormHtml();
+        const remarkLabel = document.createElement('label');
+        remarkLabel.dataset.workspaceActionRemarkLabel = '';
+        remarkLabel.innerHTML = 'Remark <span class="text-danger">*</span>';
+        document.querySelector('[data-workspace-action-remark]').before(remarkLabel);
+
+        initActionDialog(document);
+        document.querySelector('[data-workspace-action-card="close"]').click();
+
+        expect(remarkLabel.textContent).toContain('Closing Summary');
+    });
+
     it('auto-grows the remark textarea on input', () => {
         document.body.innerHTML = buildFormHtml();
         const remark = document.querySelector('[data-workspace-action-remark]');

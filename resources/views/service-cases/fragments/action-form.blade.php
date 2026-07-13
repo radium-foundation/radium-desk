@@ -1,5 +1,4 @@
 @php
-    use App\Enums\ServiceCaseCloseExceptionReason;
     use App\Enums\WorkspaceActionType;
     use App\Support\Customer360\Customer360OverflowMenuLucideIcon;
 
@@ -8,13 +7,6 @@
     $capabilities = $actionCapabilities ?? ['assign' => false, 'close' => false, 'reopen' => false, 'escalate' => false];
     $bodyValue = old('body', $formPayload['body'] ?? $remarkBody ?? '');
     $assigneeValue = old('assigned_to_user_id', $formPayload['assigned_to_user_id'] ?? $incident->assigned_to_user_id);
-    $serialUnavailable = old('serial_number_unavailable', $formPayload['serial_number_unavailable'] ?? false);
-    $referenceUnavailable = old('reference_number_unavailable', $formPayload['reference_number_unavailable'] ?? false);
-    $serialReasonValue = old('serial_exception_reason', $formPayload['serial_exception_reason'] ?? '');
-    $serialCustomValue = old('serial_exception_reason_custom', $formPayload['serial_exception_reason_custom'] ?? '');
-    $referenceReasonValue = old('reference_exception_reason', $formPayload['reference_exception_reason'] ?? '');
-    $referenceCustomValue = old('reference_exception_reason_custom', $formPayload['reference_exception_reason_custom'] ?? '');
-    $exceptionDate = now()->format('Ymd');
     $mentionListId = 'mention-users-action-'.md5($incident::class.$incident->getKey());
 
     $order = $incident->order;
@@ -174,149 +166,7 @@
         <div class="workspace-action-panel @if($selectedAction !== WorkspaceActionType::Close) d-none @endif"
              data-workspace-action-panel="close"
              role="tabpanel">
-            <details class="workspace-action-exceptions mb-0">
-                <summary class="workspace-action-exceptions-summary">Exceptions</summary>
-                <div class="workspace-action-exceptions-body">
-                    <div class="form-check">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               name="serial_number_unavailable"
-                               value="1"
-                               id="workspace_action_serial_unavailable"
-                               @checked($serialUnavailable)
-                               @disabled($selectedAction !== WorkspaceActionType::Close)>
-                        <label class="form-check-label" for="workspace_action_serial_unavailable">
-                            Serial Number not available
-                        </label>
-                    </div>
-
-                    <div class="workspace-action-exception-detail @if(! $serialUnavailable) d-none @endif"
-                         data-workspace-exception-detail="serial">
-                        <div class="mb-2">
-                            <label for="workspace_action_serial_reason" class="form-label workspace-action-field-label">Reason <span class="text-danger">*</span></label>
-                            <select name="serial_exception_reason"
-                                    id="workspace_action_serial_reason"
-                                    class="form-select form-select-sm @error('serial_exception_reason') is-invalid @enderror"
-                                    @disabled($selectedAction !== WorkspaceActionType::Close)>
-                                <option value="" disabled @selected($serialReasonValue === '')>Select reason</option>
-                                @foreach($exceptionReasons as $reason)
-                                    <option value="{{ $reason->value }}" @selected($serialReasonValue === $reason->value)>
-                                        {{ $reason->label() }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('serial_exception_reason')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="mb-2 @if($serialReasonValue !== ServiceCaseCloseExceptionReason::Other->value) d-none @endif"
-                             data-workspace-exception-custom="serial">
-                            <label for="workspace_action_serial_custom" class="form-label workspace-action-field-label">Custom Remark <span class="text-danger">*</span></label>
-                            <textarea name="serial_exception_reason_custom"
-                                      id="workspace_action_serial_custom"
-                                      rows="2"
-                                      class="form-control form-control-sm @error('serial_exception_reason_custom') is-invalid @enderror"
-                                      @disabled($selectedAction !== WorkspaceActionType::Close)>{{ $serialCustomValue }}</textarea>
-                            @error('serial_exception_reason_custom')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <p class="workspace-action-exception-preview small text-muted mb-2">
-                            System generates: <span class="font-monospace">EXS-{{ $exceptionDate }}-0001</span>
-                        </p>
-                    </div>
-
-                    <div class="form-check">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               name="reference_number_unavailable"
-                               value="1"
-                               id="workspace_action_reference_unavailable"
-                               @checked($referenceUnavailable)
-                               @disabled($selectedAction !== WorkspaceActionType::Close)>
-                        <label class="form-check-label" for="workspace_action_reference_unavailable">
-                            Reference Number not available
-                        </label>
-                    </div>
-
-                    <div class="workspace-action-exception-detail @if(! $referenceUnavailable) d-none @endif"
-                         data-workspace-exception-detail="reference">
-                        <div class="mb-2">
-                            <label for="workspace_action_reference_reason" class="form-label workspace-action-field-label">Reason <span class="text-danger">*</span></label>
-                            <select name="reference_exception_reason"
-                                    id="workspace_action_reference_reason"
-                                    class="form-select form-select-sm @error('reference_exception_reason') is-invalid @enderror"
-                                    @disabled($selectedAction !== WorkspaceActionType::Close)>
-                                <option value="" disabled @selected($referenceReasonValue === '')>Select reason</option>
-                                @foreach($exceptionReasons as $reason)
-                                    <option value="{{ $reason->value }}" @selected($referenceReasonValue === $reason->value)>
-                                        {{ $reason->label() }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('reference_exception_reason')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="mb-2 @if($referenceReasonValue !== ServiceCaseCloseExceptionReason::Other->value) d-none @endif"
-                             data-workspace-exception-custom="reference">
-                            <label for="workspace_action_reference_custom" class="form-label workspace-action-field-label">Custom Remark <span class="text-danger">*</span></label>
-                            <textarea name="reference_exception_reason_custom"
-                                      id="workspace_action_reference_custom"
-                                      rows="2"
-                                      class="form-control form-control-sm @error('reference_exception_reason_custom') is-invalid @enderror"
-                                      @disabled($selectedAction !== WorkspaceActionType::Close)>{{ $referenceCustomValue }}</textarea>
-                            @error('reference_exception_reason_custom')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <p class="workspace-action-exception-preview small text-muted mb-0">
-                            System generates: <span class="font-monospace">EXR-{{ $exceptionDate }}-0001</span>
-                        </p>
-                    </div>
-                </div>
-            </details>
-
-            @error('reference_no')
-                <div class="text-danger small mt-2">{{ $message }}</div>
-            @enderror
-            @error('serial_number')
-                <div class="text-danger small mt-2">{{ $message }}</div>
-            @enderror
-            @error('transaction_id')
-                <div class="text-danger small mt-2">{{ $message }}</div>
-            @enderror
-            @error('remarks')
-                <div class="text-danger small mt-2">{{ $message }}</div>
-            @enderror
-
-            <fieldset class="workspace-action-notify workspace-action-notify--compact mt-2 mb-0" aria-label="Customer notification">
-                <legend class="form-label workspace-action-field-label mb-1">Notify Customer</legend>
-                <div class="d-flex gap-3">
-                    <div class="form-check">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               name="notify_whatsapp"
-                               value="1"
-                               id="workspace_action_notify_whatsapp"
-                               @disabled($selectedAction !== WorkspaceActionType::Close)>
-                        <label class="form-check-label" for="workspace_action_notify_whatsapp">WhatsApp</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               name="notify_email"
-                               value="1"
-                               id="workspace_action_notify_email"
-                               @disabled($selectedAction !== WorkspaceActionType::Close)>
-                        <label class="form-check-label" for="workspace_action_notify_email">Email</label>
-                    </div>
-                </div>
-            </fieldset>
+            @include('service-cases.fragments.partials.close-case-v2-fields')
         </div>
 
         <div class="workspace-action-notify-notes mt-2 mb-0" aria-live="polite">
@@ -341,7 +191,15 @@
         </div>
 
         <div class="workspace-action-remark-section mt-2">
-            <label for="workspace_action_remark" class="form-label workspace-action-field-label">Remark <span class="text-danger">*</span></label>
+            <label for="workspace_action_remark"
+                   class="form-label workspace-action-field-label"
+                   data-workspace-action-remark-label>
+                @if($selectedAction === WorkspaceActionType::Close)
+                    Closing Summary <span class="text-danger">*</span>
+                @else
+                    Remark <span class="text-danger">*</span>
+                @endif
+            </label>
             <textarea name="body"
                       id="workspace_action_remark"
                       rows="3"

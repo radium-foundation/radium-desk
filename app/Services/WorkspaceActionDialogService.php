@@ -15,7 +15,7 @@ class WorkspaceActionDialogService
 {
     public function __construct(
         private readonly WorkspaceAssignActionService $assignActionService,
-        private readonly WorkspaceCloseActionService $closeActionService,
+        private readonly WorkspaceCloseCaseV2Service $closeCaseV2Service,
         private readonly WorkspaceReopenActionService $reopenActionService,
         private readonly WorkspaceEscalateActionService $escalateActionService,
         private readonly ServiceCaseEscalationService $escalationService,
@@ -41,7 +41,7 @@ class WorkspaceActionDialogService
                 requestContext: $requestContext,
                 request: $request,
             ),
-            WorkspaceActionType::Close => $this->closeActionService->close(
+            WorkspaceActionType::Close => $this->closeCaseV2Service->close(
                 incident: $incident,
                 actor: $actor,
                 payload: $payload,
@@ -82,7 +82,7 @@ class WorkspaceActionDialogService
                 $exception,
                 $payload,
             ),
-            WorkspaceActionType::Close => $this->closeActionService->validationFailure(
+            WorkspaceActionType::Close => $this->closeCaseV2Service->validationFailure(
                 $incident,
                 $requestContext,
                 $exception,

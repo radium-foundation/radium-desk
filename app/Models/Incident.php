@@ -6,6 +6,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\ServiceCaseCloseException;
+use App\Models\ServiceCaseCloseOutcome;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\Operations\BusinessHoursSlaCalculator;
 use App\Services\SettingService;
@@ -109,6 +110,11 @@ class Incident extends Model
     public function closeExceptions(): HasMany
     {
         return $this->hasMany(ServiceCaseCloseException::class);
+    }
+
+    public function closeOutcomes(): HasMany
+    {
+        return $this->hasMany(ServiceCaseCloseOutcome::class);
     }
 
     public function waitingStates(): HasMany

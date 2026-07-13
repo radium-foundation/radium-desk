@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseCloseExceptionReason;
+use App\Enums\ServiceCaseCloseNotificationPreference;
+use App\Enums\ServiceCaseCloseReasonForClosing;
+use App\Enums\ServiceCaseCloseResolutionType;
 use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
@@ -130,6 +133,9 @@ class WorkspaceComponentService
                         ? WorkspaceActionType::Reopen
                         : WorkspaceActionType::Assign),
                 'exceptionReasons' => ServiceCaseCloseExceptionReason::cases(),
+                'closeReasonsForClosing' => ServiceCaseCloseReasonForClosing::cases(),
+                'closeResolutionTypes' => ServiceCaseCloseResolutionType::cases(),
+                'closeNotificationPreferences' => ServiceCaseCloseNotificationPreference::cases(),
                 ...$this->actionWorkspaceFields($requestContext, $incident),
                 ...$this->actionRemarkUsers(),
             ],

@@ -13,6 +13,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\Remark;
 use App\Models\ServiceCaseCloseException;
+use App\Models\ServiceCaseCloseOutcome;
 use App\Models\User;
 use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Notifications\NotificationAuditTrailService;
@@ -445,6 +446,28 @@ class ServiceCaseActivityTimelineService
         TimelineActor $actor,
         $occurredAt,
     ): ServiceCaseTimelineEntry {
+        $outcome = ServiceCaseCloseOutcome::query()
+            ->with('closer')
+            ->where('incident_id', $incident->id)
+            ->whereBetween('closed_at', [
+                $occurredAt->copy()->subSeconds(10),
+                $occurredAt->copy()->addSeconds(2),
+            ])
+            ->orderByDesc('id')
+            ->first();
+
+        if ($outcome !== null) {
+            return new ServiceCaseTimelineEntry(
+                occurredAt: $occurredAt,
+                type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                actor: $actor,
+                title: 'Service case closed',
+                body: $outcome->timelineBody(),
+                remark: null,
+                dedupeKey: "audit:{$auditLog->id}",
+            );
+        }
+
         $exceptions = ServiceCaseCloseException::query()
             ->where('incident_id', $incident->id)
             ->whereBetween('created_at', [
