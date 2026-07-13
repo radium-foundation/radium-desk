@@ -12,10 +12,17 @@ import {
     formatServiceCaseCount,
 } from './dashboard-service-case-state';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
+import {
+    buildDashboardEmptyStateHtml,
+    DASHBOARD_EMPTY_VARIANT,
+    DASHBOARD_QUICK_FILTER_EMPTY_ROW_ID,
+    getTableColumnCount,
+    syncDashboardTableEmptyPresentation,
+} from './dashboard-empty-state';
 
 const FILTERED_OUT_CLASS = 'dashboard-case-row--filtered-out';
 const SEARCH_MATCH_CLASS = 'dashboard-case-row--search-match';
-const EMPTY_ROW_ID = 'dashboard-quick-filter-empty-row';
+const EMPTY_ROW_ID = DASHBOARD_QUICK_FILTER_EMPTY_ROW_ID;
 const LOCAL_DEBOUNCE_MS = 150;
 const SERVER_DEBOUNCE_MS = 250;
 
@@ -61,55 +68,48 @@ export const rowShouldStayVisible = (row, normalizedQuery, lockedIncidentIds) =>
     return rowMatchesQuery(searchText, normalizedQuery);
 };
 
-const getTableColumnCount = (tbody) => {
-    const table = tbody.closest('table');
+const getTableColumnCountFromTbody = (tbody) => getTableColumnCount(tbody);
 
-    return table?.querySelectorAll('thead th').length ?? 1;
-};
-
-const ensureEmptyRow = (tbody) => {
+const ensureEmptyRow = (tbody, { showSearchAgain = true } = {}) => {
     let emptyRow = document.getElementById(EMPTY_ROW_ID);
 
     if (emptyRow) {
         return emptyRow;
     }
 
-    emptyRow = document.createElement('tr');
-    emptyRow.id = EMPTY_ROW_ID;
-    emptyRow.className = 'dashboard-quick-filter-empty-row d-none';
-
-    const cell = document.createElement('td');
-    cell.colSpan = getTableColumnCount(tbody);
-    cell.className = 'text-center text-muted small py-2';
-    cell.innerHTML = `
-        No matching rows.
-        <button type="button" class="btn btn-link btn-sm p-0 align-baseline dashboard-quick-filter__clear" data-dashboard-quick-filter-clear>
-            Clear filter
-        </button>
-        to view all service cases.
-    `;
-
-    emptyRow.appendChild(cell);
+    const wrapper = document.createElement('tbody');
+    wrapper.innerHTML = buildDashboardEmptyStateHtml({
+        variant: DASHBOARD_EMPTY_VARIANT.FILTERED,
+        colSpan: getTableColumnCountFromTbody(tbody),
+        rowId: EMPTY_ROW_ID,
+        showSearchAgain,
+    });
+    emptyRow = wrapper.firstElementChild;
+    emptyRow.classList.add('d-none');
     tbody.appendChild(emptyRow);
 
     return emptyRow;
 };
 
-const updateEmptyRow = (tbody, show) => {
+const updateEmptyRow = (tbody, show, options = {}) => {
+    const card = tbody?.closest('.dashboard-service-cases-card');
+
     if (getDataRows(tbody).length === 0) {
         document.getElementById(EMPTY_ROW_ID)?.classList.add('d-none');
+        syncDashboardTableEmptyPresentation(card);
 
         return;
     }
 
-    const emptyRow = ensureEmptyRow(tbody);
+    const emptyRow = ensureEmptyRow(tbody, options);
     const cell = emptyRow.querySelector('td');
 
     if (cell) {
-        cell.colSpan = getTableColumnCount(tbody);
+        cell.colSpan = getTableColumnCountFromTbody(tbody);
     }
 
     emptyRow.classList.toggle('d-none', ! show);
+    syncDashboardTableEmptyPresentation(card);
 };
 
 const clearSearchMatchHighlight = (card) => {
@@ -196,7 +196,9 @@ const applyLocalQuickFilterPresentation = ({
         updateServiceCaseCountDisplay({ visibleCount });
     }
 
-    updateEmptyRow(tbody, normalizedQuery !== '' && rows.length > 0 && visibleCount === 0);
+    updateEmptyRow(tbody, normalizedQuery !== '' && rows.length > 0 && visibleCount === 0, {
+        showSearchAgain: normalizedQuery !== '',
+    });
 
     if (! skipHighlight) {
         if (normalizedQuery === '') {
@@ -487,6 +489,11 @@ export const initDashboardQuickFilter = ({
         if (event.target.closest('[data-dashboard-quick-filter-clear]')) {
             event.preventDefault();
             clearFilter();
+        }
+
+        if (event.target.closest('[data-dashboard-empty-search-again]')) {
+            event.preventDefault();
+            openQuickFilter();
         }
     });
 

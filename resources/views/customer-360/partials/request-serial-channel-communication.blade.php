@@ -1,12 +1,15 @@
 @props([
     'communication' => [],
+    'hidePendingStatus' => false,
 ])
 
 @php
     $status = $communication['status'] ?? 'not_sent';
     $statusLabel = $communication['status_label'] ?? 'NOT SENT';
+    $showStatusBadge = ! ($hidePendingStatus && $status === 'not_sent');
 @endphp
 
+@if($showStatusBadge)
 <div class="request-serial-dialog-channel-communication" data-request-serial-communication="{{ $status }}">
     <span @class([
         'request-serial-dialog-comm-status',
@@ -29,3 +32,4 @@
         </div>
     @endif
 </div>
+@endif

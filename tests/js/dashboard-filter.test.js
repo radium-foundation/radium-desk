@@ -124,8 +124,8 @@ describe('applyDashboardQuickFilter', () => {
         const emptyRow = document.getElementById('dashboard-quick-filter-empty-row');
 
         expect(emptyRow?.classList.contains('d-none')).toBe(false);
-        expect(emptyRow?.textContent).toContain('No matching rows.');
-        expect(emptyRow?.textContent).toContain('Clear filter');
+        expect(emptyRow?.textContent).toContain('No service cases found');
+        expect(emptyRow?.textContent).toContain('Clear Filters');
     });
 
     it('does not hide rows with an active inline transaction editor', () => {

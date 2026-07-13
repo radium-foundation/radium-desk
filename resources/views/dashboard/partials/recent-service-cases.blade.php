@@ -216,7 +216,11 @@
                     </button>
                 </div>
             </div>
-            <div class="dashboard-cases-table-wrap" id="dashboard-service-cases-scroll">
+            <div @class([
+                    'dashboard-cases-table-wrap',
+                    'dashboard-cases-table-wrap--empty' => $renderedServiceCaseCount === 0 && ! $compactAgentLayout,
+                ])
+                 id="dashboard-service-cases-scroll">
                 <table class="table table-sm table-hover align-middle mb-0 dashboard-cases-table">
                     <thead class="table-light">
                         <tr>
@@ -262,12 +266,23 @@
                                 $tableColumnCount = 11
                                     + (($canManageTransactions ?? false) ? 1 : 0)
                                     + (($canShowServiceCaseActions ?? false) ? 1 : 0);
+                                $hasActiveSearch = filled(request('q'));
+                                $emptyStateVariant = $hasActiveSearch ? 'filtered' : 'caught-up';
                             @endphp
-                            <tr id="dashboard-service-cases-empty-row">
-                                <td colspan="{{ $tableColumnCount }}" class="dashboard-cases-empty">
-                                    No service cases match this queue.
-                                </td>
-                            </tr>
+                            @if($compactAgentLayout)
+                                <tr id="dashboard-service-cases-empty-row">
+                                    <td colspan="{{ $tableColumnCount }}" class="dashboard-cases-empty">
+                                        No service cases match this queue.
+                                    </td>
+                                </tr>
+                            @else
+                                @include('dashboard.partials.service-cases-empty-state', [
+                                    'variant' => $emptyStateVariant,
+                                    'colspan' => $tableColumnCount,
+                                    'showSearchAgain' => $hasActiveSearch,
+                                    'clearAction' => $hasActiveSearch ? 'search' : 'quick-filter',
+                                ])
+                            @endif
                         @endforelse
                     </tbody>
                 </table>

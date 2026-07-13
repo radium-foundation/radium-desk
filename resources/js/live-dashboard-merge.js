@@ -1,4 +1,13 @@
 import { parseRowHtml } from './service-case-row';
+import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
+import { isDashboardSearchActive } from './dashboard-search-mode';
+import {
+    buildDashboardEmptyStateHtml,
+    DASHBOARD_EMPTY_ROW_ID,
+    DASHBOARD_EMPTY_VARIANT,
+    getTableColumnCount,
+    syncDashboardTableEmptyPresentation,
+} from './dashboard-empty-state';
 
 const getCurrentIncidentIds = (tbody) => Array.from(tbody.querySelectorAll('tr[id^="service-case-row-"]'))
     .map((row) => Number(row.id.replace('service-case-row-', '')));
@@ -28,24 +37,28 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
             return;
         }
 
-        if (emptyHtml) {
-            tbody.innerHTML = emptyHtml;
-        } else {
-            tbody.innerHTML = `
-                <tr id="dashboard-service-cases-empty-row">
-                    <td colspan="${tbody.closest('table')?.querySelectorAll('thead th').length ?? 12}" class="text-center text-muted small py-3">
-                        No service cases match this filter.
-                    </td>
-                </tr>
-            `;
-        }
+        const colSpan = getTableColumnCount(tbody);
+        const isFilteredEmpty = isDashboardQuickFilterActive() || isDashboardSearchActive();
+        const variant = isFilteredEmpty
+            ? DASHBOARD_EMPTY_VARIANT.FILTERED
+            : DASHBOARD_EMPTY_VARIANT.CAUGHT_UP;
 
+        tbody.innerHTML = buildDashboardEmptyStateHtml({
+            variant,
+            colSpan,
+            rowId: DASHBOARD_EMPTY_ROW_ID,
+            showSearchAgain: isFilteredEmpty,
+            clearAction: isDashboardSearchActive() ? 'search' : 'quick-filter',
+        });
+
+        syncDashboardTableEmptyPresentation(card);
         scrollContainer.scrollTop = previousScrollTop;
 
         return;
     }
 
-    document.getElementById('dashboard-service-cases-empty-row')?.remove();
+    document.getElementById(DASHBOARD_EMPTY_ROW_ID)?.remove();
+    syncDashboardTableEmptyPresentation(card);
 
     rows.forEach(({ incident_id: incidentId, html }) => {
         if (isLockedIncident(incidentId, lockedIncidentIds)) {
@@ -119,7 +132,8 @@ const appendServiceCaseRows = (card, rows, initTooltips) => {
         return;
     }
 
-    document.getElementById('dashboard-service-cases-empty-row')?.remove();
+    document.getElementById(DASHBOARD_EMPTY_ROW_ID)?.remove();
+    syncDashboardTableEmptyPresentation(card);
 
     rows.forEach(({ incident_id: incidentId, html }) => {
         if (document.getElementById(`service-case-row-${incidentId}`)) {

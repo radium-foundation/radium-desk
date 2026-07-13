@@ -3,6 +3,13 @@ import { advanceQuickCreateToNewContact } from './customer-intake';
 import { isDashboardSearchActive, setDashboardSearchActive } from './dashboard-search-mode';
 import { hideSearchBanner, showSearchBanner } from './dashboard-search-banner';
 import {
+    buildDashboardEmptyStateHtml,
+    DASHBOARD_EMPTY_ROW_ID,
+    DASHBOARD_EMPTY_VARIANT,
+    getTableColumnCount,
+    syncDashboardTableEmptyPresentation,
+} from './dashboard-empty-state';
+import {
     buildLegacyPreviewSummaryHtml,
     initLegacySearchConfirmModal,
     isLegacyOneClickEligible,
@@ -275,15 +282,15 @@ const buildDashboardSearchUrl = (dashboardUrl, query) => {
 };
 
 const buildSearchEmptyRowHtml = (card) => {
-    const colCount = card?.querySelector('thead tr')?.children.length ?? 12;
+    const tbody = card?.querySelector('#dashboard-service-cases-body');
 
-    return `
-        <tr id="dashboard-service-cases-empty-row">
-            <td colspan="${colCount}" class="dashboard-cases-empty text-center text-muted small py-3">
-                No matching records.
-            </td>
-        </tr>
-    `;
+    return buildDashboardEmptyStateHtml({
+        variant: DASHBOARD_EMPTY_VARIANT.FILTERED,
+        colSpan: getTableColumnCount(tbody),
+        rowId: DASHBOARD_EMPTY_ROW_ID,
+        showSearchAgain: true,
+        clearAction: 'search',
+    });
 };
 
 const clearSearchMatchHighlight = (card) => {
@@ -669,12 +676,24 @@ export const initUniversalSearch = ({
         }
     };
 
-    getDashboardCard()?.querySelector('[data-dashboard-search-clear]')?.addEventListener('click', () => {
-        if (globalInput) {
-            globalInput.value = '';
+    getDashboardCard()?.addEventListener('click', (event) => {
+        if (event.target.closest('[data-dashboard-search-clear]')) {
+            event.preventDefault();
+
+            if (globalInput) {
+                globalInput.value = '';
+            }
+
+            clearSearch();
+
+            return;
         }
 
-        clearSearch();
+        if (event.target.closest('[data-dashboard-empty-search-again]')) {
+            event.preventDefault();
+            globalInput?.focus();
+            globalInput?.select();
+        }
     });
 
     form?.addEventListener('submit', (event) => {

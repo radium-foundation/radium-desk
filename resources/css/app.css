@@ -2152,6 +2152,74 @@ a:focus-visible .stat-card {
     padding: 1.75rem var(--dashboard-space-2);
 }
 
+.dashboard-cases-table-wrap--empty thead th {
+    opacity: 0.45;
+}
+
+.dashboard-service-cases-empty-row > .dashboard-service-cases-empty-cell {
+    padding: 0 !important;
+    border-bottom: 0 !important;
+    background: transparent;
+    vertical-align: middle;
+}
+
+.dashboard-service-cases-empty-cell {
+    height: clamp(16rem, 48vh, 28rem);
+}
+
+.dashboard-service-cases-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: min(100%, 26.25rem);
+    max-width: 26.25rem;
+    margin: 0 auto;
+    padding: var(--dashboard-space-4) var(--dashboard-space-3);
+    text-align: center;
+    background: #fafafa;
+    border-radius: 1rem;
+}
+
+.dashboard-service-cases-empty-state__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--dashboard-space-2);
+    color: var(--dashboard-color-muted-light);
+    font-size: 2.5rem;
+    line-height: 1;
+}
+
+.dashboard-service-cases-empty-state__title {
+    margin: 0 0 var(--dashboard-space-1);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--dashboard-color-text);
+}
+
+.dashboard-service-cases-empty-state__subtitle {
+    margin: 0;
+    max-width: 22rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--dashboard-color-muted);
+}
+
+.dashboard-service-cases-empty-state__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--dashboard-space-1);
+    margin-top: var(--dashboard-space-3);
+}
+
+.dashboard-service-cases-empty-state__action {
+    min-width: 7.5rem;
+}
+
 .high-priority-dot {
     display: inline-block;
     width: 0.4375rem;
@@ -4221,6 +4289,247 @@ a:focus-visible .stat-card {
     margin-left: -1.125rem;
     font-weight: 700;
     color: #64748b;
+}
+
+/* Request Correct Serial dialog — presentation refresh */
+.request-correct-serial-dialog {
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+.request-correct-serial-dialog__header,
+.request-correct-serial-dialog__footer {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+}
+
+.request-correct-serial-dialog__body {
+    display: grid;
+    gap: 0.875rem;
+    padding: 0.5rem 1.25rem 1rem;
+}
+
+.request-correct-serial-dialog__overview {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.request-correct-serial-dialog__card {
+    margin: 0;
+    padding: 0.875rem 1rem;
+    background: #fafafa;
+    border-radius: 0.75rem;
+}
+
+.request-correct-serial-dialog__section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #0f172a;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.request-correct-serial-dialog__section-title .bi {
+    font-size: 1rem;
+    color: #64748b;
+}
+
+.request-correct-serial-dialog__detail-list {
+    margin: 0;
+}
+
+.request-correct-serial-dialog__detail-row {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, auto) 1fr;
+    gap: 0.5rem 0.75rem;
+    margin: 0 0 0.5rem;
+}
+
+.request-correct-serial-dialog__detail-row:last-child {
+    margin-bottom: 0;
+}
+
+.request-correct-serial-dialog__detail-row dt {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.request-correct-serial-dialog__detail-row dt .bi {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+.request-correct-serial-dialog__detail-row dd {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #0f172a;
+    word-break: break-word;
+}
+
+.request-correct-serial-dialog__status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.request-correct-serial-dialog__status-badge--valid {
+    color: #166534;
+    background: rgba(34, 197, 94, 0.14);
+}
+
+.request-correct-serial-dialog__status-badge--warning {
+    color: #92400e;
+    background: rgba(245, 158, 11, 0.16);
+}
+
+.request-correct-serial-dialog__status-badge--invalid {
+    color: #991b1b;
+    background: rgba(239, 68, 68, 0.12);
+}
+
+.request-correct-serial-dialog__status-badge--neutral {
+    color: #475569;
+    background: rgba(148, 163, 184, 0.18);
+}
+
+.request-correct-serial-dialog__insight-note {
+    margin-top: 0.625rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.request-correct-serial-dialog__channel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+}
+
+.request-correct-serial-dialog__channel-chip {
+    display: grid;
+    gap: 0.375rem;
+    min-height: 100%;
+    padding: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.75rem;
+    background: #fff;
+}
+
+.request-correct-serial-dialog__channel-chip.is-selected {
+    border-color: rgba(13, 110, 253, 0.35);
+    background: rgba(13, 110, 253, 0.04);
+}
+
+.request-correct-serial-dialog__channel-chip.is-unavailable {
+    border-color: rgba(245, 158, 11, 0.28);
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.request-correct-serial-dialog__channel-chip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.request-correct-serial-dialog__channel-chip-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.request-correct-serial-dialog__channel-check {
+    color: #198754;
+}
+
+.request-correct-serial-dialog__channel-warning {
+    color: #b45309;
+}
+
+.request-correct-serial-dialog__channel-meta {
+    display: grid;
+    gap: 0.125rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+.request-correct-serial-dialog__channel-meta-label {
+    color: #64748b;
+}
+
+.request-correct-serial-dialog__channel-meta-value {
+    color: #0f172a;
+    font-weight: 500;
+    word-break: break-word;
+}
+
+.request-correct-serial-dialog__channel-note {
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.request-correct-serial-dialog__channel-chip .request-serial-dialog-channel-communication {
+    margin-top: 0.125rem;
+}
+
+.request-correct-serial-dialog__channel-chip .request-serial-dialog-comm-status {
+    font-size: 0.6875rem;
+    padding: 0.15rem 0.45rem;
+}
+
+.request-correct-serial-dialog__message-preview {
+    padding: 0.875rem 1rem;
+    border-radius: 0.75rem;
+    background: #f1f5f9;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.request-correct-serial-dialog__message-lead {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.request-correct-serial-dialog__message-list {
+    margin: 0;
+    padding-left: 1.125rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #0f172a;
+}
+
+.request-correct-serial-dialog__message-or {
+    list-style: none;
+    margin-left: -1.125rem;
+    font-weight: 700;
+    color: #64748b;
+}
+
+@media (max-width: 575.98px) {
+    .request-correct-serial-dialog__overview,
+    .request-correct-serial-dialog__channel-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* Customer360 Dialog Design System */
