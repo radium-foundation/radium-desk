@@ -9,6 +9,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\Operations\OperationsQueueClassifier;
+use App\Services\Operations\OperationsRoleService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -311,6 +312,13 @@ class DashboardSnapshot
             return $this->incidentsForQueue(OperationQueue::MyWork->value, $assignmentScope);
         }
 
+        if (in_array($filter, [OperationQueue::ActionRequired->value, 'action_required'], true)) {
+            return $this->incidentsForQueue(
+                OperationQueue::ActionRequired->value,
+                $this->scopeUserForQueue(OperationQueue::ActionRequired->value, $assignmentScope),
+            );
+        }
+
         if ($filter === 'pending_admin') {
             return $this->activeIncidents
                 ->filter(function (Incident $incident) use ($assignmentScope): bool {
@@ -322,11 +330,7 @@ class DashboardSnapshot
                         return false;
                     }
 
-                    if ($assignmentScope !== null && $incident->assigned_to_user_id !== $assignmentScope->id) {
-                        return false;
-                    }
-
-                    return true;
+                    return $this->matchesAssignmentScope($incident, $assignmentScope);
                 })
                 ->values();
         }
@@ -338,7 +342,7 @@ class DashboardSnapshot
                         return false;
                     }
 
-                    if ($assignmentScope !== null && $incident->assigned_to_user_id !== $assignmentScope->id) {
+                    if (! $this->matchesAssignmentScope($incident, $assignmentScope)) {
                         return false;
                     }
 
@@ -350,7 +354,7 @@ class DashboardSnapshot
         if ($filter === 'my_attention') {
             $attention = $this->incidentsForQueue(OperationQueue::Attention->value);
 
-            if ($assignmentScope === null) {
+            if (! $this->shouldScopeByAssignee($assignmentScope)) {
                 return $attention;
             }
 
@@ -362,7 +366,7 @@ class DashboardSnapshot
         if (in_array($filter, ['overdue', 'warning'], true)) {
             $attention = $this->incidentsForQueue(OperationQueue::Attention->value);
 
-            if ($assignmentScope !== null) {
+            if ($this->shouldScopeByAssignee($assignmentScope)) {
                 $attention = $attention
                     ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $assignmentScope->id);
             }
@@ -387,13 +391,43 @@ class DashboardSnapshot
                 ->values();
         }
 
-        if ($assignmentScope !== null && $queue !== OperationQueue::MyWork->value) {
+        if ($this->shouldScopeByAssignee($assignmentScope)
+            && $queue !== OperationQueue::MyWork->value
+            && ! $this->isTeamSharedQueue($queue)) {
             return $this->incidentsForQueue($queue, $assignmentScope)
                 ->filter(fn (Incident $incident): bool => $incident->assigned_to_user_id === $assignmentScope->id)
                 ->values();
         }
 
         return $this->incidentsForQueue($queue, $this->scopeUserForQueue($queue, $assignmentScope));
+    }
+
+    private function shouldScopeByAssignee(?User $assignmentScope): bool
+    {
+        if ($assignmentScope === null) {
+            return false;
+        }
+
+        return app(OperationsRoleService::class)->usesSupportQueues($assignmentScope);
+    }
+
+    private function matchesAssignmentScope(Incident $incident, ?User $assignmentScope): bool
+    {
+        if (! $this->shouldScopeByAssignee($assignmentScope)) {
+            return true;
+        }
+
+        return $incident->assigned_to_user_id === $assignmentScope->id;
+    }
+
+    private function isTeamSharedQueue(string $queue): bool
+    {
+        return in_array($queue, [
+            OperationQueue::ActionRequired->value,
+            OperationQueue::PendingReview->value,
+            OperationQueue::Scheduled->value,
+            OperationQueue::Attention->value,
+        ], true);
     }
 
     private function scopeUserForQueue(string $queue, ?User $assignmentScope): ?User
@@ -415,9 +449,13 @@ class DashboardSnapshot
         return match ($filter) {
             'completed' => OperationQueue::Completed->value,
             'pending_support', 'needs_attention', 'my_attention', 'overdue', 'warning', 'high_priority' => OperationQueue::Attention->value,
-            'pending_admin' => OperationQueue::ActionRequired->value,
+            'pending_admin', OperationQueue::ActionRequired->value, 'action_required' => OperationQueue::ActionRequired->value,
             'pending_review' => OperationQueue::PendingReview->value,
-            'my_cases' => OperationQueue::MyWork->value,
+            'scheduled' => OperationQueue::Scheduled->value,
+            'waiting_customer' => OperationQueue::WaitingCustomer->value,
+            'attention' => OperationQueue::Attention->value,
+            'hardware' => OperationQueue::Hardware->value,
+            'my_cases', OperationQueue::MyWork->value => OperationQueue::MyWork->value,
             default => OperationQueue::Attention->value,
         };
     }
