@@ -13,6 +13,23 @@ enum WaitingReason: string
     case Other = 'other';
     case CustomerNotResponding = 'customer_not_responding';
 
+    /**
+     * Waiting reasons cleared when identity validation passes after staff correction.
+     *
+     * @return list<self>
+     */
+    public static function identityCorrectionReasons(): array
+    {
+        return [
+            self::SerialNumber,
+        ];
+    }
+
+    public function isIdentityCorrection(): bool
+    {
+        return in_array($this, self::identityCorrectionReasons(), true);
+    }
+
     public function label(): string
     {
         return config("waiting_states.reasons.{$this->value}.label", str($this->value)->headline()->toString());

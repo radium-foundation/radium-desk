@@ -93,7 +93,7 @@ class SlaOwnershipCleanupTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00'));
 
         $incident->order->update([
-            'serial_number' => 'SN-CLEAR-1',
+            'serial_number' => '7881953',
             'serial_entered_at' => now(),
             'serial_entered_by_user_id' => $agent->id,
         ]);

@@ -18,6 +18,7 @@ class OrderIdentityLifecycleService
     public function __construct(
         private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibility,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly IncidentWaitingStateService $waitingStateService,
     ) {}
 
     /**
@@ -98,6 +99,11 @@ class OrderIdentityLifecycleService
 
         if ($this->assignmentEligibility->passesValidationForOrder($freshOrder)) {
             $this->automationMonitor->recordValidationPassed($freshOrder, $actor);
+            $this->waitingStateService->clearIdentityCorrectionWaitingWhenValidationPasses(
+                order: $freshOrder,
+                actor: $actor,
+                source: $source,
+            );
         }
 
         if ($serialChanged) {

@@ -82,7 +82,15 @@ class IncidentWaitingStateService
 
     public function clearSerialWaitingForOrder(Order $order, User $actor): void
     {
-        if (! $order->isSerialLocked()) {
+        $this->clearIdentityCorrectionWaitingWhenValidationPasses($order, $actor, 'serial_resolved');
+    }
+
+    public function clearIdentityCorrectionWaitingWhenValidationPasses(
+        Order $order,
+        User $actor,
+        string $source,
+    ): void {
+        if (! app(ServiceCaseAssignmentEligibilityService::class)->passesValidationForOrder($order)) {
             return;
         }
 
@@ -95,14 +103,21 @@ class IncidentWaitingStateService
 
             $waitingState = $this->activeFor($incident);
 
-            if ($waitingState === null || $waitingState->waiting_reason !== WaitingReason::SerialNumber) {
+            if ($waitingState === null || ! $waitingState->waiting_reason->isIdentityCorrection()) {
                 continue;
             }
 
-            $this->clear($incident, $actor);
+            $clearedState = $this->clear($incident, $actor);
+
+            app(CustomerWaitingLifecycleService::class)->auditIdentityCorrectionResolved(
+                waitingState: $clearedState,
+                actor: $actor,
+                source: $source,
+            );
+
             $this->wakeOwnerAfterCustomerResponse(
                 incident: $incident->fresh(['assignee', 'order', 'activeWaitingState', 'supportAppointments']),
-                reason: WaitingReason::SerialNumber,
+                reason: $clearedState->waiting_reason,
             );
         }
     }

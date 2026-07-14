@@ -227,28 +227,31 @@ class MissingSerialAutomationService
             return;
         }
 
-        if ($order->isMissingSerialNumber()) {
+        $freshOrder = $order->fresh();
+
+        if ($freshOrder === null) {
             return;
         }
 
-        if ($order->missing_serial_automation_status === MissingSerialAutomationStatus::Completed->value) {
+        $this->waitingStateService->clearIdentityCorrectionWaitingWhenValidationPasses(
+            order: $freshOrder,
+            actor: $this->automationIdentityService->systemUser(),
+            source: $reason,
+        );
+
+        if ($freshOrder->isMissingSerialNumber()) {
             return;
         }
 
-        $order->update([
+        if ($freshOrder->missing_serial_automation_status === MissingSerialAutomationStatus::Completed->value) {
+            return;
+        }
+
+        $freshOrder->update([
             'missing_serial_automation_status' => MissingSerialAutomationStatus::Completed->value,
         ]);
 
-        $this->auditService->recordCompleted($order->fresh(), $reason);
-
-        $incident = $this->resolveIncident($order);
-
-        if ($incident !== null) {
-            $this->waitingStateService->clearSerialWaitingForOrder(
-                $order->fresh(),
-                $this->automationIdentityService->systemUser(),
-            );
-        }
+        $this->auditService->recordCompleted($freshOrder->fresh(), $reason);
     }
 
     /**

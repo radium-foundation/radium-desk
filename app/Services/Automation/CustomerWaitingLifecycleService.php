@@ -31,6 +31,8 @@ class CustomerWaitingLifecycleService
 {
     public const EVENT_WAITING_STARTED = 'service_case.customer_waiting_started';
 
+    public const EVENT_IDENTITY_RESOLVED = 'service_case.customer_waiting_identity_resolved';
+
     public const EVENT_AUTO_CLOSED = 'service_case.customer_waiting_auto_closed';
 
     public const EVENT_LEGACY_CLEANUP_CLOSED = 'service_case.customer_waiting_cleanup_closed';
@@ -79,6 +81,37 @@ TEXT;
                 'customer_waiting_since' => $waitingState->started_at->toIso8601String(),
                 'reminder_policy_key' => $waitingState->reminder_policy_key,
                 'next_action_at' => $waitingState->next_action_at?->toIso8601String(),
+            ],
+        );
+    }
+
+    public function auditIdentityCorrectionResolved(
+        IncidentWaitingState $waitingState,
+        User $actor,
+        string $source,
+    ): void {
+        $waitingState->loadMissing('incident');
+
+        $incident = $waitingState->incident;
+
+        if ($incident === null || $waitingState->cleared_at === null) {
+            return;
+        }
+
+        $this->auditLogService->log(
+            userId: $actor->id,
+            event: self::EVENT_IDENTITY_RESOLVED,
+            auditable: $incident,
+            oldValues: [
+                'waiting_reason' => $waitingState->waiting_reason->value,
+                'waiting_reason_label' => $waitingState->waiting_reason->label(),
+                'customer_waiting_since' => $waitingState->started_at?->toIso8601String(),
+            ],
+            newValues: [
+                'waiting_reason' => $waitingState->waiting_reason->value,
+                'waiting_reason_label' => $waitingState->waiting_reason->label(),
+                'cleared_at' => $waitingState->cleared_at->toIso8601String(),
+                'resolution_source' => $source,
             ],
         );
     }
