@@ -34,7 +34,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->seed(SettingsSeeder::class);
     }
 
-    public function test_assigned_attention_case_appears_in_agent_my_work(): void
+    public function test_assigned_ready_case_appears_in_agent_my_work(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -42,7 +42,29 @@ class AgentDashboardOwnershipTest extends TestCase
         $creator = User::factory()->create();
         $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $attentionCase = $this->createIncident('RD-ATTENTION-1', $creator, $agent);
+        $order = Order::query()->create([
+            'order_id' => 'RD-ATTENTION-1',
+            'serial_number' => '9614597',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Synced,
+            'created_by' => $creator->id,
+        ]);
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
+
+        $attentionCase = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Agent dashboard ownership test',
+            'description' => 'Agent dashboard ownership test.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $creator->id,
+            'updated_by' => $creator->id,
+            'assigned_to_user_id' => $agent->id,
+        ]);
         $attentionCase->forceFill([
             'created_at' => now()->subHours(72),
             'updated_at' => now()->subHours(72),
@@ -53,7 +75,7 @@ class AgentDashboardOwnershipTest extends TestCase
         $classifier = app(OperationsQueueClassifier::class);
         $incident = $attentionCase->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
 
-        $this->assertSame('attention', $classifier->classify($incident)->value);
+        $this->assertSame('action_required', $classifier->classify($incident)->value);
         $this->assertTrue($classifier->matchesMyWork($incident, $agent));
 
         $myWork = DashboardSnapshot::load()->incidentsForQueue('my_work', $agent);
@@ -182,7 +204,7 @@ class AgentDashboardOwnershipTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Ready Queue')
-            ->assertSee('Attention')
+            ->assertSee('Exceptions')
             ->assertSee('Customer Waiting')
             ->assertSee('>Open<', false)
             ->assertSee('>Overdue<', false)
@@ -513,7 +535,29 @@ class AgentDashboardOwnershipTest extends TestCase
 
     private function createOverdueAttentionCase(string $orderId, User $creator, User $assignee): Incident
     {
-        $incident = $this->createIncident($orderId, $creator, $assignee);
+        $order = Order::query()->create([
+            'order_id' => $orderId,
+            'serial_number' => '54SAXXC5514586',
+            'device_model' => 'MFS110',
+            'status' => 'active',
+            'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Synced,
+            'created_by' => $creator->id,
+        ]);
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Agent dashboard ownership test',
+            'description' => 'Agent dashboard ownership test.',
+            'status' => IncidentStatus::Open,
+            'created_by' => $creator->id,
+            'updated_by' => $creator->id,
+            'assigned_to_user_id' => $assignee->id,
+        ]);
+
         $incident->forceFill([
             'created_at' => now()->subHours(72),
             'updated_at' => now()->subHours(72),

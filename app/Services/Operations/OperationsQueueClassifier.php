@@ -5,7 +5,6 @@ namespace App\Services\Operations;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseAutomationStatus;
-use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -208,6 +207,12 @@ class OperationsQueueClassifier
         );
     }
 
+    /**
+     * Exceptions / blocked work only.
+     *
+     * SLA Warning/Overdue is a priority overlay and must not move cases out of
+     * their workflow queue (e.g. Ready Queue).
+     */
     public function isAttention(Incident $incident): bool
     {
         if (! $incident->isPendingAdmin()) {
@@ -216,13 +221,6 @@ class OperationsQueueClassifier
 
         if ($this->isWaitingCustomer($incident)) {
             return false;
-        }
-
-        $now = now();
-        $slaStatus = $incident->slaStatus($now);
-
-        if (in_array($slaStatus, [ServiceCaseSlaStatus::Overdue, ServiceCaseSlaStatus::Warning], true)) {
-            return true;
         }
 
         $automationStatus = $this->automationStatusService->statusFor($incident);

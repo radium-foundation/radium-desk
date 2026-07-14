@@ -7,7 +7,7 @@
         use App\Services\DashboardPersonalizationService;
         use App\Services\Operations\OperationsRoleService;
 
-        $operationQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ATTENTION;
+        $operationQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
         $usesAgentDashboard = auth()->user() && app(OperationsRoleService::class)->usesSupportQueues(auth()->user());
     @endphp
 

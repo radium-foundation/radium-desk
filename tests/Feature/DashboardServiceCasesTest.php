@@ -89,7 +89,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('My Work')
+            ->assertSee('Active')
             ->assertSee('SC00001')
             ->assertSee(route('orders.show', $order), false)
             ->assertSee('RD3421021')
@@ -317,15 +317,15 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dashboard_defaults_to_attention_filter_aligned_with_queue(): void
+    public function test_dashboard_defaults_to_ready_queue_filter_aligned_with_queue(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $attentionCase = $this->createAdminOpenCase(
+        $readyCase = $this->createAdminOpenCase(
             $admin,
-            'RD-ATTENTION-DEFAULT',
-            highPriority: true,
+            'RD-READY-DEFAULT',
+            assignedTo: $admin,
         );
 
         $completedOrder = Order::query()->create([
@@ -353,12 +353,12 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-live-queue="attention"', false)
-            ->assertSee('data-live-filter="attention"', false)
-            ->assertSee('RD-ATTENTION-DEFAULT')
+            ->assertSee('data-live-queue="action_required"', false)
+            ->assertSee('data-live-filter="action_required"', false)
+            ->assertSee('RD-READY-DEFAULT')
             ->assertDontSee('SC-COMPLETE-2');
 
-        $this->assertSame($attentionCase->id, $attentionCase->fresh()->id);
+        $this->assertSame($readyCase->id, $readyCase->fresh()->id);
     }
 
     public function test_dashboard_high_priority_filter_shows_only_high_priority_cases(): void
@@ -1444,22 +1444,21 @@ class DashboardServiceCasesTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_attention_case_remains_urgent_not_action_required_backlog(): void
+    public function test_exception_case_remains_in_exceptions_not_ready_queue(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 12:00:00', 'Asia/Kolkata'));
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $attentionCase = $this->createAdminOpenCase(
+        $exceptionCase = $this->createAdminOpenCase(
             $admin,
-            'RD-ATTENTION-QUEUE',
-            createdAt: now()->subDays(5),
+            'RD-EXCEPTIONS-QUEUE',
             highPriority: true,
         );
 
         $classifier = app(OperationsQueueClassifier::class);
-        $freshIncident = $attentionCase->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
+        $freshIncident = $exceptionCase->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
 
         $this->assertSame('attention', $classifier->classify($freshIncident)->value);
 
@@ -1472,7 +1471,8 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard', ['queue' => 'attention']))
             ->assertOk()
             ->assertSee('data-dashboard-case-filter-count="attention">(1)', false)
-            ->assertSee('RD-ATTENTION-QUEUE');
+            ->assertSee('RD-EXCEPTIONS-QUEUE')
+            ->assertSee('Exceptions');
 
         Carbon::setTestNow();
     }

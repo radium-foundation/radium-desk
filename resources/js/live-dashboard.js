@@ -172,7 +172,7 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             total: data.total_count ?? data.service_case_filter_counts?.[
                 document.getElementById('dashboard-page')?.dataset.liveFilter
                     ?? document.getElementById('dashboard-page')?.dataset.liveQueue
-                    ?? 'attention'
+                    ?? 'action_required'
             ],
         });
 
