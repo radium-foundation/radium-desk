@@ -25,6 +25,9 @@
                     'refund' => $refund,
                     'selectedOrder' => $selectedOrder,
                     'selectedIncident' => $selectedIncident,
+                    'calculation' => $calculation ?? null,
+                    'preferredMethods' => $preferredMethods ?? \App\Enums\CustomerPreferredRefundMethod::cases(),
+                    'profiles' => $profiles ?? [],
                 ])
 
                 <div class="d-flex flex-wrap gap-2 mt-4">

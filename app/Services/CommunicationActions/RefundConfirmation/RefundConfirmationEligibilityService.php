@@ -28,7 +28,7 @@ class RefundConfirmationEligibilityService
         $refund = $this->supportService->resolveApprovedRefund($incident);
 
         if ($refund === null) {
-            return 'Refund confirmation can be sent only after a refund has been approved for this case.';
+            return 'Refund confirmation can be sent only after a refund has been completed for this case.';
         }
 
         if (! $this->hasRefundAmount($refund)) {
@@ -52,6 +52,6 @@ class RefundConfirmationEligibilityService
 
     private function hasRefundAmount(RefundRequest $refund): bool
     {
-        return (float) $refund->amount > 0;
+        return $refund->displayAmount() > 0;
     }
 }

@@ -22,6 +22,7 @@ class RejectRefundRequestRequest extends FormRequest
     {
         return [
             'review_notes' => ['required', 'string', 'min:10', 'max:2000'],
+            'reject_reason' => ['nullable', 'string', 'min:10', 'max:2000'],
         ];
     }
 
@@ -31,7 +32,17 @@ class RejectRefundRequestRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'review_notes' => 'review notes',
+            'review_notes' => 'reject reason',
+            'reject_reason' => 'reject reason',
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if ($this->filled('reject_reason') && ! $this->filled('review_notes')) {
+            $this->merge([
+                'review_notes' => $this->string('reject_reason')->toString(),
+            ]);
+        }
     }
 }

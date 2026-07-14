@@ -6,13 +6,41 @@
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
         <div>
             <h1 class="h3 mb-1">Refunds</h1>
-            <p class="text-muted mb-0">Track and review refund requests.</p>
+            <p class="text-muted mb-0">Operations refund queue and workflow.</p>
         </div>
         @can('create', App\Models\RefundRequest::class)
             <a href="{{ route('refunds.create') }}" class="btn btn-primary">
-                <i class="bi bi-plus-lg me-1"></i> Create Refund Request
+                <i class="bi bi-plus-lg me-1"></i> Request Refund
             </a>
         @endcan
+    </div>
+
+    @php
+        $queues = [
+            'pending_approval' => ['label' => 'Pending Approval', 'count' => $queueCounts['pending_approval'] ?? 0],
+            'pending_execution' => ['label' => 'Pending Execution', 'count' => $queueCounts['pending_execution'] ?? 0],
+            'completed_today' => ['label' => 'Completed Today', 'count' => $queueCounts['completed_today'] ?? 0],
+            'rejected' => ['label' => 'Rejected', 'count' => $queueCounts['rejected'] ?? 0],
+        ];
+    @endphp
+
+    <div class="row g-3 mb-4">
+        @foreach($queues as $queueKey => $queueMeta)
+            <div class="col-6 col-lg-3">
+                <a href="{{ route('refunds.index', ['queue' => $queueKey]) }}"
+                   class="text-decoration-none">
+                    <div @class([
+                        'card border-0 shadow-sm h-100',
+                        'border border-primary' => ($activeQueue ?? '') === $queueKey,
+                    ])>
+                        <div class="card-body">
+                            <div class="text-muted small">{{ $queueMeta['label'] }}</div>
+                            <div class="fs-4 fw-semibold">{{ $queueMeta['count'] }}</div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        @endforeach
     </div>
 
     <div class="card border-0 shadow-sm mb-4">

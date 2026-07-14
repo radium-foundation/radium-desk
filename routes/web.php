@@ -164,8 +164,11 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('refunds/incidents/lookup', [RefundRequestController::class, 'lookupIncidents'])
         ->name('refunds.incidents.lookup');
+    Route::get('refunds/calculation-preview', [RefundRequestController::class, 'calculationPreview'])
+        ->name('refunds.calculation-preview');
     Route::post('refunds/{refund}/approve', [RefundRequestController::class, 'approve'])->name('refunds.approve');
     Route::post('refunds/{refund}/reject', [RefundRequestController::class, 'reject'])->name('refunds.reject');
+    Route::post('refunds/{refund}/complete', [RefundRequestController::class, 'complete'])->name('refunds.complete');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
 
     Route::get('approvals/{approval}/incidents/lookup', [ApprovalNumberController::class, 'lookupIncidents'])

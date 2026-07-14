@@ -77,7 +77,7 @@ class RefundConfirmationEligibilityServiceTest extends TestCase
         $reason = app(RefundConfirmationEligibilityService::class)->ineligibilityReason($incident);
 
         $this->assertSame(
-            'Refund confirmation can be sent only after a refund has been approved for this case.',
+            'Refund confirmation can be sent only after a refund has been completed for this case.',
             $reason,
         );
     }
@@ -102,7 +102,7 @@ class RefundConfirmationEligibilityServiceTest extends TestCase
         $reason = app(RefundConfirmationEligibilityService::class)->ineligibilityReason($incident);
 
         $this->assertSame(
-            'Refund confirmation can be sent only after a refund has been approved for this case.',
+            'Refund confirmation can be sent only after a refund has been completed for this case.',
             $reason,
         );
     }

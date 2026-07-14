@@ -103,12 +103,22 @@ class CommunicationActionVariableResolver
             : '';
         $orderNumber = trim((string) ($order?->order_id ?? ''));
         $caseNumber = $base['reference'];
+        $refundMethod = $refund?->approved_refund_method?->label() ?? '';
+        $totalDeduction = $refund instanceof RefundRequest
+            ? number_format((float) ($refund->total_deduction ?? 0), 2)
+            : '';
+        $executionReference = trim((string) ($refund?->execution_reference_no ?? ''));
+        $remarks = trim((string) ($refund?->execution_remarks ?? $refund?->review_notes ?? ''));
 
         return array_merge($base, [
             'company_name' => $this->refundConfirmationSupportService->companyName(),
             'support_contact' => $this->refundConfirmationSupportService->supportContact(),
             'refund_amount' => $refundAmount,
             'refund_reference' => $refundReference,
+            'refund_method' => $refundMethod,
+            'deduction' => $totalDeduction,
+            'reference_number' => $executionReference !== '' ? $executionReference : $refundReference,
+            'remarks' => $remarks,
             'order_number' => $orderNumber,
             'case_number' => $caseNumber,
             'whatsapp_body_values' => array_values(array_filter([

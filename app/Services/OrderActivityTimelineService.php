@@ -359,24 +359,59 @@ class OrderActivityTimelineService
 
         if ($auditLog->auditable_type === (new RefundRequest)->getMorphClass()) {
             return match ($auditLog->event) {
-                'created' => new OrderTimelineEntry(
+                'created', 'refund.requested' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Refund request created',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
-                'approved' => new OrderTimelineEntry(
+                'approved', 'refund.approved' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Refund request approved',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? $auditLog->old_values['reference_no'] ?? ''),
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
-                'rejected' => new OrderTimelineEntry(
+                'refund.execution_started' => new OrderTimelineEntry(
+                    occurredAt: $occurredAt,
+                    title: 'Refund execution started',
+                    detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
+                    actor: $actor,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                'refund.completed' => new OrderTimelineEntry(
+                    occurredAt: $occurredAt,
+                    title: 'Refund completed',
+                    detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
+                    actor: $actor,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                'rejected', 'refund.rejected' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: 'Refund request rejected',
                     detail: (string) ($auditLog->new_values['reference_no'] ?? $auditLog->old_values['reference_no'] ?? ''),
+                    actor: $actor,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                'refund.customer_notified' => new OrderTimelineEntry(
+                    occurredAt: $occurredAt,
+                    title: 'Refund customer notified',
+                    detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
+                    actor: $actor,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                'refund.agent_notified' => new OrderTimelineEntry(
+                    occurredAt: $occurredAt,
+                    title: 'Refund agent notified',
+                    detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
+                    actor: $actor,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                'refund.closed' => new OrderTimelineEntry(
+                    occurredAt: $occurredAt,
+                    title: 'Refund closed',
+                    detail: (string) ($auditLog->new_values['reference_no'] ?? ''),
                     actor: $actor,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),

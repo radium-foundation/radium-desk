@@ -87,7 +87,7 @@ return [
         'refund_confirmation' => [
             'key' => 'refund_confirmation',
             'name' => 'Refund Confirmation',
-            'description' => 'Confirm refund details with the customer after the refund workflow is complete.',
+            'description' => 'Confirm refund details with the customer after the refund has been completed.',
             'icon' => 'bi-arrow-counterclockwise',
             'channels' => ['whatsapp', 'email'],
             'roles' => [

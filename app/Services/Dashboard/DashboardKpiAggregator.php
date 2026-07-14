@@ -175,7 +175,14 @@ class DashboardKpiAggregator
     }
 
     /**
-     * @return array{pending: int, approved: int, rejected: int}
+     * @return array{
+     *     pending: int,
+     *     approved: int,
+     *     rejected: int,
+     *     pending_execution: int,
+     *     completed: int,
+     *     closed: int
+     * }
      */
     public function refundStatusCounts(): array
     {
@@ -188,10 +195,19 @@ class DashboardKpiAggregator
             ->groupBy('status')
             ->pluck('aggregate', 'status');
 
+        $pendingExecution = (int) ($counts[RefundStatus::PendingExecution->value] ?? 0);
+        $completed = (int) ($counts[RefundStatus::Completed->value] ?? 0);
+        $closed = (int) ($counts[RefundStatus::Closed->value] ?? 0);
+        $legacyApproved = (int) ($counts[RefundStatus::Approved->value] ?? 0);
+
         return $this->refundStatusCounts = [
             'pending' => (int) ($counts[RefundStatus::Pending->value] ?? 0),
-            'approved' => (int) ($counts[RefundStatus::Approved->value] ?? 0),
+            // Keep approved KPI meaningful for ops: in-flight approved payouts + completed.
+            'approved' => $pendingExecution + $completed + $closed + $legacyApproved,
             'rejected' => (int) ($counts[RefundStatus::Rejected->value] ?? 0),
+            'pending_execution' => $pendingExecution,
+            'completed' => $completed,
+            'closed' => $closed,
         ];
     }
 

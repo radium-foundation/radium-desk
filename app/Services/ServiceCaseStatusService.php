@@ -129,6 +129,7 @@ class ServiceCaseStatusService
         if (! $actor->hasRole(RolePermissionSeeder::ROLE_AGENT)
             || $actor->hasAnyRole([
                 RolePermissionSeeder::ROLE_ADMIN,
+                RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
                 RolePermissionSeeder::ROLE_SUPERADMIN,
             ])) {
             return;

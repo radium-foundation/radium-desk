@@ -12,8 +12,17 @@ final class RefundConfirmationSupportService
     {
         $incident->loadMissing(['order', 'refundRequests']);
 
+        $eligibleStatuses = array_map(
+            fn (RefundStatus $status): string => $status->value,
+            array_filter(
+                RefundStatus::cases(),
+                fn (RefundStatus $status): bool => $status->allowsCustomerConfirmation(),
+            ),
+        );
+
         $incidentRefund = $incident->refundRequests()
-            ->where('status', RefundStatus::Approved)
+            ->whereIn('status', $eligibleStatuses)
+            ->orderByDesc('executed_at')
             ->orderByDesc('reviewed_at')
             ->orderByDesc('id')
             ->first();
@@ -29,7 +38,8 @@ final class RefundConfirmationSupportService
         }
 
         return $order->refundRequests()
-            ->where('status', RefundStatus::Approved)
+            ->whereIn('status', $eligibleStatuses)
+            ->orderByDesc('executed_at')
             ->orderByDesc('reviewed_at')
             ->orderByDesc('id')
             ->first();
@@ -37,7 +47,7 @@ final class RefundConfirmationSupportService
 
     public function formatRefundAmount(RefundRequest $refund): string
     {
-        return number_format((float) $refund->amount, 2);
+        return number_format($refund->displayAmount(), 2);
     }
 
     public function companyName(): string
