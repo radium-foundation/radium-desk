@@ -61,7 +61,10 @@ print_success "Composer install completed"
 print_warning "Running database migrations..."
 php_exec migrate --force
 print_success "Migrations completed"
-
+print_warning "Seeding role permissions..."
+php_exec db:seed --class=RolePermissionSeeder --force
+php_exec permission:cache-reset
+print_success "Role permissions seeded"
 # --- Upload assets (after code is current, before cache rebuild) ---
 
 print_warning "Syncing Vite build to public_html and Laravel public/build..."
