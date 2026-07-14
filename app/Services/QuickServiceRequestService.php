@@ -20,6 +20,7 @@ class QuickServiceRequestService
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly SerialValidationService $serialValidationService,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     public function findByOrderId(string $orderId): ?Order
@@ -88,13 +89,21 @@ class QuickServiceRequestService
                 );
             }
 
-            return $this->createForOrder(
+            $incident = $this->createForOrder(
                 user: $user,
                 order: $order,
                 source: $source,
                 notes: $notes,
                 highPriority: $highPriority,
             );
+
+            $this->identityLifecycle->afterOrderCreatedWithIdentity(
+                order: $order,
+                actor: $user,
+                source: 'quick_service_request',
+            );
+
+            return $incident;
         });
     }
 

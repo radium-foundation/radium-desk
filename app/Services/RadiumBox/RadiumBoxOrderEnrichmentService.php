@@ -9,8 +9,9 @@ use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\OrderIdentityLifecycleService;
 use App\Services\RadiumBox\Exceptions\RadiumBoxEnrichmentRetryException;
-use App\Services\ServiceCaseAssignmentEligibilityService;
+use App\Services\ServiceCaseAutomationMonitorService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use Illuminate\Support\Facades\Log;
 
@@ -21,6 +22,8 @@ class RadiumBoxOrderEnrichmentService
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
         private readonly RadiumBoxSyncErrorFormatter $syncErrorFormatter,
         private readonly RadiumBoxSyncAuditService $syncAuditService,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
+        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
 
     public function dispatch(Order $order): void
@@ -111,7 +114,7 @@ class RadiumBoxOrderEnrichmentService
             }
 
             $this->syncStore->markSynced($order->id, $result['metadata']);
-            $this->evaluateAssignmentEligibility($order->fresh());
+            $this->runPostSyncLifecycleIfNeeded($order->fresh(), $result);
             $newStatus = RadiumBoxEnrichmentSyncStatus::Synced;
 
             $this->recordEnrichmentOutcome(
@@ -245,7 +248,7 @@ class RadiumBoxOrderEnrichmentService
             }
 
             $this->syncStore->markSynced($order->id, $result['metadata']);
-            $this->evaluateAssignmentEligibility($order->fresh());
+            $this->runPostSyncLifecycleIfNeeded($order->fresh(), $result);
 
             $this->recordEnrichmentOutcome(
                 $order,
@@ -446,14 +449,28 @@ class RadiumBoxOrderEnrichmentService
         );
     }
 
-    private function evaluateAssignmentEligibility(Order $order): void
+    private function runPostSyncLifecycleIfNeeded(Order $order, array $result): void
+    {
+        $persistence = $result['outcome']['persistence'];
+
+        if ($persistence->updated && $this->identityLifecycle->hasIdentityFields($persistence->fieldsApplied)) {
+            return;
+        }
+
+        $this->runIdentityLifecycle($order);
+    }
+
+    private function runIdentityLifecycle(Order $order): void
     {
         $order->loadMissing('incidents.creator');
         $actor = $order->incidents->first()?->creator;
 
-        if ($actor !== null) {
-            app(ServiceCaseAssignmentEligibilityService::class)->evaluateAssignmentEligibility($order, $actor);
-        }
+        $this->identityLifecycle->afterIdentityChanged(
+            order: $order,
+            actor: $this->automationMonitor->resolveAutomationActor($actor),
+            source: 'radiumbox_enrichment',
+            serialChanged: false,
+        );
     }
 
     /**

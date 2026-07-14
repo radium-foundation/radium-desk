@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -1383,8 +1384,8 @@ class DashboardServiceCasesTest extends TestCase
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $this->createAdminOpenCase($admin, 'RD-ACTION-1', assignedTo: $admin);
-        $this->createAdminOpenCase($admin, 'RD-ACTION-2', assignedTo: $admin);
+        $this->createAdminOpenCase($admin, 'RD-ACTION-1', assignedTo: $admin, serialNumber: 'B47C11929', deviceModel: 'Access FM220 L1');
+        $this->createAdminOpenCase($admin, 'RD-ACTION-2', assignedTo: $admin, serialNumber: 'B47C11930', deviceModel: 'Access FM220 L1');
         $this->createAdminOpenCase(
             $admin,
             'RD-STALE-1',
@@ -1395,28 +1396,28 @@ class DashboardServiceCasesTest extends TestCase
 
         $counts = DashboardSnapshot::load()->queueCounts();
 
-        $this->assertSame(2, $counts['action_required']);
-        $this->assertSame(1, $counts['pending_review']);
+        $this->assertSame(3, $counts['action_required']);
+        $this->assertSame(0, $counts['pending_review']);
 
         $response = $this->actingAs($admin)->get(route('dashboard', ['queue' => 'action_required']));
 
         $response->assertOk()
-            ->assertSee('data-dashboard-case-filter-count="action_required">(2)', false)
+            ->assertSee('data-dashboard-case-filter-count="action_required">(3)', false)
             ->assertSee('RD-ACTION-1')
             ->assertSee('RD-ACTION-2')
-            ->assertDontSee('RD-STALE-1')
-            ->assertSee('2 of 2 Showing');
+            ->assertSee('RD-STALE-1')
+            ->assertSee('3 of 3 Showing');
 
         $this->actingAs($admin)
             ->getJson(route('dashboard.live', ['queue' => 'action_required']))
             ->assertOk()
-            ->assertJsonCount(2, 'rows')
-            ->assertJsonPath('total_count', 2);
+            ->assertJsonCount(3, 'rows')
+            ->assertJsonPath('total_count', 3);
 
         Carbon::setTestNow();
     }
 
-    public function test_stale_open_case_does_not_inflate_action_required_count(): void
+    public function test_stale_validated_case_enters_ready_queue(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 12:00:00', 'Asia/Kolkata'));
 
@@ -1434,12 +1435,37 @@ class DashboardServiceCasesTest extends TestCase
         $classifier = app(OperationsQueueClassifier::class);
         $freshIncident = $staleCase->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
 
-        $this->assertSame('pending_review', $classifier->classify($freshIncident)->value);
+        $this->assertSame('action_required', $classifier->classify($freshIncident)->value);
+
+        $counts = DashboardSnapshot::load()->queueCounts();
+
+        $this->assertSame(1, $counts['action_required']);
+        $this->assertSame(0, $counts['pending_review']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_stale_unvalidated_case_stays_out_of_ready_queue(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 12:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $staleCase = $this->createAdminOpenCase(
+            $admin,
+            'RD-STALE-UNVALIDATED',
+            createdAt: now()->subHours(20),
+        );
+
+        $classifier = app(OperationsQueueClassifier::class);
+        $freshIncident = $staleCase->fresh(['order', 'assignee', 'activeWaitingState', 'supportAppointments']);
+
+        $this->assertNotSame('action_required', $classifier->classify($freshIncident)->value);
 
         $counts = DashboardSnapshot::load()->queueCounts();
 
         $this->assertSame(0, $counts['action_required']);
-        $this->assertSame(1, $counts['pending_review']);
 
         Carbon::setTestNow();
     }
@@ -1494,6 +1520,10 @@ class DashboardServiceCasesTest extends TestCase
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
+
+        if ($serialNumber !== null && $deviceModel !== null) {
+            app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
+        }
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,

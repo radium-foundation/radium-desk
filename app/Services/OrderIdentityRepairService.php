@@ -54,6 +54,7 @@ class OrderIdentityRepairService
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
         private readonly ServiceCaseAutomationStatusService $automationStatusService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly AuditLogService $auditLogService,
         private readonly OrderIdentityProtectionService $identityProtection,
     ) {}
@@ -478,13 +479,14 @@ class OrderIdentityRepairService
                 ],
             );
 
-            $this->eligibilityService->evaluateAssignmentEligibility($freshOrder, $actor);
+            $this->identityLifecycle->afterIdentityChanged(
+                order: $freshOrder,
+                actor: $actor,
+                source: 'identity_repair',
+                serialChanged: array_key_exists('serial_number', $updates),
+            );
 
             $passesValidation = $this->eligibilityService->passesValidationForOrder($freshOrder);
-
-            if ($passesValidation) {
-                $this->automationMonitor->recordValidationPassed($freshOrder, $actor);
-            }
 
             $assignmentStats = $this->assignmentStatistics($order, $assignmentSnapshots);
 

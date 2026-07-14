@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\User;
-use App\Services\MissingSerial\MissingSerialAutomationService;
 use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -14,9 +13,7 @@ class OrderSerialService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly SerialValidationService $serialValidationService,
-        private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibilityService,
-        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
-        private readonly MissingSerialAutomationService $missingSerialAutomationService,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     public function assignSerialNumber(Order $order, string $serialNumber, User $actor): Order
@@ -85,13 +82,12 @@ class OrderSerialService
                 );
             }
 
-            $this->assignmentEligibilityService->evaluateAssignmentEligibility($freshOrder, $actor);
-
-            if ($this->assignmentEligibilityService->passesValidationForOrder($freshOrder)) {
-                $this->automationMonitor->recordValidationPassed($freshOrder, $actor);
-            }
-
-            $this->missingSerialAutomationService->markCompletedIfApplicable($freshOrder, 'manual_serial_entry');
+            $this->identityLifecycle->afterIdentityChanged(
+                order: $freshOrder,
+                actor: $actor,
+                source: 'manual_serial_entry',
+                serialChanged: true,
+            );
 
             return $freshOrder;
         });

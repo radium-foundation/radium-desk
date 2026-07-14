@@ -17,6 +17,7 @@ use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\Operations\OperationsRoleService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\Operations\TeamMemberActivityService;
 use App\Services\RemarkService;
 use Database\Seeders\RolePermissionSeeder;
@@ -403,14 +404,20 @@ class OperationsModelFoundationTest extends TestCase
 
     private function createIncident(string $orderId, User $creator, ?User $assignee): Incident
     {
+        $isHardware = str_starts_with(strtoupper($orderId), 'RDE');
+
         $order = Order::query()->create([
             'order_id' => $orderId,
-            'serial_number' => 'SN-'.$orderId,
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'serial_number' => $isHardware ? 'SN-'.$orderId : $this->validSerialFor($orderId),
+            'product_name' => $isHardware ? 'MFS 110' : 'MFS110',
+            'device_model' => $isHardware ? 'MFS 110' : 'MFS110',
             'status' => 'active',
             'created_by' => $creator->id,
         ]);
+
+        if (! $isHardware) {
+            app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
+        }
 
         return Incident::query()->create([
             'order_id' => $order->id,
@@ -438,5 +445,10 @@ class OperationsModelFoundationTest extends TestCase
         ]);
 
         return $incident;
+    }
+
+    private function validSerialFor(string $orderId): string
+    {
+        return (string) (7_881_000 + (abs(crc32($orderId)) % 9_000));
     }
 }

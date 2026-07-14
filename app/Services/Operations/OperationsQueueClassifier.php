@@ -8,6 +8,7 @@ use App\Enums\ServiceCaseAutomationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\ServiceCaseAssignmentEligibilityService;
 use App\Services\ServiceCaseAutomationStatusService;
 
 class OperationsQueueClassifier
@@ -34,19 +35,19 @@ class OperationsQueueClassifier
             return OperationQueue::Scheduled;
         }
 
-        if ($this->isAttention($incident)) {
-            return OperationQueue::Attention;
+        if ($this->isReadyForReferenceEntry($incident)) {
+            return OperationQueue::ActionRequired;
         }
 
-        if ($this->isActionRequired($incident)) {
-            return OperationQueue::ActionRequired;
+        if ($this->isAttention($incident)) {
+            return OperationQueue::Attention;
         }
 
         if ($this->isPendingReview($incident)) {
             return OperationQueue::PendingReview;
         }
 
-        return OperationQueue::ActionRequired;
+        return OperationQueue::PendingReview;
     }
 
     public function matchesQueue(Incident $incident, OperationQueue|string $queue, ?User $scopeUser = null): bool
@@ -88,7 +89,43 @@ class OperationsQueueClassifier
             OperationQueue::ActionRequired,
             OperationQueue::Scheduled,
             OperationQueue::Attention,
-        ], true);
+        ], true)
+            || $this->matchesAssignedInProgressWork($incident, $scopeUser);
+    }
+
+    private function matchesAssignedInProgressWork(Incident $incident, ?User $scopeUser): bool
+    {
+        if ($scopeUser === null || $incident->assigned_to_user_id !== $scopeUser->id) {
+            return false;
+        }
+
+        if ($this->isCompleted($incident) || $this->isHardware($incident) || ! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        $order = $incident->order;
+
+        if ($order === null) {
+            return true;
+        }
+
+        return ! $this->assignmentEligibility()->isReadyForReferenceEntry($order, $incident);
+    }
+
+    public function isReadyForReferenceEntry(Incident $incident): bool
+    {
+        $order = $incident->order;
+
+        if ($order === null) {
+            return false;
+        }
+
+        return $this->assignmentEligibility()->isReadyForReferenceEntry($order, $incident);
+    }
+
+    private function assignmentEligibility(): ServiceCaseAssignmentEligibilityService
+    {
+        return app(ServiceCaseAssignmentEligibilityService::class);
     }
 
     public function isWaitingFollowUpDue(Incident $incident): bool
@@ -282,7 +319,7 @@ class OperationsQueueClassifier
             || $this->isWaitingCustomer($incident)
             || $this->isScheduled($incident)
             || $this->isAttention($incident)
-            || $this->isActionRequired($incident)) {
+            || $this->isReadyForReferenceEntry($incident)) {
             return false;
         }
 

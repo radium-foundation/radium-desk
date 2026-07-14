@@ -12,6 +12,7 @@ use App\Notifications\HighPriorityServiceCaseNotification;
 use App\Services\AuditLogService;
 use App\Services\DashboardBroadcastService;
 use App\Services\IncidentReferenceService;
+use App\Services\OrderIdentityLifecycleService;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\RadiumBox\RadiumBoxClient;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
@@ -30,6 +31,7 @@ class LegacyOrderImportService
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
         private readonly AuditLogService $auditLogService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     public function import(
@@ -145,6 +147,12 @@ class LegacyOrderImportService
             }
 
             $this->dashboardBroadcastService->serviceCaseCreated($incident, $user);
+
+            $this->identityLifecycle->afterOrderCreatedWithIdentity(
+                order: $order,
+                actor: $user,
+                source: 'legacy_order_import',
+            );
 
             return $incident->fresh(['order', 'assignee']);
         });

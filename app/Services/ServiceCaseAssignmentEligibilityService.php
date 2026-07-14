@@ -105,6 +105,27 @@ class ServiceCaseAssignmentEligibilityService
             || $this->placeholderService->isPlaceholder((string) $order->serial_number);
     }
 
+    public function isReadyForReferenceEntry(Order $order, Incident $incident): bool
+    {
+        if (! $incident->isActive() || ! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        if (! filled(trim((string) $order->order_id))) {
+            return false;
+        }
+
+        if (Order::isHardwareOrderId($order->order_id) || $order->isInquiryOrder()) {
+            return false;
+        }
+
+        if (! $this->passesValidationForOrder($order)) {
+            return false;
+        }
+
+        return $this->validationSeverityForOrder($order) !== SerialValidationSeverity::Fail;
+    }
+
     private function evaluateSingleIncident(int $incidentId, User $actor): void
     {
         DB::transaction(function () use ($incidentId, $actor): void {
@@ -182,7 +203,8 @@ class ServiceCaseAssignmentEligibilityService
 
     private function hasModelIdentity(Order $order): bool
     {
-        return filled(trim((string) $order->device_model))
+        return $order->hasDeviceModelAssigned()
+            || filled(trim((string) $order->device_model))
             || filled(trim((string) $order->product_name));
     }
 

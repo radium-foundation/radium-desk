@@ -14,6 +14,7 @@ class OrderDeviceModelService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly DashboardService $dashboardService,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     public function assignDeviceModel(Order $order, DeviceModel $deviceModel, User $actor, bool $isBulk = false): Order
@@ -54,6 +55,12 @@ class OrderDeviceModelService
                     'device_model' => $freshOrder->device_model,
                     'device_model_assigned_at' => $freshOrder->device_model_assigned_at?->toIso8601String(),
                 ],
+            );
+
+            $this->identityLifecycle->afterIdentityChanged(
+                order: $freshOrder,
+                actor: $actor,
+                source: $isBulk ? 'device_model_bulk_assigned' : 'device_model_assigned',
             );
 
             return $freshOrder;

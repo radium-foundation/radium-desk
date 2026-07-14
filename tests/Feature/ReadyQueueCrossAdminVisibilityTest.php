@@ -12,6 +12,7 @@ use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -113,9 +114,13 @@ class ReadyQueueCrossAdminVisibilityTest extends TestCase
     {
         $order = Order::query()->create([
             'order_id' => $orderId,
+            'serial_number' => 'B47C11929',
+            'device_model' => 'Access FM220 L1',
+            'product_name' => 'Access FM220 L1',
             'status' => 'active',
             'created_by' => $creator->id,
         ]);
+        app(RadiumBoxOrderEnrichmentSyncStore::class)->markSynced($order->id);
 
         $incident = Incident::query()->create([
             'order_id' => $order->id,

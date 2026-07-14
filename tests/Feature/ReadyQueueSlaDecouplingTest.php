@@ -159,7 +159,7 @@ class ReadyQueueSlaDecouplingTest extends TestCase
             'completed_at' => now(),
         ]);
 
-        $ready = $this->createAwaitingProductDetailsCase('RD-READY-KEEP', $admin, now()->subHours(2));
+        $ready = $this->createAwaitingProductDetailsCase('RD-READY-KEEP', $admin, now()->subHours(2), '7881953');
 
         $classifier = app(OperationsQueueClassifier::class);
 
@@ -236,11 +236,12 @@ class ReadyQueueSlaDecouplingTest extends TestCase
         $adminB = User::factory()->create();
         $adminB->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
-        $this->createAwaitingProductDetailsCase('RD3450731', $adminA, now()->subHours(2));
+        $this->createAwaitingProductDetailsCase('RD3450731', $adminA, now()->subHours(2), '7881956');
         $this->createAwaitingProductDetailsCase(
             'RD3449136',
             $adminA,
             Carbon::parse('2026-07-12 10:00:00', 'Asia/Kolkata'),
+            '7881957',
         );
 
         $scope = app(DashboardPersonalizationService::class)
@@ -266,8 +267,8 @@ class ReadyQueueSlaDecouplingTest extends TestCase
         $order = Order::query()->create([
             'order_id' => $orderId,
             'serial_number' => $serialNumber,
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'product_name' => $serialNumber !== null ? 'MFS110' : 'MFS 110',
+            'device_model' => $serialNumber !== null ? 'MFS110' : 'MFS 110',
             'status' => 'active',
             'created_by' => $assignee->id,
         ]);

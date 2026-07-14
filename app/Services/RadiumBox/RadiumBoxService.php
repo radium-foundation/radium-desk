@@ -4,6 +4,7 @@ namespace App\Services\RadiumBox;
 
 use App\Data\EnrichmentPersistenceResult;
 use App\Models\Order;
+use App\Services\OrderIdentityLifecycleService;
 use App\Services\OrderIdentityProtectionService;
 use Illuminate\Support\Facades\Log;
 
@@ -12,6 +13,7 @@ class RadiumBoxService
     public function __construct(
         private readonly RadiumBoxClient $client,
         private readonly OrderIdentityProtectionService $identityProtection,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     public function enrichOrderForWorkspace(Order $order): Order
@@ -119,6 +121,13 @@ class RadiumBoxService
         }
 
         $order->update($updates);
+
+        $this->identityLifecycle->afterIdentityFieldsChanged(
+            order: $order,
+            actor: $this->identityLifecycle->resolveActorForOrder($order),
+            source: 'radiumbox_enrichment',
+            changedFields: $fieldsApplied,
+        );
 
         return new EnrichmentPersistenceResult(
             updated: true,

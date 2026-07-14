@@ -12,12 +12,11 @@ use App\Models\Order;
 use App\Services\AuditLogService;
 use App\Services\DeviceModelSettingsService;
 use App\Services\OrderActivityTimelineService;
+use App\Services\OrderIdentityLifecycleService;
 use App\Services\QuickServiceRequestService;
 use App\Services\RadiumBox\RadiumBoxService;
 use App\Services\RemarkTimelineService;
 use App\Services\SerialValidation\SerialValidationService;
-use App\Services\ServiceCaseAssignmentEligibilityService;
-use App\Services\ServiceCaseAutomationMonitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,8 +33,7 @@ class OrderController extends Controller
         private readonly AuditLogService $auditLogService,
         private readonly RadiumBoxService $radiumBoxService,
         private readonly SerialValidationService $serialValidationService,
-        private readonly ServiceCaseAssignmentEligibilityService $assignmentEligibilityService,
-        private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly DeviceModelSettingsService $deviceModelSettingsService,
     ) {
         $this->authorizeResource(Order::class, 'order');
@@ -130,6 +128,12 @@ class OrderController extends Controller
             );
         }
 
+        $this->identityLifecycle->afterOrderCreatedWithIdentity(
+            order: $order,
+            actor: $request->user(),
+            source: 'order_create',
+        );
+
         return redirect()
             ->route('orders.show', $order)
             ->with('status', 'order-created');
@@ -211,6 +215,7 @@ class OrderController extends Controller
         $attributesBeforeUpdate = $order->getAttributes();
         $previousSerial = $order->serial_number;
         $previousDeviceModel = $order->device_model;
+        $previousDeviceModelId = $order->device_model_id;
         $previousProductName = $order->product_name;
         $validated = collect($request->validated())->except('correction_reason')->all();
         $validated = $this->applyDeviceModelSelection(
@@ -296,19 +301,16 @@ class OrderController extends Controller
 
         $identityFieldsChanged = $previousSerial !== $order->serial_number
             || $previousDeviceModel !== $order->device_model
+            || $previousDeviceModelId !== $order->device_model_id
             || $previousProductName !== $order->product_name;
 
         if ($identityFieldsChanged) {
-            $freshOrder = $order->fresh();
-
-            $this->assignmentEligibilityService->evaluateAssignmentEligibility(
-                $freshOrder,
-                $request->user(),
+            $this->identityLifecycle->afterIdentityChanged(
+                order: $order,
+                actor: $request->user(),
+                source: 'order_admin_edit',
+                serialChanged: $previousSerial !== $order->serial_number,
             );
-
-            if ($this->assignmentEligibilityService->passesValidationForOrder($freshOrder)) {
-                $this->automationMonitor->recordValidationPassed($freshOrder, $request->user());
-            }
         }
 
         return redirect()

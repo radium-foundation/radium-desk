@@ -15,6 +15,7 @@ class ServiceCaseCloseExceptionService
     public function __construct(
         private readonly ServiceCaseCloseExceptionIdService $exceptionIdService,
         private readonly AuditLogService $auditLogService,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     /**
@@ -106,6 +107,13 @@ class ServiceCaseCloseExceptionService
 
                 if ($order !== null) {
                     $order->update(['serial_number' => $exceptionId]);
+
+                    $this->identityLifecycle->afterIdentityFieldsChanged(
+                        order: $order,
+                        actor: $actor,
+                        source: 'service_case_close_exception_serial',
+                        changedFields: ['serial_number'],
+                    );
                 }
             } else {
                 $incident->update(['reference_no' => $exceptionId]);

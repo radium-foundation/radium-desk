@@ -25,6 +25,7 @@ class CustomerIntakeService
         private readonly RadiumBoxClient $radiumBoxClient,
         private readonly LegacyOrderImportService $legacyOrderImportService,
         private readonly SerialValidationService $serialValidationService,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     public function createForExistingOrder(
@@ -99,7 +100,7 @@ class CustomerIntakeService
                 ],
             );
 
-            return $this->quickServiceRequestService->createForOrder(
+            $incident = $this->quickServiceRequestService->createForOrder(
                 user: $user,
                 order: $order,
                 source: $source,
@@ -107,6 +108,14 @@ class CustomerIntakeService
                 highPriority: $highPriority,
                 title: 'Legacy service request — '.($enrichment?->deviceModel ?? $orderId),
             );
+
+            $this->identityLifecycle->afterOrderCreatedWithIdentity(
+                order: $order,
+                actor: $user,
+                source: 'intake_legacy_radiumbox',
+            );
+
+            return $incident;
         });
     }
 
@@ -212,6 +221,12 @@ class CustomerIntakeService
                     'inquiry_order_id' => $inquiryOrderId,
                     'customer_phone' => $phone,
                 ],
+            );
+
+            $this->identityLifecycle->afterOrderCreatedWithIdentity(
+                order: $order,
+                actor: $user,
+                source: 'intake_new_contact',
             );
 
             return $incident->fresh(['order', 'assignee']);
