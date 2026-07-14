@@ -33,7 +33,7 @@ export const initDashboardLoadMore = ({
 
         try {
             const query = buildDashboardLiveQuery(pageRoot, {
-                fallbackQueue: card.dataset.serviceCaseFilter ?? 'attention',
+                fallbackQueue: card.dataset.serviceCaseFilter ?? 'action_required',
                 offset: getServiceCaseLoadedCount(),
             });
 

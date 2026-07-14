@@ -329,7 +329,7 @@ export const initDashboardQuickFilter = ({
         setServiceCaseSearchQuery(normalizedQuery);
 
         const params = buildDashboardLiveQuery(pageRoot, {
-            fallbackQueue: card.dataset.serviceCaseFilter ?? 'attention',
+            fallbackQueue: card.dataset.serviceCaseFilter ?? 'action_required',
             offset: 0,
             q: normalizedQuery,
         });

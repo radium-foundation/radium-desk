@@ -25,7 +25,7 @@ return [
             'tone' => 'secondary',
         ],
         'attention' => [
-            'label' => 'Attention',
+            'label' => 'Exceptions',
             'icon' => 'bi-exclamation-triangle-fill',
             'tone' => 'danger',
         ],

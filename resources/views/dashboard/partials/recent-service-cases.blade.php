@@ -1,7 +1,7 @@
 @php
     use App\Services\DashboardPersonalizationService;
 
-    $activeQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ATTENTION;
+    $activeQueue = $operationQueue ?? DashboardPersonalizationService::QUEUE_ACTION_REQUIRED;
     $legacyServiceCaseFilter = $serviceCaseFilter ?? $activeQueue;
     $serviceCaseFilterCounts = $serviceCaseFilterCounts ?? [];
     $renderedServiceCaseCount = $recentServiceCases->count();

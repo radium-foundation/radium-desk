@@ -53,7 +53,7 @@ class DashboardPersonalizationService
     public function defaultQueueFor(?User $user): string
     {
         if ($user === null) {
-            return self::QUEUE_ATTENTION;
+            return self::QUEUE_ACTION_REQUIRED;
         }
 
         if ($this->operationsRoles->isHardwareTeam($user)) {
@@ -61,7 +61,7 @@ class DashboardPersonalizationService
         }
 
         if ($this->operationsRoles->usesAdminQueues($user)) {
-            return self::QUEUE_ATTENTION;
+            return self::QUEUE_ACTION_REQUIRED;
         }
 
         return self::QUEUE_MY_WORK;
@@ -74,8 +74,8 @@ class DashboardPersonalizationService
     {
         if ($this->operationsRoles->usesAdminQueues($user)) {
             $queues = [
-                self::QUEUE_ATTENTION,
                 self::QUEUE_ACTION_REQUIRED,
+                self::QUEUE_ATTENTION,
                 self::QUEUE_SCHEDULED,
                 self::QUEUE_WAITING_CUSTOMER,
             ];
@@ -424,7 +424,13 @@ class DashboardPersonalizationService
             return self::QUEUE_COMPLETED;
         }
 
-        if (in_array($filter, ['needs_attention', 'my_attention', 'overdue', 'warning', 'high_priority', 'pending_support'], true)) {
+        if (in_array($filter, ['overdue', 'warning'], true)) {
+            return $this->operationsRoles->usesSupportQueues($user)
+                ? self::QUEUE_MY_WORK
+                : self::QUEUE_ACTION_REQUIRED;
+        }
+
+        if (in_array($filter, ['needs_attention', 'my_attention', 'high_priority', 'pending_support'], true)) {
             return $this->operationsRoles->usesSupportQueues($user)
                 ? self::QUEUE_MY_WORK
                 : self::QUEUE_ATTENTION;
@@ -436,7 +442,7 @@ class DashboardPersonalizationService
 
         if ($filter === 'pending_admin' || $filter === 'all' || $view === self::VIEW_ALL || $view === self::VIEW_TEAM) {
             return $this->operationsRoles->usesAdminQueues($user)
-                ? self::QUEUE_ATTENTION
+                ? self::QUEUE_ACTION_REQUIRED
                 : self::QUEUE_MY_WORK;
         }
 
@@ -454,7 +460,7 @@ class DashboardPersonalizationService
             self::QUEUE_PENDING_REVIEW,
             self::QUEUE_SCHEDULED,
             self::QUEUE_WAITING_CUSTOMER => $queue,
-            default => self::QUEUE_ATTENTION,
+            default => self::QUEUE_ACTION_REQUIRED,
         };
     }
 

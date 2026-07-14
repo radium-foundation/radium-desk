@@ -29,7 +29,7 @@
             'value' => $stats['overdue_cases'] ?? 0,
             'icon' => 'bi-exclamation-octagon-fill',
             'color' => 'danger',
-            'href' => route('dashboard', ['queue' => 'attention']).'#dashboard-service-cases-panel',
+            'href' => route('dashboard', ['filter' => 'overdue']).'#dashboard-service-cases-panel',
         ];
 
         $items[] = [

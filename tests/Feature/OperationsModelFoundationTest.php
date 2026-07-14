@@ -165,7 +165,7 @@ class OperationsModelFoundationTest extends TestCase
             ->assertSee('Pending Review')
             ->assertSee('Waiting Customer')
             ->assertSee('Scheduled')
-            ->assertSee('Attention')
+            ->assertSee('Exceptions')
             ->assertSee('Hardware')
             ->assertDontSee('dashboard-module-nav', false)
             ->assertDontSee('>Team<', false);
@@ -179,8 +179,7 @@ class OperationsModelFoundationTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('My Work')
-            ->assertSee('Waiting Customer')
+            ->assertSee('Active')
             ->assertDontSee('Ready Queue')
             ->assertDontSee('dashboard-module-nav', false);
     }
@@ -365,6 +364,7 @@ class OperationsModelFoundationTest extends TestCase
 
         $snapshot = DashboardSnapshot::load();
         $snapshot->queueCounts();
+        $snapshot->slaCounts();
         $queriesAfterWarmup = count(DB::getQueryLog());
 
         $snapshot->operationalKpiCounts();

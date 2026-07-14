@@ -273,7 +273,9 @@ class OperationsAdvisorService
                     ServiceCaseSlaStatus::Warning,
                 ]),
                 supportingMetrics: $counts,
-                actionUrl: route('dashboard', ['queue' => $counts['overdue_cases'] > 0 ? 'attention' : 'attention']),
+                actionUrl: route('dashboard', [
+                    'filter' => $serviceOverdue > 0 ? 'overdue' : 'warning',
+                ]),
             );
         }
 
@@ -304,7 +306,7 @@ class OperationsAdvisorService
                     'long_waiting_count' => $longWaiting->count(),
                     'minimum_days' => 3,
                 ],
-                actionUrl: route('dashboard', ['queue' => 'attention']),
+                actionUrl: route('dashboard', ['queue' => 'waiting_customer']),
             );
         }
 
@@ -664,7 +666,7 @@ class OperationsAdvisorService
                     'stale_assignment_count' => $staleAssignments->count(),
                     'stale_days' => 5,
                 ],
-                actionUrl: route('dashboard', ['queue' => 'attention']),
+                actionUrl: route('dashboard', ['queue' => 'action_required']),
             );
         }
 

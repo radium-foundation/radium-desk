@@ -31,7 +31,7 @@ const shouldRemoveRowForFilter = (pageRoot, payload) => {
         return false;
     }
 
-    const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? 'attention';
+    const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? 'action_required';
 
     return queue === 'action_required'
         || queue === 'attention'
