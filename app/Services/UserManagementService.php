@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\UserAccessPermissionCatalog;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -15,14 +16,15 @@ class UserManagementService
     ) {}
 
     /**
-     * @param  array{first_name: string, last_name: string, email: string, password: string, roles: list<string>, is_active: bool, bonvoice_extension?: string|null}  $data
+     * @param  array{first_name: string, last_name: string, email: string, password: string, roles: list<string>, is_active: bool, bonvoice_extension?: string|null, permissions?: list<string>}  $data
      */
     public function createUser(array $data, User $actor): User
     {
         $roles = $this->normalizedRoleNamesFromArray($data['roles']);
+        $permissions = $this->normalizedPermissionNamesFromArray($data['permissions'] ?? []);
         $this->ensureAssignableRoles($actor, $roles);
 
-        return DB::transaction(function () use ($data, $actor, $roles): User {
+        return DB::transaction(function () use ($data, $actor, $roles, $permissions): User {
             $user = User::query()->create([
                 'first_name' => $data['first_name'],
                 'last_name' => $data['last_name'],
@@ -33,30 +35,36 @@ class UserManagementService
             ]);
 
             $user->syncRoles($roles);
+            $user->syncPermissions($permissions);
 
             $this->auditLogService->log(
                 userId: $actor->id,
                 event: 'user.created',
                 auditable: $user,
-                newValues: $this->auditSnapshot($user, $roles),
+                newValues: $this->auditSnapshot($user, $roles, $permissions),
             );
 
-            return $user->fresh(['roles']);
+            return $user->fresh(['roles', 'permissions']);
         });
     }
 
     /**
-     * @param  array{first_name: string, last_name: string, email: string, roles: list<string>, is_active: bool, bonvoice_extension?: string|null}  $data
+     * @param  array{first_name: string, last_name: string, email: string, roles: list<string>, is_active: bool, bonvoice_extension?: string|null, permissions?: list<string>}  $data
      */
     public function updateUser(User $user, array $data, User $actor): User
     {
         $roles = $this->normalizedRoleNamesFromArray($data['roles']);
+        $permissions = $this->normalizedPermissionNamesFromArray($data['permissions'] ?? []);
         $this->ensureAssignableRoles($actor, $roles);
         $this->ensureSuperadminRoleRetained($user, $roles, $actor);
         $this->ensureActiveSuperadminRetained($user, $data['is_active']);
 
-        return DB::transaction(function () use ($user, $data, $actor, $roles): User {
-            $oldValues = $this->auditSnapshot($user, $this->roleNamesFromUser($user));
+        return DB::transaction(function () use ($user, $data, $actor, $roles, $permissions): User {
+            $oldValues = $this->auditSnapshot(
+                $user,
+                $this->roleNamesFromUser($user),
+                $this->directPermissionNamesFromUser($user),
+            );
 
             $wasActive = $user->is_active;
 
@@ -69,9 +77,14 @@ class UserManagementService
             ]);
 
             $user->syncRoles($roles);
+            $user->syncPermissions($permissions);
 
-            $freshUser = $user->fresh(['roles']);
-            $newValues = $this->auditSnapshot($freshUser, $this->roleNamesFromUser($freshUser));
+            $freshUser = $user->fresh(['roles', 'permissions']);
+            $newValues = $this->auditSnapshot(
+                $freshUser,
+                $this->roleNamesFromUser($freshUser),
+                $this->directPermissionNamesFromUser($freshUser),
+            );
 
             if ($oldValues !== $newValues) {
                 $this->auditLogService->log(
@@ -161,7 +174,11 @@ class UserManagementService
                 userId: $actor->id,
                 event: 'user.deleted',
                 auditable: $user,
-                oldValues: $this->auditSnapshot($user, $this->roleNamesFromUser($user)),
+                oldValues: $this->auditSnapshot(
+                    $user,
+                    $this->roleNamesFromUser($user),
+                    $this->directPermissionNamesFromUser($user),
+                ),
             );
 
             $user->delete();
@@ -303,18 +320,62 @@ class UserManagementService
     }
 
     /**
+     * @return list<array{label: string, permissions: array<string, string>}>
+     */
+    public function assignablePermissionGroups(): array
+    {
+        return array_values(app(UserAccessPermissionCatalog::class)->groups());
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function assignablePermissionNames(): array
+    {
+        return app(UserAccessPermissionCatalog::class)->assignablePermissionNames();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function directPermissionNamesFromUser(User $user): array
+    {
+        return $this->normalizedPermissionNamesFromArray(
+            $user->permissions->pluck('name')->all(),
+        );
+    }
+
+    /**
      * @param  list<string>  $roles
+     * @param  list<string>  $permissions
      * @return array<string, mixed>
      */
-    private function auditSnapshot(User $user, array $roles): array
+    private function auditSnapshot(User $user, array $roles, array $permissions = []): array
     {
         return [
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'email' => $user->email,
             'roles' => $roles,
+            'permissions' => $permissions,
             'is_active' => $user->is_active,
             'bonvoice_extension' => $user->bonvoice_extension,
         ];
+    }
+
+    /**
+     * @param  list<string>  $permissions
+     * @return list<string>
+     */
+    private function normalizedPermissionNamesFromArray(array $permissions): array
+    {
+        $assignable = $this->assignablePermissionNames();
+
+        return collect($permissions)
+            ->filter(fn (mixed $permission): bool => is_string($permission) && in_array($permission, $assignable, true))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 }

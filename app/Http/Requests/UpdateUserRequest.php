@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\User;
 use App\Services\UserManagementService;
+use App\Support\UserAccessPermissionCatalog;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -35,6 +36,8 @@ class UpdateUserRequest extends FormRequest
             'roles.*' => ['required', 'string', Rule::in(app(UserManagementService::class)->assignableRoles($actor))],
             'is_active' => ['required', 'boolean'],
             'bonvoice_extension' => ['nullable', 'string', 'max:50', Rule::unique('users', 'bonvoice_extension')->ignore($user->id)],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in(app(UserAccessPermissionCatalog::class)->assignablePermissionNames())],
         ];
     }
 
@@ -68,6 +71,27 @@ class UpdateUserRequest extends FormRequest
                 ? trim($extension)
                 : null,
             'roles' => array_values(array_filter($roles, fn (mixed $role): bool => is_string($role) && $role !== '')),
+            'permissions' => $this->normalizedPermissions(),
         ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizedPermissions(): array
+    {
+        $permissions = $this->input('permissions');
+
+        if (! is_array($permissions)) {
+            return [];
+        }
+
+        $assignable = app(UserAccessPermissionCatalog::class)->assignablePermissionNames();
+
+        return collect($permissions)
+            ->filter(fn (mixed $permission): bool => is_string($permission) && in_array($permission, $assignable, true))
+            ->unique()
+            ->values()
+            ->all();
     }
 }

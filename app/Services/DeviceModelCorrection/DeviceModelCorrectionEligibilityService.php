@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Services\SerialCorrection;
+namespace App\Services\DeviceModelCorrection;
 
 use App\Data\Eligibility\EligibilityResult;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 
-class SerialCorrectionEligibilityService
+class DeviceModelCorrectionEligibilityService
 {
     public function __construct(
         private readonly IdentityCorrectionEligibilityEvaluator $evaluator,
@@ -17,14 +17,14 @@ class SerialCorrectionEligibilityService
     {
         $incident->loadMissing('order');
 
-        if ($incident->order !== null && ! $incident->order->isSerialLocked()) {
-            return EligibilityResult::deny('No serial assigned yet.');
+        if ($incident->order !== null && ! $incident->order->hasDeviceModelAssigned()) {
+            return EligibilityResult::deny('No device model assigned yet.');
         }
 
         $result = $this->evaluator->evaluateBase(
             $incident,
             $user,
-            IdentityCorrectionEligibilityEvaluator::KIND_SERIAL,
+            IdentityCorrectionEligibilityEvaluator::KIND_DEVICE_MODEL,
         );
 
         if (! $result->allowed) {

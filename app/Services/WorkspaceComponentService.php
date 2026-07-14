@@ -21,6 +21,7 @@ use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
+use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
 use App\Services\SerialValidation\SerialValidationService;
@@ -50,6 +51,7 @@ class WorkspaceComponentService
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
         private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
         private readonly SerialCorrectionEligibilityService $serialCorrectionEligibilityService,
+        private readonly DeviceModelCorrectionEligibilityService $deviceModelCorrectionEligibilityService,
         private readonly SerialValidationService $serialValidationService,
         private readonly CommunicationActionRegistry $communicationActionRegistry,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
@@ -88,6 +90,7 @@ class WorkspaceComponentService
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectCustomerDetails => $this->customerCorrectionEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectSerialNumber => $this->serialCorrectionEligibilityService->canShowAction($incident, $user),
+            WorkspaceComponent::CorrectDeviceModel => $this->deviceModelCorrectionEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CommunicationAction => $this->canOpenCommunicationAction($incident, $user),
         };
 
@@ -186,6 +189,10 @@ class WorkspaceComponentService
             WorkspaceComponent::CorrectSerialNumber => [
                 'incident' => $incident,
                 ...$this->correctSerialNumberWorkspaceFields($requestContext, $incident),
+            ],
+            WorkspaceComponent::CorrectDeviceModel => [
+                'incident' => $incident,
+                ...$this->correctDeviceModelWorkspaceFields($requestContext, $incident),
             ],
             WorkspaceComponent::CommunicationAction => [
                 'incident' => $incident,
@@ -343,6 +350,27 @@ class WorkspaceComponentService
     /**
      * @return array<string, mixed>
      */
+    private function correctDeviceModelWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $incident->loadMissing('order.deviceModel');
+        $order = $incident->order;
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.correct-device-model', $incident),
+            'workspaceContext' => $requestContext->context->value,
+            'currentDeviceModel' => $order?->device_model,
+            'currentDeviceModelId' => $order?->device_model_id,
+            'deviceModels' => app(DeviceModelSettingsService::class)->activeOptions(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function correctCustomerDetailsWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
     {
         if ($requestContext === null) {
@@ -361,6 +389,9 @@ class WorkspaceComponentService
             'canCorrectSerialNumber' => $order !== null
                 && auth()->user() !== null
                 && $this->serialCorrectionEligibilityService->canShowAction($incident, auth()->user()),
+            'canCorrectDeviceModel' => $order !== null
+                && auth()->user() !== null
+                && $this->deviceModelCorrectionEligibilityService->canShowAction($incident, auth()->user()),
         ];
     }
 

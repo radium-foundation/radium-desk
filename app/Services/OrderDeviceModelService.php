@@ -67,6 +67,31 @@ class OrderDeviceModelService
         });
     }
 
+    public function correctDeviceModel(Order $order, DeviceModel $deviceModel, User $actor): Order
+    {
+        if (! $order->hasDeviceModelAssigned()) {
+            return $this->assignDeviceModel($order, $deviceModel, $actor);
+        }
+
+        if ($deviceModel->id === $order->device_model_id) {
+            throw ValidationException::withMessages([
+                'device_model_id' => 'Device model was not changed.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($order, $deviceModel, $actor): Order {
+            $order->update([
+                'device_model_id' => null,
+                'device_model' => null,
+                'device_model_assigned_at' => null,
+                'device_model_assigned_by_user_id' => null,
+                'updated_by' => $actor->id,
+            ]);
+
+            return $this->assignDeviceModel($order->fresh(), $deviceModel, $actor);
+        });
+    }
+
     /**
      * @param  list<int>  $incidentIds
      * @return array{

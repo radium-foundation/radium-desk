@@ -18,6 +18,7 @@ enum WorkspaceComponent: string
     case LinkOrder = 'link-order';
     case CorrectCustomerDetails = 'correct-customer-details';
     case CorrectSerialNumber = 'correct-serial-number';
+    case CorrectDeviceModel = 'correct-device-model';
     case CommunicationAction = 'communication-action';
 
     public function view(): string
@@ -37,6 +38,7 @@ enum WorkspaceComponent: string
             self::LinkOrder => 'customer-360.fragments.link-order-form',
             self::CorrectCustomerDetails => 'customer-360.fragments.correct-customer-details-form',
             self::CorrectSerialNumber => 'customer-360.fragments.correct-serial-number-form',
+            self::CorrectDeviceModel => 'customer-360.fragments.correct-device-model-form',
             self::CommunicationAction => 'customer-360.fragments.communication-action-form',
         };
     }

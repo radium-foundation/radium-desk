@@ -40,9 +40,9 @@ class WorkspaceCorrectSerialNumberTest extends TestCase
             ->assertSee('data-correct-serial-number-dialog', false);
     }
 
-    public function test_agent_cannot_load_correct_serial_number_dialog(): void
+    public function test_agent_cannot_load_correct_serial_number_dialog_when_unpaid(): void
     {
-        [$agent, $incident] = $this->createIncidentWithSerial('7881953', RolePermissionSeeder::ROLE_AGENT);
+        [$agent, $incident] = $this->createIncidentWithSerial('7881953', RolePermissionSeeder::ROLE_AGENT, paid: false);
 
         $this->actingAs($agent)
             ->get(route('incidents.components.show', [
@@ -51,6 +51,21 @@ class WorkspaceCorrectSerialNumberTest extends TestCase
                 'workspace_context' => 'customer',
             ]))
             ->assertForbidden();
+    }
+
+    public function test_agent_can_load_correct_serial_number_dialog_on_paid_rd_order(): void
+    {
+        [$agent, $incident] = $this->createIncidentWithSerial('7881953', RolePermissionSeeder::ROLE_AGENT, paid: true);
+        $agent->givePermissionTo(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'correct-serial-number',
+                'workspace_context' => 'customer',
+            ]))
+            ->assertOk()
+            ->assertSee('Correct Serial Number');
     }
 
     public function test_live_validation_preview_uses_serial_validation_service(): void
@@ -136,7 +151,7 @@ class WorkspaceCorrectSerialNumberTest extends TestCase
     /**
      * @return array{0: User, 1: Incident}
      */
-    private function createIncidentWithSerial(string $serial, string $role = RolePermissionSeeder::ROLE_ADMIN): array
+    private function createIncidentWithSerial(string $serial, string $role = RolePermissionSeeder::ROLE_ADMIN, bool $paid = true): array
     {
         $user = User::factory()->create();
         $user->assignRole($role);
@@ -151,6 +166,7 @@ class WorkspaceCorrectSerialNumberTest extends TestCase
             'customer_name' => 'Serial Customer',
             'customer_email' => 'serial@example.com',
             'customer_phone' => '9123456782',
+            'cashfree_payment_id' => $paid ? 'cf_pay_c360' : null,
             'status' => 'active',
             'created_by' => $user->id,
         ]);

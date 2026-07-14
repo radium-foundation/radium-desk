@@ -108,6 +108,9 @@ class WorkspaceRefreshPolicy
             WorkspaceComponent::CorrectSerialNumber => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),
+            WorkspaceComponent::CorrectDeviceModel => new WorkspaceRefreshEffects(
+                closeWorkspaceHost: true,
+            ),
             WorkspaceComponent::CommunicationAction => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\WorkspaceCommunicationActionRequest;
 use App\Http\Requests\WorkspaceCorrectCustomerDetailsRequest;
+use App\Http\Requests\WorkspaceCorrectDeviceModelRequest;
 use App\Http\Requests\WorkspaceCorrectSerialNumberRequest;
 use App\Http\Requests\WorkspaceLinkOrderRequest;
 use App\Http\Requests\WorkspaceActionRequest;
@@ -20,6 +21,7 @@ use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
 use App\Services\WorkspaceRemarkActionService;
 use App\Services\WorkspaceCorrectCustomerDetailsActionService;
+use App\Services\WorkspaceCorrectDeviceModelActionService;
 use App\Services\WorkspaceCorrectSerialNumberActionService;
 use App\Services\WorkspaceLinkOrderActionService;
 use App\Services\WorkspaceRequestCorrectSerialActionService;
@@ -47,6 +49,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
         private readonly WorkspaceCorrectCustomerDetailsActionService $correctCustomerDetailsActionService,
         private readonly WorkspaceCorrectSerialNumberActionService $correctSerialNumberActionService,
+        private readonly WorkspaceCorrectDeviceModelActionService $correctDeviceModelActionService,
         private readonly CommunicationActionExecutorService $communicationActionExecutorService,
         private readonly CommunicationActionRegistry $communicationActionRegistry,
         private readonly WorkspaceContextResolver $contextResolver,
@@ -265,6 +268,21 @@ class WorkspaceActionController extends Controller
         $requestContext = $this->contextResolver->resolve($request, $incident);
 
         $response = $this->correctSerialNumberActionService->correct(
+            incident: $incident,
+            actor: $request->user(),
+            payload: $request->validated(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function correctDeviceModel(WorkspaceCorrectDeviceModelRequest $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->correctDeviceModelActionService->correct(
             incident: $incident,
             actor: $request->user(),
             payload: $request->validated(),

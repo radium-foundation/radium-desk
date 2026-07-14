@@ -182,6 +182,7 @@ class OrderSerialTest extends TestCase
             'serial_entered_by_user_id' => $admin->id,
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_pay_serial_edit',
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
@@ -301,6 +302,7 @@ class OrderSerialTest extends TestCase
             'serial_entered_at' => now(),
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_pay_policy',
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
@@ -309,6 +311,46 @@ class OrderSerialTest extends TestCase
         $this->assertTrue($operationsAdmin->can('correctIdentity', $order));
         $this->assertTrue($superadmin->can('correctIdentity', $order));
         $this->assertFalse($agent->can('correctIdentity', $order));
+        $agent->givePermissionTo(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY);
+        $this->assertTrue($agent->can('correctOrderIdentity', $order));
+    }
+
+    public function test_agent_cannot_correct_order_identity_on_unpaid_order(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $agent->givePermissionTo(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-UNPAID',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->assertFalse($agent->can('correctOrderIdentity', $order));
+    }
+
+    public function test_agent_without_permission_cannot_correct_order_identity_on_paid_order(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-SERIAL-NO-PERM',
+            'serial_number' => '252601401258',
+            'serial_entered_at' => now(),
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'cashfree_payment_id' => 'cf_pay_no_perm',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $this->assertFalse($agent->can('correctOrderIdentity', $order));
     }
 
     public function test_unlock_serial_policy_is_superadmin_only(): void

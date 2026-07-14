@@ -169,6 +169,13 @@ class Order extends Model
         return strtoupper(substr($this->order_id, 4));
     }
 
+    public function isAgentCorrectableIdentityOrder(): bool
+    {
+        return $this->isCashfreeVerified()
+            && ! $this->isInquiryOrder()
+            && ! $this->isProductOrder();
+    }
+
     public function isCashfreeVerified(): bool
     {
         return filled($this->cashfree_payment_id);

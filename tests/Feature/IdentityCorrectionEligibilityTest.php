@@ -214,6 +214,7 @@ class IdentityCorrectionEligibilityTest extends TestCase
             'serial_entered_by_user_id' => $serial !== null ? $user->id : null,
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
+            'cashfree_payment_id' => $serial !== null ? 'cf_pay_'.uniqid() : null,
             'customer_name' => 'Identity Customer',
             'customer_email' => 'identity@example.com',
             'customer_phone' => '9123456782',

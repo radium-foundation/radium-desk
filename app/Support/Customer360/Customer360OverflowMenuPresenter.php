@@ -192,6 +192,17 @@ final class Customer360OverflowMenuPresenter
             );
         }
 
+        if ($visibility['showIdentityCorrectionActions']
+            && ($visibility['correctDeviceModelEligibility']['allowed'] ?? false)) {
+            $items[] = $this->triggerItem(
+                id: 'correct-device-model',
+                label: 'Correct Device Model',
+                icon: 'phone',
+                trigger: 'correct-device-model',
+                keywords: ['device', 'model', 'product', 'identity'],
+            );
+        }
+
         return [
             'label' => 'Customer',
             'icon' => '👤',

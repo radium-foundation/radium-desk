@@ -140,6 +140,68 @@ class UserManagementTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_assign_correct_order_identity_permission_to_user(): void
+    {
+        $admin = $this->createAdmin();
+        $target = User::factory()->create([
+            'first_name' => 'Perm',
+            'last_name' => 'Agent',
+            'email' => 'perm-agent@test.com',
+        ]);
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)->put(route('users.update', $target), [
+            'first_name' => 'Perm',
+            'last_name' => 'Agent',
+            'email' => 'perm-agent@test.com',
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
+            'permissions' => [RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY],
+            'is_active' => '1',
+        ])
+            ->assertRedirect(route('users.edit', $target))
+            ->assertSessionHas('status', 'user-updated');
+
+        $target->refresh();
+        $this->assertTrue($target->hasDirectPermission(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY));
+    }
+
+    public function test_admin_can_remove_correct_order_identity_permission_from_user(): void
+    {
+        $admin = $this->createAdmin();
+        $target = User::factory()->create([
+            'email' => 'remove-perm@test.com',
+        ]);
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $target->givePermissionTo(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY);
+
+        $this->actingAs($admin)->put(route('users.update', $target), [
+            'first_name' => $target->first_name,
+            'last_name' => $target->last_name,
+            'email' => $target->email,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
+            'is_active' => '1',
+        ])
+            ->assertRedirect(route('users.edit', $target));
+
+        $target->refresh();
+        $this->assertFalse($target->hasDirectPermission(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY));
+    }
+
+    public function test_user_edit_page_shows_correct_order_identity_permission(): void
+    {
+        $admin = $this->createAdmin();
+        $target = User::factory()->create();
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)
+            ->get(route('users.edit', $target))
+            ->assertOk()
+            ->assertSee('User Access &amp; Roles', false)
+            ->assertSee('Correct Order Identity', false)
+            ->assertSee('name="permissions[]"', false)
+            ->assertSee('value="'.RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY.'"', false);
+    }
+
     public function test_admin_can_save_bonvoice_extension_on_create(): void
     {
         $admin = $this->createAdmin();

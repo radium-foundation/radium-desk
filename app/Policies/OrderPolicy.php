@@ -88,6 +88,16 @@ class OrderPolicy
         ]);
     }
 
+    public function correctOrderIdentity(User $user, Order $order): bool
+    {
+        if (! $order->isAgentCorrectableIdentityOrder()) {
+            return false;
+        }
+
+        return $this->correctIdentity($user, $order)
+            || $user->can(RolePermissionSeeder::PERMISSION_CORRECT_ORDER_IDENTITY);
+    }
+
     public function unlockProtectedIdentityFields(User $user, Order $order): bool
     {
         return $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)

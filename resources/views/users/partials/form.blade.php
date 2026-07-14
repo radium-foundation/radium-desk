@@ -59,6 +59,12 @@
             <div class="invalid-feedback d-block">{{ $message }}</div>
         @enderror
     </div>
+
+    @include('users.partials.access-permissions', [
+        'permissionGroups' => $permissionGroups ?? [],
+        'currentPermissions' => $currentPermissions ?? [],
+    ])
+
     <div class="col-md-6">
         <label for="bonvoice_extension" class="form-label">Mobile</label>
         <input type="text" name="bonvoice_extension" id="bonvoice_extension"

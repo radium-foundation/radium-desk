@@ -90,6 +90,8 @@ class UserController extends Controller
         return view('users.create', [
             'user' => new User(['is_active' => true]),
             'roleOptions' => $this->assignableRoleOptions($actor),
+            'permissionGroups' => $this->userManagementService->assignablePermissionGroups(),
+            'currentPermissions' => [],
         ]);
     }
 
@@ -105,6 +107,7 @@ class UserController extends Controller
             'roles' => $validated['roles'],
             'is_active' => $validated['is_active'] ?? true,
             'bonvoice_extension' => $validated['bonvoice_extension'] ?? null,
+            'permissions' => $validated['permissions'] ?? [],
         ], $request->user());
 
         return redirect()
@@ -114,7 +117,7 @@ class UserController extends Controller
 
     public function edit(User $user): View
     {
-        $user->load('roles');
+        $user->load(['roles', 'permissions']);
 
         /** @var User $actor */
         $actor = auth()->user();
@@ -126,6 +129,8 @@ class UserController extends Controller
             'user' => $user,
             'roleOptions' => $this->assignableRoleOptions($actor),
             'currentRoles' => $user->roles->pluck('name')->all(),
+            'permissionGroups' => $this->userManagementService->assignablePermissionGroups(),
+            'currentPermissions' => $this->userManagementService->directPermissionNamesFromUser($user),
             'showsWorkSchedule' => $operationsRoleService->isTeamMember($user)
                 && $actor->can('workforce-calendar.manage'),
             'workSchedule' => $workSchedule,
@@ -143,6 +148,7 @@ class UserController extends Controller
             'roles' => $validated['roles'],
             'is_active' => $validated['is_active'],
             'bonvoice_extension' => $validated['bonvoice_extension'] ?? null,
+            'permissions' => $validated['permissions'] ?? [],
         ], $request->user());
 
         return redirect()

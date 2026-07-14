@@ -152,6 +152,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.workspace.correct-serial-number');
     Route::post('incidents/{incident}/workspace/correct-serial-number/validate', [WorkspaceActionController::class, 'validateCorrectSerialNumber'])
         ->name('incidents.workspace.correct-serial-number.validate');
+    Route::patch('incidents/{incident}/workspace/correct-device-model', [WorkspaceActionController::class, 'correctDeviceModel'])
+        ->name('incidents.workspace.correct-device-model');
     Route::patch('incidents/{incident}/workspace/resolve', [WorkspaceActionController::class, 'resolve'])
         ->name('incidents.workspace.resolve');
     Route::patch('incidents/{incident}/workspace/close', [WorkspaceActionController::class, 'close'])

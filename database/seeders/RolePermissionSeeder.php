@@ -25,6 +25,15 @@ class RolePermissionSeeder extends Seeder
 
     public const ROLE_ESCALATION_SPECIALIST = 'escalation_specialist';
 
+    public const PERMISSION_CORRECT_ORDER_IDENTITY = 'orders.correct-identity';
+
+    /**
+     * @var list<string>
+     */
+    public const DIRECT_ASSIGNABLE_PERMISSIONS = [
+        self::PERMISSION_CORRECT_ORDER_IDENTITY,
+    ];
+
     /**
      * @var list<string>
      */
@@ -222,6 +231,10 @@ class RolePermissionSeeder extends Seeder
             ->values();
 
         foreach ($permissions as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+
+        foreach (self::DIRECT_ASSIGNABLE_PERMISSIONS as $permission) {
             Permission::findOrCreate($permission, 'web');
         }
 

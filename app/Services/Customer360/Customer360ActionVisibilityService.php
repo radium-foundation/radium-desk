@@ -9,6 +9,7 @@ use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
+use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
 
@@ -21,6 +22,7 @@ class Customer360ActionVisibilityService
         private readonly InquiryOrderLinkEligibilityService $inquiryOrderLinkEligibilityService,
         private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
         private readonly SerialCorrectionEligibilityService $serialCorrectionEligibilityService,
+        private readonly DeviceModelCorrectionEligibilityService $deviceModelCorrectionEligibilityService,
     ) {}
 
     /**
@@ -33,8 +35,10 @@ class Customer360ActionVisibilityService
      *     canLinkOrder: bool,
      *     canCorrectCustomerDetails: bool,
      *     canCorrectSerialNumber: bool,
+     *     canCorrectDeviceModel: bool,
      *     correctCustomerDetailsEligibility: array{allowed: bool, reason: string|null},
      *     correctSerialNumberEligibility: array{allowed: bool, reason: string|null},
+     *     correctDeviceModelEligibility: array{allowed: bool, reason: string|null},
      *     showIdentityCorrectionActions: bool,
      *     hasRecommendedActions: bool,
      * }
@@ -63,6 +67,9 @@ class Customer360ActionVisibilityService
         $correctSerialNumberEligibility = $this->eligibilityPayload(
             $user !== null ? $this->serialCorrectionEligibilityService->evaluate($incident, $user) : null,
         );
+        $correctDeviceModelEligibility = $this->eligibilityPayload(
+            $user !== null ? $this->deviceModelCorrectionEligibilityService->evaluate($incident, $user) : null,
+        );
 
         $hasRecommendedActions = $canRequestSerialNumber
             || $canRequestCorrectSerial
@@ -78,8 +85,10 @@ class Customer360ActionVisibilityService
             'canLinkOrder' => $canLinkOrder,
             'canCorrectCustomerDetails' => $correctCustomerDetailsEligibility['allowed'],
             'canCorrectSerialNumber' => $correctSerialNumberEligibility['allowed'],
+            'canCorrectDeviceModel' => $correctDeviceModelEligibility['allowed'],
             'correctCustomerDetailsEligibility' => $correctCustomerDetailsEligibility,
             'correctSerialNumberEligibility' => $correctSerialNumberEligibility,
+            'correctDeviceModelEligibility' => $correctDeviceModelEligibility,
             'showIdentityCorrectionActions' => $user !== null,
             'hasRecommendedActions' => $hasRecommendedActions,
         ];

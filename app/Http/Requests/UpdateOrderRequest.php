@@ -36,7 +36,7 @@ class UpdateOrderRequest extends FormRequest
 
         $serialRules = ['required', 'string', 'max:100'];
 
-        if ($order->isSerialLocked() && ! $this->user()?->can('correctIdentity', $order)) {
+        if ($order->isSerialLocked() && ! $this->user()?->can('correctOrderIdentity', $order)) {
             $serialRules[] = Rule::in([$order->serial_number]);
         } else {
             $serialRules[] = Rule::unique('orders', 'serial_number')->ignore($order->id);
