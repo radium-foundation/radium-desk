@@ -28,7 +28,7 @@ class BuyRdServiceEmailTemplateTest extends TestCase
         $this->assertSame('Protect Your Device with RD Service', $definition->subject);
         $this->assertSame('emails.notifications.buy-rd-service', $definition->view);
         $this->assertSame(
-            ['customer_name', 'company_name', 'buy_rd_service_url', 'support_contact'],
+            ['customer_name', 'company_name', 'buy_rd_service_url'],
             $definition->requiredVariables,
         );
     }

@@ -28,7 +28,7 @@ class BuyProductEmailTemplateTest extends TestCase
         $this->assertSame('Recommended Product for Your Device', $definition->subject);
         $this->assertSame('emails.notifications.buy-product', $definition->view);
         $this->assertSame(
-            ['customer_name', 'company_name', 'buy_device_url', 'support_contact'],
+            ['customer_name', 'company_name', 'buy_device_url'],
             $definition->requiredVariables,
         );
     }

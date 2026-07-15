@@ -28,7 +28,7 @@ class ReviewRequestEmailTemplateTest extends TestCase
         $this->assertSame('How Was Your Experience with Radium?', $definition->subject);
         $this->assertSame('emails.notifications.review-request', $definition->view);
         $this->assertSame(
-            ['customer_name', 'company_name', 'review_url', 'support_contact'],
+            ['customer_name', 'company_name', 'review_url'],
             $definition->requiredVariables,
         );
     }

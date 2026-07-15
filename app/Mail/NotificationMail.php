@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Services\SupportContactResolver;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -33,7 +34,7 @@ class NotificationMail extends Mailable
     {
         return new Content(
             view: $this->viewName,
-            with: $this->variables,
+            with: app(SupportContactResolver::class)->mergeIntoVariables($this->variables),
         );
     }
 }

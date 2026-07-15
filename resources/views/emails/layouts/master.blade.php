@@ -111,30 +111,8 @@
                                         </td>
                                     </tr>
                                 </table>
-                            @elseif (trim($__env->yieldContent('contact_email')) !== '')
-                                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 24px 0 0; border-top: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef;">
-                                    <tr>
-                                        <td style="padding: 20px 0;">
-                                            @if (trim($__env->yieldContent('contact_heading')) !== '')
-                                                <p style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: #495057;">
-                                                    @yield('contact_heading')
-                                                </p>
-                                            @endif
-
-                                            <p style="margin: 0 0 8px; font-size: 14px; color: #212529;">
-                                                <strong style="color: #495057;">Email:</strong>
-                                                <a href="mailto:@yield('contact_email')" style="color: {{ $accentColor }}; text-decoration: none;">@yield('contact_email')</a>
-                                            </p>
-
-                                            @if (trim($__env->yieldContent('contact_phone')) !== '')
-                                                <p style="margin: 0; font-size: 14px; color: #212529;">
-                                                    <strong style="color: #495057;">Phone:</strong>
-                                                    @yield('contact_phone')
-                                                </p>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                </table>
+                            @else
+                                @include('emails.partials.support-contact')
                             @endif
 
                             @hasSection('signature')

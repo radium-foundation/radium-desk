@@ -39,10 +39,6 @@ Hi {{ $customer_name }},
     </p>
 @endsection
 
-@section('contact_email', 'support@radiumbox.com')
-
-@section('contact_phone', '+91 XXXXX XXXXX')
-
 @section('signature')
 Team Radium Box
 @endsection

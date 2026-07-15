@@ -28,7 +28,7 @@ class DriverInstallationGuideEmailTemplateTest extends TestCase
         $this->assertSame('Driver Installation Guide for Your Device', $definition->subject);
         $this->assertSame('emails.notifications.driver-installation-guide', $definition->view);
         $this->assertSame(
-            ['customer_name', 'driver_download_link', 'support_contact', 'company_name'],
+            ['customer_name', 'driver_download_link', 'company_name'],
             $definition->requiredVariables,
         );
     }
@@ -61,6 +61,8 @@ class DriverInstallationGuideEmailTemplateTest extends TestCase
         $this->assertStringContainsString('Or simply reply to this email', $html);
         $this->assertStringContainsString('Kind regards,', $html);
         $this->assertStringContainsString('Team Radium', $html);
+        $this->assertStringContainsString('Need Help?', $html);
+        $this->assertStringContainsString('mailto:support@radiumbox.com', $html);
         $this->assertStringContainsString('support@radiumbox.com', $html);
         $this->assertStringContainsString('brand/icon.svg', $html);
     }

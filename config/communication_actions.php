@@ -2,6 +2,8 @@
 
 use Database\Seeders\RolePermissionSeeder;
 
+$supportContact = require __DIR__.'/support_contact.php';
+
 return [
     'urls' => [
         'review' => env('COMMUNICATION_ACTION_REVIEW_URL', 'https://g.page/r/radiumbox/review'),
@@ -20,7 +22,16 @@ return [
         ],
     ],
 
-    'support_contact' => env('COMMUNICATION_ACTION_SUPPORT_CONTACT', 'support@radiumbox.com'),
+    'support_email' => $supportContact['email'],
+
+    'support_phone' => $supportContact['phone'],
+
+    'support_whatsapp' => $supportContact['whatsapp'],
+
+    'support_website' => $supportContact['website'],
+
+    // @deprecated Use support_email/support_phone instead. Kept for backward compatibility.
+    'support_contact' => $supportContact['contact'],
 
     'company_name' => env('COMMUNICATION_ACTION_COMPANY_NAME', 'Radium Box'),
 

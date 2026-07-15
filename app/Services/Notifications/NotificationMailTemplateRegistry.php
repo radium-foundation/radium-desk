@@ -7,11 +7,13 @@ use App\Data\NotificationMessage;
 use App\Enums\NotificationType;
 use App\Models\Order;
 use App\Services\SupportAppointmentUrlService;
+use App\Services\SupportContactResolver;
 
 class NotificationMailTemplateRegistry
 {
     public function __construct(
         private readonly SupportAppointmentUrlService $supportAppointmentUrlService,
+        private readonly SupportContactResolver $supportContactResolver,
     ) {}
     public function resolve(NotificationType $type): ?NotificationMailTemplateDefinition
     {
@@ -52,7 +54,6 @@ class NotificationMailTemplateRegistry
                 requiredVariables: [
                     'customer_name',
                     'driver_download_link',
-                    'support_contact',
                     'company_name',
                 ],
             ),
@@ -63,7 +64,6 @@ class NotificationMailTemplateRegistry
                     'customer_name',
                     'company_name',
                     'review_url',
-                    'support_contact',
                 ],
             ),
             NotificationType::RefundConfirmation => new NotificationMailTemplateDefinition(
@@ -74,7 +74,6 @@ class NotificationMailTemplateRegistry
                     'company_name',
                     'refund_amount',
                     'refund_reference',
-                    'support_contact',
                 ],
             ),
             NotificationType::BuyRdService => new NotificationMailTemplateDefinition(
@@ -84,7 +83,6 @@ class NotificationMailTemplateRegistry
                     'customer_name',
                     'company_name',
                     'buy_rd_service_url',
-                    'support_contact',
                 ],
             ),
             NotificationType::BuyProduct => new NotificationMailTemplateDefinition(
@@ -94,7 +92,6 @@ class NotificationMailTemplateRegistry
                     'customer_name',
                     'company_name',
                     'buy_device_url',
-                    'support_contact',
                 ],
             ),
         };
@@ -144,7 +141,6 @@ class NotificationMailTemplateRegistry
                 'reference_number' => trim((string) ($message->variables['reference_number'] ?? $message->incident->reference_no ?? '')),
                 'model_name' => trim((string) ($message->variables['model_name'] ?? '')),
                 'driver_download_link' => trim((string) ($message->variables['driver_download_link'] ?? '')),
-                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
                 'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
                 'support_booking_link' => $this->resolveSupportBookingLink($message),
                 'restart_instructions' => trim((string) ($message->variables['restart_instructions'] ?? '')),
@@ -156,7 +152,6 @@ class NotificationMailTemplateRegistry
                 'customer_name' => $this->resolveCustomerName($message),
                 'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
                 'review_url' => trim((string) ($message->variables['review_url'] ?? config('communication_actions.urls.review'))),
-                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
             ],
             NotificationType::RefundConfirmation => [
                 'customer_name' => $this->resolveCustomerName($message),
@@ -165,23 +160,22 @@ class NotificationMailTemplateRegistry
                 'refund_reference' => trim((string) ($message->variables['refund_reference'] ?? '')),
                 'order_number' => trim((string) ($message->variables['order_number'] ?? '')),
                 'case_number' => trim((string) ($message->variables['case_number'] ?? $message->incident->reference_no ?? '')),
-                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
             ],
             NotificationType::BuyRdService => [
                 'customer_name' => $this->resolveCustomerName($message),
                 'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
                 'buy_rd_service_url' => trim((string) ($message->variables['buy_rd_service_url'] ?? '')),
-                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
             ],
             NotificationType::BuyProduct => [
                 'customer_name' => $this->resolveCustomerName($message),
                 'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
                 'buy_device_url' => trim((string) ($message->variables['buy_device_url'] ?? '')),
-                'support_contact' => trim((string) ($message->variables['support_contact'] ?? config('communication_actions.support_contact'))),
             ],
         };
 
-        return array_merge($defaults, $message->variables);
+        return $this->supportContactResolver->mergeIntoVariables(
+            array_merge($defaults, $message->variables),
+        );
     }
 
     public function subjectFor(NotificationType $type, NotificationMessage $message): string

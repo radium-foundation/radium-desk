@@ -37,10 +37,6 @@ Dear {{ $customer_name }},
 
 @section('cta_label', 'Schedule Technical Support')
 
-@section('contact_email', 'support@radiumbox.com')
-
-@section('contact_phone', '+91 XXXXX XXXXX')
-
 @section('signature')
 Team Radium Box
 @endsection

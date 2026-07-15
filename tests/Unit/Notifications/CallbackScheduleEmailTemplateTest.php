@@ -3,10 +3,20 @@
 namespace Tests\Unit\Notifications;
 
 use App\Services\Notifications\NotificationMailTemplateRegistry;
+use Database\Seeders\SettingsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class CallbackScheduleEmailTemplateTest extends TestCase
 {
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(SettingsSeeder::class);
+    }
     public function test_registry_uses_expected_subject_and_view(): void
     {
         $definition = app(NotificationMailTemplateRegistry::class)

@@ -39,6 +39,8 @@ class EmailMasterLayoutTest extends TestCase
         $this->assertStringContainsString('background-color: #fff3cd', $html);
         $this->assertStringContainsString('background-color: #f8d7da', $html);
         $this->assertStringContainsString('Example CTA Button', $html);
+        $this->assertStringContainsString('Need Help?', $html);
+        $this->assertStringContainsString('mailto:support@radiumbox.com', $html);
         $this->assertStringContainsString('support@radiumbox.com', $html);
         $this->assertStringContainsString('Team Radium Box', $html);
     }

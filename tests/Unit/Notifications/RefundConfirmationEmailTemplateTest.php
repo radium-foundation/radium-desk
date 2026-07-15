@@ -28,7 +28,7 @@ class RefundConfirmationEmailTemplateTest extends TestCase
         $this->assertSame('Your Refund Has Been Processed', $definition->subject);
         $this->assertSame('emails.notifications.refund-confirmation', $definition->view);
         $this->assertSame(
-            ['customer_name', 'company_name', 'refund_amount', 'refund_reference', 'support_contact'],
+            ['customer_name', 'company_name', 'refund_amount', 'refund_reference'],
             $definition->requiredVariables,
         );
     }

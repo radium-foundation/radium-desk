@@ -65,6 +65,5 @@ Hello {{ $customer_name }},
 
 @section('signature')
     Kind regards,<br><br>
-    Team {{ $company_name }}<br>
-    {{ $support_contact }}
+    Team {{ $company_name }}
 @endsection

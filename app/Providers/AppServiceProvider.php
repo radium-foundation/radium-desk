@@ -62,6 +62,8 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use App\Services\ChangelogService;
+use App\Services\SupportContactConfiguration;
+use App\Services\SupportContactResolver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -154,6 +156,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->applyApplicationTimezone();
+        $this->applySupportContactConfiguration();
         $this->validateInteraktTemplateConfiguration();
 
         Event::listen(NotificationSent::class, BroadcastNotificationCreated::class);
@@ -203,6 +206,10 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.partials.whats-new-modal', function ($view): void {
             $view->with('changelogEntries', app(ChangelogService::class)->entries());
         });
+
+        View::composer('emails.layouts.master', function ($view): void {
+            $view->with(app(SupportContactResolver::class)->mergeIntoVariables($view->getData()));
+        });
     }
 
     private function validateInteraktTemplateConfiguration(): void
@@ -210,6 +217,17 @@ class AppServiceProvider extends ServiceProvider
         $this->app->booted(function (): void {
             try {
                 $this->app->make(InteraktTemplateConfigurationValidator::class)->logValidationSummaryOnce();
+            } catch (\Throwable) {
+                //
+            }
+        });
+    }
+
+    private function applySupportContactConfiguration(): void
+    {
+        $this->app->booted(function (): void {
+            try {
+                $this->app->make(SupportContactConfiguration::class)->applyToConfig();
             } catch (\Throwable) {
                 //
             }
