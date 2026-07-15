@@ -3,7 +3,7 @@
 **Phase:** 5.2 — Customer Journey & Order Workspace UX  
 **Status:** Design blueprint (no integrations in this phase)  
 **Audience:** Product, operations, engineering  
-**Last updated:** 2026-06-28
+**Last updated:** 2026-07-15
 
 This document defines the end-to-end customer journeys that Radium Desk must support from a single **Order Workspace**. Each journey describes what the system does automatically, what agents do, how customers are communicated with, what appears on the timeline, and how success is measured.
 
@@ -124,6 +124,22 @@ Customer completes an online payment via Cashfree (repair fee, activation fee, o
 - No duplicate orders for the same `cf_payment_id`.
 - Service case progresses from `Awaiting Product Details` within **24 hours**.
 - Full payment audit trail visible on Payments tab and timeline.
+
+### Journey 1A — Missing Serial Automation
+
+After [Journey 1 — Online Payment](#journey-1--online-payment-received), paid service orders may enter automated serial recovery and customer outreach.
+
+**Do not assume** outreach is triggered only because `serial_number` is empty. The full business trigger, timeline, and operator checklist are documented in **[Missing Serial Automation](./missing-serial-automation.md)**.
+
+Summary:
+
+| Stage | What happens |
+|-------|----------------|
+| Order paid | Cashfree webhook; RadiumBox enrichment scheduled |
+| +15 min | Automatic serial recovery attempted |
+| Serial still missing | Request Serial Number (email + WhatsApp) + Customer Waiting state |
+| +24 h | Support Reminder (`CustomerWaitingFollowup`) |
+| 6:00 PM | Auto-close via existing waiting lifecycle (if no response) |
 
 ---
 
@@ -557,6 +573,7 @@ These apply to all seven journeys:
 
 | Change | Action |
 |--------|--------|
+| Missing serial automation timing or trigger rules | Update [Missing Serial Automation](./missing-serial-automation.md) |
 | New channel integrated | Update Customer Communication tables in affected journeys |
 | RadiumBox QC/invoice live | Update Journey 4 automatic actions |
 | Warranty data source defined | Update Journey 6 from placeholder to live rules |

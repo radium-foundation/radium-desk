@@ -10,6 +10,7 @@ use App\Enums\MissingSerialAutomationStatus;
 use App\Enums\WaitingReason;
 use App\Models\AutomationExecution;
 use App\Models\IncidentWaitingState;
+use App\Enums\NotificationType;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\WhatsAppTemplateDispatchStatus;
 use App\Enums\WhatsAppTemplateTriggerSource;
@@ -56,6 +57,9 @@ class MissingSerialAutomationTest extends TestCase
             'interakt.templates.request_serial_number.name' => 'order_update_request_serial',
             'interakt.templates.request_serial_number.display_name' => 'Order Update',
             'interakt.templates.request_serial_number.language_code' => 'en',
+            'interakt.templates.customer_waiting_followup.name' => 'support_schedule_followup',
+            'interakt.templates.customer_waiting_followup.display_name' => 'Support Reminder',
+            'interakt.templates.customer_waiting_followup.language_code' => 'en',
             'mail.enabled' => true,
             'mail.default' => 'array',
         ]);
@@ -259,6 +263,31 @@ class MissingSerialAutomationTest extends TestCase
             'auditable_id' => $order->id,
             'event' => MissingSerialAutomationAuditService::EVENT_REMINDER_SENT,
         ]);
+
+        $notificationAudit = AuditLog::query()
+            ->where('event', 'notification.dispatched')
+            ->where('auditable_id', $order->latestIncident()->id)
+            ->latest('id')
+            ->first();
+
+        $this->assertSame(
+            NotificationType::CustomerWaitingFollowup->value,
+            $notificationAudit?->new_values['notification_type'] ?? null,
+        );
+        $this->assertDatabaseHas('whatsapp_template_dispatches', [
+            'order_id' => $order->id,
+            'template_key' => 'customer_waiting_followup',
+        ]);
+        $this->assertDatabaseMissing('whatsapp_template_dispatches', [
+            'order_id' => $order->id,
+            'template_key' => 'request_serial_number',
+        ]);
+
+        $waitingState = IncidentWaitingState::query()
+            ->where('incident_id', $order->latestIncident()->id)
+            ->first();
+
+        $this->assertNotNull($waitingState?->customer_followup_sent_at);
     }
 
     public function test_escalates_after_72_hours(): void

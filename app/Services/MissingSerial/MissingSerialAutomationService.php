@@ -20,6 +20,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
+use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\AutomationIdentityService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
@@ -31,6 +32,15 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Automates the missing-serial customer communication journey after online payment.
+ *
+ * Initial Request Serial Number outreach requires ALL of:
+ * paid (Cashfree-verified) order, ~15 min delay, RadiumBox recovery attempted,
+ * serial still unavailable, and no prior contact for this event.
+ *
+ * @see docs/missing-serial-automation.md
+ */
 class MissingSerialAutomationService
 {
     public function __construct(
@@ -39,6 +49,7 @@ class MissingSerialAutomationService
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
         private readonly RadiumBoxService $radiumBoxService,
         private readonly IncidentWaitingStateService $waitingStateService,
+        private readonly CustomerWaitingLifecycleService $customerWaitingLifecycleService,
         private readonly AutomationIdentityService $automationIdentityService,
     ) {}
 
@@ -328,7 +339,8 @@ class MissingSerialAutomationService
             return $priorContactSkip;
         }
 
-        $channels = $this->channelAvailabilityService->forRequestSerialNumber($order);
+        $notificationType = $this->notificationTypeForAction($action);
+        $channels = $this->channelAvailabilityForAction($order, $action);
         $channelBlockReason = $this->channelAvailabilityService->unavailableReason($channels);
 
         if ($channelBlockReason !== null) {
@@ -341,12 +353,14 @@ class MissingSerialAutomationService
         }
 
         $dispatchResult = $this->notificationDispatcher->send(
-            NotificationType::RequestSerialNumber,
+            $notificationType,
             new NotificationMessage(
-                type: NotificationType::RequestSerialNumber,
+                type: $notificationType,
                 customer: $order,
                 incident: $incident,
-                template: WhatsAppTemplate::RequestSerialNumber->value,
+                template: $action === MissingSerialAutomationAction::Request
+                    ? WhatsAppTemplate::RequestSerialNumber->value
+                    : null,
                 metadata: [
                     'source' => 'missing_serial_automation',
                     'trigger_source' => WhatsAppTemplateTriggerSource::Scheduler->value,
@@ -397,11 +411,22 @@ class MissingSerialAutomationService
 
             $order->update($updates);
 
+            $incident = $incident->fresh(['activeWaitingState']);
+
             if ($this->waitingStateService->activeFor($incident) === null) {
                 $this->waitingStateService->ensureSerialWaitingState(
-                    $incident->fresh(['activeWaitingState']),
+                    $incident,
                     $this->automationIdentityService->systemUser(),
                 );
+                $incident = $incident->fresh(['activeWaitingState']);
+            }
+
+            if ($action === MissingSerialAutomationAction::Reminder) {
+                $waitingState = $this->waitingStateService->activeFor($incident);
+
+                if ($waitingState !== null) {
+                    $this->customerWaitingLifecycleService->recordFollowupSent($waitingState, $now);
+                }
             }
 
             $auditContext = [
@@ -529,6 +554,34 @@ class MissingSerialAutomationService
         $index = $order->id % $coordinators->count();
 
         return $coordinators->get($index);
+    }
+
+    private function notificationTypeForAction(MissingSerialAutomationAction $action): NotificationType
+    {
+        return $action === MissingSerialAutomationAction::Reminder
+            ? NotificationType::CustomerWaitingFollowup
+            : NotificationType::RequestSerialNumber;
+    }
+
+    /**
+     * @return array{whatsapp: array<string, mixed>, email: array<string, mixed>}
+     */
+    private function channelAvailabilityForAction(Order $order, MissingSerialAutomationAction $action): array
+    {
+        if ($action === MissingSerialAutomationAction::Reminder) {
+            return [
+                'whatsapp' => $this->channelAvailabilityService->assessWhatsApp(
+                    $order,
+                    WhatsAppTemplate::CustomerWaitingFollowup,
+                ),
+                'email' => $this->channelAvailabilityService->assessEmailForNotificationType(
+                    $order,
+                    NotificationType::CustomerWaitingFollowup,
+                ),
+            ];
+        }
+
+        return $this->channelAvailabilityService->forRequestSerialNumber($order);
     }
 
     private function firstDelayMinutes(): int

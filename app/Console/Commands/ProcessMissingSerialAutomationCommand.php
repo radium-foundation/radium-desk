@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 #[Signature('missing-serial:process
     {--limit= : Maximum number of eligible orders to process}')]
-#[Description('Process missing serial number customer outreach automation')]
+#[Description('Run missing-serial automation: Request Serial Number after paid order + RadiumBox recovery window (see docs/missing-serial-automation.md)')]
 class ProcessMissingSerialAutomationCommand extends Command
 {
     public function __construct(
