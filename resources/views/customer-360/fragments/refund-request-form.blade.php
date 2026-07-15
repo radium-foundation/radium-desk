@@ -44,10 +44,6 @@
         'Failed' => 'fail',
         default => 'info',
     };
-    $hasPaymentSummary = $paymentGateway !== null
-        || $paymentStatus !== null
-        || $order?->payment_date !== null
-        || filled($order?->transaction_id);
 @endphp
 
 <form method="POST"
@@ -57,87 +53,77 @@
     @csrf
     <input type="hidden" name="workspace_context" value="{{ $workspaceContext }}">
 
-    <x-c360.dialog-header
-        icon="↩"
-        title="Refund Request"
-        subtitle="Submit a refund request for this order without leaving Customer360." />
+    <x-c360.dialog-header icon="↩" title="Refund Request" />
 
-    <div class="modal-body workspace-note-dialog-body c360-dialog-body pt-2">
+    <div class="modal-body workspace-note-dialog-body c360-dialog-body workspace-dialog-body">
         @if($errors->any())
-            <div class="alert alert-danger py-2 px-3 small mb-3" role="alert" data-workspace-validation-summary>
+            <div class="alert alert-danger py-2 px-3 small mb-2" role="alert" data-workspace-validation-summary>
                 {{ $errors->first() }}
             </div>
         @endif
 
         @if($order === null)
-            <div class="alert alert-warning mb-0" role="alert">
+            <div class="alert alert-warning mb-0 py-2 px-3 small" role="alert">
                 This service case has no linked order. Link an order before requesting a refund.
             </div>
         @else
-            <x-c360.section-card title="Context" heading-id="refund-request-context-heading" class="mb-3">
-                <x-c360.workspace-info-dl>
-                    <x-c360.workspace-info-row label="Customer">
-                        {{ filled($order->customer_name) ? $order->customer_name : 'Not Available' }}
-                    </x-c360.workspace-info-row>
-                    <x-c360.workspace-info-row label="Order">
-                        {{ $order->order_id }}
-                    </x-c360.workspace-info-row>
-                    <x-c360.workspace-info-row label="Case">
-                        {{ $incident->reference_no }} — {{ $incident->title }}
-                    </x-c360.workspace-info-row>
-                </x-c360.workspace-info-dl>
-            </x-c360.section-card>
+            <x-c360.workspace-context-strip class="workspace-context-strip--minimal workspace-dialog-block">
+                <x-c360.workspace-context-item icon="👤">
+                    {{ filled($order->customer_name) ? $order->customer_name : 'Not Available' }}
+                </x-c360.workspace-context-item>
+                <x-c360.workspace-context-item>
+                    {{ $order->order_id }}
+                </x-c360.workspace-context-item>
+                <x-c360.workspace-context-item>
+                    {{ $incident->reference_no }}
+                </x-c360.workspace-context-item>
+            </x-c360.workspace-context-strip>
 
-            <x-c360.section-card title="Refund Summary" heading-id="refund-request-summary-heading" class="mb-3">
-                <x-c360.workspace-info-dl>
-                    <x-c360.workspace-info-row label="Paid Amount">
-                        ₹{{ number_format($calculation?->totalPaidAmount ?? 0, 2) }}
-                    </x-c360.workspace-info-row>
-                    <x-c360.workspace-info-row label="Already Refunded">
-                        ₹{{ number_format($calculation?->alreadyRefundedAmount ?? 0, 2) }}
-                    </x-c360.workspace-info-row>
-                    <x-c360.workspace-info-row label="Maximum Refundable" :emphasis="true">
-                        ₹{{ number_format($calculation?->maximumRefundable ?? 0, 2) }}
-                    </x-c360.workspace-info-row>
-                </x-c360.workspace-info-dl>
-            </x-c360.section-card>
-
-            @if($hasPaymentSummary)
-                <x-c360.section-card title="Payment Summary" heading-id="refund-request-payment-summary-heading" class="mb-3">
-                    <x-c360.workspace-info-dl>
-                        @if($paymentGateway !== null)
-                            <x-c360.workspace-info-row label="Payment Gateway">
-                                {{ $paymentGateway }}
-                            </x-c360.workspace-info-row>
-                        @endif
-                        @if($paymentStatus !== null)
-                            <x-c360.workspace-info-row label="Payment Status">
+            <x-c360.workspace-dialog-stack class="workspace-dialog-block">
+                <x-c360.workspace-hero-kpi
+                    :amount="'₹'.number_format($calculation?->maximumRefundable ?? 0, 2)"
+                    caption="Maximum Refundable">
+                    <x-slot:secondary>
+                        <x-c360.workspace-kpi-secondary>
+                            <x-c360.workspace-kpi-secondary-item label="Paid">
+                                ₹{{ number_format($calculation?->totalPaidAmount ?? 0, 2) }}
+                            </x-c360.workspace-kpi-secondary-item>
+                            <x-c360.workspace-kpi-secondary-item label="Refunded">
+                                ₹{{ number_format($calculation?->alreadyRefundedAmount ?? 0, 2) }}
+                            </x-c360.workspace-kpi-secondary-item>
+                        </x-c360.workspace-kpi-secondary>
+                    </x-slot:secondary>
+                    <x-slot:meta>
+                        <x-c360.workspace-kpi-meta>
+                            @if($paymentStatus !== null)
                                 <x-c360.status-chip :type="$paymentStatusChipType" :label="$paymentStatus" />
-                            </x-c360.workspace-info-row>
-                        @endif
-                        @if($order->payment_date !== null)
-                            <x-c360.workspace-info-row label="Payment Date">
-                                {{ display_app_datetime($order->payment_date) }}
-                            </x-c360.workspace-info-row>
-                        @endif
-                        @if(filled($order->transaction_id))
-                            <x-c360.workspace-info-row label="Payment Reference">
-                                {{ $order->transaction_id }}
-                            </x-c360.workspace-info-row>
-                        @endif
-                    </x-c360.workspace-info-dl>
-                </x-c360.section-card>
-            @endif
+                            @endif
+                            @if($paymentGateway !== null)
+                                <span class="workspace-kpi-meta__text">{{ $paymentGateway }}</span>
+                            @endif
+                            @if($order->payment_date !== null)
+                                <span class="workspace-kpi-meta__text">{{ display_app_datetime($order->payment_date) }}</span>
+                            @endif
+                            @if(filled($order->transaction_id))
+                                <span class="workspace-kpi-meta__text">
+                                    Payment Reference {{ $order->transaction_id }}
+                                </span>
+                            @endif
+                        </x-c360.workspace-kpi-meta>
+                    </x-slot:meta>
+                </x-c360.workspace-hero-kpi>
+            </x-c360.workspace-dialog-stack>
 
-            <x-c360.section-card title="Refund Details" heading-id="refund-request-details-heading" class="mb-3">
-                <div class="c360-dialog-form-grid">
-                    <div class="c360-dialog-field">
-                        <label for="refund-request-preferred-method" class="form-label">
-                            Preferred Refund Method <span class="text-danger">*</span>
+            <x-c360.workspace-dialog-stack class="workspace-dialog-stack--form workspace-dialog-block workspace-dialog-block--last">
+                <div class="workspace-form-row workspace-form-row--2">
+                    <div class="workspace-form-field">
+                        <label for="refund-request-preferred-method" class="workspace-form-label">
+                            Method <span class="text-danger">*</span>
+                            <x-c360.workspace-field-hint text="Advisory only — Ops chooses the actual payout method at approval." />
                         </label>
                         <select name="customer_preferred_method"
                                 id="refund-request-preferred-method"
-                                class="form-select @error('customer_preferred_method') is-invalid @enderror"
+                                class="form-select form-select-sm @error('customer_preferred_method') is-invalid @enderror"
                                 required>
                             @foreach($preferredMethods as $method)
                                 <option value="{{ $method->value }}" @selected($preferredMethodValue === $method->value)>
@@ -148,12 +134,11 @@
                         @error('customer_preferred_method')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
-                        <div class="form-text">Advisory only — Ops chooses the actual payout method at approval.</div>
                     </div>
 
-                    <div class="c360-dialog-field">
-                        <label for="refund-request-amount" class="form-label">Refund Amount</label>
-                        <div class="input-group">
+                    <div class="workspace-form-field">
+                        <label for="refund-request-amount" class="workspace-form-label">Amount</label>
+                        <div class="input-group input-group-sm">
                             <span class="input-group-text">₹</span>
                             <input type="number"
                                    name="amount"
@@ -162,7 +147,7 @@
                                    min="0.01"
                                    class="form-control @error('amount') is-invalid @enderror"
                                    value="{{ $amountValue }}"
-                                   placeholder="Defaults to maximum refundable">
+                                   placeholder="Max refundable">
                         </div>
                         @error('amount')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
@@ -171,54 +156,53 @@
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
                     </div>
-
-                    <div class="c360-dialog-field c360-dialog-field--full">
-                        <label for="refund-request-reason" class="form-label">
-                            Reason <span class="text-danger">*</span>
-                        </label>
-                        <textarea name="reason"
-                                  id="refund-request-reason"
-                                  rows="4"
-                                  class="form-control @error('reason') is-invalid @enderror"
-                                  placeholder="Describe why this refund is being requested..."
-                                  required>{{ $reasonValue }}</textarea>
-                        @error('reason')
-                            <div class="invalid-feedback d-block">{{ $message }}</div>
-                        @enderror
-                    </div>
                 </div>
-            </x-c360.section-card>
 
-            <x-c360.section-card title="Customer Communication" heading-id="refund-request-communication-heading">
-                <div class="d-flex flex-wrap gap-3">
-                    <div class="form-check">
+                <div class="workspace-form-field workspace-form-field--full">
+                    <label for="refund-request-reason" class="workspace-form-label">
+                        Reason <span class="text-danger">*</span>
+                    </label>
+                    <textarea name="reason"
+                              id="refund-request-reason"
+                              rows="3"
+                              class="form-control form-control-sm workspace-form-textarea--compact @error('reason') is-invalid @enderror"
+                              placeholder="Why is this refund being requested?"
+                              required>{{ $reasonValue }}</textarea>
+                    @error('reason')
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="workspace-inline-checks workspace-inline-checks--titled">
+                    <span class="workspace-inline-checks__label">Notify</span>
+                    <div class="form-check form-check-inline mb-0">
                         <input class="form-check-input"
                                type="checkbox"
                                name="notify_email"
                                id="refund-request-notify-email"
                                value="1"
                                @checked($notifyEmailChecked)>
-                        <label class="form-check-label" for="refund-request-notify-email">Email Customer</label>
+                        <label class="form-check-label" for="refund-request-notify-email">Email</label>
                     </div>
-                    <div class="form-check">
+                    <div class="form-check form-check-inline mb-0">
                         <input class="form-check-input"
                                type="checkbox"
                                name="notify_whatsapp"
                                id="refund-request-notify-whatsapp"
                                value="1"
                                @checked($notifyWhatsappChecked)>
-                        <label class="form-check-label" for="refund-request-notify-whatsapp">WhatsApp Customer</label>
+                        <label class="form-check-label" for="refund-request-notify-whatsapp">WhatsApp</label>
                     </div>
+                    <x-c360.workspace-field-hint text="Sent automatically after the refund is marked completed." />
                 </div>
-                <div class="form-text">Sent automatically after the refund is marked completed.</div>
-            </x-c360.section-card>
+            </x-c360.workspace-dialog-stack>
         @endif
     </div>
 
-    <x-c360.modal-footer>
-        <button type="button" class="btn c360-dialog-btn-ghost" data-bs-dismiss="modal">Cancel</button>
+    <x-c360.modal-footer class="workspace-dialog-footer">
+        <button type="button" class="btn btn-sm c360-dialog-btn-ghost" data-bs-dismiss="modal">Cancel</button>
         @if($order !== null)
-            <button type="submit" class="btn c360-dialog-btn-primary">Submit Refund</button>
+            <button type="submit" class="btn btn-sm c360-dialog-btn-primary">Submit Refund</button>
         @endif
     </x-c360.modal-footer>
 </form>

@@ -1,5 +1,7 @@
 # Workspace Architecture Summary
 
+> **UI standard:** Customer360 workspace modal layout, components, and visual rules are documented in [customer360-workspace-modal-design-system.md](./customer360-workspace-modal-design-system.md).
+
 ## Purpose
 
 The workspace layer provides a unified modal-based action system for service case operations (assign, remark, resolve, close) from any page context — primarily the dashboard and service case detail page — without full-page navigation.
