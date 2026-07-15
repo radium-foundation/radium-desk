@@ -122,7 +122,7 @@ class Customer360UnifiedTimelineTest extends TestCase
         $this->assertSame('Customer confirmed spelling on call.', $correctionEvent->summary);
     }
 
-    public function test_customer_360_timeline_tab_renders_operations_center_sections(): void
+    public function test_customer_360_timeline_tab_renders_operator_workspace_sections(): void
     {
         [$agent, $incident] = $this->createFixture();
 
@@ -134,8 +134,8 @@ class Customer360UnifiedTimelineTest extends TestCase
         $response->assertJsonStructure(['html', 'has_more', 'loaded_count']);
         $html = (string) $response->json('html');
         $this->assertStringContainsString('Activity', $html);
-        $this->assertStringContainsString('Operations Health', $html);
-        $this->assertStringContainsString('SLA Metrics', $html);
+        $this->assertStringNotContainsString('Operations Health', $html);
+        $this->assertStringNotContainsString('SLA Metrics', $html);
         $this->assertStringContainsString('data-customer-360-activity-panel', $html);
     }
 

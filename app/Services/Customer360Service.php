@@ -16,8 +16,6 @@ use App\Services\AI\CustomerScopeQueryCache;
 use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
-use App\Services\Customer360\Customer360OperationsHealthService;
-use App\Services\Customer360\Customer360SlaMetricsService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\Operations\OperationsAdvisorService;
@@ -62,8 +60,6 @@ class Customer360Service
         private readonly OperationsAdvisorService $operationsAdvisorService,
         private readonly AIWorkbenchService $aiWorkbenchService,
         private readonly IRAExecutiveSummaryService $executiveSummaryService,
-        private readonly Customer360OperationsHealthService $operationsHealthService,
-        private readonly Customer360SlaMetricsService $slaMetricsService,
         private readonly BonvoiceCustomerCallService $bonvoiceCustomerCallService,
         private readonly BonvoiceCustomerContactIntelligenceService $bonvoiceContactIntelligenceService,
         private readonly Customer360ActionVisibilityService $actionVisibilityService,
@@ -269,7 +265,7 @@ class Customer360Service
     }
 
     /**
-     * @return array{timeline: TimelineViewModel, html: string, operationsHealth: array<string, mixed>, slaMetrics: \App\Data\Customer360\Customer360SlaMetrics|null, customerHealthCard: array<string, mixed>|null, customerInsights: list<array{key: string, label: string, description: string, icon: string}>, iraAdvisor: array<string, mixed>|null}
+     * @return array{timeline: TimelineViewModel, html: string, customerHealthCard: array<string, mixed>|null, customerInsights: list<array{key: string, label: string, description: string, icon: string}>, iraAdvisor: array<string, mixed>|null}
      */
     public function timelineTabPayload(Incident $incident, int $offset = 0): array
     {
@@ -277,18 +273,12 @@ class Customer360Service
         $order = $incident->order;
         $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
         $timelineUrl = route('dashboard.service-cases.customer-360.timeline', $incident);
-        $operationsHealth = $this->operationsHealthService->forIncident($incident);
-        $slaMetrics = $order !== null
-            ? $this->slaMetricsService->forOrder($order)
-            : null;
         $customerHealthCard = $this->customerHealthCardViewData($incident, $order);
         $customerInsights = $this->customerInsightsViewData($incident, $order, $customerHealthCard);
-        $iraAdvisor = $this->iraAdvisorViewData($incident, $order, $customerHealthCard, $slaMetrics);
+        $iraAdvisor = $this->iraAdvisorViewData($incident, $order, $customerHealthCard);
 
         return [
             'timeline' => $viewModel,
-            'operationsHealth' => $operationsHealth,
-            'slaMetrics' => $slaMetrics,
             'customerHealthCard' => $customerHealthCard,
             'customerInsights' => $customerInsights,
             'iraAdvisor' => $iraAdvisor,
@@ -296,8 +286,6 @@ class Customer360Service
                 'timeline' => $viewModel,
                 'timelineLoadMoreUrl' => $timelineUrl,
                 'timelineRefreshUrl' => $timelineUrl,
-                'operationsHealth' => $operationsHealth,
-                'slaMetrics' => $slaMetrics,
                 'customerHealthCard' => $customerHealthCard,
                 'customerInsights' => $customerInsights,
                 'iraAdvisor' => $iraAdvisor,
@@ -614,7 +602,6 @@ class Customer360Service
         Incident $incident,
         ?Order $order,
         ?array $healthCardViewModel,
-        ?\App\Data\Customer360\Customer360SlaMetrics $slaMetrics,
     ): ?array {
         if ($order === null) {
             return null;
@@ -655,7 +642,6 @@ class Customer360Service
             'waitingStateCard' => $waitingStateCard,
             'supportAppointment' => $supportAppointment,
             'customerJourney' => $customerJourney,
-            'slaMetrics' => $slaMetrics,
             'operationsAdvisorInsights' => $this->operationsAdvisorService->incidentInsights($incident, $snapshot),
             'actionVisibility' => $this->actionVisibilityService->forIncident($incident, $user),
             'canEscalate' => $canEscalate,

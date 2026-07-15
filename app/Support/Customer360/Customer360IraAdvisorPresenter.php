@@ -3,7 +3,6 @@
 namespace App\Support\Customer360;
 
 use App\Data\AI\CustomerJourneyDTO;
-use App\Data\Customer360\Customer360SlaMetrics;
 use App\Data\Operations\OperationsInsightDTO;
 use App\Enums\AI\CustomerJourneyConclusionType;
 use App\Enums\ServiceCaseSlaStatus;
@@ -55,7 +54,6 @@ class Customer360IraAdvisorPresenter
      *     waitingStateCard: ?array<string, mixed>,
      *     supportAppointment: ?array<string, mixed>,
      *     customerJourney: CustomerJourneyDTO,
-     *     slaMetrics: ?Customer360SlaMetrics,
      *     operationsAdvisorInsights: list<OperationsInsightDTO>,
      *     actionVisibility: array<string, bool>,
      *     canEscalate: bool,

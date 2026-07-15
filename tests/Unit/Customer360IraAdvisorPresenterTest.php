@@ -194,7 +194,6 @@ class Customer360IraAdvisorPresenterTest extends TestCase
                     negativeSignals: [],
                 ),
             ),
-            'slaMetrics' => null,
             'operationsAdvisorInsights' => [],
             'actionVisibility' => array_merge([
                 'isWaitingForCustomer' => false,

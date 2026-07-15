@@ -200,15 +200,13 @@ class Customer360ServiceTest extends TestCase
         $payload = app(Customer360Service::class)->timelineTabPayload($incident);
 
         $this->assertInstanceOf(\App\Data\TimelineViewModel::class, $payload['timeline']);
-        $this->assertIsArray($payload['operationsHealth']);
-        $this->assertNotNull($payload['slaMetrics']);
         $this->assertStringContainsString('Activity', $payload['html']);
-        $this->assertStringContainsString('Customer Health', $payload['html']);
+        $this->assertStringNotContainsString('Operations Health', $payload['html']);
+        $this->assertStringNotContainsString('SLA Metrics', $payload['html']);
+        $this->assertStringContainsString('Customer health', $payload['html']);
         $this->assertStringContainsString('data-customer-360-section="customer-health-card"', $payload['html']);
         $this->assertIsArray($payload['customerInsights']);
         $this->assertArrayHasKey('iraAdvisor', $payload);
-        $this->assertStringContainsString('Operations Health', $payload['html']);
-        $this->assertStringContainsString('SLA Metrics', $payload['html']);
         $this->assertIsArray($payload['customerHealthCard']);
         $this->assertSame('attention', $payload['customerHealthCard']['status']['status']);
     }
