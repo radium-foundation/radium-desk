@@ -119,6 +119,29 @@ class WorkspaceRefreshRenderer
         )->render();
     }
 
+    /**
+     * @param  array<string, mixed>  $formPayload
+     * @param  array<string, list<string>>  $errors
+     */
+    public function renderRefundRequestFragment(
+        Incident $incident,
+        WorkspaceRequestContext $requestContext,
+        array $formPayload = [],
+        array $errors = [],
+    ): string {
+        return view(
+            $this->componentService->view(WorkspaceComponent::RefundRequest),
+            [
+                ...$this->componentService->viewData(
+                    WorkspaceComponent::RefundRequest,
+                    $incident,
+                    $requestContext,
+                ),
+                'formPayload' => $formPayload,
+            ],
+        )->withErrors($errors)->render();
+    }
+
     public function renderResolveFragment(
         Incident $incident,
         WorkspaceRequestContext $requestContext,

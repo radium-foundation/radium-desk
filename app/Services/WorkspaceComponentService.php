@@ -3,36 +3,39 @@
 namespace App\Services;
 
 use App\Data\Workspace\WorkspaceRequestContext;
+use App\Enums\CommunicationActionKey;
+use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseCloseExceptionReason;
 use App\Enums\ServiceCaseCloseNotificationPreference;
 use App\Enums\ServiceCaseCloseReasonForClosing;
 use App\Enums\ServiceCaseCloseResolutionType;
+use App\Enums\WaitingReason;
+use App\Enums\WhatsAppTemplate;
 use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
+use App\Models\Order;
+use App\Models\RefundRequest;
 use App\Models\Remark;
 use App\Models\User;
-use App\Services\DeviceModelSettingsService;
+use App\Services\CommunicationActions\CommunicationActionAvailabilityService;
+use App\Services\CommunicationActions\CommunicationActionEligibilityService;
+use App\Services\CommunicationActions\CommunicationActionRegistry;
+use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
+use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
+use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
+use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
+use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
-use App\Services\Interakt\CustomerNotRespondingEligibilityService;
-use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
-use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
-use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
-use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
-use App\Services\SerialValidation\SerialValidationService;
-use App\Services\SerialValidation\SerialInsightService;
-use App\Enums\CommunicationActionKey;
-use App\Services\CommunicationActions\CommunicationActionAvailabilityService;
-use App\Services\CommunicationActions\CommunicationActionEligibilityService;
-use App\Services\CommunicationActions\CommunicationActionRegistry;
-use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
-use App\Enums\WhatsAppTemplate;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
+use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
+use App\Services\SerialValidation\SerialInsightService;
+use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Auth\Access\AuthorizationException;
 
 class WorkspaceComponentService
@@ -57,6 +60,7 @@ class WorkspaceComponentService
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly CommunicationActionAvailabilityService $communicationActionAvailabilityService,
         private readonly CommunicationActionTargetProviderRegistry $communicationActionTargetProviderRegistry,
+        private readonly RefundCalculationService $refundCalculationService,
     ) {}
 
     public function resolve(string $component): WorkspaceComponent
@@ -92,6 +96,7 @@ class WorkspaceComponentService
             WorkspaceComponent::CorrectSerialNumber => $this->serialCorrectionEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectDeviceModel => $this->deviceModelCorrectionEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CommunicationAction => $this->canOpenCommunicationAction($incident, $user),
+            WorkspaceComponent::RefundRequest => $user->can('refunds.create') && $incident->order_id !== null,
         };
 
         if (! $authorized) {
@@ -197,6 +202,10 @@ class WorkspaceComponentService
             WorkspaceComponent::CommunicationAction => [
                 'incident' => $incident,
                 ...$this->communicationActionWorkspaceFields($requestContext, $incident),
+            ],
+            WorkspaceComponent::RefundRequest => [
+                'incident' => $incident,
+                ...$this->refundRequestWorkspaceFields($requestContext, $incident),
             ],
         };
     }
@@ -314,6 +323,31 @@ class WorkspaceComponentService
     /**
      * @return array<string, mixed>
      */
+    private function refundRequestWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $incident->loadMissing('order');
+        $order = $incident->order;
+        $calculation = $order !== null
+            ? $this->refundCalculationService->calculate($order)
+            : null;
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.refund-request', $incident),
+            'workspaceContext' => $requestContext->context->value,
+            'refund' => new RefundRequest,
+            'calculation' => $calculation,
+            'preferredMethods' => CustomerPreferredRefundMethod::cases(),
+            'formPayload' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function correctSerialNumberWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
     {
         if ($requestContext === null) {
@@ -330,7 +364,7 @@ class WorkspaceComponentService
 
         if ($order !== null && $currentSerial !== null) {
             $currentValidation = $this->serialValidationService->validateForOrder($currentSerial, $order);
-            $duplicateOwner = \App\Models\Order::query()
+            $duplicateOwner = Order::query()
                 ->where('serial_number', $currentValidation->normalizedSerial)
                 ->whereKeyNot($order->id)
                 ->first();
@@ -418,7 +452,7 @@ class WorkspaceComponentService
             'interaktTemplateDiagnostics' => $this->interaktTemplateConfigurationValidator
                 ->diagnosticsFor(WhatsAppTemplate::RequestSerialNumber),
             'hasActiveSerialWaitingState' => $incident->activeWaitingState !== null
-                && $incident->activeWaitingState->waiting_reason === \App\Enums\WaitingReason::SerialNumber,
+                && $incident->activeWaitingState->waiting_reason === WaitingReason::SerialNumber,
             'communicationHistory' => $order !== null
                 ? $this->requestSerialCommunicationHistoryService->forOrder($order)
                 : [
@@ -452,7 +486,7 @@ class WorkspaceComponentService
             'interaktTemplateDiagnostics' => $this->interaktTemplateConfigurationValidator
                 ->diagnosticsFor(WhatsAppTemplate::CallbackSchedule),
             'hasActiveCustomerNotRespondingWaitingState' => $incident->activeWaitingState !== null
-                && $incident->activeWaitingState->waiting_reason === \App\Enums\WaitingReason::CustomerNotResponding,
+                && $incident->activeWaitingState->waiting_reason === WaitingReason::CustomerNotResponding,
         ];
     }
 

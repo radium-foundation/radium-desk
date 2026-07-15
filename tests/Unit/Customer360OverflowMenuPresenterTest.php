@@ -46,11 +46,13 @@ class Customer360OverflowMenuPresenterTest extends TestCase
 
         $caseItems = collect($menu['groups'])->firstWhere('label', 'Case')['items'];
         $this->assertSame(
-            ['Assign Engineer', 'Close Case'],
+            ['Assign Engineer', 'Close Case', 'Refund'],
             collect($caseItems)->pluck('label')->all(),
         );
         $this->assertTrue((bool) ($caseItems[1]['dividerBefore'] ?? false));
         $this->assertTrue((bool) ($caseItems[1]['destructive'] ?? false));
+        $this->assertTrue((bool) ($caseItems[2]['dividerBefore'] ?? false));
+        $this->assertTrue((bool) ($caseItems[2]['destructive'] ?? false));
         $this->assertContains('Related', $labels);
 
         $relatedLabels = collect(
@@ -110,10 +112,10 @@ class Customer360OverflowMenuPresenterTest extends TestCase
             collect($menu['groups'])->firstWhere('label', 'Case')['items'],
         )->pluck('label')->all();
 
-        $this->assertSame(['Reopen Case'], $caseLabels);
+        $this->assertSame(['Reopen Case', 'Refund'], $caseLabels);
     }
 
-    public function test_build_includes_finance_refund_when_user_can_create_refunds(): void
+    public function test_build_includes_refund_workspace_trigger_when_user_can_create_refunds(): void
     {
         [$admin, $incident, $order] = $this->createFixture(RolePermissionSeeder::ROLE_ADMIN, IncidentStatus::Open);
 
@@ -123,16 +125,15 @@ class Customer360OverflowMenuPresenterTest extends TestCase
             $order,
         );
 
-        $financeLabels = collect(
-            collect($menu['groups'])->firstWhere('label', 'Finance')['items'],
-        )->pluck('label')->all();
+        $caseItems = collect($menu['groups'])->firstWhere('label', 'Case')['items'];
+        $refund = collect($caseItems)->firstWhere('id', 'refund');
 
-        $this->assertSame(['Refund'], $financeLabels);
-
-        $refund = collect(collect($menu['groups'])->firstWhere('label', 'Finance')['items'])
-            ->firstWhere('id', 'refund');
-
+        $this->assertNotNull($refund);
+        $this->assertSame('Refund', $refund['label']);
+        $this->assertSame('trigger', $refund['type']);
+        $this->assertSame('refund-request', $refund['trigger']);
         $this->assertTrue((bool) ($refund['destructive'] ?? false));
+        $this->assertFalse(collect($menu['groups'])->contains('label', 'Finance'));
     }
 
     public function test_build_includes_schedule_appointment_in_appointments_group(): void

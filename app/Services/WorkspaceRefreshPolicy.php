@@ -114,6 +114,9 @@ class WorkspaceRefreshPolicy
             WorkspaceComponent::CommunicationAction => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),
+            WorkspaceComponent::RefundRequest => new WorkspaceRefreshEffects(
+                closeWorkspaceHost: true,
+            ),
             default => new WorkspaceRefreshEffects(
                 preferRedirect: true,
                 closeWorkspaceHost: true,

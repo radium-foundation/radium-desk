@@ -2,33 +2,34 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\WorkspaceActionType;
+use App\Http\Requests\WorkspaceActionRequest;
+use App\Http\Requests\WorkspaceAssignRequest;
+use App\Http\Requests\WorkspaceCloseRequest;
 use App\Http\Requests\WorkspaceCommunicationActionRequest;
 use App\Http\Requests\WorkspaceCorrectCustomerDetailsRequest;
 use App\Http\Requests\WorkspaceCorrectDeviceModelRequest;
 use App\Http\Requests\WorkspaceCorrectSerialNumberRequest;
 use App\Http\Requests\WorkspaceLinkOrderRequest;
-use App\Http\Requests\WorkspaceActionRequest;
-use App\Http\Requests\WorkspaceAssignRequest;
-use App\Http\Requests\WorkspaceCloseRequest;
 use App\Http\Requests\WorkspaceRemarkRequest;
 use App\Http\Requests\WorkspaceResolveRequest;
 use App\Models\Incident;
 use App\Models\User;
-use App\Enums\WorkspaceActionType;
+use App\Services\CommunicationActions\CommunicationActionExecutorService;
+use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Services\WorkspaceActionDialogService;
 use App\Services\WorkspaceAssignActionService;
 use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
-use App\Services\WorkspaceRemarkActionService;
 use App\Services\WorkspaceCorrectCustomerDetailsActionService;
 use App\Services\WorkspaceCorrectDeviceModelActionService;
 use App\Services\WorkspaceCorrectSerialNumberActionService;
+use App\Services\WorkspaceCustomerNotRespondingActionService;
 use App\Services\WorkspaceLinkOrderActionService;
+use App\Services\WorkspaceRefundRequestActionService;
+use App\Services\WorkspaceRemarkActionService;
 use App\Services\WorkspaceRequestCorrectSerialActionService;
 use App\Services\WorkspaceRequestSerialActionService;
-use App\Services\WorkspaceCustomerNotRespondingActionService;
-use App\Services\CommunicationActions\CommunicationActionExecutorService;
-use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Services\WorkspaceResolveActionService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -47,6 +48,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceRequestCorrectSerialActionService $requestCorrectSerialActionService,
         private readonly WorkspaceCustomerNotRespondingActionService $customerNotRespondingActionService,
         private readonly WorkspaceLinkOrderActionService $linkOrderActionService,
+        private readonly WorkspaceRefundRequestActionService $refundRequestActionService,
         private readonly WorkspaceCorrectCustomerDetailsActionService $correctCustomerDetailsActionService,
         private readonly WorkspaceCorrectSerialNumberActionService $correctSerialNumberActionService,
         private readonly WorkspaceCorrectDeviceModelActionService $correctDeviceModelActionService,
@@ -241,6 +243,21 @@ class WorkspaceActionController extends Controller
             incident: $incident,
             actor: $request->user(),
             payload: $request->validated(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
+    public function refundRequest(Request $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->refundRequestActionService->create(
+            incident: $incident,
+            actor: $request->user(),
+            payload: $request->all(),
             requestContext: $requestContext,
             request: $request,
         );

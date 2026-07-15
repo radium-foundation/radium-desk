@@ -20,6 +20,7 @@ enum WorkspaceComponent: string
     case CorrectSerialNumber = 'correct-serial-number';
     case CorrectDeviceModel = 'correct-device-model';
     case CommunicationAction = 'communication-action';
+    case RefundRequest = 'refund-request';
 
     public function view(): string
     {
@@ -40,6 +41,7 @@ enum WorkspaceComponent: string
             self::CorrectSerialNumber => 'customer-360.fragments.correct-serial-number-form',
             self::CorrectDeviceModel => 'customer-360.fragments.correct-device-model-form',
             self::CommunicationAction => 'customer-360.fragments.communication-action-form',
+            self::RefundRequest => 'customer-360.fragments.refund-request-form',
         };
     }
 }

@@ -146,6 +146,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.workspace.communication-action');
     Route::patch('incidents/{incident}/workspace/link-order', [WorkspaceActionController::class, 'linkOrder'])
         ->name('incidents.workspace.link-order');
+    Route::post('incidents/{incident}/workspace/refund-request', [WorkspaceActionController::class, 'refundRequest'])
+        ->name('incidents.workspace.refund-request');
     Route::patch('incidents/{incident}/workspace/correct-customer-details', [WorkspaceActionController::class, 'correctCustomerDetails'])
         ->name('incidents.workspace.correct-customer-details');
     Route::patch('incidents/{incident}/workspace/correct-serial-number', [WorkspaceActionController::class, 'correctSerialNumber'])

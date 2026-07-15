@@ -2,10 +2,10 @@
 
 namespace App\Support\Customer360;
 
+use App\Enums\CommunicationActionKey;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Enums\CommunicationActionKey;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Services\Customer360\Customer360ActionVisibilityService;
@@ -47,10 +47,9 @@ final class Customer360OverflowMenuPresenter
         $groups = [
             $this->communicationGroup($incident, $user, $visibility, $requestCorrectSerialMenu, $serialRequestState),
             $this->customerGroup($visibility),
-            $this->caseGroup($capabilities),
+            $this->caseGroup($capabilities, $incident, $user),
             $this->appointmentsGroup($incident, $supportAppointments),
             $this->relatedGroup($incident, $order, $visibility),
-            $this->financeGroup($user),
         ];
 
         $groups = array_values(array_filter(
@@ -214,7 +213,7 @@ final class Customer360OverflowMenuPresenter
      * @param  array<string, bool>  $capabilities
      * @return array{label: string, icon: string, items: list<array<string, mixed>>}
      */
-    private function caseGroup(array $capabilities): array
+    private function caseGroup(array $capabilities, Incident $incident, User $user): array
     {
         $items = [];
 
@@ -264,6 +263,22 @@ final class Customer360OverflowMenuPresenter
                 ),
                 [
                     'dividerBefore' => true,
+                    'destructive' => true,
+                ],
+            );
+        }
+
+        if ($user->can('refunds.create') && $incident->order_id !== null) {
+            $items[] = array_merge(
+                $this->triggerItem(
+                    id: 'refund',
+                    label: 'Refund',
+                    icon: 'rotate-ccw',
+                    trigger: 'refund-request',
+                    keywords: ['refund', 'finance'],
+                ),
+                [
+                    'dividerBefore' => $items !== [],
                     'destructive' => true,
                 ],
             );
@@ -348,31 +363,6 @@ final class Customer360OverflowMenuPresenter
         return [
             'label' => 'Related',
             'icon' => '📂',
-            'items' => $items,
-        ];
-    }
-
-    /**
-     * @return array{label: string, icon: string, items: list<array<string, mixed>>}
-     */
-    private function financeGroup(User $user): array
-    {
-        $items = [];
-
-        if ($user->can('refunds.create')) {
-            $items[] = $this->linkItem(
-                id: 'refund',
-                label: 'Refund',
-                icon: 'rotate-ccw',
-                href: route('refunds.create'),
-                keywords: ['refund', 'finance'],
-                destructive: true,
-            );
-        }
-
-        return [
-            'label' => 'Finance',
-            'icon' => '💰',
             'items' => $items,
         ];
     }
