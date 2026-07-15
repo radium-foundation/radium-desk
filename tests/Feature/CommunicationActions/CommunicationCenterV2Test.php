@@ -58,7 +58,9 @@ class CommunicationCenterV2Test extends TestCase
             ->assertOk()
             ->assertSee('data-workspace-trigger="communication-action"', false)
             ->assertSee('>Communication</span>', false)
-            ->assertDontSee('data-workspace-communication-action-key="driver_installation_guide"', false)
+            ->assertSee('data-customer-360-section="communication-actions"', false)
+            ->assertSee('data-workspace-communication-action-key="driver_installation_guide"', false)
+            ->assertSee('data-communication-action-key="review_request"', false)
             ->assertDontSee('data-workspace-communication-action-key="review_request"', false);
     }
 

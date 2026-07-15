@@ -193,14 +193,15 @@ class CommunicationActionExecutionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident));
 
         $response->assertOk();
-        $response->assertSee('💬', false);
         $response->assertSee('>Communication<', false);
-        $response->assertSee('Review Request');
+        $response->assertSee('Send Review Request');
         $response->assertSee('data-customer-360-section="communication-actions"', false);
         $response->assertSee('Communication Actions');
         $response->assertSee('data-communication-action-key="refund_confirmation"', false);
         $response->assertSee('You do not have permission to run this communication action.', false);
         $response->assertDontSee('data-workspace-communication-action-key="refund_confirmation"', false);
+        $response->assertDontSee('>Available<', false);
+        $response->assertDontSee('c360-status-banner--compact', false);
     }
 
     /**

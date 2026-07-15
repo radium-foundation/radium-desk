@@ -99,8 +99,9 @@ class DriverInstallationGuideCommunicationActionTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('>Communication</span>', false);
-        $response->assertSee('data-workspace-trigger="communication-action"', false);
-        $response->assertDontSee('data-workspace-communication-action-key="driver_installation_guide"', false);
+        $response->assertSee('Send Driver Installation Guide', false);
+        $response->assertSee('data-workspace-communication-action-key="driver_installation_guide"', false);
+        $response->assertSee('bi-chevron-right', false);
     }
 
     public function test_driver_installation_guide_is_hidden_without_driver_link(): void

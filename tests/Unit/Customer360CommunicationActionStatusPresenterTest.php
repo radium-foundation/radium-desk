@@ -45,6 +45,9 @@ class Customer360CommunicationActionStatusPresenterTest extends TestCase
         $this->assertSame('info', $reviewRequest['status_variant']);
         $this->assertTrue($reviewRequest['eligible']);
         $this->assertFalse($reviewRequest['show_already_sent']);
+        $this->assertSame('Send Review Request', $reviewRequest['display_name']);
+        $this->assertTrue($reviewRequest['show_chevron']);
+        $this->assertNull($reviewRequest['helper_text']);
     }
 
     public function test_shows_sent_today_after_successful_execution(): void
@@ -106,6 +109,12 @@ class Customer360CommunicationActionStatusPresenterTest extends TestCase
         );
         $this->assertSame('muted', $reviewRequest['status_variant']);
         $this->assertFalse($reviewRequest['eligible']);
+        $this->assertSame('Send Review Request', $reviewRequest['display_name']);
+        $this->assertFalse($reviewRequest['clickable']);
+        $this->assertSame(
+            'Review requests can be sent after support work is completed or the service case is resolved.',
+            $reviewRequest['helper_text'],
+        );
     }
 
     public function test_shows_role_based_not_eligible_reason_for_refund_confirmation(): void

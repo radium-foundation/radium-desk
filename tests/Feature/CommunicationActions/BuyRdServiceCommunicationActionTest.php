@@ -98,7 +98,8 @@ class BuyRdServiceCommunicationActionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('>Communication</span>', false)
-            ->assertDontSee('data-workspace-communication-action-key="buy_rd_service"', false);
+            ->assertSee('Buy RD Service', false)
+            ->assertSee('data-workspace-communication-action-key="buy_rd_service"', false);
     }
 
     public function test_buy_rd_service_is_unavailable_without_catalog_url(): void

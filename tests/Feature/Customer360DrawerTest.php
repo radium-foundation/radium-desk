@@ -33,7 +33,11 @@ class Customer360DrawerTest extends TestCase
 
     public function test_customer_360_endpoint_returns_html_fragment_for_authorized_user(): void
     {
-        $agent = User::factory()->create();
+        $agent = User::factory()->create([
+            'first_name' => 'Gaurav',
+            'last_name' => 'Kumar',
+            'name' => 'Gaurav Kumar',
+        ]);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         $order = Order::query()->create([
@@ -80,7 +84,9 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('data-customer-360-copy="order-id"', false);
         $response->assertSee('aria-label="Copy Customer Phone"', false);
         $response->assertSee('Customer snapshot', false);
-        $response->assertSee('Assigned agent', false);
+        $response->assertSee('Agent', false);
+        $response->assertSee('Gaurav', false);
+        $response->assertDontSee('Gaurav Kumar', false);
         $response->assertSee('Current device', false);
         $response->assertSee('No Warranty Found', false);
         $response->assertSee('No AMC', false);
@@ -112,7 +118,7 @@ class Customer360DrawerTest extends TestCase
             'source' => IncidentSource::Call,
             'title' => 'Overflow menu case',
             'description' => 'Overflow menu case.',
-            'status' => IncidentStatus::Open,
+            'status' => IncidentStatus::Resolved,
             'created_by' => $agent->id,
             'updated_by' => $agent->id,
             'assigned_to_user_id' => $agent->id,
@@ -140,7 +146,10 @@ class Customer360DrawerTest extends TestCase
         $this->assertStringContainsString('Open Case', $html);
         $this->assertStringContainsString('data-customer-360-section="communication-actions"', $html);
         $this->assertStringContainsString('Communication Actions', $html);
-        $this->assertStringContainsString('Review Request', $html);
+        $this->assertStringContainsString('Send Review Request', $html);
+        $this->assertStringContainsString('bi-chevron-right', $html);
+        $this->assertStringNotContainsString('c360-status-banner--compact', $html);
+        $this->assertStringNotContainsString('>Available<', $html);
     }
 
     public function test_customer_360_health_card_shows_whatsapp_communication_timestamp(): void

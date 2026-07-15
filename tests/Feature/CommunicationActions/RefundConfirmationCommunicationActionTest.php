@@ -100,7 +100,7 @@ class RefundConfirmationCommunicationActionTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
-            ->assertSee('Refund Confirmation')
+            ->assertSee('Send Refund Confirmation')
             ->assertSee('data-workspace-communication-action-key="refund_confirmation"', false)
             ->assertSee('data-communication-action-status="available"', false);
     }

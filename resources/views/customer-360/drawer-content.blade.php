@@ -95,6 +95,7 @@
         ])
         @include('customer-360.partials.communication-actions', [
             'communicationActionStatuses' => $communicationActionStatuses ?? [],
+            'incident' => $incident,
         ])
         @include('customer-360.partials.waiting-state-card', ['waitingStateCard' => $waitingStateCard ?? null])
         @include('customer-360.partials.support-appointments', [

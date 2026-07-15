@@ -98,7 +98,8 @@ class BuyProductCommunicationActionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('>Communication</span>', false)
-            ->assertDontSee('data-workspace-communication-action-key="buy_product"', false);
+            ->assertSee('Buy Product', false)
+            ->assertSee('data-workspace-communication-action-key="buy_product"', false);
     }
 
     public function test_buy_product_is_unavailable_without_catalog_url(): void

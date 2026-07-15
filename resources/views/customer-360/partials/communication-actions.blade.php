@@ -6,34 +6,55 @@
     @if(($communicationActionStatuses ?? []) === [])
         <p class="customer-360-empty-text mb-0">No communication actions configured.</p>
     @else
-        <div class="customer-360-communication-actions" role="list" aria-label="Communication action status">
+        <div class="c360-communication-actions-list" role="list" aria-label="Communication actions">
             @foreach($communicationActionStatuses as $action)
-                <article class="customer-360-communication-action-card"
+                @php
+                    $rowClasses = [
+                        'c360-communication-action-row',
+                        $action['clickable'] ? 'c360-communication-action-row--active' : 'c360-communication-action-row--disabled',
+                    ];
+                @endphp
+
+                @if($action['clickable'])
+                    <button type="button"
+                            @class($rowClasses)
+                            role="listitem"
+                            data-communication-action-status="{{ $action['status'] }}"
+                            data-communication-action-key="{{ $action['key'] }}"
+                            data-workspace-trigger="communication-action"
+                            data-workspace-communication-action-key="{{ $action['key'] }}"
+                            data-workspace-incident-id="{{ $incident->id }}"
+                            data-workspace-context="customer">
+                        <span class="c360-communication-action-icon-wrap" aria-hidden="true">
+                            <i class="bi {{ $action['icon_class'] }}"></i>
+                        </span>
+                        <span class="c360-communication-action-content">
+                            <span class="c360-communication-action-title">{{ $action['display_name'] }}</span>
+                            @if(filled($action['helper_text'] ?? null))
+                                <span class="c360-communication-action-helper">{{ $action['helper_text'] }}</span>
+                            @endif
+                        </span>
+                        @if($action['show_chevron'])
+                            <i class="bi bi-chevron-right c360-communication-action-chevron" aria-hidden="true"></i>
+                        @endif
+                    </button>
+                @else
+                    <div @class($rowClasses)
                          role="listitem"
+                         aria-disabled="true"
                          data-communication-action-status="{{ $action['status'] }}"
                          data-communication-action-key="{{ $action['key'] }}">
-                    <div class="customer-360-communication-action-card-header">
-                        <span class="customer-360-communication-action-card-icon" aria-hidden="true">
-                            {!! \App\Support\Customer360\Customer360OverflowMenuLucideIcon::render($action['icon']) !!}
+                        <span class="c360-communication-action-icon-wrap" aria-hidden="true">
+                            <i class="bi {{ $action['icon_class'] }}"></i>
                         </span>
-                        <h4 class="customer-360-communication-action-card-title">{{ $action['name'] }}</h4>
+                        <span class="c360-communication-action-content">
+                            <span class="c360-communication-action-title">{{ $action['display_name'] }}</span>
+                            @if(filled($action['helper_text'] ?? null))
+                                <span class="c360-communication-action-helper">{{ $action['helper_text'] }}</span>
+                            @endif
+                        </span>
                     </div>
-
-                    <div class="customer-360-communication-action-card-status">
-                        <x-c360.status-banner
-                            :variant="$action['status_variant']"
-                            :icon="$action['status_icon']"
-                            class="c360-status-banner--compact">
-                            {{ $action['status_label'] }}
-                        </x-c360.status-banner>
-
-                        @if($action['show_already_sent'] && filled($action['already_sent_label'] ?? null))
-                            <span class="customer-360-communication-action-already-sent">
-                                {{ $action['already_sent_label'] }}
-                            </span>
-                        @endif
-                    </div>
-                </article>
+                @endif
             @endforeach
         </div>
     @endif

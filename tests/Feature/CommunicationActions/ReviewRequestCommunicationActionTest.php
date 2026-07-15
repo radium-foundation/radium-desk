@@ -101,7 +101,9 @@ class ReviewRequestCommunicationActionTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('>Communication</span>', false);
-        $response->assertDontSee('data-workspace-communication-action-key="review_request"', false);
+        $response->assertSee('Send Review Request', false);
+        $response->assertSee('data-workspace-communication-action-key="review_request"', false);
+        $response->assertSee('bi-chevron-right', false);
     }
 
     public function test_review_request_is_unavailable_before_support_is_concluded(): void

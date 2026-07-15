@@ -26,7 +26,9 @@ final class Customer360CommunicationActionStatusPresenter
      * @return list<array{
      *     key: string,
      *     name: string,
+     *     display_name: string,
      *     icon: string,
+     *     icon_class: string,
      *     eligible: bool,
      *     status: string,
      *     status_label: string,
@@ -34,6 +36,9 @@ final class Customer360CommunicationActionStatusPresenter
      *     status_icon: string|null,
      *     show_already_sent: bool,
      *     already_sent_label: string|null,
+     *     helper_text: string|null,
+     *     clickable: bool,
+     *     show_chevron: bool,
      * }>
      */
     public function forIncident(Incident $incident, ?User $user): array
@@ -55,7 +60,9 @@ final class Customer360CommunicationActionStatusPresenter
      * @return array{
      *     key: string,
      *     name: string,
+     *     display_name: string,
      *     icon: string,
+     *     icon_class: string,
      *     eligible: bool,
      *     status: string,
      *     status_label: string,
@@ -63,6 +70,9 @@ final class Customer360CommunicationActionStatusPresenter
      *     status_icon: string|null,
      *     show_already_sent: bool,
      *     already_sent_label: string|null,
+     *     helper_text: string|null,
+     *     clickable: bool,
+     *     show_chevron: bool,
      * }
      */
     private function presentAction(
@@ -141,7 +151,9 @@ final class Customer360CommunicationActionStatusPresenter
      * @return array{
      *     key: string,
      *     name: string,
+     *     display_name: string,
      *     icon: string,
+     *     icon_class: string,
      *     eligible: bool,
      *     status: string,
      *     status_label: string,
@@ -149,6 +161,9 @@ final class Customer360CommunicationActionStatusPresenter
      *     status_icon: string|null,
      *     show_already_sent: bool,
      *     already_sent_label: string|null,
+     *     helper_text: string|null,
+     *     clickable: bool,
+     *     show_chevron: bool,
      * }
      */
     private function actionPayload(
@@ -162,10 +177,19 @@ final class Customer360CommunicationActionStatusPresenter
         ?string $statusIcon,
         bool $showAlreadySent,
     ): array {
+        $clickable = $eligible && $status !== 'skipped';
+        $helperText = match (true) {
+            ! $eligible => $statusLabel,
+            $status === 'sent', $status === 'skipped' => $statusLabel,
+            default => null,
+        };
+
         return [
             'key' => $actionKey,
             'name' => $name,
+            'display_name' => Customer360CommunicationActionDisplayName::for($actionKey, $name),
             'icon' => Customer360OverflowMenuLucideIcon::resolve($icon),
+            'icon_class' => str_starts_with($icon, 'bi-') ? $icon : 'bi-circle',
             'eligible' => $eligible,
             'status' => $status,
             'status_label' => $statusLabel,
@@ -173,6 +197,9 @@ final class Customer360CommunicationActionStatusPresenter
             'status_icon' => $statusIcon,
             'show_already_sent' => $showAlreadySent,
             'already_sent_label' => $showAlreadySent ? 'Already Sent' : null,
+            'helper_text' => $helperText,
+            'clickable' => $clickable,
+            'show_chevron' => $clickable && $status === 'available',
         ];
     }
 

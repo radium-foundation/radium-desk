@@ -9840,6 +9840,100 @@ body.customer-360-drawer-open {
     gap: 0.625rem;
 }
 
+.c360-communication-actions-list {
+    border: 1px solid var(--dashboard-border-subtle, rgba(148, 163, 184, 0.22));
+    border-radius: 0.75rem;
+    background: var(--dashboard-color-surface, #fff);
+    overflow: hidden;
+}
+
+.c360-communication-action-row {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    width: 100%;
+    margin: 0;
+    padding: 1.125rem 1.25rem;
+    border: 0;
+    border-bottom: 1px solid var(--dashboard-border-subtle, rgba(148, 163, 184, 0.16));
+    background: transparent;
+    text-align: left;
+    color: inherit;
+}
+
+.c360-communication-action-row:last-child {
+    border-bottom: 0;
+}
+
+.c360-communication-action-row--active {
+    cursor: pointer;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.c360-communication-action-row--active:hover,
+.c360-communication-action-row--active:focus-visible {
+    background: rgba(15, 23, 42, 0.03);
+    outline: none;
+}
+
+.c360-communication-action-row--disabled {
+    opacity: 0.58;
+    cursor: default;
+}
+
+.c360-communication-action-icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+    color: #475569;
+}
+
+.c360-communication-action-row--disabled .c360-communication-action-icon-wrap {
+    color: #94a3b8;
+}
+
+.c360-communication-action-icon-wrap .bi {
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.c360-communication-action-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.c360-communication-action-title {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #0f172a;
+}
+
+.c360-communication-action-row--disabled .c360-communication-action-title {
+    color: #64748b;
+}
+
+.c360-communication-action-helper {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: #64748b;
+}
+
+.c360-communication-action-chevron {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
 .customer-360-communication-action-card {
     display: flex;
     align-items: center;

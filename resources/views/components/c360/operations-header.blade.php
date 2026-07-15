@@ -10,6 +10,7 @@
 
 @php
     use App\Enums\ServiceCaseSlaStatus;
+    use App\Support\Customer360\Customer360AgentNamePresenter;
 
     $slaStatus = $incident->slaStatus();
     $openCases = (int) ($summary['open_cases'] ?? 0);
@@ -60,9 +61,10 @@
     $customerName = filled($healthCard['name'] ?? null)
         ? $healthCard['name']
         : ($order->customer_name ?? null);
-    $assignedAgent = filled($incident->assignee?->name)
-        ? $incident->assignee->name
-        : null;
+    $assignedAgent = Customer360AgentNamePresenter::displayFirstName(
+        $incident->assignee?->name,
+        $incident->assignee?->first_name,
+    );
 @endphp
 
 <header {{ $attributes->merge(['class' => 'c360-ops-header']) }}
@@ -104,7 +106,7 @@
             </span>
         @endif
         <span class="c360-ops-header-meta-item" role="listitem">
-            <span class="c360-ops-header-meta-label">Assigned agent</span>
+            <span class="c360-ops-header-meta-label">Agent</span>
             <span class="c360-ops-header-meta-value">{{ $assignedAgent ?? 'Unassigned' }}</span>
         </span>
     </div>
