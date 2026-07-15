@@ -10453,6 +10453,261 @@ body.customer-360-drawer-open {
     color: var(--dashboard-color-muted, #64748b);
 }
 
+.c360-snapshot-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.c360-snapshot-section-label {
+    margin: 0 0 0.375rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-snapshot-field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-snapshot-field-label .bi {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.c360-snapshot-contact-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.375rem 1rem;
+}
+
+.c360-snapshot-contact-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.c360-snapshot-contact-value {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.c360-snapshot-contact-link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--dashboard-color-heading, #0f172a);
+    text-decoration: none;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.c360-snapshot-contact-link:hover,
+.c360-snapshot-contact-link:focus-visible {
+    color: #4f46e5;
+    text-decoration: underline;
+}
+
+.c360-snapshot-placeholder {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--dashboard-color-muted, #94a3b8);
+}
+
+.c360-snapshot-comm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.c360-snapshot-comm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.3125rem 0.375rem;
+    margin: 0 -0.375rem;
+    border: 0;
+    border-radius: 0.4375rem;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.14s ease;
+}
+
+.c360-snapshot-comm-row:hover,
+.c360-snapshot-comm-row:focus-visible {
+    background: rgba(148, 163, 184, 0.1);
+    outline: none;
+}
+
+.c360-snapshot-comm-main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3125rem 0.5rem;
+    min-width: 0;
+}
+
+.c360-snapshot-comm-channel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-snapshot-comm-icon {
+    font-size: 0.8125rem;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-snapshot-comm-icon--whatsapp {
+    color: #16a34a;
+}
+
+.c360-snapshot-comm-time {
+    font-size: 0.6875rem;
+    font-weight: 400;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-snapshot-comm-link {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-snapshot-comm-row:hover .c360-snapshot-comm-link,
+.c360-snapshot-comm-row:focus-visible .c360-snapshot-comm-link {
+    color: #4f46e5;
+}
+
+.c360-snapshot-status-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.0625rem 0.4375rem;
+    border-radius: 999px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+}
+
+.c360-snapshot-status-chip--success {
+    background: rgba(22, 163, 74, 0.1);
+    color: #15803d;
+}
+
+.c360-snapshot-status-chip--info {
+    background: rgba(59, 130, 246, 0.1);
+    color: #1d4ed8;
+}
+
+.c360-snapshot-status-chip--warning {
+    background: rgba(234, 179, 8, 0.12);
+    color: #a16207;
+}
+
+.c360-snapshot-status-chip--neutral {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.c360-snapshot-status-chip--danger {
+    background: rgba(220, 38, 38, 0.1);
+    color: #b91c1c;
+}
+
+.c360-snapshot-service-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.375rem 1rem;
+}
+
+.c360-snapshot-service-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.c360-snapshot-service-value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.375rem;
+}
+
+.c360-snapshot-payment-amount {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-snapshot-payment-method {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--dashboard-color-muted, #64748b);
+}
+
+.c360-snapshot-active-cases {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.c360-snapshot-active-cases:hover,
+.c360-snapshot-active-cases:focus-visible {
+    color: #4f46e5;
+    outline: none;
+}
+
+.c360-snapshot-active-cases-count {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.c360-snapshot-active-cases-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.c360-snapshot-active-cases-arrow {
+    font-size: 0.6875rem;
+    opacity: 0.7;
+}
+
+.c360-snapshot-active-cases:hover .c360-snapshot-active-cases-count,
+.c360-snapshot-active-cases:focus-visible .c360-snapshot-active-cases-count {
+    color: #4f46e5;
+}
+
 /* Device card */
 .c360-device-card {
     padding: 0.875rem 1rem;
@@ -10760,6 +11015,11 @@ body.customer-360-drawer-open {
     }
 
     .c360-customer-snapshot-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .c360-snapshot-contact-grid,
+    .c360-snapshot-service-grid {
         grid-template-columns: 1fr;
     }
 }

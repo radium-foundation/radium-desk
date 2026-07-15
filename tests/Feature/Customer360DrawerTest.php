@@ -82,7 +82,8 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('Customer snapshot', false);
         $response->assertSee('Assigned agent', false);
         $response->assertSee('Current device', false);
-        $response->assertSee('Unavailable', false);
+        $response->assertSee('No Warranty Found', false);
+        $response->assertSee('No AMC', false);
         $response->assertDontSee('data-c360-ops-status-bar', false);
     }
 
@@ -166,7 +167,7 @@ class Customer360DrawerTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('WhatsApp', false)
-            ->assertSee('SENT', false)
+            ->assertSee('Sent', false)
             ->assertSee(AppDateFormatter::format(
                 $sentAt,
                 RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT,
@@ -232,7 +233,7 @@ class Customer360DrawerTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('WhatsApp', $html);
-        $this->assertSame(1, substr_count($html, 'FAILED'));
+        $this->assertSame(1, substr_count($html, 'Failed'));
     }
 
     public function test_customer_360_health_card_uses_customer_scope_communication_history(): void
@@ -349,8 +350,8 @@ class Customer360DrawerTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Last WhatsApp', $html);
-        $this->assertStringContainsString('SENT', $html);
+        $this->assertStringContainsString('Recent communication', $html);
+        $this->assertStringContainsString('Sent', $html);
         $this->assertStringContainsString(
             AppDateFormatter::format($sentAt, RequestSerialCommunicationHistoryService::LAST_SENT_DISPLAY_FORMAT),
             $html,

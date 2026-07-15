@@ -91,6 +91,7 @@
         @include('customer-360.partials.health-card', [
             'healthCard' => $healthCard,
             'activeServices' => $activeServices ?? [],
+            'summary' => $summary ?? [],
         ])
         @include('customer-360.partials.communication-actions', [
             'communicationActionStatuses' => $communicationActionStatuses ?? [],

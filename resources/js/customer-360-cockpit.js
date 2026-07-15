@@ -486,6 +486,17 @@ export const initCustomer360Cockpit = ({
                 contentHost.querySelector('[data-timeline-filter-chip]')?.focus();
             }, 200);
         }
+
+        const snapshotAction = event.target.closest('[data-c360-snapshot-action]');
+
+        if (snapshotAction instanceof HTMLElement) {
+            event.preventDefault();
+            const filter = snapshotAction.dataset.timelineFilter ?? 'all';
+            clickTab('timeline');
+            window.setTimeout(() => {
+                contentHost.querySelector(`[data-timeline-filter-chip="${filter}"]`)?.click();
+            }, 250);
+        }
     });
 
     const handleKeydown = (event) => {
