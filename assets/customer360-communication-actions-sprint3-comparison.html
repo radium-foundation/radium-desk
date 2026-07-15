@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Communication Actions — Sprint 2 vs Sprint 3</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="../public/build/assets/app-JBf8ITAf.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 2rem;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f8fafc;
+            color: #0f172a;
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        .panel-label {
+            font-size: 0.6875rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            margin-bottom: 0.75rem;
+        }
+        .panel {
+            background: #fff;
+            border-radius: 1rem;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        }
+
+        /* Sprint 2 (before) — scoped reset */
+        .sprint2-before .customer-360-section-title {
+            margin-bottom: 0.375rem;
+        }
+        .sprint2-before .c360-communication-actions-list {
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 0.625rem;
+            background: #fff;
+            overflow: hidden;
+            box-shadow: none;
+        }
+        .sprint2-before .c360-communication-action-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6875rem 0.875rem;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.05);
+        }
+        .sprint2-before .c360-communication-action-row:not(:has(.c360-communication-action-helper)) {
+            min-height: 2.75rem;
+        }
+        .sprint2-before .c360-communication-action-row:has(.c360-communication-action-helper) {
+            padding-top: 0.625rem;
+            padding-bottom: 0.625rem;
+        }
+        .sprint2-before .c360-communication-action-icon-wrap {
+            width: 1.5rem;
+            height: 1.5rem;
+            background: rgba(148, 163, 184, 0.08);
+            color: #475569;
+        }
+        .sprint2-before .c360-communication-action-icon-wrap .bi {
+            font-size: 0.8125rem;
+        }
+        .sprint2-before .c360-communication-action-content {
+            flex: 1 1 auto;
+            gap: 0.125rem;
+        }
+        .sprint2-before .c360-communication-action-title {
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        .sprint2-before .c360-communication-action-row--disabled .c360-communication-action-title {
+            color: #64748b;
+        }
+        .sprint2-before .c360-communication-action-helper {
+            color: #64748b;
+            line-height: 1.25;
+        }
+        .sprint2-before .c360-communication-action-chevron {
+            width: 1rem;
+            height: 1rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="comparison">
+        <div>
+            <div class="panel-label">Before — Sprint 2</div>
+            <div class="panel sprint2-before">
+                <section class="customer-360-section" data-customer-360-section="communication-actions">
+                    <h3 class="customer-360-section-title">Communication Actions</h3>
+                    <div class="c360-communication-actions-list" role="list">
+                        <button type="button" class="c360-communication-action-row c360-communication-action-row--active" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-envelope"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Review Request</span>
+                            </span>
+                            <i class="bi bi-chevron-right c360-communication-action-chevron"></i>
+                        </button>
+                        <button type="button" class="c360-communication-action-row c360-communication-action-row--active" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-chat-dots"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Follow-up</span>
+                            </span>
+                            <i class="bi bi-chevron-right c360-communication-action-chevron"></i>
+                        </button>
+                        <div class="c360-communication-action-row c360-communication-action-row--disabled" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-arrow-repeat"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Refund Confirmation</span>
+                                <span class="c360-communication-action-helper">Not eligible for this incident</span>
+                            </span>
+                        </div>
+                        <div class="c360-communication-action-row c360-communication-action-row--disabled" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-person-x"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Customer Not Responding</span>
+                                <span class="c360-communication-action-helper">Sent today</span>
+                            </span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+        <div>
+            <div class="panel-label">After — Sprint 3</div>
+            <div class="panel">
+                <section class="customer-360-section" data-customer-360-section="communication-actions">
+                    <h3 class="customer-360-section-title">Communication Actions</h3>
+                    <div class="c360-communication-actions-list" role="list">
+                        <button type="button" class="c360-communication-action-row c360-communication-action-row--active" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-envelope"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Review Request</span>
+                            </span>
+                            <i class="bi bi-chevron-right c360-communication-action-chevron"></i>
+                        </button>
+                        <button type="button" class="c360-communication-action-row c360-communication-action-row--active" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-chat-dots"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Follow-up</span>
+                            </span>
+                            <i class="bi bi-chevron-right c360-communication-action-chevron"></i>
+                        </button>
+                        <div class="c360-communication-action-row c360-communication-action-row--disabled" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-arrow-repeat"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Refund Confirmation</span>
+                                <span class="c360-communication-action-helper">Not eligible for this incident</span>
+                            </span>
+                        </div>
+                        <div class="c360-communication-action-row c360-communication-action-row--disabled" role="listitem">
+                            <span class="c360-communication-action-icon-wrap"><i class="bi bi-person-x"></i></span>
+                            <span class="c360-communication-action-content">
+                                <span class="c360-communication-action-title">Send Customer Not Responding</span>
+                                <span class="c360-communication-action-helper">Sent today</span>
+                            </span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -112,7 +112,7 @@ class Customer360CommunicationActionStatusPresenterTest extends TestCase
         $this->assertSame('Send Review Request', $reviewRequest['display_name']);
         $this->assertFalse($reviewRequest['clickable']);
         $this->assertSame(
-            'Review requests can be sent after support work is completed or the service case is resolved.',
+            'Available after the support request is completed.',
             $reviewRequest['helper_text'],
         );
     }

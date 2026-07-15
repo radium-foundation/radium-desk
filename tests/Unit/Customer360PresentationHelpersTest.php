@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Support\Customer360\Customer360AgentNamePresenter;
 use App\Support\Customer360\Customer360CommunicationActionDisplayName;
+use App\Support\Customer360\Customer360CommunicationActionHelperTextPresenter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -46,6 +47,37 @@ class Customer360PresentationHelpersTest extends TestCase
             'driver guide' => ['driver_installation_guide', 'Driver Installation Guide', 'Send Driver Installation Guide'],
             'buy product unchanged' => ['buy_product', 'Buy Product', 'Buy Product'],
             'buy rd service unchanged' => ['buy_rd_service', 'Buy RD Service', 'Buy RD Service'],
+        ];
+    }
+
+    #[DataProvider('communicationActionHelperTextProvider')]
+    public function test_communication_action_helper_text_presenter(string $statusLabel, string $status, string $expected): void
+    {
+        $this->assertSame($expected, Customer360CommunicationActionHelperTextPresenter::for($statusLabel, $status));
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: string, 2: string}>
+     */
+    public static function communicationActionHelperTextProvider(): array
+    {
+        return [
+            'review request' => [
+                'Review requests can be sent after support work is completed or the service case is resolved.',
+                'not_eligible',
+                'Available after the support request is completed.',
+            ],
+            'refund confirmation' => [
+                'Refund confirmation can be sent only after a refund has been completed for this case.',
+                'not_eligible',
+                'Available after the refund is completed.',
+            ],
+            'permission' => [
+                'You do not have permission to run this communication action.',
+                'not_eligible',
+                'You do not have permission for this action.',
+            ],
+            'sent status preserved' => ['Sent today', 'sent', 'Sent today'],
         ];
     }
 }

@@ -198,7 +198,7 @@ class CommunicationActionExecutionTest extends TestCase
         $response->assertSee('data-customer-360-section="communication-actions"', false);
         $response->assertSee('Communication Actions');
         $response->assertSee('data-communication-action-key="refund_confirmation"', false);
-        $response->assertSee('You do not have permission to run this communication action.', false);
+        $response->assertSee('You do not have permission for this action.', false);
         $response->assertDontSee('data-workspace-communication-action-key="refund_confirmation"', false);
         $response->assertDontSee('>Available<', false);
         $response->assertDontSee('c360-status-banner--compact', false);

@@ -9840,22 +9840,31 @@ body.customer-360-drawer-open {
     gap: 0.625rem;
 }
 
+[data-customer-360-section="communication-actions"] .customer-360-section-title {
+    margin-bottom: 0.5rem;
+}
+
 .c360-communication-actions-list {
-    border: 1px solid var(--dashboard-border-subtle, rgba(148, 163, 184, 0.22));
-    border-radius: 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 0.875rem;
     background: var(--dashboard-color-surface, #fff);
+    box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.04),
+        0 8px 24px rgba(15, 23, 42, 0.03);
     overflow: hidden;
 }
 
 .c360-communication-action-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.875rem;
+    column-gap: 0.625rem;
     width: 100%;
     margin: 0;
-    padding: 1.125rem 1.25rem;
+    padding: 0.625rem 1rem;
+    min-height: 2.625rem;
     border: 0;
-    border-bottom: 1px solid var(--dashboard-border-subtle, rgba(148, 163, 184, 0.16));
+    border-bottom: 1px solid rgba(148, 163, 184, 0.04);
     background: transparent;
     text-align: left;
     color: inherit;
@@ -9867,17 +9876,21 @@ body.customer-360-drawer-open {
 
 .c360-communication-action-row--active {
     cursor: pointer;
-    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    transition: background-color 0.15s ease;
 }
 
 .c360-communication-action-row--active:hover,
 .c360-communication-action-row--active:focus-visible {
-    background: rgba(15, 23, 42, 0.03);
+    background: rgba(15, 23, 42, 0.025);
     outline: none;
 }
 
+.c360-communication-action-row--active:hover .c360-communication-action-icon-wrap,
+.c360-communication-action-row--active:focus-visible .c360-communication-action-icon-wrap {
+    background: rgba(148, 163, 184, 0.1);
+}
+
 .c360-communication-action-row--disabled {
-    opacity: 0.58;
     cursor: default;
 }
 
@@ -9886,52 +9899,90 @@ body.customer-360-drawer-open {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 1.375rem;
+    height: 1.375rem;
     border-radius: 999px;
-    background: rgba(148, 163, 184, 0.14);
-    color: #475569;
+    background: rgba(148, 163, 184, 0.06);
+    color: #64748b;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .c360-communication-action-row--disabled .c360-communication-action-icon-wrap {
     color: #94a3b8;
+    background: rgba(148, 163, 184, 0.05);
 }
 
 .c360-communication-action-icon-wrap .bi {
-    font-size: 1rem;
+    display: block;
+    font-size: 0.75rem;
     line-height: 1;
 }
 
 .c360-communication-action-content {
     display: flex;
     flex-direction: column;
-    gap: 0.125rem;
+    justify-content: center;
+    gap: 0.1875rem;
     min-width: 0;
-    flex: 1 1 auto;
 }
 
 .c360-communication-action-title {
-    font-size: 1rem;
-    font-weight: 600;
-    line-height: 1.35;
-    color: #0f172a;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    color: var(--dashboard-color-heading, #0f172a);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .c360-communication-action-row--disabled .c360-communication-action-title {
-    color: #64748b;
+    color: #6b7280;
+    font-weight: 600;
 }
 
 .c360-communication-action-helper {
-    font-size: 0.8125rem;
-    line-height: 1.4;
-    color: #64748b;
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.2;
+    color: var(--dashboard-color-muted, #94a3b8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .c360-communication-action-chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
-    margin-left: auto;
-    font-size: 0.875rem;
-    color: #94a3b8;
+    width: 0.875rem;
+    height: 0.875rem;
+    font-size: 0.6875rem;
+    line-height: 1;
+    color: #cbd5e1;
+}
+
+@media (max-width: 991.98px) {
+    .c360-communication-action-row {
+        padding: 0.5625rem 0.875rem;
+        column-gap: 0.5rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .c360-communication-action-row {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .c360-communication-action-title {
+        font-size: 0.875rem;
+    }
+
+    .c360-communication-action-helper {
+        font-size: 0.6875rem;
+    }
 }
 
 .customer-360-communication-action-card {

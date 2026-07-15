@@ -178,11 +178,14 @@ final class Customer360CommunicationActionStatusPresenter
         bool $showAlreadySent,
     ): array {
         $clickable = $eligible && $status !== 'skipped';
-        $helperText = match (true) {
+        $rawHelperText = match (true) {
             ! $eligible => $statusLabel,
             $status === 'sent', $status === 'skipped' => $statusLabel,
             default => null,
         };
+        $helperText = $rawHelperText !== null
+            ? Customer360CommunicationActionHelperTextPresenter::for($rawHelperText, $status)
+            : null;
 
         return [
             'key' => $actionKey,

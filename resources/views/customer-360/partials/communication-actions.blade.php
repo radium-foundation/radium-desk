@@ -30,7 +30,7 @@
                         </span>
                         <span class="c360-communication-action-content">
                             <span class="c360-communication-action-title">{{ $action['display_name'] }}</span>
-                            @if(filled($action['helper_text'] ?? null))
+                            @if(! $action['clickable'] && filled($action['helper_text'] ?? null))
                                 <span class="c360-communication-action-helper">{{ $action['helper_text'] }}</span>
                             @endif
                         </span>
@@ -49,7 +49,7 @@
                         </span>
                         <span class="c360-communication-action-content">
                             <span class="c360-communication-action-title">{{ $action['display_name'] }}</span>
-                            @if(filled($action['helper_text'] ?? null))
+                            @if(! $action['clickable'] && filled($action['helper_text'] ?? null))
                                 <span class="c360-communication-action-helper">{{ $action['helper_text'] }}</span>
                             @endif
                         </span>

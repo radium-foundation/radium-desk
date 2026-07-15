@@ -144,8 +144,7 @@ class ReviewRequestCommunicationActionTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-communication-action-key="review_request"', false)
-            ->assertSee('data-communication-action-status="sent"', false)
-            ->assertSee('Sent today', false);
+            ->assertSee('data-communication-action-status="sent"', false);
     }
 
     public function test_opening_review_request_dialog_records_opened_lifecycle_event(): void
