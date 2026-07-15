@@ -20,6 +20,7 @@ import { initCorrectCustomerDetailsDialog } from './workspace/correct-customer-d
 import { initCorrectDeviceModelDialog } from './workspace/correct-device-model-dialog';
 import { initCorrectSerialNumberDialog } from './workspace/correct-serial-number-dialog';
 import { initCommunicationCenterForm } from './workspace/communication-center-form';
+import { initWorkspaceDialogShell } from './workspace/dialog-shell';
 import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
@@ -653,6 +654,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (component === 'communication-action') {
                 initCommunicationCenterForm(modalContent);
             }
+
+            initWorkspaceDialogShell(modalHost, modalContent);
         },
         afterClose: (host) => {
             host?.classList.remove('workspace-modal--compact');

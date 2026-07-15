@@ -7456,6 +7456,161 @@ body.customer-360-drawer-open {
     overflow: hidden;
 }
 
+/* Workspace modal shell — shared layout for all Customer360 / dashboard dialogs */
+[data-workspace-modal-host].modal {
+    --bs-modal-zindex: 1095;
+    z-index: 1095;
+}
+
+.modal-backdrop.workspace-modal-backdrop {
+    z-index: 1090;
+}
+
+[data-workspace-modal-host] .modal-dialog {
+    width: calc(100vw - 2rem);
+    max-width: min(52rem, calc(100vw - 2rem));
+    margin-left: auto;
+    margin-right: auto;
+}
+
+[data-workspace-modal-host] .modal-content {
+    max-height: min(90vh, 100%);
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 1.5rem 3rem rgba(15, 23, 42, 0.18);
+}
+
+[data-workspace-modal-host] .modal-content > form {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: min(90vh, 100%);
+}
+
+[data-workspace-modal-host] .modal-content > form > .modal-header,
+[data-workspace-modal-host] .modal-content > form > .c360-dialog-header {
+    flex-shrink: 0;
+}
+
+[data-workspace-modal-host] .modal-content > form > .modal-body,
+[data-workspace-modal-host] .modal-content > form > .workspace-note-dialog-body,
+[data-workspace-modal-host] .modal-content > form > .workspace-action-dialog-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+[data-workspace-modal-host] .modal-content > form > .modal-footer,
+[data-workspace-modal-host] .modal-content > form > .c360-dialog-footer,
+[data-workspace-modal-host] .modal-content > form > .workspace-action-dialog-footer {
+    flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 0;
+    padding-top: 0.75rem;
+    background: var(--bs-modal-bg, #fff);
+    border-top: 1px solid var(--bs-border-color-translucent);
+}
+
+.workspace-discard-confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.workspace-discard-confirm.is-visible {
+    display: flex;
+}
+
+.workspace-discard-confirm__panel {
+    width: min(24rem, 100%);
+    padding: 1.25rem;
+    border-radius: 0.75rem;
+    background: var(--bs-modal-bg, #fff);
+    box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.2);
+}
+
+.workspace-discard-confirm__title {
+    margin: 0 0 0.375rem;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.workspace-discard-confirm__text {
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+
+.workspace-discard-confirm__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.workspace-info-dl {
+    margin: 0;
+}
+
+.workspace-info-dl-row {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 7.5rem) 1fr;
+    gap: 0.375rem 0.75rem;
+    align-items: baseline;
+    margin: 0 0 0.625rem;
+}
+
+.workspace-info-dl-row:last-child {
+    margin-bottom: 0;
+}
+
+.workspace-info-dl-row dt {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.workspace-info-dl-row dd {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--bs-body-color);
+}
+
+.workspace-info-dl-row--emphasis dd {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--bs-primary);
+}
+
+.workspace-info-dl-row dd .c360-dialog-status-chip {
+    vertical-align: middle;
+}
+
+@media (max-width: 575.98px) {
+    [data-workspace-modal-host] .modal-dialog {
+        width: calc(100vw - 1rem);
+        max-width: calc(100vw - 1rem);
+        margin: 0.5rem auto;
+    }
+
+    .workspace-info-dl-row {
+        grid-template-columns: 1fr;
+        gap: 0.125rem;
+    }
+}
+
 [data-workspace-modal-host].workspace-modal--action .modal-dialog {
     max-width: 42.5rem;
 }

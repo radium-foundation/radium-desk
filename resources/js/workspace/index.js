@@ -5,6 +5,10 @@ import {
 } from './context';
 import { createActionHost, initActionHost } from './action-host';
 import { createBusyStateManager } from './busy-state';
+import {
+    elevateWorkspaceModalBackdrop,
+    resetWorkspaceModalBackdrop,
+} from './dialog-shell';
 import { createFragmentLoader } from './fragment-loader';
 import { createLifecycleRunner } from './lifecycle';
 import { createResponseHandler } from './response-handler';
@@ -63,10 +67,12 @@ export const initWorkspace = (hooks = {}) => {
 
     host.addEventListener('shown.bs.modal', () => {
         getWorkspaceSession().acquire('workspace-modal');
+        elevateWorkspaceModalBackdrop();
     });
 
     host.addEventListener('hidden.bs.modal', () => {
         getWorkspaceSession().release('workspace-modal');
+        resetWorkspaceModalBackdrop();
         lifecycle.run('afterClose', host);
     });
 

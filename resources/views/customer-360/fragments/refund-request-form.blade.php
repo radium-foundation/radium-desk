@@ -38,6 +38,12 @@
     $paymentStatus = $order?->isCashfreeVerified()
         ? 'Verified'
         : (filled($order?->transaction_id) ? 'Recorded' : null);
+    $paymentStatusChipType = match ($paymentStatus) {
+        'Verified', 'Recorded', 'Paid' => 'pass',
+        'Pending' => 'warning',
+        'Failed' => 'fail',
+        default => 'info',
+    };
     $hasPaymentSummary = $paymentGateway !== null
         || $paymentStatus !== null
         || $order?->payment_date !== null
@@ -47,7 +53,7 @@
 <form method="POST"
       action="{{ $workspaceActionUrl }}"
       data-workspace-action-form="refund-request"
-      class="workspace-note-dialog c360-dialog refund-request-dialog">
+      class="workspace-note-dialog workspace-dialog-shell c360-dialog refund-request-dialog">
     @csrf
     <input type="hidden" name="workspace_context" value="{{ $workspaceContext }}">
 
@@ -69,67 +75,57 @@
             </div>
         @else
             <x-c360.section-card title="Context" heading-id="refund-request-context-heading" class="mb-3">
-                <dl class="request-serial-dialog-dl mb-0">
-                    <div class="request-serial-dialog-dl-row">
-                        <dt>Customer Name</dt>
-                        <dd>{{ filled($order->customer_name) ? $order->customer_name : 'Not Available' }}</dd>
-                    </div>
-                    <div class="request-serial-dialog-dl-row">
-                        <dt>Order ID</dt>
-                        <dd>{{ $order->order_id }}</dd>
-                    </div>
-                    <div class="request-serial-dialog-dl-row">
-                        <dt>Case / Incident</dt>
-                        <dd>{{ $incident->reference_no }} — {{ $incident->title }}</dd>
-                    </div>
-                </dl>
+                <x-c360.workspace-info-dl>
+                    <x-c360.workspace-info-row label="Customer">
+                        {{ filled($order->customer_name) ? $order->customer_name : 'Not Available' }}
+                    </x-c360.workspace-info-row>
+                    <x-c360.workspace-info-row label="Order">
+                        {{ $order->order_id }}
+                    </x-c360.workspace-info-row>
+                    <x-c360.workspace-info-row label="Case">
+                        {{ $incident->reference_no }} — {{ $incident->title }}
+                    </x-c360.workspace-info-row>
+                </x-c360.workspace-info-dl>
             </x-c360.section-card>
 
             <x-c360.section-card title="Refund Summary" heading-id="refund-request-summary-heading" class="mb-3">
-                <dl class="request-serial-dialog-dl mb-0">
-                    <div class="request-serial-dialog-dl-row">
-                        <dt>Paid Amount</dt>
-                        <dd>₹{{ number_format($calculation?->totalPaidAmount ?? 0, 2) }}</dd>
-                    </div>
-                    <div class="request-serial-dialog-dl-row">
-                        <dt>Already Refunded</dt>
-                        <dd>₹{{ number_format($calculation?->alreadyRefundedAmount ?? 0, 2) }}</dd>
-                    </div>
-                    <div class="request-serial-dialog-dl-row">
-                        <dt>Maximum Refundable</dt>
-                        <dd class="fw-semibold">₹{{ number_format($calculation?->maximumRefundable ?? 0, 2) }}</dd>
-                    </div>
-                </dl>
+                <x-c360.workspace-info-dl>
+                    <x-c360.workspace-info-row label="Paid Amount">
+                        ₹{{ number_format($calculation?->totalPaidAmount ?? 0, 2) }}
+                    </x-c360.workspace-info-row>
+                    <x-c360.workspace-info-row label="Already Refunded">
+                        ₹{{ number_format($calculation?->alreadyRefundedAmount ?? 0, 2) }}
+                    </x-c360.workspace-info-row>
+                    <x-c360.workspace-info-row label="Maximum Refundable" :emphasis="true">
+                        ₹{{ number_format($calculation?->maximumRefundable ?? 0, 2) }}
+                    </x-c360.workspace-info-row>
+                </x-c360.workspace-info-dl>
             </x-c360.section-card>
 
             @if($hasPaymentSummary)
                 <x-c360.section-card title="Payment Summary" heading-id="refund-request-payment-summary-heading" class="mb-3">
-                    <dl class="request-serial-dialog-dl mb-0">
+                    <x-c360.workspace-info-dl>
                         @if($paymentGateway !== null)
-                            <div class="request-serial-dialog-dl-row">
-                                <dt>Payment Gateway</dt>
-                                <dd>{{ $paymentGateway }}</dd>
-                            </div>
+                            <x-c360.workspace-info-row label="Payment Gateway">
+                                {{ $paymentGateway }}
+                            </x-c360.workspace-info-row>
                         @endif
                         @if($paymentStatus !== null)
-                            <div class="request-serial-dialog-dl-row">
-                                <dt>Payment Status</dt>
-                                <dd>{{ $paymentStatus }}</dd>
-                            </div>
+                            <x-c360.workspace-info-row label="Payment Status">
+                                <x-c360.status-chip :type="$paymentStatusChipType" :label="$paymentStatus" />
+                            </x-c360.workspace-info-row>
                         @endif
                         @if($order->payment_date !== null)
-                            <div class="request-serial-dialog-dl-row">
-                                <dt>Payment Date</dt>
-                                <dd>{{ display_app_datetime($order->payment_date) }}</dd>
-                            </div>
+                            <x-c360.workspace-info-row label="Payment Date">
+                                {{ display_app_datetime($order->payment_date) }}
+                            </x-c360.workspace-info-row>
                         @endif
                         @if(filled($order->transaction_id))
-                            <div class="request-serial-dialog-dl-row">
-                                <dt>Payment Reference</dt>
-                                <dd>{{ $order->transaction_id }}</dd>
-                            </div>
+                            <x-c360.workspace-info-row label="Payment Reference">
+                                {{ $order->transaction_id }}
+                            </x-c360.workspace-info-row>
                         @endif
-                    </dl>
+                    </x-c360.workspace-info-dl>
                 </x-c360.section-card>
             @endif
 

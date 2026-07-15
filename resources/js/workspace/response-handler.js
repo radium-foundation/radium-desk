@@ -1,5 +1,6 @@
 import { applyKpis as applyDashboardKpis } from '../live-dashboard';
 import { maybeShowSuccessState } from './c360-dialog';
+import { allowWorkspaceModalClose, initWorkspaceDialogShell } from './dialog-shell';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -112,6 +113,11 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
             applyFragments(data.refresh?.fragments, host, hooks);
             applyTargets(data.refresh?.targets, hooks);
             showToast(data.toast, data.message);
+
+            if (host) {
+                initWorkspaceDialogShell(host, host.querySelector('[data-workspace-modal-content]'));
+            }
+
             return;
         }
 
@@ -137,6 +143,7 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
 
         if (data.ui?.close_workspace_host) {
             showedSuccessState = await maybeShowSuccessState(host, data);
+            allowWorkspaceModalClose(host);
             closeWorkspaceHost(host);
         }
 
