@@ -79,6 +79,44 @@ class AppDateFormatter
         return $localized?->diffForHumans();
     }
 
+    public static function timelineOperatorRelative(?CarbonInterface $date): ?string
+    {
+        $localized = self::inAppTimezone($date);
+
+        if ($localized === null) {
+            return null;
+        }
+
+        $now = now(self::timezone());
+        $elapsedSeconds = $localized->diffInSeconds($now, false);
+
+        if ($elapsedSeconds <= 59) {
+            return 'Just now';
+        }
+
+        if ($elapsedSeconds <= 3599) {
+            $minutes = max(1, (int) floor($elapsedSeconds / 60));
+
+            return "{$minutes} min ago";
+        }
+
+        $today = $now->copy()->startOfDay();
+        $eventDay = $localized->copy()->startOfDay();
+        $time = self::timelineTime($localized) ?? $localized->format('h:i A');
+
+        if ($eventDay->equalTo($today)) {
+            return "Today • {$time}";
+        }
+
+        if ($eventDay->equalTo($today->copy()->subDay())) {
+            return "Yesterday • {$time}";
+        }
+
+        $dateLabel = self::format($localized, 'j M') ?? $localized->format('j M');
+
+        return "{$dateLabel} • {$time}";
+    }
+
     public static function gridCompactDatetime(?CarbonInterface $date): ?string
     {
         return self::format($date, 'd M H:i');

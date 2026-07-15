@@ -2,14 +2,14 @@
 
 namespace App\Services\Timeline\Mappers;
 
-use App\Data\TimelineActor;
 use App\Data\TimelineEvent;
 use App\Enums\NotificationChannelType;
-use App\Enums\TimelineActorKind;
 use App\Enums\TimelineEventType;
 use App\Models\AuditLog;
 use App\Services\AutomationIdentityService;
 use App\Services\Notifications\NotificationAuditTrailService;
+use App\Support\Timeline\TimelineActorPresenter;
+use App\Support\Timeline\TimelineCommunicationTitleMapper;
 use Illuminate\Support\Collection;
 
 class NotificationTimelineEventMapper
@@ -28,169 +28,135 @@ class NotificationTimelineEventMapper
             return collect();
         }
 
-        $actor = $this->automationIdentity->resolve($auditLog->user);
+        $actor = TimelineActorPresenter::for(
+            $this->automationIdentity->resolve($auditLog->user),
+        )->normalizedActor();
         $notificationType = (string) ($auditLog->new_values['notification_type'] ?? 'Notification');
-        $events = collect();
+        $channels = $this->buildCommunicationChannels($auditLog);
+        $aggregateSuccess = (bool) ($auditLog->new_values['aggregate_success'] ?? false);
+        $summaryFields = $this->buildExpandedMetadata($auditLog, $notificationType, $channels);
+        $title = TimelineCommunicationTitleMapper::titleFor($notificationType);
 
-        foreach ($auditLog->new_values['channel_results'] ?? [] as $index => $record) {
+        return collect([
+            new TimelineEvent(
+                type: TimelineEventType::Notification,
+                occurredAt: $auditLog->created_at,
+                title: $title,
+                actor: $actor,
+                dedupeKey: "notification:audit:{$auditLog->id}",
+                detail: $this->buildExpandedDetail($auditLog, $channels),
+                statusLabel: null,
+                statusVariant: null,
+                summaryFields: $summaryFields,
+                filterTags: ['notifications'],
+                communicationChannels: $channels,
+                indicatorVariant: $aggregateSuccess ? 'success' : 'danger',
+                storyKey: TimelineCommunicationTitleMapper::storyKeyFor($notificationType, (int) $auditLog->id),
+            ),
+        ]);
+    }
+
+    /**
+     * @return list<array{label: string, success: bool, detail?: string}>
+     */
+    private function buildCommunicationChannels(AuditLog $auditLog): array
+    {
+        $channels = [];
+
+        foreach ($auditLog->new_values['channel_results'] ?? [] as $record) {
             if (! is_array($record)) {
                 continue;
             }
 
-            $mapped = $this->mapChannelResult(
-                auditLog: $auditLog,
-                record: $record,
-                actor: $actor,
-                notificationType: $notificationType,
-                index: (int) $index,
-            );
+            $channel = NotificationChannelType::tryFrom((string) ($record['channel'] ?? ''));
 
-            if ($mapped !== null) {
-                $events->push($mapped);
+            if ($channel === null) {
+                continue;
             }
+
+            $success = (bool) ($record['success'] ?? false);
+            $status = strtolower((string) ($record['status'] ?? ''));
+            $detail = trim((string) ($record['message'] ?? ''));
+
+            if ($detail === '' && ! in_array($status, ['delivered', 'sent', 'queued', 'retry'], true)) {
+                $detail = 'Delivery status unavailable.';
+            }
+
+            $channels[] = array_filter([
+                'label' => $channel === NotificationChannelType::Email ? 'Email' : 'WhatsApp',
+                'success' => $success,
+                'detail' => $detail !== '' ? $detail : null,
+            ]);
         }
 
-        if ($events->isEmpty()) {
-            $events->push(new TimelineEvent(
-                type: TimelineEventType::Notification,
-                occurredAt: $auditLog->created_at,
-                title: 'Notification dispatched',
-                actor: $actor,
-                dedupeKey: "notification:audit:{$auditLog->id}",
-                detail: (string) ($auditLog->new_values['aggregate_message'] ?? 'No channel results recorded.'),
-                statusLabel: ($auditLog->new_values['aggregate_success'] ?? false) ? 'Sent' : 'Failed',
-                statusVariant: ($auditLog->new_values['aggregate_success'] ?? false) ? 'success' : 'danger',
-                filterTags: ['notifications'],
-            ));
+        if ($channels !== []) {
+            return $channels;
         }
 
-        return $events;
+        return [[
+            'label' => 'Notification',
+            'success' => (bool) ($auditLog->new_values['aggregate_success'] ?? false),
+            'detail' => (string) ($auditLog->new_values['aggregate_message'] ?? 'No channel results recorded.'),
+        ]];
     }
 
     /**
-     * @param  array<string, mixed>  $record
+     * @param  list<array{label: string, success: bool, detail?: string}>  $channels
+     * @return list<array{label: string, value: string}>
      */
-    private function mapChannelResult(
-        AuditLog $auditLog,
-        array $record,
-        TimelineActor $actor,
-        string $notificationType,
-        int $index,
-    ): ?TimelineEvent {
-        $channel = NotificationChannelType::tryFrom((string) ($record['channel'] ?? ''));
+    private function buildExpandedMetadata(AuditLog $auditLog, string $notificationType, array $channels): array
+    {
+        $metadata = [];
 
-        if ($channel === null || $auditLog->created_at === null) {
-            return null;
+        foreach ($channels as $channel) {
+            $status = ($channel['success'] ?? false) ? 'Delivered' : 'Failed';
+            $metadata[] = [
+                'label' => $channel['label'],
+                'value' => isset($channel['detail']) && $channel['detail'] !== ''
+                    ? "{$status} — {$channel['detail']}"
+                    : $status,
+            ];
         }
-
-        $status = strtolower((string) ($record['status'] ?? ''));
-        $success = (bool) ($record['success'] ?? false);
-        $channelLabel = $channel === NotificationChannelType::Email ? 'Email' : 'WhatsApp';
-        $title = $this->channelTitle($channelLabel, $status, $success, $notificationType);
-        $eventType = $channel === NotificationChannelType::Email
-            ? TimelineEventType::Email
-            : TimelineEventType::WhatsApp;
-
-        [$statusLabel, $statusVariant] = $this->statusPresentation($status, $success);
-        $detail = $this->channelDetail($record, $status);
-        $summaryFields = [
-            ['label' => 'Type', 'value' => $this->notificationTypeLabel($notificationType)],
-            ['label' => 'Channel', 'value' => $channelLabel],
-        ];
 
         $serialCorrection = $auditLog->new_values['serial_correction'] ?? null;
 
         if (is_array($serialCorrection)) {
             if (filled($serialCorrection['old_serial'] ?? null)) {
-                $summaryFields[] = ['label' => 'Previous serial', 'value' => (string) $serialCorrection['old_serial']];
+                $metadata[] = ['label' => 'Previous serial', 'value' => (string) $serialCorrection['old_serial']];
             }
 
             if (filled($serialCorrection['confidence'] ?? null)) {
-                $summaryFields[] = ['label' => 'Confidence', 'value' => (string) $serialCorrection['confidence']];
+                $metadata[] = ['label' => 'Confidence', 'value' => (string) $serialCorrection['confidence']];
             }
         }
 
-        return new TimelineEvent(
-            type: $eventType,
-            occurredAt: $auditLog->created_at,
-            title: $title,
-            actor: new TimelineActor(
-                displayName: $actor->displayName,
-                subtitle: $actor->subtitle,
-                isAutomation: $actor->isAutomation,
-                kind: $actor->isAutomation ? TimelineActorKind::Automation : TimelineActorKind::Agent,
-            ),
-            dedupeKey: "notification:audit:{$auditLog->id}:{$index}",
-            detail: $detail,
-            statusLabel: $statusLabel,
-            statusVariant: $statusVariant,
-            summaryFields: $summaryFields,
-            filterTags: ['notifications'],
-        );
-    }
+        if ($this->automationIdentity->resolve($auditLog->user)->isAutomation) {
+            $metadata[] = ['label' => 'Origin', 'value' => 'IRA automation'];
+        }
 
-    private function notificationTypeLabel(string $notificationType): string
-    {
-        return match ($notificationType) {
-            'request_correct_serial' => 'Request correct serial',
-            'request_serial_number' => 'Request serial number',
-            'driver_installation_guide' => 'Driver installation guide',
-            'review_request' => 'Review request',
-            'refund_confirmation' => 'Refund confirmation',
-            'buy_rd_service' => 'Buy RD Service',
-            'buy_product' => 'Buy product',
-            default => str_replace('_', ' ', $notificationType),
-        };
-    }
-
-    private function channelTitle(string $channelLabel, string $status, bool $success, string $notificationType = ''): string
-    {
-        $prefix = $notificationType === 'request_correct_serial'
-            ? 'Serial correction'
-            : $channelLabel;
-
-        return match (true) {
-            $status === 'queued' => "{$prefix} queued",
-            $status === 'delivered' => "{$prefix} delivered",
-            $status === 'sent' && $success => $notificationType === 'request_correct_serial'
-                ? 'Serial correction request sent'
-                : "{$channelLabel} sent",
-            $status === 'retry' => "{$channelLabel} retry",
-            ! $success => "{$channelLabel} failed",
-            default => "{$channelLabel} sent",
-        };
+        return $metadata;
     }
 
     /**
-     * @return array{0: string, 1: string}
+     * @param  list<array{label: string, success: bool, detail?: string}>  $channels
      */
-    private function statusPresentation(string $status, bool $success): array
+    private function buildExpandedDetail(AuditLog $auditLog, array $channels): ?string
     {
-        return match (true) {
-            $status === 'queued' => ['Queued', 'pending'],
-            $status === 'delivered' => ['Delivered', 'success'],
-            $status === 'sent' && $success => ['Sent', 'success'],
-            $status === 'retry' => ['Retry', 'warning'],
-            ! $success => ['Failed', 'danger'],
-            default => ['Sent', 'success'],
-        };
-    }
+        $lines = collect($channels)
+            ->map(function (array $channel): string {
+                $status = ($channel['success'] ?? false) ? 'success' : 'failed';
+                $detail = $channel['detail'] ?? null;
 
-    /**
-     * @param  array<string, mixed>  $record
-     */
-    private function channelDetail(array $record, string $status): ?string
-    {
-        $message = trim((string) ($record['message'] ?? ''));
+                return $detail !== null && $detail !== ''
+                    ? "{$channel['label']}: {$status} — {$detail}"
+                    : "{$channel['label']}: {$status}";
+            })
+            ->all();
 
-        if ($message !== '') {
-            return $message;
+        if ($lines === []) {
+            return (string) ($auditLog->new_values['aggregate_message'] ?? null) ?: null;
         }
 
-        if (! in_array($status, ['delivered', 'sent', 'queued', 'retry'], true)) {
-            return 'Delivery status unavailable.';
-        }
-
-        return null;
+        return implode("\n", $lines);
     }
 }

@@ -5,76 +5,72 @@
 @php
     use App\Enums\TimelineEventType;
     use App\Services\RemarkMentionFormatter;
+    use App\Support\Timeline\TimelineActorPresenter;
 
     $isInternalNote = $event->type === TimelineEventType::InternalNote;
-    $hasStructuredSummary = $event->summaryFields !== [];
     $mentionFormatter = app(RemarkMentionFormatter::class);
-
-    $description = null;
-
-    if ($isInternalNote && filled($event->noteBody)) {
-        $description = $event->noteBody;
-    } elseif ($hasStructuredSummary) {
-        $description = collect($event->summaryFields)
-            ->map(fn (array $field): string => "{$field['label']}: {$field['value']}")
-            ->implode("\n");
-    } elseif ($event->isDetailExpandable()) {
-        $description = $event->collapsedDetailPreview();
-    } elseif (filled($event->detail)) {
-        $description = $event->detail;
-    } elseif (filled($event->summary)) {
-        $description = $event->summary;
-    }
+    $actorPresenter = TimelineActorPresenter::for($event->actor);
+    $indicatorVariant = $event->indicatorVariant ?? 'muted';
+    $hasCommunicationChannels = $event->communicationChannels !== [];
+    $hasExpandedMetadata = $event->summaryFields !== [] || ($event->detail !== null && ! $isInternalNote);
 @endphp
 
 <article @class([
         'c360-activity-item',
         'c360-activity-item--' . $event->type->value,
+        'c360-activity-item--indicator-' . $indicatorVariant,
     ])
          role="listitem"
          data-timeline-event
+         @if($event->storyKey) data-timeline-story-key="{{ $event->storyKey }}" @endif
          data-timeline-filter="{{ implode(',', $event->allFilterTags()) }}">
     <div class="c360-activity-item-indicator" aria-hidden="true"></div>
 
-    <div class="c360-activity-item-icon unified-timeline-icon unified-timeline-icon--{{ $event->type->value }}"
-         aria-hidden="true">
-        <i class="bi {{ $event->iconClass() }}"></i>
-    </div>
-
     <div class="c360-activity-item-body">
         <div class="c360-activity-item-header">
-            <div class="c360-activity-item-heading">
-                <span class="c360-activity-item-type">{{ $event->type->label() }}</span>
-                <h5 class="c360-activity-item-title">{{ $event->title }}</h5>
-            </div>
+            <h5 class="c360-activity-item-title">{{ $event->title }}</h5>
             <time class="c360-activity-item-time unified-timeline-time"
                   datetime="{{ $event->occurredAt->toIso8601String() }}"
                   title="{{ $event->exactTimestamp() }}">
-                @if($isInternalNote)
-                    {{ display_app_timeline_datetime($event->occurredAt) }}
-                @else
-                    {{ $event->relativeTimestamp() }}
-                @endif
+                {{ $event->relativeTimestamp() }}
             </time>
         </div>
 
-        @if($description !== null)
-            <div class="c360-activity-item-description unified-timeline-detail">
-                @if($isInternalNote)
-                    {!! $mentionFormatter->format($description) !!}
-                @else
-                    {{ $description }}
-                @endif
-            </div>
+        @if(filled($event->contextLine))
+            <p class="c360-activity-item-context">{{ $event->contextLine }}</p>
         @endif
 
-        @if($event->actor->isVisible())
+        @if($hasCommunicationChannels)
+            <ul class="c360-activity-item-channels" aria-label="Delivery channels">
+                @foreach($event->communicationChannels as $channel)
+                    <li @class([
+                        'c360-activity-item-channel',
+                        'is-success' => $channel['success'] ?? false,
+                        'is-failed' => ! ($channel['success'] ?? false),
+                    ])>
+                        <span class="c360-activity-item-channel-mark" aria-hidden="true">
+                            {{ ($channel['success'] ?? false) ? '✓' : '✖' }}
+                        </span>
+                        <span>{{ $channel['label'] }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+
+        @if($isInternalNote && filled($event->noteBody))
+            <div class="c360-activity-item-description unified-timeline-detail unified-timeline-note-body">
+                {!! $mentionFormatter->format($event->noteBody) !!}
+            </div>
+        @elseif(! $hasCommunicationChannels && filled($event->summary) && ! $hasExpandedMetadata)
+            <p class="c360-activity-item-context">{{ $event->summary }}</p>
+        @endif
+
+        @if($actorPresenter->compactLabel() !== '')
             <div class="c360-activity-item-actor unified-timeline-actor">
-                <span @class([
-                    'timeline-actor-badge',
-                    'timeline-actor-badge--' . $event->actor->roleVariant(),
-                ])>{{ $event->actor->roleLabel() }}</span>
-                <x-timeline-actor :actor="$event->actor" class="timeline-actor-name" />
+                <span class="timeline-actor-name">
+                    <i class="bi {{ $actorPresenter->iconClass() }} c360-activity-item-actor-icon" aria-hidden="true"></i>
+                    {{ $actorPresenter->compactLabel() }}
+                </span>
             </div>
         @endif
 
@@ -84,24 +80,30 @@
             </div>
         @endif
 
-        @if($event->statusLabel)
-            @php
-                $statusVariant = match ($event->statusVariant ?? 'pending') {
-                    'success', 'sent', 'completed' => 'success',
-                    'failed', 'danger' => 'danger',
-                    'warning' => 'warning',
-                    default => 'info',
-                };
-                $statusIcon = match ($statusVariant) {
-                    'success' => '✓',
-                    'danger' => '✖',
-                    'warning' => '⚠',
-                    default => 'ⓘ',
-                };
-            @endphp
-            <x-c360.status-banner :variant="$statusVariant" :icon="$statusIcon" class="c360-status-banner--compact">
-                {{ $event->statusLabel }}
-            </x-c360.status-banner>
+        @if($hasExpandedMetadata)
+            <details class="c360-activity-item-metadata">
+                <summary>View details</summary>
+                @if($event->summaryFields !== [])
+                    <dl class="c360-activity-item-metadata-fields">
+                        @foreach($event->summaryFields as $field)
+                            <div>
+                                <dt>{{ $field['label'] }}</dt>
+                                <dd>{{ $field['value'] }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                @endif
+                @if(filled($event->detail))
+                    <div class="c360-activity-item-metadata-detail">{{ $event->detail }}</div>
+                @endif
+            </details>
+        @elseif($event->isDetailExpandable())
+            <details class="c360-activity-item-metadata">
+                <summary>View details</summary>
+                <div class="c360-activity-item-metadata-detail">{{ $event->detail }}</div>
+            </details>
+        @elseif(filled($event->detail) && ! $isInternalNote)
+            <p class="c360-activity-item-context">{{ $event->detail }}</p>
         @endif
 
         @if($event->actionUrl && $event->actionLabel)

@@ -8,6 +8,7 @@ use App\Data\TimelineEvent;
 use App\Data\TimelineViewModel;
 use App\Enums\TimelineDayBucket;
 use App\Support\AppDateFormatter;
+use App\Support\Timeline\TimelineGroupResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -98,35 +99,33 @@ class TimelineService
             return collect();
         }
 
-        $today = $this->dayStart(now());
-        $yesterday = $today->copy()->subDay();
+        $reference = AppDateFormatter::inAppTimezone(now()) ?? now();
 
         return $events
-            ->groupBy(function (TimelineEvent $event) use ($today, $yesterday): string {
-                $eventDay = $this->dayStart($event->occurredAt);
-
-                if ($eventDay->equalTo($today)) {
-                    return TimelineDayBucket::Today->value;
-                }
-
-                if ($eventDay->equalTo($yesterday)) {
-                    return TimelineDayBucket::Yesterday->value;
-                }
-
-                return TimelineDayBucket::Earlier->value;
+            ->groupBy(function (TimelineEvent $event) use ($reference): string {
+                return TimelineGroupResolver::resolve($event->occurredAt, $reference)['key'];
             })
-            ->map(function (Collection $groupEvents, string $bucketValue): TimelineDayGroup {
+            ->map(function (Collection $groupEvents, string $groupKey) use ($reference): TimelineDayGroup {
+                $firstEvent = $groupEvents->first();
+                $resolved = TimelineGroupResolver::resolve($firstEvent->occurredAt, $reference);
+
                 return new TimelineDayGroup(
-                    bucket: TimelineDayBucket::from($bucketValue),
+                    bucket: $this->bucketForGroupKey($groupKey),
                     events: $groupEvents->values(),
+                    displayLabel: $resolved['label'],
+                    sortKey: $resolved['sort_key'],
                 );
             })
-            ->sortBy(fn (TimelineDayGroup $group) => $group->bucket->sortOrder())
+            ->sortBy(fn (TimelineDayGroup $group) => $group->sortKey)
             ->values();
     }
 
-    private function dayStart(Carbon $date): Carbon
+    private function bucketForGroupKey(string $groupKey): TimelineDayBucket
     {
-        return AppDateFormatter::inAppTimezone($date)?->startOfDay() ?? $date->copy()->startOfDay();
+        return match (true) {
+            $groupKey === 'today' => TimelineDayBucket::Today,
+            $groupKey === 'yesterday' => TimelineDayBucket::Yesterday,
+            default => TimelineDayBucket::Earlier,
+        };
     }
 }

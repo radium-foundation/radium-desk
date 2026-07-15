@@ -31,7 +31,49 @@ readonly class TimelineEvent
         public ?string $actionUrl = null,
         /** @var list<string> */
         public array $filterTags = [],
+        public bool $operatorVisible = true,
+        public ?string $contextLine = null,
+        /** @var list<array{label: string, success: bool, detail?: string}> */
+        public array $communicationChannels = [],
+        public ?string $indicatorVariant = null,
+        public ?string $storyKey = null,
     ) {}
+
+    public function withOperatorPresentation(
+        ?string $title = null,
+        ?string $contextLine = null,
+        ?TimelineActor $actor = null,
+        ?bool $operatorVisible = null,
+        ?array $communicationChannels = null,
+        ?string $indicatorVariant = null,
+        ?array $summaryFields = null,
+        ?string $statusLabel = null,
+        ?string $statusVariant = null,
+        ?string $storyKey = null,
+    ): self {
+        return new self(
+            type: $this->type,
+            occurredAt: $this->occurredAt,
+            title: $title ?? $this->title,
+            actor: $actor ?? $this->actor,
+            dedupeKey: $this->dedupeKey,
+            summary: $this->summary,
+            detail: $this->detail,
+            statusLabel: $statusLabel ?? $this->statusLabel,
+            statusVariant: $statusVariant ?? $this->statusVariant,
+            noteBody: $this->noteBody,
+            mentionedUserNames: $this->mentionedUserNames,
+            summaryFields: $summaryFields ?? $this->summaryFields,
+            actionLabel: $this->actionLabel,
+            actionUrl: $this->actionUrl,
+            filterTags: $this->filterTags,
+            operatorVisible: $operatorVisible ?? $this->operatorVisible,
+            contextLine: $contextLine ?? $this->contextLine,
+            communicationChannels: $communicationChannels ?? $this->communicationChannels,
+            indicatorVariant: $indicatorVariant ?? $this->indicatorVariant,
+            storyKey: $storyKey ?? $this->storyKey,
+        );
+    }
 
     public function filterCategory(): string
     {
@@ -68,7 +110,7 @@ readonly class TimelineEvent
 
     public function relativeTimestamp(): string
     {
-        return AppDateFormatter::timelineRelative($this->occurredAt) ?? '—';
+        return AppDateFormatter::timelineOperatorRelative($this->occurredAt) ?? '—';
     }
 
     public function exactTimestamp(): string

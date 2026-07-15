@@ -33,6 +33,11 @@ class PrefixedTimelineEventSource implements TimelineEventSource
                     actionLabel: $event->actionLabel,
                     actionUrl: $event->actionUrl,
                     filterTags: $event->filterTags,
+                    operatorVisible: $event->operatorVisible,
+                    contextLine: $event->contextLine,
+                    communicationChannels: $event->communicationChannels,
+                    indicatorVariant: $event->indicatorVariant,
+                    storyKey: $event->storyKey,
                 );
             });
     }

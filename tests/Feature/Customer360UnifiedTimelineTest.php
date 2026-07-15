@@ -91,8 +91,9 @@ class Customer360UnifiedTimelineTest extends TestCase
         $types = $events->map(fn ($event) => $event->type);
 
         $this->assertTrue($types->contains(TimelineEventType::Synchronization));
-        $this->assertTrue($types->contains(TimelineEventType::Email));
+        $this->assertTrue($types->contains(TimelineEventType::Notification));
         $this->assertTrue($types->contains(TimelineEventType::Appointment));
+        $this->assertTrue($events->contains(fn ($event) => $event->title === 'Requested Device Serial Number'));
     }
 
     public function test_unified_timeline_includes_customer_detail_corrections(): void
@@ -156,18 +157,21 @@ class Customer360UnifiedTimelineTest extends TestCase
         [$agent, $incident, $order] = $this->createFixture();
 
         app(AuditLogService::class)->log(
-            userId: null,
-            event: ServiceCaseAutomationMonitorService::EVENT_WAITING_RADIUMBOX,
-            auditable: $incident,
-            newValues: [],
+            userId: $agent->id,
+            event: RadiumBoxSyncAuditService::EVENT_MANUAL_SYNC,
+            auditable: $order,
+            newValues: [
+                'success' => true,
+                'sync_source' => 'manual',
+            ],
         );
 
         $events = $this->flattenTimeline(app(Customer360TimelineService::class)->forIncident($incident));
-        $syncEvent = $events->first(fn ($event) => $event->title === 'Background sync started');
+        $syncEvent = $events->first(fn ($event) => $event->title === 'Manual retry succeeded');
 
         $this->assertNotNull($syncEvent);
         $this->assertTrue($syncEvent->matchesFilter('synchronization'));
-        $this->assertTrue($syncEvent->matchesFilter('system'));
+        $this->assertTrue($syncEvent->matchesFilter('support'));
         $this->assertFalse($syncEvent->matchesFilter('payments'));
     }
 

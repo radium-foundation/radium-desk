@@ -13,10 +13,12 @@ readonly class TimelineDayGroup
     public function __construct(
         public TimelineDayBucket $bucket,
         public Collection $events,
+        public ?string $displayLabel = null,
+        public int $sortKey = 0,
     ) {}
 
     public function label(): string
     {
-        return $this->bucket->label();
+        return $this->displayLabel ?? $this->bucket->label();
     }
 }
