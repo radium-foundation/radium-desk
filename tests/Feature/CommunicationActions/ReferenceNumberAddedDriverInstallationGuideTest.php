@@ -6,6 +6,7 @@ use App\Enums\CommunicationActionKey;
 use App\Enums\WorkspaceContext;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\AuditLog;
 use App\Models\DeviceModel;
 use App\Models\Incident;
@@ -18,6 +19,7 @@ use App\Services\Notifications\NotificationAuditTrailService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class ReferenceNumberAddedDriverInstallationGuideTest extends TestCase
@@ -240,6 +242,125 @@ class ReferenceNumberAddedDriverInstallationGuideTest extends TestCase
 
         $this->assertSame('TXN-BATCH-DRIVER', $firstOrder->fresh()->transaction_id);
         $this->assertSame('TXN-BATCH-DRIVER', $secondOrder->fresh()->transaction_id);
+    }
+
+    public function test_assigning_reference_number_dispatches_driver_guide_job(): void
+    {
+        Queue::fake();
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        [$order] = $this->createOrderWithIncident($admin);
+
+        $this->verifyLegacyOrder($admin, $order);
+
+        $this->actingAs($admin)
+            ->post(route('orders.transaction.store', $order), [
+                'transaction_id' => 'TXN-DRIVER-QUEUED',
+            ])
+            ->assertRedirect(route('orders.show', $order));
+
+        Queue::assertPushed(SendServiceReferenceDriverGuideJob::class, function (SendServiceReferenceDriverGuideJob $job) use ($order, $admin): bool {
+            return $job->orderId === $order->id
+                && $job->serviceReference === 'TXN-DRIVER-QUEUED'
+                && $job->actorId === $admin->id;
+        });
+    }
+
+    public function test_bulk_assignment_completes_before_driver_guide_jobs_run(): void
+    {
+        Queue::fake();
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $deviceModel = DeviceModel::query()->create([
+            'name' => 'MFS 110 Queued Batch',
+            'driver_download_url' => 'https://radiumbox.com/drivers/mfs-110-queued',
+            'display_order' => 1,
+            'is_active' => true,
+        ]);
+
+        [$firstOrder, $firstIncident] = $this->createOrderWithIncident($admin, $deviceModel);
+        [$secondOrder, $secondIncident] = $this->createOrderWithIncident($admin, $deviceModel);
+
+        $this->verifyLegacyOrder($admin, $firstOrder);
+        $this->verifyLegacyOrder($admin, $secondOrder);
+        $this->enableNotificationChannels();
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-driver-queued-batch'], 200),
+        ]);
+
+        $this->actingAs($admin)
+            ->postJson(route('dashboard.workspace.batch-transaction'), [
+                'incident_ids' => [$firstIncident->id, $secondIncident->id],
+                'transaction_id' => 'TXN-BATCH-QUEUED',
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame('TXN-BATCH-QUEUED', $firstOrder->fresh()->transaction_id);
+        $this->assertSame('TXN-BATCH-QUEUED', $secondOrder->fresh()->transaction_id);
+
+        Queue::assertPushed(SendServiceReferenceDriverGuideJob::class, 2);
+        Http::assertNothingSent();
+
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => NotificationAuditTrailService::EVENT_DISPATCHED,
+        ]);
+    }
+
+    public function test_driver_guide_job_preserves_idempotency_on_retry(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        [$order, $incident] = $this->createOrderWithIncident($admin);
+
+        $this->verifyLegacyOrder($admin, $order);
+        $this->enableNotificationChannels();
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-driver-job-retry'], 200),
+        ]);
+
+        $job = new SendServiceReferenceDriverGuideJob(
+            orderId: $order->id,
+            serviceReference: 'TXN-JOB-RETRY',
+            actorId: $admin->id,
+        );
+
+        app()->call([$job, 'handle']);
+        app()->call([$job, 'handle']);
+
+        $this->assertSame(
+            1,
+            AuditLog::query()
+                ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+                ->where('new_values->communication_action_key', CommunicationActionKey::DriverInstallationGuide->value)
+                ->count(),
+        );
+
+        $this->assertSame(
+            1,
+            AuditLog::query()
+                ->where('event', ReferenceNumberCommunicationService::IDEMPOTENCY_AUDIT_EVENT)
+                ->where('auditable_id', $order->id)
+                ->count(),
+        );
+
+        $statuses = AuditLog::query()
+            ->where('event', CommunicationActionLifecycleAuditService::EVENT)
+            ->where('auditable_id', $incident->id)
+            ->orderBy('id')
+            ->get()
+            ->map(fn (AuditLog $auditLog): string => (string) ($auditLog->new_values['status'] ?? ''))
+            ->all();
+
+        $this->assertSame(['sent', 'completed'], $statuses);
     }
 
     /**

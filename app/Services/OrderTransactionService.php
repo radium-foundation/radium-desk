@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
+use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
-use App\Services\CommunicationActions\ReferenceNumberCommunicationService;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +20,6 @@ class OrderTransactionService
         private readonly DashboardService $dashboardService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly CustomerVerificationService $customerVerificationService,
-        private readonly ReferenceNumberCommunicationService $referenceNumberCommunicationService,
     ) {}
 
     public function assignTransactionId(
@@ -115,12 +114,12 @@ class OrderTransactionService
         string $serviceReference,
         User $actor,
     ): void {
-        DB::afterCommit(function () use ($order, $serviceReference, $actor): void {
-            $this->referenceNumberCommunicationService->handleServiceReferenceAssigned(
-                order: $order,
-                serviceReference: $serviceReference,
-                actor: $actor,
-            );
+        $orderId = $order->id;
+        $actorId = $actor->id;
+
+        DB::afterCommit(function () use ($orderId, $serviceReference, $actorId): void {
+            SendServiceReferenceDriverGuideJob::dispatch($orderId, $serviceReference, $actorId)
+                ->afterCommit();
         });
     }
 
