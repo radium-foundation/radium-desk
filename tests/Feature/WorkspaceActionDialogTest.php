@@ -536,7 +536,7 @@ class WorkspaceActionDialogTest extends TestCase
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
-    public function test_dashboard_shows_single_action_trigger_for_updatable_cases(): void
+    public function test_dashboard_rows_open_customer360_without_actions_column(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $this->createIncident($agent, ['assigned_to_user_id' => $agent->id]);
@@ -544,7 +544,8 @@ class WorkspaceActionDialogTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-c360-open-more-menu', false)
+            ->assertSee('dashboard-case-row--clickable', false)
+            ->assertDontSee('data-c360-open-more-menu', false)
             ->assertDontSee('data-workspace-trigger="resolve"', false)
             ->assertDontSee('data-workspace-trigger="close"', false);
     }

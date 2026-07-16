@@ -1755,50 +1755,6 @@ a:focus-visible .stat-card {
     --bs-table-bg-state: rgba(13, 110, 253, 0.12);
 }
 
-.dashboard-actions-cell {
-    width: 1%;
-    white-space: nowrap;
-    vertical-align: middle;
-}
-
-.dashboard-row-actions {
-    display: inline-flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 0.375rem;
-    flex-wrap: nowrap;
-    opacity: 0;
-    transition: opacity 0.15s ease;
-}
-
-.dashboard-cases-table tbody tr:hover .dashboard-row-actions,
-.dashboard-cases-table tbody tr:focus-within .dashboard-row-actions {
-    opacity: 1;
-}
-
-.dashboard-row-actions .dashboard-u-icon-action {
-    width: 1.625rem;
-    height: 1.625rem;
-    font-size: 0.8125rem;
-}
-
-.dashboard-row-actions .dashboard-u-icon-action[data-workspace-trigger="assign"]:hover,
-.dashboard-row-actions .dashboard-u-icon-action[data-workspace-trigger="assign"]:focus-visible {
-    color: var(--dashboard-accent-primary);
-    border-color: rgba(13, 110, 253, 0.25);
-}
-
-.dashboard-row-actions .dashboard-u-icon-action[data-workspace-trigger="resolve"]:hover,
-.dashboard-row-actions .dashboard-u-icon-action[data-workspace-trigger="resolve"]:focus-visible {
-    color: var(--dashboard-color-success);
-    border-color: rgba(25, 135, 84, 0.25);
-}
-
-.dashboard-row-actions .dashboard-u-icon-action[data-workspace-trigger="close"]:hover,
-.dashboard-row-actions .dashboard-u-icon-action[data-workspace-trigger="close"]:focus-visible {
-    color: var(--dashboard-color-muted);
-}
-
 .transaction-id-cell[data-inline-transaction="true"],
 .serial-number-cell[data-inline-serial="true"] {
     cursor: pointer;

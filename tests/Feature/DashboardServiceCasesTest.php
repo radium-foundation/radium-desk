@@ -181,7 +181,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('data-bs-title', false);
     }
 
-    public function test_dashboard_grid_row_actions_remain_in_dom_for_keyboard_access(): void
+    public function test_dashboard_grid_rows_open_customer360_via_click(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -200,8 +200,8 @@ class DashboardServiceCasesTest extends TestCase
             'reference_no' => app(IncidentReferenceService::class)->generate(),
             'category' => 'General',
             'source' => IncidentSource::Call,
-            'title' => 'Row action accessibility test',
-            'description' => 'Row action accessibility test.',
+            'title' => 'Row click accessibility test',
+            'description' => 'Row click accessibility test.',
             'status' => 'open',
             'created_by' => $agent->id,
             'assigned_to_user_id' => $agent->id,
@@ -210,10 +210,11 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('dashboard-row-actions', false)
-            ->assertSee('data-workspace-trigger="remark"', false)
-            ->assertSee('data-c360-open-more-menu', false)
-            ->assertSee('aria-label="Add note for '.$incident->display_reference.'"', false);
+            ->assertSee('dashboard-case-row--clickable', false)
+            ->assertSee('data-incident-id="'.$incident->id.'"', false)
+            ->assertDontSee('dashboard-row-actions', false)
+            ->assertDontSee('data-c360-open-more-menu', false)
+            ->assertDontSee('data-workspace-trigger="remark"', false);
     }
 
     public function test_dashboard_sorts_high_priority_service_cases_first(): void

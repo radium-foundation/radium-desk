@@ -94,7 +94,7 @@ const isInteractiveTarget = (target) => {
     }
 
     return Boolean(
-        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-c360-open-more-menu], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-row-actions, .dashboard-select-cell')
+        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-select-cell')
     );
 };
 
@@ -1209,28 +1209,6 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     bindTabNavigation();
 
     root.addEventListener('click', handleRowClick);
-
-    const handleOpenMoreMenuClick = (event) => {
-        const trigger = event.target.closest('[data-c360-open-more-menu]');
-
-        if (!trigger || !root.contains(trigger)) {
-            return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-
-        const incidentId = trigger.dataset.incidentId;
-        const referenceLabel = trigger.dataset.incidentReference?.trim() ?? '';
-
-        if (!incidentId) {
-            return;
-        }
-
-        open(incidentId, referenceLabel, { openMoreMenu: true });
-    };
-
-    root.addEventListener('click', handleOpenMoreMenuClick);
 
     closeButton?.addEventListener('click', close);
     backdrop?.addEventListener('click', close);

@@ -100,13 +100,6 @@ class DashboardController extends Controller
             },
             'assignedToScope' => $assignedTo,
             'canManageTransactions' => $canManageTransactions,
-            'canReassignServiceCases' => $user->can('incidents.update'),
-            'canCreateRemarks' => $user->can('create', \App\Models\Remark::class),
-            'canShowServiceCaseActions' => $user->hasAnyRole([
-                \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
-                \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
-                \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-            ]) || $user->can('create', \App\Models\Remark::class) || $user->can('incidents.update'),
             'enabledProducts' => app(\App\Services\SettingService::class)->enabledProductNames(),
             'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
             'dashboardLiveMode' => config('dashboard.live_mode', 'auto'),

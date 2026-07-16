@@ -181,7 +181,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $rowHtml = (string) $response->json('refresh.replace_row.html');
         $this->assertStringNotContainsString('data-workspace-trigger="resolve"', $rowHtml);
         $this->assertStringNotContainsString('data-workspace-trigger="close"', $rowHtml);
-        $this->assertStringContainsString('data-c360-open-more-menu', $rowHtml);
+        $this->assertStringNotContainsString('dashboard-actions-cell', $rowHtml);
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
@@ -520,7 +520,7 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->assertSame(1, $stats['open_incidents']);
     }
 
-    public function test_dashboard_shows_action_trigger_for_updatable_cases(): void
+    public function test_dashboard_rows_open_customer360_without_actions_column(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $this->createIncident($agent, ['assigned_to_user_id' => $agent->id]);
@@ -528,12 +528,13 @@ class WorkspaceResolveCloseActionTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-c360-open-more-menu', false)
+            ->assertSee('dashboard-case-row--clickable', false)
+            ->assertDontSee('data-c360-open-more-menu', false)
             ->assertDontSee('data-workspace-trigger="resolve"', false)
             ->assertDontSee('data-workspace-trigger="close"', false);
     }
 
-    public function test_dashboard_hides_action_for_closed_cases(): void
+    public function test_dashboard_rows_have_no_actions_column_for_closed_cases(): void
     {
         $agent = $this->createAgentUser('agent@example.com', 'Agent User');
         $this->createIncident($agent, [

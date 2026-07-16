@@ -245,9 +245,6 @@
                             <th class="d-none d-lg-table-cell">Created</th>
                             <th class="d-none d-lg-table-cell">Updated</th>
                             <th class="d-none d-lg-table-cell">Model</th>
-                            @if($canShowServiceCaseActions ?? false)
-                                <th class="dashboard-actions-cell text-end">Actions</th>
-                            @endif
                         </tr>
                     </thead>
                     <tbody id="dashboard-service-cases-body">
@@ -258,14 +255,11 @@
                                 'isScheduledWorkspace' => $isScheduledWorkspace,
                                 'canManageTransactions' => $canManageTransactions,
                                 'canSelectRows' => $canManageTransactions,
-                                'canReassignServiceCases' => $canReassignServiceCases ?? false,
-                                'canCreateRemarks' => $canCreateRemarks ?? false,
                             ])
                         @empty
                             @php
                                 $tableColumnCount = 11
-                                    + (($canManageTransactions ?? false) ? 1 : 0)
-                                    + (($canShowServiceCaseActions ?? false) ? 1 : 0);
+                                    + (($canManageTransactions ?? false) ? 1 : 0);
                                 $hasActiveSearch = filled(request('q'));
                                 $emptyStateVariant = $hasActiveSearch ? 'filtered' : 'caught-up';
                             @endphp

@@ -1,5 +1,4 @@
 @php
-    use App\Enums\IncidentStatus;
     use App\Enums\SerialValidationSeverity;
     use App\Services\SerialValidation\SerialPlaceholderService;
     use App\Services\SerialValidation\SerialValidationService;
@@ -7,12 +6,6 @@
 
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
-    $canUpdate = auth()->user()?->can('update', $serviceCase);
-    $isClosed = $serviceCase->status === IncidentStatus::Closed;
-    $canAssign = auth()->user()?->can('reassign', $serviceCase) && ! $isClosed;
-    $canOpenMoreMenu = $canAssign || ($canUpdate && ! $isClosed) || ($canUpdate && $isClosed);
-    $canShowRowActions = (auth()->user()?->can('create', \App\Models\Remark::class) && auth()->user()?->can('view', $serviceCase))
-        || $canOpenMoreMenu;
     $searchParts = array_filter([
         $order?->order_id,
         $serviceCase->display_reference,
@@ -152,38 +145,4 @@
         @endif
     </td>
     @include('dashboard.partials.device-model-cell', ['serviceCase' => $serviceCase])
-    @if($canShowRowActions)
-        <td class="dashboard-actions-cell text-end">
-            <div class="dashboard-row-actions">
-                @can('create', App\Models\Remark::class)
-                    @can('view', $serviceCase)
-                        <button type="button"
-                                class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
-                                data-bs-toggle="tooltip"
-                                data-bs-placement="top"
-                                data-bs-title="Note"
-                                data-workspace-trigger="remark"
-                                data-workspace-incident-id="{{ $serviceCase->id }}"
-                                data-workspace-context="dashboard"
-                                aria-label="Add note for {{ $serviceCase->display_reference }}">
-                            <i class="bi bi-journal-text" aria-hidden="true"></i>
-                        </button>
-                    @endcan
-                @endcan
-                @if($canOpenMoreMenu)
-                    <button type="button"
-                            class="dashboard-u-icon-action dashboard-u-transition dashboard-u-focus-ring"
-                            data-bs-toggle="tooltip"
-                            data-bs-placement="top"
-                            data-bs-title="More actions"
-                            data-c360-open-more-menu
-                            data-incident-id="{{ $serviceCase->id }}"
-                            data-incident-reference="{{ $serviceCase->display_reference }}"
-                            aria-label="More actions for {{ $serviceCase->display_reference }}">
-                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                    </button>
-                @endif
-            </div>
-        </td>
-    @endif
 </tr>

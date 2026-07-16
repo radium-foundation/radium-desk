@@ -19,8 +19,8 @@ describe('initCustomer360Drawer', () => {
                         <tr data-incident-id="42">
                             <td><a href="/incidents/42" class="case-reference-link">SC-001</a></td>
                             <td class="case-order-cell"><a href="/orders/99">RD-001</a></td>
-                            <td class="dashboard-actions-cell">
-                                <button type="button" data-workspace-trigger="remark">Note</button>
+                            <td class="dashboard-select-cell">
+                                <input type="checkbox" class="service-case-select" value="42">
                             </td>
                         </tr>
                     </tbody>
@@ -77,14 +77,14 @@ describe('initCustomer360Drawer', () => {
         expect(document.querySelector('[data-customer-360-drawer]')?.classList.contains('is-open')).toBe(false);
     });
 
-    it('does not open drawer when clicking action buttons', async () => {
+    it('does not open drawer when clicking interactive row controls', async () => {
         const pageRoot = setupDashboard();
 
         global.fetch = vi.fn();
 
         initCustomer360Drawer({ pageRoot });
 
-        document.querySelector('[data-workspace-trigger="remark"]')?.dispatchEvent(
+        document.querySelector('.service-case-select')?.dispatchEvent(
             new MouseEvent('click', { bubbles: true }),
         );
 

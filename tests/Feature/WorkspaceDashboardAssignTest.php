@@ -59,7 +59,7 @@ class WorkspaceDashboardAssignTest extends TestCase
         ]);
     }
 
-    public function test_dashboard_declares_workspace_context_and_action_trigger_for_admin(): void
+    public function test_dashboard_declares_workspace_context_for_admin(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createOpenIncident($admin);
@@ -70,12 +70,11 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->assertOk()
             ->assertSee('data-workspace-context="dashboard"', false)
             ->assertSee('id="workspace-context-slugs"', false)
-            ->assertSee('data-c360-open-more-menu', false)
-            ->assertSee('data-workspace-incident-id="'.$incident->id.'"', false)
-            ->assertSee('dashboard-actions-cell', false);
+            ->assertSee('data-incident-id="'.$incident->id.'"', false)
+            ->assertDontSee('dashboard-actions-cell', false);
     }
 
-    public function test_dashboard_shows_action_for_agents(): void
+    public function test_dashboard_row_opens_customer360_via_click(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -86,9 +85,10 @@ class WorkspaceDashboardAssignTest extends TestCase
         $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-c360-open-more-menu', false)
-            ->assertSee('data-workspace-trigger="remark"', false)
-            ->assertSee('dashboard-actions-cell', false);
+            ->assertSee('dashboard-case-row--clickable', false)
+            ->assertSee('data-incident-id="'.$incident->id.'"', false)
+            ->assertDontSee('dashboard-actions-cell', false)
+            ->assertDontSee('data-c360-open-more-menu', false);
     }
 
     public function test_dashboard_assign_action_returns_row_and_kpi_refresh_payload(): void
@@ -114,13 +114,13 @@ class WorkspaceDashboardAssignTest extends TestCase
                 ],
             ]);
 
-        $this->assertStringContainsString(
-            'data-c360-open-more-menu',
+        $this->assertStringNotContainsString(
+            'dashboard-actions-cell',
             (string) $response->json('refresh.replace_row.html'),
         );
     }
 
-    public function test_live_dashboard_rows_include_action_trigger_for_admin(): void
+    public function test_live_dashboard_rows_exclude_actions_column_for_admin(): void
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $incident = $this->createOpenIncident($admin);
@@ -130,8 +130,12 @@ class WorkspaceDashboardAssignTest extends TestCase
             ->getJson(route('dashboard.live', ['queue' => 'action_required']))
             ->assertOk();
 
+        $this->assertStringNotContainsString(
+            'dashboard-actions-cell',
+            (string) $response->json('rows.0.html'),
+        );
         $this->assertStringContainsString(
-            'data-c360-open-more-menu',
+            'data-incident-id="'.$incident->id.'"',
             (string) $response->json('rows.0.html'),
         );
     }

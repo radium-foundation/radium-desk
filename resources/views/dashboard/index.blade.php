@@ -71,8 +71,6 @@
                     'serviceCaseTotalCount' => $serviceCaseTotalCount ?? 0,
                     'serviceCaseHasMore' => $serviceCaseHasMore ?? false,
                     'canManageTransactions' => $canManageTransactions ?? false,
-                    'canReassignServiceCases' => $canReassignServiceCases ?? false,
-                    'canShowServiceCaseActions' => $canShowServiceCaseActions ?? false,
                     'compactAgentLayout' => $usesAgentDashboard,
                 ])
             </div>

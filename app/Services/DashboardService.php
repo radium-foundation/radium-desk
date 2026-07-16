@@ -7,7 +7,6 @@ use App\Enums\ServiceCaseSlaStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
-use App\Models\Remark;
 use App\Models\User;
 use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
@@ -186,8 +185,6 @@ class DashboardService
             'compactAgentLayout' => app(OperationsRoleService::class)->usesSupportQueues($user),
             'canManageTransactions' => $canManageTransactions,
             'canSelectRows' => $canManageTransactions,
-            'canReassignServiceCases' => $canManageTransactions,
-            'canCreateRemarks' => $user->can('create', Remark::class),
             'requiresLegacyVerification' => $order !== null && $verificationService->requiresLegacyVerification($order),
             'legacyVerificationUrl' => $order !== null
                 ? route('orders.legacy-verification.store', $order)

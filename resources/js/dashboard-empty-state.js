@@ -72,7 +72,7 @@ export const buildDashboardEmptyStateHtml = ({
 export const getTableColumnCount = (tbody) => {
     const table = tbody?.closest('table');
 
-    return table?.querySelectorAll('thead th').length ?? 12;
+    return table?.querySelectorAll('thead th').length ?? 11;
 };
 
 const getServiceCaseRows = (tbody) => {
