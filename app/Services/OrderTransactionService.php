@@ -6,6 +6,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
+use App\Services\CommunicationActions\ReferenceNumberCommunicationService;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ class OrderTransactionService
         private readonly DashboardService $dashboardService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly CustomerVerificationService $customerVerificationService,
+        private readonly ReferenceNumberCommunicationService $referenceNumberCommunicationService,
     ) {}
 
     public function assignTransactionId(
@@ -79,6 +81,8 @@ class OrderTransactionService
                 ],
             );
 
+            $this->scheduleServiceReferenceAssignedCommunication($freshOrder, $transactionId, $actor);
+
             $this->auditLogService->log(
                 userId: $actor->id,
                 event: 'transaction.assigned',
@@ -103,6 +107,20 @@ class OrderTransactionService
             }
 
             return $freshOrder;
+        });
+    }
+
+    private function scheduleServiceReferenceAssignedCommunication(
+        Order $order,
+        string $serviceReference,
+        User $actor,
+    ): void {
+        DB::afterCommit(function () use ($order, $serviceReference, $actor): void {
+            $this->referenceNumberCommunicationService->handleServiceReferenceAssigned(
+                order: $order,
+                serviceReference: $serviceReference,
+                actor: $actor,
+            );
         });
     }
 

@@ -64,7 +64,7 @@ return [
             'allowed_on_closed_incident' => true,
             'variables' => [],
             'automation' => [
-                'enabled' => false,
+                'enabled' => true,
                 'future_trigger' => 'reference_number_added',
             ],
         ],

@@ -173,6 +173,79 @@ class CommunicationActionExecutorService
     }
 
     /**
+     * @param  array<string, mixed>  $metadata
+     * @return bool|null true when sent, false when delivery failed, null when skipped
+     */
+    public function executeAutomated(
+        string $actionKey,
+        Incident $incident,
+        ?User $operator = null,
+        array $metadata = [],
+        ?Request $request = null,
+    ): ?bool {
+        $definition = $this->registry->get($actionKey);
+
+        $ineligibilityReason = $this->eligibilityService->automationIneligibilityReason($definition, $incident);
+
+        if ($ineligibilityReason !== null) {
+            return null;
+        }
+
+        $incident->loadMissing('order');
+        $channelAvailability = $this->availabilityService->forDefinition($definition, $incident->order);
+
+        $executionContext = $this->executionContextFactory->forAutomation(
+            action: $definition,
+            incident: $incident,
+            operator: $operator,
+            metadata: $metadata,
+        );
+
+        $eligibleChannels = $this->resolveEligibleChannels($definition, $channelAvailability);
+        $allowedChannels = $this->resolveAllowedChannels(
+            definition: $definition,
+            channelAvailability: $channelAvailability,
+            selectedChannels: null,
+        );
+
+        $executionContext = $executionContext
+            ->withEligibleChannels($eligibleChannels)
+            ->withSelectedChannels($allowedChannels);
+
+        if (! $this->availabilityService->hasDeliverableChannel($channelAvailability)) {
+            return null;
+        }
+
+        $executionContext = $executionContext->withResolvedVariables(
+            $this->variableResolver->resolveFromContext($executionContext),
+        );
+
+        $dispatchResult = $this->notificationDispatcher->send(
+            $executionContext->action->notificationType,
+            $this->notificationMessageFromContext($executionContext, $request),
+            allowedChannels: $executionContext->selectedChannels,
+        );
+
+        if (! $dispatchResult->success) {
+            return false;
+        }
+
+        $sentChannels = collect($dispatchResult->results)
+            ->filter(fn (\App\Data\NotificationResult $result): bool => $result->countsTowardSuccess())
+            ->map(fn (\App\Data\NotificationResult $result): string => $result->channel->value)
+            ->values()
+            ->all();
+
+        $this->lifecycleService->recordSuccessfulExecutionFromContext(
+            context: $executionContext,
+            channels: $sentChannels,
+            request: $request,
+        );
+
+        return true;
+    }
+
+    /**
      * @param  array<string, mixed>  $operatorInput
      */
     private function validateOperatorInput(

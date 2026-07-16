@@ -32,6 +32,19 @@ class CommunicationActionEligibilityService
         return $this->ineligibilityReason($definition, $incident, $user) === null;
     }
 
+    public function automationIneligibilityReason(
+        CommunicationActionDefinition $definition,
+        Incident $incident,
+    ): ?string {
+        $incident->loadMissing('order');
+
+        if ($incident->order === null) {
+            return 'Link an order before sending communication actions.';
+        }
+
+        return $this->actionSpecificIneligibilityReason($definition, $incident, null);
+    }
+
     public function ineligibilityReason(
         CommunicationActionDefinition $definition,
         Incident $incident,
