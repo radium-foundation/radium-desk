@@ -32,18 +32,21 @@ Hello {{ $customer_name }},
     @endif
 
     <h2 style="margin: 0 0 16px; font-size: 17px; font-weight: 600; line-height: 1.4; color: #212529;">
-        After Installation
+        After Download
     </h2>
 
-    <ol style="margin: 0 0 32px; padding-left: 20px; font-size: 15px; color: #212529;">
+    <ul style="margin: 0 0 16px; padding-left: 20px; font-size: 15px; color: #212529;">
         <li style="margin-bottom: 10px;">Install the downloaded driver.</li>
         <li style="margin-bottom: 10px;">Restart your computer.</li>
-        <li style="margin-bottom: 10px;">Reconnect your device.</li>
-        <li style="margin-bottom: 0;">You are now ready to use your device.</li>
-    </ol>
+        <li style="margin-bottom: 0;">Reconnect your device.</li>
+    </ul>
+
+    <p style="margin: 0 0 32px;">
+        Your device should now be ready to use.
+    </p>
 
     <p style="margin: 0 0 16px;">
-        If you continue to experience any issues after following these steps, our support team will be happy to assist you.
+        If you&rsquo;re still experiencing any issues, our support team will be happy to assist you.
     </p>
 
     @if(filled($support_booking_link ?? null))
@@ -65,5 +68,5 @@ Hello {{ $customer_name }},
 
 @section('signature')
     Kind regards,<br><br>
-    Team {{ $company_name }}
+    Team {{ $company_name }} Support
 @endsection
