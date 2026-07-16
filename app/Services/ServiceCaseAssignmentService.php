@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -381,6 +382,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.reassigned',
+            assignmentOrigin: AssignmentOrigin::Manual,
             extraNewValues: [
                 'assignment_override' => true,
                 'override_reason' => 'manual_reassign',
@@ -405,6 +407,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.escalated',
+            assignmentOrigin: AssignmentOrigin::Manual,
             extraNewValues: [
                 'reason' => $reason,
                 'previous_assigned_to_user_id' => $previousAssigneeId,
@@ -445,6 +448,10 @@ class ServiceCaseAssignmentService
         $currentAssignee = $incident->assignee;
 
         if ($currentAssignee === null || ! $this->isSupportAgent($currentAssignee)) {
+            return $incident;
+        }
+
+        if ($this->hasManualSupportOwnership($incident)) {
             return $incident;
         }
 
@@ -649,6 +656,7 @@ class ServiceCaseAssignmentService
         User $actor,
         string $event,
         array $extraNewValues = [],
+        AssignmentOrigin $assignmentOrigin = AssignmentOrigin::Auto,
     ): Incident {
         if ($incident->status === IncidentStatus::Closed) {
             throw ValidationException::withMessages([
@@ -660,13 +668,15 @@ class ServiceCaseAssignmentService
             return $incident->fresh(['assignee']);
         }
 
-        return DB::transaction(function () use ($incident, $assignee, $actor, $event, $extraNewValues): Incident {
+        return DB::transaction(function () use ($incident, $assignee, $actor, $event, $extraNewValues, $assignmentOrigin): Incident {
             $oldValues = [
                 'assigned_to_user_id' => $incident->assigned_to_user_id,
+                'assignment_origin' => $incident->assignment_origin?->value,
             ];
 
             $incident->update([
                 'assigned_to_user_id' => $assignee->id,
+                'assignment_origin' => $assignmentOrigin->value,
                 'updated_by' => $actor->id,
             ]);
 
@@ -679,6 +689,7 @@ class ServiceCaseAssignmentService
                 oldValues: $oldValues,
                 newValues: [
                     'assigned_to_user_id' => $freshIncident->assigned_to_user_id,
+                    'assignment_origin' => $freshIncident->assignment_origin?->value,
                     ...$extraNewValues,
                 ],
             );
@@ -831,6 +842,26 @@ class ServiceCaseAssignmentService
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ]);
+    }
+
+    public function hasManualSupportOwnership(Incident $incident): bool
+    {
+        if ($incident->assignment_origin !== AssignmentOrigin::Manual) {
+            return false;
+        }
+
+        $assignee = $incident->assignee;
+
+        if ($assignee === null) {
+            return false;
+        }
+
+        return $this->operationsRoleService->usesSupportQueues($assignee);
+    }
+
+    public function isVisibleInAdminReadyQueue(Incident $incident): bool
+    {
+        return ! $this->hasManualSupportOwnership($incident);
     }
 
     private function findValidAdminAssigneeById(int $userId): ?User

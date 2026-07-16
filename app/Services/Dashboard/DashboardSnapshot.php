@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\Operations\OperationsRoleService;
+use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -295,6 +296,13 @@ class DashboardSnapshot
         if ($scopeUser !== null && $queue === OperationQueue::Completed->value) {
             $incidents = $incidents->filter(
                 fn (Incident $incident): bool => $incident->assigned_to_user_id === $scopeUser->id,
+            );
+        }
+
+        if ($queue === OperationQueue::ActionRequired->value && $scopeUser === null) {
+            $assignmentService = app(ServiceCaseAssignmentService::class);
+            $incidents = $incidents->filter(
+                fn (Incident $incident): bool => $assignmentService->isVisibleInAdminReadyQueue($incident),
             );
         }
 

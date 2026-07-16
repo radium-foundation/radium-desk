@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseSlaStatus;
@@ -40,6 +41,7 @@ class Incident extends Model
         'missed_call_attempt_count',
         'last_missed_at',
         'assigned_to_user_id',
+        'assignment_origin',
         'automation_pending_until',
         'created_by',
         'updated_by',
@@ -50,6 +52,7 @@ class Incident extends Model
         return [
             'status' => IncidentStatus::class,
             'source' => IncidentSource::class,
+            'assignment_origin' => AssignmentOrigin::class,
             'high_priority' => 'boolean',
             'last_missed_at' => 'datetime',
             'automation_pending_until' => 'datetime',
