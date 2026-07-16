@@ -10,9 +10,10 @@ const buildDashboardWithFilter = () => {
         ${HELP_MODAL_HTML}
         <div id="dashboard-page">
             <div class="dashboard-service-cases-card">
-                <div data-dashboard-quick-filter>
-                    <button type="button" data-dashboard-quick-filter-trigger></button>
-                    <div class="d-none" data-dashboard-quick-filter-control>
+                <div class="dashboard-quick-filter dashboard-quick-filter--always-open"
+                     data-dashboard-quick-filter
+                     data-dashboard-quick-filter-always-open="true">
+                    <div class="dashboard-quick-filter__control" data-dashboard-quick-filter-control>
                         <input type="search" id="dashboard-quick-filter-input" data-dashboard-quick-filter-input>
                     </div>
                 </div>

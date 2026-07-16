@@ -84,8 +84,8 @@ class DashboardPersonalizationServiceTest extends TestCase
             DashboardPersonalizationService::QUEUE_MY_WORK,
             DashboardPersonalizationService::QUEUE_SCHEDULED,
             DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER,
-            DashboardPersonalizationService::QUEUE_COMPLETED,
         ], $queues);
+        $this->assertNotContains(DashboardPersonalizationService::QUEUE_COMPLETED, $queues);
     }
 
     public function test_support_agent_completed_queue_scopes_to_assignee(): void
@@ -114,6 +114,7 @@ class DashboardPersonalizationServiceTest extends TestCase
 
         $this->assertContains(DashboardPersonalizationService::QUEUE_HARDWARE, $queues);
         $this->assertContains(DashboardPersonalizationService::QUEUE_ATTENTION, $queues);
+        $this->assertNotContains(DashboardPersonalizationService::QUEUE_COMPLETED, $queues);
     }
 
     public function test_legacy_view_and_filter_map_to_operation_queue(): void
@@ -126,6 +127,21 @@ class DashboardPersonalizationServiceTest extends TestCase
 
         $attention = $this->service->resolveQueue($admin, null, 'all', 'needs_attention');
         $this->assertSame(DashboardPersonalizationService::QUEUE_ATTENTION, $attention['queue']);
+    }
+
+    public function test_legacy_completed_filter_redirects_to_default_queue(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $resolution = $this->service->resolveQueue($admin, null, null, 'completed');
+
+        $this->assertTrue($resolution['redirect']);
+        $this->assertSame(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $resolution['queue']);
+        $this->assertSame(
+            'action_required',
+            $this->service->resolveServiceCaseFilter($admin, null, null, 'completed'),
+        );
     }
 
     public function test_module_navigation_is_disabled_in_favor_of_queue_navigation(): void

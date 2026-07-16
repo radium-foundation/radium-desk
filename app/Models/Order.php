@@ -407,9 +407,11 @@ class Order extends Model
     public function transactionAssignTooltipHtml(): string
     {
         $lines = [
-            'Completed',
-            AppDateFormatter::datetime($this->completed_at) ?? '—',
+            'Service Reference',
+            $this->transaction_id ?: '—',
+            '',
             'Assigned by '.($this->transactionAssigner?->firstName() ?? '—'),
+            AppDateFormatter::datetime($this->completed_at) ?? '—',
         ];
 
         return collect($lines)

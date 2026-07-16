@@ -14,7 +14,6 @@
     $hideZeroCountTabs = $personalization->hidesZeroCountQueueTabs(auth()->user());
     $compactAgentLayout = $compactAgentLayout ?? false;
     $isScheduledWorkspace = $activeQueue === DashboardPersonalizationService::QUEUE_SCHEDULED;
-    $showFilterCount = ! $compactAgentLayout || $serviceCaseHasMore || $renderedServiceCaseCount !== $totalServiceCaseCount;
     $agentSearchPlaceholder = 'Search order, case or customer...';
     $myWorkSearchPlaceholder = 'Search order ID, case ID, serial, customer…';
     $searchPlaceholder = $compactAgentLayout
@@ -135,48 +134,14 @@
                     </div>
                 @endif
 
-                @if($compactAgentLayout)
-                    <div class="dashboard-quick-filter dashboard-quick-filter--agent dashboard-quick-filter--always-open"
-                         data-dashboard-quick-filter
-                         data-dashboard-quick-filter-always-open="true">
-                        <label for="dashboard-quick-filter-input" class="visually-hidden">Search service cases</label>
-                        @if($showFilterCount)
-                            <span id="dashboard-quick-filter-count"
-                                  class="visually-hidden"
-                                  data-dashboard-filter-count
-                                  aria-live="polite">{{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} Showing</span>
-                        @endif
-                        <div class="dashboard-quick-filter__control"
-                             id="dashboard-quick-filter-control"
-                             data-dashboard-quick-filter-control>
-                            <span class="dashboard-quick-filter__icon" aria-hidden="true">
-                                <i class="bi bi-search"></i>
-                            </span>
-                            <input type="search"
-                                   id="dashboard-quick-filter-input"
-                                   class="dashboard-quick-filter__input dashboard-u-focus-ring"
-                                   placeholder="{{ $searchPlaceholder }}"
-                                   autocomplete="off"
-                                   data-dashboard-quick-filter-input
-                                   @if($showFilterCount) aria-describedby="dashboard-quick-filter-count" @endif>
-                        </div>
-                    </div>
-                @else
-                <div class="dashboard-quick-filter" data-dashboard-quick-filter>
-                    <label for="dashboard-quick-filter-input" class="visually-hidden">Quick Filter</label>
-                    <button type="button"
-                            class="dashboard-quick-filter__summary dashboard-u-focus-ring @if(! $showFilterCount) d-none @endif"
-                            data-dashboard-quick-filter-trigger
-                            data-dashboard-filter-count-wrap
-                            aria-expanded="false"
-                            aria-controls="dashboard-quick-filter-control">
-                        @if($showFilterCount)
-                            <span id="dashboard-quick-filter-count"
-                                  data-dashboard-filter-count
-                                  aria-live="polite">{{ $renderedServiceCaseCount }} of {{ $totalServiceCaseCount }} Showing</span>
-                        @endif
-                    </button>
-                    <div class="dashboard-quick-filter__control d-none"
+                <div @class([
+                        'dashboard-quick-filter dashboard-quick-filter--always-open',
+                        'dashboard-quick-filter--agent' => $compactAgentLayout,
+                    ])
+                     data-dashboard-quick-filter
+                     data-dashboard-quick-filter-always-open="true">
+                    <label for="dashboard-quick-filter-input" class="visually-hidden">Search service cases</label>
+                    <div class="dashboard-quick-filter__control"
                          id="dashboard-quick-filter-control"
                          data-dashboard-quick-filter-control>
                         <span class="dashboard-quick-filter__icon" aria-hidden="true">
@@ -187,11 +152,9 @@
                                class="dashboard-quick-filter__input dashboard-u-focus-ring"
                                placeholder="{{ $searchPlaceholder }}"
                                autocomplete="off"
-                               data-dashboard-quick-filter-input
-                               aria-describedby="dashboard-quick-filter-count">
+                               data-dashboard-quick-filter-input>
                     </div>
                 </div>
-                @endif
             </div>
         </div>
     </div>

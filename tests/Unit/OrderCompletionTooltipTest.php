@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Enums\OrderCompletionStatus;
 use App\Models\Order;
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
@@ -83,6 +84,24 @@ class OrderCompletionTooltipTest extends TestCase
         $this->assertSame(OrderCompletionStatus::PendingAdmin, $order->completionStatus());
 
         Carbon::setTestNow();
+    }
+
+    public function test_transaction_assign_tooltip_includes_service_reference_and_assignee(): void
+    {
+        $admin = User::factory()->create(['name' => 'Priya Sharma']);
+
+        $order = new Order([
+            'transaction_id' => 'AW-RD3444738',
+            'completed_at' => Carbon::parse('2026-06-25 10:45:00'),
+        ]);
+        $order->setRelation('transactionAssigner', $admin);
+
+        $html = $order->transactionAssignTooltipHtml();
+
+        $this->assertStringContainsString('Service Reference', $html);
+        $this->assertStringContainsString('AW-RD3444738', $html);
+        $this->assertStringContainsString('Assigned by Priya', $html);
+        $this->assertStringContainsString('25 Jun 2026, 10:45 AM', $html);
     }
 
     public function test_completed_tooltip_includes_transaction_and_turnaround(): void

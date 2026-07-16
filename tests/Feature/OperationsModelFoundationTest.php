@@ -261,6 +261,8 @@ class OperationsModelFoundationTest extends TestCase
         $this->assertContains('hardware', $personalization->availableQueuesFor($admin));
         $this->assertSame('my_work', $personalization->defaultQueueFor($agent));
         $this->assertContains('waiting_customer', $personalization->availableQueuesFor($agent));
+        $this->assertNotContains('completed', $personalization->availableQueuesFor($admin));
+        $this->assertNotContains('completed', $personalization->availableQueuesFor($agent));
     }
 
     public function test_open_kpi_excludes_waiting_customer_completed_and_hardware_cases(): void

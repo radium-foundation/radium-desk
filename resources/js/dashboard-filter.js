@@ -8,8 +8,6 @@ import {
     isDashboardQuickFilterActive,
     setServiceCasePagination,
     setServiceCaseSearchQuery,
-    updateServiceCaseCountDisplay,
-    formatServiceCaseCount,
 } from './dashboard-service-case-state';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
 import {
@@ -166,7 +164,6 @@ const clearLocalFilterState = (card) => {
 const applyLocalQuickFilterPresentation = ({
     card,
     query = '',
-    countElement = null,
     skipHighlight = false,
 } = {}) => {
     const tbody = card?.querySelector('#dashboard-service-cases-body');
@@ -189,12 +186,6 @@ const applyLocalQuickFilterPresentation = ({
             visibleCount += 1;
         }
     });
-
-    if (countElement) {
-        countElement.textContent = formatServiceCaseCount(visibleCount, getServiceCaseFilterTotal());
-    } else {
-        updateServiceCaseCountDisplay({ visibleCount });
-    }
 
     updateEmptyRow(tbody, normalizedQuery !== '' && rows.length > 0 && visibleCount === 0, {
         showSearchAgain: normalizedQuery !== '',
@@ -222,9 +213,6 @@ export const initDashboardQuickFilter = ({
     const card = pageRoot.querySelector('.dashboard-service-cases-card');
     const container = pageRoot.querySelector('[data-dashboard-quick-filter]');
     const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
-    const countElement = pageRoot.querySelector('[data-dashboard-filter-count]');
-    const trigger = pageRoot.querySelector('[data-dashboard-quick-filter-trigger]');
-    const control = pageRoot.querySelector('[data-dashboard-quick-filter-control]');
     const resolvedLoadMoreUrl = loadMoreUrl ?? pageRoot.dataset?.dashboardLoadMoreUrl ?? '';
 
     if (!card || !input || !container) {
@@ -236,44 +224,9 @@ export const initDashboardQuickFilter = ({
     let searchAbortController = null;
     const alwaysOpen = container.dataset.dashboardQuickFilterAlwaysOpen === 'true';
 
-    const isExpanded = () => alwaysOpen || container.classList.contains('dashboard-quick-filter--expanded');
-
     const openQuickFilter = () => {
-        if (alwaysOpen) {
-            input.focus();
-            input.select();
-
-            return;
-        }
-
-        if (isExpanded()) {
-            input.focus();
-            input.select();
-
-            return;
-        }
-
-        container.classList.add('dashboard-quick-filter--expanded');
-        trigger?.setAttribute('aria-expanded', 'true');
-        control?.classList.remove('d-none');
-
-        requestAnimationFrame(() => {
-            input.focus();
-
-            if (input.value !== '') {
-                input.select();
-            }
-        });
-    };
-
-    const closeQuickFilter = () => {
-        if (alwaysOpen || !isExpanded()) {
-            return;
-        }
-
-        container.classList.remove('dashboard-quick-filter--expanded');
-        trigger?.setAttribute('aria-expanded', 'false');
-        control?.classList.add('d-none');
+        input.focus();
+        input.select();
     };
 
     const applyServerSearchResults = (data) => {
@@ -317,7 +270,7 @@ export const initDashboardQuickFilter = ({
 
     const fetchServerQuickFilter = async (query) => {
         if (!resolvedLoadMoreUrl) {
-            return applyLocalQuickFilterPresentation({ card, query, countElement });
+            return applyLocalQuickFilterPresentation({ card, query });
         }
 
         const normalizedQuery = normalizeQuery(query);
@@ -371,7 +324,6 @@ export const initDashboardQuickFilter = ({
             totalCount: getServiceCaseFilterTotal(),
         };
 
-        updateServiceCaseCountDisplay({ countElement, visibleCount: result.visibleCount });
         onFilterApplied?.(result);
 
         return result;
@@ -387,7 +339,7 @@ export const initDashboardQuickFilter = ({
                     return restoreDashboard();
                 }
 
-                const emptyResult = applyLocalQuickFilterPresentation({ card, query, countElement });
+                const emptyResult = applyLocalQuickFilterPresentation({ card, query });
                 onFilterApplied?.(emptyResult);
 
                 return emptyResult;
@@ -399,7 +351,6 @@ export const initDashboardQuickFilter = ({
                     totalCount: getServiceCaseFilterTotal(),
                 };
 
-                updateServiceCaseCountDisplay({ countElement, visibleCount: result.visibleCount });
                 highlightSingleMatch(card);
                 onFilterApplied?.(result);
 
@@ -431,14 +382,7 @@ export const initDashboardQuickFilter = ({
     input.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             event.preventDefault();
-
-            if (alwaysOpen) {
-                input.blur();
-
-                return;
-            }
-
-            closeQuickFilter();
+            input.blur();
 
             return;
         }
@@ -449,40 +393,6 @@ export const initDashboardQuickFilter = ({
 
         event.preventDefault();
         reapply({ immediate: true });
-    });
-
-    input.addEventListener('blur', () => {
-        if (alwaysOpen) {
-            return;
-        }
-
-        window.setTimeout(() => {
-            if (!isExpanded() || container.contains(document.activeElement)) {
-                return;
-            }
-
-            if (input.value.trim() === '') {
-                closeQuickFilter();
-            }
-        }, 0);
-    });
-
-    trigger?.addEventListener('click', (event) => {
-        event.preventDefault();
-        openQuickFilter();
-    });
-
-    if (alwaysOpen) {
-        container.classList.add('dashboard-quick-filter--expanded');
-        control?.classList.remove('d-none');
-    }
-
-    document.addEventListener('mousedown', (event) => {
-        if (alwaysOpen || !isExpanded() || container.contains(event.target)) {
-            return;
-        }
-
-        closeQuickFilter();
     });
 
     card.addEventListener('click', (event) => {
@@ -497,6 +407,10 @@ export const initDashboardQuickFilter = ({
         }
     });
 
+    if (alwaysOpen) {
+        container.classList.add('dashboard-quick-filter--expanded');
+    }
+
     reapply({ immediate: true });
 
     return {
@@ -504,7 +418,7 @@ export const initDashboardQuickFilter = ({
         clearFilter,
         getQuery: () => input.value,
         open: openQuickFilter,
-        close: closeQuickFilter,
-        isExpanded,
+        close: () => input.blur(),
+        isExpanded: () => true,
     };
 };

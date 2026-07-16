@@ -1,5 +1,3 @@
-const formatServiceCaseCount = (visibleCount, totalCount) => `${visibleCount} of ${totalCount} Showing`;
-
 let loadedCount = 0;
 let filterTotal = 0;
 let searchQuery = '';
@@ -35,7 +33,6 @@ export const initServiceCasePaginationState = (pageRoot = document) => {
     searchQuery = '';
 
     updateLoadMoreVisibility();
-    updateFilterCountVisibility();
 };
 
 export const getServiceCaseLoadedCount = () => loadedCount;
@@ -61,60 +58,10 @@ export const setServiceCasePagination = ({ loaded, total } = {}) => {
 
     syncCardDataset();
     updateLoadMoreVisibility();
-    updateFilterCountVisibility();
-    updateServiceCaseCountDisplay();
 };
 
 export const appendServiceCaseLoadedCount = (count) => {
     loadedCount += count;
     syncCardDataset();
     updateLoadMoreVisibility();
-    updateFilterCountVisibility();
-    updateServiceCaseCountDisplay();
 };
-
-const updateFilterCountVisibility = () => {
-    const wrap = document.querySelector('[data-dashboard-filter-count-wrap]');
-    const card = getCard();
-
-    if (!wrap || card?.dataset.agentCompactLayout !== 'true') {
-        return;
-    }
-
-    const hasMore = loadedCount < filterTotal;
-    const filterActive = isDashboardQuickFilterActive();
-    const showCount = hasMore || filterActive;
-
-    wrap.classList.toggle('dashboard-quick-filter__summary--icon', ! showCount);
-    wrap.classList.toggle('d-none', false);
-
-    const countElement = wrap.querySelector('[data-dashboard-filter-count]');
-
-    if (countElement) {
-        countElement.classList.toggle('d-none', ! showCount);
-    }
-};
-
-export const updateServiceCaseCountDisplay = ({
-    countElement = null,
-    visibleCount = null,
-} = {}) => {
-    const element = countElement ?? document.querySelector('[data-dashboard-filter-count]');
-
-    if (!element) {
-        return;
-    }
-
-    const visible = visibleCount ?? (
-        isDashboardQuickFilterActive()
-            ? loadedCount
-            : document.querySelectorAll(
-                'tr[id^="service-case-row-"]:not(.dashboard-case-row--filtered-out)',
-            ).length
-    );
-
-    element.textContent = formatServiceCaseCount(visible, filterTotal);
-    updateFilterCountVisibility();
-};
-
-export { formatServiceCaseCount };

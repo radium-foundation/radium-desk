@@ -98,8 +98,8 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('MFS 110')
             ->assertSee('bi-telephone-fill', false)
             ->assertSee('data-bs-title="Call"', false)
-            ->assertSee('data-bs-title="Pending Admin"', false)
             ->assertSee('aria-label="Pending Admin"', false)
+            ->assertSee('dashboard-completion-status-icon--pending', false)
             ->assertSee('Waiting for Service Reference')
             ->assertSee('dashboard-premium-tooltip__label', false)
             ->assertSee('24 Jun 2026, 02:35 PM')
@@ -288,7 +288,7 @@ class DashboardServiceCasesTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        Incident::query()->create([
+        $incident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => app(IncidentReferenceService::class)->generate(),
             'category' => 'General',
@@ -306,15 +306,18 @@ class DashboardServiceCasesTest extends TestCase
             'completed_at' => now(),
         ]);
 
-        $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'completed']))
-            ->assertOk()
-            ->assertSee('Completed')
-            ->assertSee('TX123456')
-            ->assertSee('25 Jun 2026, 10:45 AM')
-            ->assertSee('Total turnaround')
-            ->assertSee('1 day 3 hours')
-            ->assertSee('dashboard-case-row--completed', false);
+        $html = view('dashboard.partials.completion-status-tooltip', [
+            'order' => $order->fresh(),
+            'loggedAt' => $incident->created_at,
+        ])->render();
+
+        $this->assertStringContainsString('bi-check-circle-fill', $html);
+        $this->assertStringContainsString('dashboard-completion-status-icon--completed', $html);
+        $this->assertStringNotContainsString('badge text-bg-success', $html);
+        $this->assertStringContainsString('TX123456', $html);
+        $this->assertStringContainsString('25 Jun 2026, 10:45 AM', $html);
+        $this->assertStringContainsString('Total turnaround', $html);
+        $this->assertStringContainsString('1 day 3 hours', $html);
 
         Carbon::setTestNow();
     }
@@ -675,7 +678,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertDontSee('data-bulk-bar', false);
     }
 
-    public function test_admin_completed_row_shows_transaction_with_assign_tooltip(): void
+    public function test_admin_completed_row_shows_checkmark_with_assign_tooltip(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-06-25 09:00:00'));
 
@@ -694,7 +697,7 @@ class DashboardServiceCasesTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        Incident::query()->create([
+        $incident = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => 'SC-ADMIN-COMPLETE',
             'category' => 'General',
@@ -705,13 +708,19 @@ class DashboardServiceCasesTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'completed']))
-            ->assertOk()
-            ->assertSee('TX123456')
-            ->assertSee('Assigned by Priya', false)
-            ->assertSee('bi-check-circle-fill', false)
-            ->assertDontSee('data-inline-transaction="true"', false);
+        $this->actingAs($admin);
+
+        $html = view('dashboard.partials.transaction-id-cell', [
+            'serviceCase' => $incident->fresh(['order.transactionAssigner']),
+            'canManageTransactions' => true,
+        ])->render();
+
+        $this->assertStringContainsString('bi-check-circle-fill', $html);
+        $this->assertStringContainsString('Service Reference', $html);
+        $this->assertStringContainsString('TX123456', $html);
+        $this->assertStringContainsString('Assigned by Priya', $html);
+        $this->assertStringNotContainsString('me-1', $html);
+        $this->assertStringNotContainsString('data-inline-transaction="true"', $html);
 
         Carbon::setTestNow();
     }
@@ -979,11 +988,16 @@ class DashboardServiceCasesTest extends TestCase
             'updated_at' => now()->subDays(5),
         ])->saveQuietly();
 
-        $this->actingAs($admin)
-            ->get(route('dashboard', ['filter' => 'completed']))
-            ->assertOk()
-            ->assertSee('Within SLA')
-            ->assertDontSee('>Overdue</span>', false);
+        $this->actingAs($admin);
+
+        $html = view('dashboard.partials.service-case-row', [
+            'serviceCase' => $incident->fresh(['order', 'assignee', 'creator']),
+            'canManageTransactions' => true,
+            'canSelectRows' => true,
+        ])->render();
+
+        $this->assertStringContainsString('Within SLA', $html);
+        $this->assertStringNotContainsString('>Overdue</span>', $html);
 
         Carbon::setTestNow();
     }
@@ -1029,7 +1043,8 @@ class DashboardServiceCasesTest extends TestCase
             ->get(route('dashboard', ['filter' => 'pending_admin']));
 
         $dashboardResponse->assertOk()
-            ->assertSee('10 of 15 Showing')
+            ->assertDontSee('Showing')
+            ->assertSee('data-dashboard-quick-filter-always-open="true"', false)
             ->assertSee('Load More');
 
         foreach (array_slice($references, 0, 10) as $reference) {
@@ -1108,7 +1123,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['filter' => 'pending_admin']))
             ->assertOk()
-            ->assertSee('35 of 90 Showing');
+            ->assertDontSee('Showing');
 
         $firstLoadMore = $this->actingAs($admin)
             ->getJson(route('dashboard.service-cases.load-more', [
@@ -1226,7 +1241,8 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['filter' => 'pending_admin']))
             ->assertOk()
-            ->assertSee('10 of 15 Showing')
+            ->assertDontSee('Showing')
+            ->assertSee('data-dashboard-quick-filter-always-open="true"', false)
             ->assertSee('Load More');
 
         $finalLoadMore = $this->actingAs($admin)
@@ -1290,7 +1306,7 @@ class DashboardServiceCasesTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['filter' => 'pending_admin']))
             ->assertOk()
-            ->assertSee('10 of 20 Showing');
+            ->assertDontSee('Showing');
     }
 
     public function test_quick_filter_search_paginates_filtered_results(): void
@@ -1407,7 +1423,7 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('RD-ACTION-1')
             ->assertSee('RD-ACTION-2')
             ->assertSee('RD-STALE-1')
-            ->assertSee('3 of 3 Showing');
+            ->assertDontSee('Showing');
 
         $this->actingAs($admin)
             ->getJson(route('dashboard.live', ['queue' => 'action_required']))

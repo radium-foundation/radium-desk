@@ -16,13 +16,10 @@ const buildDashboardCard = ({ loaded = 2, total = 2, loadMoreUrl = '/dashboard/s
                  data-service-cases-loaded="${loaded}"
                  data-service-case-filter-total="${total}"
                  data-service-case-filter="pending_admin">
-                <div class="dashboard-quick-filter" data-dashboard-quick-filter>
-                    <button type="button"
-                            data-dashboard-quick-filter-trigger
-                            aria-expanded="false">
-                        <span data-dashboard-filter-count>${loaded} of ${total} Showing</span>
-                    </button>
-                    <div class="dashboard-quick-filter__control d-none" data-dashboard-quick-filter-control>
+                <div class="dashboard-quick-filter dashboard-quick-filter--always-open"
+                     data-dashboard-quick-filter
+                     data-dashboard-quick-filter-always-open="true">
+                    <div class="dashboard-quick-filter__control" data-dashboard-quick-filter-control>
                         <input type="search" data-dashboard-quick-filter-input value="">
                     </div>
                 </div>
@@ -64,14 +61,12 @@ describe('applyDashboardQuickFilter', () => {
         resetWorkspaceSession();
     });
 
-    it('shows all rows and updates the counter when the query is empty', () => {
+    it('shows all rows when the query is empty', () => {
         const card = document.querySelector('.dashboard-service-cases-card');
-        const countElement = document.querySelector('[data-dashboard-filter-count]');
 
-        const result = applyDashboardQuickFilter({ card, query: '', countElement });
+        const result = applyDashboardQuickFilter({ card, query: '' });
 
         expect(result).toEqual({ visibleCount: 2, totalCount: 2 });
-        expect(countElement?.textContent).toBe('2 of 2 Showing');
         expect(document.querySelectorAll('.dashboard-case-row--filtered-out')).toHaveLength(0);
     });
 
@@ -81,11 +76,11 @@ describe('applyDashboardQuickFilter', () => {
         initServiceCasePaginationState();
 
         const card = document.querySelector('.dashboard-service-cases-card');
-        const countElement = document.querySelector('[data-dashboard-filter-count]');
 
-        applyDashboardQuickFilter({ card, query: '', countElement });
-
-        expect(countElement?.textContent).toBe('2 of 8 Showing');
+        expect(applyDashboardQuickFilter({ card, query: '' })).toEqual({
+            visibleCount: 2,
+            totalCount: 8,
+        });
     });
 
     it('hides non-matching rows without removing them from the DOM', () => {
@@ -255,7 +250,6 @@ describe('initDashboardQuickFilter', () => {
         expect(String(global.fetch.mock.calls[0]?.[0])).toContain('q=fm+220');
         expect(String(global.fetch.mock.calls[0]?.[0])).toContain('offset=0');
         expect(document.getElementById('service-case-row-99')).not.toBeNull();
-        expect(document.querySelector('[data-dashboard-filter-count]')?.textContent).toBe('1 of 1 Showing');
         expect(document.querySelector('[data-dashboard-load-more-wrap]')?.classList.contains('d-none')).toBe(true);
     });
 
@@ -323,21 +317,21 @@ describe('initDashboardQuickFilter', () => {
         expect(document.querySelectorAll('.dashboard-case-row--filtered-out')).toHaveLength(0);
     });
 
-    it('expands the quick filter when the summary is clicked', () => {
+    it('focuses the quick filter input when open is called', () => {
         const pageRoot = document.getElementById('dashboard-page');
-        const filter = initDashboardQuickFilter({ pageRoot });
+        const filterApi = initDashboardQuickFilter({ pageRoot });
         const container = pageRoot.querySelector('[data-dashboard-quick-filter]');
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
 
-        pageRoot.querySelector('[data-dashboard-quick-filter-trigger]')?.click();
+        filterApi.open();
         vi.runAllTimers();
 
-        expect(filter.isExpanded()).toBe(true);
+        expect(filterApi.isExpanded()).toBe(true);
         expect(container.classList.contains('dashboard-quick-filter--expanded')).toBe(true);
         expect(document.activeElement).toBe(input);
     });
 
-    it('collapses on Esc without clearing an active filter', async () => {
+    it('blurs the input on Esc without clearing an active filter', async () => {
         const pageRoot = document.getElementById('dashboard-page');
 
         global.fetch = vi.fn().mockResolvedValue({
@@ -353,10 +347,10 @@ describe('initDashboardQuickFilter', () => {
             }),
         });
 
-        const filter = initDashboardQuickFilter({ pageRoot });
+        const filterApi = initDashboardQuickFilter({ pageRoot });
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
 
-        filter.open();
+        filterApi.open();
         input.value = 'ord-100';
         input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
@@ -366,34 +360,22 @@ describe('initDashboardQuickFilter', () => {
 
         input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-        expect(filter.isExpanded()).toBe(false);
+        expect(filterApi.isExpanded()).toBe(true);
+        expect(document.activeElement).not.toBe(input);
         expect(input.value).toBe('ord-100');
     });
 
-    it('collapses on empty blur and click outside', () => {
+    it('keeps the filter value when Escape blurs the input', () => {
         const pageRoot = document.getElementById('dashboard-page');
-        const filter = initDashboardQuickFilter({ pageRoot });
+        const filterApi = initDashboardQuickFilter({ pageRoot });
         const input = pageRoot.querySelector('[data-dashboard-quick-filter-input]');
-        const outsideTarget = document.createElement('button');
-        document.body.appendChild(outsideTarget);
 
-        filter.open();
-        vi.runAllTimers();
-        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-        expect(filter.isExpanded()).toBe(false);
-
-        filter.open();
-        vi.runAllTimers();
-        outsideTarget.focus();
-        input.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-        vi.runAllTimers();
-        expect(filter.isExpanded()).toBe(false);
-
-        filter.open();
+        filterApi.open();
         vi.runAllTimers();
         input.value = 'ord-100';
-        document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-        expect(filter.isExpanded()).toBe(false);
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+        expect(filterApi.isExpanded()).toBe(true);
         expect(input.value).toBe('ord-100');
     });
 });

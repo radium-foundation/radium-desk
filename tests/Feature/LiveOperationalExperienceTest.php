@@ -102,9 +102,9 @@ class LiveOperationalExperienceTest extends TestCase
         $response = $this->actingAs($admin)->getJson(route('dashboard.live', ['filter' => 'completed']));
 
         $response->assertOk()
-            ->assertJsonPath('service_cases_empty', false);
+            ->assertJsonPath('service_cases_empty', true);
 
-        $this->assertStringContainsString(
+        $this->assertStringNotContainsString(
             'SC-LIVE-COMPLETE',
             collect($response->json('rows'))->pluck('html')->implode(''),
         );

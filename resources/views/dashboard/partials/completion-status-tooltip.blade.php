@@ -10,7 +10,7 @@
 @endphp
 
 <span class="d-inline-flex align-items-center gap-1">
-    @include('orders.partials.completion-status-badge', ['order' => $order])
+    @include('orders.partials.completion-status-badge', ['order' => $order, 'iconOnly' => true])
 
     <i class="bi bi-info-circle dashboard-status-info-icon"
        role="img"

@@ -22,11 +22,12 @@
         @endif
     @endif>
     @if($isCompleted && $order?->transaction_id)
-        <span class="transaction-completed-display text-nowrap"
+        <span class="transaction-completed-display"
               data-bs-toggle="tooltip"
               data-dashboard-tooltip
-              data-bs-placement="top">
-            <i class="bi bi-check-circle-fill text-success me-1" aria-hidden="true"></i>{{ $order->transaction_id }}
+              data-bs-placement="top"
+              aria-label="Service reference {{ $order->transaction_id }}, assigned by {{ $order->transactionAssigner?->firstName() ?? 'unknown user' }}, completed {{ display_app_datetime($order->completed_at) ?? 'unknown time' }}">
+            <i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
         </span>
         <template class="dashboard-tooltip-template">
             {!! $order->transactionAssignTooltipHtml() !!}

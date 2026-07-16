@@ -85,7 +85,6 @@ class DashboardPersonalizationService
             }
 
             $queues[] = self::QUEUE_PENDING_REVIEW;
-            $queues[] = self::QUEUE_COMPLETED;
 
             return $queues;
         }
@@ -94,7 +93,6 @@ class DashboardPersonalizationService
             return [
                 self::QUEUE_HARDWARE,
                 self::QUEUE_MY_WORK,
-                self::QUEUE_COMPLETED,
             ];
         }
 
@@ -102,7 +100,6 @@ class DashboardPersonalizationService
             self::QUEUE_MY_WORK,
             self::QUEUE_SCHEDULED,
             self::QUEUE_WAITING_CUSTOMER,
-            self::QUEUE_COMPLETED,
         ];
     }
 
@@ -134,10 +131,6 @@ class DashboardPersonalizationService
                     ],
                     self::QUEUE_WAITING_CUSTOMER => [
                         'label' => 'Waiting',
-                        'tone' => 'neutral',
-                    ],
-                    self::QUEUE_COMPLETED => [
-                        'label' => 'Done',
                         'tone' => 'neutral',
                     ],
                     default => $meta[$queueKey],
@@ -175,6 +168,10 @@ class DashboardPersonalizationService
                     return ['queue' => $defaultQueue, 'redirect' => true];
                 }
 
+                if ($mapped === self::QUEUE_COMPLETED) {
+                    return ['queue' => $defaultQueue, 'redirect' => true];
+                }
+
                 $needsRedirect = $requestedQueue === null
                     && $legacyView !== null
                     && ! filled($legacyFilter);
@@ -205,6 +202,10 @@ class DashboardPersonalizationService
         ?string $legacyFilter = null,
     ): string {
         if (filled($legacyFilter)) {
+            if ($legacyFilter === 'completed') {
+                return $this->legacyFilterForQueue($this->defaultQueueFor($user));
+            }
+
             return $legacyFilter;
         }
 

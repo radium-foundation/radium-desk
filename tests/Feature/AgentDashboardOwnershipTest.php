@@ -460,7 +460,7 @@ class AgentDashboardOwnershipTest extends TestCase
             ->assertSee('RD-SEARCH-ME', false);
     }
 
-    public function test_agent_done_queue_is_scoped_to_assigned_completed_cases(): void
+    public function test_agent_completed_classification_remains_available_without_navigation_tab(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -496,16 +496,13 @@ class AgentDashboardOwnershipTest extends TestCase
         $this->actingAs($agentA)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('dashboard-case-filter-chip__label">Done<', false)
-            ->assertSee('data-dashboard-case-filter-count="completed">2<', false);
+            ->assertDontSee('dashboard-case-filter-chip__label">Done<', false)
+            ->assertDontSee('data-dashboard-case-filter-count="completed">', false);
 
         $this->actingAs($agentA)
             ->get(route('dashboard', ['queue' => DashboardPersonalizationService::QUEUE_COMPLETED]))
-            ->assertOk()
-            ->assertSee('RD-DONE-A-1')
-            ->assertSee('RD-DONE-A-2')
-            ->assertDontSee('RD-DONE-B-1')
-            ->assertDontSee('RD-DONE-UNASSIGNED');
+            ->assertRedirect(route('dashboard'))
+            ->assertDontSee('RD-DONE-A-1');
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
