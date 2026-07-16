@@ -15,7 +15,7 @@ class ReferenceNumberCommunicationService
 {
     public const TRIGGER = 'reference_number_added';
 
-    public const IDEMPOTENCY_AUDIT_EVENT = 'service_reference.driver_installation_guide_triggered';
+    public const IDEMPOTENCY_AUDIT_EVENT = 'service_reference.driver_guide_sent';
 
     public function __construct(
         private readonly CommunicationActionRegistry $registry,

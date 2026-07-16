@@ -39,6 +39,18 @@ class ReferenceNumberAddedDriverInstallationGuideTest extends TestCase
         ]);
     }
 
+    public function test_idempotency_audit_event_fits_audit_logs_event_column(): void
+    {
+        $this->assertLessThanOrEqual(
+            50,
+            strlen(ReferenceNumberCommunicationService::IDEMPOTENCY_AUDIT_EVENT),
+        );
+        $this->assertSame(
+            'service_reference.driver_guide_sent',
+            ReferenceNumberCommunicationService::IDEMPOTENCY_AUDIT_EVENT,
+        );
+    }
+
     public function test_assigning_reference_number_triggers_driver_installation_guide(): void
     {
         $admin = User::factory()->create();

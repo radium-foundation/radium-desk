@@ -17,6 +17,7 @@ use App\Services\AI\IRAExecutiveSummaryService;
 use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
+use App\Services\Customer360\Customer360RecentCommunicationService;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
@@ -71,6 +72,7 @@ class Customer360Service
         private readonly Customer360IraAdvisorPresenter $iraAdvisorPresenter,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly Customer360CommunicationActionStatusPresenter $communicationActionStatusPresenter,
+        private readonly Customer360RecentCommunicationService $recentCommunicationService,
     ) {}
 
     /**
@@ -661,7 +663,7 @@ class Customer360Service
         array $summary,
     ): array {
         $warranty = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? 'Not Available';
-        $communication = $this->requestSerialCommunicationHistoryService->forCustomerPhone($order->customer_phone);
+        $communication = $this->recentCommunicationService->forCustomerPhone($order->customer_phone);
         $repeatContact = $this->bonvoiceContactIntelligenceService->forCustomerPhone(
             $order->customer_phone,
             ($summary['open_cases'] ?? 0) > 0,
@@ -835,7 +837,7 @@ class Customer360Service
      */
     private function emptyDrawerData(Incident $incident): array
     {
-        $emptyCommunication = $this->requestSerialCommunicationHistoryService->forCustomerPhone(null);
+        $emptyCommunication = $this->recentCommunicationService->forCustomerPhone(null);
 
         return [
             'incident' => $incident,

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\WhatsAppTemplateDispatch;
 use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
+use App\Services\Customer360\Customer360RecentCommunicationService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Support\AppDateFormatter;
@@ -216,6 +217,66 @@ class Customer360DrawerTest extends TestCase
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('drawer@example.com', false);
+    }
+
+    public function test_customer_360_health_card_shows_driver_installation_guide_communication(): void
+    {
+        [$agent, $incident] = $this->createHealthCardIncident();
+        $whatsappSentAt = Carbon::parse('2026-07-05 22:15:00', AppDateFormatter::timezone());
+        $emailSentAt = Carbon::parse('2026-07-05 22:16:00', AppDateFormatter::timezone());
+
+        WhatsAppTemplateDispatch::query()->create([
+            'incident_id' => $incident->id,
+            'order_id' => $incident->order_id,
+            'triggered_by_user_id' => $agent->id,
+            'template_key' => 'driver_installation_guide',
+            'template_name' => 'driver_installation_guide_template',
+            'template_display_name' => 'Driver Installation Guide',
+            'template_purpose' => 'Driver Installation Guide',
+            'trigger_source' => WhatsAppTemplateTriggerSource::Automation,
+            'status' => WhatsAppTemplateDispatchStatus::Sent,
+            'customer_phone' => '9123456780',
+            'interakt_message_id' => 'msg-driver-guide-health-card',
+            'dispatched_at' => $whatsappSentAt,
+        ]);
+
+        app(AuditLogService::class)->log(
+            userId: $agent->id,
+            event: NotificationAuditTrailService::EVENT_DISPATCHED,
+            auditable: $incident,
+            newValues: [
+                'notification_type' => 'driver_installation_guide',
+                'communication_action_key' => 'driver_installation_guide',
+                'source' => 'automation',
+                'trigger_source' => 'automation',
+                'aggregate_success' => true,
+                'aggregate_message' => 'Notification sent',
+                'channel_results' => [
+                    [
+                        'channel' => 'email',
+                        'status' => 'sent',
+                        'success' => true,
+                        'retryable' => false,
+                        'message' => 'Email notification sent successfully.',
+                        'timestamp' => $emailSentAt->toIso8601String(),
+                        'duration_ms' => 45,
+                    ],
+                ],
+            ],
+        );
+
+        $html = $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Recent communication', $html);
+        $this->assertStringContainsString('Sent', $html);
+        $this->assertStringContainsString(
+            AppDateFormatter::format($whatsappSentAt, Customer360RecentCommunicationService::LAST_SENT_DISPLAY_FORMAT),
+            $html,
+        );
+        $this->assertStringNotContainsString('Never sent', $html);
     }
 
     public function test_customer_360_health_card_shows_failed_whatsapp_status(): void
