@@ -313,6 +313,11 @@ class DashboardServiceCasesTest extends TestCase
 
         $this->assertStringContainsString('bi-check-circle-fill', $html);
         $this->assertStringContainsString('dashboard-completion-status-icon--completed', $html);
+        $this->assertStringContainsString('data-dashboard-tooltip', $html);
+        $this->assertStringContainsString('data-bs-custom-class="dashboard-premium-tooltip-wrapper"', $html);
+        $this->assertStringContainsString('tabindex="0"', $html);
+        $this->assertStringNotContainsString('bi-info-circle', $html);
+        $this->assertStringNotContainsString('dashboard-completion-status-tooltip-trigger', $html);
         $this->assertStringNotContainsString('badge text-bg-success', $html);
         $this->assertStringContainsString('TX123456', $html);
         $this->assertStringContainsString('25 Jun 2026, 10:45 AM', $html);

@@ -1,4 +1,4 @@
-@props(['order', 'iconOnly' => false])
+@props(['order', 'iconOnly' => false, 'dashboardTooltip' => false, 'tooltipAriaLabel' => null])
 
 @php
     $status = $order->completionStatus();
@@ -9,12 +9,21 @@
             'badge text-bg-warning' => ! $iconOnly,
             'dashboard-completion-status-icon dashboard-completion-status-icon--pending' => $iconOnly,
         ])
-          @unless($iconOnly)
+          @if($dashboardTooltip && $iconOnly)
+              aria-label="{{ $tooltipAriaLabel }}"
+              tabindex="0"
+              data-bs-toggle="tooltip"
+              data-dashboard-tooltip
+              data-bs-placement="top"
+              data-bs-custom-class="dashboard-premium-tooltip-wrapper"
+          @elseif(! $iconOnly)
               data-bs-toggle="tooltip"
               data-bs-placement="top"
               data-bs-title="Pending Admin"
-          @endunless
-          aria-label="Pending Admin">
+              aria-label="Pending Admin"
+          @else
+              aria-label="Pending Admin"
+          @endif>
         @if($iconOnly)
             <span aria-hidden="true">P</span>
         @else
@@ -24,7 +33,16 @@
 @else
     @if($iconOnly)
         <span class="dashboard-completion-status-icon dashboard-completion-status-icon--completed"
-              aria-label="{{ $status->label() }}">
+              @if($dashboardTooltip)
+                  aria-label="{{ $tooltipAriaLabel }}"
+                  tabindex="0"
+                  data-bs-toggle="tooltip"
+                  data-dashboard-tooltip
+                  data-bs-placement="top"
+                  data-bs-custom-class="dashboard-premium-tooltip-wrapper"
+              @else
+                  aria-label="{{ $status->label() }}"
+              @endif>
             <i class="bi bi-check-circle-fill text-success" aria-hidden="true"></i>
         </span>
     @else

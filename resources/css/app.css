@@ -1405,11 +1405,14 @@ a:focus-visible .stat-card {
     border: 1px solid rgba(25, 135, 84, 0.18);
 }
 
-.dashboard-cases-table .status-cell .dashboard-status-info-icon {
-    font-size: 0.6875rem;
-    opacity: 0.45;
-    vertical-align: -0.05em;
-    color: var(--dashboard-color-muted-light);
+.dashboard-cases-table .status-cell .dashboard-completion-status-icon[data-dashboard-tooltip] {
+    cursor: help;
+}
+
+.dashboard-cases-table .status-cell .dashboard-completion-status-icon[data-dashboard-tooltip]:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
 }
 
 .dashboard-cases-table tbody > tr.dashboard-case-row--completed > * {
