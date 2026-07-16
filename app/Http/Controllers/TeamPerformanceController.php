@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Enums\PerformancePeriod;
 use App\Services\Operations\IraPerformanceInsightsService;
-use App\Services\Operations\SmartAssignmentFeedbackMetricsService;
 use App\Services\Operations\TeamPerformanceMetricsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -15,7 +14,6 @@ class TeamPerformanceController extends Controller
     public function __construct(
         private readonly TeamPerformanceMetricsService $metricsService,
         private readonly IraPerformanceInsightsService $insightsService,
-        private readonly SmartAssignmentFeedbackMetricsService $feedbackMetricsService,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless($request->user()?->can('team-performance.view'), 403);
@@ -41,7 +39,6 @@ class TeamPerformanceController extends Controller
             'customEnd' => $customEnd?->toDateString(),
             'teamMetrics' => $this->metricsService->teamMetrics($period, $customStart, $customEnd),
             'insights' => $this->insightsService->insights($period, $customStart, $customEnd),
-            'assignmentFeedback' => $this->feedbackMetricsService->teamFeedback(),
         ]);
     }
 }
