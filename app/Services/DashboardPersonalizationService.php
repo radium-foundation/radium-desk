@@ -84,8 +84,6 @@ class DashboardPersonalizationService
                 $queues[] = self::QUEUE_HARDWARE;
             }
 
-            $queues[] = self::QUEUE_PENDING_REVIEW;
-
             return $queues;
         }
 
@@ -168,7 +166,7 @@ class DashboardPersonalizationService
                     return ['queue' => $defaultQueue, 'redirect' => true];
                 }
 
-                if ($mapped === self::QUEUE_COMPLETED) {
+                if ($mapped === self::QUEUE_COMPLETED || $mapped === self::QUEUE_PENDING_REVIEW) {
                     return ['queue' => $defaultQueue, 'redirect' => true];
                 }
 
@@ -202,7 +200,7 @@ class DashboardPersonalizationService
         ?string $legacyFilter = null,
     ): string {
         if (filled($legacyFilter)) {
-            if ($legacyFilter === 'completed') {
+            if (in_array($legacyFilter, ['completed', 'pending_review'], true)) {
                 return $this->legacyFilterForQueue($this->defaultQueueFor($user));
             }
 
@@ -423,6 +421,10 @@ class DashboardPersonalizationService
 
         if ($filter === 'completed') {
             return self::QUEUE_COMPLETED;
+        }
+
+        if ($filter === 'pending_review') {
+            return self::QUEUE_PENDING_REVIEW;
         }
 
         if (in_array($filter, ['overdue', 'warning'], true)) {

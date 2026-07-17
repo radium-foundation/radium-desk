@@ -86,6 +86,7 @@ class DashboardPersonalizationServiceTest extends TestCase
             DashboardPersonalizationService::QUEUE_WAITING_CUSTOMER,
         ], $queues);
         $this->assertNotContains(DashboardPersonalizationService::QUEUE_COMPLETED, $queues);
+        $this->assertNotContains(DashboardPersonalizationService::QUEUE_PENDING_REVIEW, $queues);
     }
 
     public function test_support_agent_completed_queue_scopes_to_assignee(): void
@@ -115,6 +116,7 @@ class DashboardPersonalizationServiceTest extends TestCase
         $this->assertContains(DashboardPersonalizationService::QUEUE_HARDWARE, $queues);
         $this->assertContains(DashboardPersonalizationService::QUEUE_ATTENTION, $queues);
         $this->assertNotContains(DashboardPersonalizationService::QUEUE_COMPLETED, $queues);
+        $this->assertNotContains(DashboardPersonalizationService::QUEUE_PENDING_REVIEW, $queues);
     }
 
     public function test_legacy_view_and_filter_map_to_operation_queue(): void
@@ -141,6 +143,32 @@ class DashboardPersonalizationServiceTest extends TestCase
         $this->assertSame(
             'action_required',
             $this->service->resolveServiceCaseFilter($admin, null, null, 'completed'),
+        );
+    }
+
+    public function test_legacy_pending_review_urls_redirect_to_default_queue(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $adminQueueResolution = $this->service->resolveQueue($admin, null, null, 'pending_review');
+        $this->assertTrue($adminQueueResolution['redirect']);
+        $this->assertSame(DashboardPersonalizationService::QUEUE_ACTION_REQUIRED, $adminQueueResolution['queue']);
+
+        $agentQueueResolution = $this->service->resolveQueue($agent, 'pending_review');
+        $this->assertTrue($agentQueueResolution['redirect']);
+        $this->assertSame(DashboardPersonalizationService::QUEUE_MY_WORK, $agentQueueResolution['queue']);
+
+        $this->assertSame(
+            'action_required',
+            $this->service->resolveServiceCaseFilter($admin, null, null, 'pending_review'),
+        );
+        $this->assertSame(
+            'my_cases',
+            $this->service->resolveServiceCaseFilter($agent, null, null, 'pending_review'),
         );
     }
 

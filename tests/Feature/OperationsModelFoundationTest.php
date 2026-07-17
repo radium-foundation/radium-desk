@@ -163,7 +163,7 @@ class OperationsModelFoundationTest extends TestCase
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('Ready Queue')
-            ->assertSee('Pending Review')
+            ->assertDontSee('Pending Review')
             ->assertSee('Waiting Customer')
             ->assertSee('Scheduled')
             ->assertSee('Exceptions')
@@ -193,6 +193,14 @@ class OperationsModelFoundationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('dashboard', ['view' => 'hardware_orders']))
             ->assertRedirect(route('dashboard', ['queue' => 'hardware']));
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['queue' => 'pending_review']))
+            ->assertRedirect(route('dashboard'));
+
+        $this->actingAs($admin)
+            ->get(route('dashboard', ['filter' => 'pending_review']))
+            ->assertRedirect(route('dashboard'));
     }
 
     public function test_activity_tracking_records_case_actions(): void
@@ -257,12 +265,13 @@ class OperationsModelFoundationTest extends TestCase
         $personalization = app(DashboardPersonalizationService::class);
 
         $this->assertContains('action_required', $personalization->availableQueuesFor($admin));
-        $this->assertContains('pending_review', $personalization->availableQueuesFor($admin));
+        $this->assertNotContains('pending_review', $personalization->availableQueuesFor($admin));
         $this->assertContains('hardware', $personalization->availableQueuesFor($admin));
         $this->assertSame('my_work', $personalization->defaultQueueFor($agent));
         $this->assertContains('waiting_customer', $personalization->availableQueuesFor($agent));
         $this->assertNotContains('completed', $personalization->availableQueuesFor($admin));
         $this->assertNotContains('completed', $personalization->availableQueuesFor($agent));
+        $this->assertNotContains('pending_review', $personalization->availableQueuesFor($agent));
     }
 
     public function test_open_kpi_excludes_waiting_customer_completed_and_hardware_cases(): void
