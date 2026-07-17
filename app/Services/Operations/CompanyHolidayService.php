@@ -8,21 +8,33 @@ use Illuminate\Support\Carbon;
 
 class CompanyHolidayService
 {
+    public function __construct(
+        private readonly AttendanceRegisterService $attendanceRegisterService,
+    ) {}
+
     /**
      * @param  array{holiday_date: string, name: string, type: string}  $data
      */
     public function create(array $data): CompanyHoliday
     {
-        return CompanyHoliday::query()->create([
+        $holiday = CompanyHoliday::query()->create([
             'holiday_date' => $data['holiday_date'],
             'name' => $data['name'],
             'type' => CompanyHolidayType::from($data['type']),
         ]);
+
+        $this->refreshAttendanceForHolidayDate($holiday->holiday_date);
+
+        return $holiday;
     }
 
     public function delete(CompanyHoliday $holiday): void
     {
+        $holidayDate = $holiday->holiday_date->copy()->startOfDay();
+
         $holiday->delete();
+
+        $this->refreshAttendanceForHolidayDate($holidayDate);
     }
 
     /**
@@ -45,5 +57,10 @@ class CompanyHolidayService
         return CompanyHoliday::query()
             ->whereDate('holiday_date', $at->toDateString())
             ->exists();
+    }
+
+    private function refreshAttendanceForHolidayDate(Carbon $holidayDate): void
+    {
+        $this->attendanceRegisterService->refreshTrackedMembersForDate($holidayDate);
     }
 }

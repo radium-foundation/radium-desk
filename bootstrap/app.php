@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\TrackTeamMemberActivity;
 use App\Services\SystemSettingsService;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -62,6 +63,17 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/presence-timeouts.log'));
+
+        $schedule->call(function (): void {
+            Artisan::call('attendance:reconcile-days', [
+                '--from' => now()->subDay()->toDateString(),
+                '--to' => now()->toDateString(),
+            ]);
+        })
+            ->name('attendance:reconcile-days-nightly')
+            ->dailyAt('01:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/attendance-reconcile.log'));
 
         $schedule->command('ira:capture-memory-snapshot')
             ->dailyAt('00:05')

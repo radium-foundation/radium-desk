@@ -25,6 +25,7 @@ class LeaveRequestService
         private readonly NotificationAuthorityService $notificationAuthority,
         private readonly TelegramBotService $telegramBot,
         private readonly AuditLogService $auditLogService,
+        private readonly AttendanceRegisterService $attendanceRegisterService,
     ) {}
 
     public function earliestPermittedStartDate(?Carbon $at = null): Carbon
@@ -131,6 +132,16 @@ class LeaveRequestService
 
             return $lockedLeaveRequest;
         });
+
+        $requester = $leaveRequest->user;
+
+        if ($requester !== null) {
+            $this->attendanceRegisterService->refreshDateRange(
+                user: $requester,
+                startDate: $leaveRequest->start_date->copy()->startOfDay(),
+                endDate: $leaveRequest->end_date->copy()->startOfDay(),
+            );
+        }
 
         $this->notifyRequesterOfDecision($leaveRequest);
 

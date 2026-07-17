@@ -199,6 +199,16 @@ class AttendanceRegisterService
         return $reconciled;
     }
 
+    public function refreshTrackedMembersForDate(Carbon $workDate): int
+    {
+        $date = $workDate->copy()->startOfDay();
+
+        return $this->reconcileRange(
+            startDate: $date,
+            endDate: $date,
+        );
+    }
+
     private function persist(AttendanceDayResult $result): WorkforceAttendanceDay
     {
         $attributes = $result->persistenceAttributes();
