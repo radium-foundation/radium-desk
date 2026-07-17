@@ -666,7 +666,8 @@ class ServiceCaseAssignmentService
             ]);
         }
 
-        if ($incident->assigned_to_user_id === $assignee->id) {
+        if ($incident->assigned_to_user_id === $assignee->id
+            && $incident->assignment_origin === $assignmentOrigin) {
             return $incident->fresh(['assignee']);
         }
 

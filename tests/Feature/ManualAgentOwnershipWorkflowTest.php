@@ -7,6 +7,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Models\AuditLog;
 use App\Models\DeviceModel;
 use App\Models\Incident;
 use App\Models\Order;
@@ -78,6 +79,43 @@ class ManualAgentOwnershipWorkflowTest extends TestCase
         );
 
         Carbon::setTestNow();
+    }
+
+    public function test_manual_assign_to_same_assignee_persists_manual_origin(): void
+    {
+        $admin = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');
+        $gaurav = $this->createAgentUser('gaurav@example.com', 'Gaurav');
+
+        $order = $this->createValidatedOrder($admin, 'RD-SAME-ASSIGNEE-1');
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => "Case {$order->order_id}",
+            'description' => "Case {$order->order_id}.",
+            'status' => IncidentStatus::Open,
+            'assigned_to_user_id' => $gaurav->id,
+            'assignment_origin' => AssignmentOrigin::Auto,
+            'created_by' => $admin->id,
+            'updated_by' => $admin->id,
+        ]);
+
+        app(ServiceCaseAssignmentService::class)->reassign($incident, $gaurav, $admin);
+
+        $fresh = $this->freshIncident($incident);
+
+        $this->assertSame($gaurav->id, $fresh->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::Manual, $fresh->assignment_origin);
+
+        $auditLog = AuditLog::query()
+            ->where('event', 'service_case.reassigned')
+            ->where('auditable_id', $incident->id)
+            ->first();
+
+        $this->assertNotNull($auditLog);
+        $this->assertSame('manual', $auditLog->new_values['assignment_origin'] ?? null);
+        $this->assertSame('manual_reassign', $auditLog->new_values['override_reason'] ?? null);
     }
 
     public function test_manually_assigned_ready_case_appears_in_agent_my_work(): void
