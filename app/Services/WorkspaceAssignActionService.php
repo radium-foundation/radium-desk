@@ -7,7 +7,6 @@ use App\Data\Workspace\WorkspaceRefreshEffects;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceComponent;
-use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Concerns\BuildsWorkspaceValidationFailure;
@@ -99,8 +98,7 @@ class WorkspaceAssignActionService
             $incident,
         );
 
-        if ($requestContext->context === WorkspaceContext::Dashboard
-            && $this->assignmentService->shouldRemoveFromAdminReadyQueue($incident)) {
+        if ($this->assignmentService->shouldRemoveFromAdminReadyQueue($incident)) {
             $effects = new WorkspaceRefreshEffects(
                 refreshKpis: $effects->refreshKpis,
                 removeRow: true,

@@ -7,6 +7,7 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
+use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceContext;
 use App\Events\Dashboard\ServiceCaseCreated;
 use App\Models\Incident;
@@ -131,6 +132,27 @@ class QueueIntegrityLiveRefreshTest extends TestCase
                 'assigned_to_user_id' => $agent->id,
                 'workspace_context' => WorkspaceContext::Dashboard->value,
                 'body' => 'Assign to agent from Ready Queue.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('refresh.remove_row.incident_id', $incident->id)
+            ->assertJsonPath('refresh.replace_row', null);
+    }
+
+    public function test_customer360_assign_to_agent_returns_remove_row_for_actor(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com');
+        $agent = $this->createAgentUser('agent@example.com');
+        $this->configureAssignmentSettings($admin->id);
+
+        $order = $this->createValidatedOrder($admin, 'RD3447955');
+        $incident = $this->createIncident($order, $admin, assignee: $admin);
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::Customer->value,
+                'action_type' => WorkspaceActionType::Assign->value,
+                'assigned_to_user_id' => $agent->id,
+                'body' => 'Assign to agent from Customer360 on dashboard.',
             ])
             ->assertOk()
             ->assertJsonPath('refresh.remove_row.incident_id', $incident->id)
