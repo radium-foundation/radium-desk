@@ -6,6 +6,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\WhatsAppTemplate;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Services\Notifications\SerialNotificationAppointmentEligibilityService;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
 
@@ -14,6 +15,7 @@ class RequestSerialNumberEligibilityService
     public function __construct(
         private readonly SerialPlaceholderService $placeholderService,
         private readonly SerialValidationService $serialValidationService,
+        private readonly SerialNotificationAppointmentEligibilityService $appointmentEligibility,
     ) {}
 
     public function isEligible(Incident $incident): bool
@@ -48,6 +50,10 @@ class RequestSerialNumberEligibilityService
 
         if (! $this->serialNeedsRequest($order)) {
             return 'Serial number is already available.';
+        }
+
+        if ($this->appointmentEligibility->shouldSkip($incident)) {
+            return $this->appointmentEligibility->skipReason();
         }
 
         return null;

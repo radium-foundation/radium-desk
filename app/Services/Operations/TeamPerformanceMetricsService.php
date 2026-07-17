@@ -5,17 +5,15 @@ namespace App\Services\Operations;
 use App\Data\Operations\PerformancePeriodRange;
 use App\Data\Operations\TeamMemberPerformanceMetrics;
 use App\Enums\IncidentStatus;
-use App\Enums\LeaveRequestStatus;
 use App\Enums\PerformancePeriod;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\AuditLog;
-use App\Models\CompanyHoliday;
 use App\Models\Incident;
-use App\Models\LeaveRequest;
 use App\Models\ServiceCaseCloseException;
 use App\Models\SupportAppointment;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
+use App\Models\WorkforceAttendanceDay;
 use App\Models\WorkSession;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -27,6 +25,7 @@ class TeamPerformanceMetricsService
         private readonly WorkCalendarService $workCalendarService,
         private readonly OperationsRoleService $roleService,
         private readonly PresenceEngineService $presenceEngineService,
+        private readonly AttendanceRegisterService $attendanceRegisterService,
     ) {}
 
     public function metricsFor(
@@ -41,7 +40,8 @@ class TeamPerformanceMetricsService
 
         $sessions = $this->sessionsFor($user, $range);
         $schedule = $this->workCalendarService->scheduleFor($user);
-        $dayBreakdown = $this->dayBreakdown($user, $schedule, $range);
+        $attendanceDays = $this->attendanceDaysFor($user, $range, $at);
+        $dayBreakdown = $this->dayBreakdown($attendanceDays);
 
         return new TeamMemberPerformanceMetrics(
             userId: $user->id,
@@ -49,8 +49,8 @@ class TeamPerformanceMetricsService
             roleLabel: $this->roleService->displayLabel($user->roles->first()?->name),
             range: $range,
             attendance: $this->buildAttendanceMetrics($dayBreakdown),
-            login: $this->buildLoginMetrics($sessions),
-            presence: $this->buildPresenceMetrics($sessions, $dayBreakdown, $schedule),
+            login: $this->buildLoginMetrics($attendanceDays),
+            presence: $this->buildPresenceMetrics($attendanceDays, $dayBreakdown, $schedule),
             customerWork: $this->buildCustomerWorkMetrics($user, $sessions, $range),
             quality: $this->buildQualityMetrics($user, $range),
         );
@@ -95,6 +95,22 @@ class TeamPerformanceMetricsService
     }
 
     /**
+     * @return Collection<int, WorkforceAttendanceDay>
+     */
+    private function attendanceDaysFor(
+        User $user,
+        PerformancePeriodRange $range,
+        ?Carbon $at,
+    ): Collection {
+        return $this->attendanceRegisterService->resolveDaysForRange(
+            user: $user,
+            startDate: $range->start,
+            endDate: $range->end,
+            referenceAt: $at ?? $range->end,
+        );
+    }
+
+    /**
      * @return list<array{
      *     date: Carbon,
      *     is_working_day: bool,
@@ -103,61 +119,21 @@ class TeamPerformanceMetricsService
      *     is_present: bool
      * }>
      */
-    private function dayBreakdown(
-        User $user,
-        ?TeamMemberWorkSchedule $schedule,
-        PerformancePeriodRange $range,
-    ): array {
-        $holidayDates = CompanyHoliday::query()
-            ->whereDate('holiday_date', '>=', $range->start->toDateString())
-            ->whereDate('holiday_date', '<=', $range->end->toDateString())
-            ->pluck('holiday_date')
-            ->map(fn ($date): string => Carbon::parse($date)->toDateString())
+    private function dayBreakdown(Collection $attendanceDays): array
+    {
+        return $attendanceDays
+            ->sortBy(fn (WorkforceAttendanceDay $day): string => $day->work_date->toDateString())
+            ->map(fn (WorkforceAttendanceDay $day): array => [
+                'date' => $day->work_date->copy()->startOfDay(),
+                'is_working_day' => $day->is_working_day,
+                'is_holiday' => $day->is_company_holiday,
+                'is_leave' => $day->is_on_leave && $day->is_working_day,
+                'is_present' => $day->is_working_day
+                    && ! $day->is_on_leave
+                    && $day->session_count > 0,
+            ])
+            ->values()
             ->all();
-
-        $leaveRanges = LeaveRequest::query()
-            ->where('user_id', $user->id)
-            ->where('status', LeaveRequestStatus::Approved)
-            ->whereDate('start_date', '<=', $range->end->toDateString())
-            ->whereDate('end_date', '>=', $range->start->toDateString())
-            ->get(['start_date', 'end_date']);
-
-        $presentDates = WorkSession::query()
-            ->where('user_id', $user->id)
-            ->whereDate('work_date', '>=', $range->start->toDateString())
-            ->whereDate('work_date', '<=', $range->end->toDateString())
-            ->pluck('work_date')
-            ->map(fn ($date): string => Carbon::parse($date)->toDateString())
-            ->flip();
-
-        $days = [];
-        $cursor = $range->start->copy()->startOfDay();
-        $end = $range->end->copy()->startOfDay();
-
-        while ($cursor->lte($end)) {
-            $dateString = $cursor->toDateString();
-            $isHoliday = in_array($dateString, $holidayDates, true);
-            $isWeeklyOff = $schedule !== null && ! $this->workCalendarService->isWorkingDay($schedule, $cursor);
-            $isWorkingDay = ! $isHoliday && ! $isWeeklyOff;
-            $isLeave = $leaveRanges->contains(
-                fn (LeaveRequest $leave): bool => $cursor->between(
-                    $leave->start_date->copy()->startOfDay(),
-                    $leave->end_date->copy()->endOfDay(),
-                ),
-            );
-
-            $days[] = [
-                'date' => $cursor->copy(),
-                'is_working_day' => $isWorkingDay,
-                'is_holiday' => $isHoliday,
-                'is_leave' => $isLeave && $isWorkingDay,
-                'is_present' => $isWorkingDay && ! $isLeave && isset($presentDates[$dateString]),
-            ];
-
-            $cursor->addDay();
-        }
-
-        return $days;
     }
 
     /**
@@ -181,18 +157,22 @@ class TeamPerformanceMetricsService
     }
 
     /**
-     * @param  Collection<int, WorkSession>  $sessions
+     * @param  Collection<int, WorkforceAttendanceDay>  $attendanceDays
      * @return array<string, int|float|string|null>
      */
-    private function buildLoginMetrics(Collection $sessions): array
+    private function buildLoginMetrics(Collection $attendanceDays): array
     {
-        $evaluated = $sessions->filter(fn (WorkSession $session): bool => $session->on_time_login !== null);
+        $evaluated = $attendanceDays->filter(
+            fn (WorkforceAttendanceDay $day): bool => $day->on_time_login !== null,
+        );
         $onTimeCount = $evaluated->where('on_time_login', true)->count();
         $lateDays = $evaluated->where('on_time_login', false)->count();
         $evaluatedCount = $evaluated->count();
 
         $loginMinutes = $evaluated
-            ->map(fn (WorkSession $session): int => ((int) $session->login_at?->format('H')) * 60 + (int) $session->login_at?->format('i'))
+            ->map(fn (WorkforceAttendanceDay $day): int => $day->first_login_at !== null
+                ? ((int) $day->first_login_at->format('H')) * 60 + (int) $day->first_login_at->format('i')
+                : -1)
             ->filter(fn (int $minutes): bool => $minutes >= 0);
 
         $averageLoginTime = null;
@@ -215,17 +195,17 @@ class TeamPerformanceMetricsService
     }
 
     /**
-     * @param  Collection<int, WorkSession>  $sessions
+     * @param  Collection<int, WorkforceAttendanceDay>  $attendanceDays
      * @param  list<array{date: Carbon, is_working_day: bool, is_holiday: bool, is_leave: bool, is_present: bool}>  $dayBreakdown
      * @return array<string, int|string>
      */
     private function buildPresenceMetrics(
-        Collection $sessions,
+        Collection $attendanceDays,
         array $dayBreakdown,
         ?TeamMemberWorkSchedule $schedule,
     ): array {
-        $expectedWorkingSeconds = (int) $sessions->sum(
-            fn (WorkSession $session): int => ((int) $session->expected_working_minutes) * 60,
+        $expectedWorkingSeconds = (int) $attendanceDays->sum(
+            fn (WorkforceAttendanceDay $day): int => ((int) $day->expected_working_minutes) * 60,
         );
 
         if ($expectedWorkingSeconds === 0 && $schedule !== null) {
@@ -237,11 +217,11 @@ class TeamPerformanceMetricsService
             $expectedWorkingSeconds = $expectedMinutesPerDay * $expectedWorkingDays * 60;
         }
 
-        $activeSeconds = (int) $sessions->sum('active_duration_seconds');
-        $breakSeconds = (int) $sessions->sum('break_duration_seconds');
-        $lunchSeconds = (int) $sessions->sum('lunch_duration_seconds');
-        $extraIdleSeconds = (int) $sessions->sum('extra_idle_duration_seconds');
-        $overtimeSeconds = (int) $sessions->sum('overtime_seconds');
+        $activeSeconds = (int) $attendanceDays->sum('active_duration_seconds');
+        $breakSeconds = (int) $attendanceDays->sum('break_duration_seconds');
+        $lunchSeconds = (int) $attendanceDays->sum('lunch_duration_seconds');
+        $extraIdleSeconds = (int) $attendanceDays->sum('extra_idle_duration_seconds');
+        $overtimeSeconds = (int) $attendanceDays->sum('overtime_seconds');
         $presentDays = collect($dayBreakdown)->where('is_present', true)->count();
 
         return [

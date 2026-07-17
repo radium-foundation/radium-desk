@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentStatus;
+use App\Enums\OperationQueue;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -14,6 +15,7 @@ use App\Notifications\ServiceCaseReassignedNotification;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\OperationsAssignmentEligibilityService;
+use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\Operations\OperationsRoleService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
@@ -862,6 +864,22 @@ class ServiceCaseAssignmentService
     public function isVisibleInAdminReadyQueue(Incident $incident): bool
     {
         return ! $this->hasManualSupportOwnership($incident);
+    }
+
+    public function shouldRemoveFromAdminReadyQueue(Incident $incident): bool
+    {
+        $incident = $incident->loadMissing([
+            'order',
+            'assignee.roles',
+            'activeWaitingState',
+            'supportAppointments',
+        ]);
+
+        if (app(OperationsQueueClassifier::class)->classify($incident) !== OperationQueue::ActionRequired) {
+            return true;
+        }
+
+        return ! $this->isVisibleInAdminReadyQueue($incident);
     }
 
     private function findValidAdminAssigneeById(int $userId): ?User

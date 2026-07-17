@@ -12,9 +12,27 @@ class NotificationAuditTrailService
 {
     public const EVENT_DISPATCHED = 'notification.dispatched';
 
+    public const EVENT_SKIPPED = 'notification.skipped';
+
     public function __construct(
         private readonly AuditLogService $auditLogService,
     ) {}
+
+    public function recordSkipped(NotificationMessage $message, string $reason): AuditLog
+    {
+        return $this->auditLogService->log(
+            userId: $message->actor?->id,
+            event: self::EVENT_SKIPPED,
+            auditable: $message->incident,
+            newValues: [
+                'notification_type' => $message->type->value,
+                'source' => $message->metadata['source'] ?? null,
+                'trigger_source' => $message->metadata['trigger_source'] ?? null,
+                'skip_reason' => $reason,
+            ],
+            request: $message->httpRequest,
+        );
+    }
 
     public function recordUnhandledFailure(
         NotificationMessage $message,

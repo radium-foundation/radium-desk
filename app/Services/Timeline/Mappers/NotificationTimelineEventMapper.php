@@ -23,6 +23,11 @@ class NotificationTimelineEventMapper
      */
     public function fromAuditLog(AuditLog $auditLog): Collection
     {
+        if ($auditLog->event === NotificationAuditTrailService::EVENT_SKIPPED
+            && $auditLog->created_at !== null) {
+            return $this->mapSkipped($auditLog);
+        }
+
         if ($auditLog->event !== NotificationAuditTrailService::EVENT_DISPATCHED
             || $auditLog->created_at === null) {
             return collect();
@@ -158,5 +163,34 @@ class NotificationTimelineEventMapper
         }
 
         return implode("\n", $lines);
+    }
+
+    private function mapSkipped(AuditLog $auditLog): Collection
+    {
+        $actor = TimelineActorPresenter::for(
+            $this->automationIdentity->resolve($auditLog->user),
+        )->normalizedActor();
+        $notificationType = (string) ($auditLog->new_values['notification_type'] ?? 'notification');
+        $skipReason = (string) ($auditLog->new_values['skip_reason'] ?? 'Notification skipped.');
+
+        return collect([
+            new TimelineEvent(
+                type: TimelineEventType::Notification,
+                occurredAt: $auditLog->created_at,
+                title: TimelineCommunicationTitleMapper::titleFor($notificationType).' skipped',
+                actor: $actor,
+                dedupeKey: "notification-skipped:audit:{$auditLog->id}",
+                detail: $skipReason,
+                statusLabel: 'Skipped',
+                statusVariant: 'warning',
+                summaryFields: [
+                    ['label' => 'Reason', 'value' => $skipReason],
+                ],
+                filterTags: ['notifications'],
+                communicationChannels: [],
+                indicatorVariant: 'warning',
+                storyKey: TimelineCommunicationTitleMapper::storyKeyFor($notificationType, (int) $auditLog->id).':skipped',
+            ),
+        ]);
     }
 }

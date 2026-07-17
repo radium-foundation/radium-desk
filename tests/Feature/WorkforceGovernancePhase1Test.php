@@ -33,6 +33,9 @@ class WorkforceGovernancePhase1Test extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->leaveService = app(LeaveRequestService::class);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+        config(['workforce_calendar.retroactive_leave_days' => 2]);
     }
 
     protected function tearDown(): void
@@ -185,7 +188,7 @@ class WorkforceGovernancePhase1Test extends TestCase
         ]);
 
         $this->assertDatabaseHas('audit_logs', [
-            'event' => 'leave.submitted',
+            'event' => 'workforce.leave.submitted',
             'auditable_type' => LeaveRequest::class,
             'auditable_id' => $leaveRequest->id,
             'user_id' => $agent->id,
@@ -194,16 +197,18 @@ class WorkforceGovernancePhase1Test extends TestCase
         $this->leaveService->approve($leaveRequest, $operationsAdmin, 'Approved for planned leave');
 
         $this->assertDatabaseHas('audit_logs', [
-            'event' => 'leave.approved',
+            'event' => 'workforce.leave.approved',
             'auditable_type' => LeaveRequest::class,
             'auditable_id' => $leaveRequest->id,
             'user_id' => $operationsAdmin->id,
         ]);
 
         $approvedAudit = AuditLog::query()
-            ->where('event', 'leave.approved')
+            ->where('event', 'workforce.leave.approved')
             ->where('auditable_id', $leaveRequest->id)
             ->first();
+
+        $this->assertSame('leave.approved', $approvedAudit?->new_values['legacy_event'] ?? null);
 
         $this->assertSame($operationsAdmin->id, $approvedAudit?->new_values['reviewer_id'] ?? null);
         $this->assertSame('Approved for planned leave', $approvedAudit?->new_values['review_notes'] ?? null);

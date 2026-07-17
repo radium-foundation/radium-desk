@@ -12540,3 +12540,103 @@ button.agent-kpi-tile {
         grid-template-columns: 1fr;
     }
 }
+
+.workforce360-hero__summary {
+    font-weight: 600;
+}
+
+.workforce360-score {
+    min-width: 8.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: var(--bs-light, #f8f9fa);
+}
+
+.workforce360-score__value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.workforce360-score__label {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+.workforce360-score--placeholder .workforce360-score__value {
+    color: var(--bs-secondary-color);
+}
+
+.workforce360-metric-pill {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    background: #fff;
+    height: 100%;
+}
+
+.workforce360-metric-pill__value {
+    display: block;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.workforce360-metric-pill__label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+.workforce360-capacity-card__value {
+    font-weight: 700;
+}
+
+.workforce360-capacity-card--healthy {
+    border-left: 4px solid var(--dashboard-color-success, #198754);
+}
+
+.workforce360-capacity-card--warning {
+    border-left: 4px solid var(--dashboard-color-warning, #ffc107);
+}
+
+.workforce360-capacity-card--info {
+    border-left: 4px solid var(--dashboard-color-info, #0dcaf0);
+}
+
+.workforce360-capacity-card--danger {
+    border-left: 4px solid var(--dashboard-color-danger, #dc3545);
+}
+
+.workforce360-status-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    background: var(--bs-light, #f8f9fa);
+}
+
+.workforce360-status-chip--healthy {
+    background: rgba(25, 135, 84, 0.12);
+    color: #146c43;
+}
+
+.workforce360-status-chip--warning {
+    background: rgba(255, 193, 7, 0.18);
+    color: #997404;
+}
+
+.workforce360-status-chip--danger {
+    background: rgba(220, 53, 69, 0.12);
+    color: #b02a37;
+}
+
+.workforce360-status-chip--info {
+    background: rgba(13, 202, 240, 0.12);
+    color: #087990;
+}
+
+.workforce360-tabs .nav-link {
+    white-space: nowrap;
+}

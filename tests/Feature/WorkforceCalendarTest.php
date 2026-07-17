@@ -154,6 +154,8 @@ class WorkforceCalendarTest extends TestCase
 
     public function test_correct_leave_approval_hierarchy(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
         $supportAgent = User::factory()->create();
         $supportAgent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 

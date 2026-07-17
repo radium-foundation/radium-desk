@@ -14,6 +14,7 @@ use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
+use App\Services\Notifications\SerialNotificationAppointmentEligibilityService;
 use App\Services\SerialValidation\RequestCorrectSerialAuditService;
 use App\Services\SerialValidation\SerialInsightService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -30,6 +31,7 @@ class WorkspaceRequestCorrectSerialActionService
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
         private readonly NotificationChannelAvailabilityService $channelAvailabilityService,
+        private readonly SerialNotificationAppointmentEligibilityService $appointmentEligibility,
     ) {}
 
     public function send(
@@ -45,6 +47,19 @@ class WorkspaceRequestCorrectSerialActionService
         $reason = $this->eligibilityService->ineligibilityReason($incident);
 
         if ($reason !== null) {
+            if ($reason === SerialNotificationAppointmentEligibilityService::SKIP_REASON) {
+                $this->appointmentEligibility->recordSkip(
+                    incident: $incident,
+                    type: NotificationType::RequestCorrectSerial,
+                    actor: $actor,
+                    metadata: [
+                        'source' => 'customer360',
+                        'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,
+                    ],
+                    request: $request,
+                );
+            }
+
             return WorkspaceActionResponseBuilder::make('request-correct-serial', $incident->id)
                 ->forContext($requestContext->context)
                 ->failure($reason)

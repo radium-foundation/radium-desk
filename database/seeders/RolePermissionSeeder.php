@@ -76,6 +76,8 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'leave-requests.view',
             'leave-requests.create',
+            'workforce.view',
+            'workforce.self',
         ],
         self::ROLE_SUPPORT_SPECIALIST => [
             'orders.view',
@@ -89,6 +91,8 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'leave-requests.view',
             'leave-requests.create',
+            'workforce.view',
+            'workforce.self',
         ],
         self::ROLE_CUSTOMER_COORDINATOR => [
             'orders.view',
@@ -102,6 +106,8 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'leave-requests.view',
             'leave-requests.create',
+            'workforce.view',
+            'workforce.self',
         ],
         self::ROLE_ESCALATION_SPECIALIST => [
             'orders.view',
@@ -115,6 +121,8 @@ class RolePermissionSeeder extends Seeder
             'refunds.create',
             'leave-requests.view',
             'leave-requests.create',
+            'workforce.view',
+            'workforce.self',
         ],
         self::ROLE_HARDWARE_TEAM => [
             'dashboard.hardware.view',
@@ -126,6 +134,8 @@ class RolePermissionSeeder extends Seeder
             'remarks.create',
             'leave-requests.view',
             'leave-requests.create',
+            'workforce.view',
+            'workforce.self',
         ],
         self::ROLE_ADMIN => [
             'dashboard.hardware.view',
@@ -156,6 +166,9 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.review',
             'workforce-calendar.manage',
             'team-performance.view',
+            'workforce.view',
+            'workforce.view.member',
+            'workforce.self',
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -186,6 +199,9 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.review',
             'workforce-calendar.manage',
             'team-performance.view',
+            'workforce.view',
+            'workforce.view.member',
+            'workforce.self',
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -221,6 +237,9 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.review',
             'workforce-calendar.manage',
             'team-performance.view',
+            'workforce.view',
+            'workforce.view.member',
+            'workforce.self',
         ],
     ];
 

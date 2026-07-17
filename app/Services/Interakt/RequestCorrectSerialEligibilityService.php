@@ -7,6 +7,7 @@ use App\Enums\SerialInsightStatus;
 use App\Enums\WhatsAppTemplate;
 use App\Models\Incident;
 use App\Models\Order;
+use App\Services\Notifications\SerialNotificationAppointmentEligibilityService;
 use App\Services\SerialValidation\SerialInsightService;
 use App\Services\SerialValidation\SerialPlaceholderService;
 
@@ -15,6 +16,7 @@ class RequestCorrectSerialEligibilityService
     public function __construct(
         private readonly SerialPlaceholderService $placeholderService,
         private readonly SerialInsightService $serialInsightService,
+        private readonly SerialNotificationAppointmentEligibilityService $appointmentEligibility,
     ) {}
 
     public function isEligible(Incident $incident): bool
@@ -49,6 +51,10 @@ class RequestCorrectSerialEligibilityService
 
         if (! $this->serialNeedsCorrection($order)) {
             return 'Serial number does not need a correction request.';
+        }
+
+        if ($this->appointmentEligibility->shouldSkip($incident)) {
+            return $this->appointmentEligibility->skipReason();
         }
 
         return null;

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
 use App\Enums\OrderStatus;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\StoreOrderServiceCaseRequest;
@@ -10,6 +11,8 @@ use App\Http\Requests\UpdateOrderRequest;
 use App\Models\DeviceModel;
 use App\Models\Order;
 use App\Services\AuditLogService;
+use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\DashboardBroadcastService;
 use App\Services\DeviceModelSettingsService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\OrderIdentityLifecycleService;
@@ -217,6 +220,7 @@ class OrderController extends Controller
         $previousDeviceModel = $order->device_model;
         $previousDeviceModelId = $order->device_model_id;
         $previousProductName = $order->product_name;
+        $previousOrderId = $order->order_id;
         $validated = collect($request->validated())->except('correction_reason')->all();
         $validated = $this->applyDeviceModelSelection(
             validated: $validated,
@@ -311,6 +315,19 @@ class OrderController extends Controller
                 source: 'order_admin_edit',
                 serialChanged: $previousSerial !== $order->serial_number,
             );
+        }
+
+        if ($previousOrderId !== $order->order_id) {
+            app(DashboardSnapshotStore::class)->forget();
+
+            $broadcastService = app(DashboardBroadcastService::class);
+
+            foreach ($order->incidents()->where('status', '!=', IncidentStatus::Closed)->get() as $incident) {
+                $broadcastService->serviceCaseQueueMembershipChanged(
+                    $incident->fresh(['order.transactionAssigner', 'creator', 'assignee']),
+                    $request->user(),
+                );
+            }
         }
 
         return redirect()

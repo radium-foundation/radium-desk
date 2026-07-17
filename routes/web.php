@@ -48,7 +48,7 @@ use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\TeamPerformanceController;
 use App\Http\Controllers\TeamTelegramBroadcastController;
-use App\Http\Controllers\TeamWorkScheduleController;
+use App\Http\Controllers\Workforce360Controller;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkspaceActionController;
 use App\Http\Controllers\WorkspaceComponentController;
@@ -218,6 +218,10 @@ Route::middleware(['auth', 'active'])->group(function () {
     });
 
     Route::get('/my-performance', [MyPerformanceController::class, 'index'])->name('my-performance.index');
+
+    Route::get('/workforce', [Workforce360Controller::class, 'index'])->name('workforce.index');
+    Route::get('/workforce/{user}', [Workforce360Controller::class, 'show'])->name('workforce.show');
+    Route::get('/my-workforce', [Workforce360Controller::class, 'my'])->name('my-workforce.index');
 
     Route::put('users/{user}/work-schedule', [TeamWorkScheduleController::class, 'update'])
         ->name('users.work-schedule.update');

@@ -36,10 +36,16 @@ class DashboardBroadcastService
 
     public function serviceCaseAssigned(Incident $incident, User $actor): void
     {
+        $this->serviceCaseQueueMembershipChanged($incident, $actor);
+    }
+
+    public function serviceCaseQueueMembershipChanged(Incident $incident, ?User $actor = null): void
+    {
         $this->broadcastRowUpdate(
             incident: $incident,
             actor: $actor,
             eventClass: ServiceCaseCreated::class,
+            removeFromList: app(ServiceCaseAssignmentService::class)->shouldRemoveFromAdminReadyQueue($incident),
         );
 
         $this->kpisUpdated($actor);

@@ -41,6 +41,12 @@ class WorkspaceRefreshRenderer
             ];
         }
 
+        if ($effects->removeRow) {
+            $refresh['remove_row'] = [
+                'incident_id' => $incident->id,
+            ];
+        }
+
         if ($effects->replaceRow) {
             $refresh['replace_row'] = [
                 'incident_id' => $incident->id,

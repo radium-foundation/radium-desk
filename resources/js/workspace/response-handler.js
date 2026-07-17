@@ -124,6 +124,10 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
         applyFragments(data.refresh?.fragments, host, hooks);
         applyTargets(data.refresh?.targets, hooks);
 
+        if (data.refresh?.remove_row && hooks.removeServiceCaseRow) {
+            hooks.removeServiceCaseRow(data.refresh.remove_row.incident_id);
+        }
+
         if (data.refresh?.replace_row && hooks.replaceServiceCaseRow) {
             hooks.replaceServiceCaseRow(
                 data.refresh.replace_row.incident_id,

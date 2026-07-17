@@ -25,6 +25,7 @@ use App\Services\AutomationIdentityService;
 use App\Services\IncidentWaitingStateService;
 use App\Services\Notifications\NotificationChannelAvailabilityService;
 use App\Services\Notifications\NotificationDispatcher;
+use App\Services\Notifications\SerialNotificationAppointmentEligibilityService;
 use App\Services\RadiumBox\RadiumBoxService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Builder;
@@ -51,6 +52,7 @@ class MissingSerialAutomationService
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly CustomerWaitingLifecycleService $customerWaitingLifecycleService,
         private readonly AutomationIdentityService $automationIdentityService,
+        private readonly SerialNotificationAppointmentEligibilityService $appointmentEligibility,
     ) {}
 
     public function process(?int $limit = null): MissingSerialAutomationProcessResult
@@ -349,6 +351,25 @@ class MissingSerialAutomationService
                 action: $action,
                 outcome: 'skipped',
                 message: $channelBlockReason,
+            );
+        }
+
+        if ($this->appointmentEligibility->shouldSkip($incident)) {
+            $this->appointmentEligibility->recordSkip(
+                incident: $incident,
+                type: $notificationType,
+                metadata: [
+                    'source' => 'missing_serial_automation',
+                    'trigger_source' => WhatsAppTemplateTriggerSource::Scheduler->value,
+                    'automation_action' => $action->value,
+                ],
+            );
+
+            return new MissingSerialAutomationOrderResult(
+                orderId: $order->id,
+                action: $action,
+                outcome: 'skipped',
+                message: $this->appointmentEligibility->skipReason(),
             );
         }
 

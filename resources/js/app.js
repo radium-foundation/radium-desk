@@ -340,6 +340,13 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
         },
     });
 
+    const removeServiceCaseRow = (incidentId) => {
+        document.getElementById(`service-case-row-${incidentId}`)?.remove();
+        batchSession?.restoreRowState(incidentId);
+        batchSession?.updateToolbar();
+        onRowUpdated?.();
+    };
+
     batchSession = createBatchTransactionSession({
         card,
         pageRoot: pageRoot ?? document,
@@ -548,6 +555,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
     return {
         batchSession,
         replaceServiceCaseRow,
+        removeServiceCaseRow,
         closeOpenInlineEditor,
     };
 };
@@ -589,6 +597,10 @@ document.addEventListener('DOMContentLoaded', () => {
         replaceServiceCaseRow: (...args) => (
             dashboardTransactionsRef.current?.replaceServiceCaseRow ?? replaceServiceCaseRowFallback
         )(...args),
+        removeServiceCaseRow: (incidentId) => (
+            dashboardTransactionsRef.current?.removeServiceCaseRow?.(incidentId)
+            ?? document.getElementById(`service-case-row-${incidentId}`)?.remove()
+        ),
         initTooltips,
         initMentionTextareas,
         afterSuccess: async (data) => {

@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Data\Workspace\WorkspaceActionResponse;
+use App\Data\Workspace\WorkspaceRefreshEffects;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\WorkspaceActionType;
 use App\Enums\WorkspaceComponent;
+use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Concerns\BuildsWorkspaceValidationFailure;
@@ -96,6 +98,15 @@ class WorkspaceAssignActionService
             WorkspaceComponent::Action,
             $incident,
         );
+
+        if ($requestContext->context === WorkspaceContext::Dashboard
+            && $this->assignmentService->shouldRemoveFromAdminReadyQueue($incident)) {
+            $effects = new WorkspaceRefreshEffects(
+                refreshKpis: $effects->refreshKpis,
+                removeRow: true,
+                closeWorkspaceHost: $effects->closeWorkspaceHost,
+            );
+        }
 
         $refresh = $this->refreshRenderer->buildRefreshPayload(
             $effects,

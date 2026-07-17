@@ -14,6 +14,7 @@ use App\Models\SettingSource;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Policies\DashboardPolicy;
+use App\Policies\Workforce360Policy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Services\AI\Providers\NullAIProvider;
@@ -177,6 +178,11 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Gate::define('viewDashboardHardware', fn (User $user): bool => app(DashboardPolicy::class)->viewHardware($user));
+
+        $workforce360Policy = Workforce360Policy::class;
+        Gate::define('workforce360.viewTeam', fn (User $user): bool => app($workforce360Policy)->viewTeam($user));
+        Gate::define('workforce360.viewMember', fn (User $user, User $member): bool => app($workforce360Policy)->viewMember($user, $member));
+        Gate::define('workforce360.viewSelf', fn (User $user): bool => app($workforce360Policy)->viewSelf($user));
 
         Gate::policy(SettingProduct::class, SettingPolicy::class);
         Gate::policy(SettingSource::class, SettingPolicy::class);

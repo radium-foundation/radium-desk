@@ -30,7 +30,10 @@ class NotificationTimelineEventSource implements TimelineEventSource
             ->with('user')
             ->where('auditable_type', (new Incident)->getMorphClass())
             ->whereIn('auditable_id', $incidentIds)
-            ->where('event', NotificationAuditTrailService::EVENT_DISPATCHED)
+            ->whereIn('event', [
+                NotificationAuditTrailService::EVENT_DISPATCHED,
+                NotificationAuditTrailService::EVENT_SKIPPED,
+            ])
             ->orderByDesc('created_at')
             ->when($limit !== null, fn ($query) => $query->limit($limit))
             ->get()

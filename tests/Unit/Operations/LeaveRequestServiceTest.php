@@ -74,7 +74,7 @@ class LeaveRequestServiceTest extends TestCase
         Http::assertSentCount(1);
 
         $this->assertDatabaseHas('audit_logs', [
-            'event' => 'leave.notification.dispatched',
+            'event' => 'workforce.leave.notification.dispatched',
             'auditable_type' => LeaveRequest::class,
         ]);
     }
@@ -178,7 +178,7 @@ class LeaveRequestServiceTest extends TestCase
         Http::assertNothingSent();
 
         $this->assertDatabaseHas('audit_logs', [
-            'event' => 'leave.notification.dispatched',
+            'event' => 'workforce.leave.notification.dispatched',
             'auditable_type' => LeaveRequest::class,
         ]);
     }

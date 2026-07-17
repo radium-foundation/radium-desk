@@ -50,6 +50,22 @@
                 </a>
             </li>
             <li class="nav-item">
+                @can('workforce360.viewTeam')
+                    <a @class(['nav-link', 'active' => request()->routeIs('workforce.*')]) href="{{ route('workforce.index') }}" title="Workforce">
+                        <i class="bi bi-people-fill nav-icon me-2"></i>
+                        <span class="nav-label">Workforce</span>
+                    </a>
+                @endcan
+            </li>
+            <li class="nav-item">
+                @can('workforce360.viewSelf')
+                    <a @class(['nav-link', 'active' => request()->routeIs('my-workforce.*')]) href="{{ route('my-workforce.index') }}" title="My Workforce">
+                        <i class="bi bi-person-workspace nav-icon me-2"></i>
+                        <span class="nav-label">My Workforce</span>
+                    </a>
+                @endcan
+            </li>
+            <li class="nav-item">
                 @can('viewAny', App\Models\LeaveRequest::class)
                     <a @class(['nav-link', 'active' => request()->routeIs('leave-requests.*')]) href="{{ route('leave-requests.index') }}" title="Leave Requests">
                         <i class="bi bi-calendar-x nav-icon me-2"></i>

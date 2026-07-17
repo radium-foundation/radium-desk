@@ -56,6 +56,8 @@ class PresenceEngineService
 
         $this->availabilityService->syncFromSessionStart($user, $at);
 
+        $this->refreshAttendanceRegister($user, $at);
+
         return $session;
     }
 
@@ -80,6 +82,8 @@ class PresenceEngineService
                 ? TeamAvailabilityChangeSource::Timeout
                 : TeamAvailabilityChangeSource::Logout,
         );
+
+        $this->refreshAttendanceRegister($user, $at);
 
         return $session->fresh();
     }
@@ -502,5 +506,14 @@ class PresenceEngineService
         }
 
         return $value;
+    }
+
+    private function refreshAttendanceRegister(User $user, Carbon $at): void
+    {
+        app(AttendanceRegisterService::class)->refreshDay(
+            user: $user,
+            workDate: $at->copy()->startOfDay(),
+            referenceAt: $at,
+        );
     }
 }

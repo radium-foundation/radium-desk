@@ -2,9 +2,8 @@
 
 namespace App\Http\Requests;
 
-use App\Services\Operations\OperationsRoleService;
+use App\Services\Operations\LeaveRequestService;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreLeaveRequestRequest extends FormRequest
 {
@@ -18,8 +17,12 @@ class StoreLeaveRequestRequest extends FormRequest
      */
     public function rules(): array
     {
+        $earliestStartDate = app(LeaveRequestService::class)
+            ->earliestPermittedStartDate()
+            ->toDateString();
+
         return [
-            'start_date' => ['required', 'date', 'after_or_equal:today'],
+            'start_date' => ['required', 'date', 'after_or_equal:'.$earliestStartDate],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'reason' => ['required', 'string', 'max:2000'],
         ];

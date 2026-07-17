@@ -9,12 +9,14 @@ use App\Data\NotificationMessage;
 use App\Data\NotificationResult;
 use App\Enums\AutomationPolicyActionType;
 use App\Enums\NotificationChannelType;
+use App\Enums\NotificationType;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Services\Automation\AutomationNotificationTypeResolver;
 use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Notifications\CustomerAutomationEligibilityService;
 use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
+use App\Services\Notifications\SerialNotificationAppointmentEligibilityService;
 
 class NotificationActionHandler implements ActionHandler
 {
@@ -24,6 +26,7 @@ class NotificationActionHandler implements ActionHandler
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
         private readonly CustomerWaitingLifecycleService $customerWaitingLifecycleService,
         private readonly CustomerAutomationEligibilityService $customerAutomationEligibility,
+        private readonly SerialNotificationAppointmentEligibilityService $appointmentEligibility,
     ) {}
 
     public function supports(AutomationPolicyActionType $type): bool
@@ -59,6 +62,30 @@ class NotificationActionHandler implements ActionHandler
                 metadata: [
                     'blocked' => true,
                     'block_reason' => $blockReason,
+                ],
+            );
+        }
+
+        if (in_array($notificationType, [
+            NotificationType::RequestSerialNumber,
+            NotificationType::RequestCorrectSerial,
+        ], true) && $this->appointmentEligibility->shouldSkip($incident)) {
+            $this->appointmentEligibility->recordSkip(
+                incident: $incident,
+                type: $notificationType,
+                metadata: [
+                    'source' => 'automation_runtime',
+                    'trigger_source' => WhatsAppTemplateTriggerSource::Automation->value,
+                    'policy_key' => $action->policyKey,
+                    'action_key' => $action->actionKey,
+                ],
+            );
+
+            return ActionHandlerResult::skipped(
+                $this->appointmentEligibility->skipReason(),
+                metadata: [
+                    'notification_type' => $notificationType->value,
+                    'skipped_for_active_appointment' => true,
                 ],
             );
         }

@@ -10,6 +10,7 @@ readonly class WorkspaceRefreshEffects
     public function __construct(
         public bool $refreshKpis = false,
         public bool $replaceRow = false,
+        public bool $removeRow = false,
         public array $targetSelectors = [],
         public bool $closeWorkspaceHost = true,
         public bool $preferRedirect = false,
@@ -24,6 +25,7 @@ readonly class WorkspaceRefreshEffects
         return [
             'refresh_kpis' => $this->refreshKpis,
             'replace_row' => $this->replaceRow,
+            'remove_row' => $this->removeRow,
             'target_selectors' => $this->targetSelectors,
             'close_workspace_host' => $this->closeWorkspaceHost,
             'prefer_redirect' => $this->preferRedirect,

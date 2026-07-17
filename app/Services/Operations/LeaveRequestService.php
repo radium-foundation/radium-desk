@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\NotificationCategory;
 use App\Enums\NotificationChannelType;
+use App\Enums\WorkforceAuditEvent;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Notifications\LeaveRequestDecisionNotification;
@@ -15,6 +16,7 @@ use App\Services\Telegram\TelegramBotService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class LeaveRequestService
@@ -25,32 +27,53 @@ class LeaveRequestService
         private readonly AuditLogService $auditLogService,
     ) {}
 
+    public function earliestPermittedStartDate(?Carbon $at = null): Carbon
+    {
+        $at ??= now();
+
+        $retroactiveDays = max(0, (int) config('workforce_calendar.retroactive_leave_days', 2));
+
+        return $at->copy()->startOfDay()->subDays($retroactiveDays);
+    }
+
     /**
      * @param  array{start_date: string, end_date: string, reason: string}  $data
      */
     public function submit(User $requester, array $data): LeaveRequest
     {
-        $leaveRequest = LeaveRequest::query()->create([
-            'user_id' => $requester->id,
-            'start_date' => $data['start_date'],
-            'end_date' => $data['end_date'],
-            'reason' => $data['reason'],
-            'status' => LeaveRequestStatus::Pending,
-        ]);
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+        $endDate = Carbon::parse($data['end_date'])->startOfDay();
 
-        $leaveRequest = $leaveRequest->fresh(['user']);
+        $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate): LeaveRequest {
+            $this->lockActiveLeaveRequestsFor($requester);
+            $this->assertPermittedStartDate($startDate);
+            $this->assertValidDateRange($startDate, $endDate);
+            $this->assertNoOverlappingLeave($requester, $startDate, $endDate);
 
-        $this->auditLogService->log(
-            userId: $requester->id,
-            event: 'leave.submitted',
-            auditable: $leaveRequest,
-            newValues: [
-                'requester_id' => $requester->id,
-                'start_date' => $data['start_date'],
-                'end_date' => $data['end_date'],
-                'status' => LeaveRequestStatus::Pending->value,
-            ],
-        );
+            $leaveRequest = LeaveRequest::query()->create([
+                'user_id' => $requester->id,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+                'reason' => $data['reason'],
+                'status' => LeaveRequestStatus::Pending,
+            ]);
+
+            $leaveRequest = $leaveRequest->fresh(['user']);
+
+            $this->auditLeaveEvent(
+                event: WorkforceAuditEvent::LeaveSubmitted,
+                userId: $requester->id,
+                leaveRequest: $leaveRequest,
+                newValues: [
+                    'requester_id' => $requester->id,
+                    'start_date' => $leaveRequest->start_date->toDateString(),
+                    'end_date' => $leaveRequest->end_date->toDateString(),
+                    'status' => LeaveRequestStatus::Pending->value,
+                ],
+            );
+
+            return $leaveRequest;
+        });
 
         $this->notifyApproversOfSubmission($leaveRequest);
 
@@ -59,25 +82,55 @@ class LeaveRequestService
 
     public function approve(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
     {
-        $this->assertCanReview($reviewer, $leaveRequest);
         $this->assertReviewNotesProvided($reviewNotes);
 
-        if ($leaveRequest->status !== LeaveRequestStatus::Pending) {
-            throw ValidationException::withMessages([
-                'status' => 'Only pending leave requests can be approved.',
-            ]);
-        }
+        $leaveRequest = DB::transaction(function () use ($leaveRequest, $reviewer, $reviewNotes): LeaveRequest {
+            $lockedLeaveRequest = $this->lockLeaveRequest($leaveRequest);
 
-        $leaveRequest->fill([
-            'status' => LeaveRequestStatus::Approved,
-            'reviewed_by' => $reviewer->id,
-            'reviewed_at' => now(),
-            'review_notes' => $reviewNotes,
-        ])->save();
+            $this->assertCanReview($reviewer, $lockedLeaveRequest);
 
-        $leaveRequest = $leaveRequest->fresh(['user', 'reviewer']);
+            if ($lockedLeaveRequest->status !== LeaveRequestStatus::Pending) {
+                throw ValidationException::withMessages([
+                    'status' => 'Only pending leave requests can be approved.',
+                ]);
+            }
 
-        $this->auditLeaveDecision($leaveRequest, $reviewer, 'leave.approved');
+            $requester = $lockedLeaveRequest->user;
+
+            if ($requester !== null) {
+                $this->lockActiveLeaveRequestsFor($requester);
+                $this->assertNoOverlappingLeave(
+                    user: $requester,
+                    startDate: $lockedLeaveRequest->start_date->copy()->startOfDay(),
+                    endDate: $lockedLeaveRequest->end_date->copy()->startOfDay(),
+                    excludeLeaveRequestId: $lockedLeaveRequest->id,
+                    statuses: [LeaveRequestStatus::Approved],
+                );
+            }
+
+            $lockedLeaveRequest->fill([
+                'status' => LeaveRequestStatus::Approved,
+                'reviewed_by' => $reviewer->id,
+                'reviewed_at' => now(),
+                'review_notes' => $reviewNotes,
+            ])->save();
+
+            $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user', 'reviewer']);
+
+            $this->auditLeaveEvent(
+                event: WorkforceAuditEvent::LeaveApproved,
+                userId: $reviewer->id,
+                leaveRequest: $lockedLeaveRequest,
+                newValues: [
+                    'reviewer_id' => $reviewer->id,
+                    'reviewed_at' => $lockedLeaveRequest->reviewed_at?->toIso8601String(),
+                    'status' => $lockedLeaveRequest->status->value,
+                    'review_notes' => $lockedLeaveRequest->review_notes,
+                ],
+            );
+
+            return $lockedLeaveRequest;
+        });
 
         $this->notifyRequesterOfDecision($leaveRequest);
 
@@ -86,25 +139,42 @@ class LeaveRequestService
 
     public function reject(LeaveRequest $leaveRequest, User $reviewer, ?string $reviewNotes = null): LeaveRequest
     {
-        $this->assertCanReview($reviewer, $leaveRequest);
         $this->assertReviewNotesProvided($reviewNotes);
 
-        if ($leaveRequest->status !== LeaveRequestStatus::Pending) {
-            throw ValidationException::withMessages([
-                'status' => 'Only pending leave requests can be rejected.',
-            ]);
-        }
+        $leaveRequest = DB::transaction(function () use ($leaveRequest, $reviewer, $reviewNotes): LeaveRequest {
+            $lockedLeaveRequest = $this->lockLeaveRequest($leaveRequest);
 
-        $leaveRequest->fill([
-            'status' => LeaveRequestStatus::Rejected,
-            'reviewed_by' => $reviewer->id,
-            'reviewed_at' => now(),
-            'review_notes' => $reviewNotes,
-        ])->save();
+            $this->assertCanReview($reviewer, $lockedLeaveRequest);
 
-        $leaveRequest = $leaveRequest->fresh(['user', 'reviewer']);
+            if ($lockedLeaveRequest->status !== LeaveRequestStatus::Pending) {
+                throw ValidationException::withMessages([
+                    'status' => 'Only pending leave requests can be rejected.',
+                ]);
+            }
 
-        $this->auditLeaveDecision($leaveRequest, $reviewer, 'leave.rejected');
+            $lockedLeaveRequest->fill([
+                'status' => LeaveRequestStatus::Rejected,
+                'reviewed_by' => $reviewer->id,
+                'reviewed_at' => now(),
+                'review_notes' => $reviewNotes,
+            ])->save();
+
+            $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user', 'reviewer']);
+
+            $this->auditLeaveEvent(
+                event: WorkforceAuditEvent::LeaveRejected,
+                userId: $reviewer->id,
+                leaveRequest: $lockedLeaveRequest,
+                newValues: [
+                    'reviewer_id' => $reviewer->id,
+                    'reviewed_at' => $lockedLeaveRequest->reviewed_at?->toIso8601String(),
+                    'status' => $lockedLeaveRequest->status->value,
+                    'review_notes' => $lockedLeaveRequest->review_notes,
+                ],
+            );
+
+            return $lockedLeaveRequest;
+        });
 
         $this->notifyRequesterOfDecision($leaveRequest);
 
@@ -156,6 +226,99 @@ class LeaveRequestService
 
         return $day->gte($leaveRequest->start_date->startOfDay())
             && $day->lte($leaveRequest->end_date->endOfDay());
+    }
+
+    private function lockLeaveRequest(LeaveRequest $leaveRequest): LeaveRequest
+    {
+        return LeaveRequest::query()
+            ->whereKey($leaveRequest->id)
+            ->lockForUpdate()
+            ->firstOrFail();
+    }
+
+    private function lockActiveLeaveRequestsFor(User $user): void
+    {
+        LeaveRequest::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', [
+                LeaveRequestStatus::Pending->value,
+                LeaveRequestStatus::Approved->value,
+            ])
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
+     * @param  list<LeaveRequestStatus>  $statuses
+     */
+    private function assertNoOverlappingLeave(
+        User $user,
+        Carbon $startDate,
+        Carbon $endDate,
+        ?int $excludeLeaveRequestId = null,
+        ?array $statuses = null,
+    ): void {
+        $statuses ??= [LeaveRequestStatus::Pending, LeaveRequestStatus::Approved];
+
+        $statusValues = array_map(
+            static fn (LeaveRequestStatus $status): string => $status->value,
+            $statuses,
+        );
+
+        $overlapExists = LeaveRequest::query()
+            ->where('user_id', $user->id)
+            ->whereIn('status', $statusValues)
+            ->when(
+                $excludeLeaveRequestId !== null,
+                fn ($query) => $query->where('id', '!=', $excludeLeaveRequestId),
+            )
+            ->whereDate('start_date', '<=', $endDate->toDateString())
+            ->whereDate('end_date', '>=', $startDate->toDateString())
+            ->exists();
+
+        if ($overlapExists) {
+            throw ValidationException::withMessages([
+                'start_date' => 'This leave request overlaps an existing pending or approved leave request.',
+            ]);
+        }
+    }
+
+    private function assertPermittedStartDate(Carbon $startDate): void
+    {
+        if ($startDate->lt($this->earliestPermittedStartDate())) {
+            throw ValidationException::withMessages([
+                'start_date' => 'Leave cannot start before '.$this->earliestPermittedStartDate()->toDateString().'.',
+            ]);
+        }
+    }
+
+    private function assertValidDateRange(Carbon $startDate, Carbon $endDate): void
+    {
+        if ($endDate->lt($startDate)) {
+            throw ValidationException::withMessages([
+                'end_date' => 'The end date must be on or after the start date.',
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $newValues
+     */
+    private function auditLeaveEvent(
+        WorkforceAuditEvent $event,
+        int $userId,
+        LeaveRequest $leaveRequest,
+        array $newValues,
+    ): void {
+        $this->auditLogService->log(
+            userId: $userId,
+            event: $event->value,
+            auditable: $leaveRequest,
+            newValues: [
+                ...$newValues,
+                'legacy_event' => $event->legacyEvent(),
+            ],
+        );
     }
 
     private function notifyApproversOfSubmission(LeaveRequest $leaveRequest): void
@@ -223,21 +386,6 @@ class LeaveRequestService
         }
     }
 
-    private function auditLeaveDecision(LeaveRequest $leaveRequest, User $reviewer, string $event): void
-    {
-        $this->auditLogService->log(
-            userId: $reviewer->id,
-            event: $event,
-            auditable: $leaveRequest,
-            newValues: [
-                'reviewer_id' => $reviewer->id,
-                'reviewed_at' => $leaveRequest->reviewed_at?->toIso8601String(),
-                'status' => $leaveRequest->status->value,
-                'review_notes' => $leaveRequest->review_notes,
-            ],
-        );
-    }
-
     /**
      * @return list<string>
      */
@@ -286,10 +434,10 @@ class LeaveRequestService
             NotificationCategory::LeaveApprovals,
             NotificationChannelType::Telegram,
         )) {
-            $this->auditLogService->log(
+            $this->auditLeaveEvent(
+                event: WorkforceAuditEvent::LeaveNotificationDispatched,
                 userId: $leaveRequest->user_id,
-                event: 'leave.notification.dispatched',
-                auditable: $leaveRequest,
+                leaveRequest: $leaveRequest,
                 newValues: [
                     'recipient_id' => $recipient->id,
                     'channel' => NotificationChannelType::Telegram->value,
@@ -303,10 +451,10 @@ class LeaveRequestService
         }
 
         if (! $this->telegramBot->isConfigured()) {
-            $this->auditLogService->log(
+            $this->auditLeaveEvent(
+                event: WorkforceAuditEvent::LeaveNotificationDispatched,
                 userId: $leaveRequest->user_id,
-                event: 'leave.notification.dispatched',
-                auditable: $leaveRequest,
+                leaveRequest: $leaveRequest,
                 newValues: [
                     'recipient_id' => $recipient->id,
                     'channel' => NotificationChannelType::Telegram->value,
@@ -324,10 +472,10 @@ class LeaveRequestService
             text: $message,
         );
 
-        $this->auditLogService->log(
+        $this->auditLeaveEvent(
+            event: WorkforceAuditEvent::LeaveNotificationDispatched,
             userId: $leaveRequest->user_id,
-            event: 'leave.notification.dispatched',
-            auditable: $leaveRequest,
+            leaveRequest: $leaveRequest,
             newValues: [
                 'recipient_id' => $recipient->id,
                 'channel' => NotificationChannelType::Telegram->value,

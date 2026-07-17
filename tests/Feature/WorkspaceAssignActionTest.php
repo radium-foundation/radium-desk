@@ -39,12 +39,15 @@ class WorkspaceAssignActionTest extends TestCase
     {
         $order = Order::query()->create([
             'order_id' => $overrides['order_id'] ?? 'ORD-WSA-1',
-            'serial_number' => 'SN-WSA-1',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'serial_number' => $overrides['serial_number'] ?? 'SN-WSA-1',
+            'product_name' => $overrides['product_name'] ?? 'MFS 110',
+            'device_model' => $overrides['device_model'] ?? 'MFS 110',
+            'cashfree_payment_id' => $overrides['cashfree_payment_id'] ?? null,
             'status' => 'active',
             'created_by' => $creator->id,
         ]);
+
+        unset($overrides['order_id'], $overrides['serial_number'], $overrides['product_name'], $overrides['device_model'], $overrides['cashfree_payment_id']);
 
         return Incident::query()->create([
             'order_id' => $order->id,
@@ -98,7 +101,13 @@ class WorkspaceAssignActionTest extends TestCase
     {
         $admin = $this->createAdminUser('admin@example.com', 'Admin User');
         $shipra = $this->createAdminUser('shipra@example.com', 'Shipra Kumari');
-        $incident = $this->createIncident($admin, $admin);
+        $incident = $this->createIncident($admin, $admin, [
+            'order_id' => 'RD-WSA-DASHBOARD',
+            'serial_number' => 'B47C11929',
+            'device_model' => 'Access FM220 L1',
+            'product_name' => 'Access FM220 L1',
+            'cashfree_payment_id' => 'cf_pay_wsa_dashboard',
+        ]);
 
         $this->actingAs($admin)
             ->patchJson(route('incidents.workspace.assign', $incident), [

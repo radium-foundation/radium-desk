@@ -11,18 +11,23 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\NotificationChannelType;
 use App\Enums\NotificationType;
+use App\Enums\SupportAppointmentStatus;
+use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\WaitingReason;
 use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
+use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\Automation\AutomationNotificationTypeResolver;
 use App\Services\Automation\CustomerWaitingLifecycleService;
 use App\Services\Automation\Handlers\NotificationActionHandler;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\CustomerAutomationEligibilityService;
+use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
+use App\Services\Notifications\SerialNotificationAppointmentEligibilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -81,6 +86,7 @@ class NotificationActionHandlerTest extends TestCase
             app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
             app(CustomerWaitingLifecycleService::class),
             app(CustomerAutomationEligibilityService::class),
+            app(SerialNotificationAppointmentEligibilityService::class),
         );
 
         $result = $handler->handle($plannedAction);
@@ -104,6 +110,7 @@ class NotificationActionHandlerTest extends TestCase
             app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
             app(CustomerWaitingLifecycleService::class),
             app(CustomerAutomationEligibilityService::class),
+            app(SerialNotificationAppointmentEligibilityService::class),
         );
 
         $result = $handler->handle($plannedAction);
@@ -116,6 +123,45 @@ class NotificationActionHandlerTest extends TestCase
             'Automated customer notification blocked for enquiry/spam case.',
             $result->errorMessage,
         );
+    }
+
+    public function test_skips_serial_notification_when_active_appointment_exists(): void
+    {
+        [$plannedAction, $incident] = $this->makePlannedAction('request_serial_number', withIncident: true);
+
+        SupportAppointment::query()->create([
+            'incident_id' => $incident->id,
+            'preferred_date' => now()->addDay()->toDateString(),
+            'preferred_time_slot' => SupportAppointmentTimeSlot::Morning,
+            'phone_number' => '9876543210',
+            'normalized_phone' => '9876543210',
+            'status' => SupportAppointmentStatus::Scheduled,
+        ]);
+
+        $notificationDispatcher = Mockery::mock(NotificationDispatcher::class);
+        $notificationDispatcher->shouldNotReceive('send');
+
+        $handler = new NotificationActionHandler(
+            $notificationDispatcher,
+            app(AutomationNotificationTypeResolver::class),
+            app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
+            app(CustomerWaitingLifecycleService::class),
+            app(CustomerAutomationEligibilityService::class),
+            app(SerialNotificationAppointmentEligibilityService::class),
+        );
+
+        $result = $handler->handle($plannedAction);
+
+        $this->assertFalse($result->success);
+        $this->assertTrue($result->skipped);
+        $this->assertSame(
+            SerialNotificationAppointmentEligibilityService::SKIP_REASON,
+            $result->errorMessage,
+        );
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_id' => $incident->id,
+            'event' => NotificationAuditTrailService::EVENT_SKIPPED,
+        ]);
     }
 
     public function test_returns_failure_when_notification_mapping_is_missing(): void
@@ -131,6 +177,7 @@ class NotificationActionHandlerTest extends TestCase
             app(\App\Services\Notifications\NotificationDeliverySummaryFormatter::class),
             app(CustomerWaitingLifecycleService::class),
             app(CustomerAutomationEligibilityService::class),
+            app(SerialNotificationAppointmentEligibilityService::class),
         );
 
         $result = $handler->handle($plannedAction);
@@ -143,9 +190,9 @@ class NotificationActionHandlerTest extends TestCase
     }
 
     /**
-     * @return array{0: PlannedAutomationAction}
+     * @return array{0: PlannedAutomationAction, 1?: Incident}
      */
-    private function makePlannedAction(string $actionKey, bool $inquiry = false): array
+    private function makePlannedAction(string $actionKey, bool $inquiry = false, bool $withIncident = false): array
     {
         Carbon::setTestNow('2026-07-01 09:00:00');
 
@@ -190,16 +237,29 @@ class NotificationActionHandlerTest extends TestCase
         $waitingState->setRelation('incident', $incident);
         $incident->setRelation('order', $order);
 
-        return [
-            new PlannedAutomationAction(
-                waitingState: $waitingState,
-                policyKey: 'serial_number_default',
-                scheduleStep: 0,
-                actionType: AutomationPolicyActionType::WhatsAppTemplate,
-                actionKey: $actionKey,
-                channel: null,
-                scheduledAt: Carbon::parse('2026-07-01 09:00:00'),
-            ),
-        ];
+        return $withIncident
+            ? [
+                new PlannedAutomationAction(
+                    waitingState: $waitingState,
+                    policyKey: 'serial_number_default',
+                    scheduleStep: 0,
+                    actionType: AutomationPolicyActionType::WhatsAppTemplate,
+                    actionKey: $actionKey,
+                    channel: null,
+                    scheduledAt: Carbon::parse('2026-07-01 09:00:00'),
+                ),
+                $incident,
+            ]
+            : [
+                new PlannedAutomationAction(
+                    waitingState: $waitingState,
+                    policyKey: 'serial_number_default',
+                    scheduleStep: 0,
+                    actionType: AutomationPolicyActionType::WhatsAppTemplate,
+                    actionKey: $actionKey,
+                    channel: null,
+                    scheduledAt: Carbon::parse('2026-07-01 09:00:00'),
+                ),
+            ];
     }
 }

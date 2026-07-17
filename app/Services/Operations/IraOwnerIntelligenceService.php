@@ -10,12 +10,11 @@ use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\OperationQueue;
 use App\Enums\PerformancePeriod;
-use App\Enums\WorkSessionEndReason;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\LeaveRequest;
 use App\Models\User;
-use App\Models\WorkSession;
+use App\Models\WorkforceAttendanceDay;
 use App\Services\Dashboard\DashboardSnapshot;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -30,6 +29,7 @@ class IraOwnerIntelligenceService
         private readonly WorkCalendarService $workCalendarService,
         private readonly OperationsRoleService $roleService,
         private readonly ProductionEveningHealthService $eveningHealthService,
+        private readonly AttendanceRegisterService $attendanceRegisterService,
     ) {}
 
     public function buildMorningReport(?Carbon $at = null): IraOwnerReportData
@@ -251,12 +251,14 @@ class IraOwnerIntelligenceService
      */
     private function buildAttendanceSection(Carbon $at): array
     {
-        $sessions = WorkSession::query()
-            ->whereDate('work_date', $at->toDateString())
-            ->whereIn('user_id', $this->attendanceTrackedUserIds())
-            ->get();
+        $attendanceDays = $this->attendanceRegisterService->resolveTrackedDaysOnDate(
+            workDate: $at,
+            referenceAt: $at,
+        );
 
-        $evaluated = $sessions->filter(fn (WorkSession $session): bool => $session->on_time_login !== null);
+        $evaluated = $attendanceDays->filter(
+            fn (WorkforceAttendanceDay $day): bool => $day->on_time_login !== null,
+        );
 
         $extraWorking = [];
         $awayTimeouts = [];
@@ -271,7 +273,7 @@ class IraOwnerIntelligenceService
                 ];
             }
 
-            $timeoutCount = $this->timeoutCountForUser($metrics->userId, $at);
+            $timeoutCount = $this->timeoutCountForUser($metrics->userId, $at, $attendanceDays);
 
             if ($timeoutCount > 0) {
                 $awayTimeouts[] = [
@@ -284,12 +286,8 @@ class IraOwnerIntelligenceService
         return [
             'on_time_logins' => $evaluated->where('on_time_login', true)->count(),
             'late_logins' => $evaluated->where('on_time_login', false)->count(),
-            'manual_logouts' => $sessions
-                ->where('ended_reason', WorkSessionEndReason::ManualLogout)
-                ->count(),
-            'timeout_events' => $sessions
-                ->where('ended_reason', WorkSessionEndReason::AwayTimeout)
-                ->count(),
+            'manual_logouts' => (int) $attendanceDays->sum('manual_logout_count'),
+            'timeout_events' => (int) $attendanceDays->sum('away_timeout_count'),
             'extra_working_members' => array_slice($extraWorking, 0, 5),
             'away_timeout_members' => array_slice($awayTimeouts, 0, 5),
         ];
@@ -379,13 +377,10 @@ class IraOwnerIntelligenceService
      */
     private function lateArrivalNames(Carbon $at): array
     {
-        return WorkSession::query()
-            ->with('user')
-            ->whereDate('work_date', $at->toDateString())
-            ->where('on_time_login', false)
-            ->whereIn('user_id', $this->attendanceTrackedUserIds())
-            ->get()
-            ->map(fn (WorkSession $session): string => $session->user?->name ?? 'Unknown')
+        return $this->attendanceRegisterService
+            ->resolveTrackedDaysOnDate(workDate: $at, referenceAt: $at)
+            ->filter(fn (WorkforceAttendanceDay $day): bool => $day->on_time_login === false)
+            ->map(fn (WorkforceAttendanceDay $day): string => $day->user?->name ?? 'Unknown')
             ->unique()
             ->values()
             ->all();
@@ -431,13 +426,19 @@ class IraOwnerIntelligenceService
         return $count;
     }
 
-    private function timeoutCountForUser(int $userId, Carbon $at): int
-    {
-        return WorkSession::query()
-            ->where('user_id', $userId)
-            ->whereDate('work_date', $at->toDateString())
-            ->where('ended_reason', WorkSessionEndReason::AwayTimeout)
-            ->count();
+    private function timeoutCountForUser(
+        int $userId,
+        Carbon $at,
+        ?\Illuminate\Support\Collection $attendanceDays = null,
+    ): int {
+        $attendanceDays ??= $this->attendanceRegisterService->resolveTrackedDaysOnDate(
+            workDate: $at,
+            referenceAt: $at,
+        );
+
+        $day = $attendanceDays->firstWhere('user_id', $userId);
+
+        return (int) ($day?->away_timeout_count ?? 0);
     }
 
     /**
@@ -451,14 +452,6 @@ class IraOwnerIntelligenceService
             ->orderBy('name')
             ->get()
             ->filter(fn (User $user): bool => $this->roleService->isAttendanceTracked($user));
-    }
-
-    /**
-     * @return list<int>
-     */
-    private function attendanceTrackedUserIds(): array
-    {
-        return $this->attendanceTrackedUsers()->pluck('id')->all();
     }
 
     /**
