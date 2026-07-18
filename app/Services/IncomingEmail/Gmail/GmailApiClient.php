@@ -135,8 +135,14 @@ class GmailApiClient
                     default => throw new RuntimeException('Unsupported Gmail HTTP method: '.$method),
                 };
 
-                if ($response->status() === 404 && str_contains($path, '/history')) {
-                    throw new RuntimeException('Gmail historyId expired (404) for '.$mailbox, 404);
+                if ($response->status() === 404) {
+                    if (str_contains($path, '/history')) {
+                        throw new RuntimeException('Gmail historyId expired (404) for '.$mailbox, 404);
+                    }
+
+                    if (preg_match('#/messages/([^/?]+)#', $path, $matches) === 1) {
+                        throw new GmailStaleMessageException($mailbox, $matches[1]);
+                    }
                 }
 
                 if (in_array($response->status(), [429, 500, 502, 503, 504], true) && $attempt < $attempts) {

@@ -6,6 +6,7 @@ use App\Contracts\IncomingEmail\InboundEmailProvider;
 use App\Data\IncomingEmail\NormalizedInboundEmail;
 use App\Models\GmailMailboxSyncState;
 use App\Services\IncomingEmail\Gmail\GmailApiClient;
+use App\Services\IncomingEmail\Gmail\GmailStaleMessageException;
 use App\Services\IncomingEmail\Gmail\GmailMessageMapper;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -21,6 +22,8 @@ class GmailInboundEmailProvider implements InboundEmailProvider
 
     private ?string $pendingHistoryId = null;
 
+    private int $staleMessageSkips = 0;
+
     public function __construct(
         private readonly GmailApiClient $apiClient,
         private readonly GmailMessageMapper $mapper,
@@ -31,6 +34,7 @@ class GmailInboundEmailProvider implements InboundEmailProvider
         $clone = clone $this;
         $clone->mailbox = strtolower(trim($mailbox));
         $clone->pendingHistoryId = null;
+        $clone->staleMessageSkips = 0;
 
         return $clone;
     }
@@ -66,6 +70,11 @@ class GmailInboundEmailProvider implements InboundEmailProvider
     public function pendingHistoryId(): ?string
     {
         return $this->pendingHistoryId;
+    }
+
+    public function staleMessageSkips(): int
+    {
+        return $this->staleMessageSkips;
     }
 
     public function commitCursor(): void
@@ -145,7 +154,19 @@ class GmailInboundEmailProvider implements InboundEmailProvider
         $messages = [];
 
         foreach ($history['messageIds'] as $messageId) {
-            $raw = $this->apiClient->getMessage($this->mailbox, $messageId);
+            try {
+                $raw = $this->apiClient->getMessage($this->mailbox, $messageId);
+            } catch (GmailStaleMessageException $exception) {
+                $this->staleMessageSkips++;
+
+                Log::warning('[GmailInbound] Stale history message not found; skipping.', [
+                    'mailbox' => $this->mailbox,
+                    'message_id' => $messageId,
+                ]);
+
+                continue;
+            }
+
             $messages[] = $this->mapper->toNormalized($this->mailbox, $raw);
         }
 

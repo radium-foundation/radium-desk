@@ -30,6 +30,7 @@ class IncomingEmailGmailSyncService
      *     pulled: int,
      *     ingested: int,
      *     skipped: int,
+     *     stale_messages_skipped: int,
      *     failed_mailboxes: int
      * }
      */
@@ -41,6 +42,7 @@ class IncomingEmailGmailSyncService
                 'pulled' => 0,
                 'ingested' => 0,
                 'skipped' => 0,
+                'stale_messages_skipped' => 0,
                 'failed_mailboxes' => 0,
             ];
         }
@@ -51,6 +53,7 @@ class IncomingEmailGmailSyncService
         $pulled = 0;
         $ingested = 0;
         $skipped = 0;
+        $staleMessagesSkipped = 0;
         $failedMailboxes = 0;
 
         foreach ($mailboxes as $mailbox) {
@@ -71,6 +74,7 @@ class IncomingEmailGmailSyncService
                 $stats = $this->syncMailbox($mailbox, $provider);
                 $pulled += $stats['received'];
                 $ingested += $stats['received'];
+                $staleMessagesSkipped += $stats['stale_skipped'];
             } catch (Throwable $exception) {
                 $failedMailboxes++;
                 $provider->recordError($exception->getMessage());
@@ -90,12 +94,13 @@ class IncomingEmailGmailSyncService
             'pulled' => $pulled,
             'ingested' => $ingested,
             'skipped' => $skipped,
+            'stale_messages_skipped' => $staleMessagesSkipped,
             'failed_mailboxes' => $failedMailboxes,
         ];
     }
 
     /**
-     * @return array{received: int, linked: int, ignored: int, failed: int}
+     * @return array{received: int, linked: int, historical: int, ignored: int, failed: int, stale_skipped: int}
      */
     private function syncMailbox(string $mailbox, GmailInboundEmailProvider $provider): array
     {
@@ -135,11 +140,14 @@ class IncomingEmailGmailSyncService
 
         $provider->commitCursor();
 
+        $staleSkipped = $provider->staleMessageSkips();
+
         Log::info('[GmailInbound] Mailbox sync completed.', [
             'mailbox' => $mailbox,
             'previous_history_id' => $previousHistoryId,
             'new_history_id' => $newHistoryId,
             'messages_received' => count($messages),
+            'stale_messages_skipped' => $staleSkipped,
             'linked' => $linked,
             'historical' => $historical,
             'ignored' => $ignored,
@@ -153,6 +161,7 @@ class IncomingEmailGmailSyncService
             'historical' => $historical,
             'ignored' => $ignored,
             'failed' => $failed,
+            'stale_skipped' => $staleSkipped,
         ];
     }
 

@@ -204,4 +204,46 @@ class GmailApiClientTest extends TestCase
         $this->assertSame('stale', $result['historyId']);
         $this->assertSame([], $result['messageIds']);
     }
+
+    public function test_get_message_throws_stale_message_exception_on_404(): void
+    {
+        Http::fake([
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/msg-missing*' => Http::response([
+                'error' => ['message' => 'Requested entity was not found.'],
+            ], 404),
+        ]);
+
+        $this->expectException(\App\Services\IncomingEmail\Gmail\GmailStaleMessageException::class);
+        $this->expectExceptionMessage('msg-missing');
+
+        app(GmailApiClient::class)->getMessage('support@radiumbox.com', 'msg-missing');
+    }
+
+    public function test_get_message_still_throws_on_server_error(): void
+    {
+        Http::fake([
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/msg-error*' => Http::response([
+                'error' => ['message' => 'Internal error'],
+            ], 500),
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('HTTP 500');
+
+        app(GmailApiClient::class)->getMessage('support@radiumbox.com', 'msg-error');
+    }
+
+    public function test_get_message_still_throws_on_forbidden(): void
+    {
+        Http::fake([
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/msg-denied*' => Http::response([
+                'error' => ['message' => 'Insufficient Permission'],
+            ], 403),
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('HTTP 403');
+
+        app(GmailApiClient::class)->getMessage('support@radiumbox.com', 'msg-denied');
+    }
 }
