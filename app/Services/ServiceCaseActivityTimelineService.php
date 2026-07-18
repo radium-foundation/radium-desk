@@ -257,6 +257,26 @@ class ServiceCaseActivityTimelineService
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
+                'incoming_email.promoted_to_service_case' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->resolve($auditLog->user),
+                    title: 'Incoming Email linked to service case',
+                    body: $this->incomingEmailLinkedBody($auditLog->new_values ?? []),
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                'incoming_email.historical_customer' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Incoming Email received (historical customer)',
+                    body: filled($auditLog->new_values['subject'] ?? null)
+                        ? (string) $auditLog->new_values['subject']
+                        : null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 'incoming_email.received' => new ServiceCaseTimelineEntry(
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_STATUS,

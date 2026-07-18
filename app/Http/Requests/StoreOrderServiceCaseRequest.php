@@ -28,6 +28,7 @@ class StoreOrderServiceCaseRequest extends FormRequest
             'source' => ['required', 'string', Rule::in($settingService->enabledSourceKeys())],
             'notes' => ['required', 'string', 'max:5000'],
             'high_priority' => ['sometimes', 'boolean'],
+            'incoming_email_message_id' => ['sometimes', 'nullable', 'integer', 'exists:incoming_email_messages,id'],
         ];
     }
 

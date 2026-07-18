@@ -62,7 +62,7 @@ class IncomingEmailCustomerMatcher
             return [
                 'order' => $order,
                 'incident' => null,
-                'reason' => 'no_open_incident',
+                'reason' => 'historical_customer',
             ];
         }
 

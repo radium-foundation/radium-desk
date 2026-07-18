@@ -10,6 +10,7 @@ use App\Http\Requests\StoreOrderServiceCaseRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\DeviceModel;
 use App\Models\Incident;
+use App\Models\IncomingEmailMessage;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\AuditLogService;
@@ -17,6 +18,7 @@ use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardBroadcastService;
 use App\Services\DeviceModelSettingsService;
 use App\Services\Operations\WorkforceActivityContextService;
+use App\Services\IncomingEmail\IncomingEmailServiceCaseLinkService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\QuickServiceRequestService;
@@ -42,6 +44,7 @@ class OrderController extends Controller
         private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly DeviceModelSettingsService $deviceModelSettingsService,
         private readonly WorkforceActivityContextService $workforceActivityContextService,
+        private readonly IncomingEmailServiceCaseLinkService $incomingEmailServiceCaseLinkService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -175,7 +178,7 @@ class OrderController extends Controller
         ]);
     }
 
-    public function createServiceCase(Order $order): View
+    public function createServiceCase(Order $order, Request $request): View
     {
         $this->authorize('view', $order);
         $this->authorize('create', Incident::class);
@@ -189,10 +192,21 @@ class OrderController extends Controller
             $activeIncident->load('assignee');
         }
 
+        $incomingEmailMessage = null;
+        $incomingEmailMessageId = (int) $request->query('incoming_email_message_id', 0);
+
+        if ($incomingEmailMessageId > 0) {
+            $incomingEmailMessage = IncomingEmailMessage::query()
+                ->whereKey($incomingEmailMessageId)
+                ->where('order_id', $order->id)
+                ->first();
+        }
+
         return view('orders.service-cases.create', [
             'order' => $order,
             'activeIncident' => $activeIncident,
             'enabledSources' => app(SettingService::class)->enabledSources(),
+            'incomingEmailMessage' => $incomingEmailMessage,
         ]);
     }
 
@@ -208,6 +222,13 @@ class OrderController extends Controller
             source: IncidentSource::fromIntakeKey($request->string('source')->toString()),
             notes: $notes,
             highPriority: $request->boolean('high_priority'),
+        );
+
+        $this->incomingEmailServiceCaseLinkService->linkHistoricalMessageIfPresent(
+            order: $order,
+            incident: $incident,
+            actor: $request->user(),
+            incomingEmailMessageId: $request->integer('incoming_email_message_id') ?: null,
         );
 
         return redirect()

@@ -17,6 +17,10 @@ use App\Models\WorkSession;
 use App\Services\IncomingEmail\IncomingEmailIngestService;
 use App\Services\Operations\PresenceEngineService;
 use App\Services\SettingService;
+use App\Services\IncomingEmail\IncomingEmailServiceCaseLinkService;
+use App\Services\QuickServiceRequestService;
+use App\Services\ServiceCaseActivityTimelineService;
+use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\Sources\IncomingEmailTimelineEventSource;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
@@ -185,18 +189,200 @@ class IncomingEmailIntakePhase1Test extends TestCase
         $this->assertSame(0, IncidentIncomingEmailLink::query()->count());
     }
 
-    public function test_known_customer_without_open_incident_is_ignored(): void
+    public function test_known_customer_without_open_incident_is_associated_as_historical_customer(): void
     {
-        $this->seedCustomerOrder('customer@example.com');
+        $order = $this->seedCustomerOrder('customer@example.com');
+
+        Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-EMAIL-CLOSED-'.uniqid(),
+            'category' => 'General',
+            'source' => IncidentSource::Call,
+            'title' => 'Closed support case',
+            'description' => 'Previously closed incident.',
+            'status' => IncidentStatus::Closed,
+            'created_by' => User::factory()->create()->id,
+            'updated_by' => User::factory()->create()->id,
+        ]);
 
         $before = Incident::query()->count();
 
         $message = $this->ingestEmail(fromEmail: 'customer@example.com');
 
-        $this->assertSame(IncomingEmailMessageStatus::Ignored, $message?->status);
-        $this->assertSame('no_open_incident', $message?->ignore_reason);
+        $this->assertSame(IncomingEmailMessageStatus::HistoricalCustomer, $message?->status);
+        $this->assertSame($order->id, $message?->order_id);
+        $this->assertNull($message?->incident_id);
         $this->assertSame($before, Incident::query()->count());
         $this->assertSame(0, IncidentIncomingEmailLink::query()->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'incoming_email.historical_customer',
+            'auditable_id' => $message->id,
+        ]);
+    }
+
+    public function test_historical_customer_email_appears_in_customer360_timeline(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-18 22:00:00', 'Asia/Kolkata'));
+
+        $order = $this->seedCustomerOrder('customer@example.com');
+
+        $message = $this->ingestEmail(
+            fromEmail: 'customer@example.com',
+            subject: 'Follow-up after closure',
+            preview: 'My device issue returned.',
+        );
+
+        $this->assertSame(IncomingEmailMessageStatus::HistoricalCustomer, $message?->status);
+
+        $events = app(\App\Services\Timeline\Customer360TimelineService::class)
+            ->forOrder($order)
+            ->groups
+            ->flatMap(fn ($group) => $group->events)
+            ->values();
+
+        $emailEvent = $events->first(fn ($event) => $event->dedupeKey === 'incoming_email:'.$message->id);
+
+        $this->assertNotNull($emailEvent);
+        $this->assertSame('Incoming Email', $emailEvent->title);
+        $this->assertSame(
+            IncomingEmailMessageStatus::HistoricalCustomer->label(),
+            $emailEvent->statusLabel,
+        );
+        $this->assertSame('warning', $emailEvent->statusVariant);
+        $this->assertSame('Create Service Case', $emailEvent->actionLabel);
+        $this->assertStringContainsString(
+            (string) $message->id,
+            (string) $emailEvent->actionUrl,
+        );
+    }
+
+    public function test_promoting_historical_email_to_service_case_reuses_message_and_records_audit(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = $this->seedCustomerOrder('customer@example.com');
+
+        $message = $this->ingestEmail(
+            fromEmail: 'customer@example.com',
+            subject: 'Need support again',
+            preview: 'Please help with my scanner.',
+        );
+
+        $this->assertSame(IncomingEmailMessageStatus::HistoricalCustomer, $message?->status);
+        $originalOrderId = $message?->order_id;
+
+        $timelineBefore = app(IncomingEmailTimelineEventSource::class, ['order' => $order])->collect();
+        $this->assertCount(1, $timelineBefore);
+        $this->assertSame('incoming_email:'.$message->id, $timelineBefore->first()->dedupeKey);
+
+        $incident = app(QuickServiceRequestService::class)->createForOrder(
+            user: $agent,
+            order: $order,
+            source: IncidentSource::Email,
+            notes: 'Customer emailed support again.',
+        );
+
+        app(IncomingEmailServiceCaseLinkService::class)
+            ->linkHistoricalMessageIfPresent($order, $incident, $agent, $message->id);
+
+        $message = $message->fresh();
+        $this->assertSame(IncomingEmailMessageStatus::Linked, $message?->status);
+        $this->assertSame($incident->id, $message?->incident_id);
+        $this->assertSame($originalOrderId, $message?->order_id);
+        $this->assertSame(1, IncomingEmailMessage::query()->count());
+        $this->assertSame(1, IncidentIncomingEmailLink::query()->count());
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'incoming_email.promoted_to_service_case',
+            'auditable_id' => $incident->id,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'incoming_email.linked',
+            'auditable_id' => $incident->id,
+        ]);
+
+        $timelineAfter = app(IncomingEmailTimelineEventSource::class, ['order' => $order])->collect();
+        $this->assertCount(1, $timelineAfter);
+        $this->assertSame('incoming_email:'.$message->id, $timelineAfter->first()->dedupeKey);
+        $this->assertSame('Linked', $timelineAfter->first()->statusLabel);
+
+        $activityTimeline = app(ServiceCaseActivityTimelineService::class)->forIncident($incident->fresh());
+        $this->assertTrue(
+            $activityTimeline->contains(fn ($entry) => $entry->title === 'Incoming Email linked to service case'),
+        );
+    }
+
+    public function test_promoting_historical_email_is_idempotent(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = $this->seedCustomerOrder('customer@example.com');
+
+        $message = $this->ingestEmail(
+            fromEmail: 'customer@example.com',
+            subject: 'Need support again',
+            preview: 'Please help with my scanner.',
+        );
+
+        $incident = app(QuickServiceRequestService::class)->createForOrder(
+            user: $agent,
+            order: $order,
+            source: IncidentSource::Email,
+            notes: 'Customer emailed support again.',
+        );
+
+        $service = app(IncomingEmailServiceCaseLinkService::class);
+
+        $service->linkHistoricalMessageIfPresent($order, $incident, $agent, $message->id);
+        $service->linkHistoricalMessageIfPresent($order, $incident->fresh(), $agent, $message->id);
+
+        $this->assertSame(1, IncidentIncomingEmailLink::query()->count());
+        $this->assertSame(
+            1,
+            \App\Models\AuditLog::query()
+                ->where('event', 'incoming_email.promoted_to_service_case')
+                ->where('auditable_id', $incident->id)
+                ->count(),
+        );
+    }
+
+    public function test_store_service_case_from_order_promotes_historical_email_via_http(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = $this->seedCustomerOrder('customer@example.com');
+
+        $message = $this->ingestEmail(
+            fromEmail: 'customer@example.com',
+            subject: 'HTTP promotion path',
+            preview: 'Created through order form.',
+        );
+
+        $response = $this->actingAs($agent)->post(route('orders.service-cases.store', $order), [
+            'source' => IncidentSource::Email->value,
+            'notes' => 'Follow-up from historical inbound email.',
+            'incoming_email_message_id' => $message->id,
+        ]);
+
+        $incident = Incident::query()->where('order_id', $order->id)->latest('id')->first();
+        $this->assertNotNull($incident);
+
+        $response->assertRedirect(route('incidents.show', $incident));
+
+        $message = $message->fresh();
+        $this->assertSame(IncomingEmailMessageStatus::Linked, $message?->status);
+        $this->assertSame($incident->id, $message?->incident_id);
+        $this->assertSame($order->id, $message?->order_id);
+
+        $customer360Timeline = app(Customer360TimelineService::class)->forOrder($order);
+        $emailEvents = $customer360Timeline->groups
+            ->flatMap(fn ($group) => $group->events)
+            ->filter(fn ($event) => $event->dedupeKey === 'incoming_email:'.$message->id);
+
+        $this->assertCount(1, $emailEvents);
     }
 
     public function test_known_customer_with_open_incident_is_linked(): void
@@ -238,7 +424,7 @@ class IncomingEmailIntakePhase1Test extends TestCase
         $this->assertTrue($incident->high_priority);
         $this->assertSame($nightAdmin->id, $incident->assigned_to_user_id);
 
-        $timeline = (new IncomingEmailTimelineEventSource($order))->collect();
+        $timeline = app(IncomingEmailTimelineEventSource::class, ['order' => $order])->collect();
         $this->assertCount(1, $timeline);
         $this->assertSame(TimelineEventType::Email, $timeline->first()->type);
         $this->assertSame('Incoming Email', $timeline->first()->title);

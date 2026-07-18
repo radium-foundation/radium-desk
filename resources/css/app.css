@@ -6866,6 +6866,14 @@ a:focus-visible .stat-card {
     margin-bottom: 0.125rem;
 }
 
+.c360-activity-item-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.5rem;
+    min-width: 0;
+}
+
 .c360-activity-item-heading {
     min-width: 0;
 }

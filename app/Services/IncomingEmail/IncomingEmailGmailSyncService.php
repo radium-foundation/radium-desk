@@ -108,6 +108,7 @@ class IncomingEmailGmailSyncService
         $messages = $this->oldestFirst($messages);
 
         $linked = 0;
+        $historical = 0;
         $ignored = 0;
         $failed = 0;
 
@@ -122,6 +123,7 @@ class IncomingEmailGmailSyncService
 
             match ($status) {
                 IncomingEmailMessageStatus::Linked => $linked++,
+                IncomingEmailMessageStatus::HistoricalCustomer => $historical++,
                 IncomingEmailMessageStatus::Ignored => $ignored++,
                 IncomingEmailMessageStatus::Failed => $failed++,
                 default => null,
@@ -139,6 +141,7 @@ class IncomingEmailGmailSyncService
             'new_history_id' => $newHistoryId,
             'messages_received' => count($messages),
             'linked' => $linked,
+            'historical' => $historical,
             'ignored' => $ignored,
             'failed' => $failed,
             'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
@@ -147,6 +150,7 @@ class IncomingEmailGmailSyncService
         return [
             'received' => count($messages),
             'linked' => $linked,
+            'historical' => $historical,
             'ignored' => $ignored,
             'failed' => $failed,
         ];

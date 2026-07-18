@@ -10,6 +10,7 @@ use App\Enums\TimelineActorKind;
 use App\Enums\TimelineEventType;
 use App\Models\IncomingEmailMessage;
 use App\Models\Order;
+use App\Services\IncomingEmail\IncomingEmailOrderVisibilityQuery;
 use App\Support\AppDateFormatter;
 use Illuminate\Support\Collection;
 
@@ -17,34 +18,13 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
 {
     public function __construct(
         private readonly Order $order,
+        private readonly IncomingEmailOrderVisibilityQuery $visibilityQuery,
     ) {}
 
     public function collect(?int $limit = null): Collection
     {
-        $this->order->loadMissing('incidents');
-
-        $incidentIds = $this->order->incidents->pluck('id')->filter()->values();
-        $customerEmail = strtolower(trim((string) $this->order->customer_email));
-
-        if ($incidentIds->isEmpty() && $customerEmail === '') {
-            return collect();
-        }
-
-        $query = IncomingEmailMessage::query()
-            ->where('status', IncomingEmailMessageStatus::Linked)
-            ->where(function ($builder) use ($incidentIds, $customerEmail): void {
-                if ($incidentIds->isNotEmpty()) {
-                    $builder->whereIn('incident_id', $incidentIds);
-                }
-
-                if ($customerEmail !== '') {
-                    if ($incidentIds->isNotEmpty()) {
-                        $builder->orWhere('from_email', $customerEmail);
-                    } else {
-                        $builder->where('from_email', $customerEmail);
-                    }
-                }
-            })
+        $query = $this->visibilityQuery
+            ->forOrder($this->order)
             ->orderByDesc('received_at')
             ->orderByDesc('id');
 
@@ -60,6 +40,7 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
     private function mapMessage(IncomingEmailMessage $message): TimelineEvent
     {
         $occurredAt = $message->received_at ?? $message->created_at ?? now();
+        $isHistorical = $message->status === IncomingEmailMessageStatus::HistoricalCustomer;
         $summaryFields = array_values(array_filter([
             filled($message->mailbox) ? [
                 'label' => 'Mailbox',
@@ -93,6 +74,8 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
             ],
         ]));
 
+        $orderId = $message->order_id ?? $this->order->id;
+
         return new TimelineEvent(
             type: TimelineEventType::Email,
             occurredAt: $occurredAt,
@@ -106,10 +89,22 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
             dedupeKey: 'incoming_email:'.$message->id,
             summary: $message->preview,
             detail: $message->preview,
-            statusLabel: 'Linked',
-            statusVariant: 'success',
+            statusLabel: $isHistorical
+                ? IncomingEmailMessageStatus::HistoricalCustomer->label()
+                : 'Linked',
+            statusVariant: $isHistorical ? 'warning' : 'success',
             summaryFields: $summaryFields,
-            filterTags: ['customer', 'notifications'],
+            actionLabel: $isHistorical ? 'Create Service Case' : null,
+            actionUrl: $isHistorical
+                ? route('orders.service-cases.create', [
+                    'order' => $orderId,
+                    'incoming_email_message_id' => $message->id,
+                ])
+                : null,
+            filterTags: ['customer', 'notifications', 'communication'],
+            contextLine: $isHistorical
+                ? 'Known customer with no active service case.'
+                : null,
         );
     }
 }

@@ -119,6 +119,11 @@ class Customer360OperatorTimelinePresentation
             return true;
         }
 
+        if ($event->type === TimelineEventType::Email
+            && str_starts_with($event->dedupeKey, 'incoming_email:')) {
+            return false;
+        }
+
         if ($event->type === TimelineEventType::Email || $event->type === TimelineEventType::WhatsApp) {
             return true;
         }
@@ -188,6 +193,15 @@ class Customer360OperatorTimelinePresentation
                 title: 'Note',
                 contextLine: null,
                 indicatorVariant: 'note',
+            );
+        }
+
+        if ($event->type === TimelineEventType::Email
+            && str_starts_with($event->dedupeKey, 'incoming_email:')) {
+            return $event->withOperatorPresentation(
+                title: 'Incoming Email',
+                contextLine: $event->contextLine,
+                indicatorVariant: 'info',
             );
         }
 

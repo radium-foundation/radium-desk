@@ -31,6 +31,7 @@ class IncomingEmailMessage extends Model
         'status',
         'ignore_reason',
         'incident_id',
+        'order_id',
         'processed_at',
         'processing_error',
     ];
@@ -53,6 +54,11 @@ class IncomingEmailMessage extends Model
     public function incident(): BelongsTo
     {
         return $this->belongsTo(Incident::class);
+    }
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
     }
 
     public function incidentLink(): HasOne

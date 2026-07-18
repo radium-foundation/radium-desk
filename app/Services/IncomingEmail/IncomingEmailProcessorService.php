@@ -17,6 +17,7 @@ class IncomingEmailProcessorService
         private readonly IncomingEmailFilterService $filterService,
         private readonly IncomingEmailCustomerMatcher $customerMatcher,
         private readonly IncomingEmailLinkService $linkService,
+        private readonly IncomingEmailHistoricalAssociationService $historicalAssociationService,
         private readonly IncomingEmailAssignmentService $assignmentService,
         private readonly ServiceCasePriorityService $priorityService,
         private readonly AuditLogService $auditLogService,
@@ -31,6 +32,7 @@ class IncomingEmailProcessorService
 
         if (in_array($message->status, [
             IncomingEmailMessageStatus::Linked,
+            IncomingEmailMessageStatus::HistoricalCustomer,
             IncomingEmailMessageStatus::Ignored,
         ], true)) {
             return;
@@ -56,6 +58,16 @@ class IncomingEmailProcessorService
                 $match = $this->customerMatcher->resolve($message->fresh());
 
                 if ($match['incident'] === null) {
+                    if ($match['order'] !== null && ($match['reason'] ?? null) === 'historical_customer') {
+                        $this->historicalAssociationService->associate(
+                            $match['order'],
+                            $message->fresh(),
+                            $actor,
+                        );
+
+                        return;
+                    }
+
                     $this->markIgnored(
                         $message,
                         (string) ($match['reason'] ?? 'unknown_customer'),

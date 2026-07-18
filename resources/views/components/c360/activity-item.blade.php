@@ -28,7 +28,15 @@
 
     <div class="c360-activity-item-body">
         <div class="c360-activity-item-header">
-            <h5 class="c360-activity-item-title">{{ $event->title }}</h5>
+            <div class="c360-activity-item-title-row">
+                <h5 class="c360-activity-item-title">{{ $event->title }}</h5>
+                @if($event->statusLabel)
+                    <span @class([
+                        'timeline-status-chip',
+                        'timeline-status-chip--' . ($event->statusVariant ?? 'pending'),
+                    ])>{{ $event->statusLabel }}</span>
+                @endif
+            </div>
             <time class="c360-activity-item-time unified-timeline-time"
                   datetime="{{ $event->occurredAt->toIso8601String() }}"
                   title="{{ $event->exactTimestamp() }}">

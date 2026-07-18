@@ -49,16 +49,30 @@
                     <h2 class="h6 mb-0">New Service Case</h2>
                 </div>
                 <div class="card-body">
+                    @if(isset($incomingEmailMessage) && $incomingEmailMessage)
+                        <div class="alert alert-info small" role="status">
+                            <div class="fw-semibold mb-1">Linking incoming email</div>
+                            <div>{{ $incomingEmailMessage->subject ?: 'No subject' }}</div>
+                            <div class="text-muted">{{ $incomingEmailMessage->from_email }}</div>
+                        </div>
+                    @endif
+
                     <form method="POST" action="{{ route('orders.service-cases.store', $order) }}">
                         @csrf
+
+                        @if(isset($incomingEmailMessage) && $incomingEmailMessage)
+                            <input type="hidden"
+                                   name="incoming_email_message_id"
+                                   value="{{ $incomingEmailMessage->id }}">
+                        @endif
 
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="source" class="form-label">Source <span class="text-danger">*</span></label>
                                 <select name="source" id="source" class="form-select @error('source') is-invalid @enderror" required>
-                                    <option value="" disabled @selected(old('source') === null)>Select source</option>
+                                    <option value="" disabled @selected(old('source', isset($incomingEmailMessage) && $incomingEmailMessage ? 'email' : null) === null)>Select source</option>
                                     @foreach($enabledSources as $sourceOption)
-                                        <option value="{{ $sourceOption->key }}" @selected(old('source') === $sourceOption->key)>
+                                        <option value="{{ $sourceOption->key }}" @selected(old('source', isset($incomingEmailMessage) && $incomingEmailMessage ? 'email' : null) === $sourceOption->key)>
                                             {{ $sourceOption->label }}
                                         </option>
                                     @endforeach
@@ -88,7 +102,10 @@
                                 <textarea name="notes" id="notes" rows="5"
                                           class="form-control @error('notes') is-invalid @enderror"
                                           placeholder="Describe the new issue or customer complaint..."
-                                          required>{{ old('notes') }}</textarea>
+                                          required>{{ old('notes', isset($incomingEmailMessage) && $incomingEmailMessage ? trim(collect([
+                                              filled($incomingEmailMessage->subject) ? 'Subject: '.$incomingEmailMessage->subject : null,
+                                              filled($incomingEmailMessage->preview) ? $incomingEmailMessage->preview : null,
+                                          ])->filter()->implode("\n\n")) : '') }}</textarea>
                                 @error('notes')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
