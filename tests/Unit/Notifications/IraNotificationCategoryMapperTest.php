@@ -30,6 +30,7 @@ class IraNotificationCategoryMapperTest extends TestCase
             'daily briefing' => [IraNotificationType::DailyBriefing, NotificationCategory::DailySummary],
             'team daily briefing' => [IraNotificationType::TeamDailyBriefing, NotificationCategory::DailySummary],
             'smart assignment' => [IraNotificationType::SmartAssignment, NotificationCategory::Assignment],
+            'ira assignment batch' => [IraNotificationType::IraAssignmentBatch, NotificationCategory::Assignment],
             'manual assignment' => [IraNotificationType::ManualAssignment, NotificationCategory::Assignment],
             'reassignment' => [IraNotificationType::Reassignment, NotificationCategory::Assignment],
             'support slot reminder' => [IraNotificationType::SupportSlotReminder, NotificationCategory::Assignment],

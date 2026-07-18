@@ -6,6 +6,7 @@ enum IraNotificationType: string
 {
     case DailyBriefing = 'daily_briefing';
     case SmartAssignment = 'smart_assignment';
+    case IraAssignmentBatch = 'ira_assignment_batch';
     case RiskAlert = 'risk_alert';
     case UnassignedScheduledWork = 'unassigned_scheduled_work';
     case WaitingCustomerRisk = 'waiting_customer_risk';
@@ -27,6 +28,7 @@ enum IraNotificationType: string
         return match ($this) {
             self::DailyBriefing => 'Daily Briefing',
             self::SmartAssignment => 'Smart Assignment',
+            self::IraAssignmentBatch => 'IRA Assignment Batch',
             self::TeamDailyBriefing => 'Team Daily Briefing',
             self::SupportSlotReminder => 'Support Slot Reminder',
             self::SupportAppointmentReminder => 'Support Appointment Reminder',

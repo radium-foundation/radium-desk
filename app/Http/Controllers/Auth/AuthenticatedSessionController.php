@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Enums\WorkSessionEndReason;
+use App\Services\Operations\IraAssignmentTelegramBatchService;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\Operations\PresenceEngineService;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +18,7 @@ class AuthenticatedSessionController extends Controller
     public function __construct(
         private readonly PresenceEngineService $presenceEngine,
         private readonly OperationsRoleService $roleService,
+        private readonly IraAssignmentTelegramBatchService $iraAssignmentTelegramBatchService,
     ) {}
 
     /**
@@ -40,6 +42,7 @@ class AuthenticatedSessionController extends Controller
 
         if ($user !== null && $this->roleService->isTeamMember($user)) {
             $this->presenceEngine->startSession($user);
+            $this->iraAssignmentTelegramBatchService->flushForUserIfPending($user);
         }
 
         return redirect()->intended(route('dashboard', absolute: false));

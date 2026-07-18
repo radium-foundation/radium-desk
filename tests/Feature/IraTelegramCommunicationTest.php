@@ -315,13 +315,19 @@ class IraTelegramCommunicationTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_smart_assignment_notification_sent(): void
+    public function test_smart_assignment_notification_is_batched_then_flushed(): void
     {
         Http::fake([
             'api.telegram.org/*' => Http::response([
                 'ok' => true,
                 'result' => ['message_id' => 77],
             ], 200),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+        config([
+            'ira.communication.assignment_telegram_batch.enabled' => true,
+            'ira.communication.assignment_telegram_batch.delay_minutes' => 5,
         ]);
 
         $assignee = User::factory()->create([
@@ -333,9 +339,10 @@ class IraTelegramCommunicationTest extends TestCase
         $assignee->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
         [$incident, $appointment] = $this->createAssignmentFixtures($assignee);
+        $incident->update(['category' => 'Installation']);
 
         event(new SupportAppointmentSmartAssigned(
-            incident: $incident,
+            incident: $incident->fresh(),
             appointment: $appointment,
             assignee: $assignee,
             result: \App\Data\Operations\SmartAssignmentResult::assigned(
@@ -345,19 +352,26 @@ class IraTelegramCommunicationTest extends TestCase
             ),
         ));
 
+        Http::assertNothingSent();
+        $this->assertNotNull(app(\App\Services\Operations\IraAssignmentTelegramBatchService::class)->peek($assignee->id));
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:05:00', 'Asia/Kolkata'));
+        $this->artisan('ira:flush-assignment-telegram-batches')->assertSuccessful();
+
         $notification = IraNotification::query()
             ->where('user_id', $assignee->id)
-            ->where('notification_type', IraNotificationType::SmartAssignment->value)
+            ->where('notification_type', IraNotificationType::IraAssignmentBatch->value)
             ->first();
 
         $this->assertNotNull($notification);
         $this->assertSame(IraNotificationStatus::Sent, $notification->status);
-        $this->assertStringContainsString('New support assigned', $notification->message);
-        $this->assertStringContainsString('Test Customer', $notification->message);
-        $this->assertStringContainsString('FM220 Device', $notification->message);
+        $this->assertStringContainsString('🤖 IRA assigned new support cases', $notification->message);
+        $this->assertStringContainsString('• '.$incident->reference_no.' – Installation', $notification->message);
+        $this->assertStringContainsString('Open Radium Desk to view your updated queue.', $notification->message);
+        Http::assertSentCount(1);
     }
 
-    public function test_support_appointment_smart_assigned_sends_exactly_one_telegram_notification(): void
+    public function test_support_appointment_smart_assigned_batches_into_one_telegram_notification(): void
     {
         Http::fake([
             'api.telegram.org/*' => Http::response([
@@ -366,7 +380,12 @@ class IraTelegramCommunicationTest extends TestCase
             ], 200),
         ]);
 
-        config(['system_settings.notifications.telegram.enabled' => true]);
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+        config([
+            'system_settings.notifications.telegram.enabled' => true,
+            'ira.communication.assignment_telegram_batch.enabled' => true,
+            'ira.communication.assignment_telegram_batch.delay_minutes' => 5,
+        ]);
 
         $assignee = User::factory()->create([
             'name' => 'Single Delivery Agent',
@@ -389,21 +408,18 @@ class IraTelegramCommunicationTest extends TestCase
             ),
         ));
 
+        Http::assertNothingSent();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:05:00', 'Asia/Kolkata'));
+        $this->artisan('ira:flush-assignment-telegram-batches')->assertSuccessful();
+
         Http::assertSentCount(1);
 
         $this->assertSame(
             1,
             IraNotification::query()
                 ->where('user_id', $assignee->id)
-                ->where('notification_type', IraNotificationType::SmartAssignment->value)
-                ->count(),
-        );
-
-        $this->assertSame(
-            1,
-            IraNotification::query()
-                ->where('user_id', $assignee->id)
-                ->where('notification_type', IraNotificationType::SmartAssignment->value)
+                ->where('notification_type', IraNotificationType::IraAssignmentBatch->value)
                 ->where('status', IraNotificationStatus::Sent->value)
                 ->count(),
         );

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\PresenceActivityType;
+use App\Services\Operations\IraAssignmentTelegramBatchService;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\TeamMemberActivityService;
@@ -16,6 +17,7 @@ class TrackTeamMemberActivity
         private readonly TeamMemberActivityService $activityService,
         private readonly PresenceEngineService $presenceEngine,
         private readonly OperationsRoleService $roleService,
+        private readonly IraAssignmentTelegramBatchService $iraAssignmentTelegramBatchService,
     ) {}
 
     public function handle(Request $request, Closure $next): Response
@@ -47,6 +49,10 @@ class TrackTeamMemberActivity
         if ($user !== null && $request->isMethodSafe()) {
             $this->activityService->recordSystemActivity($user);
             $this->presenceEngine->recordActivity($user, PresenceActivityType::System);
+
+            if ($this->roleService->isTeamMember($user)) {
+                $this->iraAssignmentTelegramBatchService->flushForUserIfPending($user);
+            }
         }
 
         return $response;

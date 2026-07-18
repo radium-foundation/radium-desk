@@ -119,13 +119,19 @@ class TeamTelegramWorkAssistantTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_smart_assignment_sends_exactly_one_telegram_notification(): void
+    public function test_smart_assignment_batches_into_exactly_one_telegram_notification(): void
     {
         Http::fake([
             'api.telegram.org/*' => Http::response([
                 'ok' => true,
                 'result' => ['message_id' => 77],
             ], 200),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+        config([
+            'ira.communication.assignment_telegram_batch.enabled' => true,
+            'ira.communication.assignment_telegram_batch.delay_minutes' => 5,
         ]);
 
         $assignee = $this->createSupportAgentWithTelegram('Smart Agent', '888777666');
@@ -142,13 +148,18 @@ class TeamTelegramWorkAssistantTest extends TestCase
             ),
         ));
 
+        Http::assertNothingSent();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:05:00', 'Asia/Kolkata'));
+        $this->artisan('ira:flush-assignment-telegram-batches')->assertSuccessful();
+
         Http::assertSentCount(1);
 
         $this->assertSame(
             1,
             IraNotification::query()
                 ->where('user_id', $assignee->id)
-                ->where('notification_type', IraNotificationType::SmartAssignment->value)
+                ->where('notification_type', IraNotificationType::IraAssignmentBatch->value)
                 ->where('status', IraNotificationStatus::Sent->value)
                 ->count(),
         );
@@ -184,7 +195,55 @@ class TeamTelegramWorkAssistantTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertSame(IraNotificationStatus::Sent, $notification->status);
         $this->assertStringContainsString('New support assigned', $notification->message);
+        $this->assertStringContainsString('Assigned by: '.$admin->firstName().' (Admin)', $notification->message);
+        $this->assertStringContainsString('Task: General', $notification->message);
         $this->assertStringContainsString('Manual Customer', $notification->message);
+        $this->assertStringContainsString('Case: '.$incident->reference_no, $notification->message);
+        Http::assertSentCount(1);
+    }
+
+    public function test_reassignment_telegram_includes_assigned_by_and_task(): void
+    {
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 56],
+            ], 200),
+        ]);
+
+        $admin = User::factory()->create([
+            'name' => 'Ravi Admin',
+            'first_name' => 'Ravi',
+            'last_name' => 'Admin',
+            'is_active' => true,
+        ]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $fromAgent = $this->createSupportAgentWithTelegram('From Agent', '111222333', RolePermissionSeeder::ROLE_AGENT);
+        $toAgent = $this->createSupportAgentWithTelegram('To Agent', '444555666', RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->createOpenIncident('RD-TG-REASSIGN', 'Suraj Kumar', 'MIS 100');
+        $incident->update([
+            'assigned_to_user_id' => $fromAgent->id,
+            'category' => 'Installation',
+        ]);
+
+        app(ServiceCaseAssignmentService::class)->reassign($incident->fresh(), $toAgent, $admin);
+
+        $notification = IraNotification::query()
+            ->where('user_id', $toAgent->id)
+            ->where('notification_type', IraNotificationType::Reassignment->value)
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertSame(IraNotificationStatus::Sent, $notification->status);
+        $this->assertStringContainsString('🔄 Support reassigned to you', $notification->message);
+        $this->assertStringContainsString('Assigned by: Ravi (Admin)', $notification->message);
+        $this->assertStringContainsString('Task: Installation', $notification->message);
+        $this->assertStringContainsString('Customer: Suraj Kumar', $notification->message);
+        $this->assertStringContainsString('Device: MIS 100', $notification->message);
+        $this->assertStringContainsString('Time: Unscheduled', $notification->message);
+        $this->assertStringContainsString('Case: '.$incident->reference_no, $notification->message);
+        $this->assertStringNotContainsString('Open case:', $notification->message);
         Http::assertSentCount(1);
     }
 

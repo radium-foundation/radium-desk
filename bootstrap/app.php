@@ -59,6 +59,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/deferred-smart-assignment.log'));
 
+        $schedule->command('ira:flush-assignment-telegram-batches')
+            ->everyMinute()
+            ->when(fn (): bool => (bool) config('ira.communication.assignment_telegram_batch.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/ira-assignment-telegram-batches.log'));
+
         $schedule->command('automation:snapshot')
             ->everyMinute()
             ->withoutOverlapping()

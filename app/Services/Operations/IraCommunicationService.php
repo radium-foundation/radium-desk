@@ -369,7 +369,29 @@ class IraCommunicationService
                 'device' => $device,
                 'time' => $time,
                 'case' => $caseReference,
+                'assigned_by' => 'IRA',
                 'dedupe_key' => 'assignment:'.($context['incident_id'] ?? $context['appointment_id'] ?? uniqid()).':'.$assignee->id,
+                ...$context,
+            ],
+        ));
+    }
+
+    /**
+     * @param  list<array{incident_id?: int|string|null, case: string, task?: string|null}>  $items
+     * @param  array<string, mixed>  $context
+     * @return list<\App\Models\IraNotification>
+     */
+    public function sendIraAssignmentBatch(
+        User $assignee,
+        array $items,
+        array $context = [],
+    ): array {
+        return $this->dispatch(new IraCommunicationInput(
+            event: IraNotificationType::IraAssignmentBatch,
+            context: [
+                'user_id' => $assignee->id,
+                'items' => $items,
+                'dedupe_key' => (string) ($context['dedupe_key'] ?? 'ira_assignment_batch:'.$assignee->id.':'.uniqid()),
                 ...$context,
             ],
         ));
@@ -503,6 +525,7 @@ class IraCommunicationService
             IraNotificationType::TeamAvailabilityIssue,
             IraNotificationType::OpsDigest => $this->operationsAdminUsers(),
             IraNotificationType::SmartAssignment,
+            IraNotificationType::IraAssignmentBatch,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
             IraNotificationType::TeamDailyBriefing,
@@ -518,6 +541,7 @@ class IraCommunicationService
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
             IraNotificationType::SmartAssignment,
+            IraNotificationType::IraAssignmentBatch,
         ], true)) {
             return false;
         }
@@ -550,6 +574,7 @@ class IraCommunicationService
             IraNotificationType::OpsDigest,
             IraNotificationType::OwnerIntelligenceReport,
             IraNotificationType::SmartAssignment,
+            IraNotificationType::IraAssignmentBatch,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
             IraNotificationType::SupportSlotReminder,
@@ -641,7 +666,8 @@ class IraCommunicationService
             IraNotificationType::TeamDailyBriefing => $this->formatTeamDailyBriefing($user, $input),
             IraNotificationType::SmartAssignment,
             IraNotificationType::ManualAssignment => $this->formatAssignment($input, 'New support assigned'),
-            IraNotificationType::Reassignment => $this->formatAssignment($input, 'Support reassigned to you'),
+            IraNotificationType::IraAssignmentBatch => $this->formatIraAssignmentBatch($input),
+            IraNotificationType::Reassignment => $this->formatAssignment($input, '🔄 Support reassigned to you'),
             IraNotificationType::SupportSlotReminder => $this->formatSupportSlotReminder($input),
             IraNotificationType::SupportAppointmentReminder => $this->formatSupportAppointmentReminder($input),
             IraNotificationType::IntegrationFailure => $this->formatIntegrationFailure($input),
@@ -757,16 +783,63 @@ class IraCommunicationService
      */
     private function formatAssignment(IraCommunicationInput $input, string $heading): array
     {
-        $message = implode("\n", [
-            $heading,
-            '',
-            'Customer: '.($input->context['customer'] ?? 'Unknown'),
-            'Device: '.($input->context['device'] ?? 'Unknown'),
-            'Time: '.($input->context['time'] ?? 'Unknown'),
-            'Open case: '.($input->context['case'] ?? 'Unknown'),
-        ]);
+        $lines = [$heading, ''];
 
-        return ['Support Assigned', $message];
+        $assignedBy = trim((string) ($input->context['assigned_by'] ?? ''));
+        if ($assignedBy !== '') {
+            $lines[] = 'Assigned by: '.$assignedBy;
+        }
+
+        $task = $input->context['task'] ?? null;
+        if (is_string($task) && trim($task) !== '') {
+            $lines[] = 'Task: '.trim($task);
+        }
+
+        if ($assignedBy !== '' || (is_string($task) && trim($task) !== '')) {
+            $lines[] = '';
+        }
+
+        $lines[] = 'Customer: '.($input->context['customer'] ?? 'Unknown');
+        $lines[] = 'Device: '.($input->context['device'] ?? 'Unknown');
+        $lines[] = 'Time: '.($input->context['time'] ?? 'Unknown');
+        $lines[] = 'Case: '.($input->context['case'] ?? 'Unknown');
+
+        return ['Support Assigned', implode("\n", $lines)];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function formatIraAssignmentBatch(IraCommunicationInput $input): array
+    {
+        $lines = [
+            '🤖 IRA assigned new support cases',
+            '',
+        ];
+
+        $items = $input->context['items'] ?? [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $case = trim((string) ($item['case'] ?? ''));
+
+            if ($case === '') {
+                continue;
+            }
+
+            $task = trim((string) ($item['task'] ?? ''));
+            $lines[] = $task !== ''
+                ? '• '.$case.' – '.$task
+                : '• '.$case;
+        }
+
+        $lines[] = '';
+        $lines[] = 'Open Radium Desk to view your updated queue.';
+
+        return ['IRA Assignment', implode("\n", $lines)];
     }
 
     /**

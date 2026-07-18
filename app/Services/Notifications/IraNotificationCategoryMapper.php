@@ -15,6 +15,7 @@ class IraNotificationCategoryMapper
             IraNotificationType::OpsDigest,
             IraNotificationType::OwnerIntelligenceReport => NotificationCategory::DailySummary,
             IraNotificationType::SmartAssignment,
+            IraNotificationType::IraAssignmentBatch,
             IraNotificationType::ManualAssignment,
             IraNotificationType::Reassignment,
             IraNotificationType::SupportSlotReminder,

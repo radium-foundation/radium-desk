@@ -17,6 +17,7 @@ use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\OperationsAssignmentEligibilityService;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\Operations\OperationsRoleService;
+use App\Support\Operations\AppointmentReminderMessageContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -762,6 +763,7 @@ class ServiceCaseAssignmentService
         $this->sendAssignmentTelegramNotification(
             incident: $incident,
             assignee: $assignee,
+            actor: $actor,
             event: $event,
             extraNewValues: $extraNewValues,
         );
@@ -773,6 +775,7 @@ class ServiceCaseAssignmentService
     private function sendAssignmentTelegramNotification(
         Incident $incident,
         User $assignee,
+        User $actor,
         string $event,
         array $extraNewValues = [],
     ): void {
@@ -787,6 +790,8 @@ class ServiceCaseAssignmentService
         $context = [
             'incident_id' => $incident->id,
             'appointment_id' => $appointment?->id,
+            'assigned_by' => $this->telegramAssignedByLabel($actor, $extraNewValues),
+            'task' => AppointmentReminderMessageContext::appointmentTypeLabel($incident),
         ];
 
         $communicationService = app(IraCommunicationService::class);
@@ -814,6 +819,28 @@ class ServiceCaseAssignmentService
                 context: $context,
             );
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $extraNewValues
+     */
+    private function telegramAssignedByLabel(User $actor, array $extraNewValues): string
+    {
+        if (($extraNewValues['assignment_method'] ?? null) === 'smart'
+            || app(AutomationIdentityService::class)->isAutomationActor($actor)) {
+            return 'IRA';
+        }
+
+        $actor->loadMissing('roles');
+
+        $name = $actor->firstName() ?: trim((string) $actor->name);
+        $role = $actor->primaryRoleLabel();
+
+        if ($name !== '' && $role !== '') {
+            return "{$name} ({$role})";
+        }
+
+        return $name !== '' ? $name : 'Unknown';
     }
 
     private function ensureValidAssignee(User $assignee): void
