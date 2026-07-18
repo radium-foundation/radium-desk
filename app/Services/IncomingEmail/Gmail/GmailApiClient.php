@@ -44,9 +44,14 @@ class GmailApiClient
         do {
             $query = [
                 'startHistoryId' => $startHistoryId,
-                'historyTypes' => 'messageAdded',
                 'maxResults' => max(1, (int) config('inbound_email.gmail.max_results_per_page', 100)),
             ];
+
+            $historyTypes = config('inbound_email.gmail.history_types');
+
+            if (is_array($historyTypes) && $historyTypes !== []) {
+                $query['historyTypes'] = implode(',', $historyTypes);
+            }
 
             if ($pageToken !== null) {
                 $query['pageToken'] = $pageToken;
@@ -67,13 +72,7 @@ class GmailApiClient
             }
 
             foreach ($response['history'] ?? [] as $entry) {
-                foreach ($entry['messagesAdded'] ?? [] as $added) {
-                    $id = $added['message']['id'] ?? null;
-
-                    if (is_string($id) && $id !== '') {
-                        $messageIds[] = $id;
-                    }
-                }
+                array_push($messageIds, ...$this->extractMessageIdsFromHistoryEntry($entry));
             }
 
             if (isset($response['historyId']) && is_scalar($response['historyId'])) {
@@ -180,5 +179,32 @@ class GmailApiClient
     {
         return $exception->getCode() === 404
             || str_contains(strtolower($exception->getMessage()), 'historyid expired');
+    }
+
+    /**
+     * @param  array<string, mixed>  $entry
+     * @return list<string>
+     */
+    private function extractMessageIdsFromHistoryEntry(array $entry): array
+    {
+        $ids = [];
+
+        foreach ($entry['messagesAdded'] ?? [] as $added) {
+            $id = $added['message']['id'] ?? null;
+
+            if (is_string($id) && $id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        foreach ($entry['messages'] ?? [] as $message) {
+            $id = $message['id'] ?? null;
+
+            if (is_string($id) && $id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
     }
 }

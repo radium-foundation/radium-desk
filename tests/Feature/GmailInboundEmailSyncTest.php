@@ -94,6 +94,64 @@ class GmailInboundEmailSyncTest extends TestCase
         $this->assertNotNull($state?->enabled_at);
     }
 
+    public function test_incremental_sync_ingests_messages_from_history_messages_array(): void
+    {
+        $this->seedCustomerWithOpenIncident('customer@example.com');
+
+        GmailMailboxSyncState::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'history_id' => '1000',
+            'enabled_at' => now()->subMinute(),
+            'baselined_at' => now()->subMinute(),
+        ]);
+
+        $bodyText = 'Mail routed via Workspace alias.';
+        $encodedBody = rtrim(strtr(base64_encode($bodyText), '+/', '-_'), '=');
+
+        Http::fake([
+            'https://gmail.googleapis.com/gmail/v1/users/me/history*' => Http::response([
+                'history' => [
+                    [
+                        'messages' => [
+                            ['id' => 'msg-alias', 'threadId' => 'thr-alias'],
+                        ],
+                    ],
+                ],
+                'historyId' => '1100',
+            ], 200),
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/msg-alias*' => Http::response([
+                'id' => 'msg-alias',
+                'threadId' => 'thr-alias',
+                'labelIds' => ['INBOX'],
+                'snippet' => 'Mail routed via Workspace alias.',
+                'internalDate' => (string) (now()->getTimestampMs()),
+                'payload' => [
+                    'mimeType' => 'text/plain',
+                    'headers' => [
+                        ['name' => 'From', 'value' => 'Customer <customer@example.com>'],
+                        ['name' => 'To', 'value' => 'support@radiumbox.com'],
+                        ['name' => 'Subject', 'value' => 'Alias routed support mail'],
+                        ['name' => 'Message-ID', 'value' => '<gmail-alias-1@radium.test>'],
+                    ],
+                    'body' => [
+                        'data' => $encodedBody,
+                        'size' => strlen($bodyText),
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $result = app(IncomingEmailGmailSyncService::class)->sync();
+
+        $this->assertSame(1, $result['pulled']);
+        $this->assertSame(1, $result['ingested']);
+
+        $message = IncomingEmailMessage::query()->first();
+        $this->assertNotNull($message);
+        $this->assertSame('msg-alias', $message->provider_message_id);
+        $this->assertSame($bodyText, $message->raw_payload['body_text'] ?? null);
+    }
+
     public function test_incremental_sync_ingests_new_messages_via_existing_pipeline(): void
     {
         $this->seedCustomerWithOpenIncident('customer@example.com');

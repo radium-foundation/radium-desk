@@ -137,6 +137,15 @@ return [
 
         'max_results_per_page' => (int) env('GMAIL_HISTORY_MAX_RESULTS', 100),
 
+        /*
+         * Optional Gmail historyTypes filter (comma-separated). When null/empty, all
+         * history event types are returned — required for alias-routed Workspace mail
+         * that may surface under messages[] instead of messagesAdded[].
+         */
+        'history_types' => ($types = trim((string) env('GMAIL_HISTORY_TYPES', ''))) !== ''
+            ? array_values(array_filter(array_map('trim', explode(',', $types))))
+            : null,
+
         'http_retry_times' => (int) env('GMAIL_HTTP_RETRY_TIMES', 3),
 
         'http_retry_sleep_ms' => (int) env('GMAIL_HTTP_RETRY_SLEEP_MS', 500),
