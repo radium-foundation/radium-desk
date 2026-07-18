@@ -49,6 +49,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/automation-pending-assignments.log'));
 
+        $schedule->command('service-cases:process-deferred-smart-assignment')
+            ->cron(sprintf(
+                '*/%d * * * *',
+                max(1, (int) config('smart_assignment.deferred.schedule_interval_minutes', 5)),
+            ))
+            ->when(fn (): bool => (bool) config('smart_assignment.enabled', true)
+                && (bool) config('smart_assignment.deferred.enabled', true))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/deferred-smart-assignment.log'));
+
         $schedule->command('automation:snapshot')
             ->everyMinute()
             ->withoutOverlapping()

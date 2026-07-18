@@ -87,14 +87,21 @@ class SmartAssignmentTest extends TestCase
             'status' => LeaveRequestStatus::Approved,
         ]);
 
+        $shiftAdmin = $this->createShiftAdmin();
         $incident = $this->createUnassignedIncident();
+        $incident->update(['assigned_to_user_id' => $shiftAdmin->id]);
 
         $this->bookAppointment($incident);
 
         $incident->refresh();
-        $this->assertNull($incident->assigned_to_user_id);
+        $this->assertSame($shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertTrue($incident->pending_smart_assignment);
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.smart_assignment_unassigned',
+            'auditable_id' => $incident->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.pending_smart_assignment',
             'auditable_id' => $incident->id,
         ]);
     }
@@ -204,22 +211,25 @@ class SmartAssignmentTest extends TestCase
             ->count());
     }
 
-    public function test_no_available_users_keeps_case_unassigned(): void
+    public function test_no_available_users_keeps_shift_admin_and_marks_pending(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
         Notification::fake();
 
-        $admin = User::factory()->create();
-        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $shiftAdmin = $this->createShiftAdmin();
+        $notifyAdmin = User::factory()->create();
+        $notifyAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $this->createSupportAgent('Offline Agent', TeamAvailabilityStatus::Offline);
         $incident = $this->createUnassignedIncident();
+        $incident->update(['assigned_to_user_id' => $shiftAdmin->id]);
 
         $this->bookAppointment($incident);
 
         $incident->refresh();
-        $this->assertNull($incident->assigned_to_user_id);
+        $this->assertSame($shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertTrue($incident->pending_smart_assignment);
 
         $classifier = app(OperationsQueueClassifier::class);
         $incident = $incident->fresh(['supportAppointments', 'order', 'activeWaitingState']);
@@ -230,8 +240,12 @@ class SmartAssignmentTest extends TestCase
             'event' => 'service_case.smart_assignment_unassigned',
             'auditable_id' => $incident->id,
         ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'service_case.pending_smart_assignment',
+            'auditable_id' => $incident->id,
+        ]);
 
-        Notification::assertSentTo($admin, \App\Notifications\SmartAssignmentUnassignedNotification::class);
+        Notification::assertSentTo($notifyAdmin, \App\Notifications\SmartAssignmentUnassignedNotification::class);
     }
 
     public function test_assigned_scheduled_case_appears_in_my_work(): void
@@ -262,6 +276,14 @@ class SmartAssignmentTest extends TestCase
         $this->assertTrue($result->isAssigned());
         $this->assertSame($activeAgent->id, $result->assignee?->id);
         $this->assertNotSame($idleAgent->id, $result->assignee?->id);
+    }
+
+    private function createShiftAdmin(string $name = 'Shift Admin'): User
+    {
+        $admin = User::factory()->create(['name' => $name]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        return $admin->fresh();
     }
 
     private function createSupportAgent(string $name, TeamAvailabilityStatus $status): User

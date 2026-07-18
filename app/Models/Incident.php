@@ -43,6 +43,7 @@ class Incident extends Model
         'assigned_to_user_id',
         'assignment_origin',
         'automation_pending_until',
+        'pending_smart_assignment',
         'created_by',
         'updated_by',
     ];
@@ -56,6 +57,7 @@ class Incident extends Model
             'high_priority' => 'boolean',
             'last_missed_at' => 'datetime',
             'automation_pending_until' => 'datetime',
+            'pending_smart_assignment' => 'boolean',
         ];
     }
 
@@ -66,11 +68,21 @@ class Incident extends Model
             && $this->automation_pending_until->isFuture();
     }
 
+    public function isPendingSmartAssignment(): bool
+    {
+        return (bool) $this->pending_smart_assignment;
+    }
+
     public function scopeAutomationGraceExpired(Builder $query): void
     {
         $query->whereNull('assigned_to_user_id')
             ->whereNotNull('automation_pending_until')
             ->where('automation_pending_until', '<=', now());
+    }
+
+    public function scopePendingSmartAssignment(Builder $query): void
+    {
+        $query->where('pending_smart_assignment', true);
     }
 
     public function order(): BelongsTo

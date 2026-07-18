@@ -668,6 +668,13 @@ class ServiceCaseAssignmentService
 
         if ($incident->assigned_to_user_id === $assignee->id
             && $incident->assignment_origin === $assignmentOrigin) {
+            if ($assignmentOrigin === AssignmentOrigin::Manual && $incident->pending_smart_assignment) {
+                $incident->update([
+                    'pending_smart_assignment' => false,
+                    'updated_by' => $actor->id,
+                ]);
+            }
+
             return $incident->fresh(['assignee']);
         }
 
@@ -677,11 +684,18 @@ class ServiceCaseAssignmentService
                 'assignment_origin' => $incident->assignment_origin?->value,
             ];
 
-            $incident->update([
+            $updates = [
                 'assigned_to_user_id' => $assignee->id,
                 'assignment_origin' => $assignmentOrigin->value,
                 'updated_by' => $actor->id,
-            ]);
+            ];
+
+            // Manual ownership leaves the deferred smart-assignment queue.
+            if ($assignmentOrigin === AssignmentOrigin::Manual && $incident->pending_smart_assignment) {
+                $updates['pending_smart_assignment'] = false;
+            }
+
+            $incident->update($updates);
 
             $freshIncident = $incident->fresh(['assignee']);
 
@@ -709,7 +723,11 @@ class ServiceCaseAssignmentService
                 $this->dashboardBroadcastService->serviceCaseAssigned($freshIncident, $actor);
             }
 
-            app(\App\Services\Operations\TeamMemberActivityService::class)->recordCaseAction($actor);
+            // Automation/IRA actors must not open presence sessions via assignment side-effects.
+            if (! app(AutomationIdentityService::class)->isAutomationActor($actor)) {
+                app(\App\Services\Operations\TeamMemberActivityService::class)->recordCaseAction($actor);
+            }
+
             app(\App\Services\Operations\TeamMemberActivityService::class)->recordStatusChange($assignee);
 
             $this->dashboardSnapshotStore->forget();

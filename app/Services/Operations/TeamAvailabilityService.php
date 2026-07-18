@@ -98,7 +98,13 @@ class TeamAvailabilityService
             ],
         );
 
-        return $user->fresh();
+        $freshUser = $user->fresh();
+
+        if ($status === TeamAvailabilityStatus::Available) {
+            app(DeferredSmartAssignmentService::class)->processPendingBatch();
+        }
+
+        return $freshUser;
     }
 
     public function syncFromSessionStart(User $user, ?Carbon $at = null): User

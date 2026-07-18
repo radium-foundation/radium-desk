@@ -111,6 +111,16 @@ class ServiceCaseActivityTimelineService
         if ($auditLog->auditable_type === $incident->getMorphClass()) {
             return match ($auditLog->event) {
                 'service_case.assigned' => $this->mapAssignedEntry($auditLog, $incident, $actor, $occurredAt),
+                'service_case.deferred_smart_assignment' => $this->mapAssignedEntry($auditLog, $incident, $actor, $occurredAt),
+                'service_case.pending_smart_assignment' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
+                    actor: $actor,
+                    title: 'Pending Smart Assignment',
+                    body: 'No eligible engineer was available. Assignment will retry when capacity is available.',
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 'service_case.reassigned' => new ServiceCaseTimelineEntry(
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,

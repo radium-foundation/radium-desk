@@ -67,6 +67,8 @@ class SupportAppointmentSmartAssignmentService
 
         $isReassignment = $incident->assigned_to_user_id !== null;
 
+        $incident = $this->clearPendingSmartAssignment($incident, $actor);
+
         $incident = $this->assignmentService->assignWithAuditContext(
             incident: $incident,
             assignee: $assignee,
@@ -90,35 +92,84 @@ class SupportAppointmentSmartAssignmentService
         return $incident;
     }
 
+    public function clearPendingSmartAssignment(Incident $incident, User $actor): Incident
+    {
+        if (! $incident->pending_smart_assignment) {
+            return $incident;
+        }
+
+        $incident->update([
+            'pending_smart_assignment' => false,
+            'updated_by' => $actor->id,
+        ]);
+
+        return $incident->fresh(['assignee', 'order', 'supportAppointments']);
+    }
+
     private function handleUnassigned(
         Incident $incident,
         SupportAppointment $appointment,
         User $actor,
         SmartAssignmentResult $result,
     ): Incident {
-        $this->auditLogService->log(
-            userId: $actor->id,
-            event: 'service_case.smart_assignment_unassigned',
-            auditable: $incident,
-            oldValues: [
-                'assigned_to_user_id' => $incident->assigned_to_user_id,
-            ],
-            newValues: [
-                'assigned_to_user_id' => null,
-                'assignment_method' => 'smart',
-                'assignment_trigger' => 'support_appointment_booked',
-                'appointment_id' => $appointment->id,
-                'assignment_reason' => $result->context,
-                'queue' => 'scheduled',
-            ],
-        );
+        $alreadyPending = (bool) $incident->pending_smart_assignment;
 
-        $this->alertOperationsAdmins($incident, $appointment, $result);
+        if (! $alreadyPending) {
+            // Keep current ownership (typically Shift Admin). Do not clear assigned_to_user_id.
+            $currentAssigneeId = $incident->assigned_to_user_id;
+
+            $incident->update([
+                'pending_smart_assignment' => true,
+                'updated_by' => $actor->id,
+            ]);
+
+            $incident = $incident->fresh(['assignee', 'order']);
+
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: 'service_case.smart_assignment_unassigned',
+                auditable: $incident,
+                oldValues: [
+                    'assigned_to_user_id' => $currentAssigneeId,
+                ],
+                newValues: [
+                    'assigned_to_user_id' => $currentAssigneeId,
+                    'assignment_method' => 'smart',
+                    'assignment_trigger' => 'support_appointment_booked',
+                    'appointment_id' => $appointment->id,
+                    'assignment_reason' => $result->context,
+                    'queue' => 'scheduled',
+                    'ownership_retained' => true,
+                ],
+            );
+
+            $this->auditLogService->log(
+                userId: $actor->id,
+                event: 'service_case.pending_smart_assignment',
+                auditable: $incident,
+                oldValues: [
+                    'pending_smart_assignment' => false,
+                    'assigned_to_user_id' => $currentAssigneeId,
+                ],
+                newValues: [
+                    'pending_smart_assignment' => true,
+                    'assigned_to_user_id' => $currentAssigneeId,
+                    'assignment_method' => 'smart',
+                    'assignment_trigger' => 'support_appointment_booked',
+                    'appointment_id' => $appointment->id,
+                    'assignment_reason' => $result->context,
+                    'queue' => 'scheduled',
+                ],
+            );
+
+            $this->alertOperationsAdmins($incident, $appointment, $result);
+        }
 
         Log::warning('smart_assignment.unassigned', [
             'incident_id' => $incident->id,
             'appointment_id' => $appointment->id,
             'reason' => $result->context['reason'] ?? 'unknown',
+            'already_pending' => $alreadyPending,
         ]);
 
         return $incident->fresh(['assignee']);

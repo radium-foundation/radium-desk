@@ -58,6 +58,8 @@ class PresenceEngineService
 
         $this->refreshAttendanceRegister($user, $at);
 
+        app(DeferredSmartAssignmentService::class)->processPendingBatch();
+
         return $session;
     }
 
