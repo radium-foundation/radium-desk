@@ -75,6 +75,16 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/outbox-processor.log'));
 
+        $schedule->command('inbound-email:sync-gmail')
+            ->cron(sprintf(
+                '*/%d * * * *',
+                max(1, (int) config('inbound_email.gmail.schedule_interval_minutes', 1)),
+            ))
+            ->when(fn (): bool => (bool) config('inbound_email.enabled')
+                && (bool) config('inbound_email.gmail.enabled'))
+            ->withoutOverlapping(10)
+            ->appendOutputTo(storage_path('logs/inbound-email-gmail-sync.log'));
+
         $schedule->command('presence:process-timeouts')
             ->everyMinute()
             ->withoutOverlapping()

@@ -48,6 +48,7 @@ use App\Services\Timeline\Factories\ClassTimelineSourceFactory;
 use App\Services\Timeline\Factories\OrderCustomerTimelineSourceFactory;
 use App\Services\Timeline\Sources\AppointmentTimelineEventSource;
 use App\Services\Timeline\Sources\BonVoiceCallTimelineEventSource;
+use App\Services\Timeline\Sources\IncomingEmailTimelineEventSource;
 use App\Services\Timeline\Sources\CorrectSerialRequestTimelineEventSource;
 use App\Services\Timeline\Sources\CustomerWaitingLifecycleTimelineEventSource;
 use App\Services\Timeline\Sources\CustomerDataCorrectionTimelineEventSource;
@@ -87,6 +88,7 @@ class AppServiceProvider extends ServiceProvider
                 new ClassTimelineSourceFactory($app, AppointmentTimelineEventSource::class),
                 new ClassTimelineSourceFactory($app, ServiceCaseLifecycleTimelineEventSource::class),
                 new ClassTimelineSourceFactory($app, BonVoiceCallTimelineEventSource::class),
+                new ClassTimelineSourceFactory($app, IncomingEmailTimelineEventSource::class),
                 new ClassTimelineSourceFactory($app, CustomerDataCorrectionTimelineEventSource::class),
                 new ClassTimelineSourceFactory($app, CustomerIdentityProtectionTimelineEventSource::class),
                 new ClassTimelineSourceFactory($app, CustomerWaitingLifecycleTimelineEventSource::class),

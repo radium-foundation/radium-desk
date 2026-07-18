@@ -248,6 +248,26 @@ class ServiceCaseActivityTimelineService
                 ),
                 'service_case.status_changed' => $this->mapStatusChangeEntry($auditLog, $incident, $actor, $occurredAt),
                 'service_case.close_exception' => null,
+                'incoming_email.linked' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Incoming Email linked',
+                    body: $this->incomingEmailLinkedBody($auditLog->new_values ?? []),
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                'incoming_email.received' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $this->automationIdentity->automationActor(),
+                    title: 'Incoming Email received',
+                    body: filled($auditLog->new_values['subject'] ?? null)
+                        ? (string) $auditLog->new_values['subject']
+                        : null,
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 default => null,
             };
         }
@@ -510,6 +530,20 @@ class ServiceCaseActivityTimelineService
             remark: null,
             dedupeKey: "audit:{$auditLog->id}",
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function incomingEmailLinkedBody(array $values): ?string
+    {
+        $parts = array_values(array_filter([
+            filled($values['from_email'] ?? null) ? 'From: '.$values['from_email'] : null,
+            filled($values['subject'] ?? null) ? 'Subject: '.$values['subject'] : null,
+            filled($values['mailbox'] ?? null) ? 'Mailbox: '.$values['mailbox'] : null,
+        ]));
+
+        return $parts === [] ? null : implode(' · ', $parts);
     }
 
     private function statusLabel(mixed $value): ?string

@@ -6,10 +6,13 @@ use App\Enums\OutboxEventStatus;
 use App\Models\OutboxEvent;
 use App\Models\InteraktWebhookLog;
 use App\Models\BonvoiceWebhookLog;
+use App\Models\IncomingEmailMessage;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookProcessorService;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
 use App\Services\Cashfree\CashfreeWebhookOutboxWriter;
+use App\Services\IncomingEmail\IncomingEmailOutboxWriter;
+use App\Services\IncomingEmail\IncomingEmailProcessorService;
 use App\Services\Interakt\InteraktFlowWebhookOutboxWriter;
 use App\Services\Interakt\InteraktFlowWebhookProcessorService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
@@ -37,6 +40,7 @@ class OutboxProcessorService
         private readonly InteraktFlowWebhookProcessorService $interaktFlowWebhookProcessorService,
         private readonly InteraktOutboundProcessorService $interaktOutboundProcessorService,
         private readonly BonvoiceWebhookProcessorService $bonvoiceWebhookProcessorService,
+        private readonly IncomingEmailProcessorService $incomingEmailProcessorService,
     ) {}
 
     public function process(?int $limit = null): int
@@ -156,8 +160,27 @@ class OutboxProcessorService
             InteraktFlowWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktFlowWebhookProcessing($event),
             InteraktOutboundOutboxWriter::EVENT_TYPE => $this->dispatchInteraktTemplateSend($event),
             BonvoiceWebhookOutboxWriter::EVENT_TYPE => $this->dispatchBonvoiceWebhookProcessing($event),
+            IncomingEmailOutboxWriter::EVENT_TYPE => $this->dispatchIncomingEmailProcessing($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
+    }
+
+    private function dispatchIncomingEmailProcessing(OutboxEvent $event): void
+    {
+        $payload = $event->payload ?? [];
+        $messageId = (int) ($payload['incoming_email_message_id'] ?? 0);
+
+        if ($messageId <= 0) {
+            throw new RuntimeException('Incoming email outbox event is missing incoming_email_message_id.');
+        }
+
+        $message = IncomingEmailMessage::query()->find($messageId);
+
+        if ($message === null) {
+            throw new RuntimeException('Incoming email message not found: '.$messageId);
+        }
+
+        $this->incomingEmailProcessorService->process($message);
     }
 
     private function dispatchInteraktWebhookProcessing(OutboxEvent $event): void
