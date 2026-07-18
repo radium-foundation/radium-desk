@@ -24,6 +24,7 @@ class NotificationCreated implements ShouldBroadcastNow
         public int $unreadCount,
         public string $bellHtml,
         public ?array $interaction = null,
+        public bool $suppressDesktopNotification = false,
     ) {}
 
     /**
@@ -54,6 +55,10 @@ class NotificationCreated implements ShouldBroadcastNow
             'unread_count' => $this->unreadCount,
             'bell_html' => $this->bellHtml,
         ];
+
+        if ($this->suppressDesktopNotification) {
+            $payload['suppress_desktop_notification'] = true;
+        }
 
         if ($this->interaction !== null) {
             $payload['interaction'] = $this->interaction;

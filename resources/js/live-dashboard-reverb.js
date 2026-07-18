@@ -16,6 +16,7 @@ import { isDashboardSearchActive } from './dashboard-search-mode';
 import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
 import { getWorkspaceSession } from './workspace/session';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
+import { bindOperatorAlertsChannel } from './operator-alerts';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -99,7 +100,7 @@ const handleNotificationCreated = (payload) => {
         }
     }
 
-    if (payload.title && payload.message) {
+    if (payload.title && payload.message && !payload.suppress_desktop_notification) {
         showBrowserNotification({
             id: payload.id,
             title: payload.title,
@@ -188,6 +189,8 @@ export const initLiveDashboardReverb = ({
     notificationsChannel.listen('.NotificationCreated', (payload) => {
         handleNotificationCreated(payload);
     });
+
+    bindOperatorAlertsChannel(notificationsChannel);
 
     const connection = echo.connector?.pusher?.connection;
 

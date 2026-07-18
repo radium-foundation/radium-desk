@@ -9,6 +9,9 @@ use App\Models\BonvoiceCallEvent;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\IncomingCallAssistNotification;
+use App\Services\Alerts\IncomingCallTelegramMessageBuilder;
+use App\Services\Alerts\OperatorAlertCatalog;
+use App\Services\Alerts\OperatorAlertDispatcher;
 use App\Services\DashboardBroadcastService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Support\Bonvoice\BonvoiceIncomingCallInteractionBuilder;
@@ -24,6 +27,9 @@ class BonvoiceLiveCallAssistService
         private readonly BonvoiceInboundCustomerResolver $customerResolver,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
+        private readonly OperatorAlertDispatcher $operatorAlertDispatcher,
+        private readonly OperatorAlertCatalog $operatorAlertCatalog,
+        private readonly IncomingCallTelegramMessageBuilder $incomingCallTelegramMessageBuilder,
     ) {}
 
     public function maybeNotify(BonvoiceCallEvent $event): ?BonvoiceCallAlert
@@ -151,6 +157,12 @@ class BonvoiceLiveCallAssistService
     private function sendNotificationSafely(User $agent, BonvoiceCallAlert $alert): void
     {
         try {
+            if (config('operator_alerts.enabled')) {
+                $this->dispatchOperatorAlert($agent, $alert);
+
+                return;
+            }
+
             $agent->notify(new IncomingCallAssistNotification($alert));
         } catch (Throwable $exception) {
             Log::error('[BonVoice Live Call Assist] Notification failed', [
@@ -161,6 +173,35 @@ class BonvoiceLiveCallAssistService
                 'exception' => $exception::class,
             ]);
         }
+    }
+
+    private function dispatchOperatorAlert(User $agent, BonvoiceCallAlert $alert): void
+    {
+        $historyNotification = new IncomingCallAssistNotification($alert);
+        $payload = $historyNotification->toArray($agent);
+
+        $operatorAlert = $this->operatorAlertCatalog->make(
+            eventType: OperatorAlertCatalog::EVENT_INCOMING_CALL,
+            title: (string) ($payload['title'] ?? 'Incoming Call'),
+            message: (string) ($payload['message'] ?? ''),
+            actionUrl: (string) ($payload['url'] ?? route('dashboard')),
+            entityType: 'call',
+            entityId: $alert->call_id,
+            deduplicationKey: 'ivr:call:'.$alert->call_id,
+            interaction: is_array($payload['interaction'] ?? null) ? $payload['interaction'] : null,
+        );
+
+        $this->operatorAlertDispatcher->dispatch(
+            alert: $operatorAlert,
+            recipients: $agent,
+            historyNotification: $historyNotification,
+            persistHistory: true,
+            deliverTelegram: true,
+            telegramMessage: $this->incomingCallTelegramMessageBuilder->build(
+                $alert,
+                $operatorAlert->actionUrl,
+            ),
+        );
     }
 
     private function isDuplicateCallAlert(QueryException $exception): bool

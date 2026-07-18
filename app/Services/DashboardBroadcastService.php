@@ -162,8 +162,11 @@ class DashboardBroadcastService
         $this->kpisUpdated($actor);
     }
 
-    public function notificationCreated(User $recipient, DatabaseNotification $notification): void
-    {
+    public function notificationCreated(
+        User $recipient,
+        DatabaseNotification $notification,
+        bool $suppressDesktopNotification = false,
+    ): void {
         $unreadCount = $recipient->unreadNotifications()->count();
         $badge = match (true) {
             $unreadCount <= 0 => null,
@@ -186,6 +189,7 @@ class DashboardBroadcastService
                 'latestNotifications' => $latestNotifications,
             ])->render(),
             interaction: $notification->data['interaction'] ?? null,
+            suppressDesktopNotification: $suppressDesktopNotification,
         ));
     }
 

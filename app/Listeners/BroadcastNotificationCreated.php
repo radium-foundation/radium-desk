@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Models\User;
+use App\Notifications\IncomingCallAssistNotification;
 use App\Services\DashboardBroadcastService;
 use Illuminate\Notifications\Events\NotificationSent;
 
@@ -24,9 +25,13 @@ class BroadcastNotificationCreated
             return;
         }
 
+        $suppressDesktop = config('operator_alerts.enabled')
+            && $notification->type === IncomingCallAssistNotification::class;
+
         $this->dashboardBroadcastService->notificationCreated(
             recipient: $event->notifiable,
             notification: $notification,
+            suppressDesktopNotification: $suppressDesktop,
         );
     }
 }
