@@ -171,6 +171,14 @@ class Order extends Model
 
     public function isAgentCorrectableIdentityOrder(): bool
     {
+        return $this->isRemoteSupportOrder();
+    }
+
+    /**
+     * Cashfree-paid service sessions without physical hardware fulfillment (e.g. remote support).
+     */
+    public function isRemoteSupportOrder(): bool
+    {
         return $this->isCashfreeVerified()
             && ! $this->isInquiryOrder()
             && ! $this->isProductOrder();

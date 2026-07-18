@@ -73,14 +73,22 @@ class WorkspaceActionDialogTest extends TestCase
         $order = Order::query()->create([
             'order_id' => $overrides['order_id'] ?? 'ORD-ACTION-1',
             'serial_number' => $overrides['serial_number'] ?? 'SN-ACTION-1',
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'product_name' => $overrides['product_name'] ?? 'MFS 110',
+            'device_model' => $overrides['device_model'] ?? 'MFS 110',
+            'cashfree_payment_id' => $overrides['cashfree_payment_id'] ?? null,
             'transaction_id' => $overrides['transaction_id'] ?? null,
             'status' => 'active',
             'created_by' => $creator->id,
         ]);
 
-        unset($overrides['order_id'], $overrides['serial_number'], $overrides['transaction_id']);
+        unset(
+            $overrides['order_id'],
+            $overrides['serial_number'],
+            $overrides['transaction_id'],
+            $overrides['product_name'],
+            $overrides['device_model'],
+            $overrides['cashfree_payment_id'],
+        );
 
         return Incident::query()->create([
             'order_id' => $order->id,
@@ -570,5 +578,58 @@ class WorkspaceActionDialogTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonStructure(['errors' => ['transaction_id']]);
+    }
+
+    public function test_remote_support_case_can_close_without_serial_device_model_or_transaction_id(): void
+    {
+        $agent = $this->createAgentUser('agent@example.com', 'Agent User');
+        $incident = $this->createIncident($agent, [
+            'order_id' => 'CFPay_techsupport_test_002',
+            'serial_number' => '10137886',
+            'cashfree_payment_id' => 'cf_pay_remote_support_002',
+            'product_name' => null,
+            'device_model' => null,
+            'transaction_id' => null,
+        ])->load('order');
+
+        $this->assertTrue($incident->order?->isRemoteSupportOrder());
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'reason_for_closing' => 'issue_resolved',
+                'body' => 'Remote support session completed.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
+    public function test_hardware_case_still_requires_serial_verification_before_close(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com', 'Admin User');
+        $incident = $this->createIncident($admin, [
+            'order_id' => 'RD-DEVICE-UNSUPPORTED',
+            'serial_number' => '10137886',
+            'product_name' => null,
+            'device_model' => null,
+            'transaction_id' => 'TXN-123',
+        ])->load('order');
+
+        $this->assertFalse($incident->order?->isRemoteSupportOrder());
+
+        $this->actingAs($admin)
+            ->patchJson(route('incidents.workspace.action', $incident), [
+                'workspace_context' => WorkspaceContext::ServiceCase->value,
+                'action_type' => WorkspaceActionType::Close->value,
+                'reason_for_closing' => 'issue_resolved',
+                'body' => 'Attempting hardware close with unverified serial.',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Serial number must be verified or corrected before closing this service case.');
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
     }
 }

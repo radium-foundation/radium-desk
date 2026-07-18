@@ -103,15 +103,42 @@ class ServiceCaseCloseRequirementServiceTest extends TestCase
         $this->assertArrayNotHasKey('serial_number', $messages);
     }
 
-    private function createIncident(string $orderId, ?string $serialNumber): Incident
+    public function test_remote_support_order_does_not_require_serial_number(): void
     {
+        $incident = $this->createIncident(
+            orderId: 'CFPay_techsupport_test_001',
+            serialNumber: '10137886',
+            cashfreePaymentId: 'cf_pay_remote_support_001',
+            deviceModel: null,
+            productName: null,
+        );
+
+        $this->assertTrue($incident->order?->isRemoteSupportOrder());
+
+        $messages = app(ServiceCaseCloseRequirementService::class)->validate(
+            incident: $incident,
+            serialNumberUnavailable: false,
+            referenceNumberUnavailable: false,
+        );
+
+        $this->assertSame([], $messages);
+    }
+
+    private function createIncident(
+        string $orderId,
+        ?string $serialNumber,
+        ?string $cashfreePaymentId = null,
+        ?string $deviceModel = 'MFS 110',
+        ?string $productName = 'MFS 110',
+    ): Incident {
         $creator = User::factory()->create();
 
         $order = Order::query()->create([
             'order_id' => $orderId,
             'serial_number' => $serialNumber,
-            'product_name' => 'MFS 110',
-            'device_model' => 'MFS 110',
+            'product_name' => $productName,
+            'device_model' => $deviceModel,
+            'cashfree_payment_id' => $cashfreePaymentId,
             'status' => 'active',
             'created_by' => $creator->id,
         ]);

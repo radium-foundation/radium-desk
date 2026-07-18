@@ -32,7 +32,7 @@ class ServiceCaseCloseRequirementService
 
         $order = $incident->order;
 
-        if (! $serialNumberUnavailable && ! ($order?->isInquiryOrder() ?? false)) {
+        if (! $serialNumberUnavailable && ! $this->skipsHardwareCloseRequirements($order)) {
             if ($order === null || ! filled(trim((string) $order->serial_number))) {
                 $messages['serial_number'] = 'Serial Number is required before closing this service case.';
             } elseif ($this->placeholderService->isPlaceholder((string) $order->serial_number)) {
@@ -43,6 +43,15 @@ class ServiceCaseCloseRequirementService
         }
 
         return $messages;
+    }
+
+    private function skipsHardwareCloseRequirements(?Order $order): bool
+    {
+        if ($order === null) {
+            return false;
+        }
+
+        return $order->isInquiryOrder() || $order->isRemoteSupportOrder();
     }
 
     private function serialNeedsCorrection(Order $order): bool

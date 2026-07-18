@@ -143,7 +143,9 @@ class ServiceCaseStatusService
 
         $order = $incident->order;
 
-        if ($order === null || $order->transaction_id === null || trim((string) $order->transaction_id) === '') {
+        if ($order !== null
+            && ! $order->isRemoteSupportOrder()
+            && ($order->transaction_id === null || trim((string) $order->transaction_id) === '')) {
             $messages['transaction_id'] = 'Assign a transaction ID to the related order before closing this service case.';
         }
 
