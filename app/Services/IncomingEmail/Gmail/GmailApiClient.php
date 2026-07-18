@@ -109,6 +109,35 @@ class GmailApiClient
         ]);
     }
 
+    public function getAttachmentBinary(string $mailbox, string $messageId, string $attachmentId): string
+    {
+        $response = $this->request(
+            $mailbox,
+            'GET',
+            '/gmail/v1/users/me/messages/'.$messageId.'/attachments/'.$attachmentId,
+        );
+
+        $data = $response['data'] ?? null;
+
+        if (! is_string($data) || $data === '') {
+            throw new RuntimeException('Gmail attachment response missing data for '.$attachmentId);
+        }
+
+        $remainder = strlen($data) % 4;
+
+        if ($remainder > 0) {
+            $data .= str_repeat('=', 4 - $remainder);
+        }
+
+        $decoded = base64_decode(strtr($data, '-_', '+/'), true);
+
+        if (! is_string($decoded)) {
+            throw new RuntimeException('Gmail attachment data could not be decoded for '.$attachmentId);
+        }
+
+        return $decoded;
+    }
+
     /**
      * @param  array<string, scalar|null>  $query
      * @return array<string, mixed>

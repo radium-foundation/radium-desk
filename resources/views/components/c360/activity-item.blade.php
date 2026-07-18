@@ -8,6 +8,10 @@
     use App\Support\Timeline\TimelineActorPresenter;
 
     $isInternalNote = $event->type === TimelineEventType::InternalNote;
+    $isIncomingEmail = str_starts_with($event->dedupeKey, 'incoming_email:');
+    $incomingEmailId = $isIncomingEmail
+        ? (int) substr($event->dedupeKey, strlen('incoming_email:'))
+        : null;
     $mentionFormatter = app(RemarkMentionFormatter::class);
     $actorPresenter = TimelineActorPresenter::for($event->actor);
     $indicatorVariant = $event->indicatorVariant ?? 'muted';
@@ -69,6 +73,8 @@
             <div class="c360-activity-item-description unified-timeline-detail unified-timeline-note-body">
                 {!! $mentionFormatter->format($event->noteBody) !!}
             </div>
+        @elseif($isIncomingEmail && filled($event->summary))
+            <p class="c360-activity-item-context">{{ $event->summary }}</p>
         @elseif(! $hasCommunicationChannels && filled($event->summary) && ! $hasExpandedMetadata)
             <p class="c360-activity-item-context">{{ $event->summary }}</p>
         @endif
@@ -122,6 +128,15 @@
                 {{ $event->actionLabel }}
                 <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
             </a>
+        @endif
+
+        @if($incomingEmailId)
+            <button type="button"
+                    class="unified-timeline-action-link c360-incoming-email-read-full"
+                    data-incoming-email-read-full="{{ $incomingEmailId }}">
+                Read Full Email
+                <i class="bi bi-envelope-open" aria-hidden="true"></i>
+            </button>
         @endif
     </div>
 </article>

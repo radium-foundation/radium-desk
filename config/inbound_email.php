@@ -14,7 +14,7 @@ return [
 
     'enabled' => filter_var(env('INBOUND_EMAIL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
-    'preview_max_chars' => (int) env('INBOUND_EMAIL_PREVIEW_MAX_CHARS', 280),
+    'preview_max_chars' => (int) env('INBOUND_EMAIL_PREVIEW_MAX_CHARS', 500),
 
     /*
     |--------------------------------------------------------------------------

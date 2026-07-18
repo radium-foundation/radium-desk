@@ -3,10 +3,15 @@
 namespace App\Services\IncomingEmail\Gmail;
 
 use App\Data\IncomingEmail\NormalizedInboundEmail;
+use App\Services\IncomingEmail\IncomingEmailPreviewExtractor;
 use Illuminate\Support\Carbon;
 
 class GmailMessageMapper
 {
+    public function __construct(
+        private readonly IncomingEmailPreviewExtractor $previewExtractor,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $message
      */
@@ -24,9 +29,11 @@ class GmailMessageMapper
 
         [$bodyText, $bodyHtml] = $this->extractBodies($message['payload'] ?? []);
         $attachments = $this->extractAttachments($message['payload'] ?? []);
-        $previewSource = $bodyText !== null && trim($bodyText) !== ''
-            ? $bodyText
-            : ($bodyHtml !== null ? strip_tags($bodyHtml) : ($message['snippet'] ?? null));
+        $preview = $this->previewExtractor->extract(
+            $bodyText,
+            $bodyHtml,
+            is_string($message['snippet'] ?? null) ? $message['snippet'] : null,
+        );
 
         $internalDateMs = isset($message['internalDate']) && is_numeric($message['internalDate'])
             ? (int) $message['internalDate']
@@ -51,7 +58,7 @@ class GmailMessageMapper
             fromName: $from['name'],
             toEmails: $allRecipients,
             subject: $headers['subject'] ?? null,
-            preview: is_string($previewSource) ? $previewSource : null,
+            preview: $preview,
             receivedAt: $receivedAt,
             attachmentCount: count($attachments),
             headers: $headers,

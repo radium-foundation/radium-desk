@@ -129,3 +129,5 @@
         ])
     </div>
 </div>
+
+@include('customer-360.partials.incoming-email-modal')

@@ -149,7 +149,8 @@ class GmailInboundEmailSyncTest extends TestCase
         $message = IncomingEmailMessage::query()->first();
         $this->assertNotNull($message);
         $this->assertSame('msg-alias', $message->provider_message_id);
-        $this->assertSame($bodyText, $message->raw_payload['body_text'] ?? null);
+        $this->assertSame('Mail routed via Workspace alias.', $message->preview);
+        $this->assertNull($message->raw_payload['body_text'] ?? null);
     }
 
     public function test_incremental_sync_ingests_new_messages_via_existing_pipeline(): void
@@ -210,7 +211,8 @@ class GmailInboundEmailSyncTest extends TestCase
         $this->assertSame('msg-1', $message->provider_message_id);
         $this->assertSame('thr-1', $message->thread_id);
         $this->assertSame(IncomingEmailMessageStatus::Linked, $message->status);
-        $this->assertSame($bodyText, $message->raw_payload['body_text'] ?? null);
+        $this->assertSame('The fingerprint sensor stopped working.', $message->preview);
+        $this->assertNull($message->raw_payload['body_text'] ?? null);
         $this->assertSame('Need help with my device', $message->subject);
 
         $this->assertDatabaseHas('gmail_mailbox_sync_states', [

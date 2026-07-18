@@ -32,18 +32,19 @@ class IncomingEmailIngestService
             return $existing;
         }
 
-        $previewMax = max(1, (int) config('inbound_email.preview_max_chars', 280));
+        $previewMax = max(1, (int) config('inbound_email.preview_max_chars', 500));
         $preview = $dto->preview !== null
-            ? Str::limit(trim(strip_tags($dto->preview)), $previewMax, '…')
+            ? Str::limit(trim($dto->preview), $previewMax, '…')
             : null;
 
         $channel = $dto->channel
             ?? $this->resolveMailboxChannel($dto->mailbox);
 
         $rawPayload = $dto->rawPayload ?? [];
-        $rawPayload['body_text'] = $dto->bodyText;
-        $rawPayload['body_html'] = $dto->bodyHtml;
-        $rawPayload['attachments'] = $dto->attachments;
+
+        if ($dto->attachments !== []) {
+            $rawPayload['attachments'] = $dto->attachments;
+        }
 
         $message = IncomingEmailMessage::query()->create([
             'intake_channel' => IntakeChannel::Email,

@@ -41,7 +41,19 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
     {
         $occurredAt = $message->received_at ?? $message->created_at ?? now();
         $isHistorical = $message->status === IncomingEmailMessageStatus::HistoricalCustomer;
+        $preview = $message->displayPreview();
+        $attachmentNames = array_values(array_filter(array_map(
+            static fn (array $attachment): ?string => filled($attachment['filename'] ?? null)
+                ? (string) $attachment['filename']
+                : null,
+            $message->attachmentMetadata(),
+        )));
+
         $summaryFields = array_values(array_filter([
+            filled($preview) ? [
+                'label' => 'Preview',
+                'value' => (string) $preview,
+            ] : null,
             filled($message->mailbox) ? [
                 'label' => 'Mailbox',
                 'value' => (string) $message->mailbox,
@@ -64,14 +76,18 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
                 'label' => 'Thread ID',
                 'value' => (string) $message->thread_id,
             ] : null,
+            filled($message->provider_message_id) ? [
+                'label' => 'Gmail Message ID',
+                'value' => (string) $message->provider_message_id,
+            ] : null,
             filled($message->rfc_message_id) ? [
                 'label' => 'Message ID',
                 'value' => (string) $message->rfc_message_id,
             ] : null,
-            [
+            $attachmentNames !== [] ? [
                 'label' => 'Attachments',
-                'value' => (string) $message->attachment_count,
-            ],
+                'value' => implode(', ', $attachmentNames),
+            ] : null,
         ]));
 
         $orderId = $message->order_id ?? $this->order->id;
@@ -87,8 +103,8 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
                 kind: TimelineActorKind::Customer,
             ),
             dedupeKey: 'incoming_email:'.$message->id,
-            summary: $message->preview,
-            detail: $message->preview,
+            summary: $preview,
+            detail: null,
             statusLabel: $isHistorical
                 ? IncomingEmailMessageStatus::HistoricalCustomer->label()
                 : 'Linked',

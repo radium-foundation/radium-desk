@@ -19,6 +19,7 @@ use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
 use App\Http\Controllers\DeviceModelAliasController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\IncidentController;
+use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\IraOperationsBrainController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\MyPerformanceController;
@@ -97,6 +98,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360.ai-workbench.audit');
     Route::post('dashboard/service-cases/{incident}/customer-360/executive-summary/translate', [Customer360Controller::class, 'translateExecutiveSummary'])
         ->name('dashboard.service-cases.customer-360.executive-summary.translate');
+    Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/content', [IncomingEmailContentController::class, 'show'])
+        ->name('dashboard.incoming-email-messages.content');
+    Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/attachments/{attachment}', [IncomingEmailContentController::class, 'downloadAttachment'])
+        ->name('dashboard.incoming-email-messages.attachments.download');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])
         ->name('dashboard.transactions.bulk');
     Route::get('dashboard/components/batch-transaction', [DashboardWorkspaceComponentController::class, 'batchTransaction'])

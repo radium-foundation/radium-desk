@@ -1,3 +1,5 @@
+import { initIncomingEmailModal } from './incoming-email-modal';
+
 export const TIMELINE_FILTER_EMPTY_MESSAGES = {
     all: 'No customer activity recorded yet.',
     system: 'No system events',
@@ -156,6 +158,8 @@ const bindTimelineFilters = (timeline) => {
 };
 
 export const initUnifiedTimeline = (root = document) => {
+    initIncomingEmailModal(root);
+
     const timelines = root.querySelectorAll('[data-unified-timeline]');
 
     timelines.forEach((timeline) => {
