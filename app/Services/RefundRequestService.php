@@ -6,10 +6,12 @@ use App\Data\Refunds\RefundCalculationResult;
 use App\Enums\ApprovedRefundMethod;
 use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\RefundDeductionProfile;
+use App\Enums\RefundDifferenceReason;
 use App\Enums\RefundStatus;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
+use App\Services\Operations\TeamMemberActivityService;
 use App\Services\Refunds\RefundExecutorResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -163,12 +165,12 @@ class RefundRequestService
                 && $calculation->refundAmount < $calculation->maximumRefundable - 0.001) {
                 $inferredReason = match (true) {
                     $calculation->otherDeduction > 0
-                        && $calculation->cancellationCharges <= 0 => \App\Enums\RefundDifferenceReason::EngineerVisit->value,
-                    $calculation->totalDeduction > 0 => \App\Enums\RefundDifferenceReason::CancellationCharges->value,
-                    default => \App\Enums\RefundDifferenceReason::PartialRefund->value,
+                        && $calculation->cancellationCharges <= 0 => RefundDifferenceReason::EngineerVisit->value,
+                    $calculation->totalDeduction > 0 => RefundDifferenceReason::CancellationCharges->value,
+                    default => RefundDifferenceReason::PartialRefund->value,
                 };
 
-                $calculation = new \App\Data\Refunds\RefundCalculationResult(
+                $calculation = new RefundCalculationResult(
                     totalPaidAmount: $calculation->totalPaidAmount,
                     alreadyRefundedAmount: $calculation->alreadyRefundedAmount,
                     maximumRefundable: $calculation->maximumRefundable,
@@ -244,6 +246,9 @@ class RefundRequestService
                 request: $request,
             );
 
+            app(TeamMemberActivityService::class)
+                ->recordCaseAction($user);
+
             return $fresh;
         });
     }
@@ -291,6 +296,9 @@ class RefundRequestService
                 newValues: $this->reviewSnapshot($fresh),
                 request: $request,
             );
+
+            app(TeamMemberActivityService::class)
+                ->recordCaseAction($user);
 
             return $fresh;
         });
@@ -357,6 +365,9 @@ class RefundRequestService
                 request: $request,
             );
 
+            app(TeamMemberActivityService::class)
+                ->recordCaseAction($user);
+
             return $fresh;
         });
 
@@ -415,7 +426,6 @@ class RefundRequestService
     }
 
     /**
-     * @param  mixed  $channels
      * @return list<string>
      */
     private function normalizeChannels(mixed $channels): array

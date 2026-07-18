@@ -12,4 +12,15 @@ return [
 
     'heartbeat_enabled' => (bool) env('PRESENCE_HEARTBEAT_ENABLED', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | View event cooldown (seconds)
+    |--------------------------------------------------------------------------
+    |
+    | Repeated order.viewed / service_case.viewed audits for the same entity
+    | are suppressed until this cooldown elapses. Different entities always log.
+    |
+    */
+    'view_event_cooldown_seconds' => (int) env('PRESENCE_VIEW_EVENT_COOLDOWN_SECONDS', 60),
+
 ];

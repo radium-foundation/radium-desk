@@ -4,17 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\RadiumBoxSyncTrigger;
 use App\Http\Requests\StoreIncidentRequest;
 use App\Http\Requests\UpdateIncidentRequest;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Enums\RadiumBoxSyncTrigger;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\WorkforceActivityContextService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Services\ServiceCaseActivityTimelineService;
 use App\Services\ServiceCaseAssignmentService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -26,6 +26,7 @@ class IncidentController extends Controller
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
+        private readonly WorkforceActivityContextService $workforceActivityContextService,
     ) {
         $this->authorizeResource(Incident::class, 'incident');
     }
@@ -114,7 +115,7 @@ class IncidentController extends Controller
             ->with('status', 'incident-created');
     }
 
-    public function show(Incident $incident): View
+    public function show(Request $request, Incident $incident): View
     {
         $incident->load([
             'order.legacyImporter',
@@ -130,6 +131,14 @@ class IncidentController extends Controller
             $this->radiumBoxAutoSyncTriggerService->maybeDispatch(
                 $incident->order,
                 RadiumBoxSyncTrigger::WorkspaceOpen,
+            );
+        }
+
+        if ($request->user() !== null) {
+            $this->workforceActivityContextService->recordServiceCaseViewed(
+                $request->user(),
+                $incident,
+                $request,
             );
         }
 

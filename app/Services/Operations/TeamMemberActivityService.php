@@ -10,6 +10,7 @@ class TeamMemberActivityService
 {
     public function __construct(
         private readonly PresenceEngineService $presenceEngine,
+        private readonly WorkforceActivityContextService $workforceActivityContextService,
     ) {}
 
     public function recordSystemActivity(User $user): void
@@ -28,6 +29,7 @@ class TeamMemberActivityService
         $this->touch($user, 'last_case_action_at');
         $this->recordSystemActivity($user);
         $this->presenceEngine->recordActivity($user, PresenceActivityType::CaseAction);
+        $this->workforceActivityContextService->touchBusinessAction($user, 'case.action');
     }
 
     public function recordCustomerCommunication(User $user): void
@@ -35,6 +37,7 @@ class TeamMemberActivityService
         $this->touch($user, 'last_customer_communication_at');
         $this->recordSystemActivity($user);
         $this->presenceEngine->recordActivity($user, PresenceActivityType::CustomerCommunication);
+        $this->workforceActivityContextService->touchBusinessAction($user, 'communication.sent');
     }
 
     public function recordStatusChange(User $user): void
@@ -42,6 +45,7 @@ class TeamMemberActivityService
         $this->touch($user, 'last_status_change_at');
         $this->recordCaseAction($user);
         $this->presenceEngine->recordActivity($user, PresenceActivityType::StatusChange);
+        $this->workforceActivityContextService->touchBusinessAction($user, 'service_case.status_changed');
     }
 
     public function lastWorkActivityAt(User $user): ?Carbon

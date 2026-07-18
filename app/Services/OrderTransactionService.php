@@ -7,8 +7,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
-use App\Services\SettingService;
-use Database\Seeders\RolePermissionSeeder;
+use App\Services\Operations\TeamMemberActivityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -79,6 +78,9 @@ class OrderTransactionService
                     'completed_at' => $freshOrder->completed_at?->toIso8601String(),
                 ],
             );
+
+            app(TeamMemberActivityService::class)
+                ->recordCaseAction($actor);
 
             $this->scheduleServiceReferenceAssignedCommunication($freshOrder, $transactionId, $actor);
 

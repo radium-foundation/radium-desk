@@ -9,23 +9,26 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\StoreOrderServiceCaseRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\DeviceModel;
+use App\Models\Incident;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardBroadcastService;
 use App\Services\DeviceModelSettingsService;
+use App\Services\Operations\WorkforceActivityContextService;
 use App\Services\OrderActivityTimelineService;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\QuickServiceRequestService;
 use App\Services\RadiumBox\RadiumBoxService;
 use App\Services\RemarkTimelineService;
 use App\Services\SerialValidation\SerialValidationService;
+use App\Services\SettingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
-use App\Models\User;
 
 class OrderController extends Controller
 {
@@ -38,6 +41,7 @@ class OrderController extends Controller
         private readonly SerialValidationService $serialValidationService,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly DeviceModelSettingsService $deviceModelSettingsService,
+        private readonly WorkforceActivityContextService $workforceActivityContextService,
     ) {
         $this->authorizeResource(Order::class, 'order');
     }
@@ -142,7 +146,7 @@ class OrderController extends Controller
             ->with('status', 'order-created');
     }
 
-    public function show(Order $order): View
+    public function show(Request $request, Order $order): View
     {
         $order->loadCount(['incidents', 'refundRequests']);
         $order->load($this->orderWorkspaceRelationships());
@@ -153,6 +157,14 @@ class OrderController extends Controller
         $activeIncident = $order->activeIncident();
         if ($activeIncident !== null && ! $activeIncident->relationLoaded('assignee')) {
             $activeIncident->load('assignee');
+        }
+
+        if ($request->user() !== null) {
+            $this->workforceActivityContextService->recordOrderViewed(
+                $request->user(),
+                $order,
+                $request,
+            );
         }
 
         return view('orders.show', [
@@ -166,7 +178,7 @@ class OrderController extends Controller
     public function createServiceCase(Order $order): View
     {
         $this->authorize('view', $order);
-        $this->authorize('create', \App\Models\Incident::class);
+        $this->authorize('create', Incident::class);
 
         $order->load([
             'incidents' => fn ($query) => $query->with('assignee')->latest(),
@@ -180,7 +192,7 @@ class OrderController extends Controller
         return view('orders.service-cases.create', [
             'order' => $order,
             'activeIncident' => $activeIncident,
-            'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
+            'enabledSources' => app(SettingService::class)->enabledSources(),
         ]);
     }
 

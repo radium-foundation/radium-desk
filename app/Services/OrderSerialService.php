@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Operations\TeamMemberActivityService;
 use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -72,6 +73,9 @@ class OrderSerialService
                     'serial_entered_at' => $freshOrder->serial_entered_at?->toIso8601String(),
                 ],
             );
+
+            app(TeamMemberActivityService::class)
+                ->recordCaseAction($actor);
 
             if ($validation->corrected) {
                 $this->serialValidationService->recordIraCorrection(

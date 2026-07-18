@@ -27,6 +27,12 @@ class WorkSession extends Model
         'cases_handled_count',
         'communication_events_count',
         'resolution_events_count',
+        'current_order_id',
+        'current_incident_id',
+        'last_business_action',
+        'last_order_viewed_at',
+        'last_incident_viewed_at',
+        'last_business_action_at',
         'last_activity_at',
         'last_tick_at',
     ];
@@ -51,6 +57,11 @@ class WorkSession extends Model
             'cases_handled_count' => 'integer',
             'communication_events_count' => 'integer',
             'resolution_events_count' => 'integer',
+            'current_order_id' => 'integer',
+            'current_incident_id' => 'integer',
+            'last_order_viewed_at' => 'datetime',
+            'last_incident_viewed_at' => 'datetime',
+            'last_business_action_at' => 'datetime',
             'last_activity_at' => 'datetime',
             'last_tick_at' => 'datetime',
         ];
@@ -59,6 +70,16 @@ class WorkSession extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function currentOrder(): BelongsTo
+    {
+        return $this->belongsTo(Order::class, 'current_order_id');
+    }
+
+    public function currentIncident(): BelongsTo
+    {
+        return $this->belongsTo(Incident::class, 'current_incident_id');
     }
 
     public function isOpen(): bool

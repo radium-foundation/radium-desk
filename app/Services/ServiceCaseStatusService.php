@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\User;
+use App\Services\Operations\TeamMemberActivityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -76,6 +77,9 @@ class ServiceCaseStatusService
                 newValues: ['status' => $status->value],
             );
 
+            app(TeamMemberActivityService::class)
+                ->recordStatusChange($actor);
+
             if ($status === IncidentStatus::Closed) {
                 $this->waitingStateService->clearActiveIfPresent($freshIncident, $actor);
                 $this->completeScheduledSupportAppointments($freshIncident);
@@ -111,6 +115,9 @@ class ServiceCaseStatusService
                 oldValues: ['status' => $oldStatus->value],
                 newValues: ['status' => IncidentStatus::Open->value],
             );
+
+            app(TeamMemberActivityService::class)
+                ->recordStatusChange($actor);
 
             return $freshIncident;
         });
