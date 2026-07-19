@@ -1,26 +1,33 @@
 <?php
 
 return [
-    /*
-    |--------------------------------------------------------------------------
-    | Collapse Window
-    |--------------------------------------------------------------------------
-    |
-    | Repeated lifecycle events for the same entity within this window (seconds)
-    | are merged into a single operator-friendly activity card.
-    |
-    */
     'collapse_window_seconds' => 5,
 
-    /*
-    |--------------------------------------------------------------------------
-    | Event Groups
-    |--------------------------------------------------------------------------
-    |
-    | Events sharing a group key are candidates for collapse when they occur
-    | close together on the same auditable record.
-    |
-    */
+    'limits' => [
+        'per_stream' => 12,
+        'fetch' => 60,
+    ],
+
+    'fallback_streams' => [
+        'automation_actor' => 'system',
+        'human_actor' => 'agent_admin',
+    ],
+
+    'streams' => [
+        'customer' => [
+            'label' => 'Customer Activity',
+            'collapsed_default' => false,
+        ],
+        'agent_admin' => [
+            'label' => 'Agent & Admin Activity',
+            'collapsed_default' => false,
+        ],
+        'system' => [
+            'label' => 'System Activity',
+            'collapsed_default' => true,
+        ],
+    ],
+
     'groups' => [
         'communication' => [
             'events' => [
@@ -32,162 +39,180 @@ return [
             'title' => 'Communication Sent',
             'icon' => '💬',
             'variant' => 'communication',
+            'stream' => 'agent_admin',
         ],
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Event Presentation
-    |--------------------------------------------------------------------------
-    |
-    | Keys are audit log event names. Add new events here instead of editing
-    | Blade templates. Supported fields:
-    | - title: operator-facing headline
-    | - icon: emoji icon shown beside the title
-    | - source: source badge label (null = derive from payload)
-    | - variant: success | warning | communication | automation | remark | error | muted
-    | - hidden: when true, the event is omitted from the feed (audit preserved)
-    |
-    */
     'events' => [
         'service_case.automation.payment_received' => [
             'title' => 'Payment Received',
             'icon' => '💰',
             'source' => 'Automation',
             'variant' => 'success',
+            'stream' => 'customer',
         ],
         'service_case.automation.waiting_radiumbox' => [
             'title' => 'Waiting for RadiumBox',
             'icon' => '⏳',
             'source' => 'Automation',
             'variant' => 'warning',
+            'stream' => 'system',
         ],
         'service_case.automation.radiumbox_verified' => [
             'title' => 'RadiumBox Verified',
             'icon' => '✅',
             'source' => 'Automation',
             'variant' => 'success',
+            'stream' => 'system',
         ],
         'service_case.automation.validation_passed' => [
             'title' => 'Validation Passed',
             'icon' => '✅',
             'source' => 'Automation',
             'variant' => 'success',
+            'stream' => 'system',
         ],
         'service_case.automation.validation_failed' => [
             'title' => 'Validation Failed',
             'icon' => '⚠️',
             'source' => 'Automation',
             'variant' => 'error',
+            'stream' => 'system',
         ],
         'service_case.automation.waiting_manual_correction' => [
             'title' => 'Waiting for Customer Input',
             'icon' => '⏳',
             'source' => 'Automation',
             'variant' => 'warning',
+            'stream' => 'system',
         ],
         'service_case.automation_pending' => [
             'title' => 'Automation Pending',
             'icon' => '🤖',
             'source' => 'Automation',
             'variant' => 'automation',
+            'stream' => 'system',
             'hidden' => true,
         ],
         'service_case.customer_waiting_started' => [
             'title' => 'Waiting for Customer',
             'icon' => '⏳',
-            'source' => 'Automation',
+            'source' => 'Manual',
             'variant' => 'warning',
+            'stream' => 'agent_admin',
+            'stream_when_automation_actor' => 'system',
         ],
         'service_case.customer_waiting_auto_closed' => [
             'title' => 'Closed — Customer Not Responding',
             'icon' => '🔒',
             'source' => 'Automation',
             'variant' => 'muted',
+            'stream' => 'system',
         ],
         'service_case.assigned' => [
             'title' => 'Service Case Assigned',
             'icon' => '👤',
             'source' => 'Manual',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'service_case.reassigned' => [
             'title' => 'Service Case Reassigned',
             'icon' => '👤',
             'source' => 'Manual',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'service_case.status_changed' => [
             'title' => 'Status Updated',
             'icon' => '🎫',
             'source' => 'Manual',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'service_case.escalated' => [
             'title' => 'Service Case Escalated',
             'icon' => '🎫',
             'source' => 'Manual',
             'variant' => 'warning',
+            'stream' => 'agent_admin',
         ],
         'notification.dispatched' => [
             'title' => 'Notification Sent',
             'icon' => '🔔',
             'source' => null,
             'variant' => 'communication',
+            'stream' => 'agent_admin',
         ],
         'notification.skipped' => [
             'title' => 'Notification Skipped',
             'icon' => '🔔',
             'source' => 'Automation',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'communication_action.lifecycle' => [
             'title' => 'Communication Sent',
             'icon' => '💬',
             'source' => null,
             'variant' => 'communication',
+            'stream' => 'agent_admin',
         ],
         'service_reference.driver_guide_sent' => [
             'title' => 'Driver Guide Sent',
             'icon' => '📘',
             'source' => 'Automation',
             'variant' => 'communication',
+            'stream' => 'agent_admin',
         ],
         'whatsapp.template_sent' => [
             'title' => 'WhatsApp Message Sent',
             'icon' => '💬',
             'source' => 'WhatsApp',
             'variant' => 'communication',
+            'stream' => 'customer',
         ],
         'whatsapp.template_failed' => [
             'title' => 'WhatsApp Message Failed',
             'icon' => '💬',
             'source' => 'WhatsApp',
             'variant' => 'error',
+            'stream' => 'system',
         ],
         'incoming_email.linked' => [
             'title' => 'Email Linked',
             'icon' => '✉️',
             'source' => 'Email',
             'variant' => 'communication',
+            'stream' => 'customer',
         ],
         'incoming_email.received' => [
             'title' => 'Email Received',
             'icon' => '✉️',
             'source' => 'Email',
             'variant' => 'communication',
+            'stream' => 'customer',
         ],
         'incoming_email.promoted_to_service_case' => [
             'title' => 'Email Promoted to Service Case',
             'icon' => '✉️',
             'source' => 'Email',
             'variant' => 'communication',
+            'stream' => 'customer',
+        ],
+        'incoming_email.historical_customer' => [
+            'title' => 'Email Received',
+            'icon' => '✉️',
+            'source' => 'Email',
+            'variant' => 'communication',
+            'stream' => 'customer',
         ],
         'created' => [
             'title' => 'Remark Added',
             'icon' => '📝',
             'source' => 'Manual',
             'variant' => 'remark',
+            'stream' => 'agent_admin',
             'remark_only' => true,
         ],
         'serial.corrected_by_ira' => [
@@ -195,54 +220,63 @@ return [
             'icon' => '🤖',
             'source' => 'Automation',
             'variant' => 'automation',
+            'stream' => 'system',
         ],
         'serial.assigned' => [
             'title' => 'Serial Assigned',
             'icon' => '📦',
             'source' => 'Manual',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'order.updated' => [
             'title' => 'Order Updated',
             'icon' => '📦',
             'source' => 'Manual',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'order.identity.corrected' => [
             'title' => 'Order Identity Corrected',
             'icon' => '📦',
             'source' => 'Manual',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'refund.approved' => [
             'title' => 'Refund Approved',
             'icon' => '💰',
             'source' => 'Manual',
             'variant' => 'success',
+            'stream' => 'agent_admin',
         ],
         'refund.rejected' => [
             'title' => 'Refund Rejected',
             'icon' => '💰',
             'source' => 'Manual',
             'variant' => 'error',
+            'stream' => 'agent_admin',
         ],
         'refund.completed' => [
             'title' => 'Refund Completed',
             'icon' => '💰',
             'source' => 'Manual',
             'variant' => 'success',
+            'stream' => 'agent_admin',
         ],
         'radiumbox.sync.manual' => [
             'title' => 'RadiumBox Synced',
             'icon' => '🔄',
             'source' => 'Manual',
             'variant' => 'success',
+            'stream' => 'agent_admin',
         ],
         'radiumbox.sync.background_completed' => [
             'title' => 'RadiumBox Synced',
             'icon' => '🔄',
             'source' => 'Automation',
             'variant' => 'success',
+            'stream' => 'system',
             'hidden' => true,
         ],
         'legacy_order.imported' => [
@@ -250,13 +284,22 @@ return [
             'icon' => '📦',
             'source' => 'Manual',
             'variant' => 'muted',
+            'stream' => 'agent_admin',
         ],
         'deleted' => [
             'title' => 'Remark Deleted',
             'icon' => '📝',
             'source' => 'Manual',
             'variant' => 'remark',
+            'stream' => 'agent_admin',
             'remark_only' => true,
+        ],
+        'missed_call_recovery.created' => [
+            'title' => 'Missed Call',
+            'icon' => '📞',
+            'source' => 'IVR',
+            'variant' => 'communication',
+            'stream' => 'customer',
         ],
     ],
 ];

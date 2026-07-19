@@ -29,7 +29,7 @@ class RecentActivityPresenterTest extends TestCase
         $this->presenter = app(RecentActivityPresenter::class);
     }
 
-    public function test_maps_automation_payment_event_to_operator_friendly_card(): void
+    public function test_maps_automation_payment_event_to_customer_stream(): void
     {
         Carbon::setTestNow('2026-07-19 22:35:00');
 
@@ -48,15 +48,17 @@ class RecentActivityPresenterTest extends TestCase
         $log->setRelation('auditable', $incident);
         $log->setRelation('user', $user);
 
-        $item = $this->presenter->present(collect([$log]))->first();
+        $streams = $this->presenter->presentStreams(collect([$log]), $user);
+        $item = $streams->customer->first();
 
         $this->assertNotNull($item);
+        $this->assertSame('customer', $item->stream);
         $this->assertSame('Payment Received', $item->title);
         $this->assertSame('💰', $item->icon);
         $this->assertSame('Automation', $item->sourceBadge);
         $this->assertSame('success', $item->indicatorVariant);
         $this->assertStringContainsString('Incident', (string) $item->entityLabel);
-        $this->assertSame(route('incidents.show', $incident), $item->entityUrl);
+        $this->assertSame($incident->id, $item->entityIncidentId);
         $this->assertSame('2 min ago', $item->relativeTime);
     }
 
@@ -98,20 +100,19 @@ class RecentActivityPresenterTest extends TestCase
         $notification->save();
         $lifecycle->setRelation('auditable', $incident);
         $lifecycle->setRelation('user', $user);
-
         $notification->setRelation('auditable', $incident);
         $notification->setRelation('user', $user);
 
-        $items = $this->presenter->present(collect([$notification, $lifecycle]));
+        $streams = $this->presenter->presentStreams(collect([$notification, $lifecycle]), $user);
 
-        $this->assertCount(1, $items);
-        $this->assertSame('Communication Sent', $items->first()->title);
-        $this->assertSame('💬', $items->first()->icon);
-        $this->assertContains('WhatsApp', $items->first()->includes);
-        $this->assertContains('Notification', $items->first()->includes);
+        $this->assertCount(1, $streams->agentAdmin);
+        $this->assertSame('Communication Sent', $streams->agentAdmin->first()->title);
+        $this->assertSame('💬', $streams->agentAdmin->first()->icon);
+        $this->assertContains('WhatsApp', $streams->agentAdmin->first()->includes);
+        $this->assertContains('Notification', $streams->agentAdmin->first()->includes);
     }
 
-    public function test_maps_order_entity_with_clickable_link(): void
+    public function test_maps_order_entity_to_customer360_incident(): void
     {
         $user = User::factory()->create();
         $order = Order::query()->create([
@@ -123,6 +124,7 @@ class RecentActivityPresenterTest extends TestCase
             'status' => 'active',
             'created_by' => $user->id,
         ]);
+        $incident = $this->createIncident($user, $order);
 
         $log = AuditLog::query()->create([
             'user_id' => $user->id,
@@ -132,14 +134,15 @@ class RecentActivityPresenterTest extends TestCase
             'new_values' => ['order_id' => $order->order_id],
             'created_at' => now(),
         ]);
+        $order->setRelation('incidents', collect([$incident]));
         $log->setRelation('auditable', $order);
         $log->setRelation('user', $user);
 
-        $item = $this->presenter->present(collect([$log]))->first();
+        $item = $this->presenter->presentStreams(collect([$log]), $user)->agentAdmin->first();
 
         $this->assertNotNull($item);
         $this->assertSame('Order RD10015664', $item->entityLabel);
-        $this->assertSame(route('orders.show', $order), $item->entityUrl);
+        $this->assertSame($incident->id, $item->entityIncidentId);
     }
 
     public function test_hides_internal_communication_lifecycle_steps(): void
@@ -158,13 +161,19 @@ class RecentActivityPresenterTest extends TestCase
         $opened->setRelation('auditable', $incident);
         $opened->setRelation('user', $user);
 
-        $this->assertCount(0, $this->presenter->present(collect([$opened])));
+        $streams = $this->presenter->presentStreams(collect([$opened]), $user);
+
+        $this->assertTrue($streams->isEmpty());
     }
 
-    public function test_shows_automation_actor_for_system_user(): void
+    public function test_shows_system_stream_only_for_superadmin(): void
     {
         $automationEmail = (string) config('cashfree.system_user_email', 'system@example.com');
         $automationUser = User::factory()->create(['email' => $automationEmail]);
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
         $incident = $this->createIncident($automationUser);
 
         $log = AuditLog::query()->create([
@@ -178,17 +187,20 @@ class RecentActivityPresenterTest extends TestCase
         $log->setRelation('auditable', $incident);
         $log->setRelation('user', $automationUser);
 
-        $item = $this->presenter->present(collect([$log]))->first();
+        $agentStreams = $this->presenter->presentStreams(collect([$log]), $agent);
+        $superadminStreams = $this->presenter->presentStreams(collect([$log]), $superadmin);
 
-        $this->assertNotNull($item);
-        $this->assertTrue($item->isAutomation);
-        $this->assertSame('IRA', $item->actorName);
-        $this->assertNull($item->actorUser);
+        $this->assertFalse($agentStreams->showSystem);
+        $this->assertCount(0, $agentStreams->system);
+        $this->assertTrue($superadminStreams->showSystem);
+        $this->assertCount(1, $superadminStreams->system);
+        $this->assertTrue($superadminStreams->system->first()->isAutomation);
+        $this->assertSame('IRA', $superadminStreams->system->first()->actorName);
     }
 
-    private function createIncident(User $user): Incident
+    private function createIncident(User $user, ?Order $order = null): Incident
     {
-        $order = Order::query()->create([
+        $order ??= Order::query()->create([
             'order_id' => 'RD1000001',
             'serial_number' => 'SN-0001',
             'customer_name' => 'Test Customer',

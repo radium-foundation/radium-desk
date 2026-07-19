@@ -11,12 +11,14 @@ readonly class RecentActivityItem
      * @param  list<string>  $includes
      */
     public function __construct(
+        public string $stream,
         public string $title,
         public string $icon,
         public ?string $sourceBadge,
         public string $indicatorVariant,
         public ?string $entityLabel,
-        public ?string $entityUrl,
+        public ?int $entityIncidentId,
+        public ?string $entityReference,
         public Carbon $occurredAt,
         public string $relativeTime,
         public string $exactTime,

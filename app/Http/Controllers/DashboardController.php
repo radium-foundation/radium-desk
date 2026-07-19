@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Data\RecentActivityStreams;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
+use App\Services\SettingService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -70,9 +73,9 @@ class DashboardController extends Controller
             : collect();
 
         $canManageTransactions = $user->hasAnyRole([
-            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
-            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
-            \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+            RolePermissionSeeder::ROLE_ADMIN,
+            RolePermissionSeeder::ROLE_SUPERADMIN,
+            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ]);
 
         return view('dashboard.index', [
@@ -84,9 +87,9 @@ class DashboardController extends Controller
             'serviceCaseFilterCounts' => $serviceCaseFilterCounts,
             'serviceCaseTotalCount' => $serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count(),
             'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count()),
-            'recentActivity' => $user->can('audit-logs.view')
-                ? $this->dashboardService->recentActivity()
-                : collect(),
+            'recentActivityStreams' => $user->can('audit-logs.view')
+                ? $this->dashboardService->recentActivityStreams($user)
+                : RecentActivityStreams::empty(),
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
             'serviceCaseFilter' => $serviceCaseFilter,
             'operationQueue' => $operationQueue,
@@ -100,8 +103,8 @@ class DashboardController extends Controller
             },
             'assignedToScope' => $assignedTo,
             'canManageTransactions' => $canManageTransactions,
-            'enabledProducts' => app(\App\Services\SettingService::class)->enabledProductNames(),
-            'enabledSources' => app(\App\Services\SettingService::class)->enabledSources(),
+            'enabledProducts' => app(SettingService::class)->enabledProductNames(),
+            'enabledSources' => app(SettingService::class)->enabledSources(),
             'dashboardLiveMode' => config('dashboard.live_mode', 'auto'),
             'dashboardPollIntervalMs' => config('dashboard.poll_interval_ms', 30000),
             'reverbConfigured' => config('broadcasting.default') === 'reverb'

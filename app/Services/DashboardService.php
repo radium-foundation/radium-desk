@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Data\RecentActivityStreams;
 use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\AuditLog;
@@ -506,15 +507,21 @@ class DashboardService
             ->values();
     }
 
-    public function recentActivity(int $limit = 10): Collection
+    public function recentActivityStreams(User $viewer, ?int $perStreamLimit = null): RecentActivityStreams
     {
+        $fetchLimit = (int) config('dashboard-activity.limits.fetch', 60);
+
         $logs = AuditLog::query()
-            ->with(['user', 'auditable'])
+            ->with(RecentActivityPresenter::eagerLoadRelations())
             ->latest('created_at')
-            ->limit($limit * 3)
+            ->limit($fetchLimit)
             ->get();
 
-        return $this->recentActivityPresenter->present($logs, $limit);
+        return $this->recentActivityPresenter->presentStreams(
+            $logs,
+            $viewer,
+            $perStreamLimit,
+        );
     }
 
     /**

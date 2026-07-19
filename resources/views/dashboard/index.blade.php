@@ -76,8 +76,8 @@
             </div>
         @endif
 
-        @if($recentActivity->isNotEmpty())
-            @include('dashboard.partials.recent-activity-feed', ['recentActivity' => $recentActivity])
+        @if(! $recentActivityStreams->isEmpty())
+            @include('dashboard.partials.recent-activity-feed', ['streams' => $recentActivityStreams])
         @endif
 
         @if($canQuickCreate)
