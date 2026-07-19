@@ -64,11 +64,24 @@ class RecentActivityPresenter
      */
     public static function eagerLoadRelations(): array
     {
+        $orderColumns = 'id,order_id,customer_name';
+        $incidentColumns = 'id,order_id,reference_no,updated_at';
+
         return [
             'user',
             'auditable' => fn (MorphTo $morphTo) => $morphTo->morphWith([
-                Order::class => ['incidents:id,order_id,reference_no,updated_at'],
-                Remark::class => ['remarkable'],
+                Incident::class => ['order:'.$orderColumns],
+                Order::class => [
+                    'incidents:'.$incidentColumns,
+                ],
+                Remark::class => [
+                    'remarkable' => fn (MorphTo $remarkable) => $remarkable->morphWith([
+                        Incident::class => ['order:'.$orderColumns],
+                        Order::class => [
+                            'incidents:'.$incidentColumns,
+                        ],
+                    ]),
+                ],
             ]),
         ];
     }
@@ -113,6 +126,8 @@ class RecentActivityPresenter
             typePill: $presentation['pill'],
             indicatorVariant: $presentation['variant'],
             incidentReference: $entity['reference'],
+            orderReference: $entity['order_reference'],
+            customerName: $entity['customer_name'],
             entityIncidentId: $entity['incident_id'],
             entityReference: $entity['reference'],
             occurredAt: $auditLog->created_at,
@@ -200,35 +215,25 @@ class RecentActivityPresenter
                 ];
             }
 
-            $actionLabel = trim((string) ($auditLog->new_values['action_label'] ?? ''));
+            $channelPill = $this->communicationIncludePill($auditLog);
 
             return [
-                'title' => $actionLabel !== '' ? $actionLabel : (string) $config['title'],
-                'pill' => $this->resolveTypePill($auditLog, $config),
+                'title' => (string) $config['title'],
+                'pill' => $channelPill ?? $this->resolveTypePill($auditLog, $config),
                 'variant' => (string) $config['variant'],
-                'include_pill' => $this->communicationIncludePill($auditLog),
+                'include_pill' => $channelPill,
             ];
         }
 
         if ($auditLog->event === 'notification.dispatched') {
             $aggregateSuccess = (bool) ($auditLog->new_values['aggregate_success'] ?? true);
+            $channelPill = $this->communicationIncludePill($auditLog);
 
             return [
-                'title' => $aggregateSuccess ? 'Notification Sent' : 'Notification Failed',
-                'pill' => $this->resolveTypePill($auditLog, $config),
+                'title' => $aggregateSuccess ? 'Communication Sent' : 'Communication Failed',
+                'pill' => $channelPill ?? $this->resolveTypePill($auditLog, $config),
                 'variant' => $aggregateSuccess ? (string) $config['variant'] : 'error',
-                'include_pill' => 'Notification',
-            ];
-        }
-
-        if ($auditLog->event === 'service_case.status_changed') {
-            $statusLabel = trim((string) ($auditLog->new_values['status_label'] ?? ''));
-
-            return [
-                'title' => $statusLabel !== '' ? 'Status: '.$statusLabel : (string) $config['title'],
-                'pill' => $this->resolveTypePill($auditLog, $config),
-                'variant' => (string) $config['variant'],
-                'include_pill' => null,
+                'include_pill' => $channelPill ?? 'Notification',
             ];
         }
 
@@ -343,15 +348,24 @@ class RecentActivityPresenter
     }
 
     /**
-     * @return array{incident_id: ?int, reference: ?string}
+     * @return array{incident_id: ?int, reference: ?string, order_reference: ?string, customer_name: ?string}
      */
     private function resolveEntity(AuditLog $auditLog): array
     {
         $incident = $this->resolveIncident($auditLog);
+        $incidentId = $incident?->id;
+
+        if ($incidentId === null
+            && $auditLog->auditable_type === (new Incident)->getMorphClass()
+            && $auditLog->auditable_id !== null) {
+            $incidentId = (int) $auditLog->auditable_id;
+        }
 
         return [
-            'incident_id' => $incident?->id,
+            'incident_id' => $incidentId,
             'reference' => $this->formatIncidentReference($incident, $auditLog),
+            'order_reference' => $this->resolveOrderReference($incident, $auditLog),
+            'customer_name' => $this->resolveCustomerName($incident, $auditLog),
         ];
     }
 
@@ -411,20 +425,72 @@ class RecentActivityPresenter
 
         $auditable = $auditLog->auditable;
 
-        if ($auditable instanceof Order && filled($auditable->order_id)) {
-            return (string) $auditable->order_id;
-        }
-
-        if ($auditLog->auditable_type === (new Order)->getMorphClass()) {
-            return (string) ($auditLog->new_values['order_id'] ?? null) ?: null;
-        }
-
         if ($auditable instanceof Remark) {
             return 'Remark #'.$auditable->id;
         }
 
         if ($auditLog->auditable_type === (new Remark)->getMorphClass() && $auditLog->auditable_id !== null) {
             return 'Remark #'.$auditLog->auditable_id;
+        }
+
+        return null;
+    }
+
+    private function resolveOrderReference(?Incident $incident, AuditLog $auditLog): ?string
+    {
+        if ($incident !== null && $incident->relationLoaded('order') && filled($incident->order?->order_id)) {
+            return (string) $incident->order->order_id;
+        }
+
+        $auditable = $auditLog->auditable;
+
+        if ($auditable instanceof Order && filled($auditable->order_id)) {
+            return (string) $auditable->order_id;
+        }
+
+        if ($auditable instanceof Remark) {
+            if ($auditable->remarkable instanceof Order && filled($auditable->remarkable->order_id)) {
+                return (string) $auditable->remarkable->order_id;
+            }
+
+            if ($auditable->remarkable instanceof Incident
+                && $auditable->remarkable->relationLoaded('order')
+                && filled($auditable->remarkable->order?->order_id)) {
+                return (string) $auditable->remarkable->order->order_id;
+            }
+        }
+
+        if ($auditLog->auditable_type === (new Order)->getMorphClass()) {
+            $orderId = $auditLog->new_values['order_id'] ?? null;
+
+            return filled($orderId) ? (string) $orderId : null;
+        }
+
+        return null;
+    }
+
+    private function resolveCustomerName(?Incident $incident, AuditLog $auditLog): ?string
+    {
+        if ($incident !== null && $incident->relationLoaded('order') && filled($incident->order?->customer_name)) {
+            return (string) $incident->order->customer_name;
+        }
+
+        $auditable = $auditLog->auditable;
+
+        if ($auditable instanceof Order && filled($auditable->customer_name)) {
+            return (string) $auditable->customer_name;
+        }
+
+        if ($auditable instanceof Remark) {
+            if ($auditable->remarkable instanceof Order && filled($auditable->remarkable->customer_name)) {
+                return (string) $auditable->remarkable->customer_name;
+            }
+
+            if ($auditable->remarkable instanceof Incident
+                && $auditable->remarkable->relationLoaded('order')
+                && filled($auditable->remarkable->order?->customer_name)) {
+                return (string) $auditable->remarkable->order->customer_name;
+            }
         }
 
         return null;
@@ -490,7 +556,6 @@ class RecentActivityPresenter
         $title = (string) ($configuredGroup['title'] ?? 'Communication Sent');
         $variant = (string) ($configuredGroup['variant'] ?? 'communication');
         $stream = (string) ($configuredGroup['stream'] ?? $items[0]->stream);
-        $pill = (string) ($configuredGroup['pill'] ?? 'Communication');
 
         $includePills = collect($items)
             ->map(fn (MappedRecentActivity $item): ?string => $item->includePill ?? $item->typePill)
@@ -515,6 +580,8 @@ class RecentActivityPresenter
             typePill: $pill,
             indicatorVariant: $variant,
             incidentReference: $latest->incidentReference,
+            orderReference: $latest->orderReference,
+            customerName: $latest->customerName,
             entityIncidentId: $latest->entityIncidentId,
             entityReference: $latest->entityReference,
             occurredAt: $latest->occurredAt,
@@ -612,6 +679,8 @@ final class MappedRecentActivity
         public ?string $typePill,
         public string $indicatorVariant,
         public ?string $incidentReference,
+        public ?string $orderReference,
+        public ?string $customerName,
         public ?int $entityIncidentId,
         public ?string $entityReference,
         public Carbon $occurredAt,
@@ -632,6 +701,8 @@ final class MappedRecentActivity
             typePill: $this->typePill,
             indicatorVariant: $this->indicatorVariant,
             incidentReference: $this->incidentReference,
+            orderReference: $this->orderReference,
+            customerName: $this->customerName,
             entityIncidentId: $this->entityIncidentId,
             entityReference: $this->entityReference,
             occurredAt: $this->occurredAt,

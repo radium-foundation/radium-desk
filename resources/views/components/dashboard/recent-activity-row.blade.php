@@ -12,52 +12,58 @@
         'error' => 'danger',
         default => $item->indicatorVariant,
     };
-    $pillLabel = $item->typePill === 'IRA' ? '🤖 IRA' : $item->typePill;
-    $showActor = $item->stream !== 'ira' && $item->actorName !== '' && $item->actorName !== 'IRA';
+    $incidentLabel = $item->incidentLabel();
+    $customerLabel = filled($item->customerName) ? $item->customerName : null;
+    $chips = $item->chips();
+    $isClickable = $item->entityIncidentId !== null;
+    $customer360Label = $customerLabel ?? $incidentLabel;
 @endphp
 
 <div @class([
-        'dashboard-activity-row',
-        'dashboard-activity-row--indicator-' . $indicatorVariant,
-    ])>
-    <div class="dashboard-activity-row-primary">
-        <span class="dashboard-activity-row-dot" aria-hidden="true"></span>
-
-        @if($showIncident && $item->incidentReference)
-            @if($item->entityIncidentId)
-                <button type="button"
-                        class="dashboard-activity-incident"
-                        data-agent-open-customer-360="{{ $item->entityIncidentId }}"
-                        data-agent-customer-name="{{ $item->entityReference }}">
-                    {{ $item->incidentReference }}@if($threadCount)<span class="dashboard-activity-thread-count">({{ $threadCount }})</span>@endif
-                </button>
-            @else
-                <span class="dashboard-activity-incident dashboard-activity-incident--static">
-                    {{ $item->incidentReference }}@if($threadCount)<span class="dashboard-activity-thread-count">({{ $threadCount }})</span>@endif
-                </span>
+        'dashboard-activity-entry',
+        'dashboard-activity-entry--indicator-'.$indicatorVariant,
+        'dashboard-activity-entry--clickable' => $isClickable,
+        'dashboard-activity-entry--history' => ! $showIncident,
+    ])
+     @if($isClickable)
+         data-dashboard-activity-entry
+         data-incident-id="{{ $item->entityIncidentId }}"
+         data-customer-360-label="{{ $customer360Label }}"
+         role="button"
+         tabindex="0"
+         aria-label="Open Customer 360 for {{ $customer360Label }}"
+     @endif>
+    @if($showIncident && $incidentLabel !== '')
+        <div class="dashboard-activity-entry-incident">
+            <span class="dashboard-activity-entry-incident-label">{{ $incidentLabel }}</span>
+            @if($threadCount)
+                <span class="dashboard-activity-thread-count">({{ $threadCount }})</span>
             @endif
+        </div>
+    @endif
+
+    <time class="dashboard-activity-entry-time"
+          datetime="{{ $item->occurredAt->toIso8601String() }}"
+          title="{{ $item->exactTime }}">
+        {{ $item->compactTime }}
+    </time>
+
+    <div class="dashboard-activity-entry-summary">
+        @if($customerLabel)
+            <span class="dashboard-activity-entry-customer">{{ $customerLabel }}</span>
+            <span class="dashboard-activity-entry-separator" aria-hidden="true">•</span>
         @endif
-
-        <span class="dashboard-activity-row-title">{{ $item->title }}</span>
-
-        <time class="dashboard-activity-row-time"
-              datetime="{{ $item->occurredAt->toIso8601String() }}"
-              title="{{ $item->exactTime }}">
-            {{ $item->compactTime }}
-        </time>
+        <span class="dashboard-activity-entry-action">{{ $item->title }}</span>
     </div>
 
-    @if($pillLabel || $showActor)
-        <div class="dashboard-activity-row-secondary">
-            @if($pillLabel)
-                <span class="dashboard-activity-pill">{{ $pillLabel }}</span>
-            @endif
-            @if($pillLabel && $showActor)
-                <span class="dashboard-activity-row-separator" aria-hidden="true">•</span>
-            @endif
-            @if($showActor)
-                <span class="dashboard-activity-row-actor">{{ $item->actorName }}</span>
-            @endif
+    @if($chips !== [])
+        <div class="dashboard-activity-entry-chips">
+            @foreach($chips as $chip)
+                <span @class([
+                    'dashboard-activity-pill',
+                    'dashboard-activity-pill--ira' => $chip === 'IRA',
+                ])>{{ $chip === 'IRA' ? '🤖 IRA' : $chip }}</span>
+            @endforeach
         </div>
     @endif
 </div>

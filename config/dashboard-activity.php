@@ -48,8 +48,7 @@ return [
             'title' => 'Payment Received',
             'variant' => 'success',
             'pill' => 'Payment',
-            'stream' => 'customer',
-            'allow_automation_actor' => true,
+            'stream' => 'ira',
         ],
         'service_case.automation.waiting_radiumbox' => [
             'title' => 'Waiting for RadiumBox',
@@ -89,7 +88,7 @@ return [
             'hidden' => true,
         ],
         'service_case.customer_waiting_started' => [
-            'title' => 'Waiting for Customer',
+            'title' => 'Waiting Customer',
             'variant' => 'warning',
             'pill' => 'Assignment',
             'stream' => 'team',
@@ -101,13 +100,13 @@ return [
             'stream' => 'ira',
         ],
         'service_case.assigned' => [
-            'title' => 'Service Case Assigned',
+            'title' => 'Assigned',
             'variant' => 'muted',
             'pill' => 'Assignment',
             'stream' => 'team',
         ],
         'service_case.reassigned' => [
-            'title' => 'Service Case Reassigned',
+            'title' => 'Reassigned',
             'variant' => 'muted',
             'pill' => 'Assignment',
             'stream' => 'team',

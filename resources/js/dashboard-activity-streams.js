@@ -28,13 +28,14 @@ const setThreadExpanded = (thread, expanded) => {
     history.hidden = !expanded;
 
     if (label) {
-        label.textContent = expanded ? 'Collapse History' : 'Expand History';
+        label.textContent = expanded ? 'Collapse' : 'History';
     }
 };
 
 const initActivityThreads = (feed) => {
     feed.querySelectorAll('[data-activity-thread]').forEach((thread) => {
-        const incidentId = thread.querySelector('[data-agent-open-customer-360]')?.getAttribute('data-agent-open-customer-360');
+        const incidentId = thread.getAttribute('data-activity-thread-incident')
+            ?? thread.querySelector('[data-incident-id]')?.getAttribute('data-incident-id');
         const storageKey = incidentId ? `${THREAD_STORAGE_PREFIX}${incidentId}` : null;
         const toggle = thread.querySelector('[data-activity-thread-toggle]');
 
@@ -46,7 +47,10 @@ const initActivityThreads = (feed) => {
         const expanded = stored === '1';
         setThreadExpanded(thread, expanded);
 
-        toggle.addEventListener('click', () => {
+        toggle.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
             const nextExpanded = !thread.classList.contains('is-expanded');
             setThreadExpanded(thread, nextExpanded);
 

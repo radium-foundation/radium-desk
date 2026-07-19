@@ -94,8 +94,36 @@ const isInteractiveTarget = (target) => {
     }
 
     return Boolean(
-        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-select-cell')
+        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-select-cell, [data-activity-thread-toggle]')
     );
+};
+
+const resolveCustomer360Trigger = (target, pageRoot) => {
+    if (!(target instanceof Element)) {
+        return null;
+    }
+
+    const activityEntry = target.closest('[data-dashboard-activity-entry][data-incident-id]');
+
+    if (activityEntry && pageRoot.contains(activityEntry)) {
+        return {
+            incidentId: activityEntry.getAttribute('data-incident-id'),
+            referenceLabel: activityEntry.getAttribute('data-customer-360-label')
+                ?? activityEntry.querySelector('.dashboard-activity-entry-incident-label')?.textContent?.trim()
+                ?? '',
+        };
+    }
+
+    const row = target.closest('tr[data-incident-id]');
+
+    if (row && pageRoot.contains(row)) {
+        return {
+            incidentId: row.dataset.incidentId,
+            referenceLabel: row.querySelector('.case-reference-link')?.textContent?.trim() ?? '',
+        };
+    }
+
+    return null;
 };
 
 export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}) => {
@@ -1183,32 +1211,43 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         await loadInitialContent(incidentId);
     };
 
-    const handleRowClick = (event) => {
-        const row = event.target.closest('tr[data-incident-id]');
-
-        if (!row || !root.contains(row)) {
-            return;
-        }
-
+    const handleCustomer360Pointer = (event) => {
         if (isInteractiveTarget(event.target)) {
             return;
         }
 
-        const incidentId = row.dataset.incidentId;
-        const referenceLink = row.querySelector('.case-reference-link');
-        const referenceLabel = referenceLink?.textContent?.trim() ?? '';
+        const trigger = resolveCustomer360Trigger(event.target, root);
 
-        if (!incidentId) {
+        if (!trigger?.incidentId) {
             return;
         }
 
         event.preventDefault();
-        open(incidentId, referenceLabel);
+        open(trigger.incidentId, trigger.referenceLabel);
+    };
+
+    const handleCustomer360Keydown = (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+        }
+
+        const entry = event.target.closest('[data-dashboard-activity-entry][data-incident-id]');
+
+        if (!entry || !root.contains(entry) || event.target !== entry) {
+            return;
+        }
+
+        event.preventDefault();
+        open(
+            entry.getAttribute('data-incident-id'),
+            entry.getAttribute('data-customer-360-label') ?? '',
+        );
     };
 
     bindTabNavigation();
 
-    root.addEventListener('click', handleRowClick);
+    root.addEventListener('click', handleCustomer360Pointer);
+    root.addEventListener('keydown', handleCustomer360Keydown);
 
     closeButton?.addEventListener('click', close);
     backdrop?.addEventListener('click', close);
