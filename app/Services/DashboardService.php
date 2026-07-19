@@ -13,6 +13,7 @@ use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Operations\OperationsRoleService;
 use App\Support\Dashboard\DashboardIncidentSortComparator;
+use App\Support\Dashboard\RecentActivityPresenter;
 use App\Support\Dashboard\ScheduledAppointmentRowBadgePresenter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
@@ -27,6 +28,7 @@ class DashboardService
     public function __construct(
         private readonly DashboardKpiAggregator $kpiAggregator,
         private readonly DashboardIncidentSortComparator $incidentSortComparator,
+        private readonly RecentActivityPresenter $recentActivityPresenter,
     ) {}
 
     /**
@@ -506,11 +508,13 @@ class DashboardService
 
     public function recentActivity(int $limit = 10): Collection
     {
-        return AuditLog::query()
-            ->with('user')
+        $logs = AuditLog::query()
+            ->with(['user', 'auditable'])
             ->latest('created_at')
-            ->limit($limit)
+            ->limit($limit * 3)
             ->get();
+
+        return $this->recentActivityPresenter->present($logs, $limit);
     }
 
     /**
