@@ -1,5 +1,28 @@
 const STREAM_STORAGE_PREFIX = 'radium.dashboardActivityStream.';
 const THREAD_STORAGE_PREFIX = 'radium.dashboardActivityThread.';
+const FEED_CONTROLLER = Symbol('dashboardActivityStreamsController');
+
+const readSessionFlag = (key, fallback = false) => {
+    try {
+        const stored = sessionStorage.getItem(key);
+
+        if (stored === null) {
+            return fallback;
+        }
+
+        return stored === '1';
+    } catch {
+        return fallback;
+    }
+};
+
+const writeSessionFlag = (key, value) => {
+    try {
+        sessionStorage.setItem(key, value ? '1' : '0');
+    } catch {
+        // Ignore quota / private-mode failures.
+    }
+};
 
 const setStreamCollapsed = (section, collapsed) => {
     const toggle = section.querySelector('[data-dashboard-activity-stream-toggle]');
@@ -28,46 +51,11 @@ const setThreadExpanded = (thread, expanded) => {
     history.hidden = !expanded;
 
     if (label) {
-        label.textContent = expanded ? 'Collapse' : 'History';
+        label.textContent = expanded ? 'Hide' : 'History';
     }
 };
 
-const initActivityThreads = (feed) => {
-    feed.querySelectorAll('[data-activity-thread]').forEach((thread) => {
-        const incidentId = thread.getAttribute('data-activity-thread-incident')
-            ?? thread.querySelector('[data-incident-id]')?.getAttribute('data-incident-id');
-        const storageKey = incidentId ? `${THREAD_STORAGE_PREFIX}${incidentId}` : null;
-        const toggle = thread.querySelector('[data-activity-thread-toggle]');
-
-        if (!toggle) {
-            return;
-        }
-
-        const stored = storageKey ? sessionStorage.getItem(storageKey) : null;
-        const expanded = stored === '1';
-        setThreadExpanded(thread, expanded);
-
-        toggle.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-
-            const nextExpanded = !thread.classList.contains('is-expanded');
-            setThreadExpanded(thread, nextExpanded);
-
-            if (storageKey) {
-                sessionStorage.setItem(storageKey, nextExpanded ? '1' : '0');
-            }
-        });
-    });
-};
-
-export const initDashboardActivityStreams = (root) => {
-    const feed = root?.querySelector?.('[data-dashboard-activity-feed]');
-
-    if (!feed) {
-        return;
-    }
-
+const restoreStreamState = (feed) => {
     feed.querySelectorAll('[data-dashboard-activity-stream]').forEach((section) => {
         const key = section.getAttribute('data-dashboard-activity-stream');
 
@@ -75,19 +63,97 @@ export const initDashboardActivityStreams = (root) => {
             return;
         }
 
-        const toggle = section.querySelector('[data-dashboard-activity-stream-toggle]');
         const defaultCollapsed = section.getAttribute('data-collapsed-default') === '1';
-        const stored = sessionStorage.getItem(`${STREAM_STORAGE_PREFIX}${key}`);
-        const collapsed = stored !== null ? stored === '1' : defaultCollapsed;
-
+        const collapsed = readSessionFlag(`${STREAM_STORAGE_PREFIX}${key}`, defaultCollapsed);
         setStreamCollapsed(section, collapsed);
-
-        toggle?.addEventListener('click', () => {
-            const nextCollapsed = !section.classList.contains('is-collapsed');
-            setStreamCollapsed(section, nextCollapsed);
-            sessionStorage.setItem(`${STREAM_STORAGE_PREFIX}${key}`, nextCollapsed ? '1' : '0');
-        });
     });
+};
 
-    initActivityThreads(feed);
+const restoreThreadState = (feed) => {
+    feed.querySelectorAll('[data-activity-thread]').forEach((thread) => {
+        const incidentId = thread.getAttribute('data-activity-thread-incident')
+            ?? thread.querySelector('[data-incident-id]')?.getAttribute('data-incident-id');
+
+        if (!incidentId) {
+            setThreadExpanded(thread, false);
+
+            return;
+        }
+
+        const expanded = readSessionFlag(`${THREAD_STORAGE_PREFIX}${incidentId}`, false);
+        setThreadExpanded(thread, expanded);
+    });
+};
+
+const handleFeedClick = (event) => {
+    const streamToggle = event.target.closest?.('[data-dashboard-activity-stream-toggle]');
+
+    if (streamToggle) {
+        const section = streamToggle.closest('[data-dashboard-activity-stream]');
+        const key = section?.getAttribute('data-dashboard-activity-stream');
+
+        if (!section || !key) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const nextCollapsed = !section.classList.contains('is-collapsed');
+        setStreamCollapsed(section, nextCollapsed);
+        writeSessionFlag(`${STREAM_STORAGE_PREFIX}${key}`, nextCollapsed);
+
+        return;
+    }
+
+    const threadToggle = event.target.closest?.('[data-activity-thread-toggle]');
+
+    if (threadToggle) {
+        const thread = threadToggle.closest('[data-activity-thread]');
+
+        if (!thread) {
+            return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const incidentId = thread.getAttribute('data-activity-thread-incident')
+            ?? thread.querySelector('[data-incident-id]')?.getAttribute('data-incident-id');
+        const nextExpanded = !thread.classList.contains('is-expanded');
+
+        setThreadExpanded(thread, nextExpanded);
+
+        if (incidentId) {
+            writeSessionFlag(`${THREAD_STORAGE_PREFIX}${incidentId}`, nextExpanded);
+        }
+    }
+};
+
+export const initDashboardActivityStreams = (root) => {
+    const feed = root?.querySelector?.('[data-dashboard-activity-feed]');
+
+    if (!feed) {
+        return null;
+    }
+
+    feed[FEED_CONTROLLER]?.abort();
+
+    const controller = new AbortController();
+    feed[FEED_CONTROLLER] = controller;
+
+    restoreStreamState(feed);
+    restoreThreadState(feed);
+
+    feed.addEventListener('click', handleFeedClick, { signal: controller.signal });
+
+    return {
+        destroy: () => {
+            controller.abort();
+
+            if (feed[FEED_CONTROLLER] === controller) {
+                delete feed[FEED_CONTROLLER];
+            }
+        },
+    };
 };

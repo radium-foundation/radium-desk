@@ -163,8 +163,8 @@ class RecentActivityPresenterTest extends TestCase
         $this->assertSame('team', $item->stream);
         $this->assertSame('Communication Sent', $item->title);
         $this->assertSame('WhatsApp', $item->typePill);
-        $this->assertContains('WhatsApp', $item->chips());
-        $this->assertContains('Team', $item->chips());
+        $this->assertSame(['WhatsApp'], $item->chips());
+        $this->assertSame('💬', $item->icon());
     }
 
     public function test_threads_consecutive_incident_activities(): void
@@ -280,8 +280,9 @@ class RecentActivityPresenterTest extends TestCase
         $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $html);
         $this->assertStringContainsString('data-customer-360-label="Amit Patel"', $html);
         $this->assertStringContainsString('RD345112', $html);
-        $this->assertStringContainsString('Amit Patel', $html);
         $this->assertStringContainsString('Refund Completed', $html);
+        $this->assertStringContainsString('dashboard-activity-entry-name', $html);
+        $this->assertStringNotContainsString('>Team</span>', $html);
     }
 
     /**

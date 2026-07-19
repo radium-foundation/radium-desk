@@ -94,7 +94,21 @@ const isInteractiveTarget = (target) => {
     }
 
     return Boolean(
-        target.closest('button, input, textarea, select, label, [data-workspace-trigger], [data-inline-transaction], [data-inline-serial], [data-copyable-identifier], .copyable-identifier, .dashboard-select-cell, [data-activity-thread-toggle]')
+        target.closest([
+            'button',
+            'input',
+            'textarea',
+            'select',
+            'label',
+            '[data-workspace-trigger]',
+            '[data-inline-transaction]',
+            '[data-inline-serial]',
+            '[data-copyable-identifier]',
+            '.copyable-identifier',
+            '.dashboard-select-cell',
+            '[data-dashboard-activity-stream-toggle]',
+            '[data-activity-thread-toggle]',
+        ].join(', '))
     );
 };
 
