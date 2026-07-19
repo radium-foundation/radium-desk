@@ -4,7 +4,11 @@ namespace App\Services;
 
 use App\Models\Incident;
 use App\Models\Order;
-use App\Services\Assignment\UniversalAssignmentEngine;
+use App\Models\User;
+use App\Data\Assignment\AssignmentRequest;
+use App\Enums\Assignment\AssignmentTrigger;
+use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
+use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -14,7 +18,8 @@ class ServiceCaseAutomationGraceService
         private readonly AuditLogService $auditLogService,
         private readonly SettingService $settingService,
         private readonly ServiceCaseAssignmentService $assignmentService,
-        private readonly UniversalAssignmentEngine $assignmentEngine,
+        private readonly ReadyQueueAssignmentStrategy $readyQueueStrategy,
+        private readonly SupportQueueAssignmentStrategy $supportQueueStrategy,
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
@@ -143,10 +148,12 @@ class ServiceCaseAutomationGraceService
             }
 
             if ($this->passesAutomationValidation($incident)) {
-                $this->assignmentEngine->assignAfterGraceExpiry(
-                    incident: $incident,
-                    actor: $actor,
-                    validationPassed: true,
+                $this->readyQueueStrategy->assign(
+                    AssignmentRequest::make(
+                        incident: $incident,
+                        actor: $actor,
+                        trigger: AssignmentTrigger::GraceExpired,
+                    ),
                 );
 
                 return true;
@@ -165,10 +172,12 @@ class ServiceCaseAutomationGraceService
 
             $this->automationMonitor->recordWaitingManualCorrection($incident, $actor);
 
-            $this->assignmentEngine->assignAfterGraceExpiry(
-                incident: $incident,
-                actor: $actor,
-                validationPassed: false,
+            $this->supportQueueStrategy->assign(
+                AssignmentRequest::make(
+                    incident: $incident,
+                    actor: $actor,
+                    trigger: AssignmentTrigger::GraceExpired,
+                ),
             );
 
             return true;

@@ -9,7 +9,11 @@ use App\Enums\SerialValidationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\Assignment\UniversalAssignmentEngine;
+use App\Data\Assignment\AssignmentRequest;
+use App\Enums\Assignment\AssignmentTrigger;
+use App\Services\Operations\SupportAppointmentSmartAssignmentService;
+use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
+use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
@@ -21,7 +25,9 @@ class ServiceCaseAssignmentEligibilityService
     public const AUTOMATIC_REASSIGNMENT_REASON = 'automatic_validation_success';
 
     public function __construct(
-        private readonly UniversalAssignmentEngine $assignmentEngine,
+        private readonly ServiceCaseAssignmentService $assignmentService,
+        private readonly ReadyQueueAssignmentStrategy $readyQueueStrategy,
+        private readonly SupportQueueAssignmentStrategy $supportQueueStrategy,
         private readonly ServiceCaseOrderAssignmentRoutingService $orderRoutingService,
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
@@ -140,7 +146,8 @@ class ServiceCaseAssignmentEligibilityService
             }
 
             if ($incident->hasActiveSupportAppointment()) {
-                $this->assignmentEngine->assignForActiveAppointment($incident, $actor);
+                app(SupportAppointmentSmartAssignmentService::class)
+                    ->assignForActiveSupport($incident, $actor);
 
                 return;
             }
@@ -158,9 +165,12 @@ class ServiceCaseAssignmentEligibilityService
                     && $this->isAdminUser($assignee)
                     && ! $this->orderRoutingService->isDesignatedAssignee($incident, $assignee)
                 ) {
-                    $this->assignmentEngine->assignForValidationFailure(
-                        incident: $incident,
-                        actor: $actor,
+                    $this->supportQueueStrategy->assign(
+                        AssignmentRequest::make(
+                            incident: $incident,
+                            actor: $actor,
+                            trigger: AssignmentTrigger::ValidationFailure,
+                        ),
                     );
                 }
 
@@ -177,7 +187,7 @@ class ServiceCaseAssignmentEligibilityService
             }
 
             if ($assignee !== null && $this->isAgentUser($assignee)) {
-                $this->assignmentEngine->reassignForValidationSuccess(
+                $this->assignmentService->reassignToShiftAdminAfterValidation(
                     incident: $incident,
                     actor: $actor,
                 );
@@ -193,9 +203,12 @@ class ServiceCaseAssignmentEligibilityService
                 return;
             }
 
-            $this->assignmentEngine->assignForValidationSuccess(
-                incident: $incident,
-                actor: $actor,
+            $this->readyQueueStrategy->assign(
+                AssignmentRequest::make(
+                    incident: $incident,
+                    actor: $actor,
+                    trigger: AssignmentTrigger::ValidationSuccess,
+                ),
             );
         });
     }

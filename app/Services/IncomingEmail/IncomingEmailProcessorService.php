@@ -8,6 +8,7 @@ use App\Models\IncomingEmailMessage;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\ServiceCasePriorityService;
+use App\Support\Assignment\CommunicationOwnershipGuard;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -18,6 +19,7 @@ class IncomingEmailProcessorService
         private readonly IncomingEmailCustomerMatcher $customerMatcher,
         private readonly IncomingEmailLinkService $linkService,
         private readonly IncomingEmailHistoricalAssociationService $historicalAssociationService,
+        private readonly CommunicationOwnershipGuard $ownershipGuard,
         private readonly IncomingEmailAssignmentService $assignmentService,
         private readonly ServiceCasePriorityService $priorityService,
         private readonly AuditLogService $auditLogService,
@@ -86,7 +88,7 @@ class IncomingEmailProcessorService
                     $actor,
                 );
 
-                if ($incident->assigned_to_user_id === null) {
+                if (! $this->ownershipGuard->preservesOwnership($incident)) {
                     $this->assignmentService->assignIfUnassigned($incident, $actor);
                 }
             });

@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Notifications\HighPriorityServiceCaseNotification;
 use App\Services\Assignment\UniversalAssignmentEngine;
+use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 

@@ -14,10 +14,15 @@ return [
 
     'capabilities' => [
         \App\Enums\Assignment\AssignmentCapability::ReadyQueueAdmin->value => [
-            'resolver' => 'shift_admin',
+            'resolver' => 'shift_aware_setting',
+            'day_setting_key' => 'assignment.ready_queue_day_admin_user_id',
+            'night_setting_key' => 'assignment.ready_queue_night_admin_user_id',
+            'fallback_resolver' => 'shift_admin',
         ],
         \App\Enums\Assignment\AssignmentCapability::AfterHoursSupport->value => [
-            'resolver' => 'shift_admin',
+            'resolver' => 'setting_with_fallback',
+            'setting_key' => 'assignment.after_hours_support_user_id',
+            'fallback_resolver' => 'shift_admin',
         ],
         \App\Enums\Assignment\AssignmentCapability::IncomingEmailSupervisor->value => [
             'resolver' => 'setting_with_fallback',

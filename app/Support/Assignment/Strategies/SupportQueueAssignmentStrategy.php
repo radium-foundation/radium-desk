@@ -73,6 +73,10 @@ class SupportQueueAssignmentStrategy implements AssignmentStrategy
                 return $incident;
             }
 
+            if (config('universal_assignment.remove_shift_admin_fallback', false)) {
+                return $incident;
+            }
+
             return $this->assignCapabilityFallback(
                 incident: $incident,
                 actor: $actor,

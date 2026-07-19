@@ -26,10 +26,58 @@ class AssignmentCapabilityResolver
 
         return match ($config['resolver'] ?? null) {
             'shift_admin' => $this->assignmentService->resolveAssigneeOrNull($at),
+            'shift_aware_setting' => $this->resolveShiftAwareSetting($config, $at),
             'setting_with_fallback' => $this->resolveSettingWithFallback($config, $at),
             'support_pool' => null,
             default => null,
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $config
+     */
+    private function resolveShiftAwareSetting(array $config, ?Carbon $at): ?User
+    {
+        $at ??= now();
+        $localized = $at->copy()->timezone($this->settingService->get('assignment.timezone', config('app.timezone')));
+        $time = $localized->format('H:i');
+        $start = $this->settingService->get('assignment.day_shift_start', '09:00');
+        $end = $this->settingService->get('assignment.day_shift_end', '18:30');
+        $withinDayShift = $time >= $start && $time <= $end;
+
+        $settingKey = $withinDayShift
+            ? ($config['day_setting_key'] ?? null)
+            : ($config['night_setting_key'] ?? null);
+
+        if (is_string($settingKey)) {
+            $user = $this->resolveActiveUserBySetting($settingKey);
+
+            if ($user !== null) {
+                return $user;
+            }
+        }
+
+        $fallbackResolver = $config['fallback_resolver'] ?? null;
+
+        if ($fallbackResolver === 'shift_admin') {
+            return $this->assignmentService->resolveAssigneeOrNull($at);
+        }
+
+        return null;
+    }
+
+    private function resolveActiveUserBySetting(string $settingKey): ?User
+    {
+        $userId = $this->settingService->getInt($settingKey);
+
+        if ($userId <= 0) {
+            return null;
+        }
+
+        return User::query()
+            ->whereKey($userId)
+            ->where('is_active', true)
+            ->first();
     }
 
     /**
@@ -40,18 +88,15 @@ class AssignmentCapabilityResolver
         $settingKey = $config['setting_key'] ?? null;
 
         if (is_string($settingKey)) {
-            $userId = $this->settingService->getInt($settingKey);
+            $user = $this->resolveActiveUserBySetting($settingKey);
 
-            if ($userId > 0) {
-                $user = User::query()
-                    ->whereKey($userId)
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($user !== null) {
-                    return $user;
-                }
+            if ($user !== null) {
+                return $user;
             }
+        }
+
+        if (($config['fallback_resolver'] ?? null) === 'shift_admin') {
+            return $this->assignmentService->resolveAssigneeOrNull($at);
         }
 
         $fallback = $config['fallback_capability'] ?? null;

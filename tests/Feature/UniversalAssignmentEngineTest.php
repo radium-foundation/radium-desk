@@ -35,6 +35,11 @@ class UniversalAssignmentEngineTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+
+        User::factory()->create([
+            'name' => 'System',
+            'email' => 'superadmin@radium.local',
+        ]);
     }
 
     public function test_communication_intake_preserves_existing_ownership(): void
@@ -85,6 +90,61 @@ class UniversalAssignmentEngineTest extends TestCase
         $this->assertNull($result->assigned_to_user_id);
     }
 
+    public function test_shift_admin_fallback_remains_enabled_by_default(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-18 10:00:00', 'Asia/Kolkata'));
+
+        $dayAdmin = $this->createAdminUser('day-admin@test.com');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com');
+        $this->configureAssignmentSettings($dayAdmin->id, $nightAdmin->id);
+
+        config(['universal_assignment.remove_shift_admin_fallback' => false]);
+
+        $incident = $this->createIncident();
+        $systemUser = User::query()->where('email', 'superadmin@radium.local')->firstOrFail();
+
+        $result = app(UniversalAssignmentEngine::class)->assignForUnassignedIntake($incident, $systemUser);
+
+        $this->assertSame($dayAdmin->id, $result->assigned_to_user_id);
+    }
+
+    public function test_shift_admin_fallback_can_be_disabled_via_feature_flag(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-18 10:00:00', 'Asia/Kolkata'));
+
+        $dayAdmin = $this->createAdminUser('day-admin@test.com');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com');
+        $this->configureAssignmentSettings($dayAdmin->id, $nightAdmin->id);
+
+        config(['universal_assignment.remove_shift_admin_fallback' => true]);
+
+        $incident = $this->createIncident();
+        $systemUser = User::query()->where('email', 'superadmin@radium.local')->firstOrFail();
+
+        $result = app(UniversalAssignmentEngine::class)->assignForUnassignedIntake($incident, $systemUser);
+
+        $this->assertNull($result->assigned_to_user_id);
+    }
+
+    public function test_ready_queue_admin_capability_uses_dedicated_settings_when_configured(): void
+    {
+        $dayAdmin = $this->createAdminUser('day-admin@test.com');
+        $nightAdmin = $this->createAdminUser('night-admin@test.com');
+        $readyQueueAdmin = $this->createAdminUser('ready-admin@test.com');
+        $this->configureAssignmentSettings($dayAdmin->id, $nightAdmin->id);
+
+        app(SettingService::class)->setMany([
+            'assignment.ready_queue_day_admin_user_id' => (string) $readyQueueAdmin->id,
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-18 10:00:00', 'Asia/Kolkata'));
+
+        $assignee = app(AssignmentCapabilityResolver::class)->resolve(AssignmentCapability::ReadyQueueAdmin);
+
+        $this->assertNotNull($assignee);
+        $this->assertSame($readyQueueAdmin->id, $assignee->id);
+    }
+
     private function configureAssignmentSettings(int $dayAdminId, int $nightAdminId): void
     {
         app(SettingService::class)->setMany([
@@ -133,7 +193,7 @@ class UniversalAssignmentEngineTest extends TestCase
             'order_id' => $order->id,
             'reference_no' => 'REF-UAE-'.uniqid(),
             'category' => 'General',
-            'source' => IncidentSource::Manual,
+            'source' => IncidentSource::Internal,
             'title' => 'UAE test case',
             'description' => '',
             'status' => IncidentStatus::Open,
