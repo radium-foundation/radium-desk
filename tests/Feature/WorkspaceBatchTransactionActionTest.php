@@ -8,8 +8,15 @@ use App\Enums\WorkspaceContext;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\DashboardBroadcastService;
+use App\Services\DashboardService;
+use App\Services\OrderTransactionService;
+use App\Services\WorkspaceRefreshRenderer;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\TestCase;
 
 class WorkspaceBatchTransactionActionTest extends TestCase
@@ -294,6 +301,145 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             ->assertJsonPath('ui.close_workspace_host', true);
 
         $this->assertSame('TX-BATCH-REUSE', $unrelated['order']->fresh()->transaction_id);
+    }
+
+    public function test_bulk_assign_continues_when_order_34_of_35_throws(): void
+    {
+        Queue::fake();
+        Notification::fake();
+
+        $admin = $this->createAdmin();
+        $incidents = [];
+
+        for ($index = 1; $index <= 35; $index++) {
+            $incidents[] = $this->createPendingCase($admin, (string) $index)['incident'];
+        }
+
+        $serviceCaseClosedCalls = 0;
+
+        $this->partialMock(DashboardBroadcastService::class, function ($mock) use (&$serviceCaseClosedCalls): void {
+            $mock->shouldReceive('serviceCaseClosed')->andReturnUsing(function () use (&$serviceCaseClosedCalls): void {
+                $serviceCaseClosedCalls++;
+
+                if ($serviceCaseClosedCalls === 34) {
+                    throw new RuntimeException('Simulated broadcast failure on order 34');
+                }
+            });
+        });
+
+        $incidentIds = array_map(fn (Incident $incident): int => $incident->id, $incidents);
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.workspace.batch-transaction'), [
+                'incident_ids' => $incidentIds,
+                'transaction_id' => 'TX-BATCH-HOTFIX',
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('ui.close_workspace_host', false);
+
+        $succeededIncidentIds = $response->json('extensions.succeeded_incident_ids');
+        $failedIncidents = $response->json('extensions.failed_incidents');
+
+        $this->assertCount(34, $succeededIncidentIds);
+        $this->assertCount(1, $failedIncidents);
+        $this->assertSame($incidents[33]->id, $failedIncidents[0]['incident_id']);
+        $this->assertSame('Simulated broadcast failure on order 34', $failedIncidents[0]['message']);
+        $this->assertContains($incidents[34]->id, $succeededIncidentIds);
+
+        $this->assertNull(Order::query()->find($incidents[33]->order_id)?->transaction_id);
+        $this->assertSame('TX-BATCH-HOTFIX', Order::query()->find($incidents[34]->order_id)?->transaction_id);
+    }
+
+    public function test_bulk_assign_returns_success_when_transactions_assigned_broadcast_throws(): void
+    {
+        Queue::fake();
+        Notification::fake();
+
+        $admin = $this->createAdmin();
+        $first = $this->createPendingCase($admin, 'BCAST-1');
+        $second = $this->createPendingCase($admin, 'BCAST-2');
+
+        $this->partialMock(DashboardBroadcastService::class, function ($mock): void {
+            $mock->shouldReceive('transactionsAssigned')
+                ->andThrow(new RuntimeException('Simulated transactionsAssigned broadcast failure'));
+        });
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.workspace.batch-transaction'), [
+                'incident_ids' => [$first['incident']->id, $second['incident']->id],
+                'transaction_id' => 'TX-BATCH-BCAST',
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('extensions.warning', OrderTransactionService::DASHBOARD_REFRESH_WARNING)
+            ->assertJsonMissing(['message' => 'Something went wrong on the server. Please try again.']);
+
+        $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
+        $this->assertSame('TX-BATCH-BCAST', $first['order']->fresh()->transaction_id);
+        $this->assertSame('TX-BATCH-BCAST', $second['order']->fresh()->transaction_id);
+    }
+
+    public function test_bulk_assign_returns_success_when_workspace_refresh_renderer_throws(): void
+    {
+        Queue::fake();
+        Notification::fake();
+
+        $admin = $this->createAdmin();
+        $first = $this->createPendingCase($admin, 'REFRESH-1');
+        $second = $this->createPendingCase($admin, 'REFRESH-2');
+
+        $this->partialMock(WorkspaceRefreshRenderer::class, function ($mock): void {
+            $mock->shouldReceive('buildBatchRefreshPayload')
+                ->andThrow(new RuntimeException('Simulated workspace refresh render failure'));
+        });
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.workspace.batch-transaction'), [
+                'incident_ids' => [$first['incident']->id, $second['incident']->id],
+                'transaction_id' => 'TX-BATCH-REFRESH',
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('extensions.warning', OrderTransactionService::DASHBOARD_REFRESH_WARNING)
+            ->assertJsonPath('refresh.replace_rows', []);
+
+        $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
+        $this->assertSame('TX-BATCH-REFRESH', $first['order']->fresh()->transaction_id);
+        $this->assertSame('TX-BATCH-REFRESH', $second['order']->fresh()->transaction_id);
+    }
+
+    public function test_bulk_assign_returns_success_when_replace_rows_rendering_throws(): void
+    {
+        Queue::fake();
+        Notification::fake();
+
+        $admin = $this->createAdmin();
+        $first = $this->createPendingCase($admin, 'ROWS-1');
+        $second = $this->createPendingCase($admin, 'ROWS-2');
+
+        $this->partialMock(DashboardService::class, function ($mock): void {
+            $mock->shouldReceive('serviceCaseRowViewData')
+                ->andThrow(new RuntimeException('Simulated replace_rows render failure'));
+        });
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.workspace.batch-transaction'), [
+                'incident_ids' => [$first['incident']->id, $second['incident']->id],
+                'transaction_id' => 'TX-BATCH-ROWS',
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('extensions.warning', OrderTransactionService::DASHBOARD_REFRESH_WARNING)
+            ->assertJsonPath('refresh.replace_rows', []);
+
+        $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
+        $this->assertSame('TX-BATCH-ROWS', $first['order']->fresh()->transaction_id);
+        $this->assertSame('TX-BATCH-ROWS', $second['order']->fresh()->transaction_id);
     }
 
     public function test_service_case_page_is_unaffected_by_batch_workspace_routes(): void

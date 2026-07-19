@@ -6,7 +6,9 @@ use App\Data\Workspace\WorkspaceActionResponse;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\WorkspaceComponent;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class WorkspaceBatchTransactionActionService
 {
@@ -63,9 +65,11 @@ class WorkspaceBatchTransactionActionService
      * @param  array{
      *     count: int,
      *     transaction_id: string,
+     *     batch_id: string,
      *     rows: array<int, array{incident_id: int, html: string}>,
      *     succeeded_incident_ids: list<int>,
-     *     failed_incidents: list<array{incident_id: int, message: string}>
+     *     failed_incidents: list<array{incident_id: int, message: string}>,
+     *     post_processing_warnings: list<string>
      * }  $result
      */
     private function buildSuccessResponse(
@@ -76,6 +80,8 @@ class WorkspaceBatchTransactionActionService
         $succeededCount = count($result['succeeded_incident_ids']);
         $failedCount = count($result['failed_incidents']);
         $transactionId = $result['transaction_id'];
+        $batchId = $result['batch_id'];
+        $postProcessingWarnings = $result['post_processing_warnings'];
         $anchorIncidentId = $result['succeeded_incident_ids'][0]
             ?? $result['failed_incidents'][0]['incident_id']
             ?? 0;
@@ -85,11 +91,30 @@ class WorkspaceBatchTransactionActionService
             WorkspaceComponent::BatchTransaction,
         );
 
-        $refresh = $this->refreshRenderer->buildBatchRefreshPayload(
-            $effects,
-            $result,
-            $actor,
-        );
+        try {
+            $refresh = $this->refreshRenderer->buildBatchRefreshPayload(
+                $effects,
+                $result,
+                $actor,
+            );
+        } catch (Throwable $exception) {
+            $this->logPostProcessingFailure(
+                $batchId,
+                'WorkspaceRefreshRenderer.buildBatchRefreshPayload',
+                $exception,
+            );
+
+            $refresh = [
+                'kpis' => false,
+                'targets' => [],
+                'fragments' => [],
+                'replace_rows' => [],
+            ];
+
+            if (! in_array(OrderTransactionService::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
+                $postProcessingWarnings[] = OrderTransactionService::DASHBOARD_REFRESH_WARNING;
+            }
+        }
 
         if ($succeededCount > 0 && $failedCount === 0) {
             $message = "Transaction {$transactionId} applied to {$succeededCount} service "
@@ -107,20 +132,42 @@ class WorkspaceBatchTransactionActionService
             $isSuccess = false;
         }
 
+        $extensions = [
+            'succeeded_incident_ids' => $result['succeeded_incident_ids'],
+            'failed_incidents' => $result['failed_incidents'],
+        ];
+
+        if ($postProcessingWarnings !== [] && $isSuccess) {
+            $extensions['warning'] = OrderTransactionService::DASHBOARD_REFRESH_WARNING;
+
+            if ($failedCount === 0) {
+                $message = OrderTransactionService::DASHBOARD_REFRESH_WARNING;
+                $toastVariant = 'warning';
+            }
+        }
+
         $builder = WorkspaceActionResponseBuilder::make('batch-transaction', $anchorIncidentId)
             ->forContext($requestContext->context)
             ->withToast($message, $toastVariant)
             ->withUi(closeWorkspaceHost: $failedCount === 0)
             ->withRefresh($refresh)
-            ->withExtensions([
-                'succeeded_incident_ids' => $result['succeeded_incident_ids'],
-                'failed_incidents' => $result['failed_incidents'],
-            ]);
+            ->withExtensions($extensions);
 
         if ($isSuccess) {
             return $builder->success($message)->build();
         }
 
         return $builder->failure($message)->build();
+    }
+
+    private function logPostProcessingFailure(string $batchId, string $operation, Throwable $exception): void
+    {
+        Log::error('bulk_assign.post_processing.failed', [
+            'batch_id' => $batchId,
+            'operation' => $operation,
+            'exception' => $exception::class,
+            'message' => $exception->getMessage(),
+            'stack_trace' => $exception->getTraceAsString(),
+        ]);
     }
 }

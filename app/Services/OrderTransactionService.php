@@ -9,10 +9,15 @@ use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
 use App\Services\Operations\TeamMemberActivityService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class OrderTransactionService
 {
+    public const DASHBOARD_REFRESH_WARNING = 'Reference numbers assigned successfully. Dashboard refresh failed. Please refresh the page.';
+
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly ServiceCaseStatusService $serviceCaseStatusService,
@@ -149,9 +154,11 @@ class OrderTransactionService
      * @return array{
      *     count: int,
      *     transaction_id: string,
+     *     batch_id: string,
      *     rows: array<int, array{incident_id: int, html: string}>,
      *     succeeded_incident_ids: list<int>,
-     *     failed_incidents: list<array{incident_id: int, message: string}>
+     *     failed_incidents: list<array{incident_id: int, message: string}>,
+     *     post_processing_warnings: list<string>
      * }
      */
     public function assignTransactionIdToIncidents(array $incidentIds, string $transactionId, User $actor): array
@@ -179,12 +186,38 @@ class OrderTransactionService
             ->values()
             ->all();
 
+        /** @var array<int, string> $orderFailureMessages */
+        $orderFailureMessages = [];
+
+        $incidentsByOrderId = $pendingIncidents->groupBy(
+            fn (Incident $incident): int => (int) $incident->order_id,
+        );
+
+        $batchId = (string) Str::uuid();
+        $batchStartedAt = now();
+        $batchTimerStartedAt = microtime(true);
+
+        Log::info('bulk_assign.batch.started', [
+            'batch_id' => $batchId,
+            'total_orders' => count($ordersToUpdate),
+            'started_at' => $batchStartedAt->toIso8601String(),
+        ]);
+
         foreach ($ordersToUpdate as $orderId) {
             $order = Order::query()->find($orderId);
 
             if ($order === null || ! $actor->can('assignTransaction', $order)) {
                 continue;
             }
+
+            $primaryIncident = $incidentsByOrderId->get($orderId)?->first();
+
+            Log::info('bulk_assign.order.started', [
+                'batch_id' => $batchId,
+                'order_id' => $order->order_id,
+                'case_id' => $primaryIncident?->id,
+                'reference_number' => $primaryIncident?->reference_no,
+            ]);
 
             try {
                 $this->assignTransactionId(
@@ -193,16 +226,48 @@ class OrderTransactionService
                     $actor,
                     broadcast: false,
                 );
-            } catch (ValidationException $exception) {
-                // Allow partial bulk success; per-incident failure details are resolved below.
+
+                Log::info('bulk_assign.order.committed', [
+                    'batch_id' => $batchId,
+                    'order_id' => $order->order_id,
+                    'case_id' => $primaryIncident?->id,
+                    'reference_number' => $primaryIncident?->reference_no,
+                ]);
+            } catch (Throwable $exception) {
+                $failureMessage = $exception instanceof ValidationException
+                    ? (string) (collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                    : $exception->getMessage();
+
+                $orderFailureMessages[$orderId] = $failureMessage;
+
+                Log::error('bulk_assign.order.failed', [
+                    'batch_id' => $batchId,
+                    'order_id' => $order->order_id,
+                    'case_id' => $primaryIncident?->id,
+                    'reference_number' => $primaryIncident?->reference_no,
+                    'exception' => $exception::class,
+                    'message' => $failureMessage,
+                    'stack_trace' => $exception->getTraceAsString(),
+                ]);
             }
         }
+
+        Log::info('bulk_assign.batch.finished', [
+            'batch_id' => $batchId,
+            'total_orders' => count($ordersToUpdate),
+            'started_at' => $batchStartedAt->toIso8601String(),
+            'finished_at' => now()->toIso8601String(),
+            'duration_ms' => (int) round((microtime(true) - $batchTimerStartedAt) * 1000),
+        ]);
 
         $refreshedIncidents = Incident::query()
             ->with(['order.transactionAssigner', 'creator', 'assignee'])
             ->whereIn('id', $incidentIds)
             ->get()
             ->keyBy('id');
+
+        /** @var list<string> $postProcessingWarnings */
+        $postProcessingWarnings = [];
 
         $rows = [];
 
@@ -213,13 +278,21 @@ class OrderTransactionService
                 continue;
             }
 
-            $rows[] = [
-                'incident_id' => $incident->id,
-                'html' => view(
-                    'dashboard.partials.service-case-row',
-                    $this->dashboardService->serviceCaseRowViewData($incident, $actor),
-                )->render(),
-            ];
+            try {
+                $rows[] = [
+                    'incident_id' => $incident->id,
+                    'html' => view(
+                        'dashboard.partials.service-case-row',
+                        $this->dashboardService->serviceCaseRowViewData($incident, $actor),
+                    )->render(),
+                ];
+            } catch (Throwable $exception) {
+                $this->logPostProcessingFailure($batchId, 'replace_rows.render', $exception);
+
+                if (! in_array(self::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
+                    $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
+                }
+            }
         }
 
         $succeededIncidentIds = [];
@@ -281,6 +354,15 @@ class OrderTransactionService
                 continue;
             }
 
+            if (isset($orderFailureMessages[$incident->order->id])) {
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => $orderFailureMessages[$incident->order->id],
+                ];
+
+                continue;
+            }
+
             $failedIncidents[] = [
                 'incident_id' => $incidentId,
                 'message' => 'Unable to assign transaction ID.',
@@ -288,16 +370,37 @@ class OrderTransactionService
         }
 
         if ($succeededIncidentIds !== []) {
-            $this->dashboardBroadcastService->transactionsAssigned($succeededIncidentIds, $actor);
+            try {
+                $this->dashboardBroadcastService->transactionsAssigned($succeededIncidentIds, $actor);
+            } catch (Throwable $exception) {
+                $this->logPostProcessingFailure($batchId, 'transactionsAssigned', $exception);
+
+                if (! in_array(self::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
+                    $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
+                }
+            }
         }
 
         return [
             'count' => count($succeededIncidentIds),
             'transaction_id' => $transactionId,
+            'batch_id' => $batchId,
             'rows' => $rows,
             'succeeded_incident_ids' => $succeededIncidentIds,
             'failed_incidents' => $failedIncidents,
+            'post_processing_warnings' => $postProcessingWarnings,
         ];
+    }
+
+    private function logPostProcessingFailure(string $batchId, string $operation, Throwable $exception): void
+    {
+        Log::error('bulk_assign.post_processing.failed', [
+            'batch_id' => $batchId,
+            'operation' => $operation,
+            'exception' => $exception::class,
+            'message' => $exception->getMessage(),
+            'stack_trace' => $exception->getTraceAsString(),
+        ]);
     }
 
     public function unlockTransaction(Order $order, User $actor, ?string $reason = null): Order
