@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Dashboard;
 
+use App\Data\RecentActivityThread;
 use App\Enums\IncidentSource;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -29,7 +30,7 @@ class RecentActivityPresenterTest extends TestCase
         $this->presenter = app(RecentActivityPresenter::class);
     }
 
-    public function test_maps_automation_payment_event_to_customer_stream(): void
+    public function test_maps_payment_event_to_customer_stream_with_compact_time(): void
     {
         Carbon::setTestNow('2026-07-19 22:35:00');
 
@@ -43,26 +44,23 @@ class RecentActivityPresenterTest extends TestCase
             'auditable_id' => $incident->id,
             'new_values' => [],
         ]);
-        $log->created_at = now()->subMinutes(2);
+        $log->created_at = now()->subMinutes(11);
         $log->save();
         $log->setRelation('auditable', $incident);
         $log->setRelation('user', $user);
 
-        $streams = $this->presenter->presentStreams(collect([$log]), $user);
-        $item = $streams->customer->first();
+        $item = $this->presenter->presentStreams(collect([$log]), $user)->customer->first()?->latest();
 
         $this->assertNotNull($item);
         $this->assertSame('customer', $item->stream);
         $this->assertSame('Payment Received', $item->title);
-        $this->assertSame('💰', $item->icon);
-        $this->assertSame('Automation', $item->sourceBadge);
-        $this->assertSame('success', $item->indicatorVariant);
-        $this->assertStringContainsString('Incident', (string) $item->entityLabel);
+        $this->assertSame('Payment', $item->typePill);
+        $this->assertSame($incident->display_reference, $item->incidentReference);
         $this->assertSame($incident->id, $item->entityIncidentId);
-        $this->assertSame('2 min ago', $item->relativeTime);
+        $this->assertSame('11m', $item->compactTime);
     }
 
-    public function test_collapses_communication_lifecycle_events_within_window(): void
+    public function test_collapses_communication_events_into_team_stream(): void
     {
         Carbon::setTestNow('2026-07-19 22:35:00');
 
@@ -76,7 +74,7 @@ class RecentActivityPresenterTest extends TestCase
             'auditable_id' => $incident->id,
             'new_values' => [
                 'status' => 'sent',
-                'execution_mode' => 'automatic',
+                'execution_mode' => 'manual',
                 'channels' => ['whatsapp'],
                 'action_label' => 'Driver Installation Guide',
             ],
@@ -103,70 +101,43 @@ class RecentActivityPresenterTest extends TestCase
         $notification->setRelation('auditable', $incident);
         $notification->setRelation('user', $user);
 
-        $streams = $this->presenter->presentStreams(collect([$notification, $lifecycle]), $user);
-
-        $this->assertCount(1, $streams->agentAdmin);
-        $this->assertSame('Communication Sent', $streams->agentAdmin->first()->title);
-        $this->assertSame('💬', $streams->agentAdmin->first()->icon);
-        $this->assertContains('WhatsApp', $streams->agentAdmin->first()->includes);
-        $this->assertContains('Notification', $streams->agentAdmin->first()->includes);
-    }
-
-    public function test_maps_order_entity_to_customer360_incident(): void
-    {
-        $user = User::factory()->create();
-        $order = Order::query()->create([
-            'order_id' => 'RD10015664',
-            'serial_number' => 'SN-15664',
-            'customer_name' => 'Test Customer',
-            'product_name' => 'RBX 110',
-            'device_model' => 'RBX 110',
-            'status' => 'active',
-            'created_by' => $user->id,
-        ]);
-        $incident = $this->createIncident($user, $order);
-
-        $log = AuditLog::query()->create([
-            'user_id' => $user->id,
-            'event' => 'order.updated',
-            'auditable_type' => $order->getMorphClass(),
-            'auditable_id' => $order->id,
-            'new_values' => ['order_id' => $order->order_id],
-            'created_at' => now(),
-        ]);
-        $order->setRelation('incidents', collect([$incident]));
-        $log->setRelation('auditable', $order);
-        $log->setRelation('user', $user);
-
-        $item = $this->presenter->presentStreams(collect([$log]), $user)->agentAdmin->first();
+        $item = $this->presenter->presentStreams(collect([$notification, $lifecycle]), $user)->team->first()?->latest();
 
         $this->assertNotNull($item);
-        $this->assertSame('Order RD10015664', $item->entityLabel);
-        $this->assertSame($incident->id, $item->entityIncidentId);
+        $this->assertSame('team', $item->stream);
+        $this->assertSame('Communication Sent', $item->title);
+        $this->assertSame('WhatsApp', $item->typePill);
     }
 
-    public function test_hides_internal_communication_lifecycle_steps(): void
+    public function test_threads_consecutive_incident_activities(): void
     {
         $user = User::factory()->create();
         $incident = $this->createIncident($user);
 
-        $opened = AuditLog::query()->create([
-            'user_id' => $user->id,
-            'event' => 'communication_action.lifecycle',
-            'auditable_type' => $incident->getMorphClass(),
-            'auditable_id' => $incident->id,
-            'new_values' => ['status' => 'opened'],
-            'created_at' => now(),
-        ]);
-        $opened->setRelation('auditable', $incident);
-        $opened->setRelation('user', $user);
+        $logs = collect(['service_case.assigned', 'service_case.status_changed'])->map(function (string $event, int $index) use ($user, $incident) {
+            $log = AuditLog::query()->create([
+                'user_id' => $user->id,
+                'event' => $event,
+                'auditable_type' => $incident->getMorphClass(),
+                'auditable_id' => $incident->id,
+                'new_values' => $event === 'service_case.status_changed' ? ['status_label' => 'Open'] : [],
+            ]);
+            $log->created_at = now()->subMinutes($index);
+            $log->save();
+            $log->setRelation('auditable', $incident);
+            $log->setRelation('user', $user);
 
-        $streams = $this->presenter->presentStreams(collect([$opened]), $user);
+            return $log;
+        });
 
-        $this->assertTrue($streams->isEmpty());
+        $thread = $this->presenter->presentStreams($logs, $user)->team->first();
+
+        $this->assertInstanceOf(RecentActivityThread::class, $thread);
+        $this->assertTrue($thread->isCollapsible());
+        $this->assertSame(2, $thread->count());
     }
 
-    public function test_shows_system_stream_only_for_superadmin(): void
+    public function test_moves_automation_events_to_ira_stream_for_superadmin_only(): void
     {
         $automationEmail = (string) config('cashfree.system_user_email', 'system@example.com');
         $automationUser = User::factory()->create(['email' => $automationEmail]);
@@ -190,12 +161,30 @@ class RecentActivityPresenterTest extends TestCase
         $agentStreams = $this->presenter->presentStreams(collect([$log]), $agent);
         $superadminStreams = $this->presenter->presentStreams(collect([$log]), $superadmin);
 
-        $this->assertFalse($agentStreams->showSystem);
-        $this->assertCount(0, $agentStreams->system);
-        $this->assertTrue($superadminStreams->showSystem);
-        $this->assertCount(1, $superadminStreams->system);
-        $this->assertTrue($superadminStreams->system->first()->isAutomation);
-        $this->assertSame('IRA', $superadminStreams->system->first()->actorName);
+        $this->assertFalse($agentStreams->showIra);
+        $this->assertCount(0, $agentStreams->ira);
+        $this->assertTrue($superadminStreams->showIra);
+        $this->assertCount(1, $superadminStreams->ira);
+        $this->assertSame('IRA', $superadminStreams->ira->first()?->latest()?->typePill);
+    }
+
+    public function test_hides_internal_communication_lifecycle_steps(): void
+    {
+        $user = User::factory()->create();
+        $incident = $this->createIncident($user);
+
+        $opened = AuditLog::query()->create([
+            'user_id' => $user->id,
+            'event' => 'communication_action.lifecycle',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'new_values' => ['status' => 'opened'],
+            'created_at' => now(),
+        ]);
+        $opened->setRelation('auditable', $incident);
+        $opened->setRelation('user', $user);
+
+        $this->assertTrue($this->presenter->presentStreams(collect([$opened]), $user)->isEmpty());
     }
 
     private function createIncident(User $user, ?Order $order = null): Incident

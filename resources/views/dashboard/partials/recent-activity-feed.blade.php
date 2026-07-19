@@ -6,7 +6,7 @@
     <h2 class="dashboard-section-title dashboard-section-title--secondary mb-0">Recent Activity</h2>
 
     @foreach($streams->sections() as $section)
-        <section class="dashboard-activity-stream"
+        <section class="dashboard-activity-stream @if($section['collapsed_default']) is-collapsed @endif"
                  data-dashboard-activity-stream="{{ $section['key'] }}"
                  data-collapsed-default="{{ $section['collapsed_default'] ? '1' : '0' }}">
             <button type="button"
@@ -15,15 +15,15 @@
                     aria-expanded="{{ $section['collapsed_default'] ? 'false' : 'true' }}">
                 <span class="dashboard-activity-stream-chevron" aria-hidden="true"></span>
                 <span class="dashboard-activity-stream-label">{{ $section['label'] }}</span>
-                <span class="dashboard-activity-stream-count">({{ $section['items']->count() }})</span>
+                <span class="dashboard-activity-stream-count">({{ $section['count'] }})</span>
             </button>
 
-            <ul class="dashboard-activity-timeline list-unstyled mb-0"
+            <ul class="dashboard-activity-list list-unstyled mb-0"
                 data-dashboard-activity-stream-panel
                 @if($section['collapsed_default']) hidden @endif
                 role="list">
-                @foreach($section['items'] as $item)
-                    <x-dashboard.recent-activity-item :item="$item" />
+                @foreach($section['threads'] as $thread)
+                    <x-dashboard.recent-activity-thread :thread="$thread" />
                 @endforeach
             </ul>
         </section>

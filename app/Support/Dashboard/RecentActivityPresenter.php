@@ -4,6 +4,7 @@ namespace App\Support\Dashboard;
 
 use App\Data\RecentActivityItem;
 use App\Data\RecentActivityStreams;
+use App\Data\RecentActivityThread;
 use App\Enums\CommunicationActionLifecycleStatus;
 use App\Enums\NotificationChannelType;
 use App\Models\AuditLog;
@@ -46,15 +47,15 @@ class RecentActivityPresenter
         );
 
         $grouped = $items->groupBy(fn (RecentActivityItem $item): string => $item->stream);
-        $showSystem = $viewer->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+        $showIra = $viewer->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
         return new RecentActivityStreams(
-            customer: ($grouped->get('customer') ?? collect())->take($perStream)->values(),
-            agentAdmin: ($grouped->get('agent_admin') ?? collect())->take($perStream)->values(),
-            system: $showSystem
-                ? ($grouped->get('system') ?? collect())->take($perStream)->values()
+            customer: $this->threadItems(($grouped->get('customer') ?? collect())->take($perStream)->values()),
+            team: $this->threadItems(($grouped->get('team') ?? collect())->take($perStream)->values()),
+            ira: $showIra
+                ? $this->threadItems(($grouped->get('ira') ?? collect())->take($perStream)->values())
                 : collect(),
-            showSystem: $showSystem,
+            showIra: $showIra,
         );
     }
 
@@ -94,29 +95,54 @@ class RecentActivityPresenter
         $actor = TimelineActorPresenter::for(
             $this->automationIdentity->resolve($auditLog->user),
         );
+        $isAutomation = $actor->isAutomationIdentity();
+        $stream = $this->enforceStreamPurity(
+            $this->resolveStream($auditLog, $config),
+            $isAutomation,
+            (bool) ($config['allow_automation_actor'] ?? false),
+        );
+
+        if ($stream === null) {
+            return null;
+        }
 
         return new MappedRecentActivity(
             event: $auditLog->event,
-            stream: $this->resolveStream($auditLog, $config),
+            stream: $stream,
             title: $presentation['title'],
-            icon: $presentation['icon'],
-            sourceBadge: $presentation['source'],
+            typePill: $presentation['pill'],
             indicatorVariant: $presentation['variant'],
-            entityLabel: $entity['label'] ?? null,
-            entityIncidentId: $entity['incident_id'] ?? null,
-            entityReference: $entity['reference'] ?? null,
+            incidentReference: $entity['reference'],
+            entityIncidentId: $entity['incident_id'],
+            entityReference: $entity['reference'],
             occurredAt: $auditLog->created_at,
-            relativeTime: AppDateFormatter::timelineOperatorRelative($auditLog->created_at) ?? '—',
+            compactTime: AppDateFormatter::activityFeedCompact($auditLog->created_at) ?? '—',
             exactTime: AppDateFormatter::timelineDatetime($auditLog->created_at) ?? '—',
-            actorName: $actor->compactLabel() !== '' ? $actor->compactLabel() : 'System',
-            actorIconClass: $actor->iconClass(),
-            isAutomation: $actor->isAutomationIdentity(),
-            actorUser: $actor->isAutomationIdentity() ? null : $auditLog->user,
-            includes: $presentation['includes'],
+            actorName: $this->resolveActorLabel($actor, $stream),
+            isAutomation: $isAutomation,
             groupKey: $this->groupKeyForEvent($auditLog->event),
             auditableKey: $this->auditableKey($auditLog),
-            includeLabel: $presentation['include_label'],
+            includePill: $presentation['include_pill'],
         );
+    }
+
+    private function enforceStreamPurity(string $stream, bool $isAutomation, bool $allowAutomationInCustomer): ?string
+    {
+        $stream = match ($stream) {
+            'agent_admin' => 'team',
+            'system' => 'ira',
+            default => $stream,
+        };
+
+        if ($stream === 'customer' && $isAutomation && ! $allowAutomationInCustomer) {
+            return 'ira';
+        }
+
+        if ($stream === 'team' && $isAutomation) {
+            return 'ira';
+        }
+
+        return $stream;
     }
 
     /**
@@ -134,12 +160,23 @@ class RecentActivityPresenter
         }
 
         return $this->automationIdentity->isAutomationActor($auditLog->user)
-            ? (string) config('dashboard-activity.fallback_streams.automation_actor', 'system')
-            : (string) config('dashboard-activity.fallback_streams.human_actor', 'agent_admin');
+            ? (string) config('dashboard-activity.fallback_streams.automation_actor', 'ira')
+            : (string) config('dashboard-activity.fallback_streams.human_actor', 'team');
+    }
+
+    private function resolveActorLabel(TimelineActorPresenter $actor, string $stream): string
+    {
+        if ($stream === 'ira' || $actor->isAutomationIdentity()) {
+            return 'IRA';
+        }
+
+        $label = $actor->compactLabel();
+
+        return $label !== '' ? $label : 'System';
     }
 
     /**
-     * @return array{title: string, icon: string, source: ?string, variant: string, includes: list<string>, include_label: ?string}|null
+     * @return array{title: string, pill: ?string, variant: string, include_pill: ?string}|null
      */
     private function resolvePresentation(AuditLog $auditLog, array $config): ?array
     {
@@ -157,11 +194,9 @@ class RecentActivityPresenter
             if ($status === CommunicationActionLifecycleStatus::Skipped) {
                 return [
                     'title' => 'Communication Skipped',
-                    'icon' => '💬',
-                    'source' => 'Manual',
+                    'pill' => 'Communication',
                     'variant' => 'warning',
-                    'includes' => [],
-                    'include_label' => null,
+                    'include_pill' => null,
                 ];
             }
 
@@ -169,11 +204,9 @@ class RecentActivityPresenter
 
             return [
                 'title' => $actionLabel !== '' ? $actionLabel : (string) $config['title'],
-                'icon' => (string) $config['icon'],
-                'source' => $this->resolveSourceBadge($auditLog, $config),
+                'pill' => $this->resolveTypePill($auditLog, $config),
                 'variant' => (string) $config['variant'],
-                'includes' => [],
-                'include_label' => $this->communicationIncludeLabel($auditLog),
+                'include_pill' => $this->communicationIncludePill($auditLog),
             ];
         }
 
@@ -182,11 +215,9 @@ class RecentActivityPresenter
 
             return [
                 'title' => $aggregateSuccess ? 'Notification Sent' : 'Notification Failed',
-                'icon' => '🔔',
-                'source' => $this->resolveSourceBadge($auditLog, $config),
+                'pill' => $this->resolveTypePill($auditLog, $config),
                 'variant' => $aggregateSuccess ? (string) $config['variant'] : 'error',
-                'includes' => [],
-                'include_label' => $this->notificationIncludeLabel($auditLog),
+                'include_pill' => 'Notification',
             ];
         }
 
@@ -195,26 +226,36 @@ class RecentActivityPresenter
 
             return [
                 'title' => $statusLabel !== '' ? 'Status: '.$statusLabel : (string) $config['title'],
-                'icon' => (string) $config['icon'],
-                'source' => $this->resolveSourceBadge($auditLog, $config),
+                'pill' => $this->resolveTypePill($auditLog, $config),
                 'variant' => (string) $config['variant'],
-                'includes' => [],
-                'include_label' => null,
+                'include_pill' => null,
             ];
         }
 
         return [
             'title' => (string) $config['title'],
-            'icon' => (string) $config['icon'],
-            'source' => $this->resolveSourceBadge($auditLog, $config),
+            'pill' => $this->resolveTypePill($auditLog, $config),
             'variant' => (string) $config['variant'],
-            'includes' => [],
-            'include_label' => null,
+            'include_pill' => null,
         ];
     }
 
     /**
-     * @return array{title: string, icon: string, source: ?string, variant: string, stream?: string, hidden?: bool, remark_only?: bool}|null
+     * @param  array{pill?: string}  $config
+     */
+    private function resolveTypePill(AuditLog $auditLog, array $config): ?string
+    {
+        if (filled($config['pill'] ?? null)) {
+            return (string) $config['pill'];
+        }
+
+        $channels = $this->notificationChannels($auditLog);
+
+        return $channels[0] ?? null;
+    }
+
+    /**
+     * @return array{title: string, pill?: string, variant: string, stream?: string, hidden?: bool, remark_only?: bool, allow_automation_actor?: bool}|null
      */
     private function resolveEventConfig(AuditLog $auditLog): ?array
     {
@@ -238,7 +279,7 @@ class RecentActivityPresenter
     }
 
     /**
-     * @return array{title: string, icon: string, source: ?string, variant: string}
+     * @return array{title: string, pill: string, variant: string}
      */
     private function fallbackConfig(AuditLog $auditLog): array
     {
@@ -246,8 +287,7 @@ class RecentActivityPresenter
 
         return [
             'title' => $this->humanizeEventName($auditLog->event),
-            'icon' => '📋',
-            'source' => $isAutomation ? 'Automation' : 'Manual',
+            'pill' => $isAutomation ? 'IRA' : 'Activity',
             'variant' => $isAutomation ? 'automation' : 'muted',
         ];
     }
@@ -257,34 +297,6 @@ class RecentActivityPresenter
         $normalized = str_replace(['.', '_'], ' ', $event);
 
         return Str::title(trim($normalized));
-    }
-
-    /**
-     * @param  array{source: ?string}  $config
-     */
-    private function resolveSourceBadge(AuditLog $auditLog, array $config): ?string
-    {
-        if (($config['source'] ?? null) !== null) {
-            return (string) $config['source'];
-        }
-
-        if ($auditLog->event === 'communication_action.lifecycle') {
-            $executionMode = (string) ($auditLog->new_values['execution_mode'] ?? '');
-
-            return match ($executionMode) {
-                'automatic' => 'Automation',
-                'manual' => 'Manual',
-                default => null,
-            };
-        }
-
-        $channels = $this->notificationChannels($auditLog);
-
-        if ($channels !== []) {
-            return $channels[0];
-        }
-
-        return $this->automationIdentity->isAutomationActor($auditLog->user) ? 'Automation' : 'Manual';
     }
 
     /**
@@ -323,36 +335,23 @@ class RecentActivityPresenter
             ->all();
     }
 
-    private function notificationIncludeLabel(AuditLog $auditLog): string
-    {
-        return 'Notification';
-    }
-
-    private function communicationIncludeLabel(AuditLog $auditLog): ?string
+    private function communicationIncludePill(AuditLog $auditLog): ?string
     {
         $channels = $this->notificationChannels($auditLog);
 
-        if ($channels !== []) {
-            return $channels[0];
-        }
-
-        $actionLabel = trim((string) ($auditLog->new_values['action_label'] ?? ''));
-
-        return $actionLabel !== '' ? $actionLabel : 'Communication';
+        return $channels[0] ?? null;
     }
 
     /**
-     * @return array{label: ?string, incident_id: ?int, reference: ?string}
+     * @return array{incident_id: ?int, reference: ?string}
      */
     private function resolveEntity(AuditLog $auditLog): array
     {
         $incident = $this->resolveIncident($auditLog);
-        $label = $this->resolveEntityLabel($auditLog, $incident);
 
         return [
-            'label' => $label,
             'incident_id' => $incident?->id,
-            'reference' => $incident?->display_reference ?: $incident?->reference_no,
+            'reference' => $this->formatIncidentReference($incident, $auditLog),
         ];
     }
 
@@ -392,38 +391,36 @@ class RecentActivityPresenter
             ->first();
     }
 
-    private function resolveEntityLabel(AuditLog $auditLog, ?Incident $incident): ?string
+    private function formatIncidentReference(?Incident $incident, AuditLog $auditLog): ?string
     {
-        $auditable = $auditLog->auditable;
+        if ($incident !== null) {
+            if (filled($incident->display_reference)) {
+                return (string) $incident->display_reference;
+            }
 
-        if ($auditable instanceof Incident) {
-            return filled($auditable->display_reference)
-                ? 'Incident '.$auditable->display_reference
-                : 'Incident #'.$auditable->id;
+            if (filled($incident->reference_no)) {
+                return (string) $incident->reference_no;
+            }
+
+            return 'SC'.$incident->id;
         }
 
-        if ($auditable instanceof Order) {
-            $orderNumber = filled($auditable->order_id)
-                ? (string) $auditable->order_id
-                : '#'.$auditable->id;
+        if ($auditLog->auditable_type === (new Incident)->getMorphClass() && $auditLog->auditable_id !== null) {
+            return 'SC'.$auditLog->auditable_id;
+        }
 
-            return 'Order '.$orderNumber;
+        $auditable = $auditLog->auditable;
+
+        if ($auditable instanceof Order && filled($auditable->order_id)) {
+            return (string) $auditable->order_id;
+        }
+
+        if ($auditLog->auditable_type === (new Order)->getMorphClass()) {
+            return (string) ($auditLog->new_values['order_id'] ?? null) ?: null;
         }
 
         if ($auditable instanceof Remark) {
             return 'Remark #'.$auditable->id;
-        }
-
-        if ($auditLog->auditable_type === (new Incident)->getMorphClass() && $auditLog->auditable_id !== null) {
-            return $incident && filled($incident->display_reference)
-                ? 'Incident '.$incident->display_reference
-                : 'Incident #'.$auditLog->auditable_id;
-        }
-
-        if ($auditLog->auditable_type === (new Order)->getMorphClass() && $auditLog->auditable_id !== null) {
-            $orderId = (string) ($auditLog->new_values['order_id'] ?? '#'.$auditLog->auditable_id);
-
-            return 'Order '.$orderId;
         }
 
         if ($auditLog->auditable_type === (new Remark)->getMorphClass() && $auditLog->auditable_id !== null) {
@@ -491,36 +488,88 @@ class RecentActivityPresenter
         $groupKey = $items[0]->groupKey ?? 'communication';
         $configuredGroup = config('dashboard-activity.groups.'.$groupKey, []);
         $title = (string) ($configuredGroup['title'] ?? 'Communication Sent');
-        $icon = (string) ($configuredGroup['icon'] ?? '💬');
         $variant = (string) ($configuredGroup['variant'] ?? 'communication');
         $stream = (string) ($configuredGroup['stream'] ?? $items[0]->stream);
+        $pill = (string) ($configuredGroup['pill'] ?? 'Communication');
 
-        $includes = collect($items)
-            ->map(fn (MappedRecentActivity $item): ?string => $item->includeLabel ?? $item->sourceBadge)
+        $includePills = collect($items)
+            ->map(fn (MappedRecentActivity $item): ?string => $item->includePill ?? $item->typePill)
             ->filter()
             ->unique()
-            ->values()
-            ->all();
+            ->values();
+
+        $pill = (string) ($configuredGroup['pill'] ?? 'Communication');
+        $channelPill = $includePills->first(fn (string $label): bool => ! in_array($label, ['Notification', 'Communication'], true));
+
+        if ($channelPill !== null) {
+            $pill = $channelPill;
+        } elseif ($includePills->isNotEmpty()) {
+            $pill = (string) $includePills->first();
+        }
 
         $latest = collect($items)->sortByDesc(fn (MappedRecentActivity $item): int => $item->occurredAt->timestamp)->first();
 
         return new RecentActivityItem(
             stream: $stream,
             title: $title,
-            icon: $icon,
-            sourceBadge: null,
+            typePill: $pill,
             indicatorVariant: $variant,
-            entityLabel: $latest->entityLabel,
+            incidentReference: $latest->incidentReference,
             entityIncidentId: $latest->entityIncidentId,
             entityReference: $latest->entityReference,
             occurredAt: $latest->occurredAt,
-            relativeTime: $latest->relativeTime,
+            compactTime: $latest->compactTime,
             exactTime: $latest->exactTime,
             actorName: $latest->actorName,
-            actorIconClass: $latest->actorIconClass,
             isAutomation: $latest->isAutomation,
-            actorUser: $latest->actorUser,
-            includes: $includes,
+        );
+    }
+
+    /**
+     * @param  Collection<int, RecentActivityItem>  $items
+     * @return Collection<int, RecentActivityThread>
+     */
+    private function threadItems(Collection $items): Collection
+    {
+        $threads = collect();
+        $buffer = [];
+        $lastIncidentId = null;
+
+        foreach ($items as $item) {
+            $incidentId = $item->entityIncidentId;
+
+            if ($incidentId !== null && $incidentId === $lastIncidentId && $buffer !== []) {
+                $buffer[] = $item;
+
+                continue;
+            }
+
+            if ($buffer !== []) {
+                $threads->push($this->makeThread($buffer));
+            }
+
+            $buffer = [$item];
+            $lastIncidentId = $incidentId;
+        }
+
+        if ($buffer !== []) {
+            $threads->push($this->makeThread($buffer));
+        }
+
+        return $threads;
+    }
+
+    /**
+     * @param  list<RecentActivityItem>  $items
+     */
+    private function makeThread(array $items): RecentActivityThread
+    {
+        $first = $items[0];
+
+        return new RecentActivityThread(
+            incidentId: $first->entityIncidentId,
+            incidentReference: $first->incidentReference,
+            items: $items,
         );
     }
 
@@ -556,30 +605,23 @@ class RecentActivityPresenter
  */
 final class MappedRecentActivity
 {
-    /**
-     * @param  list<string>  $includes
-     */
     public function __construct(
         public string $event,
         public string $stream,
         public string $title,
-        public string $icon,
-        public ?string $sourceBadge,
+        public ?string $typePill,
         public string $indicatorVariant,
-        public ?string $entityLabel,
+        public ?string $incidentReference,
         public ?int $entityIncidentId,
         public ?string $entityReference,
         public Carbon $occurredAt,
-        public string $relativeTime,
+        public string $compactTime,
         public string $exactTime,
         public string $actorName,
-        public string $actorIconClass,
         public bool $isAutomation,
-        public ?User $actorUser,
-        public array $includes,
         public ?string $groupKey,
         public string $auditableKey,
-        public ?string $includeLabel,
+        public ?string $includePill,
     ) {}
 
     public function toItem(): RecentActivityItem
@@ -587,20 +629,16 @@ final class MappedRecentActivity
         return new RecentActivityItem(
             stream: $this->stream,
             title: $this->title,
-            icon: $this->icon,
-            sourceBadge: $this->sourceBadge,
+            typePill: $this->typePill,
             indicatorVariant: $this->indicatorVariant,
-            entityLabel: $this->entityLabel,
+            incidentReference: $this->incidentReference,
             entityIncidentId: $this->entityIncidentId,
             entityReference: $this->entityReference,
             occurredAt: $this->occurredAt,
-            relativeTime: $this->relativeTime,
+            compactTime: $this->compactTime,
             exactTime: $this->exactTime,
             actorName: $this->actorName,
-            actorIconClass: $this->actorIconClass,
             isAutomation: $this->isAutomation,
-            actorUser: $this->actorUser,
-            includes: $this->includes,
         );
     }
 }

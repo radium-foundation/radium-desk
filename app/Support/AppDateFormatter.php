@@ -117,6 +117,39 @@ class AppDateFormatter
         return "{$dateLabel} • {$time}";
     }
 
+    public static function activityFeedCompact(?CarbonInterface $date): ?string
+    {
+        $localized = self::inAppTimezone($date);
+
+        if ($localized === null) {
+            return null;
+        }
+
+        $now = now(self::timezone());
+        $elapsedSeconds = max(0, $localized->diffInSeconds($now, false));
+
+        if ($elapsedSeconds <= 59) {
+            return 'now';
+        }
+
+        if ($elapsedSeconds < 3600) {
+            return max(1, (int) floor($elapsedSeconds / 60)).'m';
+        }
+
+        if ($elapsedSeconds < 86400) {
+            return max(1, (int) floor($elapsedSeconds / 3600)).'h';
+        }
+
+        $today = $now->copy()->startOfDay();
+        $eventDay = $localized->copy()->startOfDay();
+
+        if ($eventDay->equalTo($today->copy()->subDay())) {
+            return 'Yesterday';
+        }
+
+        return self::format($localized, 'j M') ?? $localized->format('j M');
+    }
+
     public static function gridCompactDatetime(?CarbonInterface $date): ?string
     {
         return self::format($date, 'd M H:i');
