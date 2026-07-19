@@ -47,7 +47,7 @@
             'value' => $stats['total_active_cases'],
             'icon' => 'bi-clipboard-data',
             'color' => 'info',
-            'href' => route('incidents.index'),
+            'href' => route('incidents.index', ['status' => 'active']),
         ];
     }
 

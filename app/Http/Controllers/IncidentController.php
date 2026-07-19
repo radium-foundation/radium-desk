@@ -47,7 +47,15 @@ class IncidentController extends Controller
                 $query->where('category', $request->string('category')->trim());
             })
             ->when($request->filled('status'), function ($query) use ($request) {
-                $query->where('status', $request->string('status')->trim());
+                $status = $request->string('status')->trim()->toString();
+
+                if ($status === 'active') {
+                    $query->whereIn('status', IncidentStatus::operationallyActive());
+
+                    return;
+                }
+
+                $query->where('status', $status);
             })
             ->when($request->filled('source'), function ($query) use ($request) {
                 $query->where('source', $request->string('source')->trim());
