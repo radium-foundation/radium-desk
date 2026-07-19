@@ -59,6 +59,11 @@ function display_app_grid_datetime(?CarbonInterface $date, string $fallback = 'â
     return AppDateFormatter::gridCompactDatetime($date) ?? $fallback;
 }
 
+function display_app_grid_timeline_range(?CarbonInterface $created, ?CarbonInterface $updated = null): ?string
+{
+    return AppDateFormatter::gridTimelineRange($created, $updated);
+}
+
 function display_device_model_short(?string $fullModel, string $fallback = 'â€”'): string
 {
     return DeviceModelFormatter::shortDisplay($fullModel) ?? $fallback;

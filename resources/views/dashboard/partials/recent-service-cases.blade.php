@@ -198,15 +198,11 @@
                             <th>{{ config('ui.service_case.reference_short') }}</th>
                             <th>Order</th>
                             <th class="case-serial-cell">Serial</th>
-                            <th>Status</th>
-                            <th @class(['sla-cell', 'appointment-status-cell' => $isScheduledWorkspace])>
-                                {{ $isScheduledWorkspace ? 'Appointment' : 'SLA' }}
-                            </th>
+                            <th @class(['status-sla-cell', 'appointment-status-cell' => $isScheduledWorkspace])>Status</th>
                             <th>Ref.</th>
                             <th class="d-none d-md-table-cell">Source</th>
                             <th class="d-none d-md-table-cell">People</th>
-                            <th class="d-none d-lg-table-cell">Created</th>
-                            <th class="d-none d-lg-table-cell">Updated</th>
+                            <th class="d-none d-lg-table-cell">Timeline</th>
                             <th class="d-none d-lg-table-cell">Model</th>
                         </tr>
                     </thead>
@@ -221,7 +217,7 @@
                             ])
                         @empty
                             @php
-                                $tableColumnCount = 11
+                                $tableColumnCount = 9
                                     + (($canManageTransactions ?? false) ? 1 : 0);
                                 $hasActiveSearch = filled(request('q'));
                                 $emptyStateVariant = $hasActiveSearch ? 'filtered' : 'caught-up';

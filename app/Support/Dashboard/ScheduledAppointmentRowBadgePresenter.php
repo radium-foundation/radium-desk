@@ -51,7 +51,7 @@ class ScheduledAppointmentRowBadgePresenter
                 label: 'Missed',
                 title: 'Scheduled support appointment was missed',
                 tone: 'danger',
-                compactSymbol: '🔴',
+                compactSymbol: '📅',
                 appointment: $appointment,
                 now: $now,
             );
@@ -89,7 +89,7 @@ class ScheduledAppointmentRowBadgePresenter
                         label: 'Follow-up Required',
                         title: 'Support appointment slot ended; follow up with the customer',
                         tone: 'danger',
-                        compactSymbol: '⚠️',
+                        compactSymbol: '📅✓',
                         appointment: $appointment,
                         now: $now,
                     );
@@ -100,7 +100,7 @@ class ScheduledAppointmentRowBadgePresenter
                         label: 'Due Now',
                         title: 'Support appointment is due now',
                         tone: 'warning',
-                        compactSymbol: '🟠',
+                        compactSymbol: '📅',
                         appointment: $appointment,
                         now: $now,
                     );
@@ -111,7 +111,7 @@ class ScheduledAppointmentRowBadgePresenter
                         label: 'Starting Soon',
                         title: 'Support appointment starts within 30 minutes',
                         tone: 'warning',
-                        compactSymbol: '🟡',
+                        compactSymbol: '📅',
                         appointment: $appointment,
                         now: $now,
                     );

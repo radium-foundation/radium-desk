@@ -6,14 +6,17 @@ use App\Enums\Assignment\AssignmentCapability;
 use App\Models\User;
 use App\Services\ServiceCaseAssignmentService;
 use App\Services\SettingService;
+use App\Support\Assignment\Capabilities\UserCapabilityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class AssignmentCapabilityResolver
 {
     public function __construct(
         private readonly SettingService $settingService,
         private readonly ServiceCaseAssignmentService $assignmentService,
+        private readonly UserCapabilityService $userCapabilityService,
     ) {}
 
     public function resolve(AssignmentCapability $capability, ?Carbon $at = null): ?User
@@ -131,6 +134,14 @@ class AssignmentCapabilityResolver
     public function supportAgentPool(?Carbon $at = null): array
     {
         return $this->assignmentService->activeSupportAgents($at);
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    public function eligibleUsers(AssignmentCapability $capability, ?Carbon $at = null): Collection
+    {
+        return $this->userCapabilityService->eligibleUsers($capability, $at);
     }
 
     public function isAdminCapable(User $user): bool

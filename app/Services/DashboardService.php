@@ -12,6 +12,7 @@ use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Operations\OperationsRoleService;
+use App\Support\Dashboard\DashboardIncidentSortComparator;
 use App\Support\Dashboard\ScheduledAppointmentRowBadgePresenter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Collection;
@@ -25,6 +26,7 @@ class DashboardService
 
     public function __construct(
         private readonly DashboardKpiAggregator $kpiAggregator,
+        private readonly DashboardIncidentSortComparator $incidentSortComparator,
     ) {}
 
     /**
@@ -478,31 +480,15 @@ class DashboardService
         bool $prioritizeRecentAssignments = false,
         ?string $filter = null,
     ): Collection {
-        if ($filter === DashboardPersonalizationService::QUEUE_SCHEDULED) {
+        if (DashboardIncidentSortComparator::queueUsesAppointmentSort($filter)) {
             return app(ScheduledAppointmentRowBadgePresenter::class)->sortIncidents($incidents);
         }
 
-        $now = now();
-
-        return $incidents
-            ->sort(function (Incident $left, Incident $right) use ($now, $prioritizeRecentAssignments): int {
-                if ($prioritizeRecentAssignments) {
-                    $updatedComparison = ($right->updated_at?->timestamp ?? 0) <=> ($left->updated_at?->timestamp ?? 0);
-
-                    if ($updatedComparison !== 0) {
-                        return $updatedComparison;
-                    }
-                }
-
-                $rankComparison = $left->dashboardSortRank($now) <=> $right->dashboardSortRank($now);
-
-                if ($rankComparison !== 0) {
-                    return $rankComparison;
-                }
-
-                return ($left->created_at?->timestamp ?? 0) <=> ($right->created_at?->timestamp ?? 0);
-            })
-            ->values();
+        return $this->incidentSortComparator->sort(
+            $incidents,
+            $prioritizeRecentAssignments,
+            $filter,
+        );
     }
 
     /**

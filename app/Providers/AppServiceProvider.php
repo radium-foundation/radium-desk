@@ -95,6 +95,10 @@ class AppServiceProvider extends ServiceProvider
             ]);
         });
         $this->app->scoped(DashboardSnapshotStore::class);
+        $this->app->bind(
+            \App\Support\Dashboard\Contracts\DashboardAttentionScoreCalculator::class,
+            \App\Support\Dashboard\NullDashboardAttentionScoreCalculator::class,
+        );
 
         $this->app->singleton(IraReasoningProvider::class, function ($app): IraReasoningProvider {
             return match (config('ira.reasoning_provider')) {

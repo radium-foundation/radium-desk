@@ -440,6 +440,24 @@ class ServiceCaseAssignmentService
         );
     }
 
+    public function applySupportAssignment(
+        Incident $incident,
+        User $assignee,
+        User $actor,
+        string $event = 'service_case.assigned',
+        array $extraNewValues = [],
+    ): Incident {
+        $this->ensureValidAssignee($assignee);
+
+        return $this->applyAssignment(
+            incident: $incident,
+            assignee: $assignee,
+            actor: $actor,
+            event: $event,
+            extraNewValues: $extraNewValues,
+        );
+    }
+
     public function reassignToShiftAdminAfterValidation(Incident $incident, User $actor, ?Carbon $at = null): Incident
     {
         $incident = $incident->fresh(['assignee', 'order']);
@@ -582,6 +600,11 @@ class ServiceCaseAssignmentService
     }
 
     private function resolveAgentRoundRobin(?Carbon $at = null, ?Order $order = null): ?User
+    {
+        return $this->resolveSupportAgentViaRoundRobin($at, $order);
+    }
+
+    public function resolveSupportAgentViaRoundRobin(?Carbon $at = null, ?Order $order = null): ?User
     {
         return DB::transaction(function () use ($at, $order): ?User {
             $agents = $this->activeSupportAgents($at, $order);

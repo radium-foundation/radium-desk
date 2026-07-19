@@ -12,6 +12,35 @@ return [
     |
     */
 
+    'role_mappings' => [
+        \App\Enums\Assignment\AssignmentCapability::SupportAgent->value => \Database\Seeders\RolePermissionSeeder::SUPPORT_TEAM_ROLES,
+        \App\Enums\Assignment\AssignmentCapability::ReadyQueueAdmin->value => [
+            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+        ],
+        \App\Enums\Assignment\AssignmentCapability::AfterHoursSupport->value => [
+            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+        ],
+        \App\Enums\Assignment\AssignmentCapability::IncomingEmailSupervisor->value => [
+            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+        ],
+        \App\Enums\Assignment\AssignmentCapability::WhatsAppSupervisor->value => [
+            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+        ],
+        \App\Enums\Assignment\AssignmentCapability::SalesLeadHandler->value => [
+            \Database\Seeders\RolePermissionSeeder::ROLE_ADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN,
+            \Database\Seeders\RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+        ],
+    ],
+
     'capabilities' => [
         \App\Enums\Assignment\AssignmentCapability::ReadyQueueAdmin->value => [
             'resolver' => 'shift_aware_setting',

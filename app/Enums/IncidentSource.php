@@ -49,4 +49,28 @@ enum IncidentSource: string
             self::Other => 'bi-three-dots',
         };
     }
+
+    public function badgeSymbol(): ?string
+    {
+        return match ($this) {
+            self::Call => '📞',
+            self::Email => '📧',
+            self::Internal => '👤',
+            self::Cashfree => '🌐',
+            default => null,
+        };
+    }
+
+    public function badgeAbbreviation(): string
+    {
+        return match ($this) {
+            self::Call => 'I',
+            self::WhatsApp => 'WA',
+            self::Email => 'E',
+            self::Telegram => 'TG',
+            self::Internal => '👤',
+            self::Cashfree => '🌐',
+            self::Other => '···',
+        };
+    }
 }

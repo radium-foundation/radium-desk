@@ -96,16 +96,16 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('RD3421021')
             ->assertSee('SN001')
             ->assertSee('MFS 110')
-            ->assertSee('bi-telephone-fill', false)
+            ->assertSee('dashboard-source-badge', false)
             ->assertSee('data-bs-title="Call"', false)
-            ->assertSee('aria-label="Pending Admin"', false)
-            ->assertSee('dashboard-completion-status-icon--pending', false)
+            ->assertSee('dashboard-status-sla-compact', false)
+            ->assertSee('dashboard-status-sla-compact__timer', false)
             ->assertSee('Waiting for Service Reference')
             ->assertSee('dashboard-premium-tooltip__label', false)
             ->assertSee('24 Jun 2026, 02:35 PM')
             ->assertSee('6 hours 12 minutes')
             ->assertSee('Within SLA')
-            ->assertSee('Updated')
+            ->assertSee('Timeline')
             ->assertSee('Ravi');
 
         Carbon::setTestNow();
@@ -646,7 +646,8 @@ class DashboardServiceCasesTest extends TestCase
             ->assertSee('service-case-select', false)
             ->assertSee('transaction-cell-trigger', false)
             ->assertSee('data-inline-transaction="true"', false)
-            ->assertSee('bi-whatsapp', false);
+            ->assertSee('dashboard-source-badge', false)
+            ->assertSee('>WA<', false);
     }
 
     public function test_agent_dashboard_does_not_show_transaction_management_controls(): void
@@ -1201,8 +1202,8 @@ class DashboardServiceCasesTest extends TestCase
             ->assertOk()
             ->assertSee('SC01392')
             ->assertSee('CF-ORDER-1392')
-            ->assertSee('bi-credit-card', false)
-            ->assertSee('Pending Admin');
+            ->assertSee('dashboard-source-badge', false)
+            ->assertSee('Within SLA', false);
 
         $this->actingAs($admin)
             ->getJson(route('dashboard.live', ['filter' => 'pending_admin']))

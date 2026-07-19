@@ -115,6 +115,10 @@ class DashboardPersonalizationService
                 continue;
             }
 
+            if ($queueKey === self::QUEUE_WAITING_CUSTOMER && $this->operationsRoles->usesAdminQueues($user)) {
+                continue;
+            }
+
             $filtered[$queueKey] = $meta[$queueKey];
 
             if ($this->operationsRoles->usesSupportQueues($user)) {

@@ -343,14 +343,14 @@ class AgentDashboardRedesignTest extends TestCase
             ->assertOk();
 
         $this->assertMatchesRegularExpression(
-            '/<th[^>]*appointment-status-cell[^>]*>\s*Appointment\s*<\/th>/',
+            '/<th[^>]*appointment-status-cell[^>]*>\s*Status\s*<\/th>/',
             $response->getContent(),
         );
 
         $response
             ->assertSee('appointment-status-cell', false)
-            ->assertSee('appointment-status-dot--due-now', false)
-            ->assertSee('appointment-status-dot--scheduled', false)
+            ->assertSee('dashboard-appointment-icon--due-now', false)
+            ->assertSee('dashboard-appointment-icon--scheduled', false)
             ->assertDontSee('appointment-status-pill', false)
             ->assertSee('Today • Morning — Due Now', false)
             ->assertSee('Tomorrow • Morning — Scheduled', false)
@@ -374,20 +374,20 @@ class AgentDashboardRedesignTest extends TestCase
         $adminScheduledResponse = $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'scheduled']))
             ->assertOk()
-            ->assertSee('appointment-status-dot--due-now', false)
+            ->assertSee('dashboard-appointment-icon--due-now', false)
             ->assertDontSee('sla-status--', false);
 
         $this->assertMatchesRegularExpression(
-            '/<th[^>]*appointment-status-cell[^>]*>\s*Appointment\s*<\/th>/',
+            '/<th[^>]*appointment-status-cell[^>]*>\s*Status\s*<\/th>/',
             $adminScheduledResponse->getContent(),
         );
 
         $this->actingAs($admin)
             ->get(route('dashboard', ['queue' => 'attention']))
             ->assertOk()
-            ->assertSee('<th class="sla-cell">', false)
+            ->assertSee('<th class="status-sla-cell">', false)
             ->assertDontSee('appointment-status-cell', false)
-            ->assertDontSee('appointment-status-dot', false);
+            ->assertDontSee('dashboard-appointment-icon', false);
 
         Carbon::setTestNow();
     }

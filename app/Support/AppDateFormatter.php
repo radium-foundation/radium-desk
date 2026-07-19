@@ -122,6 +122,37 @@ class AppDateFormatter
         return self::format($date, 'd M H:i');
     }
 
+    public static function gridTimelineRange(?CarbonInterface $created, ?CarbonInterface $updated = null): ?string
+    {
+        $createdLocal = self::inAppTimezone($created);
+
+        if ($createdLocal === null) {
+            return null;
+        }
+
+        $updatedLocal = self::inAppTimezone($updated) ?? $createdLocal;
+
+        $createdDate = self::format($createdLocal, 'j M');
+        $createdTime = self::format($createdLocal, 'H:i');
+        $updatedTime = self::format($updatedLocal, 'H:i');
+
+        if ($createdDate === null || $createdTime === null || $updatedTime === null) {
+            return null;
+        }
+
+        if ($createdLocal->isSameDay($updatedLocal)) {
+            return "{$createdDate} {$createdTime} → {$updatedTime}";
+        }
+
+        $updatedDate = self::format($updatedLocal, 'j M');
+
+        if ($updatedDate === null) {
+            return null;
+        }
+
+        return "{$createdDate} {$createdTime} → {$updatedDate} {$updatedTime}";
+    }
+
     public static function waitingDuration(?CarbonInterface $startedAt): ?string
     {
         $localized = self::inAppTimezone($startedAt);

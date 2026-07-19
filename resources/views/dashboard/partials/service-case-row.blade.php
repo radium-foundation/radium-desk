@@ -73,28 +73,13 @@
         @endif
     </td>
     @include('dashboard.partials.serial-number-cell', ['serviceCase' => $serviceCase])
-    <td class="status-cell">
-        @if($order)
-            @include('dashboard.partials.completion-status-tooltip', [
-                'order' => $order,
-                'loggedAt' => $serviceCase->created_at,
-            ])
-        @else
-            —
-        @endif
-    </td>
-    <td @class(['sla-cell', 'appointment-status-cell' => $isScheduledWorkspace])>
-        @if($isScheduledWorkspace)
-            @if($scheduledAppointmentPresentation)
-                @include('dashboard.partials.scheduled-appointment-status-pill', [
-                    'badge' => $scheduledAppointmentPresentation,
-                ])
-            @else
-                —
-            @endif
-        @else
-            @include('dashboard.partials.sla-status', ['serviceCase' => $serviceCase])
-        @endif
+    <td @class(['status-sla-cell', 'appointment-status-cell' => $isScheduledWorkspace])>
+        @include('dashboard.partials.status-sla-cell', [
+            'serviceCase' => $serviceCase,
+            'order' => $order,
+            'isScheduledWorkspace' => $isScheduledWorkspace,
+            'scheduledAppointmentPresentation' => $scheduledAppointmentPresentation,
+        ])
     </td>
     @include('dashboard.partials.transaction-id-cell', [
         'serviceCase' => $serviceCase,
@@ -124,25 +109,8 @@
             @endif
         </div>
     </td>
-    <td class="case-meta-cell dashboard-date-cell d-none d-lg-table-cell">
-        @if($serviceCase->created_at)
-            <span class="dashboard-u-datetime-compact"
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  data-bs-title="{{ display_app_datetime($serviceCase->created_at) }}">{{ display_app_grid_datetime($serviceCase->created_at) }}</span>
-        @else
-            —
-        @endif
-    </td>
-    <td class="case-meta-cell dashboard-date-cell d-none d-lg-table-cell">
-        @if($serviceCase->updated_at)
-            <span class="dashboard-u-datetime-compact"
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  data-bs-title="{{ display_app_datetime($serviceCase->updated_at) }}">{{ display_app_grid_datetime($serviceCase->updated_at) }}</span>
-        @else
-            —
-        @endif
+    <td class="case-meta-cell dashboard-timeline-cell-wrap d-none d-lg-table-cell">
+        @include('dashboard.partials.timeline-cell', ['serviceCase' => $serviceCase])
     </td>
     @include('dashboard.partials.device-model-cell', ['serviceCase' => $serviceCase])
 </tr>

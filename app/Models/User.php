@@ -142,6 +142,11 @@ class User extends Authenticatable
         return $this->hasOne(TeamMemberWorkSchedule::class);
     }
 
+    public function assignmentCapabilities(): HasMany
+    {
+        return $this->hasMany(UserAssignmentCapability::class);
+    }
+
     public function leaveRequests(): HasMany
     {
         return $this->hasMany(LeaveRequest::class);

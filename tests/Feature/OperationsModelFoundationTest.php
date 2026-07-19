@@ -164,7 +164,7 @@ class OperationsModelFoundationTest extends TestCase
             ->assertOk()
             ->assertSee('Ready Queue')
             ->assertDontSee('Pending Review')
-            ->assertSee('Waiting Customer')
+            ->assertDontSee('Waiting Customer')
             ->assertSee('Scheduled')
             ->assertSee('Exceptions')
             ->assertSee('Hardware')
