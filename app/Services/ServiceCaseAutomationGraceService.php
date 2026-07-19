@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\Incident;
 use App\Models\Order;
-use App\Models\User;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -14,6 +14,7 @@ class ServiceCaseAutomationGraceService
         private readonly AuditLogService $auditLogService,
         private readonly SettingService $settingService,
         private readonly ServiceCaseAssignmentService $assignmentService,
+        private readonly UniversalAssignmentEngine $assignmentEngine,
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
@@ -142,9 +143,10 @@ class ServiceCaseAutomationGraceService
             }
 
             if ($this->passesAutomationValidation($incident)) {
-                $this->assignmentService->assignToShiftAdminAfterValidation(
+                $this->assignmentEngine->assignAfterGraceExpiry(
                     incident: $incident,
                     actor: $actor,
+                    validationPassed: true,
                 );
 
                 return true;
@@ -163,9 +165,10 @@ class ServiceCaseAutomationGraceService
 
             $this->automationMonitor->recordWaitingManualCorrection($incident, $actor);
 
-            $this->assignmentService->assignViaRoundRobinAfterGracePeriod(
+            $this->assignmentEngine->assignAfterGraceExpiry(
                 incident: $incident,
                 actor: $actor,
+                validationPassed: false,
             );
 
             return true;

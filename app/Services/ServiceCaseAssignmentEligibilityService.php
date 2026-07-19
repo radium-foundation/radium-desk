@@ -9,7 +9,7 @@ use App\Enums\SerialValidationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\Operations\SupportAppointmentSmartAssignmentService;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
@@ -21,7 +21,7 @@ class ServiceCaseAssignmentEligibilityService
     public const AUTOMATIC_REASSIGNMENT_REASON = 'automatic_validation_success';
 
     public function __construct(
-        private readonly ServiceCaseAssignmentService $assignmentService,
+        private readonly UniversalAssignmentEngine $assignmentEngine,
         private readonly ServiceCaseOrderAssignmentRoutingService $orderRoutingService,
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
@@ -140,8 +140,7 @@ class ServiceCaseAssignmentEligibilityService
             }
 
             if ($incident->hasActiveSupportAppointment()) {
-                app(SupportAppointmentSmartAssignmentService::class)
-                    ->assignForActiveSupport($incident, $actor);
+                $this->assignmentEngine->assignForActiveAppointment($incident, $actor);
 
                 return;
             }
@@ -159,7 +158,7 @@ class ServiceCaseAssignmentEligibilityService
                     && $this->isAdminUser($assignee)
                     && ! $this->orderRoutingService->isDesignatedAssignee($incident, $assignee)
                 ) {
-                    $this->assignmentService->reassignToSupportAgentViaRoundRobin(
+                    $this->assignmentEngine->assignForValidationFailure(
                         incident: $incident,
                         actor: $actor,
                     );
@@ -178,7 +177,7 @@ class ServiceCaseAssignmentEligibilityService
             }
 
             if ($assignee !== null && $this->isAgentUser($assignee)) {
-                $this->assignmentService->reassignToShiftAdminAfterValidation(
+                $this->assignmentEngine->reassignForValidationSuccess(
                     incident: $incident,
                     actor: $actor,
                 );
@@ -194,7 +193,7 @@ class ServiceCaseAssignmentEligibilityService
                 return;
             }
 
-            $this->assignmentService->assignToShiftAdminAfterValidation(
+            $this->assignmentEngine->assignForValidationSuccess(
                 incident: $incident,
                 actor: $actor,
             );

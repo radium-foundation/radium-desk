@@ -8,7 +8,7 @@ use App\Enums\SupportAppointmentTimeSlot;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
 use App\Models\User;
-use App\Services\Operations\SupportAppointmentSmartAssignmentService;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -258,7 +258,7 @@ class SupportAppointmentService
         SupportAppointmentBookingSource $bookingSource,
     ): void {
         try {
-            app(SupportAppointmentSmartAssignmentService::class)->assignAfterBooking(
+            app(UniversalAssignmentEngine::class)->assignAfterBooking(
                 incident: $incident,
                 appointment: $appointment,
             );

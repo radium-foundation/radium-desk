@@ -18,7 +18,7 @@ use App\Services\CustomerIntakeService;
 use App\Services\Interakt\InteraktCustomerMatcher;
 use App\Services\QuickServiceRequestService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
-use App\Services\ServiceCaseAssignmentService;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use App\Services\ServiceCaseStatusService;
 use App\Services\SettingService;
 use App\Support\BonvoiceCallStatuses;
@@ -37,7 +37,7 @@ class BonvoiceMissedCallRecoveryService
         private readonly InteraktCustomerMatcher $customerMatcher,
         private readonly QuickServiceRequestService $quickServiceRequestService,
         private readonly CustomerIntakeService $customerIntakeService,
-        private readonly ServiceCaseAssignmentService $assignmentService,
+        private readonly UniversalAssignmentEngine $assignmentEngine,
         private readonly ServiceCaseStatusService $statusService,
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
@@ -270,7 +270,12 @@ class BonvoiceMissedCallRecoveryService
         ]);
 
         $this->linkCall($incident, $event, BonvoiceCallLinkType::Missed);
-        $incident = $this->assignForRecovery($incident->fresh(['assignee', 'order']), $actor, $at);
+        $incident = $this->assignmentEngine->assignForUnassignedIntake(
+            incident: $incident->fresh(['assignee', 'order']),
+            actor: $actor,
+            at: $at,
+            fallbackAuditEvent: 'missed_call_recovery.assignment_fallback',
+        );
         $this->notifyHighPriorityIfNeeded($incident, $actor);
 
         $this->auditLogService->log(
@@ -314,7 +319,12 @@ class BonvoiceMissedCallRecoveryService
         $this->linkCall($incident, $event, BonvoiceCallLinkType::Missed);
 
         if ($incident->assigned_to_user_id === null) {
-            $incident = $this->assignForRecovery($incident->fresh(['assignee', 'order']), $actor, $at);
+            $incident = $this->assignmentEngine->assignForUnassignedIntake(
+                incident: $incident->fresh(['assignee', 'order']),
+                actor: $actor,
+                at: $at,
+                fallbackAuditEvent: 'missed_call_recovery.assignment_fallback',
+            );
             $this->notifyHighPriorityIfNeeded($incident, $actor);
         }
 
@@ -391,93 +401,6 @@ class BonvoiceMissedCallRecoveryService
                 ],
             );
         });
-    }
-
-    private function assignForRecovery(Incident $incident, User $actor, Carbon $at): Incident
-    {
-        if ($incident->assigned_to_user_id !== null) {
-            return $incident;
-        }
-
-        if ($incident->order?->isInquiryOrder()) {
-            if ($this->isWithinSupportHours($at)) {
-                $incident = $this->assignmentService->assignViaRoundRobinAfterGracePeriod($incident, $actor);
-
-                return $incident->assigned_to_user_id !== null
-                    ? $incident
-                    : $incident;
-            }
-
-            return $this->assignmentService->assignInquiryViaRoundRobin($incident, $actor, $at);
-        }
-
-        if ($this->isWithinSupportHours($at)) {
-            $incident = $this->assignmentService->assignViaRoundRobinAfterGracePeriod($incident, $actor);
-
-            if ($incident->assigned_to_user_id !== null) {
-                return $incident;
-            }
-
-            return $this->assignShiftAdminFallback($incident, $actor, $at, 'no_active_support_agents');
-        }
-
-        return $this->assignShiftAdminDirect($incident, $actor, $at);
-    }
-
-    private function assignShiftAdminDirect(Incident $incident, User $actor, Carbon $at): Incident
-    {
-        $assignee = $this->assignmentService->resolveAssigneeOrNull($at);
-
-        if ($assignee === null) {
-            return $incident;
-        }
-
-        return $this->assignmentService->assignWithAuditContext(
-            incident: $incident,
-            assignee: $assignee,
-            actor: $actor,
-            auditContext: [
-                'assignment_method' => 'missed_call_recovery',
-                'assignment_override' => true,
-                'override_reason' => 'after_hours_shift_admin',
-            ],
-        );
-    }
-
-    private function assignShiftAdminFallback(
-        Incident $incident,
-        User $actor,
-        Carbon $at,
-        string $reason,
-    ): Incident {
-        $assignee = $this->assignmentService->resolveAssigneeOrNull($at);
-
-        if ($assignee === null) {
-            return $incident;
-        }
-
-        $assigned = $this->assignmentService->assignWithAuditContext(
-            incident: $incident,
-            assignee: $assignee,
-            actor: $actor,
-            auditContext: [
-                'assignment_method' => 'missed_call_recovery',
-                'assignment_override' => true,
-                'override_reason' => 'shift_admin_fallback',
-            ],
-        );
-
-        $this->auditLogService->log(
-            userId: $actor->id,
-            event: 'missed_call_recovery.assignment_fallback',
-            auditable: $assigned,
-            newValues: [
-                'reason' => $reason,
-                'assigned_to_user_id' => $assigned->assigned_to_user_id,
-            ],
-        );
-
-        return $assigned;
     }
 
     /**
@@ -629,16 +552,6 @@ class BonvoiceMissedCallRecoveryService
         $stored = $this->customerMatcher->resolveStoredPhone(phoneNumber: $phone);
 
         return $stored ?? trim($phone);
-    }
-
-    private function isWithinSupportHours(Carbon $at): bool
-    {
-        $localized = $at->copy()->timezone($this->settingService->get('assignment.timezone', config('app.timezone')));
-        $time = $localized->format('H:i');
-        $start = $this->settingService->get('assignment.day_shift_start', '09:00');
-        $end = $this->settingService->get('assignment.day_shift_end', '18:30');
-
-        return $time >= $start && $time <= $end;
     }
 
     private function recoveryTitle(string $recoveryPhone): string

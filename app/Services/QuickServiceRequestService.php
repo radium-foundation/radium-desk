@@ -9,7 +9,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\HighPriorityServiceCaseNotification;
-use App\Services\SerialValidation\SerialValidationService;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -17,7 +17,7 @@ class QuickServiceRequestService
 {
     public function __construct(
         private readonly IncidentReferenceService $incidentReferenceService,
-        private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
+        private readonly UniversalAssignmentEngine $assignmentEngine,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly SerialValidationService $serialValidationService,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
@@ -134,7 +134,7 @@ class QuickServiceRequestService
         ]);
 
         if ($assignOnCreate) {
-            $incident = $this->serviceCaseAssignmentService->assignOnCreate($incident, $user);
+            $incident = $this->assignmentEngine->assignOnCreate($incident, $user);
         }
 
         if ($highPriority && $incident->assignee !== null

@@ -13,7 +13,7 @@ use App\Models\User;
 use App\Services\IncidentReferenceService;
 use App\Services\Inquiry\InquiryOrderLinkService;
 use App\Services\Outbox\OutboxProcessorService;
-use App\Services\ServiceCaseAssignmentService;
+use App\Services\Assignment\UniversalAssignmentEngine;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +30,7 @@ class CashfreeWebhookProcessorService
     public function __construct(
         private readonly CashfreeWebhookPayloadParser $payloadParser,
         private readonly IncidentReferenceService $incidentReferenceService,
-        private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
+        private readonly UniversalAssignmentEngine $assignmentEngine,
         private readonly CashfreeWebhookOutboxWriter $outboxWriter,
         private readonly OutboxProcessorService $outboxProcessorService,
         private readonly CashfreeWebhookReliabilityMetrics $reliabilityMetrics,
@@ -290,7 +290,7 @@ class CashfreeWebhookProcessorService
             'updated_by' => $systemUser->id,
         ]);
 
-        return $this->serviceCaseAssignmentService->assignOnCreate($incident, $systemUser);
+        return $this->assignmentEngine->assignOnCreate($incident, $systemUser);
     }
 
     private function markProcessed(CashfreeWebhookLog $webhookLog, Incident $incident): CashfreeWebhookLog
