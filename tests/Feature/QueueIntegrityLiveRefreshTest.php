@@ -159,6 +159,41 @@ class QueueIntegrityLiveRefreshTest extends TestCase
             ->assertJsonPath('refresh.replace_row', null);
     }
 
+    public function test_dashboard_batch_assign_returns_remove_rows_for_ready_queue_completed_cases(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com');
+        $firstOrder = $this->createValidatedOrder($admin, 'RD-BATCH-QUEUE-1');
+        $secondOrder = $this->createValidatedOrder($admin, 'RD-BATCH-QUEUE-2');
+        $firstIncident = $this->createIncident($firstOrder, $admin, assignee: $admin);
+        $secondIncident = $this->createIncident($secondOrder, $admin, assignee: $admin);
+
+        app(DashboardSnapshotStore::class)->forget();
+        $this->assertTrue($this->adminReadyQueueContains($firstIncident));
+        $this->assertTrue($this->adminReadyQueueContains($secondIncident));
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('dashboard.workspace.batch-transaction'), [
+                'incident_ids' => [$firstIncident->id, $secondIncident->id],
+                'transaction_id' => 'TX-BATCH-QUEUE',
+                'workspace_context' => WorkspaceContext::Dashboard->value,
+            ])
+            ->assertOk()
+            ->assertJsonPath('refresh.remove_rows.0.incident_id', $firstIncident->id)
+            ->assertJsonPath('refresh.remove_rows.1.incident_id', $secondIncident->id)
+            ->assertJsonPath('refresh.replace_rows', []);
+
+        $freshFirst = $this->freshIncident($firstIncident);
+        $freshSecond = $this->freshIncident($secondIncident);
+
+        $this->assertTrue(app(ServiceCaseAssignmentService::class)->shouldRemoveFromAdminReadyQueue($freshFirst));
+        $this->assertTrue(app(ServiceCaseAssignmentService::class)->shouldRemoveFromAdminReadyQueue($freshSecond));
+
+        app(DashboardSnapshotStore::class)->forget();
+        $this->assertFalse($this->adminReadyQueueContains($freshFirst));
+        $this->assertFalse($this->adminReadyQueueContains($freshSecond));
+        $this->assertCount(2, $response->json('refresh.remove_rows'));
+    }
+
     public function test_dashboard_assign_to_admin_still_returns_replace_row(): void
     {
         $admin = $this->createAdminUser('admin@example.com');

@@ -15,6 +15,7 @@ class WorkspaceRefreshRenderer
         private readonly ServiceCaseActivityTimelineService $activityTimelineService,
         private readonly DashboardService $dashboardService,
         private readonly WorkspaceComponentService $componentService,
+        private readonly ServiceCaseAssignmentService $assignmentService,
     ) {}
 
     /**
@@ -230,6 +231,7 @@ class WorkspaceRefreshRenderer
             'targets' => [],
             'fragments' => [],
             'replace_rows' => [],
+            'remove_rows' => [],
         ];
 
         if ($effects->refreshKpis) {
@@ -239,10 +241,30 @@ class WorkspaceRefreshRenderer
             ];
         }
 
-        $succeededIds = array_flip($result['succeeded_incident_ids']);
+        $rowsByIncidentId = collect($result['rows'])->keyBy('incident_id');
+        $succeededIncidentIds = $result['succeeded_incident_ids'];
+        $refresh['remove_rows'] = $this->assignmentService->adminReadyQueueRemoveRowsForIncidents($succeededIncidentIds);
 
-        foreach ($result['rows'] as $row) {
-            if (! isset($succeededIds[$row['incident_id']])) {
+        if ($succeededIncidentIds === []) {
+            return $refresh;
+        }
+
+        $incidents = Incident::query()
+            ->with(['order.transactionAssigner', 'creator', 'assignee.roles', 'activeWaitingState', 'supportAppointments'])
+            ->whereIn('id', $succeededIncidentIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($succeededIncidentIds as $incidentId) {
+            $incident = $incidents->get($incidentId);
+
+            if ($incident === null || $this->assignmentService->shouldRemoveFromAdminReadyQueue($incident)) {
+                continue;
+            }
+
+            $row = $rowsByIncidentId->get($incidentId);
+
+            if ($row === null) {
                 continue;
             }
 

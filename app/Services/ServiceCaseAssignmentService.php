@@ -951,6 +951,34 @@ class ServiceCaseAssignmentService
         return ! $this->isVisibleInAdminReadyQueue($incident);
     }
 
+    /**
+     * @param  list<int>  $incidentIds
+     * @return list<array{incident_id: int}>
+     */
+    public function adminReadyQueueRemoveRowsForIncidents(array $incidentIds): array
+    {
+        if ($incidentIds === []) {
+            return [];
+        }
+
+        $removeRows = [];
+
+        Incident::query()
+            ->with(['order.transactionAssigner', 'creator', 'assignee.roles', 'activeWaitingState', 'supportAppointments'])
+            ->whereIn('id', $incidentIds)
+            ->orderBy('id')
+            ->get()
+            ->each(function (Incident $incident) use (&$removeRows): void {
+                if ($this->shouldRemoveFromAdminReadyQueue($incident)) {
+                    $removeRows[] = [
+                        'incident_id' => $incident->id,
+                    ];
+                }
+            });
+
+        return $removeRows;
+    }
+
     private function findValidAdminAssigneeById(int $userId): ?User
     {
         if ($userId <= 0) {

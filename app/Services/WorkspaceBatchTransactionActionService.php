@@ -16,6 +16,7 @@ class WorkspaceBatchTransactionActionService
         private readonly OrderTransactionService $orderTransactionService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
         private readonly WorkspaceRefreshRenderer $refreshRenderer,
+        private readonly ServiceCaseAssignmentService $assignmentService,
     ) {}
 
     /**
@@ -109,6 +110,7 @@ class WorkspaceBatchTransactionActionService
                 'targets' => [],
                 'fragments' => [],
                 'replace_rows' => [],
+                'remove_rows' => $this->assignmentService->adminReadyQueueRemoveRowsForIncidents($result['succeeded_incident_ids']),
             ];
 
             if (! in_array(OrderTransactionService::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {

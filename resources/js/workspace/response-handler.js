@@ -128,6 +128,12 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
             hooks.removeServiceCaseRow(data.refresh.remove_row.incident_id);
         }
 
+        if (data.refresh?.remove_rows && hooks.removeServiceCaseRow) {
+            data.refresh.remove_rows.forEach((row) => {
+                hooks.removeServiceCaseRow(row.incident_id);
+            });
+        }
+
         if (data.refresh?.replace_row && hooks.replaceServiceCaseRow) {
             hooks.replaceServiceCaseRow(
                 data.refresh.replace_row.incident_id,

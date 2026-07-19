@@ -137,8 +137,8 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             ->assertJsonPath('refresh.kpis', true)
             ->assertJsonStructure([
                 'refresh' => [
-                    'replace_rows' => [
-                        ['incident_id', 'html', 'strategy'],
+                    'remove_rows' => [
+                        ['incident_id'],
                     ],
                     'kpis_html' => ['kpi_strip_html'],
                 ],
@@ -150,6 +150,8 @@ class WorkspaceBatchTransactionActionTest extends TestCase
 
         $this->assertSame('TX-BATCH-WS', $sharedOrder->fresh()->transaction_id);
         $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
+        $this->assertCount(2, $response->json('refresh.remove_rows'));
+        $this->assertSame([], $response->json('refresh.replace_rows'));
     }
 
     public function test_batch_partial_failure_keeps_modal_open_and_reports_failed_rows(): void
@@ -405,7 +407,8 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('extensions.warning', OrderTransactionService::DASHBOARD_REFRESH_WARNING)
-            ->assertJsonPath('refresh.replace_rows', []);
+            ->assertJsonPath('refresh.replace_rows', [])
+            ->assertJsonCount(2, 'refresh.remove_rows');
 
         $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
         $this->assertSame('TX-BATCH-REFRESH', $first['order']->fresh()->transaction_id);
@@ -435,7 +438,8 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('extensions.warning', OrderTransactionService::DASHBOARD_REFRESH_WARNING)
-            ->assertJsonPath('refresh.replace_rows', []);
+            ->assertJsonPath('refresh.replace_rows', [])
+            ->assertJsonCount(2, 'refresh.remove_rows');
 
         $this->assertCount(2, $response->json('extensions.succeeded_incident_ids'));
         $this->assertSame('TX-BATCH-ROWS', $first['order']->fresh()->transaction_id);
