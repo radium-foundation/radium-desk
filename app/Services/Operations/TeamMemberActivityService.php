@@ -15,6 +15,10 @@ class TeamMemberActivityService
 
     public function recordSystemActivity(User $user): void
     {
+        if ($this->shouldThrottleLastActiveAt($user)) {
+            return;
+        }
+
         $this->touch($user, 'last_active_at');
     }
 
@@ -26,24 +30,30 @@ class TeamMemberActivityService
 
     public function recordCaseAction(User $user): void
     {
-        $this->touch($user, 'last_case_action_at');
-        $this->recordSystemActivity($user);
+        $this->touchMany($user, $this->activityColumnsIncludingLastActiveIfDue($user, [
+            'last_case_action_at',
+        ]));
         $this->presenceEngine->recordActivity($user, PresenceActivityType::CaseAction);
         $this->workforceActivityContextService->touchBusinessAction($user, 'case.action');
     }
 
     public function recordCustomerCommunication(User $user): void
     {
-        $this->touch($user, 'last_customer_communication_at');
-        $this->recordSystemActivity($user);
+        $this->touchMany($user, $this->activityColumnsIncludingLastActiveIfDue($user, [
+            'last_customer_communication_at',
+        ]));
         $this->presenceEngine->recordActivity($user, PresenceActivityType::CustomerCommunication);
         $this->workforceActivityContextService->touchBusinessAction($user, 'communication.sent');
     }
 
     public function recordStatusChange(User $user): void
     {
-        $this->touch($user, 'last_status_change_at');
-        $this->recordCaseAction($user);
+        $this->touchMany($user, $this->activityColumnsIncludingLastActiveIfDue($user, [
+            'last_status_change_at',
+            'last_case_action_at',
+        ]));
+        $this->presenceEngine->recordActivity($user, PresenceActivityType::CaseAction);
+        $this->workforceActivityContextService->touchBusinessAction($user, 'case.action');
         $this->presenceEngine->recordActivity($user, PresenceActivityType::StatusChange);
         $this->workforceActivityContextService->touchBusinessAction($user, 'service_case.status_changed');
     }
@@ -115,12 +125,59 @@ class TeamMemberActivityService
         ];
     }
 
+    private function shouldThrottleLastActiveAt(User $user): bool
+    {
+        $throttleSeconds = max(0, (int) config('team_member_activity.last_active_throttle_seconds', 60));
+
+        if ($throttleSeconds === 0) {
+            return false;
+        }
+
+        $lastActiveAt = $user->last_active_at;
+
+        if ($lastActiveAt === null) {
+            return false;
+        }
+
+        return $lastActiveAt->greaterThanOrEqualTo(now()->subSeconds($throttleSeconds));
+    }
+
+    /**
+     * @param  list<string>  $columns
+     * @return list<string>
+     */
+    private function activityColumnsIncludingLastActiveIfDue(User $user, array $columns): array
+    {
+        if ($this->shouldThrottleLastActiveAt($user)) {
+            return $columns;
+        }
+
+        return [...$columns, 'last_active_at'];
+    }
+
     private function touch(User $user, string $column): void
     {
+        $this->touchMany($user, [$column]);
+    }
+
+    /**
+     * @param  list<string>  $columns
+     */
+    private function touchMany(User $user, array $columns): void
+    {
+        if ($columns === []) {
+            return;
+        }
+
+        $timestamp = now();
+        $payload = array_fill_keys($columns, $timestamp);
+
         User::query()
             ->whereKey($user->id)
-            ->update([$column => now()]);
+            ->update($payload);
 
-        $user->setAttribute($column, now());
+        foreach ($columns as $column) {
+            $user->setAttribute($column, $timestamp);
+        }
     }
 }
