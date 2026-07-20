@@ -28,7 +28,7 @@ class ExecutiveMetricsContextBuilder
         $incidentAggregates = Incident::query()
             ->whereIn('status', $activeStatuses)
             ->selectRaw('COUNT(*) as open_cases')
-            ->selectRaw('SUM(CASE WHEN high_priority = 1 THEN 1 ELSE 0 END) as critical_cases')
+            ->selectRaw('SUM(CASE WHEN `incidents`.`high_priority` = 1 THEN 1 ELSE 0 END) as critical_cases')
             ->first();
 
         $resolvedToday = Incident::query()

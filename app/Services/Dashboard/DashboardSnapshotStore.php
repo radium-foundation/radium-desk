@@ -22,10 +22,13 @@ class DashboardSnapshotStore
     public function forget(): void
     {
         $this->snapshot = null;
+        app(OperationsQueueClassifier::class)->forgetClassifications();
     }
 
     private function loadFresh(): DashboardSnapshot
     {
+        $classifier = app(OperationsQueueClassifier::class)->rememberClassifications();
+
         return new DashboardSnapshot(
             Incident::query()
                 ->with([
@@ -40,7 +43,7 @@ class DashboardSnapshotStore
                 ])
                 ->whereIn('status', \App\Enums\IncidentStatus::operationallyActive())
                 ->get(),
-            app(OperationsQueueClassifier::class),
+            $classifier,
         );
     }
 }

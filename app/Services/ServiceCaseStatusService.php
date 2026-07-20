@@ -33,18 +33,27 @@ class ServiceCaseStatusService
         ];
     }
 
-    public function closeActiveServiceCasesForOrder(Order $order, User $actor): void
+    public function closeActiveServiceCasesForOrder(Order $order, User $actor, bool $broadcast = true): void
     {
         Incident::query()
             ->where('order_id', $order->id)
             ->where('status', '!=', IncidentStatus::Closed)
             ->orderBy('id')
             ->get()
-            ->each(fn (Incident $incident) => $this->updateStatus($incident, IncidentStatus::Closed, $actor));
+            ->each(fn (Incident $incident) => $this->updateStatus(
+                incident: $incident,
+                status: IncidentStatus::Closed,
+                actor: $actor,
+                broadcast: $broadcast,
+            ));
     }
 
-    public function updateStatus(Incident $incident, IncidentStatus $status, User $actor): Incident
-    {
+    public function updateStatus(
+        Incident $incident,
+        IncidentStatus $status,
+        User $actor,
+        bool $broadcast = true,
+    ): Incident {
         if ($incident->status === $status) {
             return $incident;
         }
@@ -60,7 +69,7 @@ class ServiceCaseStatusService
             $this->validateAgentResolutionRequirements($incident, $actor);
         }
 
-        return DB::transaction(function () use ($incident, $status, $actor): Incident {
+        return DB::transaction(function () use ($incident, $status, $actor, $broadcast): Incident {
             $oldStatus = $incident->status;
 
             $incident->update([
@@ -82,12 +91,21 @@ class ServiceCaseStatusService
                 ->recordStatusChange($actor);
 
             if ($status === IncidentStatus::Closed) {
-                $this->waitingStateService->clearActiveIfPresent($freshIncident, $actor);
+                $this->waitingStateService->clearActiveIfPresent(
+                    incident: $freshIncident,
+                    actor: $actor,
+                    broadcast: $broadcast,
+                );
                 $this->completeScheduledSupportAppointments($freshIncident);
-                $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor);
+
+                if ($broadcast) {
+                    $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor);
+                }
             } elseif ($status === IncidentStatus::Resolved) {
-                $this->dashboardBroadcastService->serviceCaseResolved($freshIncident, $actor);
-            } else {
+                if ($broadcast) {
+                    $this->dashboardBroadcastService->serviceCaseResolved($freshIncident, $actor);
+                }
+            } elseif ($broadcast) {
                 $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
             }
 

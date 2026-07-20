@@ -33,7 +33,11 @@ use App\Services\Notifications\Channels\WhatsAppChannel;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Notifications\NotificationDispatcher;
 use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\DashboardBroadcastService;
+use App\Services\Operations\OperationsQueueClassifier;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxRequestCache;
+use App\Services\ServiceCaseAutomationStatusService;
 use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Services\CommunicationActions\Targets\DeviceModelDriverTargetProvider;
 use App\Services\CommunicationActions\Targets\DeviceModelProductTargetProvider;
@@ -95,6 +99,10 @@ class AppServiceProvider extends ServiceProvider
             ]);
         });
         $this->app->scoped(DashboardSnapshotStore::class);
+        $this->app->scoped(DashboardBroadcastService::class);
+        $this->app->scoped(OperationsQueueClassifier::class);
+        $this->app->scoped(ServiceCaseAutomationStatusService::class);
+        $this->app->scoped(RadiumBoxOrderEnrichmentSyncStore::class);
         $this->app->bind(
             \App\Support\Dashboard\Contracts\DashboardAttentionScoreCalculator::class,
             \App\Support\Dashboard\NullDashboardAttentionScoreCalculator::class,

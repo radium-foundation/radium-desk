@@ -13,11 +13,66 @@ use App\Services\ServiceCaseAutomationStatusService;
 
 class OperationsQueueClassifier
 {
+    private bool $rememberClassifications = false;
+
+    /** @var array<int, OperationQueue> */
+    private array $classificationMemo = [];
+
+    private int $classificationComputeCount = 0;
+
     public function __construct(
         private readonly ServiceCaseAutomationStatusService $automationStatusService,
     ) {}
 
+    /**
+     * Enable request-scoped memoization of classify() results.
+     *
+     * Used by the dashboard snapshot path so each incident is classified once
+     * while filter/queue counts scan the same collection repeatedly.
+     * Disabled by default so workflow code that mutates incidents mid-request
+     * continues to see fresh classifications.
+     */
+    public function rememberClassifications(bool $enabled = true): self
+    {
+        $this->rememberClassifications = $enabled;
+
+        if (! $enabled) {
+            $this->classificationMemo = [];
+        }
+
+        return $this;
+    }
+
+    public function forgetClassifications(): void
+    {
+        $this->classificationMemo = [];
+        $this->classificationComputeCount = 0;
+    }
+
+    public function classificationComputeCount(): int
+    {
+        return $this->classificationComputeCount;
+    }
+
     public function classify(Incident $incident): OperationQueue
+    {
+        $incidentId = $incident->id;
+
+        if ($this->rememberClassifications && $incidentId !== null && array_key_exists($incidentId, $this->classificationMemo)) {
+            return $this->classificationMemo[$incidentId];
+        }
+
+        $this->classificationComputeCount++;
+        $queue = $this->computeClassification($incident);
+
+        if ($this->rememberClassifications && $incidentId !== null) {
+            $this->classificationMemo[$incidentId] = $queue;
+        }
+
+        return $queue;
+    }
+
+    private function computeClassification(Incident $incident): OperationQueue
     {
         if ($this->isCompleted($incident)) {
             return OperationQueue::Completed;

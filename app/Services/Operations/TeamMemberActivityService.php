@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Enums\PresenceActivityType;
 use App\Models\User;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class TeamMemberActivityService
 {
@@ -15,47 +16,87 @@ class TeamMemberActivityService
 
     public function recordSystemActivity(User $user): void
     {
-        if ($this->shouldThrottleLastActiveAt($user)) {
-            return;
-        }
+        $this->runAfterDatabaseCommit(function () use ($user): void {
+            $freshUser = $this->freshUser($user);
 
-        $this->touch($user, 'last_active_at');
+            if ($freshUser === null) {
+                return;
+            }
+
+            if ($this->shouldThrottleLastActiveAt($freshUser)) {
+                return;
+            }
+
+            $this->touch($freshUser, 'last_active_at');
+        });
     }
 
     public function recordActive(User $user): void
     {
         $this->recordSystemActivity($user);
-        $this->presenceEngine->recordActivity($user, PresenceActivityType::System);
+        $this->runAfterDatabaseCommit(function () use ($user): void {
+            $freshUser = $this->freshUser($user);
+
+            if ($freshUser === null) {
+                return;
+            }
+
+            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::System);
+        });
     }
 
     public function recordCaseAction(User $user): void
     {
-        $this->touchMany($user, $this->activityColumnsIncludingLastActiveIfDue($user, [
-            'last_case_action_at',
-        ]));
-        $this->presenceEngine->recordActivity($user, PresenceActivityType::CaseAction);
-        $this->workforceActivityContextService->touchBusinessAction($user, 'case.action');
+        $this->runAfterDatabaseCommit(function () use ($user): void {
+            $freshUser = $this->freshUser($user);
+
+            if ($freshUser === null) {
+                return;
+            }
+
+            $this->touchMany($freshUser, $this->activityColumnsIncludingLastActiveIfDue($freshUser, [
+                'last_case_action_at',
+            ]));
+            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::CaseAction);
+            $this->workforceActivityContextService->touchBusinessAction($freshUser, 'case.action');
+        });
     }
 
     public function recordCustomerCommunication(User $user): void
     {
-        $this->touchMany($user, $this->activityColumnsIncludingLastActiveIfDue($user, [
-            'last_customer_communication_at',
-        ]));
-        $this->presenceEngine->recordActivity($user, PresenceActivityType::CustomerCommunication);
-        $this->workforceActivityContextService->touchBusinessAction($user, 'communication.sent');
+        $this->runAfterDatabaseCommit(function () use ($user): void {
+            $freshUser = $this->freshUser($user);
+
+            if ($freshUser === null) {
+                return;
+            }
+
+            $this->touchMany($freshUser, $this->activityColumnsIncludingLastActiveIfDue($freshUser, [
+                'last_customer_communication_at',
+            ]));
+            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::CustomerCommunication);
+            $this->workforceActivityContextService->touchBusinessAction($freshUser, 'communication.sent');
+        });
     }
 
     public function recordStatusChange(User $user): void
     {
-        $this->touchMany($user, $this->activityColumnsIncludingLastActiveIfDue($user, [
-            'last_status_change_at',
-            'last_case_action_at',
-        ]));
-        $this->presenceEngine->recordActivity($user, PresenceActivityType::CaseAction);
-        $this->workforceActivityContextService->touchBusinessAction($user, 'case.action');
-        $this->presenceEngine->recordActivity($user, PresenceActivityType::StatusChange);
-        $this->workforceActivityContextService->touchBusinessAction($user, 'service_case.status_changed');
+        $this->runAfterDatabaseCommit(function () use ($user): void {
+            $freshUser = $this->freshUser($user);
+
+            if ($freshUser === null) {
+                return;
+            }
+
+            $this->touchMany($freshUser, $this->activityColumnsIncludingLastActiveIfDue($freshUser, [
+                'last_status_change_at',
+                'last_case_action_at',
+            ]));
+            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::CaseAction);
+            $this->workforceActivityContextService->touchBusinessAction($freshUser, 'case.action');
+            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::StatusChange);
+            $this->workforceActivityContextService->touchBusinessAction($freshUser, 'service_case.status_changed');
+        });
     }
 
     public function lastWorkActivityAt(User $user): ?Carbon
@@ -179,5 +220,21 @@ class TeamMemberActivityService
         foreach ($columns as $column) {
             $user->setAttribute($column, $timestamp);
         }
+    }
+
+    private function freshUser(User $user): ?User
+    {
+        return User::query()->find($user->id);
+    }
+
+    private function runAfterDatabaseCommit(callable $callback): void
+    {
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($callback);
+
+            return;
+        }
+
+        $callback();
     }
 }

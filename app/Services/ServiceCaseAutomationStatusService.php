@@ -105,7 +105,7 @@ class ServiceCaseAutomationStatusService
             return false;
         }
 
-        $syncStatus = $this->syncStore->status($incident->order->id);
+        $syncStatus = $this->syncStore->status($incident->order->id, $incident->order);
 
         return $syncStatus === RadiumBoxEnrichmentSyncStatus::Pending;
     }

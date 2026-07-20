@@ -233,6 +233,8 @@ class DashboardSnapshot
      */
     public function queueCounts(?User $scopeUser = null): array
     {
+        $this->warmQueueIncidents($scopeUser);
+
         return collect(OperationQueue::cases())
             ->mapWithKeys(fn (OperationQueue $queue): array => [
                 $queue->value => $this->incidentsForQueue($queue->value, $scopeUser)->count(),
@@ -252,6 +254,74 @@ class DashboardSnapshot
         }
 
         return $counts;
+    }
+
+    /**
+     * Classify each active incident once and populate every OperationQueue bucket
+     * for the given scope. Subsequent incidentsForQueue()/queueCounts() calls reuse
+     * the memoized collections without re-running matchesQueue scans.
+     */
+    private function warmQueueIncidents(?User $scopeUser = null): void
+    {
+        $this->queueIncidents ??= [];
+
+        $queues = OperationQueue::cases();
+        $uncachedQueues = [];
+
+        foreach ($queues as $queue) {
+            $key = $this->queueCacheKey($queue->value, $scopeUser);
+
+            if (! array_key_exists($key, $this->queueIncidents)) {
+                $uncachedQueues[] = $queue;
+            }
+        }
+
+        if ($uncachedQueues === []) {
+            return;
+        }
+
+        /** @var array<string, list<Incident>> $buckets */
+        $buckets = [];
+
+        foreach ($queues as $queue) {
+            $buckets[$queue->value] = [];
+        }
+
+        foreach ($this->activeIncidents as $incident) {
+            $queue = $this->queueClassifier->classify($incident);
+            $buckets[$queue->value][] = $incident;
+
+            if ($scopeUser !== null && $this->queueClassifier->matchesMyWork($incident, $scopeUser)) {
+                $buckets[OperationQueue::MyWork->value][] = $incident;
+            }
+        }
+
+        $assignmentService = null;
+
+        foreach ($uncachedQueues as $queue) {
+            $incidents = collect($buckets[$queue->value]);
+
+            if ($scopeUser !== null && $queue === OperationQueue::WaitingCustomer) {
+                $incidents = $incidents->filter(
+                    fn (Incident $incident): bool => $this->queueClassifier->isAssignedWaitingCustomer($incident, $scopeUser),
+                );
+            }
+
+            if ($scopeUser !== null && $queue === OperationQueue::Completed) {
+                $incidents = $incidents->filter(
+                    fn (Incident $incident): bool => $incident->assigned_to_user_id === $scopeUser->id,
+                );
+            }
+
+            if ($queue === OperationQueue::ActionRequired && $scopeUser === null) {
+                $assignmentService ??= app(ServiceCaseAssignmentService::class);
+                $incidents = $incidents->filter(
+                    fn (Incident $incident): bool => $assignmentService->isVisibleInAdminReadyQueue($incident),
+                );
+            }
+
+            $this->queueIncidents[$this->queueCacheKey($queue->value, $scopeUser)] = $incidents->values();
+        }
     }
 
     /**
@@ -278,6 +348,15 @@ class DashboardSnapshot
      */
     public function incidentsForQueue(string $queue, ?User $scopeUser = null): Collection
     {
+        $cached = $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] ?? null;
+
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        // Prefer the single-pass warm path so classify() runs once per incident.
+        $this->warmQueueIncidents($scopeUser);
+
         $cached = $this->queueIncidents[$this->queueCacheKey($queue, $scopeUser)] ?? null;
 
         if ($cached !== null) {

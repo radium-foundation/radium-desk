@@ -231,22 +231,30 @@ class IncidentWaitingStateService
         );
     }
 
-    public function clear(Incident $incident, User $actor, ?Carbon $clearedAt = null): IncidentWaitingState
-    {
-        return DB::transaction(function () use ($incident, $actor, $clearedAt): IncidentWaitingState {
-            $waitingState = IncidentWaitingState::query()
+    public function clear(
+        Incident $incident,
+        User $actor,
+        ?Carbon $clearedAt = null,
+        bool $broadcast = true,
+    ): IncidentWaitingState {
+        $waitingState = DB::transaction(function () use ($incident, $actor, $clearedAt): IncidentWaitingState {
+            $locked = IncidentWaitingState::query()
                 ->where('incident_id', $incident->id)
                 ->active()
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $waitingState->fill([
+            $locked->fill([
                 'cleared_at' => $clearedAt ?? now(),
                 'updated_by' => $actor->id,
             ])->save();
 
             $incident->unsetRelation('activeWaitingState');
 
+            return $locked->refresh();
+        });
+
+        if ($broadcast) {
             $freshIncident = $incident->fresh([
                 'order.transactionAssigner',
                 'creator',
@@ -256,16 +264,19 @@ class IncidentWaitingStateService
                 'supportAppointments',
             ]);
 
-            $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
+            if ($freshIncident !== null) {
+                $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
+            }
+        }
 
-            return $waitingState->refresh();
-        });
+        return $waitingState;
     }
 
     public function clearActiveIfPresent(
         Incident $incident,
         User $actor,
         ?Carbon $clearedAt = null,
+        bool $broadcast = true,
     ): ?IncidentWaitingState {
         $incident->unsetRelation('activeWaitingState');
 
@@ -278,7 +289,7 @@ class IncidentWaitingStateService
             return null;
         }
 
-        return $this->clear($incident, $actor, $clearedAt);
+        return $this->clear($incident, $actor, $clearedAt, $broadcast);
     }
 
     /**

@@ -60,62 +60,99 @@ class OrderTransactionService
         $this->customerVerificationService->assertCanCompleteService($order, $actor);
         $this->assertNoActiveBusinessHoldOnOrder($order);
 
-        return DB::transaction(function () use ($order, $transactionId, $actor, $broadcast): Order {
-            $oldValues = [
-                'transaction_id' => $order->transaction_id,
-                'completed_at' => $order->completed_at?->toIso8601String(),
-            ];
+        $this->dashboardBroadcastService->beginKpiCoalesce($actor);
 
-            $order->update([
-                'transaction_id' => $transactionId,
-                'completed_at' => now(),
-                'transaction_assigned_by' => $actor->id,
-                'updated_by' => $actor->id,
-            ]);
+        try {
+            $freshOrder = DB::transaction(function () use ($order, $transactionId, $actor, $broadcast): Order {
+                $oldValues = [
+                    'transaction_id' => $order->transaction_id,
+                    'completed_at' => $order->completed_at?->toIso8601String(),
+                ];
 
-            $freshOrder = $order->fresh(['transactionAssigner']);
+                $order->update([
+                    'transaction_id' => $transactionId,
+                    'completed_at' => now(),
+                    'transaction_assigned_by' => $actor->id,
+                    'updated_by' => $actor->id,
+                ]);
 
-            $this->auditLogService->log(
-                userId: $actor->id,
-                event: 'service_reference.assigned',
-                auditable: $freshOrder,
-                oldValues: $oldValues,
-                newValues: [
-                    'transaction_id' => $freshOrder->transaction_id,
-                    'completed_at' => $freshOrder->completed_at?->toIso8601String(),
-                ],
-            );
+                $freshOrder = $order->fresh(['transactionAssigner']);
 
-            app(TeamMemberActivityService::class)
-                ->recordCaseAction($actor);
+                $this->auditLogService->log(
+                    userId: $actor->id,
+                    event: 'service_reference.assigned',
+                    auditable: $freshOrder,
+                    oldValues: $oldValues,
+                    newValues: [
+                        'transaction_id' => $freshOrder->transaction_id,
+                        'completed_at' => $freshOrder->completed_at?->toIso8601String(),
+                    ],
+                );
 
-            $this->scheduleServiceReferenceAssignedCommunication($freshOrder, $transactionId, $actor);
+                app(TeamMemberActivityService::class)
+                    ->recordCaseAction($actor);
 
-            $this->auditLogService->log(
-                userId: $actor->id,
-                event: 'transaction.assigned',
-                auditable: $freshOrder,
-                oldValues: $oldValues,
-                newValues: [
-                    'transaction_id' => $freshOrder->transaction_id,
-                    'completed_at' => $freshOrder->completed_at?->toIso8601String(),
-                ],
-            );
+                $this->scheduleServiceReferenceAssignedCommunication($freshOrder, $transactionId, $actor);
 
-            $this->serviceCaseStatusService->closeActiveServiceCasesForOrder($freshOrder, $actor);
+                $this->auditLogService->log(
+                    userId: $actor->id,
+                    event: 'transaction.assigned',
+                    auditable: $freshOrder,
+                    oldValues: $oldValues,
+                    newValues: [
+                        'transaction_id' => $freshOrder->transaction_id,
+                        'completed_at' => $freshOrder->completed_at?->toIso8601String(),
+                    ],
+                );
 
-            $this->notifyTransactionCompleted($freshOrder, $transactionId, $actor);
+                // Close without per-case dashboard fan-out; a single post-commit
+                // transactionAssigned broadcast + coalesced KPI refresh follows.
+                $this->serviceCaseStatusService->closeActiveServiceCasesForOrder(
+                    order: $freshOrder,
+                    actor: $actor,
+                    broadcast: false,
+                );
 
-            if ($broadcast) {
-                Incident::query()
-                    ->with(['order.transactionAssigner', 'creator', 'assignee'])
-                    ->where('order_id', $freshOrder->id)
-                    ->get()
-                    ->each(fn (Incident $incident) => $this->dashboardBroadcastService->transactionAssigned($incident, $actor));
-            }
+                $orderId = $freshOrder->id;
+                $actorId = $actor->id;
 
-            return $freshOrder;
-        });
+                DB::afterCommit(function () use ($orderId, $transactionId, $actorId, $broadcast): void {
+                    $committedOrder = Order::query()
+                        ->with(['transactionAssigner'])
+                        ->find($orderId);
+                    $committedActor = User::query()->find($actorId);
+
+                    if ($committedOrder === null || $committedActor === null) {
+                        $this->dashboardBroadcastService->cancelKpiCoalesce();
+
+                        return;
+                    }
+
+                    $this->notifyTransactionCompleted($committedOrder, $transactionId, $committedActor);
+
+                    if ($broadcast) {
+                        Incident::query()
+                            ->with(['order.transactionAssigner', 'creator', 'assignee'])
+                            ->where('order_id', $committedOrder->id)
+                            ->get()
+                            ->each(fn (Incident $incident) => $this->dashboardBroadcastService->transactionAssigned(
+                                $incident,
+                                $committedActor,
+                            ));
+                    }
+
+                    $this->dashboardBroadcastService->flushKpiCoalesce();
+                });
+
+                return $freshOrder;
+            });
+        } catch (Throwable $exception) {
+            $this->dashboardBroadcastService->cancelKpiCoalesce();
+
+            throw $exception;
+        }
+
+        return $freshOrder;
     }
 
     private function scheduleServiceReferenceAssignedCommunication(

@@ -2,12 +2,20 @@
 
 namespace Tests\Feature;
 
+use App\Enums\IncidentSource;
+use App\Enums\IncidentStatus;
+use App\Enums\OperationQueue;
+use App\Models\Incident;
+use App\Models\Order;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\DashboardService;
+use App\Services\IncidentReferenceService;
 use App\Services\Operations\IraMemoryService;
 use App\Services\Operations\OperationsDashboardLiveRenderer;
 use App\Services\Operations\OperationsDashboardSectionBundles;
 use App\Services\Operations\OperationsDashboardService;
+use App\Services\Operations\OperationsQueueClassifier;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -155,6 +163,62 @@ class OperationsDashboardPerformanceTest extends TestCase
         DB::disableQueryLog();
 
         $this->assertSame(1, $incidentQueries, 'DashboardSnapshotStore should load incidents only once per request.');
+    }
+
+    public function test_filter_counts_classifies_each_active_incident_only_once(): void
+    {
+        Cache::flush();
+        app(DashboardSnapshotStore::class)->forget();
+        app(OperationsQueueClassifier::class)->forgetClassifications();
+
+        $creator = User::factory()->create(['is_active' => true]);
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $activeCount = 12;
+
+        for ($index = 1; $index <= $activeCount; $index++) {
+            $order = Order::query()->create([
+                'order_id' => 'RB-PERF-'.$index,
+                'serial_number' => null,
+                'product_name' => 'MFS110',
+                'device_model' => 'MFS110',
+                'status' => 'active',
+                'created_by' => $creator->id,
+            ]);
+
+            Incident::query()->create([
+                'order_id' => $order->id,
+                'reference_no' => app(IncidentReferenceService::class)->generate(),
+                'category' => 'General',
+                'source' => IncidentSource::Call,
+                'title' => 'Perf case '.$index,
+                'description' => 'Perf case '.$index,
+                'status' => IncidentStatus::Open,
+                'created_by' => $creator->id,
+                'updated_by' => $creator->id,
+            ]);
+        }
+
+        $classifier = app(OperationsQueueClassifier::class);
+        $classifier->forgetClassifications();
+
+        $counts = app(DashboardService::class)->serviceCaseFilterCounts();
+
+        $this->assertSame(
+            $activeCount,
+            $classifier->classificationComputeCount(),
+            'filterCounts/queueCounts should classify each active incident only once per request.',
+        );
+
+        foreach (OperationQueue::cases() as $queue) {
+            $this->assertArrayHasKey($queue->value, $counts);
+            $this->assertIsInt($counts[$queue->value]);
+        }
+
+        // Second pass must reuse memoized classifications and queue buckets.
+        $before = $classifier->classificationComputeCount();
+        app(DashboardService::class)->serviceCaseFilterCounts();
+        $this->assertSame($before, $classifier->classificationComputeCount());
     }
 
     public function test_partial_dashboard_build_skips_ivr_analytics_bundle(): void

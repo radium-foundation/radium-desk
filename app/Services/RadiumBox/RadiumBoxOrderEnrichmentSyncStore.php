@@ -19,13 +19,16 @@ class RadiumBoxOrderEnrichmentSyncStore
 
     private const CACHE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
+    /** @var array<int, array<string, mixed>|null> */
+    private array $readMemo = [];
+
     public function __construct(
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
 
-    public function status(int $orderId): RadiumBoxEnrichmentSyncStatus
+    public function status(int $orderId, ?Order $preloadedOrder = null): RadiumBoxEnrichmentSyncStatus
     {
-        $record = $this->read($orderId);
+        $record = $this->read($orderId, $preloadedOrder);
 
         if ($record === null) {
             return RadiumBoxEnrichmentSyncStatus::NotSynced;
@@ -100,6 +103,7 @@ class RadiumBoxOrderEnrichmentSyncStore
 
     public function forget(int $orderId): void
     {
+        unset($this->readMemo[$orderId]);
         Cache::forget($this->cacheKey($orderId));
 
         if (! Order::supportsRadiumBoxSyncTracking()) {
@@ -178,6 +182,7 @@ class RadiumBoxOrderEnrichmentSyncStore
      */
     private function persist(int $orderId, array $record, ?int $syncAttempts = null): void
     {
+        unset($this->readMemo[$orderId]);
         $this->writeCacheMetadata($orderId, $record);
 
         if (! Order::supportsRadiumBoxSyncTracking()) {
@@ -205,26 +210,42 @@ class RadiumBoxOrderEnrichmentSyncStore
     /**
      * @return array<string, mixed>|null
      */
-    private function read(int $orderId): ?array
+    private function read(int $orderId, ?Order $preloadedOrder = null): ?array
+    {
+        if (array_key_exists($orderId, $this->readMemo)) {
+            return $this->readMemo[$orderId];
+        }
+
+        return $this->readMemo[$orderId] = $this->readUncached($orderId, $preloadedOrder);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function readUncached(int $orderId, ?Order $preloadedOrder = null): ?array
     {
         $metadata = $this->readCacheMetadata($orderId) ?? [];
 
         if (Order::supportsRadiumBoxSyncTracking()) {
-            $order = Order::query()
-                ->whereKey($orderId)
-                ->first([
-                    'id',
-                    'radiumbox_sync_status',
-                    'radiumbox_last_sync_at',
-                    'radiumbox_last_sync_error',
-                    'radiumbox_sync_attempts',
-                ]);
+            $order = ($preloadedOrder !== null && (int) $preloadedOrder->getKey() === $orderId)
+                ? $preloadedOrder
+                : Order::query()
+                    ->whereKey($orderId)
+                    ->first([
+                        'id',
+                        'radiumbox_sync_status',
+                        'radiumbox_last_sync_at',
+                        'radiumbox_last_sync_error',
+                        'radiumbox_sync_attempts',
+                    ]);
 
             if ($order !== null) {
                 $status = $order->radiumbox_sync_status ?? RadiumBoxEnrichmentSyncStatus::NotSynced;
 
                 return [
-                    'status' => $status->value,
+                    'status' => $status instanceof RadiumBoxEnrichmentSyncStatus
+                        ? $status->value
+                        : (string) $status,
                     'metadata' => $metadata,
                     'updated_at' => $order->radiumbox_last_sync_at?->toIso8601String(),
                     'last_sync_error' => $order->radiumbox_last_sync_error,

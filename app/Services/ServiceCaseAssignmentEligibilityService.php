@@ -230,7 +230,7 @@ class ServiceCaseAssignmentEligibilityService
 
     private function radiumBoxVerificationSucceeded(Order $order): bool
     {
-        $syncStatus = $this->syncStore->status($order->id);
+        $syncStatus = $this->syncStore->status($order->id, $order);
 
         if ($syncStatus === RadiumBoxEnrichmentSyncStatus::NotSynced) {
             return true;
