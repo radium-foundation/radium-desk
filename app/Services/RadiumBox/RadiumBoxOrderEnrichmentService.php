@@ -5,12 +5,15 @@ namespace App\Services\RadiumBox;
 use App\Data\RadiumBox\RadiumBoxManualSyncResult;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\RadiumBoxSyncSource;
+use App\Enums\WaitingReason;
 use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
+use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\RadiumBox\Exceptions\RadiumBoxEnrichmentRetryException;
+use App\Services\ServiceCaseAssignmentEligibilityService;
 use App\Services\ServiceCaseAutomationMonitorService;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use Illuminate\Support\Facades\Log;
@@ -451,6 +454,15 @@ class RadiumBoxOrderEnrichmentService
 
     private function runPostSyncLifecycleIfNeeded(Order $order, array $result): void
     {
+        // Serial may have been applied while sync was still PENDING, so the first
+        // identity lifecycle pass could not clear serial waiting / enter Ready.
+        // After markSynced(), recover that path when conditions still hold.
+        if ($this->shouldRecoverSerialWaitingAfterSync($order)) {
+            $this->runIdentityLifecycle($order, serialChanged: true);
+
+            return;
+        }
+
         $persistence = $result['outcome']['persistence'];
 
         if ($persistence->updated && $this->identityLifecycle->hasIdentityFields($persistence->fieldsApplied)) {
@@ -460,7 +472,38 @@ class RadiumBoxOrderEnrichmentService
         $this->runIdentityLifecycle($order);
     }
 
-    private function runIdentityLifecycle(Order $order): void
+    /**
+     * Idempotent gate: only re-run lifecycle when serial waiting is still active
+     * and validation now passes under SYNCED status.
+     */
+    private function shouldRecoverSerialWaitingAfterSync(Order $order): bool
+    {
+        $order = $order->fresh(['incidents.activeWaitingState']);
+
+        if ($order === null || ! filled(trim((string) $order->serial_number))) {
+            return false;
+        }
+
+        $hasSerialWaiting = $order->incidents->contains(function (Incident $incident): bool {
+            if (! $incident->isActive()) {
+                return false;
+            }
+
+            $waiting = $incident->activeWaitingState;
+
+            return $waiting !== null
+                && $waiting->isActive()
+                && $waiting->waiting_reason === WaitingReason::SerialNumber;
+        });
+
+        if (! $hasSerialWaiting) {
+            return false;
+        }
+
+        return app(ServiceCaseAssignmentEligibilityService::class)->passesValidationForOrder($order);
+    }
+
+    private function runIdentityLifecycle(Order $order, bool $serialChanged = false): void
     {
         $order->loadMissing('incidents.creator');
         $actor = $order->incidents->first()?->creator;
@@ -469,7 +512,7 @@ class RadiumBoxOrderEnrichmentService
             order: $order,
             actor: $this->automationMonitor->resolveAutomationActor($actor),
             source: 'radiumbox_enrichment',
-            serialChanged: false,
+            serialChanged: $serialChanged,
         );
     }
 

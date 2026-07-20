@@ -67,6 +67,8 @@ class WorkspaceRefundRequestTest extends TestCase
             ->assertSee('TXN-12345', false)
             ->assertSee('id="refund-request-amount"', false)
             ->assertSee('value="2500.00"', false)
+            ->assertSee('id="refund-request-remarks"', false)
+            ->assertSee('Remarks', false)
             ->assertSee('data-workspace-action-form="refund-request"', false)
             ->assertDontSee('Reference Number', false)
             ->assertDontSee('<!DOCTYPE html>', false);
@@ -105,6 +107,7 @@ class WorkspaceRefundRequestTest extends TestCase
             ->postJson(route('incidents.workspace.refund-request', $incident), [
                 'amount' => 1800,
                 'reason' => 'Customer returned device within warranty period.',
+                'remarks' => 'Customer asked for cancellation and refund by email.',
                 'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
                 'notify_email' => '1',
                 'notify_whatsapp' => '1',
@@ -124,6 +127,32 @@ class WorkspaceRefundRequestTest extends TestCase
         $this->assertSame($incident->id, $refund->incident_id);
         $this->assertSame(RefundStatus::Pending, $refund->status);
         $this->assertSame(1800.0, (float) $refund->amount);
+        $this->assertSame('Customer asked for cancellation and refund by email.', $refund->requester_remarks);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'refund.requested',
+            'auditable_type' => $refund->getMorphClass(),
+            'auditable_id' => $refund->id,
+            'user_id' => $agent->id,
+        ]);
+    }
+
+    public function test_workspace_refund_request_requires_remarks(): void
+    {
+        [$agent, $incident] = $this->createFixture(RolePermissionSeeder::ROLE_AGENT, paymentAmount: 1800);
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('incidents.workspace.refund-request', $incident), [
+                'amount' => 1800,
+                'reason' => 'Customer returned device within warranty period.',
+                'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+                'workspace_context' => 'customer',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertDatabaseCount('refund_requests', 0);
     }
 
     public function test_workspace_refund_request_validation_errors_rerender_fragment(): void
@@ -134,6 +163,7 @@ class WorkspaceRefundRequestTest extends TestCase
             ->postJson(route('incidents.workspace.refund-request', $incident), [
                 'amount' => 1800,
                 'reason' => 'short',
+                'remarks' => 'Remarks present but reason too short.',
                 'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
                 'workspace_context' => 'customer',
             ]);

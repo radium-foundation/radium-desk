@@ -112,6 +112,7 @@ class RefundRequestTest extends TestCase
             'incident_id' => $incident->id,
             'amount' => 1500.50,
             'reason' => 'Customer returned device within warranty period.',
+            'remarks' => 'Customer requested full cancellation after payment.',
             'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
         ]);
 
@@ -121,6 +122,7 @@ class RefundRequestTest extends TestCase
         $this->assertMatchesRegularExpression('/^REF-\d{4}-\d{6}$/', $refund->reference_no);
         $this->assertSame(RefundStatus::Pending, $refund->status);
         $this->assertSame($incident->id, $refund->incident_id);
+        $this->assertSame('Customer requested full cancellation after payment.', $refund->requester_remarks);
         $this->assertSame(CustomerPreferredRefundMethod::Wallet, $refund->customer_preferred_method);
         $response->assertRedirect(route('refunds.show', $refund));
 
@@ -136,6 +138,36 @@ class RefundRequestTest extends TestCase
             'auditable_type' => $refund->getMorphClass(),
             'auditable_id' => $refund->id,
         ]);
+
+        $requestedAudit = \App\Models\AuditLog::query()
+            ->where('event', 'refund.requested')
+            ->where('auditable_id', $refund->id)
+            ->first();
+
+        $this->assertNotNull($requestedAudit);
+        $this->assertSame(
+            'Customer requested full cancellation after payment.',
+            $requestedAudit->new_values['requester_remarks'] ?? null,
+        );
+    }
+
+    public function test_agent_cannot_create_refund_without_remarks(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = $this->createOrder($agent);
+
+        $this->actingAs($agent)
+            ->post(route('refunds.store'), [
+                'order_id' => $order->id,
+                'amount' => 500,
+                'reason' => 'Customer returned device within warranty period.',
+                'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+            ])
+            ->assertSessionHasErrors('remarks');
+
+        $this->assertDatabaseCount('refund_requests', 0);
     }
 
     public function test_index_supports_filters(): void
@@ -385,6 +417,7 @@ class RefundRequestTest extends TestCase
                 'incident_id' => $incident->id,
                 'amount' => 100,
                 'reason' => 'Invalid incident order mismatch validation test.',
+                'remarks' => 'Order and incident mismatch remarks.',
                 'customer_preferred_method' => CustomerPreferredRefundMethod::Opm->value,
             ])
             ->assertSessionHasErrors('incident_id');
@@ -460,6 +493,7 @@ class RefundRequestTest extends TestCase
                 'order_id' => $order->id,
                 'amount' => 1500,
                 'reason' => 'Attempting to refund more than the maximum refundable amount.',
+                'remarks' => 'Over-maximum amount validation remarks.',
                 'customer_preferred_method' => CustomerPreferredRefundMethod::Opm->value,
             ])
             ->assertSessionHasErrors('refund_amount');

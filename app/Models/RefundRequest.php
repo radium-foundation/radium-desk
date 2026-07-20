@@ -22,6 +22,7 @@ class RefundRequest extends Model
         'reference_no',
         'amount',
         'reason',
+        'requester_remarks',
         'customer_preferred_method',
         'approved_refund_method',
         'status',

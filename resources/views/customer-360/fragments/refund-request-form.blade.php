@@ -20,6 +20,7 @@
     }
 
     $reasonValue = old('reason', $formPayload['reason'] ?? $refundModel->reason);
+    $remarksValue = old('remarks', $formPayload['remarks'] ?? $refundModel->requester_remarks);
     $notifyEmailChecked = old(
         'notify_email',
         array_key_exists('notify_email', $formPayload ?? [])
@@ -173,6 +174,33 @@
                     @enderror
                 </div>
 
+                <div class="workspace-form-field workspace-form-field--full">
+                    <label for="refund-request-remarks" class="workspace-form-label">
+                        Remarks <span class="text-danger">*</span>
+                    </label>
+                    <textarea name="remarks"
+                              id="refund-request-remarks"
+                              rows="3"
+                              class="form-control form-control-sm workspace-form-textarea--compact @error('remarks') is-invalid @enderror"
+                              placeholder="Add remarks for finance review"
+                              required>{{ $remarksValue }}</textarea>
+                    @error('remarks')
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="workspace-form-field workspace-form-field--full">
+                    <label for="refund-request-attachment" class="workspace-form-label">
+                        Attachment
+                        <span class="text-muted fw-normal">(coming soon)</span>
+                    </label>
+                    <input type="file"
+                           id="refund-request-attachment"
+                           class="form-control form-control-sm"
+                           disabled
+                           aria-disabled="true">
+                </div>
+
                 <div class="workspace-inline-checks workspace-inline-checks--titled">
                     <span class="workspace-inline-checks__label">Notify</span>
                     <div class="form-check form-check-inline mb-0">
@@ -202,7 +230,7 @@
     <x-c360.modal-footer class="workspace-dialog-footer">
         <button type="button" class="btn btn-sm c360-dialog-btn-ghost" data-bs-dismiss="modal">Cancel</button>
         @if($order !== null)
-            <button type="submit" class="btn btn-sm c360-dialog-btn-primary">Submit Refund</button>
+            <button type="submit" class="btn btn-sm c360-dialog-btn-primary">Submit</button>
         @endif
     </x-c360.modal-footer>
 </form>

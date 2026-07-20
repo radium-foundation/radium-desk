@@ -69,6 +69,23 @@
     </div>
 
     <div class="col-12">
+        <label for="remarks" class="form-label">Remarks <span class="text-danger">*</span></label>
+        <textarea name="remarks" id="remarks" rows="3"
+                  class="form-control @error('remarks') is-invalid @enderror"
+                  placeholder="Add remarks for finance review" required>{{ old('remarks', $refund->requester_remarks) }}</textarea>
+        @error('remarks')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+    </div>
+
+    <div class="col-12">
+        <label for="refund_attachment" class="form-label">
+            Attachment <span class="text-muted fw-normal">(coming soon)</span>
+        </label>
+        <input type="file" id="refund_attachment" class="form-control" disabled aria-disabled="true">
+    </div>
+
+    <div class="col-12">
         <label class="form-label d-block">Customer Communication</label>
         <div class="d-flex flex-wrap gap-3">
             <div class="form-check">

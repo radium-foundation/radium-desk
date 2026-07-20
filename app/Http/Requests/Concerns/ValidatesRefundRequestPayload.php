@@ -27,6 +27,7 @@ trait ValidatesRefundRequestPayload
             ],
             'amount' => ['nullable', 'numeric', 'min:0.01', 'max:99999999.99'],
             'reason' => ['required', 'string', 'min:10', 'max:5000'],
+            'remarks' => ['required', 'string', 'min:3', 'max:5000'],
             'customer_preferred_method' => [
                 'required',
                 Rule::enum(CustomerPreferredRefundMethod::class),
@@ -52,6 +53,7 @@ trait ValidatesRefundRequestPayload
             'incident_id' => 'incident',
             'amount' => 'amount',
             'reason' => 'reason',
+            'remarks' => 'remarks',
             'customer_preferred_method' => 'customer preferred refund method',
             'communication_channels' => 'communication channels',
         ];

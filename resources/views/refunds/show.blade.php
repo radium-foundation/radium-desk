@@ -55,6 +55,9 @@
                         <dt class="col-sm-4 text-muted">Reason</dt>
                         <dd class="col-sm-8">{!! nl2br(e($refund->reason)) !!}</dd>
 
+                        <dt class="col-sm-4 text-muted">Remarks</dt>
+                        <dd class="col-sm-8">{!! nl2br(e($refund->requester_remarks ?: '—')) !!}</dd>
+
                         <dt class="col-sm-4 text-muted">Requested By</dt>
                         <dd class="col-sm-8">{{ $refund->requester?->name ?? '—' }}</dd>
 
