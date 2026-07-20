@@ -24,10 +24,13 @@ use App\Services\IncidentReferenceService;
 use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\IraOperationsBrainService;
 use Database\Seeders\RolePermissionSeeder;
+use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class IraTelegramCommunicationTest extends TestCase
@@ -414,6 +417,91 @@ class IraTelegramCommunicationTest extends TestCase
         $this->artisan('ira:flush-assignment-telegram-batches')->assertSuccessful();
 
         Http::assertSentCount(1);
+
+        $this->assertSame(
+            1,
+            IraNotification::query()
+                ->where('user_id', $assignee->id)
+                ->where('notification_type', IraNotificationType::IraAssignmentBatch->value)
+                ->where('status', IraNotificationStatus::Sent->value)
+                ->count(),
+        );
+    }
+
+    public function test_legacy_support_assignment_telegram_listener_is_not_registered(): void
+    {
+        $this->assertFalse(
+            class_exists(\App\Listeners\Operations\DispatchSupportAssignmentTelegramNotification::class),
+        );
+
+        $registered = collect(app('events')->getRawListeners()[SupportAppointmentSmartAssigned::class] ?? [])
+            ->flatten()
+            ->map(function (mixed $listener): string {
+                if (is_string($listener)) {
+                    return $listener;
+                }
+
+                if (is_array($listener)) {
+                    $target = $listener[0] ?? null;
+
+                    return is_object($target) ? $target::class : (string) $target;
+                }
+
+                if (is_object($listener)) {
+                    return $listener::class;
+                }
+
+                return (string) $listener;
+            })
+            ->implode("\n");
+
+        $this->assertStringContainsString(DispatchIraSmartAssignmentNotification::class, $registered);
+        $this->assertStringNotContainsString('DispatchSupportAssignmentTelegramNotification', $registered);
+    }
+
+    public function test_support_appointment_smart_assigned_does_not_emit_legacy_telegram_dispatch_error(): void
+    {
+        Log::spy();
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 101],
+            ], 200),
+        ]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
+        config([
+            'system_settings.notifications.telegram.enabled' => true,
+            'ira.communication.assignment_telegram_batch.enabled' => true,
+            'ira.communication.assignment_telegram_batch.delay_minutes' => 5,
+        ]);
+
+        $assignee = User::factory()->create([
+            'name' => 'Legacy Path Agent',
+            'telegram_chat_id' => '111222333',
+            'telegram_notifications_enabled' => true,
+            'is_active' => true,
+        ]);
+        $assignee->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
+
+        [$incident, $appointment] = $this->createAssignmentFixtures($assignee);
+
+        event(new SupportAppointmentSmartAssigned(
+            incident: $incident,
+            appointment: $appointment,
+            assignee: $assignee,
+            result: \App\Data\Operations\SmartAssignmentResult::assigned(
+                assignee: $assignee,
+                reasons: ['Available'],
+                context: ['factors' => ['Available']],
+            ),
+        ));
+
+        Log::shouldNotHaveReceived('error', ['smart_assignment.telegram_dispatch_failed']);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-09 10:05:00', 'Asia/Kolkata'));
+        $this->artisan('ira:flush-assignment-telegram-batches')->assertSuccessful();
 
         $this->assertSame(
             1,

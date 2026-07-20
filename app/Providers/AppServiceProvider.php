@@ -171,7 +171,8 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(NotificationSent::class, BroadcastNotificationCreated::class);
         // Ira operational Telegram (assignments, risks, briefings) is owned by
         // DispatchIraSmartAssignmentNotification + IraCommunicationService.
-        // DispatchSupportAssignmentTelegramNotification is intentionally not registered.
+        // The legacy DispatchSupportAssignmentTelegramNotification listener was removed
+        // so it cannot be re-registered via event discovery.
         Event::listen(SupportAppointmentSmartAssigned::class, DispatchIraSmartAssignmentNotification::class);
 
         Order::updated(function (Order $order): void {

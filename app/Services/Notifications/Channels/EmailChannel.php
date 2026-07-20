@@ -35,6 +35,7 @@ class EmailChannel implements NotificationChannel
             NotificationType::RefundConfirmation,
             NotificationType::BuyRdService,
             NotificationType::BuyProduct => true,
+            default => false,
         };
     }
 
