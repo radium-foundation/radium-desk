@@ -7,12 +7,11 @@
 
 @php
     $phone = trim((string) ($customer['mobile'] ?? ''));
+    $resolvedOrder = $order ?? $incident->order;
     $phoneDigits = preg_replace('/\D+/', '', $phone) ?? '';
     $whatsappUrl = strlen($phoneDigits) >= 10
         ? 'https://wa.me/'.(str_starts_with($phoneDigits, '91') ? $phoneDigits : '91'.$phoneDigits)
         : null;
-    $telUrl = $phone !== '' ? 'tel:'.$phone : null;
-
     $overflowMenuGroups = $overflowMenuGroups ?? [];
     $hasOverflowMenu = collect($overflowMenuGroups)->contains(
         fn (array $group): bool => ($group['items'] ?? []) !== [],
@@ -24,26 +23,15 @@
      data-c360-quick-toolbar
      aria-label="Quick actions">
     <div class="c360-quick-toolbar-actions">
-        @if($telUrl)
-            <a href="{{ $telUrl }}"
-               class="c360-quick-toolbar-btn"
-               title="Call customer (C)"
-               aria-label="Call customer"
-               data-c360-shortcut-action="call">
-                <i class="bi bi-telephone" aria-hidden="true"></i>
-                <span>Call</span>
-            </a>
-        @else
-            <button type="button"
-                    class="c360-quick-toolbar-btn"
-                    disabled
-                    title="No phone number"
-                    aria-label="Call customer unavailable"
-                    data-c360-shortcut-action="call">
-                <i class="bi bi-telephone" aria-hidden="true"></i>
-                <span>Call</span>
-            </button>
-        @endif
+        <x-bonvoice.call-button
+            :phone="$phone"
+            :order-id="$resolvedOrder?->id"
+            :incident-id="$incident->id"
+            class="c360-quick-toolbar-btn"
+            title="Call customer (C)"
+            aria-label="Call customer"
+            shortcut-action="call"
+        />
 
         @if($whatsappUrl)
             <a href="{{ $whatsappUrl }}"

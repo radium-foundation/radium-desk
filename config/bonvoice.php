@@ -15,4 +15,13 @@ return [
         env('BONVOICE_AUTO_OPEN_CUSTOMER360', false),
         FILTER_VALIDATE_BOOLEAN,
     ),
+    'click_to_call' => [
+        'enabled' => filter_var(env('BONVOICE_CLICK_TO_CALL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+        'base_url' => rtrim((string) env('BONVOICE_API_BASE_URL', 'https://backend.pbx.bonvoice.com'), '/'),
+        'username' => env('BONVOICE_API_USERNAME'),
+        'password' => env('BONVOICE_API_PASSWORD'),
+        'did' => env('BONVOICE_DID', '8040837125'),
+        'connect_timeout_seconds' => 5,
+        'timeout_seconds' => 15,
+    ],
 ];

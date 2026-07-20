@@ -5,6 +5,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\AutomationHealthController;
 use App\Http\Controllers\AutomationOperationsController;
+use App\Http\Controllers\BonvoiceClickToCallController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\CompanyHolidayController;
@@ -85,6 +86,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360');
     Route::get('dashboard/orders/{order}/customer-360', [Customer360Controller::class, 'showForOrder'])
         ->name('dashboard.orders.customer-360');
+    Route::post('bonvoice/click-to-call', BonvoiceClickToCallController::class)
+        ->name('bonvoice.click-to-call');
     Route::post('dashboard/service-cases/{incident}/customer-360/radiumbox-sync', [Customer360Controller::class, 'radiumBoxSync'])
         ->name('dashboard.service-cases.customer-360.radiumbox-sync');
     Route::get('dashboard/service-cases/{incident}/customer-360/device', [Customer360Controller::class, 'device'])

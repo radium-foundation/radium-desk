@@ -790,7 +790,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initLiveNotifications();
     initServiceCaseShow();
     initMentionTextareas(document.querySelector('[data-service-case-show]') ?? document);
-    initOrderWorkspace();
+    initOrderWorkspace({ showToast: showAppToast });
 
     initKeyboardShortcuts({
         closeOpenInlineEditor: () => (

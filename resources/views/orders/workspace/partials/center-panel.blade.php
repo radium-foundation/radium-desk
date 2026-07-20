@@ -29,14 +29,16 @@
                 <span class="order-workspace-sticky-status">{{ $primaryStatus }}</span>
             </div>
             <div class="order-workspace-sticky-actions">
-                @if($order->customer_phone)
-                    <a href="tel:{{ $order->customer_phone }}"
-                       class="order-workspace-sticky-btn"
-                       title="Call customer">
-                        <i class="bi bi-telephone-fill" aria-hidden="true"></i>
-                        <span class="visually-hidden">Call</span>
-                    </a>
-                @endif
+                <x-bonvoice.call-button
+                    :phone="$order->customer_phone"
+                    :order-id="$order->id"
+                    :incident-id="$repairIncident?->id"
+                    class="order-workspace-sticky-btn"
+                    icon-class="bi bi-telephone-fill"
+                    title="Call customer"
+                    aria-label="Call customer"
+                    :show-label="false"
+                />
                 @can('create', App\Models\Incident::class)
                     <a href="{{ route('orders.service-cases.create', $order) }}"
                        class="order-workspace-sticky-btn order-workspace-sticky-btn--primary"
@@ -73,7 +75,10 @@
         </div>
 
         <div class="order-workspace-header-actions">
-            @include('orders.workspace.partials.quick-actions', ['order' => $order])
+            @include('orders.workspace.partials.quick-actions', [
+                'order' => $order,
+                'activeIncident' => $repairIncident,
+            ])
         </div>
     </header>
 

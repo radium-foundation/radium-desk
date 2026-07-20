@@ -2,6 +2,7 @@ import { getWorkspaceSession } from './workspace/session';
 import { rememberLastCustomer } from './agent-dashboard';
 import { initUnifiedTimeline } from './unified-timeline';
 import { initCustomer360Cockpit, bindIraDisclosures } from './customer-360-cockpit';
+import { bindBonvoiceClickToCall } from './bonvoice-click-to-call';
 import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen, openMoreMenuForHost } from './customer-360-more-menu';
 
 const SESSION_REASON = 'customer-360-drawer';
@@ -1056,6 +1057,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             showToast,
             isOpen: () => drawer.classList.contains('is-open'),
         });
+        bindBonvoiceClickToCall(contentHost, { showToast });
     };
 
     const loadInitialContent = async (incidentId) => {
