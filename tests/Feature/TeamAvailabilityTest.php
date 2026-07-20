@@ -398,7 +398,7 @@ class TeamAvailabilityTest extends TestCase
         $snapshot = app(TeamMemberActivityService::class)->snapshotFor($actor);
         $this->assertNotNull($snapshot['last_case_action_at']);
         $this->assertNotNull($snapshot['last_work_activity_at']);
-        $this->assertSame('Last case action', $snapshot['primary_work_activity_label']);
+        $this->assertSame('Case Updated', $snapshot['primary_work_activity_label']);
 
         Carbon::setTestNow();
     }

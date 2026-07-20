@@ -256,6 +256,8 @@ class PresenceEngineService
                 ? $workActivity['at']->format('H:i')
                 : null,
             'session_open' => $session?->isOpen() ?? false,
+            'current_incident_id' => $session?->current_incident_id,
+            'on_time_login' => $session?->on_time_login,
         ];
     }
 

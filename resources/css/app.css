@@ -12908,6 +12908,12 @@ button.agent-kpi-tile {
     color: var(--bs-secondary-color);
 }
 
+.workforce360-capacity-section__title {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
 .workforce360-capacity-card__value {
     font-weight: 700;
 }
@@ -12926,6 +12932,191 @@ button.agent-kpi-tile {
 
 .workforce360-capacity-card--danger {
     border-left: 4px solid var(--dashboard-color-danger, #dc3545);
+}
+
+.workforce360-team-header,
+.workforce360-team-grid {
+    display: grid;
+    gap: 0.5rem 0.75rem;
+    align-items: start;
+}
+
+/* Scoped to Workforce360 team table — does not affect Operations Team Presence grid */
+.workforce360-team-card .workforce360-team-header {
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--bs-secondary-color, #6c757d);
+    grid-template-columns:
+        minmax(8rem, 1.35fr)
+        minmax(7rem, 1.1fr)
+        minmax(4.75rem, 0.65fr)
+        minmax(4.25rem, 0.6fr)
+        minmax(4.5rem, 0.65fr)
+        minmax(7.5rem, 1.15fr)
+        minmax(5.5rem, 0.85fr)
+        auto;
+}
+
+.workforce360-team-card .workforce360-team-grid {
+    grid-template-columns: 1fr;
+}
+
+.workforce360-team-card .workforce360-team-cell {
+    min-width: 0;
+}
+
+.workforce360-team-card .workforce360-team-cell--actions {
+    justify-self: start;
+}
+
+.workforce360-team-card .workforce360-truncate {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.workforce360-team-card .workforce360-status-reason {
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
+.workforce360-team-card .operations-team-status-pill {
+    max-width: 100%;
+}
+
+.workforce360-team-card .operations-team-status-pill > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workforce360-team-card .workforce360-workload {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.workforce360-team-card .workforce360-workload__value {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.workforce360-team-card .workforce360-workload__value--healthy {
+    color: #146c43;
+}
+
+.workforce360-team-card .workforce360-workload__value--warning {
+    color: #997404;
+}
+
+.workforce360-team-card .workforce360-workload__value--danger {
+    color: #b02a37;
+}
+
+.workforce360-team-card .workforce360-workload__meter {
+    width: 100%;
+    max-width: 4.5rem;
+    height: 0.25rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.workforce360-team-card .workforce360-current-case {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.workforce360-team-card .workforce360-current-case__reference,
+.workforce360-team-card .workforce360-current-case__meta {
+    line-height: 1.25;
+}
+
+.workforce360-team-card .workforce360-team-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 992px) {
+    .workforce360-team-card .workforce360-team-header,
+    .workforce360-team-card .workforce360-team-grid {
+        min-width: 50rem;
+    }
+
+    .workforce360-team-card .workforce360-team-grid {
+        grid-template-columns:
+            minmax(8rem, 1.35fr)
+            minmax(7rem, 1.1fr)
+            minmax(4.75rem, 0.65fr)
+            minmax(4.25rem, 0.6fr)
+            minmax(4.5rem, 0.65fr)
+            minmax(7.5rem, 1.15fr)
+            minmax(5.5rem, 0.85fr)
+            auto;
+        align-items: center;
+    }
+
+    .workforce360-team-card .workforce360-team-cell--actions {
+        justify-self: end;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .workforce360-team-card .workforce360-team-header,
+    .workforce360-team-card .workforce360-team-grid {
+        gap: 0.4rem 0.5rem;
+        min-width: 46rem;
+    }
+
+    .workforce360-team-card .workforce360-team-header {
+        font-size: 0.625rem;
+    }
+
+    .workforce360-team-card .workforce360-team-row {
+        font-size: 0.8125rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .workforce360-team-card .workforce360-team-cell {
+        display: grid;
+        grid-template-columns: minmax(7rem, 40%) 1fr;
+        gap: 0.25rem 0.75rem;
+        align-items: start;
+    }
+
+    .workforce360-team-card .workforce360-team-cell--name {
+        display: block;
+    }
+
+    .workforce360-team-card .workforce360-team-cell[data-label]::before {
+        content: attr(data-label);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--bs-secondary-color, #6c757d);
+    }
+
+    .workforce360-team-card .workforce360-team-cell--actions {
+        grid-template-columns: 1fr;
+    }
+
+    .workforce360-team-card .workforce360-team-cell--actions::before {
+        display: none;
+    }
 }
 
 .workforce360-status-chip {

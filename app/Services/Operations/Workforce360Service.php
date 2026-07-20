@@ -5,11 +5,17 @@ namespace App\Services\Operations;
 use App\Data\Operations\TeamMemberPerformanceMetrics;
 use App\Data\Operations\Workforce360MemberData;
 use App\Data\Operations\Workforce360TeamData;
+use App\Enums\AttendanceDayStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\PerformancePeriod;
+use App\Enums\TeamAvailabilityStatus;
+use App\Enums\WorkCalendarDayStatus;
+use App\Enums\WorkSessionEndReason;
+use App\Models\Incident;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Models\WorkforceAttendanceDay;
+use App\Models\WorkSession;
 use App\Policies\Workforce360Policy;
 use App\Services\Dashboard\DashboardSnapshot;
 use Illuminate\Support\Carbon;
@@ -36,22 +42,34 @@ class Workforce360Service
         $onDuty = $overview['on_duty'] ?? [];
         $unavailable = $overview['unavailable'] ?? [];
         $trackedMembers = $this->attendanceTrackedMembers();
-        $onShift = $trackedMembers
-            ->filter(fn (User $member): bool => $this->workCalendarService->isOnScheduledShift($member, $at))
-            ->count();
-        $onLeave = $trackedMembers
-            ->filter(fn (User $member): bool => $this->workCalendarService->hasApprovedLeave($member, $at))
-            ->count();
+        $trackedIds = $trackedMembers->pluck('id')->all();
+        $sessionSignals = $this->todaySessionSignals($trackedIds, $at);
+        $attendanceExceptionCount = $this->attendanceExceptionCount($trackedIds, $at);
+
+        $workforceCounts = $this->workforceTodayCounts($trackedMembers, $at);
         $pendingLeave = LeaveRequest::query()
             ->where('status', LeaveRequestStatus::Pending)
             ->count();
+        $lateLoginCount = count($sessionSignals['late_login_user_ids']);
+        $sessionTimeoutCount = count($sessionSignals['timeout_user_ids']);
 
         $heroMetrics = [
-            'on_duty' => count($onDuty),
-            'on_shift' => $onShift,
-            'on_leave' => $onLeave,
+            'available' => $workforceCounts['available'],
+            'busy' => $workforceCounts['busy'],
+            'offline' => $workforceCounts['offline'],
+            'on_leave' => $workforceCounts['on_leave'],
             'pending_leave' => $pendingLeave,
+            'late_login' => $lateLoginCount,
+            'session_timeout' => $sessionTimeoutCount,
+            'attendance_exception' => $attendanceExceptionCount,
         ];
+
+        $members = $this->teamMemberRows(
+            viewer: $viewer,
+            onDuty: $onDuty,
+            unavailable: $unavailable,
+            sessionSignals: $sessionSignals,
+        );
 
         return new Workforce360TeamData(
             asOf: $at->copy(),
@@ -59,40 +77,68 @@ class Workforce360Service
                 'score' => $this->scorePlaceholder(),
                 'metrics' => $heroMetrics,
                 'summary' => sprintf(
-                    'On duty %d · On shift %d · On leave %d · Pending leave %d',
-                    $heroMetrics['on_duty'],
-                    $heroMetrics['on_shift'],
+                    'Available %d · Busy %d · Offline %d · On leave %d',
+                    $heroMetrics['available'],
+                    $heroMetrics['busy'],
+                    $heroMetrics['offline'],
                     $heroMetrics['on_leave'],
-                    $heroMetrics['pending_leave'],
                 ),
             ],
             capacity: [
-                [
-                    'key' => 'on_duty',
-                    'label' => 'On Duty',
-                    'value' => $heroMetrics['on_duty'],
-                    'tone' => 'healthy',
+                'workforce_today' => [
+                    [
+                        'key' => 'available',
+                        'label' => 'Available',
+                        'value' => $heroMetrics['available'],
+                        'tone' => 'healthy',
+                    ],
+                    [
+                        'key' => 'busy',
+                        'label' => 'Busy',
+                        'value' => $heroMetrics['busy'],
+                        'tone' => 'warning',
+                    ],
+                    [
+                        'key' => 'offline',
+                        'label' => 'Offline',
+                        'value' => $heroMetrics['offline'],
+                        'tone' => 'info',
+                    ],
+                    [
+                        'key' => 'on_leave',
+                        'label' => 'On Leave',
+                        'value' => $heroMetrics['on_leave'],
+                        'tone' => 'info',
+                    ],
                 ],
-                [
-                    'key' => 'unavailable',
-                    'label' => 'Unavailable',
-                    'value' => count($unavailable),
-                    'tone' => 'warning',
-                ],
-                [
-                    'key' => 'on_leave',
-                    'label' => 'On Leave',
-                    'value' => $heroMetrics['on_leave'],
-                    'tone' => 'info',
-                ],
-                [
-                    'key' => 'exceptions',
-                    'label' => 'Exceptions',
-                    'value' => $pendingLeave,
-                    'tone' => $pendingLeave > 0 ? 'danger' : 'healthy',
+                'attention_required' => [
+                    [
+                        'key' => 'pending_leave',
+                        'label' => 'Pending Leave',
+                        'value' => $pendingLeave,
+                        'tone' => $pendingLeave > 0 ? 'danger' : 'healthy',
+                    ],
+                    [
+                        'key' => 'late_login',
+                        'label' => 'Late Login',
+                        'value' => $lateLoginCount,
+                        'tone' => $lateLoginCount > 0 ? 'warning' : 'healthy',
+                    ],
+                    [
+                        'key' => 'session_timeout',
+                        'label' => 'Session Timeout',
+                        'value' => $sessionTimeoutCount,
+                        'tone' => $sessionTimeoutCount > 0 ? 'danger' : 'healthy',
+                    ],
+                    [
+                        'key' => 'attendance_exception',
+                        'label' => 'Attendance Exception',
+                        'value' => $attendanceExceptionCount,
+                        'tone' => $attendanceExceptionCount > 0 ? 'danger' : 'healthy',
+                    ],
                 ],
             ],
-            members: $this->teamMemberRows($viewer, $onDuty, $unavailable),
+            members: $members,
             tabs: $this->teamTabs(),
             teamAvailability: $overview,
         );
@@ -148,14 +194,73 @@ class Workforce360Service
     /**
      * @param  list<array<string, mixed>>  $onDuty
      * @param  list<array<string, mixed>>  $unavailable
+     * @param  array{
+     *     late_login_user_ids: list<int>,
+     *     timeout_user_ids: list<int>,
+     *     by_user: array<int, array{is_late_login: bool, has_session_timeout: bool, last_ended_reason: string|null, current_incident_id: int|null}>
+     * }  $sessionSignals
      * @return list<array<string, mixed>>
      */
-    private function teamMemberRows(User $viewer, array $onDuty, array $unavailable): array
-    {
+    private function teamMemberRows(
+        User $viewer,
+        array $onDuty,
+        array $unavailable,
+        array $sessionSignals,
+    ): array {
+        $members = [...$onDuty, ...$unavailable];
+        $memberIds = collect($members)
+            ->pluck('id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $usersById = User::query()
+            ->whereIn('id', $memberIds)
+            ->get()
+            ->keyBy('id');
+
+        $incidentIds = collect($members)
+            ->map(function (array $member) use ($sessionSignals): ?int {
+                $userId = (int) ($member['id'] ?? 0);
+                $fromPresence = $member['presence']['current_incident_id'] ?? null;
+                $fromSignals = $sessionSignals['by_user'][$userId]['current_incident_id'] ?? null;
+
+                return $fromPresence !== null ? (int) $fromPresence : ($fromSignals !== null ? (int) $fromSignals : null);
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $incidentsById = $incidentIds === []
+            ? collect()
+            : Incident::query()
+                ->whereIn('id', $incidentIds)
+                ->get(['id', 'reference_no', 'category', 'status'])
+                ->keyBy('id');
+
+        $lateLoginIds = array_fill_keys($sessionSignals['late_login_user_ids'], true);
+        $timeoutIds = array_fill_keys($sessionSignals['timeout_user_ids'], true);
+
         $rows = [];
 
-        foreach ([...$onDuty, ...$unavailable] as $member) {
-            $memberUser = User::query()->find($member['id'] ?? null);
+        foreach ($members as $member) {
+            $memberId = (int) ($member['id'] ?? 0);
+            $memberUser = $usersById->get($memberId);
+            $signals = $sessionSignals['by_user'][$memberId] ?? [
+                'is_late_login' => false,
+                'has_session_timeout' => false,
+                'last_ended_reason' => null,
+                'current_incident_id' => null,
+            ];
+            $isLateLogin = isset($lateLoginIds[$memberId]) || ($signals['is_late_login'] ?? false);
+            $hasSessionTimeout = isset($timeoutIds[$memberId]) || ($signals['has_session_timeout'] ?? false);
+            $incidentId = $member['presence']['current_incident_id']
+                ?? $signals['current_incident_id']
+                ?? null;
+            $incident = $incidentId !== null ? $incidentsById->get((int) $incidentId) : null;
 
             $rows[] = [
                 ...$member,
@@ -168,10 +273,222 @@ class Workforce360Service
                         ? route('my-workforce.index')
                         : route('workforce.show', $memberUser))
                     : null,
+                'status_reason' => $this->statusReasonForMember($member, $signals),
+                'is_late_login' => $isLateLogin,
+                'has_session_timeout' => $hasSessionTimeout,
+                'current_case' => $this->currentCasePayload($incident),
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  Collection<int, User>  $trackedMembers
+     * @return array{available: int, busy: int, offline: int, on_leave: int}
+     */
+    private function workforceTodayCounts(Collection $trackedMembers, Carbon $at): array
+    {
+        $available = 0;
+        $busy = 0;
+        $offline = 0;
+        $onLeave = 0;
+
+        foreach ($trackedMembers as $member) {
+            if ($this->workforceAuthorityService->isOnApprovedLeave($member, $at)) {
+                $onLeave++;
+
+                continue;
+            }
+
+            match ($this->workforceAuthorityService->effectiveAvailability($member, $at)) {
+                TeamAvailabilityStatus::Available => $available++,
+                TeamAvailabilityStatus::Busy => $busy++,
+                TeamAvailabilityStatus::Offline => $offline++,
+            };
+        }
+
+        return [
+            'available' => $available,
+            'busy' => $busy,
+            'offline' => $offline,
+            'on_leave' => $onLeave,
+        ];
+    }
+
+    /**
+     * @param  list<int>  $trackedIds
+     * @return array{
+     *     late_login_user_ids: list<int>,
+     *     timeout_user_ids: list<int>,
+     *     by_user: array<int, array{is_late_login: bool, has_session_timeout: bool, last_ended_reason: string|null, current_incident_id: int|null}>
+     * }
+     */
+    private function todaySessionSignals(array $trackedIds, Carbon $at): array
+    {
+        if ($trackedIds === []) {
+            return [
+                'late_login_user_ids' => [],
+                'timeout_user_ids' => [],
+                'by_user' => [],
+            ];
+        }
+
+        $sessions = WorkSession::query()
+            ->whereIn('user_id', $trackedIds)
+            ->whereDate('work_date', $at->toDateString())
+            ->orderBy('login_at')
+            ->get([
+                'id',
+                'user_id',
+                'login_at',
+                'logout_at',
+                'ended_reason',
+                'on_time_login',
+                'current_incident_id',
+            ])
+            ->groupBy('user_id');
+
+        $lateLoginUserIds = [];
+        $timeoutUserIds = [];
+        $byUser = [];
+
+        foreach ($sessions as $userId => $userSessions) {
+            $userId = (int) $userId;
+            $firstSession = $userSessions->sortBy(fn (WorkSession $session): int => $session->login_at?->getTimestamp() ?? 0)->first();
+            $latestSession = $userSessions->sortByDesc(fn (WorkSession $session): int => $session->login_at?->getTimestamp() ?? 0)->first();
+            $closedSessions = $userSessions
+                ->filter(fn (WorkSession $session): bool => $session->logout_at !== null)
+                ->sortByDesc(fn (WorkSession $session): int => $session->logout_at?->getTimestamp() ?? 0);
+            $lastClosed = $closedSessions->first();
+
+            $isLateLogin = $firstSession?->on_time_login === false;
+            $hasSessionTimeout = $userSessions->contains(
+                fn (WorkSession $session): bool => $session->ended_reason === WorkSessionEndReason::AwayTimeout,
+            );
+
+            if ($isLateLogin) {
+                $lateLoginUserIds[] = $userId;
+            }
+
+            if ($hasSessionTimeout) {
+                $timeoutUserIds[] = $userId;
+            }
+
+            $openSession = $userSessions->first(fn (WorkSession $session): bool => $session->isOpen());
+            $currentIncidentId = $openSession?->current_incident_id
+                ?? $latestSession?->current_incident_id;
+
+            $byUser[$userId] = [
+                'is_late_login' => $isLateLogin,
+                'has_session_timeout' => $hasSessionTimeout,
+                'last_ended_reason' => $lastClosed?->ended_reason?->value,
+                'current_incident_id' => $currentIncidentId !== null ? (int) $currentIncidentId : null,
+            ];
+        }
+
+        return [
+            'late_login_user_ids' => $lateLoginUserIds,
+            'timeout_user_ids' => $timeoutUserIds,
+            'by_user' => $byUser,
+        ];
+    }
+
+    /**
+     * @param  list<int>  $trackedIds
+     */
+    private function attendanceExceptionCount(array $trackedIds, Carbon $at): int
+    {
+        if ($trackedIds === []) {
+            return 0;
+        }
+
+        return WorkforceAttendanceDay::query()
+            ->whereIn('user_id', $trackedIds)
+            ->whereDate('work_date', $at->toDateString())
+            ->where('status', AttendanceDayStatus::Away)
+            ->count();
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     * @param  array{is_late_login: bool, has_session_timeout: bool, last_ended_reason: string|null, current_incident_id: int|null}  $signals
+     */
+    private function statusReasonForMember(array $member, array $signals): ?string
+    {
+        $calendarStatus = (string) (($member['work_calendar']['status'] ?? ''));
+        $availability = $member['availability'] ?? [];
+        $authority = $member['authority'] ?? [];
+        $blockReasons = $authority['block_reasons'] ?? [];
+        $unavailabilityLabel = (string) ($member['unavailability_label'] ?? '');
+        $lastEndedReason = $signals['last_ended_reason']
+            ?? ($member['session_summary']['last_ended_reason'] ?? null);
+
+        if (
+            ($availability['on_leave'] ?? false) === true
+            || ($authority['on_approved_leave'] ?? false) === true
+            || $calendarStatus === WorkCalendarDayStatus::LeaveApproved->value
+        ) {
+            return 'On Leave';
+        }
+
+        if ($calendarStatus === WorkCalendarDayStatus::Lunch->value) {
+            return 'Lunch';
+        }
+
+        if (
+            $lastEndedReason === WorkSessionEndReason::AwayTimeout->value
+            || $unavailabilityLabel === 'Session timed out'
+        ) {
+            return 'Session Timed Out';
+        }
+
+        if (
+            $lastEndedReason === WorkSessionEndReason::ManualLogout->value
+            || $unavailabilityLabel === 'Logged out during shift'
+        ) {
+            return 'Logged Out';
+        }
+
+        if ($calendarStatus === WorkCalendarDayStatus::StartsLater->value) {
+            return 'Shift Not Started';
+        }
+
+        if ($unavailabilityLabel === 'Not logged in' || in_array('not_present', $blockReasons, true)) {
+            return 'Not logged in';
+        }
+
+        if ($unavailabilityLabel === 'Marked offline' || in_array('availability_offline', $blockReasons, true)) {
+            return 'Marked offline';
+        }
+
+        if ($unavailabilityLabel !== '') {
+            return $unavailabilityLabel;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{reference: string, category: string|null, status_label: string}|null
+     */
+    private function currentCasePayload(?Incident $incident): ?array
+    {
+        if ($incident === null) {
+            return null;
+        }
+
+        $reference = trim((string) ($incident->display_reference ?: $incident->reference_no));
+
+        if ($reference === '') {
+            return null;
+        }
+
+        return [
+            'reference' => $reference,
+            'category' => filled($incident->category) ? (string) $incident->category : null,
+            'status_label' => $incident->status?->label() ?? '—',
+        ];
     }
 
     /**

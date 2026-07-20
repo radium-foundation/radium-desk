@@ -25,26 +25,26 @@
             <div class="row g-2">
                 <div class="col-6">
                     <div class="workforce360-metric-pill">
-                        <span class="workforce360-metric-pill__value">{{ $metrics['on_duty'] ?? 0 }}</span>
-                        <span class="workforce360-metric-pill__label">On duty</span>
+                        <span class="workforce360-metric-pill__value">{{ $metrics['available'] ?? 0 }}</span>
+                        <span class="workforce360-metric-pill__label">Available</span>
                     </div>
                 </div>
                 <div class="col-6">
                     <div class="workforce360-metric-pill">
-                        <span class="workforce360-metric-pill__value">{{ $metrics['on_shift'] ?? 0 }}</span>
-                        <span class="workforce360-metric-pill__label">On shift</span>
+                        <span class="workforce360-metric-pill__value">{{ $metrics['busy'] ?? 0 }}</span>
+                        <span class="workforce360-metric-pill__label">Busy</span>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="workforce360-metric-pill">
+                        <span class="workforce360-metric-pill__value">{{ $metrics['offline'] ?? 0 }}</span>
+                        <span class="workforce360-metric-pill__label">Offline</span>
                     </div>
                 </div>
                 <div class="col-6">
                     <div class="workforce360-metric-pill">
                         <span class="workforce360-metric-pill__value">{{ $metrics['on_leave'] ?? 0 }}</span>
                         <span class="workforce360-metric-pill__label">On leave</span>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="workforce360-metric-pill">
-                        <span class="workforce360-metric-pill__value">{{ $metrics['pending_leave'] ?? 0 }}</span>
-                        <span class="workforce360-metric-pill__label">Pending leave</span>
                     </div>
                 </div>
             </div>

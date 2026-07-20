@@ -66,15 +66,15 @@ class TeamMemberActivityService
     {
         $candidates = collect([
             [
-                'label' => 'Customer email',
+                'label' => 'Communication Sent',
                 'at' => $user->last_customer_communication_at,
             ],
             [
-                'label' => 'Last case action',
+                'label' => 'Case Updated',
                 'at' => $user->last_case_action_at,
             ],
             [
-                'label' => 'Last status change',
+                'label' => 'Status Changed',
                 'at' => $user->last_status_change_at,
             ],
         ])
