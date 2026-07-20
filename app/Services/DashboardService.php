@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
+use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\OperationsRoleService;
 use App\Support\Dashboard\DashboardIncidentSortComparator;
 use App\Support\Dashboard\RecentActivityPresenter;
@@ -30,6 +31,7 @@ class DashboardService
         private readonly DashboardKpiAggregator $kpiAggregator,
         private readonly DashboardIncidentSortComparator $incidentSortComparator,
         private readonly RecentActivityPresenter $recentActivityPresenter,
+        private readonly DashboardPersonalizationService $dashboardPersonalization,
     ) {}
 
     /**
@@ -472,6 +474,62 @@ class DashboardService
     public function snapshot(): DashboardSnapshot
     {
         return $this->snapshot ??= DashboardSnapshot::load();
+    }
+
+    public function forgetSnapshot(): void
+    {
+        $this->snapshot = null;
+        app(DashboardSnapshotStore::class)->forget();
+    }
+
+    /**
+     * @return array{kpi_strip_html: string, service_case_filter_counts: array<string, int>}
+     */
+    public function liveMetricsFor(
+        User $user,
+        ?string $requestedQueue = null,
+        ?string $legacyView = null,
+        ?string $legacyFilter = null,
+    ): array {
+        $context = $this->dashboardPersonalization->resolveLiveDashboardContext(
+            $user,
+            $requestedQueue,
+            $legacyView,
+            $legacyFilter,
+        );
+
+        $stats = $this->statsFor($user);
+
+        return [
+            'kpi_strip_html' => $this->renderKpiStrip($stats, $user),
+            'service_case_filter_counts' => $user->can('incidents.view')
+                ? $this->serviceCaseFilterCounts($context['assigned_to'], $user)
+                : [],
+        ];
+    }
+
+    /**
+     * @return array{kpi_strip_html: string, service_case_filter_count_variants: array<string, array<string, int>>}
+     */
+    public function liveReverbMetricsFor(User $user): array
+    {
+        $stats = $this->statsFor($user);
+        $variants = [
+            DashboardPersonalizationService::SCOPE_OPERATIONS => $user->can('incidents.view')
+                ? $this->serviceCaseFilterCounts(null, $user)
+                : [],
+        ];
+
+        if ($this->dashboardPersonalization->usesSupportScopeVariants($user)) {
+            $variants[DashboardPersonalizationService::SCOPE_SUPPORT] = $user->can('incidents.view')
+                ? $this->serviceCaseFilterCounts($user, $user)
+                : [];
+        }
+
+        return [
+            'kpi_strip_html' => $this->renderKpiStrip($stats, $user),
+            'service_case_filter_count_variants' => $variants,
+        ];
     }
 
     /**

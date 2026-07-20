@@ -16,6 +16,7 @@ class RefundCaseCloseService
         private readonly ServiceCaseStatusService $statusService,
         private readonly RemarkService $remarkService,
         private readonly AuditLogService $auditLogService,
+        private readonly BusinessHoldService $businessHoldService,
     ) {}
 
     public function closeLinkedCase(RefundRequest $refund, User $actor, ?Request $request = null): void
@@ -38,6 +39,13 @@ class RefundCaseCloseService
 
         try {
             DB::transaction(function () use ($incident, $refund, $actor, $request): void {
+                $this->businessHoldService->clearActiveHold(
+                    incident: $incident,
+                    actor: $actor,
+                    source: 'refund_completed',
+                    type: \App\Enums\BusinessHoldType::Refund,
+                );
+
                 $this->remarkService->createForRemarkable(
                     remarkable: $incident,
                     actor: $actor,

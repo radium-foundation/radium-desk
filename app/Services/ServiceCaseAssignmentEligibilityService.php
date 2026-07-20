@@ -113,6 +113,10 @@ class ServiceCaseAssignmentEligibilityService
 
     public function isReadyForReferenceEntry(Order $order, Incident $incident): bool
     {
+        if (app(BusinessHoldService::class)->hasActiveHold($incident)) {
+            return false;
+        }
+
         if (! $incident->isActive() || ! $incident->isPendingAdmin()) {
             return false;
         }
@@ -142,6 +146,10 @@ class ServiceCaseAssignmentEligibilityService
                 ->first();
 
             if ($incident === null || $incident->status === IncidentStatus::Closed) {
+                return;
+            }
+
+            if (app(BusinessHoldService::class)->blocksLifecycleAdvancement($incident)) {
                 return;
             }
 

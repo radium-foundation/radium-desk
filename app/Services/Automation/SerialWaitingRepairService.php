@@ -10,6 +10,7 @@ use App\Models\IncidentWaitingState;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\AutomationIdentityService;
+use App\Services\BusinessHoldService;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\OperationsQueueClassifier;
 use App\Services\OrderIdentityLifecycleService;
@@ -198,6 +199,10 @@ class SerialWaitingRepairService
 
         if ($order === null) {
             return 'order_missing';
+        }
+
+        if (app(BusinessHoldService::class)->blocksLifecycleAdvancement($incident)) {
+            return 'business_hold_active';
         }
 
         if (! filled(trim((string) $order->serial_number))) {

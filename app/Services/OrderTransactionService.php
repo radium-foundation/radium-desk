@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\IncidentStatus;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\Incident;
 use App\Models\Order;
@@ -57,6 +58,7 @@ class OrderTransactionService
         }
 
         $this->customerVerificationService->assertCanCompleteService($order, $actor);
+        $this->assertNoActiveBusinessHoldOnOrder($order);
 
         return DB::transaction(function () use ($order, $transactionId, $actor, $broadcast): Order {
             $oldValues = [
@@ -436,5 +438,19 @@ class OrderTransactionService
 
             return $order->fresh();
         });
+    }
+
+    private function assertNoActiveBusinessHoldOnOrder(Order $order): void
+    {
+        $order->loadMissing([
+            'incidents' => fn ($query) => $query->where('status', '!=', IncidentStatus::Closed),
+        ]);
+
+        foreach ($order->incidents as $incident) {
+            app(BusinessHoldService::class)->assertOperationsAllowed(
+                $incident,
+                'assigned a service reference',
+            );
+        }
     }
 }

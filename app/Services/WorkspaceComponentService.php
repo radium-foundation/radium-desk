@@ -83,7 +83,8 @@ class WorkspaceComponentService
             WorkspaceComponent::Resolve => $user->can('update', $incident)
                 && $incident->status !== IncidentStatus::Closed,
             WorkspaceComponent::Close => $user->can('update', $incident)
-                && $incident->status !== IncidentStatus::Closed,
+                && $incident->status !== IncidentStatus::Closed
+                && ! app(BusinessHoldService::class)->hasActiveHold($incident),
             WorkspaceComponent::Timeline => $user->can('view', $incident),
             WorkspaceComponent::RequestSerialNumber => $user->can('update', $incident)
                 && $this->requestSerialEligibilityService->canShowAction($incident),
@@ -604,10 +605,11 @@ class WorkspaceComponentService
     {
         $canUpdate = $user->can('update', $incident);
         $isClosed = $incident->status === IncidentStatus::Closed;
+        $hasBusinessHold = app(BusinessHoldService::class)->hasActiveHold($incident);
 
         return [
             'assign' => $user->can('reassign', $incident) && ! $isClosed,
-            'close' => $canUpdate && ! $isClosed,
+            'close' => $canUpdate && ! $isClosed && ! $hasBusinessHold,
             'reopen' => $canUpdate && $isClosed,
             'escalate' => app(ServiceCaseEscalationService::class)->canEscalate($incident, $user),
         ];

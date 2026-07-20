@@ -8,6 +8,7 @@ use App\Enums\ServiceCaseAutomationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\BusinessHoldService;
 use App\Services\ServiceCaseAssignmentEligibilityService;
 use App\Services\ServiceCaseAutomationStatusService;
 
@@ -25,6 +26,10 @@ class OperationsQueueClassifier
 
         if ($this->isHardware($incident)) {
             return OperationQueue::Hardware;
+        }
+
+        if ($this->isBusinessHold($incident)) {
+            return OperationQueue::BusinessHold;
         }
 
         if ($this->isWaitingCustomer($incident)) {
@@ -89,6 +94,7 @@ class OperationsQueueClassifier
             OperationQueue::ActionRequired,
             OperationQueue::Scheduled,
             OperationQueue::Attention,
+            OperationQueue::BusinessHold,
         ], true)
             || $this->matchesAssignedInProgressWork($incident, $scopeUser);
     }
@@ -194,6 +200,15 @@ class OperationsQueueClassifier
     public function isHardware(Incident $incident): bool
     {
         return Order::isHardwareOrderId($incident->order?->order_id);
+    }
+
+    public function isBusinessHold(Incident $incident): bool
+    {
+        if (! $incident->isPendingAdmin()) {
+            return false;
+        }
+
+        return app(BusinessHoldService::class)->hasActiveHold($incident);
     }
 
     public function isWaitingCustomer(Incident $incident): bool

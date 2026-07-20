@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\DashboardBroadcastService;
+use App\Services\Dashboard\DashboardLiveRowVisibilityService;
 use App\Services\DashboardPersonalizationService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\OperationsQueueClassifier;
@@ -77,11 +78,14 @@ class QueueIntegrityLiveRefreshTest extends TestCase
         $order = $this->createValidatedOrder($admin, 'RD-QUEUE-LIVE-2');
         $incident = $this->createIncident($order, $admin, assignee: $admin);
 
+        $otherAdmin = $this->createAdminUser('other-admin@example.com');
+
         app(ServiceCaseAssignmentService::class)->reassign($incident, $agent, $admin);
 
-        Event::assertDispatched(ServiceCaseCreated::class, function (ServiceCaseCreated $event) use ($incident): bool {
+        Event::assertDispatched(ServiceCaseCreated::class, function (ServiceCaseCreated $event) use ($incident, $otherAdmin): bool {
             return $event->incident->id === $incident->id
-                && $event->removeFromList === true;
+                && $event->recipient->id === $otherAdmin->id
+                && ($event->listActions[DashboardPersonalizationService::QUEUE_ACTION_REQUIRED] ?? null) === DashboardLiveRowVisibilityService::ACTION_REMOVE;
         });
     }
 

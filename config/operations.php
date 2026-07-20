@@ -29,6 +29,11 @@ return [
             'icon' => 'bi-exclamation-triangle-fill',
             'tone' => 'danger',
         ],
+        'business_hold' => [
+            'label' => 'Business Hold',
+            'icon' => 'bi-pause-circle-fill',
+            'tone' => 'warning',
+        ],
         'hardware' => [
             'label' => 'Hardware',
             'icon' => 'bi-box-seam',

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\IncidentStatus;
 use App\Events\Dashboard\DashboardKpisUpdated;
 use App\Events\Dashboard\NotificationCreated;
 use App\Events\Dashboard\ServiceCaseClosed;
@@ -13,6 +12,7 @@ use App\Events\Dashboard\SlaStatusChanged;
 use App\Events\Dashboard\TransactionAssigned;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\Dashboard\DashboardLiveRowVisibilityService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Notifications\DatabaseNotification;
 
@@ -45,7 +45,6 @@ class DashboardBroadcastService
             incident: $incident,
             actor: $actor,
             eventClass: ServiceCaseCreated::class,
-            removeFromList: app(ServiceCaseAssignmentService::class)->shouldRemoveFromAdminReadyQueue($incident),
         );
 
         $this->kpisUpdated($actor);
@@ -57,7 +56,6 @@ class DashboardBroadcastService
             incident: $incident,
             actor: $actor,
             eventClass: TransactionAssigned::class,
-            removeFromList: ! $incident->isPendingAdmin(),
         );
 
         $this->kpisUpdated($actor);
@@ -83,7 +81,6 @@ class DashboardBroadcastService
                 incident: $incident,
                 actor: $actor,
                 eventClass: TransactionAssigned::class,
-                removeFromList: ! $incident->isPendingAdmin(),
             );
         }
 
@@ -115,7 +112,6 @@ class DashboardBroadcastService
             incident: $incident,
             actor: $actor,
             eventClass: ServiceCaseResolved::class,
-            removeFromList: $this->shouldRemoveFromDefaultList($incident),
         );
 
         $this->kpisUpdated($actor);
@@ -127,7 +123,6 @@ class DashboardBroadcastService
             incident: $incident,
             actor: $actor,
             eventClass: ServiceCaseClosed::class,
-            removeFromList: true,
         );
 
         $this->kpisUpdated($actor);
@@ -136,13 +131,15 @@ class DashboardBroadcastService
 
     public function kpisUpdated(?User $actor = null): void
     {
+        $this->dashboardService->forgetSnapshot();
+
         foreach ($this->recipientsExcept($actor) as $recipient) {
+            $metrics = $this->dashboardService->liveReverbMetricsFor($recipient);
+
             broadcast(new DashboardKpisUpdated(
                 recipient: $recipient,
-                kpiStripHtml: $this->dashboardService->renderKpiStrip(
-                    $this->dashboardService->statsFor($recipient),
-                    $recipient,
-                ),
+                kpiStripHtml: $metrics['kpi_strip_html'],
+                serviceCaseFilterCountVariants: $metrics['service_case_filter_count_variants'],
             ));
         }
     }
@@ -226,20 +223,23 @@ class DashboardBroadcastService
         Incident $incident,
         ?User $actor,
         string $eventClass,
-        bool $removeFromList = false,
     ): void {
         $incident = $this->loadIncidentRelations($incident);
+        $this->dashboardService->forgetSnapshot();
 
         foreach ($this->recipientsExcept($actor) as $recipient) {
             if (! $recipient->can('view', $incident)) {
                 continue;
             }
 
+            $payload = app(DashboardLiveRowVisibilityService::class)->rowBroadcastPayload($incident, $recipient);
+
             broadcast(new $eventClass(
                 recipient: $recipient,
                 incident: $incident,
-                rowHtml: $this->renderRow($incident, $recipient),
-                removeFromList: $removeFromList,
+                incidentQueue: $payload['queue'],
+                listActions: $payload['list_actions'],
+                rowHtml: $payload['html'],
             ));
         }
     }
@@ -258,23 +258,13 @@ class DashboardBroadcastService
 
     private function loadIncidentRelations(Incident $incident): Incident
     {
-        return $incident->loadMissing(['order.transactionAssigner', 'creator', 'assignee']);
-    }
-
-    private function renderRow(Incident $incident, User $recipient): string
-    {
-        return view(
-            'dashboard.partials.service-case-row',
-            $this->dashboardService->serviceCaseRowViewData($incident, $recipient),
-        )->render();
-    }
-
-    private function shouldRemoveFromDefaultList(Incident $incident): bool
-    {
-        if (in_array($incident->status, [IncidentStatus::Resolved, IncidentStatus::Closed], true)) {
-            return true;
-        }
-
-        return ! $incident->isPendingAdmin();
+        return $incident->loadMissing([
+            'order.transactionAssigner',
+            'creator',
+            'assignee.roles',
+            'activeWaitingState',
+            'activeBusinessHold',
+            'supportAppointments',
+        ]);
     }
 }

@@ -205,6 +205,7 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
 
         applyKpis(data.kpi_strip_html);
         document.dispatchEvent(new CustomEvent('dashboard:live-refresh', { detail: data }));
+        applyFilterCounts(data.service_case_filter_counts);
 
         if (data.remove_incident_ids?.length) {
             removeRows(data.remove_incident_ids, lockedIncidentIds);

@@ -9,6 +9,7 @@ enum OperationQueue: string
     case Scheduled = 'scheduled';
     case WaitingCustomer = 'waiting_customer';
     case Attention = 'attention';
+    case BusinessHold = 'business_hold';
     case Hardware = 'hardware';
     case Completed = 'completed';
     case MyWork = 'my_work';
@@ -35,6 +36,7 @@ enum OperationQueue: string
     {
         return [
             self::Attention->value,
+            self::BusinessHold->value,
             self::ActionRequired->value,
             self::Scheduled->value,
             self::WaitingCustomer->value,

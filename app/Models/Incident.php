@@ -142,6 +142,16 @@ class Incident extends Model
         return $this->hasOne(IncidentWaitingState::class)->active()->latest('started_at');
     }
 
+    public function businessHolds(): HasMany
+    {
+        return $this->hasMany(BusinessHold::class);
+    }
+
+    public function activeBusinessHold(): HasOne
+    {
+        return $this->hasOne(BusinessHold::class)->active()->latest('activated_at');
+    }
+
     public function hasSlaPaused(): bool
     {
         $waitingState = $this->relationLoaded('activeWaitingState')

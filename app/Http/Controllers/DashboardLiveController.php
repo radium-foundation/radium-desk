@@ -41,10 +41,14 @@ class DashboardLiveController extends Controller
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
-        return DB::transaction(function () use ($user, $serviceCaseFilter, $assignedTo, $prioritizeRecentAssignments, $limit, $operationQueue): JsonResponse {
-            $filterCounts = $user->can('incidents.view')
-                ? $this->dashboardService->serviceCaseFilterCounts($assignedTo, $user)
-                : [];
+        return DB::transaction(function () use ($user, $serviceCaseFilter, $assignedTo, $prioritizeRecentAssignments, $limit, $operationQueue, $requestedQueue, $legacyView, $legacyFilter): JsonResponse {
+            $metrics = $this->dashboardService->liveMetricsFor(
+                $user,
+                is_string($requestedQueue) ? $requestedQueue : null,
+                is_string($legacyView) ? $legacyView : null,
+                is_string($legacyFilter) ? $legacyFilter : null,
+            );
+            $filterCounts = $metrics['service_case_filter_counts'];
 
             $serviceCasesPayload = $user->can('incidents.view')
                 ? $this->dashboardService->serviceCasesPayload(
@@ -68,7 +72,7 @@ class DashboardLiveController extends Controller
             $stats = $this->dashboardService->statsFor($user);
 
             return response()->json([
-                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats, $user),
+                'kpi_strip_html' => $metrics['kpi_strip_html'],
                 'next_appointment' => $stats['next_appointment'] ?? null,
                 'online_count' => $stats['online_count'],
                 'online_users' => $this->dashboardService->onlineUsersPayload($stats),

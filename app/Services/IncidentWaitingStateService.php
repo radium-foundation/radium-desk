@@ -20,6 +20,10 @@ use Illuminate\Support\Facades\DB;
 
 class IncidentWaitingStateService
 {
+    public function __construct(
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
+    ) {}
+
     public function activeFor(Incident $incident): ?IncidentWaitingState
     {
         return $incident->relationLoaded('activeWaitingState')
@@ -75,6 +79,17 @@ class IncidentWaitingStateService
             $incident->unsetRelation('activeWaitingState');
 
             app(CustomerWaitingLifecycleService::class)->auditWaitingStarted($waitingState, $actor);
+
+            $freshIncident = $incident->fresh([
+                'order.transactionAssigner',
+                'creator',
+                'assignee.roles',
+                'activeWaitingState',
+                'activeBusinessHold',
+                'supportAppointments',
+            ]);
+
+            $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
 
             return $waitingState;
         });
@@ -231,6 +246,17 @@ class IncidentWaitingStateService
             ])->save();
 
             $incident->unsetRelation('activeWaitingState');
+
+            $freshIncident = $incident->fresh([
+                'order.transactionAssigner',
+                'creator',
+                'assignee.roles',
+                'activeWaitingState',
+                'activeBusinessHold',
+                'supportAppointments',
+            ]);
+
+            $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
 
             return $waitingState->refresh();
         });

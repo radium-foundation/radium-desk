@@ -428,6 +428,7 @@ class ServiceCaseAssignmentService
         User $actor,
         array $auditContext,
         string $event = 'service_case.assigned',
+        AssignmentOrigin $assignmentOrigin = AssignmentOrigin::Auto,
     ): Incident {
         $this->ensureValidAssignee($assignee);
 
@@ -437,6 +438,7 @@ class ServiceCaseAssignmentService
             actor: $actor,
             event: $event,
             extraNewValues: $auditContext,
+            assignmentOrigin: $assignmentOrigin,
         );
     }
 
@@ -743,7 +745,7 @@ class ServiceCaseAssignmentService
                 extraNewValues: $extraNewValues,
             );
 
-            if (in_array($event, ['service_case.reassigned', 'service_case.escalated'], true)) {
+            if (in_array($event, ['service_case.assigned', 'service_case.reassigned', 'service_case.escalated'], true)) {
                 $this->dashboardBroadcastService->serviceCaseAssigned($freshIncident, $actor);
             }
 

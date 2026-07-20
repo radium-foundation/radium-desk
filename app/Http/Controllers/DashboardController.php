@@ -93,6 +93,7 @@ class DashboardController extends Controller
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
             'serviceCaseFilter' => $serviceCaseFilter,
             'operationQueue' => $operationQueue,
+            'dashboardLiveScope' => $this->dashboardPersonalization->scopeForQueue($operationQueue, $user),
             'operationQueues' => $this->dashboardPersonalization->queueMetaFor($user),
             'availableOperationQueues' => $this->dashboardPersonalization->availableQueuesFor($user),
             'showsQueueNavigation' => $this->dashboardPersonalization->showsQueueNavigation($user),

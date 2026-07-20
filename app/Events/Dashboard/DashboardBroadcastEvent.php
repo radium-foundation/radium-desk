@@ -16,11 +16,15 @@ abstract class DashboardBroadcastEvent implements ShouldBroadcastNow
     use InteractsWithSockets;
     use SerializesModels;
 
+    /**
+     * @param  array<string, string>  $listActions
+     */
     public function __construct(
         public User $recipient,
         public Incident $incident,
-        public string $rowHtml,
-        public bool $removeFromList = false,
+        public string $incidentQueue,
+        public array $listActions,
+        public ?string $rowHtml = null,
     ) {}
 
     /**
@@ -38,10 +42,16 @@ abstract class DashboardBroadcastEvent implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        return [
+        $payload = [
             'incident_id' => $this->incident->id,
-            'html' => $this->rowHtml,
-            'remove_from_list' => $this->removeFromList,
+            'queue' => $this->incidentQueue,
+            'list_actions' => $this->listActions,
         ];
+
+        if ($this->rowHtml !== null) {
+            $payload['html'] = $this->rowHtml;
+        }
+
+        return $payload;
     }
 }

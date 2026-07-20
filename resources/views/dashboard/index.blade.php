@@ -19,6 +19,7 @@
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
          data-live-queue="{{ $operationQueue }}"
+         data-live-scope="{{ $dashboardLiveScope ?? 'operations_scope' }}"
          data-live-filter="{{ $serviceCaseFilter ?? $operationQueue }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"

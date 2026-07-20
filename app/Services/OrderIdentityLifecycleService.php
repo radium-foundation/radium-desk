@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\MissingSerial\MissingSerialAutomationService;
@@ -109,6 +110,15 @@ class OrderIdentityLifecycleService
         $freshOrder = $order->fresh();
 
         if ($freshOrder === null) {
+            return;
+        }
+
+        $freshOrder->loadMissing('incidents.activeBusinessHold');
+
+        if ($freshOrder->incidents->contains(
+            fn (Incident $incident): bool => $incident->isActive()
+                && app(BusinessHoldService::class)->blocksLifecycleAdvancement($incident),
+        )) {
             return;
         }
 

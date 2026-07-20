@@ -56,6 +56,7 @@ class ServiceCaseStatusService
         }
 
         if ($status === IncidentStatus::Closed) {
+            app(BusinessHoldService::class)->assertOperationsAllowed($incident, 'closed');
             $this->validateAgentResolutionRequirements($incident, $actor);
         }
 
@@ -84,6 +85,10 @@ class ServiceCaseStatusService
                 $this->waitingStateService->clearActiveIfPresent($freshIncident, $actor);
                 $this->completeScheduledSupportAppointments($freshIncident);
                 $this->dashboardBroadcastService->serviceCaseClosed($freshIncident, $actor);
+            } elseif ($status === IncidentStatus::Resolved) {
+                $this->dashboardBroadcastService->serviceCaseResolved($freshIncident, $actor);
+            } else {
+                $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
             }
 
             return $freshIncident;
@@ -118,6 +123,8 @@ class ServiceCaseStatusService
 
             app(TeamMemberActivityService::class)
                 ->recordStatusChange($actor);
+
+            $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
 
             return $freshIncident;
         });

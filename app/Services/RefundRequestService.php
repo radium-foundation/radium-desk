@@ -8,6 +8,7 @@ use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\RefundDeductionProfile;
 use App\Enums\RefundDifferenceReason;
 use App\Enums\RefundStatus;
+use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
@@ -26,6 +27,8 @@ class RefundRequestService
         private readonly RefundNotificationService $notificationService,
         private readonly RefundExecutorResolver $executorResolver,
         private readonly RefundCaseCloseService $caseCloseService,
+        private readonly BusinessHoldService $businessHoldService,
+        private readonly DashboardBroadcastService $dashboardBroadcastService,
     ) {}
 
     /**
@@ -35,6 +38,16 @@ class RefundRequestService
     {
         $refund = DB::transaction(function () use ($user, $data): RefundRequest {
             $order = Order::query()->lockForUpdate()->findOrFail($data['order_id']);
+
+            if (! empty($data['incident_id'])) {
+                $incident = Incident::query()->lockForUpdate()->findOrFail($data['incident_id']);
+
+                if ($this->businessHoldService->hasActiveHold($incident)) {
+                    throw ValidationException::withMessages([
+                        'refund' => 'This service case already has an active business hold.',
+                    ]);
+                }
+            }
 
             $preferredMethod = CustomerPreferredRefundMethod::from(
                 (string) ($data['customer_preferred_method'] ?? CustomerPreferredRefundMethod::Opm->value),
@@ -86,6 +99,14 @@ class RefundRequestService
             ]);
         });
 
+        if ($refund->incident_id !== null) {
+            $incident = Incident::query()->find($refund->incident_id);
+
+            if ($incident !== null) {
+                $this->businessHoldService->activateRefundHold($incident, $refund, $user);
+            }
+        }
+
         $this->auditLogService->log(
             userId: $user->id,
             event: 'refund.requested',
@@ -122,6 +143,10 @@ class RefundRequestService
 
         $this->notificationService->notifyApproversOfSubmission($refund->fresh(['requester']) ?? $refund);
 
+        if ($refund->incident_id === null) {
+            $this->dashboardBroadcastService->kpisUpdated($user);
+        }
+
         return $refund;
     }
 
@@ -136,7 +161,7 @@ class RefundRequestService
         array $data,
         Request $request,
     ): RefundRequest {
-        return DB::transaction(function () use ($refund, $user, $data, $request): RefundRequest {
+        $approved = DB::transaction(function () use ($refund, $user, $data, $request): RefundRequest {
             $locked = RefundRequest::query()->lockForUpdate()->findOrFail($refund->id);
             $this->ensurePendingApproval($locked);
 
@@ -256,6 +281,10 @@ class RefundRequestService
 
             return $fresh;
         });
+
+        $this->dashboardBroadcastService->kpisUpdated($user);
+
+        return $approved;
     }
 
     public function reject(
@@ -308,10 +337,25 @@ class RefundRequestService
             return $fresh;
         });
 
+        $updated->loadMissing('incident');
+
+        if ($updated->incident !== null) {
+            $this->businessHoldService->clearActiveHold(
+                incident: $updated->incident,
+                actor: $user,
+                source: 'refund_rejected',
+                type: \App\Enums\BusinessHoldType::Refund,
+            );
+
+            $this->businessHoldService->restoreToRequestingAgentAfterRefundRejected($updated, $user);
+        }
+
         $this->notificationService->notifyRequesterOfDecision(
             $updated->fresh(['requester']) ?? $updated,
             'rejected',
         );
+
+        $this->dashboardBroadcastService->kpisUpdated($user);
 
         return $updated;
     }

@@ -10,6 +10,10 @@ use Illuminate\Http\Request;
 
 class DashboardPersonalizationService
 {
+    public const SCOPE_SUPPORT = 'support_scope';
+
+    public const SCOPE_OPERATIONS = 'operations_scope';
+
     public const VIEW_ALL = 'all';
 
     public const VIEW_TEAM = 'team';
@@ -281,6 +285,44 @@ class DashboardPersonalizationService
         }
 
         return null;
+    }
+
+    /**
+     * @return array{operation_queue: string, assigned_to: ?User}
+     */
+    public function resolveLiveDashboardContext(
+        User $user,
+        ?string $requestedQueue = null,
+        ?string $legacyView = null,
+        ?string $legacyFilter = null,
+    ): array {
+        $operationQueue = $this->resolveQueue(
+            $user,
+            $requestedQueue,
+            $legacyView,
+            $legacyFilter,
+        )['queue'];
+
+        return [
+            'operation_queue' => $operationQueue,
+            'assigned_to' => $this->resolveAssignedToScope($user, $operationQueue),
+        ];
+    }
+
+    public function scopeForQueue(string $queue, ?User $user = null): string
+    {
+        $user ??= auth()->user();
+
+        if ($user instanceof User && $this->resolveAssignedToScope($user, $queue) !== null) {
+            return self::SCOPE_SUPPORT;
+        }
+
+        return self::SCOPE_OPERATIONS;
+    }
+
+    public function usesSupportScopeVariants(User $user): bool
+    {
+        return $this->operationsRoles->usesSupportQueues($user);
     }
 
     public function prioritizesRecentAssignments(string $queue): bool

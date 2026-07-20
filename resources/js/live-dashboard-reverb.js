@@ -27,18 +27,10 @@ const SERVICE_CASE_EVENTS = [
     'SlaStatusChanged',
 ];
 
-const shouldRemoveRowForFilter = (pageRoot, payload) => {
-    if (!payload.remove_from_list) {
-        return false;
-    }
+const resolveListAction = (pageRoot, payload) => {
+    const activeQueue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? 'action_required';
 
-    const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? 'action_required';
-
-    return queue === 'action_required'
-        || queue === 'attention'
-        || queue === 'pending_admin'
-        || queue === 'overdue'
-        || queue === 'warning';
+    return payload.list_actions?.[activeQueue] ?? 'ignore';
 };
 
 const handleServiceCaseEvent = async (pageRoot, payload) => {
@@ -46,10 +38,16 @@ const handleServiceCaseEvent = async (pageRoot, payload) => {
         return;
     }
 
+    const action = resolveListAction(pageRoot, payload);
+
+    if (action === 'ignore') {
+        return;
+    }
+
     const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
     const incidentId = Number(payload.incident_id);
 
-    if (shouldRemoveRowForFilter(pageRoot, payload)) {
+    if (action === 'remove') {
         await applyPartialDashboardUpdate({
             remove_incident_ids: lockedIncidentIds.includes(incidentId) ? [] : [incidentId],
         });
@@ -57,16 +55,14 @@ const handleServiceCaseEvent = async (pageRoot, payload) => {
         return;
     }
 
-    if (!payload.html) {
-        return;
+    if ((action === 'add' || action === 'update') && payload.html) {
+        await applyPartialDashboardUpdate({
+            rows: [{
+                incident_id: incidentId,
+                html: payload.html,
+            }],
+        });
     }
-
-    await applyPartialDashboardUpdate({
-        rows: [{
-            incident_id: incidentId,
-            html: payload.html,
-        }],
-    });
 };
 
 const handleKpisUpdated = async (payload) => {
@@ -74,8 +70,13 @@ const handleKpisUpdated = async (payload) => {
         return;
     }
 
+    const pageRoot = document.getElementById('dashboard-page');
+    const liveScope = pageRoot?.dataset.liveScope ?? 'operations_scope';
+    const filterCounts = payload.service_case_filter_count_variants?.[liveScope];
+
     await applyPartialDashboardUpdate({
         kpi_strip_html: payload.kpi_strip_html,
+        service_case_filter_counts: filterCounts,
     });
 };
 
@@ -229,5 +230,5 @@ export {
     handleKpisUpdated,
     handleNotificationCreated,
     handleServiceCaseEvent,
-    shouldRemoveRowForFilter,
+    resolveListAction,
 };

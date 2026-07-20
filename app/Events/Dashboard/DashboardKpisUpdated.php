@@ -15,9 +15,13 @@ class DashboardKpisUpdated implements ShouldBroadcastNow
     use InteractsWithSockets;
     use SerializesModels;
 
+    /**
+     * @param  array<string, array<string, int>>  $serviceCaseFilterCountVariants
+     */
     public function __construct(
         public User $recipient,
         public string $kpiStripHtml,
+        public array $serviceCaseFilterCountVariants = [],
     ) {}
 
     /**
@@ -42,6 +46,7 @@ class DashboardKpisUpdated implements ShouldBroadcastNow
     {
         return [
             'kpi_strip_html' => $this->kpiStripHtml,
+            'service_case_filter_count_variants' => $this->serviceCaseFilterCountVariants,
         ];
     }
 }
