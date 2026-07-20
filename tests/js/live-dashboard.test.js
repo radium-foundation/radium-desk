@@ -5,12 +5,15 @@ import {
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,
+    startPolling,
+    stopPolling,
 } from '../../resources/js/live-dashboard';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
 
 describe('live dashboard refresh session integration', () => {
     beforeEach(() => {
         resetWorkspaceSession();
+        stopPolling();
         document.body.innerHTML = `
             <div id="dashboard-page" data-live-url="/dashboard/live" data-live-filter="pending_admin"></div>
             <div id="dashboard-kpi-strip">stats-old</div>
@@ -32,6 +35,7 @@ describe('live dashboard refresh session integration', () => {
     });
 
     afterEach(() => {
+        stopPolling();
         resetWorkspaceSession();
         vi.unstubAllGlobals();
     });
@@ -182,5 +186,49 @@ describe('live dashboard refresh session integration', () => {
         await flushPendingDashboardRefresh();
 
         expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-latest');
+    });
+
+    it('does not start a second live poll while the previous request is still pending', async () => {
+        vi.useFakeTimers();
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            let resolveFetch;
+            fetch.mockImplementation(() => new Promise((resolve) => {
+                resolveFetch = resolve;
+            }));
+
+            const pageRoot = document.getElementById('dashboard-page');
+            startPolling(pageRoot, 1000);
+
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(fetch).toHaveBeenCalledTimes(1);
+
+            await vi.advanceTimersByTimeAsync(5000);
+            expect(fetch).toHaveBeenCalledTimes(1);
+
+            resolveFetch({
+                ok: true,
+                json: async () => ({
+                    kpi_strip_html: 'stats-new',
+                    rows: [],
+                    service_cases_empty: true,
+                    service_cases_empty_html: '',
+                }),
+            });
+
+            await vi.runOnlyPendingTimersAsync();
+            await Promise.resolve();
+            await vi.advanceTimersByTimeAsync(1000);
+
+            expect(fetch).toHaveBeenCalledTimes(2);
+        } finally {
+            stopPolling();
+            vi.useRealTimers();
+        }
     });
 });

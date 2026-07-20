@@ -483,7 +483,13 @@ class DashboardService
     }
 
     /**
-     * @return array{kpi_strip_html: string, service_case_filter_counts: array<string, int>}
+     * @return array{
+     *     kpi_strip_html: string,
+     *     service_case_filter_counts: array<string, int>,
+     *     next_appointment: array<string, mixed>|null,
+     *     online_count: int,
+     *     online_users: list<array{id: int, name: string}>,
+     * }
      */
     public function liveMetricsFor(
         User $user,
@@ -505,6 +511,9 @@ class DashboardService
             'service_case_filter_counts' => $user->can('incidents.view')
                 ? $this->serviceCaseFilterCounts($context['assigned_to'], $user)
                 : [],
+            'next_appointment' => $stats['next_appointment'] ?? null,
+            'online_count' => $stats['online_count'],
+            'online_users' => $this->onlineUsersPayload($stats),
         ];
     }
 

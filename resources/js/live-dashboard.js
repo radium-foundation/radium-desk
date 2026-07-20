@@ -283,25 +283,54 @@ export const configureLiveDashboard = (hooks = {}) => {
     dashboardRefreshHooks = hooks;
 };
 
-let pollIntervalId = null;
+let pollTimeoutId = null;
+let pollingActive = false;
+let pollPageRoot = null;
+let pollIntervalMs = 30000;
 
-const startPolling = (pageRoot, intervalMs) => {
-    if (pollIntervalId !== null) {
+const scheduleNextPoll = () => {
+    if (!pollingActive || pollPageRoot === null || pollTimeoutId !== null) {
         return;
     }
 
-    pollIntervalId = window.setInterval(() => {
-        refreshDashboard(pageRoot);
-    }, intervalMs);
+    pollTimeoutId = window.setTimeout(async () => {
+        pollTimeoutId = null;
+
+        const pageRoot = pollPageRoot;
+
+        if (!pollingActive || pageRoot === null) {
+            return;
+        }
+
+        await refreshDashboard(pageRoot);
+
+        if (pollingActive && pollPageRoot === pageRoot) {
+            scheduleNextPoll();
+        }
+    }, pollIntervalMs);
+};
+
+const startPolling = (pageRoot, intervalMs) => {
+    if (pollingActive) {
+        return;
+    }
+
+    pollingActive = true;
+    pollPageRoot = pageRoot;
+    pollIntervalMs = intervalMs;
+    scheduleNextPoll();
 };
 
 const stopPolling = () => {
-    if (pollIntervalId === null) {
+    pollingActive = false;
+    pollPageRoot = null;
+
+    if (pollTimeoutId === null) {
         return;
     }
 
-    window.clearInterval(pollIntervalId);
-    pollIntervalId = null;
+    window.clearTimeout(pollTimeoutId);
+    pollTimeoutId = null;
 };
 
 export const initLiveDashboard = (hooks = {}) => {

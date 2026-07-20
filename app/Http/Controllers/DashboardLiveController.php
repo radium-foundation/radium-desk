@@ -69,13 +69,12 @@ class DashboardLiveController extends Controller
                     'has_more' => false,
                     'loaded_count' => 0,
                 ];
-            $stats = $this->dashboardService->statsFor($user);
 
             return response()->json([
                 'kpi_strip_html' => $metrics['kpi_strip_html'],
-                'next_appointment' => $stats['next_appointment'] ?? null,
-                'online_count' => $stats['online_count'],
-                'online_users' => $this->dashboardService->onlineUsersPayload($stats),
+                'next_appointment' => $metrics['next_appointment'],
+                'online_count' => $metrics['online_count'],
+                'online_users' => $metrics['online_users'],
                 'service_case_filter_counts' => $filterCounts,
                 'service_cases_empty' => $serviceCasesPayload['service_cases_empty'],
                 'service_cases_empty_html' => $serviceCasesPayload['service_cases_empty_html'],

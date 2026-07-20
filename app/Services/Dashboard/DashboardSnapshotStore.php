@@ -35,6 +35,7 @@ class DashboardSnapshotStore
                     'creator',
                     'assignee.roles',
                     'activeWaitingState',
+                    'activeBusinessHold',
                     'supportAppointments',
                 ])
                 ->whereIn('status', \App\Enums\IncidentStatus::operationallyActive())

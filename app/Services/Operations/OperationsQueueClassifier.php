@@ -8,7 +8,6 @@ use App\Enums\ServiceCaseAutomationStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\BusinessHoldService;
 use App\Services\ServiceCaseAssignmentEligibilityService;
 use App\Services\ServiceCaseAutomationStatusService;
 
@@ -208,7 +207,11 @@ class OperationsQueueClassifier
             return false;
         }
 
-        return app(BusinessHoldService::class)->hasActiveHold($incident);
+        $hold = $incident->relationLoaded('activeBusinessHold')
+            ? $incident->activeBusinessHold
+            : $incident->activeBusinessHold()->first();
+
+        return $hold !== null && $hold->isActive();
     }
 
     public function isWaitingCustomer(Incident $incident): bool
