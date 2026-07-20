@@ -25,6 +25,7 @@ import { initWorkspace, getWorkspaceSession } from './workspace';
 import { initKeyboardShortcuts } from './keyboard';
 import { initUniversalSearch } from './universal-search';
 import { initCustomer360Drawer } from './customer-360-drawer';
+import { initAgentDashboard } from './agent-dashboard';
 import { initDashboardActivityStreams } from './dashboard-activity-streams';
 import { buildSmartToastActions } from './customer-360-cockpit';
 import { getDashboardConfig } from './dashboard-config';
