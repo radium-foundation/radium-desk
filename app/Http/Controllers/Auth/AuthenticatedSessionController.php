@@ -45,7 +45,11 @@ class AuthenticatedSessionController extends Controller
             $this->iraAssignmentTelegramBatchService->flushForUserIfPending($user);
         }
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $home = $user !== null && $user->can('platform-dashboard.view')
+            ? route('admin.platform.index', absolute: false)
+            : route('dashboard', absolute: false);
+
+        return redirect()->intended($home);
     }
 
     /**

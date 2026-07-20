@@ -27,6 +27,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
 use App\Http\Controllers\OperationalSystemSettingsController;
 use App\Http\Controllers\OperationsDashboardController;
+use App\Http\Controllers\PlatformDashboardController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderDeviceModelController;
 use App\Http\Controllers\OrderLegacyVerificationController;
@@ -197,6 +198,11 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.operations.automation-health');
     Route::get('/admin/operations/automation-health/executions/{execution}', [AutomationHealthController::class, 'show'])
         ->name('admin.operations.automation-health.executions.show');
+
+    Route::get('/admin/platform', [PlatformDashboardController::class, 'index'])
+        ->name('admin.platform.index');
+    Route::get('/admin/platform/cards/{card}', [PlatformDashboardController::class, 'showCard'])
+        ->name('admin.platform.cards.show');
 
     Route::get('/admin/operations', [OperationsDashboardController::class, 'index'])
         ->name('admin.operations.index');

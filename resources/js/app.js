@@ -30,6 +30,7 @@ import { initDashboardActivityStreams } from './dashboard-activity-streams';
 import { buildSmartToastActions } from './customer-360-cockpit';
 import { getDashboardConfig } from './dashboard-config';
 import { initOperationsDashboard } from './operations-dashboard';
+import { initPlatformDashboard } from './platform-dashboard';
 import { initAutomationHealth } from './automation-health';
 import { initPresenceHeartbeat } from './presence-heartbeat';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from './customer-intake';
@@ -802,6 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initOperationsDashboard();
+    initPlatformDashboard();
     initAutomationHealth();
     initPresenceHeartbeat();
 });

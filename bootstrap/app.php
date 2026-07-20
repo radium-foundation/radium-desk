@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\TrackTeamMemberActivity;
+use App\Services\Platform\PlatformHealthCache;
 use App\Services\SystemSettingsService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Artisan;
@@ -32,6 +33,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', TrackTeamMemberActivity::class);
     })
     ->withSchedule(function (Schedule $schedule): void {
+        $schedule->call(function (): void {
+            PlatformHealthCache::recordSchedulerHeartbeat();
+        })
+            ->name('operations:scheduler-heartbeat')
+            ->everyMinute()
+            ->withoutOverlapping();
+
         $schedule->command('queue:work --stop-when-empty --max-time=55')
             ->everyMinute()
             ->when(fn (): bool => (bool) config('infrastructure.queue_cron_worker_enabled'))
@@ -69,6 +77,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/automation-snapshot.log'));
+
+        $schedule->command('executive:snapshot')
+            ->hourly()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/executive-snapshot.log'));
 
         $schedule->command('outbox:process')
             ->everyMinute()
