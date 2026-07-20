@@ -51,6 +51,7 @@ use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\TeamPerformanceController;
 use App\Http\Controllers\TeamTelegramBroadcastController;
+use App\Http\Controllers\TeamWorkScheduleController;
 use App\Http\Controllers\Workforce360Controller;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkspaceActionController;
@@ -218,7 +219,9 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/admin/operations/telegram/broadcast', [TeamTelegramBroadcastController::class, 'store'])
         ->name('admin.operations.telegram.broadcast');
 
-    Route::resource('leave-requests', LeaveRequestController::class)->except(['edit', 'update', 'destroy']);
+    Route::resource('leave-requests', LeaveRequestController::class)
+        ->except(['edit', 'update', 'destroy'])
+        ->parameters(['leave-requests' => 'leaveRequest']);
     Route::post('leave-requests/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])
         ->name('leave-requests.approve');
     Route::post('leave-requests/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])
