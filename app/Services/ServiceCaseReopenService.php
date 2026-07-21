@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
@@ -48,6 +49,7 @@ class ServiceCaseReopenService
                 auditContext: [
                     'reason' => 'reopened',
                 ],
+                assignmentOrigin: AssignmentOrigin::Manual,
             );
 
             return $freshIncident->fresh(['assignee', 'order', 'creator', 'updater']);

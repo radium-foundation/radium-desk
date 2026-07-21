@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Data\Assignment\AssignmentOriginRepairFilters;
 use App\Data\Assignment\AssignmentOriginRepairRow;
 use App\Data\Assignment\AssignmentOriginRepairSummary;
 use App\Services\Assignment\AssignmentOriginRepairService;
@@ -10,6 +11,9 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('assignment:repair-origin
+    {--order= : Repair only the incident for this order ID}
+    {--service-case= : Repair only the incident matching this service case reference}
+    {--incident-id= : Repair only this incident database ID}
     {--dry-run : Preview repairs without writing (default)}
     {--execute : Apply repairs to assignment_origin}')]
 #[Description('Repair assignment_origin for historical manual assignments that defaulted to auto')]
@@ -25,13 +29,19 @@ class RepairAssignmentOriginCommand extends Command
     {
         $dryRun = ! (bool) $this->option('execute');
 
+        $filters = $this->resolveFilters();
+
         if ($dryRun) {
             $this->info('Dry run — no changes will be written. Pass --execute to apply repairs.');
         } else {
             $this->warn('Execute mode — assignment_origin will be updated.');
         }
 
-        $summary = $this->repairService->repair(dryRun: $dryRun);
+        if ($filters->hasFilter()) {
+            $this->displayActiveFilters($filters);
+        }
+
+        $summary = $this->repairService->repair(dryRun: $dryRun, filters: $filters);
 
         $this->displayChangedRows($summary);
 
@@ -58,6 +68,41 @@ class RepairAssignmentOriginCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    private function resolveFilters(): AssignmentOriginRepairFilters
+    {
+        $incidentId = $this->option('incident-id');
+
+        return new AssignmentOriginRepairFilters(
+            orderId: $this->filledOption('order'),
+            serviceCase: $this->filledOption('service-case'),
+            incidentId: $incidentId !== null && $incidentId !== '' ? (int) $incidentId : null,
+        );
+    }
+
+    private function filledOption(string $name): ?string
+    {
+        $value = $this->option($name);
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private function displayActiveFilters(AssignmentOriginRepairFilters $filters): void
+    {
+        $active = array_filter([
+            $filters->orderId !== null ? 'order='.$filters->orderId : null,
+            $filters->serviceCase !== null ? 'service-case='.$filters->serviceCase : null,
+            $filters->incidentId !== null ? 'incident-id='.$filters->incidentId : null,
+        ]);
+
+        $this->line('Filters: '.implode(', ', $active));
     }
 
     private function displayChangedRows(AssignmentOriginRepairSummary $summary): void

@@ -2,11 +2,13 @@
 
 namespace App\Services\Assignment;
 
+use App\Data\Assignment\AssignmentOriginRepairFilters;
 use App\Data\Assignment\AssignmentOriginRepairRow;
 use App\Data\Assignment\AssignmentOriginRepairSummary;
 use App\Enums\AssignmentOrigin;
 use App\Models\AuditLog;
 use App\Models\Incident;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -27,8 +29,11 @@ class AssignmentOriginRepairService
         'refund_rejected',
     ];
 
-    public function repair(bool $dryRun = true): AssignmentOriginRepairSummary
-    {
+    public function repair(
+        bool $dryRun = true,
+        ?AssignmentOriginRepairFilters $filters = null,
+    ): AssignmentOriginRepairSummary {
+        $filters ??= new AssignmentOriginRepairFilters;
         $scanned = 0;
         $changed = 0;
         $skipped = 0;
@@ -38,10 +43,7 @@ class AssignmentOriginRepairService
         /** @var list<array{incident_id: int, reason: string}> $errorRows */
         $errorRows = [];
 
-        Incident::query()
-            ->where('assignment_origin', AssignmentOrigin::Auto)
-            ->whereNotNull('assigned_to_user_id')
-            ->with(['order', 'assignee'])
+        $this->buildCandidateQuery($filters)
             ->orderBy('id')
             ->chunkById(100, function (Collection $incidents) use (
                 $dryRun,
@@ -132,6 +134,31 @@ class AssignmentOriginRepairService
             changedRows: $changedRows,
             errorDetails: $errorRows,
         );
+    }
+
+    private function buildCandidateQuery(AssignmentOriginRepairFilters $filters): Builder
+    {
+        $query = Incident::query()
+            ->where('assignment_origin', AssignmentOrigin::Auto)
+            ->whereNotNull('assigned_to_user_id')
+            ->with(['order', 'assignee']);
+
+        if ($filters->incidentId !== null) {
+            $query->whereKey($filters->incidentId);
+        }
+
+        if ($filters->orderId !== null) {
+            $query->whereHas(
+                'order',
+                fn (Builder $orderQuery): Builder => $orderQuery->where('order_id', $filters->orderId),
+            );
+        }
+
+        if ($filters->serviceCase !== null) {
+            $query->matchingReference($filters->serviceCase);
+        }
+
+        return $query;
     }
 
     public function findEstablishingAuditLog(Incident $incident): ?AuditLog

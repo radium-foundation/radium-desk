@@ -187,17 +187,150 @@ class RepairAssignmentOriginCommandTest extends TestCase
         $this->assertSame(AssignmentOrigin::Manual, $incident->fresh()->assignment_origin);
     }
 
-    /**
-     * @return array{0: User, 1: User, 2: Incident}
-     */
-    private function createHistoricalManualAssignmentCase(): array
+    public function test_targeted_repair_by_order_only_scans_matching_incident(): void
+    {
+        [, , $targetIncident] = $this->createHistoricalManualAssignmentCase();
+        $this->createHistoricalManualAssignmentCase(
+            orderId: 'RD-OTHER-ORDER',
+            adminEmail: 'admin-b@example.com',
+            agentEmail: 'agent-b@example.com',
+        );
+
+        $this->artisan('assignment:repair-origin', ['--order' => 'RD3447839'])
+            ->expectsOutputToContain('Filters: order=RD3447839')
+            ->expectsOutputToContain('scanned: 1')
+            ->expectsOutputToContain('changed: 1')
+            ->expectsOutputToContain($targetIncident->reference_no)
+            ->assertSuccessful();
+    }
+
+    public function test_targeted_repair_by_service_case_only_scans_matching_incident(): void
+    {
+        $admin = $this->createAdminUser('admin-sc@example.com');
+        $agent = $this->createAgentUser('agent-sc@example.com');
+        $order = $this->createValidatedOrder($admin, 'RD-SERVICE-CASE-FILTER');
+        $incident = $this->createIncident($order, $admin, assignee: $agent, referenceNo: 'SC10069');
+        $this->seedManualReassignAudit($admin, $agent, $incident);
+        $this->createHistoricalManualAssignmentCase(
+            orderId: 'RD-OTHER-ORDER',
+            adminEmail: 'admin-sc-b@example.com',
+            agentEmail: 'agent-sc-b@example.com',
+        );
+
+        $this->artisan('assignment:repair-origin', ['--service-case' => 'SC10069', '--execute' => true])
+            ->expectsOutputToContain('Filters: service-case=SC10069')
+            ->expectsOutputToContain('scanned: 1')
+            ->expectsOutputToContain('changed: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(AssignmentOrigin::Manual, $incident->fresh()->assignment_origin);
+    }
+
+    public function test_targeted_repair_by_incident_id_only_scans_matching_incident(): void
+    {
+        [, , $targetIncident] = $this->createHistoricalManualAssignmentCase();
+        $this->createHistoricalManualAssignmentCase(
+            orderId: 'RD-OTHER-ORDER',
+            adminEmail: 'admin-id-b@example.com',
+            agentEmail: 'agent-id-b@example.com',
+        );
+
+        $this->artisan('assignment:repair-origin', [
+            '--incident-id' => (string) $targetIncident->id,
+            '--execute' => true,
+        ])
+            ->expectsOutputToContain('Filters: incident-id='.$targetIncident->id)
+            ->expectsOutputToContain('scanned: 1')
+            ->expectsOutputToContain('changed: 1')
+            ->assertSuccessful();
+
+        $this->assertSame(AssignmentOrigin::Manual, $targetIncident->fresh()->assignment_origin);
+    }
+
+    public function test_targeted_execute_is_idempotent_on_second_run(): void
+    {
+        [, , $incident] = $this->createHistoricalManualAssignmentCase();
+
+        $this->artisan('assignment:repair-origin', [
+            '--order' => 'RD3447839',
+            '--execute' => true,
+        ])->assertSuccessful();
+
+        $this->artisan('assignment:repair-origin', [
+            '--order' => 'RD3447839',
+            '--execute' => true,
+        ])
+            ->expectsOutputToContain('scanned: 0')
+            ->expectsOutputToContain('changed: 0')
+            ->assertSuccessful();
+
+        $this->assertSame(AssignmentOrigin::Manual, $incident->fresh()->assignment_origin);
+    }
+
+    public function test_manual_assignment_persists_assignment_origin_manual(): void
     {
         $admin = $this->createAdminUser();
         $agent = $this->createAgentUser();
+        $order = $this->createValidatedOrder($admin, 'RD-MANUAL-ASSIGN-ORIGIN');
+        $incident = $this->createIncident($order, $admin, assignee: $admin);
 
-        $order = $this->createValidatedOrder($admin, 'RD3447839');
+        app(ServiceCaseAssignmentService::class)->reassign($incident, $agent, $admin);
+
+        $this->assertSame(AssignmentOrigin::Manual, $incident->fresh()->assignment_origin);
+    }
+
+    public function test_manual_reassignment_persists_assignment_origin_manual(): void
+    {
+        $admin = $this->createAdminUser();
+        $agent = $this->createAgentUser();
+        $otherAgent = $this->createAgentUser('agent-2@example.com', 'Agent Two');
+        $order = $this->createValidatedOrder($admin, 'RD-MANUAL-REASSIGN-ORIGIN');
         $incident = $this->createIncident($order, $admin, assignee: $agent);
 
+        app(ServiceCaseAssignmentService::class)->reassign($incident, $otherAgent, $admin);
+
+        $this->assertSame(AssignmentOrigin::Manual, $incident->fresh()->assignment_origin);
+    }
+
+    public function test_manual_escalation_persists_assignment_origin_manual(): void
+    {
+        $admin = $this->createAdminUser();
+        $specialist = User::factory()->create(['name' => 'Escalation Specialist']);
+        $specialist->assignRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST);
+        $order = $this->createValidatedOrder($admin, 'RD-MANUAL-ESCALATE-ORIGIN');
+        $incident = $this->createIncident($order, $admin, assignee: $admin);
+
+        app(ServiceCaseAssignmentService::class)->escalate(
+            incident: $incident,
+            assignee: $specialist,
+            actor: $admin,
+            reason: 'Needs specialist review',
+        );
+
+        $this->assertSame(AssignmentOrigin::Manual, $incident->fresh()->assignment_origin);
+    }
+
+    /**
+     * @return array{0: User, 1: User, 2: Incident}
+     */
+    private function createHistoricalManualAssignmentCase(
+        string $orderId = 'RD3447839',
+        string $adminEmail = 'admin@example.com',
+        string $agentEmail = 'agent@example.com',
+    ): array {
+        $admin = $this->createAdminUser($adminEmail);
+        $agent = $this->createAgentUser($agentEmail);
+
+        $order = $this->createValidatedOrder($admin, $orderId);
+        $incident = $this->createIncident($order, $admin, assignee: $agent);
+
+        $this->seedManualReassignAudit($admin, $agent, $incident);
+
+        return [$admin, $agent, $incident];
+    }
+
+    private function seedManualReassignAudit(User $admin, User $agent, Incident $incident): void
+    {
         app(AuditLogService::class)->log(
             userId: $admin->id,
             event: 'service_case.assigned',
@@ -219,8 +352,6 @@ class RepairAssignmentOriginCommandTest extends TestCase
                 'override_reason' => 'manual_reassign',
             ],
         );
-
-        return [$admin, $agent, $incident];
     }
 
     private function createAdminUser(string $email = 'admin@example.com', string $name = 'Admin User'): User
@@ -264,11 +395,15 @@ class RepairAssignmentOriginCommandTest extends TestCase
         return $order;
     }
 
-    private function createIncident(Order $order, User $creator, ?User $assignee = null): Incident
-    {
+    private function createIncident(
+        Order $order,
+        User $creator,
+        ?User $assignee = null,
+        ?string $referenceNo = null,
+    ): Incident {
         return Incident::query()->create([
             'order_id' => $order->id,
-            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'reference_no' => $referenceNo ?? app(IncidentReferenceService::class)->generate(),
             'category' => 'General',
             'source' => IncidentSource::Call,
             'title' => "Case {$order->order_id}",
