@@ -3,6 +3,7 @@
 namespace App\Support\Customer360;
 
 use App\Enums\CommunicationActionKey;
+use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -179,26 +180,19 @@ final class Customer360OverflowMenuPresenter
             );
         }
 
-        if ($visibility['showIdentityCorrectionActions']
-            && $visibility['correctSerialNumberEligibility']['allowed']) {
-            $items[] = $this->triggerItem(
-                id: 'correct-serial',
-                label: 'Correct Serial',
-                icon: 'barcode',
-                trigger: 'correct-serial-number',
-                keywords: ['serial', 'identity'],
-                shortcut: 'correct-serial',
-            );
-        }
+        $canCorrectSerial = $visibility['showIdentityCorrectionActions']
+            && $visibility['correctSerialNumberEligibility']['allowed'];
+        $canCorrectDeviceModel = $visibility['showIdentityCorrectionActions']
+            && ($visibility['correctDeviceModelEligibility']['allowed'] ?? false);
 
-        if ($visibility['showIdentityCorrectionActions']
-            && ($visibility['correctDeviceModelEligibility']['allowed'] ?? false)) {
+        if ($canCorrectSerial || $canCorrectDeviceModel) {
             $items[] = $this->triggerItem(
-                id: 'correct-device-model',
-                label: 'Correct Device Model',
-                icon: 'phone',
-                trigger: 'correct-device-model',
-                keywords: ['device', 'model', 'product', 'identity'],
+                id: 'correct-device-identity',
+                label: 'Correct Device Identity',
+                icon: 'barcode',
+                trigger: $canCorrectSerial ? 'correct-serial-number' : 'correct-device-model',
+                keywords: ['device', 'model', 'serial', 'product', 'identity'],
+                shortcut: 'correct-serial',
             );
         }
 
@@ -352,13 +346,15 @@ final class Customer360OverflowMenuPresenter
             );
         }
 
-        $items[] = $this->linkItem(
-            id: 'open-case',
-            label: 'Open Case',
-            icon: 'folder-open',
-            href: route('incidents.show', $incident),
-            keywords: ['case', 'incident'],
-        );
+        if ($incident->status === IncidentStatus::Closed) {
+            $items[] = $this->linkItem(
+                id: 'open-case',
+                label: 'Open Case',
+                icon: 'folder-open',
+                href: route('incidents.show', $incident),
+                keywords: ['case', 'incident'],
+            );
+        }
 
         return [
             'label' => 'Related',

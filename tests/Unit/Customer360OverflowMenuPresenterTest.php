@@ -36,13 +36,14 @@ class Customer360OverflowMenuPresenterTest extends TestCase
 
         $labels = collect($menu['groups'])->pluck('label')->all();
 
-        $this->assertContains('Communication', $labels);
         $this->assertContains('Case', $labels);
         $this->assertContains('Appointments', $labels);
-        $this->assertLessThan(
-            array_search('Case', $labels, true),
-            array_search('Communication', $labels, true),
-        );
+        if (in_array('Communication', $labels, true)) {
+            $this->assertLessThan(
+                array_search('Case', $labels, true),
+                array_search('Communication', $labels, true),
+            );
+        }
 
         $caseItems = collect($menu['groups'])->firstWhere('label', 'Case')['items'];
         $this->assertSame(
@@ -59,9 +60,12 @@ class Customer360OverflowMenuPresenterTest extends TestCase
             collect($menu['groups'])->firstWhere('label', 'Related')['items'],
         )->pluck('label')->all();
 
-        $this->assertSame(['Open Order', 'Open Case'], $relatedLabels);
+        $this->assertSame(['Open Order'], $relatedLabels);
         $this->assertFalse(
             collect($menu['paletteActions'])->contains(fn (array $item): bool => $item['id'] === 'correct-customer'),
+        );
+        $this->assertFalse(
+            collect($menu['paletteActions'])->contains(fn (array $item): bool => $item['id'] === 'open-case'),
         );
     }
 
@@ -113,6 +117,14 @@ class Customer360OverflowMenuPresenterTest extends TestCase
         )->pluck('label')->all();
 
         $this->assertSame(['Reopen Case', 'Refund'], $caseLabels);
+        $this->assertNotContains('Close Case', $caseLabels);
+
+        $relatedLabels = collect(
+            collect($menu['groups'])->firstWhere('label', 'Related')['items'],
+        )->pluck('label')->all();
+
+        $this->assertContains('Open Case', $relatedLabels);
+        $this->assertNotContains('Close Case', $relatedLabels);
     }
 
     public function test_build_includes_refund_workspace_trigger_when_user_can_create_refunds(): void

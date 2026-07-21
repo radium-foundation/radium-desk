@@ -144,7 +144,7 @@ class Customer360DrawerTest extends TestCase
         $this->assertStringContainsString('data-workspace-trigger="action"', $html);
         $this->assertStringContainsString('data-workspace-action-type="assign"', $html);
         $this->assertStringContainsString('data-workspace-action-type="close"', $html);
-        $this->assertStringContainsString('Open Case', $html);
+        $this->assertStringNotContainsString('>Open Case<', $html);
         $this->assertStringContainsString('data-customer-360-section="communication-actions"', $html);
         $this->assertStringContainsString('Communication Actions', $html);
         $this->assertStringContainsString('Send Review Request', $html);
