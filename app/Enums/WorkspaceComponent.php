@@ -19,6 +19,7 @@ enum WorkspaceComponent: string
     case CorrectCustomerDetails = 'correct-customer-details';
     case CorrectSerialNumber = 'correct-serial-number';
     case CorrectDeviceModel = 'correct-device-model';
+    case CorrectDeviceIdentity = 'correct-device-identity';
     case CommunicationAction = 'communication-action';
     case RefundRequest = 'refund-request';
 
@@ -40,6 +41,7 @@ enum WorkspaceComponent: string
             self::CorrectCustomerDetails => 'customer-360.fragments.correct-customer-details-form',
             self::CorrectSerialNumber => 'customer-360.fragments.correct-serial-number-form',
             self::CorrectDeviceModel => 'customer-360.fragments.correct-device-model-form',
+            self::CorrectDeviceIdentity => 'customer-360.fragments.correct-device-identity-form',
             self::CommunicationAction => 'customer-360.fragments.communication-action-form',
             self::RefundRequest => 'customer-360.fragments.refund-request-form',
         };

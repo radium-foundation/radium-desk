@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
+use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -16,7 +16,7 @@ class WorkspaceCorrectDeviceModelRequest extends FormRequest
             return false;
         }
 
-        return app(IdentityCorrectionEligibilityEvaluator::class)->canCorrectDeviceIdentity($incident, $this->user());
+        return app(DeviceModelCorrectionEligibilityService::class)->canShowAction($incident, $this->user());
     }
 
     /**

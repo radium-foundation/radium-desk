@@ -17,6 +17,7 @@ import { createBatchTransactionSession } from './workspace/batch-session';
 import { csrfToken } from './workspace/http';
 import { initActionDialog } from './workspace/action-dialog';
 import { initCorrectCustomerDetailsDialog } from './workspace/correct-customer-details-dialog';
+import { initCorrectDeviceIdentityDialog } from './workspace/correct-device-identity-dialog';
 import { initCorrectDeviceModelDialog } from './workspace/correct-device-model-dialog';
 import { initCorrectSerialNumberDialog } from './workspace/correct-serial-number-dialog';
 import { initCommunicationCenterForm } from './workspace/communication-center-form';
@@ -665,6 +666,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (component === 'correct-device-model') {
                 initCorrectDeviceModelDialog(modalContent);
+            }
+
+            if (component === 'correct-device-identity') {
+                initCorrectDeviceIdentityDialog(modalContent);
             }
 
             if (component === 'communication-action') {

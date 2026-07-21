@@ -96,8 +96,9 @@ class WorkspaceComponentService
                 && $this->customerNotRespondingEligibilityService->canShowAction($incident),
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectCustomerDetails => $this->customerCorrectionEligibilityService->canShowAction($incident, $user),
-            WorkspaceComponent::CorrectSerialNumber => $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $user),
-            WorkspaceComponent::CorrectDeviceModel => $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $user),
+            WorkspaceComponent::CorrectSerialNumber => $this->serialCorrectionEligibilityService->canShowAction($incident, $user),
+            WorkspaceComponent::CorrectDeviceModel => $this->deviceModelCorrectionEligibilityService->canShowAction($incident, $user),
+            WorkspaceComponent::CorrectDeviceIdentity => $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $user),
             WorkspaceComponent::CommunicationAction => $this->canOpenCommunicationAction($incident, $user),
             WorkspaceComponent::RefundRequest => $user->can('refunds.create') && $incident->order_id !== null,
         };
@@ -201,6 +202,10 @@ class WorkspaceComponentService
             WorkspaceComponent::CorrectDeviceModel => [
                 'incident' => $incident,
                 ...$this->correctDeviceModelWorkspaceFields($requestContext, $incident),
+            ],
+            WorkspaceComponent::CorrectDeviceIdentity => [
+                'incident' => $incident,
+                ...$this->correctDeviceIdentityWorkspaceFields($requestContext, $incident),
             ],
             WorkspaceComponent::CommunicationAction => [
                 'incident' => $incident,
@@ -408,6 +413,32 @@ class WorkspaceComponentService
     /**
      * @return array<string, mixed>
      */
+    private function correctDeviceIdentityWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
+    {
+        if ($requestContext === null) {
+            return [];
+        }
+
+        $incident->loadMissing('order.deviceModel');
+        $order = $incident->order;
+        $currentSerial = filled($order?->serial_number)
+            ? trim((string) $order->serial_number)
+            : null;
+
+        return [
+            'workspaceActionUrl' => route('incidents.workspace.correct-device-identity', $incident),
+            'workspaceValidationUrl' => route('incidents.workspace.correct-device-identity.validate', $incident),
+            'workspaceContext' => $requestContext->context->value,
+            'currentSerial' => $currentSerial,
+            'currentDeviceModel' => $order?->device_model,
+            'currentDeviceModelId' => $order?->device_model_id,
+            'deviceModels' => app(DeviceModelSettingsService::class)->activeOptions(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function correctCustomerDetailsWorkspaceFields(?WorkspaceRequestContext $requestContext, Incident $incident): array
     {
         if ($requestContext === null) {
@@ -429,6 +460,9 @@ class WorkspaceComponentService
             'canCorrectDeviceModel' => $order !== null
                 && auth()->user() !== null
                 && $this->deviceModelCorrectionEligibilityService->canShowAction($incident, auth()->user()),
+            'canCorrectDeviceIdentity' => $order !== null
+                && auth()->user() !== null
+                && $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, auth()->user()),
         ];
     }
 

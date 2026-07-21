@@ -167,6 +167,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('incidents.workspace.correct-serial-number.validate');
     Route::patch('incidents/{incident}/workspace/correct-device-model', [WorkspaceActionController::class, 'correctDeviceModel'])
         ->name('incidents.workspace.correct-device-model');
+    Route::patch('incidents/{incident}/workspace/correct-device-identity', [WorkspaceActionController::class, 'correctDeviceIdentity'])
+        ->name('incidents.workspace.correct-device-identity');
+    Route::post('incidents/{incident}/workspace/correct-device-identity/validate', [WorkspaceActionController::class, 'validateCorrectDeviceIdentity'])
+        ->name('incidents.workspace.correct-device-identity.validate');
     Route::patch('incidents/{incident}/workspace/resolve', [WorkspaceActionController::class, 'resolve'])
         ->name('incidents.workspace.resolve');
     Route::patch('incidents/{incident}/workspace/close', [WorkspaceActionController::class, 'close'])

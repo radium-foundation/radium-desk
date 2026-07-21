@@ -2,10 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
+use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
-class WorkspaceCorrectSerialNumberRequest extends FormRequest
+class WorkspaceCorrectDeviceIdentityRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -15,7 +16,7 @@ class WorkspaceCorrectSerialNumberRequest extends FormRequest
             return false;
         }
 
-        return app(SerialCorrectionEligibilityService::class)->canShowAction($incident, $this->user());
+        return app(IdentityCorrectionEligibilityEvaluator::class)->canCorrectDeviceIdentity($incident, $this->user());
     }
 
     protected function prepareForValidation(): void
@@ -23,6 +24,12 @@ class WorkspaceCorrectSerialNumberRequest extends FormRequest
         if ($this->has('serial_number')) {
             $this->merge([
                 'serial_number' => strtoupper(trim($this->string('serial_number')->toString())),
+            ]);
+        }
+
+        if ($this->has('confirm_model_switch')) {
+            $this->merge([
+                'confirm_model_switch' => filter_var($this->input('confirm_model_switch'), FILTER_VALIDATE_BOOL),
             ]);
         }
     }
@@ -33,8 +40,14 @@ class WorkspaceCorrectSerialNumberRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'device_model_id' => [
+                'required',
+                'integer',
+                Rule::exists('device_models', 'id')->where('is_active', true),
+            ],
             'serial_number' => ['required', 'string', 'max:100'],
             'reason' => ['required', 'string', 'max:2000'],
+            'confirm_model_switch' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -44,8 +57,8 @@ class WorkspaceCorrectSerialNumberRequest extends FormRequest
     public function attributes(): array
     {
         return [
+            'device_model_id' => 'device model',
             'serial_number' => 'serial number',
-            'reason' => 'reason',
         ];
     }
 }

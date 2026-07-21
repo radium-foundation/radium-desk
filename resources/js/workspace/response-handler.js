@@ -114,6 +114,15 @@ export const createResponseHandler = (hooks = {}, lifecycle = null) => {
             applyTargets(data.refresh?.targets, hooks);
             showToast(data.toast, data.message);
 
+            const identityForm = host?.querySelector('[data-workspace-action-form="correct-device-identity"]');
+
+            if (identityForm instanceof HTMLFormElement) {
+                identityForm.dispatchEvent(new CustomEvent('workspace:response', {
+                    detail: data,
+                    bubbles: true,
+                }));
+            }
+
             if (host) {
                 initWorkspaceDialogShell(host, host.querySelector('[data-workspace-modal-content]'));
             }

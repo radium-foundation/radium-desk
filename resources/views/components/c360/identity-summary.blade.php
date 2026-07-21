@@ -6,6 +6,7 @@
     'canCorrectSerialNumber' => false,
     'showDeviceModelAction' => true,
     'canCorrectDeviceModel' => false,
+    'canCorrectDeviceIdentity' => false,
     'variant' => 'sidebar',
 ])
 
@@ -79,10 +80,18 @@
         </div>
     </dl>
 
-    @if($showDeviceModelAction && filled($productName) && $incident !== null)
+    @if($incident !== null && ($canCorrectDeviceIdentity || (($showDeviceModelAction || $showSerialAction) && ($canCorrectDeviceModel || $canCorrectSerialNumber))))
         <div class="c360-dialog-serial-action">
-            <span class="c360-dialog-serial-action-label">Need device model correction?</span>
-            @if($canCorrectDeviceModel)
+            <span class="c360-dialog-serial-action-label">Need identity correction?</span>
+            @if($canCorrectDeviceIdentity)
+                <button type="button"
+                        class="btn btn-sm c360-dialog-serial-action-btn c360-dialog-serial-action-btn--ghost"
+                        data-workspace-trigger="correct-device-identity"
+                        data-workspace-incident-id="{{ $incident->id }}"
+                        data-workspace-context="{{ $workspaceContext }}">
+                    Correct Device Identity
+                </button>
+            @elseif($showDeviceModelAction && $canCorrectDeviceModel)
                 <button type="button"
                         class="btn btn-sm c360-dialog-serial-action-btn c360-dialog-serial-action-btn--ghost"
                         data-workspace-trigger="correct-device-model"
@@ -90,22 +99,7 @@
                         data-workspace-context="{{ $workspaceContext }}">
                     Correct Device Model
                 </button>
-            @else
-                <button type="button"
-                        class="btn btn-sm c360-dialog-serial-action-btn c360-dialog-serial-action-btn--ghost"
-                        disabled
-                        aria-disabled="true"
-                        title="Device model correction is not available for your role or this case">
-                    Correct Device Model
-                </button>
-            @endif
-        </div>
-    @endif
-
-    @if($showSerialAction && $serialNumber !== null && $incident !== null)
-        <div class="c360-dialog-serial-action">
-            <span class="c360-dialog-serial-action-label">Need serial correction?</span>
-            @if($canCorrectSerialNumber)
+            @elseif($showSerialAction && $serialNumber !== null && $canCorrectSerialNumber)
                 <button type="button"
                         class="btn btn-sm c360-dialog-serial-action-btn c360-dialog-serial-action-btn--ghost"
                         data-workspace-trigger="correct-serial-number"
@@ -118,8 +112,8 @@
                         class="btn btn-sm c360-dialog-serial-action-btn c360-dialog-serial-action-btn--ghost"
                         disabled
                         aria-disabled="true"
-                        title="Serial correction is not available for your role or this case">
-                    Correct Serial
+                        title="Device identity correction is not available for your role or this case">
+                    Correct Device Identity
                 </button>
             @endif
         </div>

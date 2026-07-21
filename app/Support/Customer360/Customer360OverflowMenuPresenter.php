@@ -182,16 +182,11 @@ final class Customer360OverflowMenuPresenter
 
         if ($visibility['showIdentityCorrectionActions']
             && ($visibility['canCorrectDeviceIdentity'] ?? false)) {
-            $canCorrectSerial = (bool) ($visibility['correctSerialNumberEligibility']['allowed'] ?? false);
-            $canCorrectDeviceModel = (bool) ($visibility['correctDeviceModelEligibility']['allowed'] ?? false);
-
             $items[] = $this->triggerItem(
                 id: 'correct-device-identity',
                 label: 'Correct Device Identity',
                 icon: 'barcode',
-                trigger: $canCorrectSerial
-                    ? 'correct-serial-number'
-                    : ($canCorrectDeviceModel ? 'correct-device-model' : 'correct-serial-number'),
+                trigger: 'correct-device-identity',
                 keywords: ['device', 'model', 'serial', 'product', 'identity'],
                 shortcut: 'correct-serial',
             );

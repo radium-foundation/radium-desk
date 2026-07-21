@@ -9,7 +9,7 @@ use App\Enums\WorkspaceContext;
 use App\Models\DeviceModel;
 use App\Models\Incident;
 use App\Models\User;
-use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
+use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +19,7 @@ class WorkspaceCorrectDeviceModelActionService
 {
     public function __construct(
         private readonly OrderDeviceModelService $orderDeviceModelService,
-        private readonly IdentityCorrectionEligibilityEvaluator $identityCorrectionEligibilityEvaluator,
+        private readonly DeviceModelCorrectionEligibilityService $eligibilityService,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
     ) {}
 
@@ -33,7 +33,7 @@ class WorkspaceCorrectDeviceModelActionService
         WorkspaceRequestContext $requestContext,
         ?Request $request = null,
     ): WorkspaceActionResponse {
-        if (! $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $actor)) {
+        if (! $this->eligibilityService->canShowAction($incident, $actor)) {
             throw new AuthorizationException('This action is unauthorized.');
         }
 

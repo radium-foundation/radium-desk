@@ -233,7 +233,8 @@ class AgentOrderIdentityCorrectionTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('Correct Device Identity', $html);
-        $this->assertStringContainsString('data-workspace-trigger="correct-serial-number"', $html);
+        $this->assertStringContainsString('data-workspace-trigger="correct-device-identity"', $html);
+        $this->assertStringNotContainsString('data-workspace-trigger="correct-serial-number"', $html);
         $this->assertStringNotContainsString('data-workspace-trigger="correct-customer-details"', $html);
     }
 

@@ -13192,3 +13192,84 @@ button.agent-kpi-tile {
 .workforce360-tabs .nav-link {
     white-space: nowrap;
 }
+
+.correct-device-identity-dialog .c360-identity-panel {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.9) 0%, #fff 100%);
+    padding: 1.1rem 1.15rem;
+}
+
+.correct-device-identity-dialog .c360-identity-panel-head {
+    margin-bottom: 1rem;
+}
+
+.correct-device-identity-dialog .c360-identity-panel-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 0.25rem;
+}
+
+.correct-device-identity-dialog .c360-identity-panel-copy {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #64748b;
+}
+
+.correct-device-identity-dialog .c360-identity-panel-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.correct-device-identity-dialog .c360-identity-panel-card {
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 14px;
+    background: #fff;
+}
+
+.correct-device-identity-dialog .c360-identity-mismatch-card {
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 16px;
+    background: rgba(255, 251, 235, 0.9);
+    padding: 1.35rem 1.2rem;
+    text-align: center;
+}
+
+.correct-device-identity-dialog .c360-identity-mismatch-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin: 0 auto 0.75rem;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: rgba(245, 158, 11, 0.16);
+    color: #b45309;
+    font-size: 1.1rem;
+}
+
+.correct-device-identity-dialog .c360-identity-mismatch-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #92400e;
+    margin: 0 0 0.5rem;
+}
+
+.correct-device-identity-dialog .c360-identity-mismatch-copy,
+.correct-device-identity-dialog .c360-identity-mismatch-hint {
+    margin: 0;
+    font-size: 0.86rem;
+    color: #78350f;
+}
+
+.correct-device-identity-dialog .c360-identity-mismatch-hint {
+    margin-top: 0.75rem;
+    color: #a16207;
+}
+
+@media (max-width: 767.98px) {
+    .correct-device-identity-dialog .c360-identity-panel-grid {
+        grid-template-columns: 1fr;
+    }
+}

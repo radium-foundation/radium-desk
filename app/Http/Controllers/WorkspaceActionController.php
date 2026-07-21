@@ -8,6 +8,7 @@ use App\Http\Requests\WorkspaceAssignRequest;
 use App\Http\Requests\WorkspaceCloseRequest;
 use App\Http\Requests\WorkspaceCommunicationActionRequest;
 use App\Http\Requests\WorkspaceCorrectCustomerDetailsRequest;
+use App\Http\Requests\WorkspaceCorrectDeviceIdentityRequest;
 use App\Http\Requests\WorkspaceCorrectDeviceModelRequest;
 use App\Http\Requests\WorkspaceCorrectSerialNumberRequest;
 use App\Http\Requests\WorkspaceLinkOrderRequest;
@@ -22,6 +23,7 @@ use App\Services\WorkspaceAssignActionService;
 use App\Services\WorkspaceCloseActionService;
 use App\Services\WorkspaceContextResolver;
 use App\Services\WorkspaceCorrectCustomerDetailsActionService;
+use App\Services\WorkspaceCorrectDeviceIdentityActionService;
 use App\Services\WorkspaceCorrectDeviceModelActionService;
 use App\Services\WorkspaceCorrectSerialNumberActionService;
 use App\Services\WorkspaceCustomerNotRespondingActionService;
@@ -52,6 +54,7 @@ class WorkspaceActionController extends Controller
         private readonly WorkspaceCorrectCustomerDetailsActionService $correctCustomerDetailsActionService,
         private readonly WorkspaceCorrectSerialNumberActionService $correctSerialNumberActionService,
         private readonly WorkspaceCorrectDeviceModelActionService $correctDeviceModelActionService,
+        private readonly WorkspaceCorrectDeviceIdentityActionService $correctDeviceIdentityActionService,
         private readonly CommunicationActionExecutorService $communicationActionExecutorService,
         private readonly CommunicationActionRegistry $communicationActionRegistry,
         private readonly WorkspaceContextResolver $contextResolver,
@@ -310,6 +313,21 @@ class WorkspaceActionController extends Controller
         return $response->toJsonResponse($response->success ? 200 : 422);
     }
 
+    public function correctDeviceIdentity(WorkspaceCorrectDeviceIdentityRequest $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        $response = $this->correctDeviceIdentityActionService->correct(
+            incident: $incident,
+            actor: $request->user(),
+            payload: $request->validated(),
+            requestContext: $requestContext,
+            request: $request,
+        );
+
+        return $response->toJsonResponse($response->success ? 200 : 422);
+    }
+
     public function validateCorrectSerialNumber(Request $request, Incident $incident): JsonResponse
     {
         $requestContext = $this->contextResolver->resolve($request, $incident);
@@ -318,6 +336,28 @@ class WorkspaceActionController extends Controller
             $preview = $this->correctSerialNumberActionService->preview(
                 incident: $incident,
                 actor: $request->user(),
+                serialNumber: $request->string('serial_number')->toString(),
+            );
+        } catch (AuthorizationException) {
+            abort(403);
+        }
+
+        return response()->json([
+            ...$preview,
+            'incident_id' => $incident->id,
+            'context' => $requestContext->context->value,
+        ]);
+    }
+
+    public function validateCorrectDeviceIdentity(Request $request, Incident $incident): JsonResponse
+    {
+        $requestContext = $this->contextResolver->resolve($request, $incident);
+
+        try {
+            $preview = $this->correctDeviceIdentityActionService->preview(
+                incident: $incident,
+                actor: $request->user(),
+                deviceModelId: $request->integer('device_model_id'),
                 serialNumber: $request->string('serial_number')->toString(),
             );
         } catch (AuthorizationException) {

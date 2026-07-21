@@ -172,7 +172,7 @@ class IdentityCorrectionEligibilityTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('data-workspace-trigger="correct-customer-details"', $html);
-        $this->assertStringContainsString('data-workspace-trigger="correct-serial-number"', $html);
+        $this->assertStringContainsString('data-workspace-trigger="correct-device-identity"', $html);
     }
 
     public function test_visibility_service_exposes_eligibility_payload(): void

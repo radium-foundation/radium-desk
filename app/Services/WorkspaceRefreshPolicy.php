@@ -111,6 +111,9 @@ class WorkspaceRefreshPolicy
             WorkspaceComponent::CorrectDeviceModel => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),
+            WorkspaceComponent::CorrectDeviceIdentity => new WorkspaceRefreshEffects(
+                closeWorkspaceHost: true,
+            ),
             WorkspaceComponent::CommunicationAction => new WorkspaceRefreshEffects(
                 closeWorkspaceHost: true,
             ),
