@@ -52,6 +52,32 @@ class ServiceCaseStatusServiceCloseRequirementsTest extends TestCase
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
+    public function test_agent_can_close_inquiry_case_without_transaction_id(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident = $this->createIncident(
+            orderId: 'INQ-SC-CLOSE-001',
+            cashfreePaymentId: null,
+        );
+
+        Remark::query()->create([
+            'user_id' => $agent->id,
+            'remarkable_type' => $incident->getMorphClass(),
+            'remarkable_id' => $incident->id,
+            'body' => 'Missed call recovery closed after callback attempts.',
+        ]);
+
+        app(ServiceCaseStatusService::class)->updateStatus(
+            incident: $incident,
+            status: IncidentStatus::Closed,
+            actor: $agent,
+        );
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+    }
+
     public function test_agent_still_requires_transaction_id_for_hardware_case(): void
     {
         $agent = User::factory()->create();
