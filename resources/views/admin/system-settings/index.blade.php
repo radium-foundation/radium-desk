@@ -42,18 +42,22 @@
                                         : $setting['value'];
                                 @endphp
 
-                                <div class="border rounded p-3">
+                                <div class="border rounded p-3 @if(! empty($setting['disabled'])) opacity-75 @endif">
                                     @if($setting['type'] === 'boolean')
                                         <div class="form-check form-switch mb-0">
-                                            <input type="hidden" name="{{ $fieldName }}" value="0">
+                                            <input type="hidden" name="{{ $fieldName }}" value="{{ ! empty($setting['disabled']) ? (filter_var($oldValue, FILTER_VALIDATE_BOOLEAN) ? '1' : '0') : '0' }}">
                                             <input type="checkbox"
                                                    name="{{ $fieldName }}"
                                                    value="1"
                                                    id="{{ $inputId }}"
                                                    class="form-check-input @error('settings.' . $setting['key']) is-invalid @enderror"
-                                                   @checked(filter_var($oldValue, FILTER_VALIDATE_BOOLEAN))>
+                                                   @checked(filter_var($oldValue, FILTER_VALIDATE_BOOLEAN))
+                                                   @disabled(! empty($setting['disabled']))>
                                             <label class="form-check-label fw-medium" for="{{ $inputId }}">
                                                 {{ $setting['label'] }}
+                                                @if(! empty($setting['disabled']))
+                                                    <span class="badge text-bg-secondary ms-1">Coming Soon</span>
+                                                @endif
                                             </label>
                                         </div>
                                     @else
@@ -62,7 +66,11 @@
                                                name="{{ $fieldName }}"
                                                id="{{ $inputId }}"
                                                value="{{ $oldValue }}"
-                                               class="form-control @error('settings.' . $setting['key']) is-invalid @enderror">
+                                               class="form-control @error('settings.' . $setting['key']) is-invalid @enderror"
+                                               @disabled(! empty($setting['disabled']))>
+                                        @if(! empty($setting['disabled']))
+                                            <input type="hidden" name="{{ $fieldName }}" value="{{ $oldValue }}">
+                                        @endif
                                     @endif
 
                                     @if(! empty($setting['description']))

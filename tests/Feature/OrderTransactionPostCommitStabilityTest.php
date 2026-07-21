@@ -5,13 +5,16 @@ namespace Tests\Feature;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Events\Dashboard\DashboardKpisUpdated;
+use App\Events\Dashboard\ReferenceNumbersUpdated;
 use App\Events\Dashboard\TransactionAssigned;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\DashboardBroadcastService;
 use App\Services\OrderTransactionService;
+use App\Services\SystemSettingsService;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SystemSettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -26,26 +29,41 @@ class OrderTransactionPostCommitStabilityTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(SystemSettingsSeeder::class);
     }
 
-    public function test_ref_no_assign_defers_dashboard_broadcasts_until_after_commit(): void
+    public function test_ref_no_assign_with_feature_off_skips_realtime_broadcasts(): void
     {
-        Event::fake([TransactionAssigned::class, DashboardKpisUpdated::class]);
+        Event::fake([ReferenceNumbersUpdated::class, TransactionAssigned::class, DashboardKpisUpdated::class]);
+
+        [$admin, , $order, $incident] = $this->createAssignableCase();
+
+        app(OrderTransactionService::class)->assignTransactionId(
+            order: $order,
+            transactionId: 'TXN-POST-COMMIT-OFF',
+            actor: $admin,
+        );
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertSame('TXN-POST-COMMIT-OFF', $order->fresh()->transaction_id);
+
+        Event::assertNotDispatched(ReferenceNumbersUpdated::class);
+        Event::assertNotDispatched(TransactionAssigned::class);
+        Event::assertNotDispatched(DashboardKpisUpdated::class);
+    }
+
+    public function test_ref_no_assign_defers_hybrid_broadcast_until_after_commit(): void
+    {
+        Event::fake([ReferenceNumbersUpdated::class, TransactionAssigned::class, DashboardKpisUpdated::class]);
+        app(SystemSettingsService::class)->set('hybrid_realtime.reference_number', true);
 
         [$admin, $viewer, $order, $incident] = $this->createAssignableCase();
 
-        $maxTransactionLevelSeenDuringKpiDispatch = 0;
+        $maxTransactionLevelSeenDuringDispatch = 0;
 
-        Event::listen(DashboardKpisUpdated::class, function () use (&$maxTransactionLevelSeenDuringKpiDispatch): void {
-            $maxTransactionLevelSeenDuringKpiDispatch = max(
-                $maxTransactionLevelSeenDuringKpiDispatch,
-                DB::transactionLevel(),
-            );
-        });
-
-        Event::listen(TransactionAssigned::class, function () use (&$maxTransactionLevelSeenDuringKpiDispatch): void {
-            $maxTransactionLevelSeenDuringKpiDispatch = max(
-                $maxTransactionLevelSeenDuringKpiDispatch,
+        Event::listen(ReferenceNumbersUpdated::class, function () use (&$maxTransactionLevelSeenDuringDispatch): void {
+            $maxTransactionLevelSeenDuringDispatch = max(
+                $maxTransactionLevelSeenDuringDispatch,
                 DB::transactionLevel(),
             );
         });
@@ -58,38 +76,18 @@ class OrderTransactionPostCommitStabilityTest extends TestCase
 
         $this->assertSame(
             0,
-            $maxTransactionLevelSeenDuringKpiDispatch,
+            $maxTransactionLevelSeenDuringDispatch,
             'Dashboard broadcasts must not run while the DB transaction is open.',
         );
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
         $this->assertSame('TXN-POST-COMMIT-1', $order->fresh()->transaction_id);
 
-        Event::assertDispatched(TransactionAssigned::class);
-        Event::assertDispatched(DashboardKpisUpdated::class, function (DashboardKpisUpdated $event) use ($viewer): bool {
-            return $event->recipient->is($viewer);
+        Event::assertDispatched(ReferenceNumbersUpdated::class, function (ReferenceNumbersUpdated $event) use ($viewer, $incident): bool {
+            return $event->recipient->is($viewer)
+                && in_array($incident->id, $event->broadcastWith()['incident_ids'], true);
         });
-    }
-
-    public function test_ref_no_assign_coalesces_kpi_refresh_to_one_per_viewer(): void
-    {
-        Event::fake([DashboardKpisUpdated::class, TransactionAssigned::class]);
-
-        [$admin, $viewer, $order] = $this->createAssignableCase();
-
-        app(OrderTransactionService::class)->assignTransactionId(
-            order: $order,
-            transactionId: 'TXN-KPI-ONCE',
-            actor: $admin,
-        );
-
-        $viewerDispatches = Event::dispatched(DashboardKpisUpdated::class)
-            ->filter(function (array $args) use ($viewer): bool {
-                $event = $args[0] ?? null;
-
-                return $event instanceof DashboardKpisUpdated && $event->recipient->is($viewer);
-            });
-
-        $this->assertCount(1, $viewerDispatches, 'Each viewer should receive a single coalesced KPI refresh.');
+        Event::assertNotDispatched(TransactionAssigned::class);
+        Event::assertNotDispatched(DashboardKpisUpdated::class);
     }
 
     public function test_activity_touches_do_not_run_inside_open_transaction(): void
@@ -140,6 +138,7 @@ class OrderTransactionPostCommitStabilityTest extends TestCase
         $broadcasts->flushKpiCoalesce();
 
         Event::assertDispatchedTimes(DashboardKpisUpdated::class, 1);
+        $this->assertTrue($viewer->is_active);
     }
 
     /**

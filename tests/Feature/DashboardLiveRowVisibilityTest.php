@@ -8,6 +8,8 @@ use App\Enums\OperationQueue;
 use App\Enums\OrderStatus;
 use App\Enums\WaitingReason;
 use App\Events\Dashboard\ServiceCaseCreated;
+use App\Events\Dashboard\ServiceCasesAssigned;
+use App\Events\Dashboard\ServiceCasesResolved;
 use App\Models\Incident;
 use App\Models\IncidentWaitingState;
 use App\Models\Order;
@@ -20,6 +22,7 @@ use App\Services\IncidentWaitingStateService;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
+use Database\Seeders\SystemSettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
@@ -35,6 +38,7 @@ class DashboardLiveRowVisibilityTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+        $this->seed(SystemSettingsSeeder::class);
 
         $dayAdmin = User::factory()->create(['email' => 'day-admin-row-visibility@test.com']);
         $dayAdmin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -122,6 +126,8 @@ class DashboardLiveRowVisibilityTest extends TestCase
 
     public function test_manual_assignment_broadcast_removes_row_from_ready_queue_for_other_admins(): void
     {
+        app(\App\Services\SystemSettingsService::class)->set('hybrid_realtime.assignment', true);
+
         $admin = $this->createAdmin('Assign Admin');
         $agent = $this->createAgent('Assign Agent');
         $viewer = $this->createAdmin('Assign Viewer');
@@ -148,31 +154,33 @@ class DashboardLiveRowVisibilityTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        Event::fake([ServiceCaseCreated::class]);
+        Event::fake([ServiceCasesAssigned::class, ServiceCaseCreated::class]);
 
         app(\App\Services\ServiceCaseAssignmentService::class)->reassign($incident, $agent, $admin);
 
-        Event::assertDispatched(ServiceCaseCreated::class, function (ServiceCaseCreated $event) use ($viewer, $incident): bool {
+        Event::assertDispatched(ServiceCasesAssigned::class, function (ServiceCasesAssigned $event) use ($viewer, $incident): bool {
             return $event->recipient->id === $viewer->id
-                && $event->incident->id === $incident->id
-                && ($event->listActions[DashboardPersonalizationService::QUEUE_ACTION_REQUIRED] ?? null) === DashboardLiveRowVisibilityService::ACTION_REMOVE;
+                && in_array($incident->id, $event->broadcastWith()['incident_ids'], true);
         });
 
-        Event::assertDispatched(ServiceCaseCreated::class, function (ServiceCaseCreated $event) use ($agent, $incident): bool {
+        Event::assertDispatched(ServiceCasesAssigned::class, function (ServiceCasesAssigned $event) use ($agent, $incident): bool {
             return $event->recipient->id === $agent->id
-                && $event->incident->id === $incident->id
-                && ($event->listActions[DashboardPersonalizationService::QUEUE_MY_WORK] ?? null) === DashboardLiveRowVisibilityService::ACTION_ADD;
+                && in_array($incident->id, $event->broadcastWith()['incident_ids'], true);
         });
+
+        Event::assertNotDispatched(ServiceCaseCreated::class);
     }
 
     public function test_resolved_status_broadcast_removes_row_from_operations_queues(): void
     {
+        app(\App\Services\SystemSettingsService::class)->set('hybrid_realtime.close_resolve', true);
+
         $admin = $this->createAdmin('Resolve Admin');
         $viewer = $this->createAdmin('Resolve Viewer');
 
         $incident = $this->createIncident('RD-RESOLVE-ROW-1', $admin, $admin);
 
-        Event::fake([\App\Events\Dashboard\ServiceCaseResolved::class]);
+        Event::fake([ServiceCasesResolved::class, \App\Events\Dashboard\ServiceCaseResolved::class]);
 
         app(\App\Services\ServiceCaseStatusService::class)->updateStatus(
             incident: $incident,
@@ -180,12 +188,15 @@ class DashboardLiveRowVisibilityTest extends TestCase
             actor: $admin,
         );
 
-        Event::assertDispatched(\App\Events\Dashboard\ServiceCaseResolved::class, function ($event) use ($viewer, $incident): bool {
+        Event::assertDispatched(ServiceCasesResolved::class, function (ServiceCasesResolved $event) use ($viewer, $incident): bool {
+            $payload = $event->broadcastWith();
+
             return $event->recipient->id === $viewer->id
-                && $event->incident->id === $incident->id
-                && ($event->listActions[DashboardPersonalizationService::QUEUE_ACTION_REQUIRED] ?? null) === DashboardLiveRowVisibilityService::ACTION_REMOVE
-                && ($event->listActions[DashboardPersonalizationService::QUEUE_ATTENTION] ?? null) === DashboardLiveRowVisibilityService::ACTION_REMOVE;
+                && in_array($incident->id, $payload['incident_ids'], true)
+                && ($payload['incidents'][0]['status'] ?? null) === IncidentStatus::Resolved->value;
         });
+
+        Event::assertNotDispatched(\App\Events\Dashboard\ServiceCaseResolved::class);
     }
 
     public function test_row_broadcast_payload_omits_html_when_only_removals_are_needed(): void

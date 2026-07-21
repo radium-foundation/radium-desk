@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    handleHybridIncidentsUpdated,
     handleKpisUpdated,
+    handleReferenceNumbersUpdated,
     handleServiceCaseEvent,
+    normalizeIncidentIds,
     resolveListAction,
 } from '../../resources/js/live-dashboard-reverb';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
@@ -10,7 +13,10 @@ describe('live dashboard reverb handlers', () => {
     beforeEach(() => {
         resetWorkspaceSession();
         document.body.innerHTML = `
-            <div id="dashboard-page" data-live-queue="action_required" data-live-filter="pending_admin"></div>
+            <div id="dashboard-page"
+                 data-live-queue="action_required"
+                 data-live-filter="pending_admin"
+                 data-live-rows-url="/dashboard/live/rows"></div>
             <div id="dashboard-kpi-strip">stats-old</div>
             <div class="dashboard-service-cases-card">
                 <span data-dashboard-case-filter-count="action_required">(0)</span>
@@ -29,6 +35,8 @@ describe('live dashboard reverb handlers', () => {
 
     afterEach(() => {
         resetWorkspaceSession();
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
     });
 
     it('updates KPI strip from DashboardKpisUpdated payload', async () => {
@@ -161,6 +169,84 @@ describe('live dashboard reverb handlers', () => {
                 waiting_customer: 'add',
             },
         })).toBe('add');
+    });
+
+    it('normalizes bulk and single incident ids from ReferenceNumbersUpdated payloads', () => {
+        expect(normalizeIncidentIds({ incident_ids: ['10', 11, 0, 'x'] })).toEqual([10, 11]);
+        expect(normalizeIncidentIds({ incident_id: 12 })).toEqual([12]);
+    });
+
+    it('fetches row fragments for ReferenceNumbersUpdated and merges without KPI changes', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                rows: [{
+                    incident_id: 10,
+                    html: '<tr id="service-case-row-10"><td>SC00010 hybrid</td></tr>',
+                }],
+                remove_incident_ids: [],
+            }),
+        });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        await handleReferenceNumbersUpdated(pageRoot, {
+            incident_ids: [10],
+            updated_at: '2026-07-21T04:30:00Z',
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(String(fetchMock.mock.calls[0][0])).toContain('/dashboard/live/rows');
+        expect(String(fetchMock.mock.calls[0][0])).toContain('ids');
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 hybrid');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-old');
+    });
+
+    it('fetches row fragments for ServiceCasesAssigned without KPI changes', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                rows: [{
+                    incident_id: 10,
+                    html: '<tr id="service-case-row-10"><td>SC00010 assigned</td></tr>',
+                }],
+                remove_incident_ids: [],
+            }),
+        });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        await handleHybridIncidentsUpdated(pageRoot, {
+            incident_ids: [10],
+            incidents: [{
+                incident_id: 10,
+                queue: 'action_required',
+                status: 'in_progress',
+                updated_at: '2026-07-21T05:00:00Z',
+            }],
+        });
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 assigned');
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-old');
+    });
+
+    it('skips ReferenceNumbersUpdated fetch for locked incidents', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const fetchMock = vi.fn();
+        const session = getWorkspaceSession();
+
+        session.acquire('inline-transaction', { incidentId: 10 });
+        vi.stubGlobal('fetch', fetchMock);
+
+        await handleReferenceNumbersUpdated(pageRoot, {
+            incident_ids: [10],
+        });
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010');
     });
 });
 

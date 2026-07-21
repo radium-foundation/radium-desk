@@ -123,6 +123,7 @@ class SystemSettingsService
                         'description' => $definition['description'] ?? null,
                         'type' => $definition['type'] ?? 'string',
                         'value' => $this->get($key, $definition['default'] ?? null),
+                        'disabled' => (bool) ($definition['disabled'] ?? false),
                         'updated_at' => $row?->updated_at,
                         'updated_by_name' => $row?->updatedBy?->name,
                     ];

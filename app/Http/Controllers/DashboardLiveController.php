@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Dashboard\DashboardLiveRowVisibilityService;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use Illuminate\Http\JsonResponse;
@@ -10,10 +11,52 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardLiveController extends Controller
 {
+    private const LIVE_ROWS_MAX_IDS = 100;
+
     public function __construct(
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
+        private readonly DashboardLiveRowVisibilityService $liveRowVisibility,
     ) {}
+
+    public function rows(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! $user->can('incidents.view')) {
+            return response()->json([
+                'rows' => [],
+                'remove_incident_ids' => [],
+            ]);
+        }
+
+        $incidentIds = collect($request->query('ids', $request->input('ids', [])))
+            ->filter(fn ($id): bool => is_numeric($id))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->take(self::LIVE_ROWS_MAX_IDS)
+            ->all();
+
+        $legacyView = $request->query('view');
+        $legacyFilter = $request->query('filter');
+        $requestedQueue = $request->query('queue');
+
+        $queueResolution = $this->dashboardPersonalization->resolveQueue(
+            $user,
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
+        );
+
+        $payload = $this->liveRowVisibility->liveRowsPayload(
+            $incidentIds,
+            $user,
+            $queueResolution['queue'],
+        );
+
+        return response()->json($payload);
+    }
 
     public function refresh(Request $request): JsonResponse
     {

@@ -61,7 +61,10 @@ class OperationalSystemSettingsTest extends TestCase
             ->assertSee('Desktop notifications')
             ->assertSee('Telegram notifications')
             ->assertSee('WhatsApp API')
-            ->assertSee('Debug mode');
+            ->assertSee('Debug mode')
+            ->assertSee('Hybrid Realtime')
+            ->assertSee('Reference Number')
+            ->assertSee('Coming Soon');
     }
 
     public function test_seeder_sets_initial_defaults(): void
@@ -81,6 +84,12 @@ class OperationalSystemSettingsTest extends TestCase
         $this->assertTrue($service->getBool('outbox.processor_enabled'));
         $this->assertTrue($service->getBool('ira.enabled'));
         $this->assertFalse($service->getBool('automation.scheduler.enabled'));
+        $this->assertFalse($service->getBool('hybrid_realtime.reference_number'));
+        $this->assertFalse($service->getBool('hybrid_realtime.assignment'));
+        $this->assertFalse($service->getBool('hybrid_realtime.close_resolve'));
+        $this->assertFalse($service->getBool('hybrid_realtime.incoming_calls'));
+        $this->assertFalse($service->getBool('hybrid_realtime.desktop_notifications'));
+        $this->assertFalse($service->getBool('hybrid_realtime.operator_alerts'));
     }
 
     public function test_admin_can_update_system_settings(): void
@@ -102,6 +111,12 @@ class OperationalSystemSettingsTest extends TestCase
                 'outbox.processor_enabled' => '1',
                 'ira.enabled' => '0',
                 'automation.scheduler.enabled' => '0',
+                'hybrid_realtime.reference_number' => '1',
+                'hybrid_realtime.assignment' => '1',
+                'hybrid_realtime.close_resolve' => '1',
+                'hybrid_realtime.incoming_calls' => '1',
+                'hybrid_realtime.desktop_notifications' => '1',
+                'hybrid_realtime.operator_alerts' => '1',
             ],
         ];
 
@@ -116,6 +131,9 @@ class OperationalSystemSettingsTest extends TestCase
         $this->assertFalse($service->getBool('whatsapp.api_enabled'));
         $this->assertTrue($service->getBool('telegram.api_enabled'));
         $this->assertFalse($service->getBool('ira.enabled'));
+        $this->assertTrue($service->getBool('hybrid_realtime.reference_number'));
+        $this->assertTrue($service->getBool('hybrid_realtime.assignment'));
+        $this->assertTrue($service->getBool('hybrid_realtime.close_resolve'));
 
         $this->assertDatabaseHas('system_settings', [
             'key' => 'system.debug_mode',
@@ -143,6 +161,12 @@ class OperationalSystemSettingsTest extends TestCase
                 'outbox.processor_enabled' => '1',
                 'ira.enabled' => '1',
                 'automation.scheduler.enabled' => '0',
+                'hybrid_realtime.reference_number' => '0',
+                'hybrid_realtime.assignment' => '0',
+                'hybrid_realtime.close_resolve' => '0',
+                'hybrid_realtime.incoming_calls' => '0',
+                'hybrid_realtime.desktop_notifications' => '0',
+                'hybrid_realtime.operator_alerts' => '0',
             ],
         ]);
 

@@ -18,6 +18,7 @@
          id="dashboard-page"
          data-workspace-context="dashboard"
          data-live-url="{{ route('dashboard.live') }}"
+         data-live-rows-url="{{ route('dashboard.live.rows') }}"
          data-live-queue="{{ $operationQueue }}"
          data-live-scope="{{ $dashboardLiveScope ?? 'operations_scope' }}"
          data-live-filter="{{ $serviceCaseFilter ?? $operationQueue }}"

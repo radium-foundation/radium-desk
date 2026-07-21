@@ -12,6 +12,7 @@ import {
     applyPartialDashboardUpdate,
     configureLiveDashboard,
 } from './live-dashboard';
+import { buildDashboardLiveQuery } from './dashboard-live-query';
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
 import { getWorkspaceSession } from './workspace/session';
@@ -32,6 +33,96 @@ const resolveListAction = (pageRoot, payload) => {
 
     return payload.list_actions?.[activeQueue] ?? 'ignore';
 };
+
+const normalizeIncidentIds = (payload) => {
+    const rawIds = Array.isArray(payload?.incident_ids)
+        ? payload.incident_ids
+        : (payload?.incident_id !== undefined ? [payload.incident_id] : []);
+
+    return rawIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
+};
+
+const fetchLiveRowsForIncidents = async (pageRoot, incidentIds) => {
+    const rowsUrl = pageRoot.dataset.liveRowsUrl;
+
+    if (!rowsUrl || incidentIds.length === 0) {
+        return {
+            rows: [],
+            remove_incident_ids: [],
+        };
+    }
+
+    const query = buildDashboardLiveQuery(pageRoot);
+    incidentIds.forEach((id) => {
+        query.append('ids[]', String(id));
+    });
+
+    const response = await fetch(`${rowsUrl}?${query.toString()}`, {
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+        return {
+            rows: [],
+            remove_incident_ids: [],
+        };
+    }
+
+    const data = await response.json();
+
+    return {
+        rows: Array.isArray(data.rows) ? data.rows : [],
+        remove_incident_ids: Array.isArray(data.remove_incident_ids) ? data.remove_incident_ids : [],
+    };
+};
+
+const HYBRID_INCIDENT_EVENTS = [
+    'ReferenceNumbersUpdated',
+    'ServiceCasesAssigned',
+    'ServiceCasesResolved',
+    'ServiceCasesClosed',
+];
+
+const handleHybridIncidentsUpdated = async (pageRoot, payload) => {
+    if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
+        return;
+    }
+
+    const incidentIds = normalizeIncidentIds(payload);
+
+    if (incidentIds.length === 0) {
+        return;
+    }
+
+    const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
+    const fetchIds = incidentIds.filter((id) => !lockedIncidentIds.includes(id));
+
+    if (fetchIds.length === 0) {
+        return;
+    }
+
+    const { rows, remove_incident_ids: removeIncidentIds } = await fetchLiveRowsForIncidents(
+        pageRoot,
+        fetchIds,
+    );
+
+    if (rows.length === 0 && removeIncidentIds.length === 0) {
+        return;
+    }
+
+    await applyPartialDashboardUpdate({
+        rows,
+        remove_incident_ids: removeIncidentIds.filter((id) => !lockedIncidentIds.includes(Number(id))),
+    });
+};
+
+const handleReferenceNumbersUpdated = handleHybridIncidentsUpdated;
 
 const handleServiceCaseEvent = async (pageRoot, payload) => {
     if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
@@ -183,6 +274,12 @@ export const initLiveDashboardReverb = ({
         });
     });
 
+    HYBRID_INCIDENT_EVENTS.forEach((eventName) => {
+        dashboardChannel.listen(`.${eventName}`, (payload) => {
+            handleHybridIncidentsUpdated(pageRoot, payload);
+        });
+    });
+
     dashboardChannel.listen('.DashboardKpisUpdated', (payload) => {
         handleKpisUpdated(payload);
     });
@@ -227,8 +324,12 @@ export const initLiveDashboardReverb = ({
 
 export {
     createEchoInstance,
+    fetchLiveRowsForIncidents,
+    handleHybridIncidentsUpdated,
     handleKpisUpdated,
     handleNotificationCreated,
+    handleReferenceNumbersUpdated,
     handleServiceCaseEvent,
+    normalizeIncidentIds,
     resolveListAction,
 };

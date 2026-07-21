@@ -3,16 +3,21 @@
 namespace App\Services;
 
 use App\Events\Dashboard\DashboardKpisUpdated;
+use App\Events\Dashboard\HybridIncidentsUpdated;
 use App\Events\Dashboard\NotificationCreated;
-use App\Events\Dashboard\ServiceCaseClosed;
+use App\Events\Dashboard\ReferenceNumbersUpdated;
 use App\Events\Dashboard\ServiceCaseCreated;
 use App\Events\Dashboard\ServiceCaseRemarked;
-use App\Events\Dashboard\ServiceCaseResolved;
+use App\Events\Dashboard\ServiceCasesAssigned;
+use App\Events\Dashboard\ServiceCasesClosed;
+use App\Events\Dashboard\ServiceCasesResolved;
 use App\Events\Dashboard\SlaStatusChanged;
-use App\Events\Dashboard\TransactionAssigned;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Dashboard\DashboardLiveRowVisibilityService;
+use App\Services\HybridRealtime\HybridRealtimeFeature;
+use App\Services\HybridRealtime\HybridRealtimeFeatureService;
+use App\Services\Operations\OperationsQueueClassifier;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
@@ -25,8 +30,16 @@ class DashboardBroadcastService
 
     private ?int $coalescedKpiActorId = null;
 
+    private bool $coalesceAssignmentRefresh = false;
+
+    /** @var list<int> */
+    private array $coalescedAssignmentIncidentIds = [];
+
+    private ?int $coalescedAssignmentActorId = null;
+
     public function __construct(
         private readonly DashboardService $dashboardService,
+        private readonly HybridRealtimeFeatureService $hybridRealtime,
     ) {}
 
     /**
@@ -83,9 +96,75 @@ class DashboardBroadcastService
         });
     }
 
+    /**
+     * Coalesce repeated assignment broadcasts into one lightweight event (flushed explicitly).
+     */
+    public function beginAssignmentCoalesce(?User $actor = null): void
+    {
+        $this->coalesceAssignmentRefresh = true;
+        $this->coalescedAssignmentIncidentIds = [];
+        $this->coalescedAssignmentActorId = $actor?->id;
+    }
+
+    public function flushAssignmentCoalesce(): void
+    {
+        $actorId = $this->coalescedAssignmentActorId;
+        $incidentIds = $this->coalescedAssignmentIncidentIds;
+
+        $this->coalesceAssignmentRefresh = false;
+        $this->coalescedAssignmentIncidentIds = [];
+        $this->coalescedAssignmentActorId = null;
+
+        if ($incidentIds === [] || $actorId === null) {
+            return;
+        }
+
+        $actor = User::query()->find($actorId);
+
+        if ($actor === null) {
+            return;
+        }
+
+        $this->serviceCasesAssigned($incidentIds, $actor);
+    }
+
+    public function cancelAssignmentCoalesce(): void
+    {
+        $this->coalesceAssignmentRefresh = false;
+        $this->coalescedAssignmentIncidentIds = [];
+        $this->coalescedAssignmentActorId = null;
+    }
+
     public function serviceCaseAssigned(Incident $incident, User $actor): void
     {
-        $this->serviceCaseQueueMembershipChanged($incident, $actor);
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::ASSIGNMENT)) {
+            return;
+        }
+
+        if ($this->coalesceAssignmentRefresh) {
+            $this->coalescedAssignmentIncidentIds[] = (int) $incident->id;
+            $this->coalescedAssignmentActorId = $actor->id;
+
+            return;
+        }
+
+        $this->serviceCasesAssigned([(int) $incident->id], $actor);
+    }
+
+    /**
+     * @param  list<int>  $incidentIds
+     */
+    public function serviceCasesAssigned(array $incidentIds, User $actor): void
+    {
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::ASSIGNMENT)) {
+            return;
+        }
+
+        $this->broadcastHybridIncidentUpdates(
+            incidentIds: $incidentIds,
+            actor: $actor,
+            eventClass: ServiceCasesAssigned::class,
+        );
     }
 
     public function serviceCaseQueueMembershipChanged(Incident $incident, ?User $actor = null): void
@@ -109,6 +188,10 @@ class DashboardBroadcastService
 
     public function transactionAssigned(Incident $incident, User $actor): void
     {
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::REFERENCE_NUMBER)) {
+            return;
+        }
+
         $this->runAfterDatabaseCommit(function () use ($incident, $actor): void {
             [$freshIncident, $freshActor] = $this->resolveIncidentAndActor($incident, $actor);
 
@@ -116,14 +199,7 @@ class DashboardBroadcastService
                 return;
             }
 
-            $this->broadcastRowUpdate(
-                incident: $freshIncident,
-                actor: $freshActor,
-                eventClass: TransactionAssigned::class,
-            );
-
-            $this->kpisUpdated($freshActor);
-            $this->slaStatusChanged($freshIncident, $freshActor);
+            $this->broadcastReferenceNumbersUpdated([$freshIncident->id], $freshActor);
         });
     }
 
@@ -136,6 +212,10 @@ class DashboardBroadcastService
             return;
         }
 
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::REFERENCE_NUMBER)) {
+            return;
+        }
+
         $this->runAfterDatabaseCommit(function () use ($incidentIds, $actor): void {
             $freshActor = User::query()->find($actor->id);
 
@@ -143,31 +223,57 @@ class DashboardBroadcastService
                 return;
             }
 
-            $incidents = Incident::query()
-                ->with(['order.transactionAssigner', 'creator', 'assignee'])
-                ->whereIn('id', $incidentIds)
-                ->get();
-
-            foreach ($incidents as $incident) {
-                $this->broadcastRowUpdate(
-                    incident: $incident,
-                    actor: $freshActor,
-                    eventClass: TransactionAssigned::class,
-                );
-            }
-
-            $this->kpisUpdated($freshActor);
-
-            foreach ($incidents as $incident) {
-                if ($incident->isPendingAdmin()) {
-                    $this->broadcastRowUpdate(
-                        incident: $incident,
-                        actor: $freshActor,
-                        eventClass: SlaStatusChanged::class,
-                    );
-                }
-            }
+            $this->broadcastReferenceNumbersUpdated(
+                array_values(array_unique(array_map('intval', $incidentIds))),
+                $freshActor,
+            );
         });
+    }
+
+    /**
+     * Lightweight Hybrid Realtime fan-out for Reference Number updates.
+     * One event per recipient; no HTML payload and no KPI refresh.
+     *
+     * @param  list<int>  $incidentIds
+     */
+    private function broadcastReferenceNumbersUpdated(array $incidentIds, User $actor): void
+    {
+        if ($incidentIds === []) {
+            return;
+        }
+
+        $this->dashboardService->forgetSnapshot();
+
+        $incidents = Incident::query()
+            ->whereIn('id', $incidentIds)
+            ->get()
+            ->keyBy('id');
+
+        $updatedAt = now()->toIso8601String();
+
+        foreach ($this->recipientsExcept($actor) as $recipient) {
+            $visibleIds = [];
+
+            foreach ($incidentIds as $incidentId) {
+                $incident = $incidents->get($incidentId);
+
+                if ($incident === null || ! $recipient->can('view', $incident)) {
+                    continue;
+                }
+
+                $visibleIds[] = (int) $incidentId;
+            }
+
+            if ($visibleIds === []) {
+                continue;
+            }
+
+            broadcast(new ReferenceNumbersUpdated(
+                recipient: $recipient,
+                incidentIds: $visibleIds,
+                updatedAt: $updatedAt,
+            ));
+        }
     }
 
     public function serviceCaseRemarked(Incident $incident, User $actor): void
@@ -189,40 +295,116 @@ class DashboardBroadcastService
 
     public function serviceCaseResolved(Incident $incident, User $actor): void
     {
-        $this->runAfterDatabaseCommit(function () use ($incident, $actor): void {
-            [$freshIncident, $freshActor] = $this->resolveIncidentAndActor($incident, $actor);
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::CLOSE_RESOLVE)) {
+            return;
+        }
 
-            if ($freshIncident === null || $freshActor === null) {
-                return;
-            }
+        $this->serviceCasesResolved([(int) $incident->id], $actor);
+    }
 
-            $this->broadcastRowUpdate(
-                incident: $freshIncident,
-                actor: $freshActor,
-                eventClass: ServiceCaseResolved::class,
-            );
+    /**
+     * @param  list<int>  $incidentIds
+     */
+    public function serviceCasesResolved(array $incidentIds, User $actor): void
+    {
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::CLOSE_RESOLVE)) {
+            return;
+        }
 
-            $this->kpisUpdated($freshActor);
-        });
+        $this->broadcastHybridIncidentUpdates(
+            incidentIds: $incidentIds,
+            actor: $actor,
+            eventClass: ServiceCasesResolved::class,
+        );
     }
 
     public function serviceCaseClosed(Incident $incident, User $actor): void
     {
-        $this->runAfterDatabaseCommit(function () use ($incident, $actor): void {
-            [$freshIncident, $freshActor] = $this->resolveIncidentAndActor($incident, $actor);
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::CLOSE_RESOLVE)) {
+            return;
+        }
 
-            if ($freshIncident === null || $freshActor === null) {
+        $this->serviceCasesClosed([(int) $incident->id], $actor);
+    }
+
+    /**
+     * @param  list<int>  $incidentIds
+     */
+    public function serviceCasesClosed(array $incidentIds, User $actor): void
+    {
+        if (! $this->hybridRealtime->enabled(HybridRealtimeFeature::CLOSE_RESOLVE)) {
+            return;
+        }
+
+        $this->broadcastHybridIncidentUpdates(
+            incidentIds: $incidentIds,
+            actor: $actor,
+            eventClass: ServiceCasesClosed::class,
+        );
+    }
+
+    /**
+     * Lightweight Hybrid Realtime fan-out for assignment / resolve / close.
+     * One event per recipient; no HTML payload and no KPI refresh.
+     *
+     * @param  list<int>  $incidentIds
+     * @param  class-string<HybridIncidentsUpdated>  $eventClass
+     */
+    private function broadcastHybridIncidentUpdates(
+        array $incidentIds,
+        User $actor,
+        string $eventClass,
+    ): void {
+        $incidentIds = array_values(array_unique(array_map('intval', $incidentIds)));
+
+        if ($incidentIds === []) {
+            return;
+        }
+
+        $this->runAfterDatabaseCommit(function () use ($incidentIds, $actor, $eventClass): void {
+            $freshActor = User::query()->find($actor->id);
+
+            if ($freshActor === null) {
                 return;
             }
 
-            $this->broadcastRowUpdate(
-                incident: $freshIncident,
-                actor: $freshActor,
-                eventClass: ServiceCaseClosed::class,
-            );
+            $this->dashboardService->forgetSnapshot();
 
-            $this->kpisUpdated($freshActor);
-            $this->slaStatusChanged($freshIncident, $freshActor);
+            $incidents = Incident::query()
+                ->whereIn('id', $incidentIds)
+                ->get()
+                ->keyBy('id');
+
+            $updatedAt = now()->toIso8601String();
+
+            foreach ($this->recipientsExcept($freshActor) as $recipient) {
+                $payloadIncidents = [];
+
+                foreach ($incidentIds as $incidentId) {
+                    $incident = $incidents->get($incidentId);
+
+                    if ($incident === null || ! $recipient->can('view', $incident)) {
+                        continue;
+                    }
+
+                    $payloadIncidents[] = [
+                        'incident_id' => (int) $incidentId,
+                        // Resolve lazily to avoid a constructor DI cycle through assignment services.
+                        'queue' => app(OperationsQueueClassifier::class)->classify($incident)->value,
+                        'status' => $incident->status->value,
+                        'updated_at' => $incident->updated_at?->toIso8601String() ?? $updatedAt,
+                    ];
+                }
+
+                if ($payloadIncidents === []) {
+                    continue;
+                }
+
+                broadcast(new $eventClass(
+                    recipient: $recipient,
+                    incidents: $payloadIncidents,
+                ));
+            }
         });
     }
 

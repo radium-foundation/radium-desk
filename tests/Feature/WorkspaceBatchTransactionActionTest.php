@@ -317,13 +317,13 @@ class WorkspaceBatchTransactionActionTest extends TestCase
             $incidents[] = $this->createPendingCase($admin, (string) $index)['incident'];
         }
 
-        $serviceCaseClosedCalls = 0;
+        $beginKpiCoalesceCalls = 0;
 
-        $this->partialMock(DashboardBroadcastService::class, function ($mock) use (&$serviceCaseClosedCalls): void {
-            $mock->shouldReceive('serviceCaseClosed')->andReturnUsing(function () use (&$serviceCaseClosedCalls): void {
-                $serviceCaseClosedCalls++;
+        $this->partialMock(DashboardBroadcastService::class, function ($mock) use (&$beginKpiCoalesceCalls): void {
+            $mock->shouldReceive('beginKpiCoalesce')->andReturnUsing(function () use (&$beginKpiCoalesceCalls): void {
+                $beginKpiCoalesceCalls++;
 
-                if ($serviceCaseClosedCalls === 34) {
+                if ($beginKpiCoalesceCalls === 34) {
                     throw new RuntimeException('Simulated broadcast failure on order 34');
                 }
             });

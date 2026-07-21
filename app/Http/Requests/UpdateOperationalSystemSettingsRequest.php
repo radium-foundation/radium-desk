@@ -62,8 +62,19 @@ class UpdateOperationalSystemSettingsRequest extends FormRequest
         $submitted = $this->settingsInput();
 
         foreach ($definitions as $key => $definition) {
-            $raw = $submitted[$key] ?? null;
             $type = $definition['type'] ?? 'string';
+
+            if (($definition['disabled'] ?? false) === true) {
+                $validated[$key] = match ($type) {
+                    'boolean' => (bool) ($definition['default'] ?? false),
+                    'integer' => (int) ($definition['default'] ?? 0),
+                    default => $definition['default'] ?? null,
+                };
+
+                continue;
+            }
+
+            $raw = $submitted[$key] ?? null;
 
             $validated[$key] = match ($type) {
                 'boolean' => filter_var($raw, FILTER_VALIDATE_BOOLEAN),

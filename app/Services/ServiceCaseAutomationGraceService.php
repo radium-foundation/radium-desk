@@ -11,6 +11,7 @@ use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
 use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class ServiceCaseAutomationGraceService
 {
@@ -94,16 +95,26 @@ class ServiceCaseAutomationGraceService
     public function processExpiredGracePeriods(): int
     {
         $processed = 0;
+        $broadcasts = app(DashboardBroadcastService::class);
+        $broadcasts->beginAssignmentCoalesce();
 
-        $expiredIds = Incident::query()
-            ->automationGraceExpired()
-            ->orderBy('id')
-            ->pluck('id');
+        try {
+            $expiredIds = Incident::query()
+                ->automationGraceExpired()
+                ->orderBy('id')
+                ->pluck('id');
 
-        foreach ($expiredIds as $incidentId) {
-            if ($this->processSingleExpiredGracePeriod((int) $incidentId)) {
-                $processed++;
+            foreach ($expiredIds as $incidentId) {
+                if ($this->processSingleExpiredGracePeriod((int) $incidentId)) {
+                    $processed++;
+                }
             }
+
+            $broadcasts->flushAssignmentCoalesce();
+        } catch (Throwable $exception) {
+            $broadcasts->cancelAssignmentCoalesce();
+
+            throw $exception;
         }
 
         return $processed;

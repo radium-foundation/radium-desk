@@ -75,6 +75,72 @@ class DashboardLiveRowVisibilityService
     }
 
     /**
+     * Build targeted row fragments for Hybrid Realtime clients.
+     *
+     * @param  list<int>  $incidentIds
+     * @return array{
+     *     rows: list<array{incident_id: int, html: string}>,
+     *     remove_incident_ids: list<int>,
+     * }
+     */
+    public function liveRowsPayload(array $incidentIds, User $recipient, string $activeQueue): array
+    {
+        $rows = [];
+        $removeIncidentIds = [];
+
+        if ($incidentIds === []) {
+            return [
+                'rows' => $rows,
+                'remove_incident_ids' => $removeIncidentIds,
+            ];
+        }
+
+        $incidents = Incident::query()
+            ->with([
+                'order.transactionAssigner',
+                'creator',
+                'assignee.roles',
+                'activeWaitingState',
+                'activeBusinessHold',
+                'supportAppointments',
+            ])
+            ->whereIn('id', $incidentIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($incidentIds as $incidentId) {
+            $incident = $incidents->get($incidentId);
+
+            if ($incident === null || ! $recipient->can('view', $incident)) {
+                $removeIncidentIds[] = (int) $incidentId;
+
+                continue;
+            }
+
+            $incidentQueue = $this->queueClassifier->classify($incident)->value;
+            $action = $this->listActionForQueue($incident, $recipient, $activeQueue, $incidentQueue);
+
+            if ($action === self::ACTION_REMOVE) {
+                $removeIncidentIds[] = (int) $incidentId;
+
+                continue;
+            }
+
+            if (in_array($action, [self::ACTION_ADD, self::ACTION_UPDATE], true)) {
+                $rows[] = [
+                    'incident_id' => (int) $incidentId,
+                    'html' => $this->renderRow($incident, $recipient, $activeQueue),
+                ];
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'remove_incident_ids' => array_values(array_unique($removeIncidentIds)),
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private function queuesForRecipient(User $recipient, string $incidentQueue): array

@@ -75,6 +75,7 @@ Route::middleware('signed')->group(function () {
 Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
+    Route::get('/dashboard/live/rows', [DashboardLiveController::class, 'rows'])->name('dashboard.live.rows');
     Route::get('/search', [SearchController::class, 'search'])->name('search.index');
     Route::get('/dashboard/search', [SearchController::class, 'search'])->name('dashboard.search');
     Route::get('dashboard/service-cases/search-rows', [DashboardServiceCaseController::class, 'searchRows'])
