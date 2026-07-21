@@ -379,4 +379,66 @@ class ServiceCaseAutomationGraceTest extends TestCase
         $this->assertNull($result);
         $this->assertNull($incident->fresh()->assigned_to_user_id);
     }
+
+    public function test_closed_expired_grace_case_clears_automation_pending_without_assigning(): void
+    {
+        $actor = User::factory()->create();
+        $incident = $this->createIncidentWithoutSerial($actor);
+        $incident->update([
+            'status' => IncidentStatus::Closed,
+            'automation_pending_until' => now()->subMinute(),
+        ]);
+
+        $processed = app(ServiceCaseAutomationGraceService::class)->processExpiredGracePeriods();
+
+        $this->assertSame(1, $processed);
+        $fresh = $incident->fresh();
+        $this->assertNull($fresh->assigned_to_user_id);
+        $this->assertNull($fresh->automation_pending_until);
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'service_case.assigned',
+            'auditable_id' => $incident->id,
+        ]);
+    }
+
+    public function test_resolved_expired_grace_case_clears_automation_pending_without_assigning(): void
+    {
+        $actor = User::factory()->create();
+        $incident = $this->createIncidentWithoutSerial($actor);
+        $incident->update([
+            'status' => IncidentStatus::Resolved,
+            'automation_pending_until' => now()->subMinute(),
+        ]);
+
+        $processed = app(ServiceCaseAutomationGraceService::class)->processExpiredGracePeriods();
+
+        $this->assertSame(1, $processed);
+        $fresh = $incident->fresh();
+        $this->assertNull($fresh->assigned_to_user_id);
+        $this->assertNull($fresh->automation_pending_until);
+    }
+
+    public function test_closed_expired_grace_case_does_not_block_subsequent_processing(): void
+    {
+        $actor = User::factory()->create();
+
+        $closedIncident = $this->createIncidentWithoutSerial($actor);
+        $closedIncident->update([
+            'status' => IncidentStatus::Closed,
+            'automation_pending_until' => now()->subMinute(),
+        ]);
+
+        $targetIncident = $this->createIncidentWithoutSerial($actor);
+        app(ServiceCaseAssignmentService::class)->assignOnCreate($targetIncident, $actor);
+
+        Carbon::setTestNow(now()->addSeconds(61));
+
+        $processed = app(ServiceCaseAutomationGraceService::class)->processExpiredGracePeriods();
+
+        $this->assertGreaterThanOrEqual(2, $processed);
+        $this->assertNull($closedIncident->fresh()->automation_pending_until);
+        $this->assertNull($targetIncident->fresh()->automation_pending_until);
+
+        Carbon::setTestNow();
+    }
 }

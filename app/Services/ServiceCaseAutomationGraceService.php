@@ -11,6 +11,7 @@ use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
 use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ServiceCaseAutomationGraceService
@@ -105,8 +106,16 @@ class ServiceCaseAutomationGraceService
                 ->pluck('id');
 
             foreach ($expiredIds as $incidentId) {
-                if ($this->processSingleExpiredGracePeriod((int) $incidentId)) {
-                    $processed++;
+                try {
+                    if ($this->processSingleExpiredGracePeriod((int) $incidentId)) {
+                        $processed++;
+                    }
+                } catch (Throwable $exception) {
+                    Log::warning('Automation grace period processing skipped incident.', [
+                        'incident_id' => $incidentId,
+                        'exception' => $exception::class,
+                        'message' => $exception->getMessage(),
+                    ]);
                 }
             }
 
@@ -156,6 +165,14 @@ class ServiceCaseAutomationGraceService
 
             if ($actor === null) {
                 return false;
+            }
+
+            if (! $incident->isActive()) {
+                if ($incident->automation_pending_until !== null) {
+                    $this->assignmentService->clearAutomationPending($incident, $actor);
+                }
+
+                return true;
             }
 
             if ($this->passesAutomationValidation($incident)) {
