@@ -10,6 +10,7 @@ use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
 use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
+use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
 
@@ -23,6 +24,7 @@ class Customer360ActionVisibilityService
         private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
         private readonly SerialCorrectionEligibilityService $serialCorrectionEligibilityService,
         private readonly DeviceModelCorrectionEligibilityService $deviceModelCorrectionEligibilityService,
+        private readonly IdentityCorrectionEligibilityEvaluator $identityCorrectionEligibilityEvaluator,
     ) {}
 
     /**
@@ -36,9 +38,11 @@ class Customer360ActionVisibilityService
      *     canCorrectCustomerDetails: bool,
      *     canCorrectSerialNumber: bool,
      *     canCorrectDeviceModel: bool,
+     *     canCorrectDeviceIdentity: bool,
      *     correctCustomerDetailsEligibility: array{allowed: bool, reason: string|null},
      *     correctSerialNumberEligibility: array{allowed: bool, reason: string|null},
      *     correctDeviceModelEligibility: array{allowed: bool, reason: string|null},
+     *     correctDeviceIdentityEligibility: array{allowed: bool, reason: string|null},
      *     showIdentityCorrectionActions: bool,
      *     hasRecommendedActions: bool,
      * }
@@ -70,6 +74,17 @@ class Customer360ActionVisibilityService
         $correctDeviceModelEligibility = $this->eligibilityPayload(
             $user !== null ? $this->deviceModelCorrectionEligibilityService->evaluate($incident, $user) : null,
         );
+        // Unified Device Identity uses base order-identity permission only
+        // (not the field-specific serial-locked / model-assigned gates).
+        $correctDeviceIdentityEligibility = $this->eligibilityPayload(
+            $user !== null
+                ? $this->identityCorrectionEligibilityEvaluator->evaluateBase(
+                    $incident,
+                    $user,
+                    IdentityCorrectionEligibilityEvaluator::KIND_DEVICE_MODEL,
+                )
+                : null,
+        );
 
         $hasRecommendedActions = $canRequestSerialNumber
             || $canRequestCorrectSerial
@@ -86,9 +101,11 @@ class Customer360ActionVisibilityService
             'canCorrectCustomerDetails' => $correctCustomerDetailsEligibility['allowed'],
             'canCorrectSerialNumber' => $correctSerialNumberEligibility['allowed'],
             'canCorrectDeviceModel' => $correctDeviceModelEligibility['allowed'],
+            'canCorrectDeviceIdentity' => $correctDeviceIdentityEligibility['allowed'],
             'correctCustomerDetailsEligibility' => $correctCustomerDetailsEligibility,
             'correctSerialNumberEligibility' => $correctSerialNumberEligibility,
             'correctDeviceModelEligibility' => $correctDeviceModelEligibility,
+            'correctDeviceIdentityEligibility' => $correctDeviceIdentityEligibility,
             'showIdentityCorrectionActions' => $user !== null,
             'hasRecommendedActions' => $hasRecommendedActions,
         ];

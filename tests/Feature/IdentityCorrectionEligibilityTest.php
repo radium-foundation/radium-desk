@@ -183,6 +183,7 @@ class IdentityCorrectionEligibilityTest extends TestCase
 
         $this->assertFalse($visibility['canCorrectSerialNumber']);
         $this->assertSame('No serial assigned yet.', $visibility['correctSerialNumberEligibility']['reason']);
+        $this->assertArrayHasKey('canCorrectDeviceIdentity', $visibility);
         $this->assertTrue($visibility['showIdentityCorrectionActions']);
     }
 

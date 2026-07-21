@@ -180,17 +180,18 @@ final class Customer360OverflowMenuPresenter
             );
         }
 
-        $canCorrectSerial = $visibility['showIdentityCorrectionActions']
-            && $visibility['correctSerialNumberEligibility']['allowed'];
-        $canCorrectDeviceModel = $visibility['showIdentityCorrectionActions']
-            && ($visibility['correctDeviceModelEligibility']['allowed'] ?? false);
+        if ($visibility['showIdentityCorrectionActions']
+            && ($visibility['canCorrectDeviceIdentity'] ?? false)) {
+            $canCorrectSerial = (bool) ($visibility['correctSerialNumberEligibility']['allowed'] ?? false);
+            $canCorrectDeviceModel = (bool) ($visibility['correctDeviceModelEligibility']['allowed'] ?? false);
 
-        if ($canCorrectSerial || $canCorrectDeviceModel) {
             $items[] = $this->triggerItem(
                 id: 'correct-device-identity',
                 label: 'Correct Device Identity',
                 icon: 'barcode',
-                trigger: $canCorrectSerial ? 'correct-serial-number' : 'correct-device-model',
+                trigger: $canCorrectSerial
+                    ? 'correct-serial-number'
+                    : ($canCorrectDeviceModel ? 'correct-device-model' : 'correct-serial-number'),
                 keywords: ['device', 'model', 'serial', 'product', 'identity'],
                 shortcut: 'correct-serial',
             );
