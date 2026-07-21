@@ -10,7 +10,7 @@ use App\Data\Workspace\WorkspaceRequestContext;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
-use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
+use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 use App\Services\SerialValidation\SerialValidationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
@@ -22,7 +22,7 @@ class WorkspaceCorrectSerialNumberActionService
     public function __construct(
         private readonly OrderSerialService $orderSerialService,
         private readonly SerialValidationService $serialValidationService,
-        private readonly SerialCorrectionEligibilityService $eligibilityService,
+        private readonly IdentityCorrectionEligibilityEvaluator $identityCorrectionEligibilityEvaluator,
         private readonly WorkspaceRefreshPolicy $refreshPolicy,
     ) {}
 
@@ -31,7 +31,7 @@ class WorkspaceCorrectSerialNumberActionService
      */
     public function preview(Incident $incident, User $actor, string $serialNumber): array
     {
-        if (! $this->eligibilityService->canShowAction($incident, $actor)) {
+        if (! $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $actor)) {
             throw new AuthorizationException('This action is unauthorized.');
         }
 
@@ -64,7 +64,7 @@ class WorkspaceCorrectSerialNumberActionService
         WorkspaceRequestContext $requestContext,
         ?Request $request = null,
     ): WorkspaceActionResponse {
-        if (! $this->eligibilityService->canShowAction($incident, $actor)) {
+        if (! $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $actor)) {
             throw new AuthorizationException('This action is unauthorized.');
         }
 

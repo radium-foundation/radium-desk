@@ -40,6 +40,11 @@ class IdentityCorrectionEligibilityEvaluator
         return EligibilityResult::allow();
     }
 
+    public function canCorrectDeviceIdentity(Incident $incident, User $user): bool
+    {
+        return $this->evaluateBase($incident, $user, self::KIND_DEVICE_MODEL)->allowed;
+    }
+
     private function allowsIdentityCorrection(User $user, Order $order, string $kind): bool
     {
         if ($kind === self::KIND_CUSTOMER) {

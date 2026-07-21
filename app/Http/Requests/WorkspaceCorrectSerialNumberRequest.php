@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\Services\SerialCorrection\SerialCorrectionEligibilityService;
+use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 use Illuminate\Foundation\Http\FormRequest;
 
 class WorkspaceCorrectSerialNumberRequest extends FormRequest
@@ -15,7 +15,7 @@ class WorkspaceCorrectSerialNumberRequest extends FormRequest
             return false;
         }
 
-        return app(SerialCorrectionEligibilityService::class)->canShowAction($incident, $this->user());
+        return app(IdentityCorrectionEligibilityEvaluator::class)->canCorrectDeviceIdentity($incident, $this->user());
     }
 
     protected function prepareForValidation(): void

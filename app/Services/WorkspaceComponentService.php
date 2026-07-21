@@ -25,6 +25,7 @@ use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Services\CustomerCorrection\CustomerCorrectionEligibilityService;
 use App\Services\DeviceModelCorrection\DeviceModelCorrectionEligibilityService;
+use App\Services\IdentityCorrection\IdentityCorrectionEligibilityEvaluator;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
@@ -55,6 +56,7 @@ class WorkspaceComponentService
         private readonly CustomerCorrectionEligibilityService $customerCorrectionEligibilityService,
         private readonly SerialCorrectionEligibilityService $serialCorrectionEligibilityService,
         private readonly DeviceModelCorrectionEligibilityService $deviceModelCorrectionEligibilityService,
+        private readonly IdentityCorrectionEligibilityEvaluator $identityCorrectionEligibilityEvaluator,
         private readonly SerialValidationService $serialValidationService,
         private readonly CommunicationActionRegistry $communicationActionRegistry,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
@@ -94,8 +96,8 @@ class WorkspaceComponentService
                 && $this->customerNotRespondingEligibilityService->canShowAction($incident),
             WorkspaceComponent::LinkOrder => $this->inquiryOrderLinkEligibilityService->canShowAction($incident, $user),
             WorkspaceComponent::CorrectCustomerDetails => $this->customerCorrectionEligibilityService->canShowAction($incident, $user),
-            WorkspaceComponent::CorrectSerialNumber => $this->serialCorrectionEligibilityService->canShowAction($incident, $user),
-            WorkspaceComponent::CorrectDeviceModel => $this->deviceModelCorrectionEligibilityService->canShowAction($incident, $user),
+            WorkspaceComponent::CorrectSerialNumber => $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $user),
+            WorkspaceComponent::CorrectDeviceModel => $this->identityCorrectionEligibilityEvaluator->canCorrectDeviceIdentity($incident, $user),
             WorkspaceComponent::CommunicationAction => $this->canOpenCommunicationAction($incident, $user),
             WorkspaceComponent::RefundRequest => $user->can('refunds.create') && $incident->order_id !== null,
         };
