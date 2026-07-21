@@ -13,6 +13,8 @@
         @method('PUT')
 
         <div class="vstack gap-4">
+            @include('admin.system-settings.partials.performance-card')
+
             @foreach($groupedSettings as $categoryKey => $settings)
                 @php
                     $category = $categories[$categoryKey] ?? ['label' => ucfirst($categoryKey), 'description' => null, 'icon' => 'bi-sliders'];

@@ -39,6 +39,29 @@ class OperationalSystemSettingsTest extends TestCase
         return $user;
     }
 
+    /**
+     * @param  array<string, string|int>  $overrides
+     * @return array{settings: array<string, string|int>}
+     */
+    private function settingsPayload(array $overrides = []): array
+    {
+        $settings = [];
+
+        foreach (config('system_settings.settings', []) as $key => $definition) {
+            $type = $definition['type'] ?? 'string';
+            $default = $definition['default'] ?? null;
+
+            $settings[$key] = match ($type) {
+                'boolean' => ($default ?? false) ? '1' : '0',
+                'integer' => (string) (int) ($default ?? 0),
+                'string' => (string) ($default ?? ''),
+                default => (string) $default,
+            };
+        }
+
+        return ['settings' => array_merge($settings, $overrides)];
+    }
+
     public function test_agent_cannot_access_system_settings_page(): void
     {
         $agent = $this->createAgent();
@@ -56,6 +79,7 @@ class OperationalSystemSettingsTest extends TestCase
             ->get(route('admin.system-settings.index'))
             ->assertOk()
             ->assertSee('System Settings')
+            ->assertSee('Performance')
             ->assertSee('WhatsApp notifications')
             ->assertSee('Email notifications')
             ->assertSee('Desktop notifications')
@@ -63,8 +87,7 @@ class OperationalSystemSettingsTest extends TestCase
             ->assertSee('WhatsApp API')
             ->assertSee('Debug mode')
             ->assertSee('Hybrid Realtime')
-            ->assertSee('Reference Number')
-            ->assertSee('Coming Soon');
+            ->assertSee('Reference Number');
     }
 
     public function test_seeder_sets_initial_defaults(): void
@@ -84,6 +107,8 @@ class OperationalSystemSettingsTest extends TestCase
         $this->assertTrue($service->getBool('outbox.processor_enabled'));
         $this->assertTrue($service->getBool('ira.enabled'));
         $this->assertFalse($service->getBool('automation.scheduler.enabled'));
+        $this->assertSame('balanced', $service->get('performance.profile'));
+        $this->assertSame(30000, $service->get('performance.polling.dashboard_live_ms'));
         $this->assertFalse($service->getBool('hybrid_realtime.reference_number'));
         $this->assertFalse($service->getBool('hybrid_realtime.assignment'));
         $this->assertFalse($service->getBool('hybrid_realtime.close_resolve'));
@@ -96,29 +121,19 @@ class OperationalSystemSettingsTest extends TestCase
     {
         $admin = $this->createAdmin();
 
-        $payload = [
-            'settings' => [
-                'system.debug_mode' => '1',
-                'notifications.whatsapp.enabled' => '1',
-                'notifications.email.enabled' => '0',
-                'notifications.desktop.enabled' => '0',
-                'notifications.telegram.enabled' => '0',
-                'whatsapp.api_enabled' => '0',
-                'whatsapp.manual_templates_enabled' => '1',
-                'whatsapp.automation_enabled' => '0',
-                'email.api_enabled' => '1',
-                'telegram.api_enabled' => '1',
-                'outbox.processor_enabled' => '1',
-                'ira.enabled' => '0',
-                'automation.scheduler.enabled' => '0',
-                'hybrid_realtime.reference_number' => '1',
-                'hybrid_realtime.assignment' => '1',
-                'hybrid_realtime.close_resolve' => '1',
-                'hybrid_realtime.incoming_calls' => '1',
-                'hybrid_realtime.desktop_notifications' => '1',
-                'hybrid_realtime.operator_alerts' => '1',
-            ],
-        ];
+        $payload = $this->settingsPayload([
+            'system.debug_mode' => '1',
+            'notifications.email.enabled' => '0',
+            'whatsapp.api_enabled' => '0',
+            'telegram.api_enabled' => '1',
+            'ira.enabled' => '0',
+            'hybrid_realtime.reference_number' => '1',
+            'hybrid_realtime.assignment' => '1',
+            'hybrid_realtime.close_resolve' => '1',
+            'hybrid_realtime.incoming_calls' => '1',
+            'hybrid_realtime.desktop_notifications' => '1',
+            'hybrid_realtime.operator_alerts' => '1',
+        ]);
 
         $this->actingAs($admin)
             ->put(route('admin.system-settings.update'), $payload)
@@ -146,29 +161,9 @@ class OperationalSystemSettingsTest extends TestCase
     {
         $admin = $this->createAdmin();
 
-        $this->actingAs($admin)->put(route('admin.system-settings.update'), [
-            'settings' => [
-                'system.debug_mode' => '1',
-                'notifications.whatsapp.enabled' => '1',
-                'notifications.email.enabled' => '0',
-                'notifications.desktop.enabled' => '0',
-                'notifications.telegram.enabled' => '0',
-                'whatsapp.api_enabled' => '1',
-                'whatsapp.manual_templates_enabled' => '1',
-                'whatsapp.automation_enabled' => '0',
-                'email.api_enabled' => '1',
-                'telegram.api_enabled' => '0',
-                'outbox.processor_enabled' => '1',
-                'ira.enabled' => '1',
-                'automation.scheduler.enabled' => '0',
-                'hybrid_realtime.reference_number' => '0',
-                'hybrid_realtime.assignment' => '0',
-                'hybrid_realtime.close_resolve' => '0',
-                'hybrid_realtime.incoming_calls' => '0',
-                'hybrid_realtime.desktop_notifications' => '0',
-                'hybrid_realtime.operator_alerts' => '0',
-            ],
-        ]);
+        $this->actingAs($admin)->put(route('admin.system-settings.update'), $this->settingsPayload([
+            'system.debug_mode' => '1',
+        ]));
 
         $setting = SystemSetting::query()->where('key', 'system.debug_mode')->first();
 

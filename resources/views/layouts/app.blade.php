@@ -33,7 +33,7 @@
             data-presence-heartbeat="true"
             data-presence-heartbeat-enabled="{{ config('presence.heartbeat_enabled') ? 'true' : 'false' }}"
             data-presence-heartbeat-url="{{ route('presence.heartbeat') }}"
-            data-presence-heartbeat-interval="{{ config('presence.heartbeat_interval_seconds', 120) }}"
+            data-presence-heartbeat-interval="{{ $performanceRuntime['presenceHeartbeatIntervalSeconds'] ?? 120 }}"
         @endif
     @endauth
 >

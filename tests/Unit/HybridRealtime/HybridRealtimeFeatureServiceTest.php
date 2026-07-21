@@ -61,7 +61,7 @@ class HybridRealtimeFeatureServiceTest extends TestCase
         $this->assertTrue($service->enabled(HybridRealtimeFeature::CLOSE_RESOLVE));
     }
 
-    public function test_unwired_features_remain_disabled(): void
+    public function test_phase_three_features_can_be_enabled_when_wired(): void
     {
         app(SystemSettingsService::class)->set('hybrid_realtime.incoming_calls', true);
         app(SystemSettingsService::class)->set('hybrid_realtime.desktop_notifications', true);
@@ -69,9 +69,9 @@ class HybridRealtimeFeatureServiceTest extends TestCase
 
         $service = app(HybridRealtimeFeatureService::class);
 
-        $this->assertFalse($service->enabled(HybridRealtimeFeature::INCOMING_CALLS));
-        $this->assertFalse($service->enabled(HybridRealtimeFeature::DESKTOP_NOTIFICATIONS));
-        $this->assertFalse($service->enabled(HybridRealtimeFeature::OPERATOR_ALERTS));
+        $this->assertTrue($service->enabled(HybridRealtimeFeature::INCOMING_CALLS));
+        $this->assertTrue($service->enabled(HybridRealtimeFeature::DESKTOP_NOTIFICATIONS));
+        $this->assertTrue($service->enabled(HybridRealtimeFeature::OPERATOR_ALERTS));
     }
 
     public function test_unknown_feature_throws(): void

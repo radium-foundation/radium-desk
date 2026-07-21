@@ -322,7 +322,7 @@ export const initAgentDashboard = ({ pageRoot, showToast } = {}) => {
             window.clearInterval(intervalId);
         }
 
-        intervalId = window.setInterval(tick, 60_000);
+        intervalId = window.setInterval(tick, Number(root.dataset.agentReminderIntervalSeconds ?? 60) * 1000);
     };
 
     const updateNextAppointment = (nextAppointment) => {

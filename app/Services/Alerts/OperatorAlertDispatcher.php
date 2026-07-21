@@ -7,6 +7,8 @@ use App\Data\OperatorAlertDispatchResult;
 use App\Enums\NotificationChannelType;
 use App\Events\Dashboard\OperatorAlertRaised;
 use App\Models\User;
+use App\Services\HybridRealtime\HybridRealtimeNotificationBroadcaster;
+use App\Services\HybridRealtime\HybridRealtimeNotificationDeliveryService;
 use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\Notifications\NotificationRecipientResolver;
 use App\Services\Telegram\TelegramBotService;
@@ -24,6 +26,7 @@ class OperatorAlertDispatcher
         private readonly NotificationRecipientResolver $recipientResolver,
         private readonly NotificationAuthorityService $notificationAuthority,
         private readonly TelegramBotService $telegramBot,
+        private readonly HybridRealtimeNotificationBroadcaster $hybridRealtimeBroadcaster,
     ) {}
 
     /**
@@ -44,7 +47,7 @@ class OperatorAlertDispatcher
         bool $deliverTelegram = false,
         ?string $telegramMessage = null,
     ): OperatorAlertDispatchResult {
-        if (! config('operator_alerts.enabled')) {
+        if (! $this->hybridRealtimeBroadcaster->operatorAlertsEnabled() && ! config('operator_alerts.enabled')) {
             return OperatorAlertDispatchResult::disabled();
         }
 
@@ -138,6 +141,8 @@ class OperatorAlertDispatcher
             recipient: $recipient,
             alert: $payloadAlert,
         ));
+
+        $this->hybridRealtimeBroadcaster->broadcastOperatorAlert($recipient, $payloadAlert);
     }
 
     private function deliverTelegram(User $recipient, OperatorAlert $alert, string $telegramMessage): bool
@@ -172,8 +177,9 @@ class OperatorAlertDispatcher
 
     private function applyDeliveryFlags(OperatorAlert $alert): OperatorAlert
     {
-        $desktopEnabled = (bool) config('operator_alerts.desktop_enabled', true);
-        $soundEnabled = (bool) config('operator_alerts.sound_enabled', true);
+        $delivery = app(HybridRealtimeNotificationDeliveryService::class);
+        $desktopEnabled = $delivery->browserNotificationsEnabled();
+        $soundEnabled = $delivery->soundEnabled();
 
         if ($desktopEnabled && $soundEnabled) {
             return $alert;

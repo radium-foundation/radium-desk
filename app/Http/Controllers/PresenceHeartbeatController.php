@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\PresenceActivityType;
 use App\Services\Operations\OperationsRoleService;
 use App\Services\Operations\PresenceEngineService;
+use App\Services\Performance\PerformanceRuntimeConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,6 +14,7 @@ class PresenceHeartbeatController extends Controller
     public function __construct(
         private readonly PresenceEngineService $presenceEngine,
         private readonly OperationsRoleService $roleService,
+        private readonly PerformanceRuntimeConfig $performanceRuntime,
     ) {}
 
     public function store(Request $request): JsonResponse
@@ -37,7 +39,7 @@ class PresenceHeartbeatController extends Controller
 
         return response()->json([
             'presence' => $snapshot,
-            'next_heartbeat_seconds' => (int) config('presence.heartbeat_interval_seconds', 120),
+            'next_heartbeat_seconds' => $this->performanceRuntime->presenceHeartbeatIntervalSeconds(),
         ]);
     }
 }

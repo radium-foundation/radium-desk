@@ -36,17 +36,17 @@ return [
         HybridRealtimeFeature::INCOMING_CALLS => [
             'setting_key' => 'hybrid_realtime.incoming_calls',
             'env_kill_switch' => env('REVERB_INCOMING_CALL_ENABLED'),
-            'wired' => false,
+            'wired' => true,
         ],
         HybridRealtimeFeature::DESKTOP_NOTIFICATIONS => [
             'setting_key' => 'hybrid_realtime.desktop_notifications',
             'env_kill_switch' => env('REVERB_DESKTOP_NOTIFICATION_ENABLED'),
-            'wired' => false,
+            'wired' => true,
         ],
         HybridRealtimeFeature::OPERATOR_ALERTS => [
             'setting_key' => 'hybrid_realtime.operator_alerts',
             'env_kill_switch' => env('REVERB_OPERATOR_ALERT_ENABLED'),
-            'wired' => false,
+            'wired' => true,
         ],
     ],
 

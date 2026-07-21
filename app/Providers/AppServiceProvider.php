@@ -69,6 +69,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use App\Services\ChangelogService;
+use App\Services\Performance\PerformanceRuntimeConfig;
 use App\Services\SupportContactConfiguration;
 use App\Services\SupportContactResolver;
 
@@ -205,6 +206,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SystemSetting::class, SystemSettingPolicy::class);
 
         Paginator::useBootstrapFive();
+
+        View::composer(['layouts.app', 'layouts.partials.navbar'], function ($view): void {
+            $view->with('performanceRuntime', app(PerformanceRuntimeConfig::class)->forBlade());
+        });
 
         View::composer('layouts.partials.navbar', function ($view): void {
             $user = auth()->user();

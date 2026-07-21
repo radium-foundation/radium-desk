@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Data\RecentActivityStreams;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
+use App\Services\Performance\PerformanceRuntimeConfig;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +17,7 @@ class DashboardController extends Controller
     public function __construct(
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
+        private readonly PerformanceRuntimeConfig $performanceRuntime,
     ) {}
 
     public function index(Request $request): View|RedirectResponse
@@ -107,7 +109,10 @@ class DashboardController extends Controller
             'enabledProducts' => app(SettingService::class)->enabledProductNames(),
             'enabledSources' => app(SettingService::class)->enabledSources(),
             'dashboardLiveMode' => config('dashboard.live_mode', 'auto'),
-            'dashboardPollIntervalMs' => config('dashboard.poll_interval_ms', 30000),
+            'dashboardPollIntervalMs' => $this->performanceRuntime->dashboardPollIntervalMs(),
+            'customer360TimelinePollIntervalMs' => $this->performanceRuntime->customer360TimelinePollIntervalMs(),
+            'customer360DeviceSyncPollIntervalMs' => $this->performanceRuntime->customer360DeviceSyncPollIntervalMs(),
+            'agentReminderIntervalSeconds' => $this->performanceRuntime->agentReminderIntervalSeconds(),
             'reverbConfigured' => config('broadcasting.default') === 'reverb'
                 && config('broadcasting.connections.reverb.key'),
         ]);

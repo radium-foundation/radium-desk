@@ -11,7 +11,9 @@ use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Services\Alerts\OperatorAlertCatalog;
 use App\Services\Alerts\OperatorAlertDispatcher;
+use App\Services\SystemSettingsService;
 use Database\Seeders\RolePermissionSeeder;
+use Database\Seeders\SystemSettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -33,6 +35,7 @@ class OperatorAlertDispatcherTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+        $this->seed(SystemSettingsSeeder::class);
 
         $this->catalog = app(OperatorAlertCatalog::class);
         $this->dispatcher = app(OperatorAlertDispatcher::class);
@@ -164,10 +167,8 @@ class OperatorAlertDispatcherTest extends TestCase
 
     public function test_desktop_and_sound_flags_are_honoured_on_broadcast_payload(): void
     {
-        config([
-            'operator_alerts.desktop_enabled' => false,
-            'operator_alerts.sound_enabled' => false,
-        ]);
+        app(SystemSettingsService::class)->set('performance.notifications.browser_enabled', false);
+        app(SystemSettingsService::class)->set('performance.notifications.sound_enabled', false);
 
         Event::fake([OperatorAlertRaised::class]);
 

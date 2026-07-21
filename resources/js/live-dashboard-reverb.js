@@ -18,6 +18,7 @@ import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
 import { getWorkspaceSession } from './workspace/session';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 import { bindOperatorAlertsChannel } from './operator-alerts';
+import { bindRealtimeNotificationsChannel } from './realtime-notifications';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -289,6 +290,7 @@ export const initLiveDashboardReverb = ({
     });
 
     bindOperatorAlertsChannel(notificationsChannel);
+    bindRealtimeNotificationsChannel(notificationsChannel);
 
     const connection = echo.connector?.pusher?.connection;
 

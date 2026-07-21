@@ -1,9 +1,9 @@
 /**
- * Phase 0 Operator Alert System client.
- *
- * Listens for OperatorAlertRaised (via Reverb) and shows browser notifications.
- * Does not integrate with the notification bell badge or dropdown.
+ * Operator Alert System client (legacy OperatorAlertRaised handler).
+ * New deliveries also flow through realtime-notifications.js via RealtimeNotificationDelivered.
  */
+
+import { playNotificationSound } from './realtime-notifications';
 
 const shownDeduplicationKeys = new Set();
 
@@ -12,7 +12,7 @@ const playOperatorAlertSound = (payload) => {
         return;
     }
 
-    // Phase 0 stub — sound playback lands in a later phase.
+    playNotificationSound();
 };
 
 const showOperatorBrowserNotification = (payload) => {

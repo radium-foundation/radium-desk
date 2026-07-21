@@ -13,6 +13,7 @@ use App\Services\Alerts\IncomingCallTelegramMessageBuilder;
 use App\Services\Alerts\OperatorAlertCatalog;
 use App\Services\Alerts\OperatorAlertDispatcher;
 use App\Services\DashboardBroadcastService;
+use App\Services\HybridRealtime\HybridRealtimeNotificationBroadcaster;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Support\Bonvoice\BonvoiceIncomingCallInteractionBuilder;
 use App\Support\BonvoiceCallStatuses;
@@ -30,6 +31,7 @@ class BonvoiceLiveCallAssistService
         private readonly OperatorAlertDispatcher $operatorAlertDispatcher,
         private readonly OperatorAlertCatalog $operatorAlertCatalog,
         private readonly IncomingCallTelegramMessageBuilder $incomingCallTelegramMessageBuilder,
+        private readonly HybridRealtimeNotificationBroadcaster $hybridRealtimeBroadcaster,
     ) {}
 
     public function maybeNotify(BonvoiceCallEvent $event): ?BonvoiceCallAlert
@@ -77,6 +79,7 @@ class BonvoiceLiveCallAssistService
 
         $this->maybeTriggerRadiumBoxSync($match);
 
+        $this->hybridRealtimeBroadcaster->broadcastIncomingCall($agent, $alert);
         $this->sendNotificationSafely($agent, $alert);
 
         return $alert;
@@ -157,7 +160,7 @@ class BonvoiceLiveCallAssistService
     private function sendNotificationSafely(User $agent, BonvoiceCallAlert $alert): void
     {
         try {
-            if (config('operator_alerts.enabled')) {
+            if ($this->hybridRealtimeBroadcaster->operatorAlertsEnabled() || config('operator_alerts.enabled')) {
                 $this->dispatchOperatorAlert($agent, $alert);
 
                 return;

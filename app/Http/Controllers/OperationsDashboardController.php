@@ -8,6 +8,7 @@ use App\Services\Operations\IraOperationsBrainService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Operations\OperationsDashboardLiveRenderer;
 use App\Services\Operations\OperationsDashboardService;
+use App\Services\Performance\PerformanceRuntimeConfig;
 use App\Services\RadiumBox\RadiumBoxSyncRecoveryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class OperationsDashboardController extends Controller
         private readonly IraBriefingFormatter $iraBriefingFormatter,
         private readonly OperationsDashboardLiveRenderer $liveRenderer,
         private readonly RadiumBoxSyncRecoveryService $radiumBoxRecoveryService,
+        private readonly PerformanceRuntimeConfig $performanceRuntime,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless($request->user()?->can('operations-dashboard.view'), 403);
@@ -34,6 +36,8 @@ class OperationsDashboardController extends Controller
     {
         return view('admin.operations.index', [
             'dashboard' => $this->dashboardService->dashboardData(),
+            'operationsPollIntervalMs' => $this->performanceRuntime->operationsPollIntervalMs(),
+            'operationsFullRefreshIntervalMs' => $this->performanceRuntime->operationsFullRefreshIntervalMs(),
         ]);
     }
 

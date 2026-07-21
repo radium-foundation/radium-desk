@@ -24,6 +24,7 @@
          data-live-filter="{{ $serviceCaseFilter ?? $operationQueue }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
+         data-agent-reminder-interval-seconds="{{ $agentReminderIntervalSeconds ?? 60 }}"
          data-user-id="{{ auth()->id() }}"
          data-dashboard-search-rows-url="{{ route('dashboard.service-cases.search-rows') }}"
          data-dashboard-load-more-url="{{ route('dashboard.service-cases.load-more') }}"
@@ -92,7 +93,11 @@
             ])
         @endif
 
-        @include('dashboard.partials.customer-360-drawer-host')
+        @include('dashboard.partials.incoming-call-card-host')
+        @include('dashboard.partials.customer-360-drawer-host', [
+            'customer360TimelinePollIntervalMs' => $customer360TimelinePollIntervalMs ?? 30000,
+            'customer360DeviceSyncPollIntervalMs' => $customer360DeviceSyncPollIntervalMs ?? 10000,
+        ])
         @include('dashboard.partials.serial-number-modal')
     </div>
 @endsection

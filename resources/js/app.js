@@ -33,6 +33,8 @@ import { initOperationsDashboard } from './operations-dashboard';
 import { initPlatformDashboard } from './platform-dashboard';
 import { initAutomationHealth } from './automation-health';
 import { initPresenceHeartbeat } from './presence-heartbeat';
+import { initSystemSettingsPerformance } from './system-settings-performance';
+import { initIncomingCallCardHost } from './incoming-call-card';
 import { initCustomerIntake, initLegacyVerificationModal, guardServiceReferenceAssignment } from './customer-intake';
 import { initCopyableIdentifiers } from './copyable-identifiers';
 
@@ -806,4 +808,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initPlatformDashboard();
     initAutomationHealth();
     initPresenceHeartbeat();
+    initSystemSettingsPerformance();
+    initIncomingCallCardHost();
 });

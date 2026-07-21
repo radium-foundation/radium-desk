@@ -57,8 +57,6 @@ const copyTextToClipboard = async (text) => {
 };
 
 const COPY_SUCCESS_MS = 1500;
-const DEVICE_SYNC_POLL_MS = 10000;
-const TIMELINE_POLL_MS = 30000;
 
 const showInlineCopySuccess = (button) => {
     const icon = button.querySelector('[data-customer-360-copy-icon]');
@@ -167,6 +165,9 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         return null;
     }
 
+    const deviceSyncPollMs = Number(drawer.dataset.deviceSyncPollMs ?? 10000);
+    const timelinePollMs = Number(drawer.dataset.timelinePollMs ?? 30000);
+
     let activeIncidentId = null;
     let fetchController = null;
     let pendingOpenOptions = {};
@@ -264,7 +265,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         devicePollTimer = setInterval(() => {
             refreshDeviceSection(refreshUrl);
-        }, DEVICE_SYNC_POLL_MS);
+        }, deviceSyncPollMs);
     };
 
     const refreshTimelineSection = async (refreshUrl) => {
@@ -310,7 +311,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         timelinePollTimer = setInterval(() => {
             refreshTimelineSection(refreshUrl);
-        }, TIMELINE_POLL_MS);
+        }, timelinePollMs);
     };
 
     const setLoading = (isLoading) => {

@@ -41,6 +41,36 @@ class UpdateOperationalSystemSettingsRequest extends FormRequest
 
                 if ($type === 'boolean' && ! in_array($submitted[$key], [null, '0', '1', 0, 1, true, false], true)) {
                     $validator->errors()->add("settings.{$key}", 'Invalid boolean value.');
+
+                    continue;
+                }
+
+                if ($type === 'integer') {
+                    if (! is_numeric($submitted[$key])) {
+                        $validator->errors()->add("settings.{$key}", 'Must be a number.');
+
+                        continue;
+                    }
+
+                    $value = (int) $submitted[$key];
+                    $min = $definitions[$key]['min'] ?? null;
+                    $max = $definitions[$key]['max'] ?? null;
+
+                    if ($min !== null && $value < (int) $min) {
+                        $validator->errors()->add("settings.{$key}", "Must be at least {$min}.");
+                    }
+
+                    if ($max !== null && $value > (int) $max) {
+                        $validator->errors()->add("settings.{$key}", "Must be at most {$max}.");
+                    }
+                }
+
+                if ($type === 'string') {
+                    $allowed = $definitions[$key]['allowed'] ?? null;
+
+                    if (is_array($allowed) && ! in_array((string) $submitted[$key], $allowed, true)) {
+                        $validator->errors()->add("settings.{$key}", 'Invalid value.');
+                    }
                 }
             }
 
@@ -68,6 +98,7 @@ class UpdateOperationalSystemSettingsRequest extends FormRequest
                 $validated[$key] = match ($type) {
                     'boolean' => (bool) ($definition['default'] ?? false),
                     'integer' => (int) ($definition['default'] ?? 0),
+                    'string' => (string) ($definition['default'] ?? ''),
                     default => $definition['default'] ?? null,
                 };
 
@@ -79,6 +110,7 @@ class UpdateOperationalSystemSettingsRequest extends FormRequest
             $validated[$key] = match ($type) {
                 'boolean' => filter_var($raw, FILTER_VALIDATE_BOOLEAN),
                 'integer' => (int) $raw,
+                'string' => (string) $raw,
                 default => $raw,
             };
         }

@@ -34,7 +34,7 @@
 
     <div id="notification-bell-root"
          data-poll-url="{{ route('notifications.poll') }}"
-         data-poll-interval="20000">
+         data-poll-interval="{{ $performanceRuntime['notificationPollIntervalMs'] ?? 20000 }}">
         @include('layouts.partials.notification-bell')
     </div>
 

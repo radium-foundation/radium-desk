@@ -6,8 +6,8 @@
     <div
         id="operations-dashboard-root"
         data-live-url="{{ route('admin.operations.live') }}"
-        data-live-interval="30000"
-        data-live-full-interval="120000"
+        data-live-interval="{{ $operationsPollIntervalMs ?? 30000 }}"
+        data-live-full-interval="{{ $operationsFullRefreshIntervalMs ?? 120000 }}"
     >
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
             <div>
