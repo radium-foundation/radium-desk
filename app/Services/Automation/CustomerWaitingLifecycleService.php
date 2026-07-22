@@ -201,6 +201,10 @@ TEXT;
             return ActionHandlerResult::failure('Service case is already closed.');
         }
 
+        if ($incident->hasActiveSupportAppointment()) {
+            return ActionHandlerResult::failure('Active support appointment scheduled; auto-close skipped.');
+        }
+
         if ($this->engagementService->hasEngagement($incident, $waitingState)) {
             return ActionHandlerResult::failure('Customer engagement detected; auto-close skipped.');
         }

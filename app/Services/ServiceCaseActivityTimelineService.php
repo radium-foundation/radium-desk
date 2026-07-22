@@ -111,13 +111,30 @@ class ServiceCaseActivityTimelineService
         if ($auditLog->auditable_type === $incident->getMorphClass()) {
             return match ($auditLog->event) {
                 'service_case.assigned' => $this->mapAssignedEntry($auditLog, $incident, $actor, $occurredAt),
-                'service_case.deferred_smart_assignment' => $this->mapAssignedEntry($auditLog, $incident, $actor, $occurredAt),
+                'service_case.deferred_smart_assignment' => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
+                    actor: $actor,
+                    title: 'Assigned automatically after engineer became available.',
+                    body: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
                 'service_case.pending_smart_assignment' => new ServiceCaseTimelineEntry(
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
                     actor: $actor,
                     title: 'Pending Smart Assignment',
-                    body: 'No eligible engineer was available. Assignment will retry when capacity is available.',
+                    body: 'Waiting for available support engineer.',
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                SupportAppointmentBookingWorkflowService::EVENT_APPOINTMENT_BOOKING_REOPENED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $actor,
+                    title: 'Case reopened automatically after Tech Support appointment booking.',
+                    body: null,
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),

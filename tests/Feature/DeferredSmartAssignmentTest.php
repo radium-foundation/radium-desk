@@ -83,7 +83,7 @@ class DeferredSmartAssignmentTest extends TestCase
             ->count());
     }
 
-    public function test_no_eligible_engineer_keeps_shift_admin_and_marks_pending(): void
+    public function test_no_eligible_engineer_clears_shift_admin_and_marks_pending(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -98,7 +98,7 @@ class DeferredSmartAssignmentTest extends TestCase
         $this->bookAppointment($incident);
 
         $incident->refresh();
-        $this->assertSame($this->shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
         $this->assertTrue($incident->pending_smart_assignment);
         $this->assertTrue($incident->isPendingSmartAssignment());
 
@@ -125,7 +125,7 @@ class DeferredSmartAssignmentTest extends TestCase
         $this->bookAppointment($incident);
 
         $incident->refresh();
-        $this->assertSame($this->shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
         $this->assertTrue($incident->pending_smart_assignment);
 
         app(PresenceEngineService::class)->startSession($agent);
@@ -149,7 +149,7 @@ class DeferredSmartAssignmentTest extends TestCase
         $incident = $this->createShiftAdminOwnedIncident();
         $this->bookAppointment($incident);
         $this->assertTrue($incident->fresh()->pending_smart_assignment);
-        $this->assertSame($this->shiftAdmin->id, $incident->fresh()->assigned_to_user_id);
+        $this->assertNull($incident->fresh()->assigned_to_user_id);
 
         config(['smart_assignment.deferred.enabled' => false]);
         app(PresenceEngineService::class)->startSession($agent);
@@ -192,7 +192,7 @@ class DeferredSmartAssignmentTest extends TestCase
             $this->bookAppointment($incident);
             $fresh = $incident->fresh();
             $this->assertTrue($fresh->pending_smart_assignment);
-            $this->assertSame($this->shiftAdmin->id, $fresh->assigned_to_user_id);
+            $this->assertNull($fresh->assigned_to_user_id);
         }
 
         config(['smart_assignment.deferred.enabled' => false]);
@@ -210,7 +210,7 @@ class DeferredSmartAssignmentTest extends TestCase
         $this->assertSame(1, Incident::query()
             ->whereIn('id', $incidents->pluck('id'))
             ->pendingSmartAssignment()
-            ->where('assigned_to_user_id', $this->shiftAdmin->id)
+            ->whereNull('assigned_to_user_id')
             ->count());
     }
 
@@ -251,7 +251,7 @@ class DeferredSmartAssignmentTest extends TestCase
         $incident = $this->createShiftAdminOwnedIncident();
         $this->bookAppointment($incident);
         $this->assertTrue($incident->fresh()->pending_smart_assignment);
-        $this->assertSame($this->shiftAdmin->id, $incident->fresh()->assigned_to_user_id);
+        $this->assertNull($incident->fresh()->assigned_to_user_id);
 
         config(['smart_assignment.deferred.enabled' => false]);
         $agent = $this->createSupportAgent('Cron Agent', TeamAvailabilityStatus::Available);
@@ -279,7 +279,7 @@ class DeferredSmartAssignmentTest extends TestCase
 
         $this->assertSame(0, $assigned);
         $incident->refresh();
-        $this->assertSame($this->shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
         $this->assertTrue($incident->pending_smart_assignment);
     }
 
@@ -300,7 +300,7 @@ class DeferredSmartAssignmentTest extends TestCase
             ->assignForActiveSupport($incident->fresh());
 
         $incident->refresh();
-        $this->assertSame($this->shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
 
         $this->assertSame(1, AuditLog::query()
             ->where('auditable_id', $incident->id)
@@ -324,7 +324,7 @@ class DeferredSmartAssignmentTest extends TestCase
 
         $incident->refresh();
         $this->assertTrue($incident->pending_smart_assignment);
-        $this->assertSame($this->shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
 
         config(['smart_assignment.deferred.enabled' => false]);
         $manualAgent = $this->createSupportAgent('Manual Agent', TeamAvailabilityStatus::Available);
@@ -363,7 +363,7 @@ class DeferredSmartAssignmentTest extends TestCase
 
         $incident->refresh();
         $this->assertTrue($incident->pending_smart_assignment);
-        $this->assertSame($this->shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
 
         config(['smart_assignment.deferred.enabled' => false]);
         $agent = $this->createSupportAgent('Deferred Agent', TeamAvailabilityStatus::Available);

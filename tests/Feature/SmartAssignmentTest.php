@@ -94,7 +94,7 @@ class SmartAssignmentTest extends TestCase
         $this->bookAppointment($incident);
 
         $incident->refresh();
-        $this->assertSame($shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
         $this->assertTrue($incident->pending_smart_assignment);
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.smart_assignment_unassigned',
@@ -211,7 +211,7 @@ class SmartAssignmentTest extends TestCase
             ->count());
     }
 
-    public function test_no_available_users_keeps_shift_admin_and_marks_pending(): void
+    public function test_no_available_users_clears_shift_admin_and_marks_pending(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 
@@ -228,7 +228,7 @@ class SmartAssignmentTest extends TestCase
         $this->bookAppointment($incident);
 
         $incident->refresh();
-        $this->assertSame($shiftAdmin->id, $incident->assigned_to_user_id);
+        $this->assertNull($incident->assigned_to_user_id);
         $this->assertTrue($incident->pending_smart_assignment);
 
         $classifier = app(OperationsQueueClassifier::class);

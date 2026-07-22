@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Enums\AssignmentOrigin;
+use App\Enums\IncidentStatus;
 use App\Enums\SupportAppointmentStatus;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Models\Incident;
@@ -79,6 +80,19 @@ class DeferredSmartAssignmentService
                 ->first();
 
             if ($incident === null || ! $incident->isPendingSmartAssignment()) {
+                return false;
+            }
+
+            if ($incident->status === IncidentStatus::Closed) {
+                $incident->update([
+                    'pending_smart_assignment' => false,
+                    'updated_by' => $this->automationIdentity->systemUser()->id,
+                ]);
+
+                Log::warning('deferred_smart_assignment.skipped_closed_incident', [
+                    'incident_id' => $incident->id,
+                ]);
+
                 return false;
             }
 

@@ -115,8 +115,21 @@ class SupportAppointmentSmartAssignmentService
         $alreadyPending = (bool) $incident->pending_smart_assignment;
 
         if (! $alreadyPending) {
-            // Keep current ownership (typically Shift Admin). Do not clear assigned_to_user_id.
-            $currentAssigneeId = $incident->assigned_to_user_id;
+            $previousAssigneeId = $incident->assigned_to_user_id;
+
+            if ($previousAssigneeId !== null) {
+                $incident = $this->assignmentService->clearAssigneeForPendingSmartAssignment(
+                    incident: $incident,
+                    actor: $actor,
+                    auditContext: [
+                        'assignment_method' => 'smart',
+                        'assignment_trigger' => 'support_appointment_booked',
+                        'appointment_id' => $appointment->id,
+                        'assignment_reason' => $result->context,
+                        'reason' => 'no_eligible_support_engineer',
+                    ],
+                );
+            }
 
             $incident->update([
                 'pending_smart_assignment' => true,
@@ -130,16 +143,16 @@ class SupportAppointmentSmartAssignmentService
                 event: 'service_case.smart_assignment_unassigned',
                 auditable: $incident,
                 oldValues: [
-                    'assigned_to_user_id' => $currentAssigneeId,
+                    'assigned_to_user_id' => $previousAssigneeId,
                 ],
                 newValues: [
-                    'assigned_to_user_id' => $currentAssigneeId,
+                    'assigned_to_user_id' => null,
                     'assignment_method' => 'smart',
                     'assignment_trigger' => 'support_appointment_booked',
                     'appointment_id' => $appointment->id,
                     'assignment_reason' => $result->context,
                     'queue' => 'scheduled',
-                    'ownership_retained' => true,
+                    'ownership_retained' => false,
                 ],
             );
 
@@ -149,11 +162,11 @@ class SupportAppointmentSmartAssignmentService
                 auditable: $incident,
                 oldValues: [
                     'pending_smart_assignment' => false,
-                    'assigned_to_user_id' => $currentAssigneeId,
+                    'assigned_to_user_id' => $previousAssigneeId,
                 ],
                 newValues: [
                     'pending_smart_assignment' => true,
-                    'assigned_to_user_id' => $currentAssigneeId,
+                    'assigned_to_user_id' => null,
                     'assignment_method' => 'smart',
                     'assignment_trigger' => 'support_appointment_booked',
                     'appointment_id' => $appointment->id,

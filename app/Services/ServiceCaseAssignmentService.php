@@ -442,6 +442,43 @@ class ServiceCaseAssignmentService
         );
     }
 
+    /**
+     * @param  array<string, mixed>  $auditContext
+     */
+    public function clearAssigneeForPendingSmartAssignment(
+        Incident $incident,
+        User $actor,
+        array $auditContext = [],
+    ): Incident {
+        if ($incident->assigned_to_user_id === null) {
+            return $incident;
+        }
+
+        $oldAssigneeId = $incident->assigned_to_user_id;
+
+        $incident->update([
+            'assigned_to_user_id' => null,
+            'updated_by' => $actor->id,
+        ]);
+
+        $freshIncident = $incident->fresh(['assignee']);
+
+        $this->auditLogService->log(
+            userId: $actor->id,
+            event: 'service_case.unassigned',
+            auditable: $freshIncident,
+            oldValues: [
+                'assigned_to_user_id' => $oldAssigneeId,
+            ],
+            newValues: [
+                'assigned_to_user_id' => null,
+                ...$auditContext,
+            ],
+        );
+
+        return $freshIncident;
+    }
+
     public function applySupportAssignment(
         Incident $incident,
         User $assignee,

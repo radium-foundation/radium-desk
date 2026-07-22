@@ -120,6 +120,12 @@ class SupportAppointmentService
 
         if ($result['should_notify']) {
             $this->sendConfirmationNotification($result['appointment'], $incident, $bookingSource);
+
+            $incident = app(SupportAppointmentBookingWorkflowService::class)->reopenClosedIncidentIfNeeded(
+                incident: $incident->fresh(['assignee', 'order', 'supportAppointments']),
+                appointment: $result['appointment'],
+            );
+
             $this->assignAfterBooking($result['appointment'], $incident, $bookingSource);
             $this->handleWaitingStateAfterBooking($incident);
         }
