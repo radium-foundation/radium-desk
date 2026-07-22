@@ -697,8 +697,6 @@ export const initLiveDashboardReverb = ({
 
 export {
     createEchoInstance,
-    destroyLiveDashboardRealtime,
-    forceLiveDashboardRealtimeReconnect,
     fetchLiveRowsForIncidents,
     handleHybridIncidentsUpdated,
     handleKpisUpdated,

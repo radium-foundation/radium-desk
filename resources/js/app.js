@@ -765,7 +765,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const liveDashboard = initLiveDashboard(dashboardLiveHooks);
-        const pageRoot = liveDashboard.pageRoot;
         const liveMode = pageRoot?.dataset.liveMode ?? 'poll';
         const liveUpdatesEnabled = pageRoot?.dataset.liveUpdatesEnabled !== '0';
         const hasEcho = Boolean(pageRoot?.dataset.echoKey);
