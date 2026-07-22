@@ -14,6 +14,7 @@ export const initRealtimeAdminActions = () => {
     const messageEl = root.querySelector('[data-realtime-admin-message]');
     const testButton = root.querySelector('[data-realtime-test]');
     const forceReconnectButton = root.querySelector('[data-realtime-force-reconnect]');
+    const resetStatusButton = root.querySelector('[data-realtime-reset-status]');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     const postJson = async (url) => {
@@ -64,6 +65,34 @@ export const initRealtimeAdminActions = () => {
             showRealtimeAdminMessage(messageEl, data.message ?? 'Force reconnect requested.');
         } catch (error) {
             showRealtimeAdminMessage(messageEl, error.message ?? 'Force reconnect failed.', true);
+        }
+    });
+
+    resetStatusButton?.addEventListener('click', async () => {
+        if (!messageEl) {
+            return;
+        }
+
+        showRealtimeAdminMessage(messageEl, 'Resetting connection status…');
+
+        try {
+            const response = await fetch(resetStatusButton.dataset.url, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json, text/html',
+                    'X-CSRF-TOKEN': csrfToken ?? '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                throw new Error('Request failed.');
+            }
+
+            window.location.reload();
+        } catch (error) {
+            showRealtimeAdminMessage(messageEl, error.message ?? 'Reset failed.', true);
         }
     });
 };

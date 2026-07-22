@@ -205,12 +205,12 @@
                                     data-url="{{ route('admin.system-settings.realtime.force-reconnect') }}">
                                 Force Reconnect
                             </button>
-                            <form method="POST" action="{{ route('admin.system-settings.realtime.reset-status') }}" class="d-inline">
-                                @csrf
-                                <button type="submit" class="btn btn-sm btn-outline-danger">
-                                    Reset Connection Status
-                                </button>
-                            </form>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger"
+                                    data-realtime-reset-status
+                                    data-url="{{ route('admin.system-settings.realtime.reset-status') }}">
+                                Reset Connection Status
+                            </button>
                         </div>
                         <div class="small mt-2 d-none" data-realtime-admin-message aria-live="polite"></div>
                     </div>
