@@ -311,8 +311,32 @@
                                 {{ $performanceHealth['memory']['current'] }} current · {{ $performanceHealth['memory']['peak'] }} peak
                             </dd>
 
-                            <dt class="col-sm-4">WebSocket status</dt>
-                            <dd class="col-sm-8">{{ $performanceHealth['websocket_status'] }}</dd>
+                            <dt class="col-sm-4">Realtime provider</dt>
+                            <dd class="col-sm-8"><code>{{ $performanceHealth['realtime_provider'] ?? 'polling' }}</code></dd>
+
+                            <dt class="col-sm-4">Realtime connection</dt>
+                            <dd class="col-sm-8"><code>{{ $performanceHealth['realtime_connection_status'] ?? 'unknown' }}</code></dd>
+
+                            <dt class="col-sm-4">Polling active</dt>
+                            <dd class="col-sm-8">{{ ! empty($performanceHealth['realtime_polling_active']) ? 'Yes' : 'No' }}</dd>
+
+                            <dt class="col-sm-4">Last connected</dt>
+                            <dd class="col-sm-8">
+                                @if(! empty($performanceHealth['realtime_last_connected_at']))
+                                    {{ \Illuminate\Support\Carbon::parse($performanceHealth['realtime_last_connected_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A T') }}
+                                @else
+                                    <span class="text-muted">Never reported</span>
+                                @endif
+                            </dd>
+
+                            <dt class="col-sm-4">Last error</dt>
+                            <dd class="col-sm-8">
+                                @if(! empty($performanceHealth['realtime_last_error']))
+                                    <code class="text-danger">{{ $performanceHealth['realtime_last_error'] }}</code>
+                                @else
+                                    <span class="text-muted">None</span>
+                                @endif
+                            </dd>
 
                             <dt class="col-sm-4">Hybrid Realtime features</dt>
                             <dd class="col-sm-8">

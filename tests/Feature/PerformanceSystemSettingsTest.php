@@ -113,12 +113,12 @@ class PerformanceSystemSettingsTest extends TestCase
     public function test_dashboard_view_receives_runtime_poll_interval(): void
     {
         $admin = $this->createAdmin();
-        app(SystemSettingsService::class)->set('performance.polling.dashboard_live_ms', 45000, $admin);
+        app(SystemSettingsService::class)->set('realtime.polling_interval_active_seconds', 45, $admin);
 
         $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('data-live-interval="45000"', false);
+            ->assertSee('data-live-interval-active="45000"', false);
     }
 
     public function test_navbar_receives_runtime_notification_interval(): void

@@ -5,6 +5,8 @@ namespace App\Services\Performance;
 use App\Infrastructure\Queue\QueueMetricsService;
 use App\Services\HybridRealtime\HybridRealtimeFeature;
 use App\Services\HybridRealtime\HybridRealtimeFeatureService;
+use App\Services\Realtime\RealtimeConnectionStatusService;
+use App\Services\Realtime\RealtimeRuntimeConfig;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -14,6 +16,8 @@ class PerformanceHealthService
         private readonly PerformanceRuntimeConfig $runtimeConfig,
         private readonly HybridRealtimeFeatureService $hybridRealtime,
         private readonly QueueMetricsService $queueMetrics,
+        private readonly RealtimeRuntimeConfig $realtimeRuntime,
+        private readonly RealtimeConnectionStatusService $realtimeConnectionStatus,
     ) {}
 
     /**
@@ -25,17 +29,24 @@ class PerformanceHealthService
         $pendingJobs = $snapshot?->pendingJobs ?? $this->countPendingJobs();
         $failedJobs = $snapshot?->failedJobs ?? $this->countFailedJobs();
 
+        $realtimeConnection = $this->realtimeConnectionStatus->snapshot();
+
         return [
             'hybrid_realtime_features' => $this->enabledHybridRealtimeFeatures(),
             'dashboard_poll_interval_ms' => $this->runtimeConfig->dashboardPollIntervalMs(),
             'notification_poll_interval_ms' => $this->runtimeConfig->notificationPollIntervalMs(),
             'broadcast_driver' => (string) config('broadcasting.default', 'null'),
-            'dashboard_live_mode' => (string) config('dashboard.live_mode', 'auto'),
+            'dashboard_live_mode' => $this->realtimeRuntime->dashboardTransportMode(),
+            'realtime_provider' => $this->realtimeRuntime->provider(),
+            'realtime_enabled' => $this->realtimeRuntime->enabled(),
+            'realtime_connection_status' => $realtimeConnection['status'] ?? 'unknown',
+            'realtime_polling_active' => (bool) ($realtimeConnection['polling_active'] ?? false),
+            'realtime_last_connected_at' => $realtimeConnection['last_connected_at'] ?? null,
+            'realtime_last_error' => $realtimeConnection['last_error'] ?? $realtimeConnection['last_disconnect_reason'] ?? null,
             'queue_pending_jobs' => $pendingJobs,
             'failed_jobs' => $failedJobs,
             'cpu_load' => $this->cpuLoad(),
             'memory' => $this->memoryUsage(),
-            'websocket_status' => 'Not monitored (future)',
             'performance_profile' => app(PerformanceSettingsService::class)->currentProfile(),
         ];
     }

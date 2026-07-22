@@ -6,6 +6,7 @@ use App\Data\RecentActivityStreams;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use App\Services\Performance\PerformanceRuntimeConfig;
+use App\Services\Realtime\RealtimeRuntimeConfig;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
@@ -18,6 +19,7 @@ class DashboardController extends Controller
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
         private readonly PerformanceRuntimeConfig $performanceRuntime,
+        private readonly RealtimeRuntimeConfig $realtimeRuntime,
     ) {}
 
     public function index(Request $request): View|RedirectResponse
@@ -108,13 +110,12 @@ class DashboardController extends Controller
             'canManageTransactions' => $canManageTransactions,
             'enabledProducts' => app(SettingService::class)->enabledProductNames(),
             'enabledSources' => app(SettingService::class)->enabledSources(),
-            'dashboardLiveMode' => config('dashboard.live_mode', 'auto'),
-            'dashboardPollIntervalMs' => $this->performanceRuntime->dashboardPollIntervalMs(),
+            ...$this->realtimeRuntime->forDashboardBlade(),
+            'debugModeEnabled' => $this->realtimeRuntime->debugModeEnabled()
+                && $user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN),
             'customer360TimelinePollIntervalMs' => $this->performanceRuntime->customer360TimelinePollIntervalMs(),
             'customer360DeviceSyncPollIntervalMs' => $this->performanceRuntime->customer360DeviceSyncPollIntervalMs(),
             'agentReminderIntervalSeconds' => $this->performanceRuntime->agentReminderIntervalSeconds(),
-            'reverbConfigured' => config('broadcasting.default') === 'reverb'
-                && config('broadcasting.connections.reverb.key'),
         ]);
     }
 }

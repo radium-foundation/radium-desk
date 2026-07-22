@@ -27,6 +27,8 @@ use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
 use App\Http\Controllers\OperationalSystemSettingsController;
+use App\Http\Controllers\RealtimeAdminActionsController;
+use App\Http\Controllers\RealtimeConnectionStatusController;
 use App\Http\Controllers\OperationsDashboardController;
 use App\Http\Controllers\PlatformDashboardController;
 use App\Http\Controllers\OrderController;
@@ -76,6 +78,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
     Route::get('/dashboard/live/rows', [DashboardLiveController::class, 'rows'])->name('dashboard.live.rows');
+    Route::post('/dashboard/realtime/connection-status', RealtimeConnectionStatusController::class)
+        ->name('dashboard.realtime.connection-status');
     Route::get('/search', [SearchController::class, 'search'])->name('search.index');
     Route::get('/dashboard/search', [SearchController::class, 'search'])->name('dashboard.search');
     Route::get('dashboard/service-cases/search-rows', [DashboardServiceCaseController::class, 'searchRows'])
@@ -252,6 +256,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.system-settings.index');
     Route::put('/admin/system-settings', [OperationalSystemSettingsController::class, 'update'])
         ->name('admin.system-settings.update');
+    Route::post('/admin/system-settings/realtime/test', [RealtimeAdminActionsController::class, 'test'])
+        ->name('admin.system-settings.realtime.test');
+    Route::post('/admin/system-settings/realtime/force-reconnect', [RealtimeAdminActionsController::class, 'forceReconnect'])
+        ->name('admin.system-settings.realtime.force-reconnect');
+    Route::post('/admin/system-settings/realtime/reset-status', [RealtimeAdminActionsController::class, 'resetStatus'])
+        ->name('admin.system-settings.realtime.reset-status');
 
     Route::prefix('cashfree')->name('cashfree.')->group(function () {
         Route::get('webhook-explorer', [CashfreeWebhookLogController::class, 'index'])

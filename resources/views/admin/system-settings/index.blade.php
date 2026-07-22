@@ -13,6 +13,7 @@
         @method('PUT')
 
         <div class="vstack gap-4">
+            @include('admin.system-settings.partials.realtime-card')
             @include('admin.system-settings.partials.performance-card')
 
             @foreach($groupedSettings as $categoryKey => $settings)

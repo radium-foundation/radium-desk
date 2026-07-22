@@ -107,4 +107,23 @@ class BroadcastAuthorizationTest extends TestCase
             'socket_id' => '1234.5678',
         ])->assertForbidden();
     }
+
+    public function test_broadcasting_auth_denies_foreign_dashboard_channel_with_ably_driver(): void
+    {
+        config([
+            'broadcasting.default' => 'ably',
+            'broadcasting.connections.ably.key' => 'test-public:test-secret',
+        ]);
+
+        $user = User::factory()->create();
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $other = User::factory()->create();
+        $other->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->actingAs($user)->post('/broadcasting/auth', [
+            'channel_name' => 'private-dashboard.'.$other->id,
+            'socket_id' => '1234.5678',
+        ])->assertForbidden();
+    }
 }

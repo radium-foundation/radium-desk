@@ -23,7 +23,16 @@
          data-live-scope="{{ $dashboardLiveScope ?? 'operations_scope' }}"
          data-live-filter="{{ $serviceCaseFilter ?? $operationQueue }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
-         data-live-interval="{{ $dashboardPollIntervalMs ?? 30000 }}"
+         data-live-interval-active="{{ $dashboardPollIntervalActiveMs ?? 20000 }}"
+         data-live-interval-idle="{{ $dashboardPollIntervalIdleMs ?? 60000 }}"
+         data-live-interval="{{ $dashboardPollIntervalActiveMs ?? 20000 }}"
+         data-live-updates-enabled="{{ ($dashboardLiveUpdatesEnabled ?? true) ? '1' : '0' }}"
+         data-realtime-desktop-notifications="{{ ($desktopNotificationsEnabled ?? true) ? '1' : '0' }}"
+         data-realtime-connection-indicator="{{ ($connectionStatusIndicatorEnabled ?? false) ? '1' : '0' }}"
+         data-realtime-debug="{{ ($debugModeEnabled ?? false) ? '1' : '0' }}"
+         data-realtime-provider="{{ $realtimeProvider ?? 'polling' }}"
+         data-realtime-status-url="{{ $realtimeStatusUrl ?? '' }}"
+         data-realtime-force-reconnect-at="{{ $realtimeForceReconnectAt ?? '' }}"
          data-agent-reminder-interval-seconds="{{ $agentReminderIntervalSeconds ?? 60 }}"
          data-user-id="{{ auth()->id() }}"
          data-dashboard-search-rows-url="{{ route('dashboard.service-cases.search-rows') }}"
@@ -35,11 +44,12 @@
          @if(isset($stats['next_appointment']) && is_array($stats['next_appointment']))
          data-next-appointment='@json($stats['next_appointment'])'
          @endif
-         @if($reverbConfigured ?? false)
-         data-reverb-key="{{ config('broadcasting.connections.reverb.key') }}"
-         data-reverb-host="{{ config('broadcasting.connections.reverb.options.host') }}"
-         data-reverb-port="{{ config('broadcasting.connections.reverb.options.port') }}"
-         data-reverb-scheme="{{ config('broadcasting.connections.reverb.options.scheme') }}"
+         @if($echoConfigured ?? false)
+         data-echo-broadcaster="{{ $echoBroadcaster }}"
+         data-echo-key="{{ $echoKey }}"
+         data-echo-host="{{ $echoHost }}"
+         data-echo-port="{{ $echoPort }}"
+         data-echo-scheme="{{ $echoScheme }}"
          @endif>
         <div class="dashboard-header d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-1 @if($usesAgentDashboard) dashboard-header--agent @endif mb-1">
             <div>

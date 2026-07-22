@@ -6,6 +6,7 @@ use App\Http\Requests\UpdateOperationalSystemSettingsRequest;
 use App\Models\SystemSetting;
 use App\Services\Performance\PerformanceHealthService;
 use App\Services\Performance\PerformanceSettingsService;
+use App\Services\Realtime\RealtimeSettingsService;
 use App\Services\SystemSettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -16,6 +17,7 @@ class OperationalSystemSettingsController extends Controller
         private readonly SystemSettingsService $systemSettingsService,
         private readonly PerformanceSettingsService $performanceSettingsService,
         private readonly PerformanceHealthService $performanceHealthService,
+        private readonly RealtimeSettingsService $realtimeSettingsService,
     ) {
         $this->middleware(function ($request, $next) {
             $this->authorize('viewAny', SystemSetting::class);
@@ -27,7 +29,7 @@ class OperationalSystemSettingsController extends Controller
     public function index(): View
     {
         $groupedSettings = $this->systemSettingsService->groupedForAdmin()
-            ->except('performance');
+            ->except(['performance', 'realtime']);
 
         return view('admin.system-settings.index', [
             'categories' => config('system_settings.categories', []),
@@ -38,6 +40,8 @@ class OperationalSystemSettingsController extends Controller
             'performanceHybridRealtimeSettings' => $this->performanceSettingsService->hybridRealtimeSettingsForAdmin(),
             'performanceNotificationSettings' => $this->performanceSettingsService->notificationSettingsForAdmin(),
             'performanceHealth' => $this->performanceHealthService->snapshot(),
+            'realtimeSettings' => $this->realtimeSettingsService->settingsForAdmin(),
+            'realtimeHealth' => $this->realtimeSettingsService->healthSnapshot(),
         ]);
     }
 

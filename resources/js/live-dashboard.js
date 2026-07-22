@@ -287,11 +287,69 @@ let pollTimeoutId = null;
 let pollingActive = false;
 let pollPageRoot = null;
 let pollIntervalMs = 30000;
+let pollIntervalActiveMs = 30000;
+let pollIntervalIdleMs = 60000;
+let pollVisibilityHandler = null;
+let pollWorkspaceReleaseHandler = null;
+
+const isDashboardPollingIdle = (pageRoot) => {
+    if (document.visibilityState === 'hidden') {
+        return true;
+    }
+
+    return getWorkspaceSession().isActive();
+};
+
+const resolvePollIntervalMs = (pageRoot) => {
+    const activeMs = Number(pageRoot?.dataset.liveIntervalActive ?? pageRoot?.dataset.liveInterval ?? pollIntervalActiveMs);
+    const idleMs = Number(pageRoot?.dataset.liveIntervalIdle ?? pollIntervalIdleMs);
+
+    return isDashboardPollingIdle(pageRoot) ? idleMs : activeMs;
+};
+
+const reschedulePollingInterval = () => {
+    if (!pollingActive || pollPageRoot === null) {
+        return;
+    }
+
+    const nextIntervalMs = resolvePollIntervalMs(pollPageRoot);
+
+    if (nextIntervalMs === pollIntervalMs) {
+        return;
+    }
+
+    pollIntervalMs = nextIntervalMs;
+
+    if (pollTimeoutId !== null) {
+        window.clearTimeout(pollTimeoutId);
+        pollTimeoutId = null;
+        scheduleNextPoll();
+    }
+};
+
+const bindPollingIntervalListeners = (pageRoot) => {
+    if (pollVisibilityHandler !== null) {
+        return;
+    }
+
+    pollVisibilityHandler = () => {
+        reschedulePollingInterval();
+    };
+
+    pollWorkspaceReleaseHandler = () => {
+        reschedulePollingInterval();
+    };
+
+    document.addEventListener('visibilitychange', pollVisibilityHandler);
+    getWorkspaceSession().onIdle(pollWorkspaceReleaseHandler);
+};
 
 const scheduleNextPoll = () => {
     if (!pollingActive || pollPageRoot === null || pollTimeoutId !== null) {
         return;
     }
+
+    pollIntervalMs = resolvePollIntervalMs(pollPageRoot);
 
     pollTimeoutId = window.setTimeout(async () => {
         pollTimeoutId = null;
@@ -310,14 +368,17 @@ const scheduleNextPoll = () => {
     }, pollIntervalMs);
 };
 
-const startPolling = (pageRoot, intervalMs) => {
+const startPolling = (pageRoot, intervalMs = null) => {
     if (pollingActive) {
         return;
     }
 
+    pollIntervalActiveMs = Number(pageRoot.dataset.liveIntervalActive ?? pageRoot.dataset.liveInterval ?? 30000);
+    pollIntervalIdleMs = Number(pageRoot.dataset.liveIntervalIdle ?? 60000);
     pollingActive = true;
     pollPageRoot = pageRoot;
-    pollIntervalMs = intervalMs;
+    pollIntervalMs = intervalMs ?? resolvePollIntervalMs(pageRoot);
+    bindPollingIntervalListeners(pageRoot);
     scheduleNextPoll();
 };
 
@@ -333,6 +394,19 @@ const stopPolling = () => {
     pollTimeoutId = null;
 };
 
+const destroyPolling = () => {
+    stopPolling();
+
+    if (pollVisibilityHandler !== null) {
+        document.removeEventListener('visibilitychange', pollVisibilityHandler);
+        pollVisibilityHandler = null;
+    }
+
+    pollWorkspaceReleaseHandler = null;
+};
+
+const isPollingActive = () => pollingActive;
+
 export const initLiveDashboard = (hooks = {}) => {
     const pageRoot = document.getElementById('dashboard-page');
 
@@ -347,14 +421,26 @@ export const initLiveDashboard = (hooks = {}) => {
         flushPendingDashboardRefresh();
     });
 
-    const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
+    const liveUpdatesEnabled = pageRoot.dataset.liveUpdatesEnabled !== '0';
     const liveMode = pageRoot.dataset.liveMode ?? 'poll';
 
-    if (liveMode === 'poll') {
-        startPolling(pageRoot, intervalMs);
+    if (liveUpdatesEnabled && liveMode === 'poll') {
+        startPolling(pageRoot);
     }
 
-    return { startPolling: () => startPolling(pageRoot, intervalMs), stopPolling, pageRoot };
+    return {
+        startPolling: () => {
+            if (pageRoot.dataset.liveUpdatesEnabled === '0') {
+                return;
+            }
+
+            startPolling(pageRoot);
+        },
+        stopPolling,
+        destroyPolling,
+        isPollingActive,
+        pageRoot,
+    };
 };
 
 export {
@@ -369,4 +455,6 @@ export {
     refreshDashboard,
     startPolling,
     stopPolling,
+    destroyPolling,
+    isPollingActive,
 };

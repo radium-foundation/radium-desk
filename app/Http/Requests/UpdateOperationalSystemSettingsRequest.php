@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Models\SystemSetting;
+use App\Services\SystemSettingsService;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -77,6 +79,16 @@ class UpdateOperationalSystemSettingsRequest extends FormRequest
             foreach (array_keys($submitted) as $key) {
                 if (! array_key_exists($key, $definitions)) {
                     $validator->errors()->add("settings.{$key}", 'Unknown setting.');
+
+                    continue;
+                }
+
+                $definition = $definitions[$key];
+
+                if (($definition['superadmin_only'] ?? false) === true
+                    && filter_var($submitted[$key] ?? false, FILTER_VALIDATE_BOOLEAN)
+                    && ! $this->user()?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
+                    $validator->errors()->add("settings.{$key}", 'Only superadmins may enable this setting.');
                 }
             }
         });
@@ -101,6 +113,13 @@ class UpdateOperationalSystemSettingsRequest extends FormRequest
                     'string' => (string) ($definition['default'] ?? ''),
                     default => $definition['default'] ?? null,
                 };
+
+                continue;
+            }
+
+            if (($definition['superadmin_only'] ?? false) === true
+                && ! ($this->user()?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) ?? false)) {
+                $validated[$key] = (bool) app(SystemSettingsService::class)->getBool($key, (bool) ($definition['default'] ?? false));
 
                 continue;
             }
