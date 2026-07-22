@@ -129,6 +129,11 @@ return [
             'display_name' => env('INTERAKT_TEMPLATE_FINAL_REMINDER_BEFORE_CLOSURE_DISPLAY', 'Final Reminder Before Closure'),
             'purpose' => 'Final Reminder Before Closure',
             'internal_note' => 'Final reminder sent before closing a customer-not-responding service case.',
+            // final_reminder_before_closure (en): body {{1}} = customer name; body {{2}} = support ticket reference;
+            // "Hi {{1}}, We are following up on your recent support request ({{2}}). Since we haven't received an update,
+            // we will change the ticket status to resolved shortly. If you still require assistance, simply tap the
+            // Contact Support button below and we'll be happy to help. Best regards, {company} Support Team."
+            // CTA "Contact Support" dynamic URL /support/schedule/{{1}}?source=whatsapp with tracked token in {{1}}.
         ],
         'driver_installation_guide' => [
             'enabled' => filter_var(env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),

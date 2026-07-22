@@ -39,9 +39,9 @@ class NotificationMailTemplateRegistry
                 requiredVariables: ['customer_name', 'reference', 'booking_url'],
             ),
             NotificationType::FinalReminderBeforeClosure => new NotificationMailTemplateDefinition(
-                subject: 'Final reminder before we close your support request {reference}',
+                subject: 'Update regarding your support ticket {reference}',
                 view: 'emails.notifications.final-reminder-before-closure',
-                requiredVariables: ['customer_name', 'reference', 'booking_url'],
+                requiredVariables: ['customer_name', 'reference', 'booking_url', 'company_name'],
             ),
             NotificationType::SupportAppointmentBooked => new NotificationMailTemplateDefinition(
                 subject: 'Your Support Appointment Is Confirmed',
@@ -133,6 +133,7 @@ class NotificationMailTemplateRegistry
                 'customer_name' => $this->resolveCustomerName($message),
                 'reference' => trim((string) ($message->incident->reference_no ?? '')),
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
+                'company_name' => trim((string) ($message->variables['company_name'] ?? config('communication_actions.company_name'))),
             ],
             NotificationType::SupportAppointmentBooked => [
                 'customer_name' => $this->resolveCustomerName($message),
