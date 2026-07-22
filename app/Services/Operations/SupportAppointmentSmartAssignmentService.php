@@ -11,6 +11,7 @@ use App\Notifications\SmartAssignmentUnassignedNotification;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\ServiceCaseAssignmentService;
+use App\Support\Repair\Core\RepairContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\Log;
 
@@ -193,6 +194,10 @@ class SupportAppointmentSmartAssignmentService
         SupportAppointment $appointment,
         SmartAssignmentResult $result,
     ): void {
+        if (app()->bound(RepairContext::class) && app(RepairContext::class)->isSilent()) {
+            return;
+        }
+
         $admins = User::query()
             ->where('is_active', true)
             ->role(RolePermissionSeeder::ADMIN_TEAM_ROLES)

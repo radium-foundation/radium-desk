@@ -4,6 +4,7 @@ namespace App\Listeners\Operations;
 
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Services\Operations\IraAssignmentTelegramBatchService;
+use App\Support\Repair\Core\RepairContext;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -20,6 +21,10 @@ class DispatchIraSmartAssignmentNotification
 
     public function handle(SupportAppointmentSmartAssigned $event): void
     {
+        if (app()->bound(RepairContext::class) && app(RepairContext::class)->isSilent()) {
+            return;
+        }
+
         try {
             $incident = $event->incident->loadMissing('order');
 

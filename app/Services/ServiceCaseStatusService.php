@@ -148,9 +148,14 @@ class ServiceCaseStatusService
         });
     }
 
-    private function completeScheduledSupportAppointments(Incident $incident): void
+    /**
+     * Mark all scheduled appointments for the case as completed.
+     *
+     * Used on manual close and by the closed-appointment repair cleanup path.
+     */
+    public function completeScheduledSupportAppointments(Incident $incident): int
     {
-        SupportAppointment::query()
+        return SupportAppointment::query()
             ->where('incident_id', $incident->id)
             ->where('status', SupportAppointmentStatus::Scheduled)
             ->update(['status' => SupportAppointmentStatus::Completed]);
