@@ -41,6 +41,8 @@ class IraNotificationPolicyTest extends TestCase
             'services.telegram.bot_token' => 'test-bot-token',
             'ira.communication.cooldown_minutes' => 60,
         ]);
+
+        $this->enableTelegramNotifications();
     }
 
     protected function tearDown(): void

@@ -3,11 +3,18 @@
 namespace App\Services\Telegram;
 
 use App\Data\Telegram\TelegramSendResult;
+use App\Services\SystemSettingsService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class TelegramBotService
 {
+    public const DISABLED_BY_SYSTEM_SETTINGS = 'Telegram notifications disabled by System Settings.';
+
+    public function __construct(
+        private readonly SystemSettingsService $systemSettings,
+    ) {}
+
     public function isConfigured(): bool
     {
         $token = config('services.telegram.bot_token');
@@ -17,6 +24,10 @@ class TelegramBotService
 
     public function sendMessage(string $chatId, string $text): TelegramSendResult
     {
+        if (! $this->systemSettings->getBool('notifications.telegram.enabled', false)) {
+            return TelegramSendResult::skipped(self::DISABLED_BY_SYSTEM_SETTINGS);
+        }
+
         if (! $this->isConfigured()) {
             return TelegramSendResult::failure('Telegram bot token is not configured.');
         }

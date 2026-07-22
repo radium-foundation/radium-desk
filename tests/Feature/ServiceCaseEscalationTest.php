@@ -56,6 +56,8 @@ class ServiceCaseEscalationTest extends TestCase
             'interakt.templates.callback_schedule.name' => 'callback_schedule',
             'interakt.templates.callback_schedule.language_code' => 'en',
         ]);
+
+        $this->enableTelegramNotifications();
     }
 
     protected function tearDown(): void

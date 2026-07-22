@@ -46,6 +46,8 @@ class ProductionWatchdogTest extends TestCase
             'ira.watchdog.automation_failure_threshold' => 2,
             'app.url' => 'http://localhost',
         ]);
+
+        $this->enableTelegramNotifications();
     }
 
     protected function tearDown(): void

@@ -39,6 +39,8 @@ class IraAssignmentTelegramBatchTest extends TestCase
             'ira.communication.assignment_telegram_batch.delay_minutes' => 5,
         ]);
 
+        $this->enableTelegramNotifications();
+
         Carbon::setTestNow(Carbon::parse('2026-07-09 10:00:00', 'Asia/Kolkata'));
         Cache::flush();
     }

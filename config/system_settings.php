@@ -96,7 +96,7 @@ return [
         'notifications.telegram.enabled' => [
             'category' => 'notifications',
             'label' => 'Telegram notifications',
-            'description' => 'Allow the notification dispatcher to send Telegram messages.',
+            'description' => 'Master switch for all Telegram notifications across Radium Desk.',
             'type' => 'boolean',
             'default' => false,
         ],

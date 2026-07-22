@@ -43,6 +43,8 @@ class TeamTelegramWorkAssistantTest extends TestCase
             'team_telegram.enabled' => true,
             'ira.communication.cooldown_minutes' => 60,
         ]);
+
+        $this->enableTelegramNotifications();
     }
 
     protected function tearDown(): void

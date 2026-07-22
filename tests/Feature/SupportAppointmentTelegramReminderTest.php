@@ -49,6 +49,8 @@ class SupportAppointmentTelegramReminderTest extends TestCase
             ],
             'ira.communication.cooldown_minutes' => 60,
         ]);
+
+        $this->enableTelegramNotifications();
     }
 
     protected function tearDown(): void

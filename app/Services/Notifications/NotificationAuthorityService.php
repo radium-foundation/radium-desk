@@ -34,6 +34,7 @@ class NotificationAuthorityService
 
         if ($iraTelegramBridge) {
             return $channel === NotificationChannelType::Telegram
+                && $this->channelEnabled($channel)
                 && $this->userAllows($user, $channel);
         }
 

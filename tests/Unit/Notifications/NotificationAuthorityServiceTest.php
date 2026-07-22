@@ -133,7 +133,7 @@ class NotificationAuthorityServiceTest extends TestCase
         ));
     }
 
-    public function test_ira_telegram_bridge_preserves_legacy_user_gate_only(): void
+    public function test_ira_telegram_bridge_respects_global_channel_toggle(): void
     {
         $this->setSystemSetting('notifications.telegram.enabled', false);
 
@@ -141,6 +141,15 @@ class NotificationAuthorityServiceTest extends TestCase
             'telegram_notifications_enabled' => true,
             'telegram_chat_id' => '123456789',
         ]);
+
+        $this->assertFalse($this->authority->shouldDeliver(
+            $superadmin,
+            NotificationCategory::Escalation,
+            NotificationChannelType::Telegram,
+            iraTelegramBridge: true,
+        ));
+
+        $this->setSystemSetting('notifications.telegram.enabled', true);
 
         $this->assertTrue($this->authority->shouldDeliver(
             $superadmin,
