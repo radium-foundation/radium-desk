@@ -115,7 +115,7 @@ class RealtimeRuntimeConfig
     public function echoBroadcaster(): ?string
     {
         return match ($this->provider()) {
-            self::PROVIDER_ABLY => 'pusher',
+            self::PROVIDER_ABLY => 'ably',
             self::PROVIDER_REVERB => 'reverb',
             default => null,
         };

@@ -188,6 +188,6 @@ class RealtimeSystemSettingsTest extends TestCase
             ->assertOk()
             ->assertSee('data-live-interval-active', false)
             ->assertSee('data-realtime-provider', false)
-            ->assertSee('data-echo-broadcaster="pusher"', false);
+            ->assertSee('data-echo-broadcaster="ably"', false);
     }
 }
