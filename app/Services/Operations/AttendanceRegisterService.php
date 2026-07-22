@@ -81,7 +81,7 @@ class AttendanceRegisterService
     ): ?WorkforceAttendanceDay {
         $existing = $this->findDay($user, $workDate);
 
-        if ($existing !== null) {
+        if ($existing !== null && $existing->finalized_at !== null) {
             return $existing;
         }
 
@@ -121,7 +121,7 @@ class AttendanceRegisterService
             $dateString = $cursor->toDateString();
             $day = $existing->get($dateString);
 
-            if ($day === null) {
+            if ($day === null || $day->finalized_at === null) {
                 $dayReference = $cursor->isSameDay($referenceAt)
                     ? $referenceAt
                     : $cursor->copy()->endOfDay();

@@ -56,7 +56,7 @@ class PresenceEngineService
 
         $this->availabilityService->syncFromSessionStart($user, $at);
 
-        $this->refreshAttendanceRegister($user, $at);
+        $this->refreshAttendanceRegister($user, $at, $session);
 
         app(DeferredSmartAssignmentService::class)->processPendingBatch();
 
@@ -85,7 +85,7 @@ class PresenceEngineService
                 : TeamAvailabilityChangeSource::Logout,
         );
 
-        $this->refreshAttendanceRegister($user, $at);
+        $this->refreshAttendanceRegister($user, $at, $session);
 
         return $session->fresh();
     }
@@ -104,6 +104,19 @@ class PresenceEngineService
 
         if ($session === null) {
             return null;
+        }
+
+        if (! $at->isSameDay($session->work_date)) {
+            $this->closeSession(
+                $user,
+                WorkSessionEndReason::SessionReplaced,
+                $session->work_date->copy()->endOfDay(),
+            );
+            $session = $this->startSession($user, $at);
+
+            if ($session === null) {
+                return null;
+            }
         }
 
         $this->tickSession($session, $at, hasActivity: true);
@@ -433,13 +446,17 @@ class PresenceEngineService
             return 0;
         }
 
-        $expectedEnd = $this->workCalendarService->expectedWorkEndAt($schedule, $logoutAt);
+        $workDate = $session->work_date->copy()->startOfDay();
+        $expectedEnd = $this->workCalendarService->expectedWorkEndAt($schedule, $workDate);
+        $effectiveLogout = $logoutAt->gt($workDate->copy()->endOfDay())
+            ? $workDate->copy()->endOfDay()
+            : $logoutAt;
 
-        if ($logoutAt->lte($expectedEnd)) {
+        if ($effectiveLogout->lte($expectedEnd)) {
             return 0;
         }
 
-        return max(0, (int) $expectedEnd->diffInSeconds($logoutAt));
+        return max(0, (int) $expectedEnd->diffInSeconds($effectiveLogout));
     }
 
     private function incrementAppraisalCounters(WorkSession $session, PresenceActivityType $type): void
@@ -512,12 +529,30 @@ class PresenceEngineService
         return $value;
     }
 
-    private function refreshAttendanceRegister(User $user, Carbon $at): void
+    private function refreshAttendanceRegister(User $user, Carbon $at, ?WorkSession $session = null): void
     {
-        app(AttendanceRegisterService::class)->refreshDay(
-            user: $user,
-            workDate: $at->copy()->startOfDay(),
-            referenceAt: $at,
-        );
+        $register = app(AttendanceRegisterService::class);
+        $startDate = $at->copy()->startOfDay();
+
+        if ($session !== null) {
+            $sessionDate = $session->work_date->copy()->startOfDay();
+
+            if ($sessionDate->lt($startDate)) {
+                $startDate = $sessionDate;
+            }
+        }
+
+        $cursor = $startDate->copy();
+        $endDate = $at->copy()->startOfDay();
+
+        while ($cursor->lte($endDate)) {
+            $register->refreshDay(
+                user: $user,
+                workDate: $cursor->copy()->startOfDay(),
+                referenceAt: $at,
+            );
+
+            $cursor->addDay();
+        }
     }
 }

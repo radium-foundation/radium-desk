@@ -36,6 +36,7 @@ class AttendanceDayCalculator
         $computedAt = $referenceAt->copy();
         $schedule = $this->workCalendarService->scheduleFor($user);
         $sessions = $this->sessionsFor($user, $workDate);
+        $this->flushOpenSessionMetrics($sessions, $referenceAt);
         $isCompanyHoliday = $this->workCalendarService->isCompanyHoliday($workDate);
         $hasSchedule = $schedule !== null;
         $isWeeklyOff = $hasSchedule && ! $this->workCalendarService->isWorkingDay($schedule, $workDate);
@@ -47,7 +48,7 @@ class AttendanceDayCalculator
         $expectedWorkingMinutes = $schedule !== null
             ? $this->workCalendarService->expectedWorkingMinutes($schedule)
             : null;
-        $sessionMetrics = $this->aggregateSessions($user, $sessions);
+        $sessionMetrics = $this->aggregateSessions($user, $sessions, $workDate);
         $hasSessions = $sessions->isNotEmpty();
         $openSession = $sessions->first(fn (WorkSession $session): bool => $session->isOpen());
 
@@ -153,11 +154,48 @@ class AttendanceDayCalculator
      */
     private function sessionsFor(User $user, Carbon $workDate): Collection
     {
-        return WorkSession::query()
+        $dayStart = $workDate->copy()->startOfDay();
+
+        $daySessions = WorkSession::query()
             ->where('user_id', $user->id)
             ->whereDate('work_date', $workDate->toDateString())
             ->orderBy('login_at')
             ->get();
+
+        if ($daySessions->contains(fn (WorkSession $session): bool => $session->isOpen())) {
+            return $daySessions;
+        }
+
+        $carryOverSession = WorkSession::query()
+            ->where('user_id', $user->id)
+            ->whereNull('logout_at')
+            ->where('login_at', '<', $dayStart)
+            ->latest('login_at')
+            ->first();
+
+        if ($carryOverSession === null) {
+            return $daySessions;
+        }
+
+        return $daySessions
+            ->push($carryOverSession)
+            ->sortBy('login_at')
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, WorkSession>  $sessions
+     */
+    private function flushOpenSessionMetrics(Collection $sessions, Carbon $referenceAt): void
+    {
+        foreach ($sessions as $session) {
+            if (! $session->isOpen()) {
+                continue;
+            }
+
+            app(PresenceEngineService::class)->tickSession($session, $referenceAt, hasActivity: false);
+            $session->refresh();
+        }
     }
 
     /**
@@ -179,10 +217,14 @@ class AttendanceDayCalculator
      *     manual_logout_count: int,
      * }
      */
-    private function aggregateSessions(User $user, Collection $sessions): array
+    private function aggregateSessions(User $user, Collection $sessions, Carbon $workDate): array
     {
-        $firstSession = $sessions->first();
-        $lastClosedSession = $sessions
+        $attributableSessions = $sessions->filter(
+            fn (WorkSession $session): bool => $session->work_date->isSameDay($workDate),
+        );
+
+        $firstSession = $attributableSessions->first() ?? $sessions->first();
+        $lastClosedSession = $attributableSessions
             ->filter(fn (WorkSession $session): bool => $session->logout_at !== null)
             ->sortByDesc('logout_at')
             ->first();
@@ -204,18 +246,18 @@ class AttendanceDayCalculator
             'last_logout_at' => $lastClosedSession?->logout_at,
             'on_time_login' => $onTimeLogin,
             'minutes_late' => $minutesLate,
-            'session_count' => $sessions->count(),
-            'session_duration_seconds' => (int) $sessions->sum('session_duration_seconds'),
-            'active_duration_seconds' => (int) $sessions->sum('active_duration_seconds'),
-            'idle_duration_seconds' => (int) $sessions->sum('idle_duration_seconds'),
-            'lunch_duration_seconds' => (int) $sessions->sum('lunch_duration_seconds'),
-            'break_duration_seconds' => (int) $sessions->sum('break_duration_seconds'),
-            'extra_idle_duration_seconds' => (int) $sessions->sum('extra_idle_duration_seconds'),
-            'overtime_seconds' => (int) $sessions->sum('overtime_seconds'),
-            'away_timeout_count' => $sessions
+            'session_count' => $attributableSessions->count(),
+            'session_duration_seconds' => (int) $attributableSessions->sum('session_duration_seconds'),
+            'active_duration_seconds' => (int) $attributableSessions->sum('active_duration_seconds'),
+            'idle_duration_seconds' => (int) $attributableSessions->sum('idle_duration_seconds'),
+            'lunch_duration_seconds' => (int) $attributableSessions->sum('lunch_duration_seconds'),
+            'break_duration_seconds' => (int) $attributableSessions->sum('break_duration_seconds'),
+            'extra_idle_duration_seconds' => (int) $attributableSessions->sum('extra_idle_duration_seconds'),
+            'overtime_seconds' => (int) $attributableSessions->sum('overtime_seconds'),
+            'away_timeout_count' => $attributableSessions
                 ->where('ended_reason', WorkSessionEndReason::AwayTimeout)
                 ->count(),
-            'manual_logout_count' => $sessions
+            'manual_logout_count' => $attributableSessions
                 ->where('ended_reason', WorkSessionEndReason::ManualLogout)
                 ->count(),
         ];
