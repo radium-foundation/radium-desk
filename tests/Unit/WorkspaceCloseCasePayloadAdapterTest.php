@@ -65,13 +65,14 @@ class WorkspaceCloseCasePayloadAdapterTest extends TestCase
 
         $legacy = $adapter->toLegacyPayload($incident, [
             'reason_for_closing' => ServiceCaseCloseReasonForClosing::IssueResolved->value,
-            'notification_preference' => ServiceCaseCloseNotificationPreference::Both->value,
+            'notification_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
             'body' => 'Resolved successfully.',
         ]);
 
         $this->assertSame('Resolved successfully.', $legacy['body']);
-        $this->assertTrue($legacy['notify_whatsapp']);
-        $this->assertTrue($legacy['notify_email']);
+        $this->assertFalse($legacy['notify_whatsapp']);
+        $this->assertFalse($legacy['notify_email']);
+        $this->assertTrue($legacy['smart_delivery']);
         $this->assertArrayNotHasKey('serial_number_unavailable', $legacy);
         $this->assertArrayNotHasKey('reference_number_unavailable', $legacy);
     }
@@ -117,7 +118,7 @@ class WorkspaceCloseCasePayloadAdapterTest extends TestCase
 
         $legacy = $adapter->toLegacyPayload($incident, [
             'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
-            'cnr_communication_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+            'cnr_communication_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
             'communication_template' => 'final_reminder_before_closure',
             'body' => 'No response.',
         ]);

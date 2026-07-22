@@ -8,13 +8,13 @@
     $resolutionTypeValue = old('resolution_type', $formPayload['resolution_type'] ?? '');
     $notificationPreferenceValue = old(
         'notification_preference',
-        $formPayload['notification_preference'] ?? ServiceCaseCloseNotificationPreference::No->value,
+        $formPayload['notification_preference'] ?? ServiceCaseCloseNotificationPreference::SmartDelivery->value,
     );
     $expectedFromValue = old('expected_from', $formPayload['expected_from'] ?? '');
     $expectedDateValue = old('expected_date', $formPayload['expected_date'] ?? '');
     $cnrCommunicationPreferenceValue = old(
         'cnr_communication_preference',
-        $formPayload['cnr_communication_preference'] ?? ServiceCaseCloseNotificationPreference::WhatsApp->value,
+        $formPayload['cnr_communication_preference'] ?? ServiceCaseCloseNotificationPreference::SmartDelivery->value,
     );
     $existingCaseIdValue = old('existing_case_id', $formPayload['existing_case_id'] ?? '');
     $replacementOrderIdValue = old('replacement_order_id', $formPayload['replacement_order_id'] ?? '');
@@ -110,11 +110,7 @@
                     Select Communication <span class="text-danger">*</span>
                 </legend>
                 <div class="workspace-close-notification-options">
-                    @foreach([
-                        ServiceCaseCloseNotificationPreference::WhatsApp,
-                        ServiceCaseCloseNotificationPreference::Email,
-                        ServiceCaseCloseNotificationPreference::Both,
-                    ] as $preference)
+                    @foreach(ServiceCaseCloseNotificationPreference::customerNotRespondingOptions() as $preference)
                         <div class="form-check">
                             <input class="form-check-input"
                                    type="radio"
@@ -124,11 +120,14 @@
                                    @checked($cnrCommunicationPreferenceValue === $preference->value)
                                    @disabled($selectedAction !== WorkspaceActionType::Close)>
                             <label class="form-check-label" for="workspace_close_cnr_{{ $preference->value }}">
-                                {{ $preference->label() }}
+                                📬 {{ $preference->label() }}
                             </label>
                         </div>
                     @endforeach
                 </div>
+                <p class="workspace-close-smart-delivery-note text-muted small mt-2 mb-0">
+                    Email is preferred. If email is unavailable or sending fails, WhatsApp will be used automatically.
+                </p>
                 @error('cnr_communication_preference')
                     <div class="text-danger small mt-1">{{ $message }}</div>
                 @enderror
@@ -219,11 +218,19 @@
                            @checked($notificationPreferenceValue === $preference->value)
                            @disabled($selectedAction !== WorkspaceActionType::Close)>
                     <label class="form-check-label" for="workspace_close_notify_{{ $preference->value }}">
-                        {{ $preference->label() }}
+                        @if($preference === ServiceCaseCloseNotificationPreference::SmartDelivery)
+                            📬 {{ $preference->label() }}
+                        @else
+                            {{ $preference->label() }}
+                        @endif
                     </label>
                 </div>
             @endforeach
         </div>
+        <p class="workspace-close-smart-delivery-note text-muted small mt-2 mb-0 @if($notificationPreferenceValue !== ServiceCaseCloseNotificationPreference::SmartDelivery->value) d-none @endif"
+           data-workspace-close-smart-delivery-note>
+            Email is preferred. If email is unavailable or sending fails, WhatsApp will be used automatically.
+        </p>
         @error('notification_preference')
             <div class="text-danger small mt-1">{{ $message }}</div>
         @enderror

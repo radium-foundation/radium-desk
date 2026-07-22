@@ -294,13 +294,22 @@ class CustomerNotRespondingWorkflowTest extends TestCase
         Notification::assertSentTo($agent, ServiceCaseCustomerRespondedNotification::class);
     }
 
-    public function test_customer_not_responding_v2_close_requires_communication_preference(): void
+    public function test_customer_not_responding_v2_close_defaults_to_smart_delivery_when_preference_omitted(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         [, $incident] = $this->createAssignedCase($agent);
         $incident->order?->update(['transaction_id' => 'TXN-CNR-CLOSE']);
+        $this->enableNotificationChannels();
+
+        config([
+            'interakt.templates.final_reminder_before_closure.name' => 'final_reminder_before_closure',
+            'interakt.templates.final_reminder_before_closure.language_code' => 'en',
+        ]);
+
+        Http::fake();
+        Mail::fake();
 
         $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.action', $incident), [
@@ -309,8 +318,13 @@ class CustomerNotRespondingWorkflowTest extends TestCase
                 'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
                 'body' => 'Customer not responding.',
             ])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['cnr_communication_preference']);
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        Mail::assertSent(NotificationMail::class);
+
+        $outcome = \App\Models\ServiceCaseCloseOutcome::query()->where('incident_id', $incident->id)->first();
+        $this->assertSame(ServiceCaseCloseNotificationPreference::SmartDelivery, $outcome?->notification_preference);
     }
 
     public function test_customer_not_responding_v2_close_sends_final_reminder_and_closes(): void
@@ -334,7 +348,7 @@ class CustomerNotRespondingWorkflowTest extends TestCase
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
                 'action_type' => WorkspaceActionType::Close->value,
                 'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
-                'cnr_communication_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+                'cnr_communication_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
                 'body' => 'Customer not responding after final reminder.',
             ])
             ->assertOk()
@@ -342,15 +356,13 @@ class CustomerNotRespondingWorkflowTest extends TestCase
 
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
 
-        $this->assertDatabaseHas('whatsapp_template_dispatches', [
-            'incident_id' => $incident->id,
-            'template_key' => 'final_reminder_before_closure',
-        ]);
+        Mail::assertSent(NotificationMail::class);
+        Http::assertNothingSent();
 
         $this->assertDatabaseHas('service_case_close_outcomes', [
             'incident_id' => $incident->id,
             'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
-            'notification_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+            'notification_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
             'closed_by' => $agent->id,
         ]);
     }

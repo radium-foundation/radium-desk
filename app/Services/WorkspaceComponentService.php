@@ -147,7 +147,7 @@ class WorkspaceComponentService
                 'exceptionReasons' => ServiceCaseCloseExceptionReason::cases(),
                 'closeReasonsForClosing' => ServiceCaseCloseReasonForClosing::cases(),
                 'closeResolutionTypes' => ServiceCaseCloseResolutionType::cases(),
-                'closeNotificationPreferences' => ServiceCaseCloseNotificationPreference::cases(),
+                'closeNotificationPreferences' => ServiceCaseCloseNotificationPreference::customerNotificationOptions(),
                 ...$this->actionWorkspaceFields($requestContext, $incident),
                 ...$this->actionRemarkUsers(),
             ],

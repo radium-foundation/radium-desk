@@ -17,6 +17,7 @@ use App\Enums\WorkspaceComponent;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Concerns\BuildsWorkspaceValidationFailure;
+use App\Services\Notifications\CloseCaseSmartDeliveryService;
 use App\Services\Notifications\NotificationDeliverySummaryFormatter;
 use App\Services\Notifications\NotificationDispatcher;
 use Illuminate\Http\Request;
@@ -36,6 +37,7 @@ class WorkspaceCloseActionService
         private readonly WorkspaceRefreshRenderer $refreshRenderer,
         private readonly NotificationDispatcher $notificationDispatcher,
         private readonly NotificationDeliverySummaryFormatter $deliverySummaryFormatter,
+        private readonly CloseCaseSmartDeliveryService $smartDeliveryService,
     ) {}
 
     /**
@@ -60,6 +62,7 @@ class WorkspaceCloseActionService
     ): WorkspaceActionResponse {
         $notifyWhatsapp = (bool) ($payload['notify_whatsapp'] ?? false);
         $notifyEmail = (bool) ($payload['notify_email'] ?? false);
+        $smartDelivery = (bool) ($payload['smart_delivery'] ?? false);
 
         try {
             $freshIncident = $this->executeClose($incident, $actor, $payload, $request);
@@ -74,7 +77,13 @@ class WorkspaceCloseActionService
 
         $dispatchResult = null;
 
-        if ($notifyWhatsapp || $notifyEmail) {
+        if ($smartDelivery) {
+            $dispatchResult = $this->dispatchSmartDeliveryCloseNotification(
+                incident: $freshIncident,
+                actor: $actor,
+                request: $request,
+            );
+        } elseif ($notifyWhatsapp || $notifyEmail) {
             $dispatchResult = $this->dispatchCloseNotifications(
                 incident: $freshIncident,
                 actor: $actor,
@@ -242,7 +251,11 @@ class WorkspaceCloseActionService
         $toastVariant = 'success';
 
         if ($dispatchResult !== null) {
-            $message .= "\n".$this->deliverySummaryFormatter->formatOperatorResult($dispatchResult);
+            $summary = $this->isSmartDeliveryResult($dispatchResult)
+                ? $this->smartDeliveryService->formatOperatorResult($dispatchResult)
+                : $this->deliverySummaryFormatter->formatOperatorResult($dispatchResult);
+
+            $message .= "\n".$summary;
             $toastVariant = $this->resolveNotificationToastVariant($dispatchResult);
         }
 
@@ -292,8 +305,41 @@ class WorkspaceCloseActionService
         );
     }
 
+    private function dispatchSmartDeliveryCloseNotification(
+        Incident $incident,
+        User $actor,
+        ?Request $request = null,
+    ): NotificationDispatchResult {
+        $incident->loadMissing('order');
+
+        return $this->smartDeliveryService->dispatch(
+            NotificationType::ServiceCaseClosed,
+            new NotificationMessage(
+                type: NotificationType::ServiceCaseClosed,
+                customer: $incident->order,
+                incident: $incident,
+                template: WhatsAppTemplate::RepairCompleted->value,
+                metadata: [
+                    'source' => 'workspace_close',
+                    'trigger_source' => WhatsAppTemplateTriggerSource::Manual->value,
+                ],
+                actor: $actor,
+                httpRequest: $request,
+            ),
+        );
+    }
+
+    private function isSmartDeliveryResult(NotificationDispatchResult $dispatchResult): bool
+    {
+        return ($dispatchResult->metadata['delivery_strategy'] ?? null) === 'smart_delivery';
+    }
+
     private function resolveNotificationToastVariant(NotificationDispatchResult $dispatchResult): string
     {
+        if (! $dispatchResult->success) {
+            return 'danger';
+        }
+
         $hasFailure = collect($dispatchResult->results)->contains(
             fn (\App\Data\NotificationResult $result): bool => ! $result->isSkipped() && ! $result->success,
         );

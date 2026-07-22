@@ -83,7 +83,8 @@ class ServiceCaseCloseOutcome extends Model
         }
 
         if (filled($metadata['cnr_communication_preference'] ?? null)) {
-            $lines[] = 'Communication Channel: '.ucfirst((string) $metadata['cnr_communication_preference']);
+            $preference = ServiceCaseCloseNotificationPreference::tryFrom((string) $metadata['cnr_communication_preference']);
+            $lines[] = 'Communication Channel: '.($preference?->label() ?? ucfirst((string) $metadata['cnr_communication_preference']));
         }
 
         if (filled($metadata['sticky_agent_user_id'] ?? null)) {

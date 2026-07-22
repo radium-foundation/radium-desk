@@ -66,6 +66,7 @@ export const initActionDialog = (root = document) => {
     const remarkLabel = form.querySelector('[data-workspace-action-remark-label]');
     const closeReasonSelect = form.querySelector('[data-workspace-close-reason]');
     const closeNotificationFieldset = form.querySelector('[data-workspace-close-notification]');
+    const closeSmartDeliveryNote = form.querySelector('[data-workspace-close-smart-delivery-note]');
     const closeFieldGroups = [...form.querySelectorAll('[data-workspace-close-field-group]')];
 
     const togglePanelFields = (actionType, enabled) => {
@@ -146,6 +147,11 @@ export const initActionDialog = (root = document) => {
                     noOption.checked = true;
                 }
             }
+
+            const selectedPreference = closeNotificationFieldset.querySelector('input[name="notification_preference"]:checked')?.value;
+            if (closeSmartDeliveryNote) {
+                closeSmartDeliveryNote.classList.toggle('d-none', selectedPreference !== 'smart_delivery');
+            }
         }
 
         updateSubmitButton('close');
@@ -206,6 +212,10 @@ export const initActionDialog = (root = document) => {
     });
 
     closeReasonSelect?.addEventListener('change', syncCloseReasonFields);
+
+    closeNotificationFieldset?.querySelectorAll('input[name="notification_preference"]').forEach((input) => {
+        input.addEventListener('change', syncCloseReasonFields);
+    });
 
     remarkTextarea?.addEventListener('input', () => {
         autoGrowTextarea(remarkTextarea);

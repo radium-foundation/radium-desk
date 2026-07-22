@@ -41,7 +41,79 @@ class CustomerNotRespondingCloseHotfixTest extends TestCase
         $this->enableNotificationChannels();
     }
 
-    public function test_whatsapp_only_send_and_close(): void
+    public function test_smart_delivery_send_and_close_via_email(): void
+    {
+        [$agent, $incident] = $this->createAssignedCase();
+
+        Http::fake();
+        Mail::fake();
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.action', $incident), $this->closePayload(
+                ServiceCaseCloseNotificationPreference::SmartDelivery,
+            ))
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        Mail::assertSent(NotificationMail::class);
+        $this->assertDatabaseMissing('whatsapp_template_dispatches', [
+            'incident_id' => $incident->id,
+            'template_key' => 'final_reminder_before_closure',
+        ]);
+
+        $outcome = ServiceCaseCloseOutcome::query()->where('incident_id', $incident->id)->first();
+        $this->assertNotNull($outcome);
+        $this->assertSame(ServiceCaseCloseNotificationPreference::SmartDelivery, $outcome->notification_preference);
+        $this->assertSame('final_reminder_before_closure', $outcome->metadata['communication_template']);
+        $this->assertSame($agent->id, $outcome->metadata['sticky_agent_user_id']);
+    }
+
+    public function test_smart_delivery_falls_back_to_whatsapp_when_email_unavailable(): void
+    {
+        [$agent, $incident] = $this->createAssignedCase(customerEmail: '');
+
+        Http::fake([
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-final-reminder-wa'], 200),
+        ]);
+        Mail::fake();
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.action', $incident), $this->closePayload(
+                ServiceCaseCloseNotificationPreference::SmartDelivery,
+            ))
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+        $this->assertDatabaseHas('whatsapp_template_dispatches', [
+            'incident_id' => $incident->id,
+            'template_key' => 'final_reminder_before_closure',
+        ]);
+        Mail::assertNothingSent();
+    }
+
+    public function test_failed_smart_delivery_does_not_close_case(): void
+    {
+        [$agent, $incident] = $this->createAssignedCase(customerEmail: '', customerPhone: '');
+
+        Http::fake();
+        Mail::fake();
+
+        $this->actingAs($agent)
+            ->patchJson(route('incidents.workspace.action', $incident), $this->closePayload(
+                ServiceCaseCloseNotificationPreference::SmartDelivery,
+            ))
+            ->assertUnprocessable()
+            ->assertJsonPath('success', false);
+
+        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+        $this->assertDatabaseMissing('service_case_close_outcomes', [
+            'incident_id' => $incident->id,
+        ]);
+    }
+
+    public function test_legacy_whatsapp_only_send_and_close(): void
     {
         [$agent, $incident] = $this->createAssignedCase();
 
@@ -156,8 +228,10 @@ class CustomerNotRespondingCloseHotfixTest extends TestCase
     /**
      * @return array{0: User, 1: Incident}
      */
-    private function createAssignedCase(): array
-    {
+    private function createAssignedCase(
+        string $customerEmail = 'cnr-hotfix@example.com',
+        string $customerPhone = '9123456782',
+    ): array {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
@@ -167,8 +241,8 @@ class CustomerNotRespondingCloseHotfixTest extends TestCase
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'customer_name' => 'CNR Hotfix Customer',
-            'customer_email' => 'cnr-hotfix@example.com',
-            'customer_phone' => '9123456782',
+            'customer_email' => $customerEmail,
+            'customer_phone' => $customerPhone,
             'transaction_id' => 'TXN-CNR-HOTFIX',
             'status' => 'active',
             'created_by' => $agent->id,

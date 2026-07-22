@@ -120,7 +120,7 @@ class WorkspaceCloseCaseV2Test extends TestCase
                 'action_type' => WorkspaceActionType::Close->value,
                 'reason_for_closing' => ServiceCaseCloseReasonForClosing::IssueResolved->value,
                 'resolution_type' => ServiceCaseCloseResolutionType::DeviceWorking->value,
-                'notification_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+                'notification_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
                 'body' => 'Device confirmed working after driver install.',
             ])
             ->assertOk()
@@ -133,7 +133,7 @@ class WorkspaceCloseCaseV2Test extends TestCase
             'reason_for_closing' => ServiceCaseCloseReasonForClosing::IssueResolved->value,
             'resolution_type' => ServiceCaseCloseResolutionType::DeviceWorking->value,
             'closing_summary' => 'Device confirmed working after driver install.',
-            'notification_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+            'notification_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
             'closed_by' => $admin->id,
         ]);
 

@@ -6,11 +6,13 @@ readonly class NotificationDispatchResult
 {
     /**
      * @param  array<int, NotificationResult>  $results
+     * @param  array<string, mixed>  $metadata
      */
     public function __construct(
         public bool $success,
         public array $results,
         public ?string $message = null,
+        public array $metadata = [],
     ) {}
 
     /**

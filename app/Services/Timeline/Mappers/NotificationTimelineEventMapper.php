@@ -41,6 +41,9 @@ class NotificationTimelineEventMapper
         $aggregateSuccess = (bool) ($auditLog->new_values['aggregate_success'] ?? false);
         $summaryFields = $this->buildExpandedMetadata($auditLog, $notificationType, $channels);
         $title = TimelineCommunicationTitleMapper::titleFor($notificationType);
+        $detail = filled($auditLog->new_values['timeline_summary'] ?? null)
+            ? (string) $auditLog->new_values['timeline_summary']
+            : $this->buildExpandedDetail($auditLog, $channels);
 
         return collect([
             new TimelineEvent(
@@ -49,7 +52,7 @@ class NotificationTimelineEventMapper
                 title: $title,
                 actor: $actor,
                 dedupeKey: "notification:audit:{$auditLog->id}",
-                detail: $this->buildExpandedDetail($auditLog, $channels),
+                detail: $detail,
                 statusLabel: null,
                 statusVariant: null,
                 summaryFields: $summaryFields,
@@ -113,6 +116,29 @@ class NotificationTimelineEventMapper
     {
         $metadata = [];
 
+        if (($auditLog->new_values['delivery_strategy'] ?? null) === 'smart_delivery') {
+            if (filled($auditLog->new_values['preferred_channel'] ?? null)) {
+                $metadata[] = [
+                    'label' => 'Preferred channel',
+                    'value' => ucfirst((string) $auditLog->new_values['preferred_channel']),
+                ];
+            }
+
+            if (filled($auditLog->new_values['actual_channel'] ?? null)) {
+                $metadata[] = [
+                    'label' => 'Actual channel',
+                    'value' => ucfirst((string) $auditLog->new_values['actual_channel']),
+                ];
+            }
+
+            if (filled($auditLog->new_values['fallback_reason'] ?? null)) {
+                $metadata[] = [
+                    'label' => 'Fallback reason',
+                    'value' => $this->formatFallbackReason((string) $auditLog->new_values['fallback_reason']),
+                ];
+            }
+        }
+
         foreach ($channels as $channel) {
             $status = ($channel['success'] ?? false) ? 'Delivered' : 'Failed';
             $metadata[] = [
@@ -163,6 +189,15 @@ class NotificationTimelineEventMapper
         }
 
         return implode("\n", $lines);
+    }
+
+    private function formatFallbackReason(string $fallbackReason): string
+    {
+        return match ($fallbackReason) {
+            'email_delivery_failed' => 'Email delivery failed',
+            'email_unavailable' => 'Email unavailable',
+            default => ucfirst(str_replace('_', ' ', $fallbackReason)),
+        };
     }
 
     private function mapSkipped(AuditLog $auditLog): Collection

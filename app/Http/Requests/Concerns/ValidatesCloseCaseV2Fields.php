@@ -38,6 +38,7 @@ trait ValidatesCloseCaseV2Fields
                 'nullable',
                 'string',
                 Rule::in([
+                    ServiceCaseCloseNotificationPreference::SmartDelivery->value,
                     ServiceCaseCloseNotificationPreference::WhatsApp->value,
                     ServiceCaseCloseNotificationPreference::Email->value,
                     ServiceCaseCloseNotificationPreference::Both->value,
@@ -101,6 +102,12 @@ trait ValidatesCloseCaseV2Fields
         $reason = ServiceCaseCloseReasonForClosing::tryFrom((string) $this->input('reason_for_closing'));
 
         if ($reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding) {
+            if (! filled($this->input('cnr_communication_preference'))) {
+                $this->merge([
+                    'cnr_communication_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
+                ]);
+            }
+
             return;
         }
 
@@ -112,7 +119,7 @@ trait ValidatesCloseCaseV2Fields
 
         if (! filled($this->input('notification_preference'))) {
             $this->merge([
-                'notification_preference' => ServiceCaseCloseNotificationPreference::No->value,
+                'notification_preference' => ServiceCaseCloseNotificationPreference::SmartDelivery->value,
             ]);
         }
     }

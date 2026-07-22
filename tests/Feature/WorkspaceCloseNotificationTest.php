@@ -294,12 +294,13 @@ class WorkspaceCloseNotificationTest extends TestCase
             'order_id' => $overrides['order_id'] ?? 'ORD-CLOSE-NOTIF-1',
             'serial_number' => array_key_exists('serial_number', $overrides)
                 ? $overrides['serial_number']
-                : 'SN-CLOSE-1',
+                : '9620545',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'customer_name' => 'Jane Doe',
             'customer_phone' => '9876543210',
             'customer_email' => 'customer@example.com',
+            'transaction_id' => 'TXN-CLOSE-NOTIF-1',
             'status' => 'active',
             'created_by' => $admin->id,
         ]);
