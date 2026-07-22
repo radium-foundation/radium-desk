@@ -7,44 +7,17 @@ use App\Enums\ServiceCaseCloseNotificationPreference;
 use App\Enums\ServiceCaseCloseReasonForClosing;
 use App\Enums\ServiceCaseCloseResolutionType;
 use App\Models\Incident;
-use App\Models\User;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class WorkspaceCloseCasePayloadAdapter
 {
     public function __construct(
         private readonly ServiceCaseCloseRequirementService $closeRequirementService,
-        private readonly CustomerUnreachableCloseEligibilityService $customerUnreachableCloseEligibilityService,
     ) {}
 
     public function isV2Payload(array $payload): bool
     {
         return filled($payload['reason_for_closing'] ?? null);
-    }
-
-    /**
-     * @param  array<string, mixed>  $payload
-     *
-     * @throws ValidationException
-     */
-    public function validateBeforeClose(Incident $incident, User $actor, array $payload): void
-    {
-        $reason = ServiceCaseCloseReasonForClosing::from((string) $payload['reason_for_closing']);
-
-        if ($reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding) {
-            $ineligibilityReason = $this->customerUnreachableCloseEligibilityService->ineligibilityReason(
-                $incident,
-                ServiceCaseCloseExceptionReason::CustomerNotResponding,
-                $actor,
-            );
-
-            if ($ineligibilityReason !== null) {
-                throw ValidationException::withMessages([
-                    'reason_for_closing' => $ineligibilityReason,
-                ]);
-            }
-        }
     }
 
     /**
@@ -70,9 +43,11 @@ class WorkspaceCloseCasePayloadAdapter
         $legacyReason = $this->mapToLegacyExceptionReason($reason);
         $customRemark = $this->buildCustomExceptionRemark($reason, $metadata);
 
-        $notificationPreference = ServiceCaseCloseNotificationPreference::tryFrom(
-            (string) ($payload['notification_preference'] ?? ServiceCaseCloseNotificationPreference::No->value),
-        ) ?? ServiceCaseCloseNotificationPreference::No;
+        $notificationPreference = $reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding
+            ? ServiceCaseCloseNotificationPreference::No
+            : (ServiceCaseCloseNotificationPreference::tryFrom(
+                (string) ($payload['notification_preference'] ?? ServiceCaseCloseNotificationPreference::No->value),
+            ) ?? ServiceCaseCloseNotificationPreference::No);
 
         $legacy = [
             'body' => (string) ($payload['body'] ?? ''),
@@ -111,15 +86,17 @@ class WorkspaceCloseCasePayloadAdapter
         foreach ([
             'expected_from',
             'expected_date',
-            'contact_attempt',
-            'attempts',
             'existing_case_id',
             'replacement_order_id',
             'approval_reference',
+            'cnr_communication_preference',
+            'communication_template',
+            'communication_template_label',
+            'sticky_agent_user_id',
         ] as $key) {
             if (filled($payload[$key] ?? null)) {
                 $metadata[$key] = match ($key) {
-                    'attempts' => (int) $payload[$key],
+                    'sticky_agent_user_id' => (int) $payload[$key],
                     default => trim((string) $payload[$key]),
                 };
             }
@@ -140,16 +117,20 @@ class WorkspaceCloseCasePayloadAdapter
      */
     public function extractOutcomeData(array $payload): array
     {
-        $notificationPreference = ServiceCaseCloseNotificationPreference::tryFrom(
-            (string) ($payload['notification_preference'] ?? ServiceCaseCloseNotificationPreference::No->value),
-        ) ?? ServiceCaseCloseNotificationPreference::No;
+        $reason = ServiceCaseCloseReasonForClosing::from((string) $payload['reason_for_closing']);
+
+        $notificationPreference = $reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding
+            ? ServiceCaseCloseNotificationPreference::from((string) $payload['cnr_communication_preference'])
+            : (ServiceCaseCloseNotificationPreference::tryFrom(
+                (string) ($payload['notification_preference'] ?? ServiceCaseCloseNotificationPreference::No->value),
+            ) ?? ServiceCaseCloseNotificationPreference::No);
 
         $resolutionType = filled($payload['resolution_type'] ?? null)
             ? ServiceCaseCloseResolutionType::from((string) $payload['resolution_type'])
             : null;
 
         return [
-            'reason_for_closing' => ServiceCaseCloseReasonForClosing::from((string) $payload['reason_for_closing']),
+            'reason_for_closing' => $reason,
             'resolution_type' => $resolutionType,
             'metadata' => $this->extractMetadata($payload),
             'closing_summary' => (string) ($payload['body'] ?? ''),
@@ -234,26 +215,7 @@ class WorkspaceCloseCasePayloadAdapter
             ServiceCaseCloseReasonForClosing::ApprovedByAdmin => filled($metadata['approval_reference'] ?? null)
                 ? 'Approved by admin: '.$metadata['approval_reference']
                 : null,
-            ServiceCaseCloseReasonForClosing::CustomerNotResponding => $this->customerNotRespondingCustomRemark($metadata),
             default => null,
         };
-    }
-
-    /**
-     * @param  array<string, mixed>  $metadata
-     */
-    private function customerNotRespondingCustomRemark(array $metadata): ?string
-    {
-        $parts = [];
-
-        if (filled($metadata['contact_attempt'] ?? null)) {
-            $parts[] = 'Contact attempt: '.$metadata['contact_attempt'];
-        }
-
-        if (filled($metadata['attempts'] ?? null)) {
-            $parts[] = 'Attempts: '.$metadata['attempts'];
-        }
-
-        return $parts === [] ? null : implode('; ', $parts);
     }
 }

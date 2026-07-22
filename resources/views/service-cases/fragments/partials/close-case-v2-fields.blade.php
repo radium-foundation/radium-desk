@@ -12,8 +12,10 @@
     );
     $expectedFromValue = old('expected_from', $formPayload['expected_from'] ?? '');
     $expectedDateValue = old('expected_date', $formPayload['expected_date'] ?? '');
-    $contactAttemptValue = old('contact_attempt', $formPayload['contact_attempt'] ?? '');
-    $attemptsValue = old('attempts', $formPayload['attempts'] ?? '');
+    $cnrCommunicationPreferenceValue = old(
+        'cnr_communication_preference',
+        $formPayload['cnr_communication_preference'] ?? ServiceCaseCloseNotificationPreference::WhatsApp->value,
+    );
     $existingCaseIdValue = old('existing_case_id', $formPayload['existing_case_id'] ?? '');
     $replacementOrderIdValue = old('replacement_order_id', $formPayload['replacement_order_id'] ?? '');
     $approvalReferenceValue = old('approval_reference', $formPayload['approval_reference'] ?? '');
@@ -100,40 +102,44 @@
             @enderror
         </div>
 
-        <div class="mb-2 @if($reasonValue !== ServiceCaseCloseReasonForClosing::CustomerNotResponding->value) d-none @endif"
-             data-workspace-close-field-group="contact_attempt">
-            <label for="workspace_close_contact_attempt" class="form-label workspace-action-field-label">
-                Contact Attempt <span class="text-danger">*</span>
-            </label>
-            <select name="contact_attempt"
-                    id="workspace_close_contact_attempt"
-                    class="form-select form-select-sm @error('contact_attempt') is-invalid @enderror"
-                    @disabled($selectedAction !== WorkspaceActionType::Close)>
-                <option value="" disabled @selected($contactAttemptValue === '')>Select</option>
-                <option value="call" @selected($contactAttemptValue === 'call')>Call</option>
-                <option value="whatsapp" @selected($contactAttemptValue === 'whatsapp')>WhatsApp</option>
-                <option value="email" @selected($contactAttemptValue === 'email')>Email</option>
-            </select>
-            @error('contact_attempt')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
-        </div>
+        <div class="workspace-close-cnr-communication @if($reasonValue !== ServiceCaseCloseReasonForClosing::CustomerNotResponding->value) d-none @endif"
+             data-workspace-close-field-group="cnr_communication">
+            <fieldset class="workspace-close-cnr-communication-fieldset mb-0"
+                      aria-label="Customer communication">
+                <legend class="form-label workspace-action-field-label mb-1">
+                    Select Communication <span class="text-danger">*</span>
+                </legend>
+                <div class="workspace-close-notification-options">
+                    @foreach([
+                        ServiceCaseCloseNotificationPreference::WhatsApp,
+                        ServiceCaseCloseNotificationPreference::Email,
+                        ServiceCaseCloseNotificationPreference::Both,
+                    ] as $preference)
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="radio"
+                                   name="cnr_communication_preference"
+                                   value="{{ $preference->value }}"
+                                   id="workspace_close_cnr_{{ $preference->value }}"
+                                   @checked($cnrCommunicationPreferenceValue === $preference->value)
+                                   @disabled($selectedAction !== WorkspaceActionType::Close)>
+                            <label class="form-check-label" for="workspace_close_cnr_{{ $preference->value }}">
+                                {{ $preference->label() }}
+                            </label>
+                        </div>
+                    @endforeach
+                </div>
+                @error('cnr_communication_preference')
+                    <div class="text-danger small mt-1">{{ $message }}</div>
+                @enderror
+            </fieldset>
 
-        <div class="mb-2 @if($reasonValue !== ServiceCaseCloseReasonForClosing::CustomerNotResponding->value) d-none @endif"
-             data-workspace-close-field-group="attempts">
-            <label for="workspace_close_attempts" class="form-label workspace-action-field-label">
-                Attempts <span class="text-danger">*</span>
-            </label>
-            <input type="number"
-                   name="attempts"
-                   id="workspace_close_attempts"
-                   min="1"
-                   value="{{ $attemptsValue }}"
-                   class="form-control form-control-sm @error('attempts') is-invalid @enderror"
-                   @disabled($selectedAction !== WorkspaceActionType::Close)>
-            @error('attempts')
-                <div class="invalid-feedback">{{ $message }}</div>
-            @enderror
+            <p class="workspace-close-cnr-template-note text-muted small mt-2 mb-0">
+                Template: <strong>Final Reminder Before Closure</strong>
+            </p>
+            <p class="workspace-close-cnr-template-note text-muted small mb-0">
+                The selected communication will be sent before this case is closed.
+            </p>
         </div>
 
         <div class="mb-2 @if($reasonValue !== ServiceCaseCloseReasonForClosing::DuplicateCase->value) d-none @endif"

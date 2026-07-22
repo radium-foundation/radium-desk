@@ -28,6 +28,7 @@ class EmailChannel implements NotificationChannel
             NotificationType::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule,
+            NotificationType::FinalReminderBeforeClosure,
             NotificationType::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed,
             NotificationType::DriverInstallationGuide,

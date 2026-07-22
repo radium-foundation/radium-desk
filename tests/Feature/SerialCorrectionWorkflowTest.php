@@ -139,22 +139,13 @@ class SerialCorrectionWorkflowTest extends TestCase
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
-    public function test_customer_not_responding_close_is_blocked_before_follow_up_is_sent(): void
+    public function test_legacy_customer_not_responding_close_no_longer_requires_prior_follow_up(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         [, $incident] = $this->createInvalidSerialIncident($agent);
-
-        IncidentWaitingState::query()->create([
-            'incident_id' => $incident->id,
-            'waiting_reason' => WaitingReason::SerialNumber,
-            'started_at' => now(),
-            'sla_paused' => true,
-            'reminder_policy_key' => 'customer_waiting_default',
-            'created_by' => $agent->id,
-            'updated_by' => $agent->id,
-        ]);
+        $incident->order?->update(['transaction_id' => 'TXN-CLOSE-TEST']);
 
         $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.action', $incident), [
@@ -164,13 +155,10 @@ class SerialCorrectionWorkflowTest extends TestCase
                 'serial_number_unavailable' => true,
                 'serial_exception_reason' => ServiceCaseCloseExceptionReason::CustomerNotResponding->value,
             ])
-            ->assertUnprocessable()
-            ->assertJsonPath(
-                'message',
-                'Send the customer follow-up and wait for the response window before closing as customer not responding.',
-            );
+            ->assertOk()
+            ->assertJsonPath('success', true);
 
-        $this->assertSame(IncidentStatus::Open, $incident->fresh()->status);
+        $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
     }
 
     public function test_customer_not_responding_close_is_allowed_after_follow_up_is_sent(): void

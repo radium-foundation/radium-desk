@@ -15,6 +15,7 @@ enum WhatsAppTemplate: string
     case SupportAppointmentBooked = 'support_appointment_booked';
     case CustomerWaitingFollowup = 'customer_waiting_followup';
     case CallbackSchedule = 'callback_schedule';
+    case FinalReminderBeforeClosure = 'final_reminder_before_closure';
     case DriverInstallationGuide = 'driver_installation_guide';
     case ReviewRequest = 'review_request';
     case BuyRdService = 'buy_rd_service';
@@ -34,6 +35,7 @@ enum WhatsAppTemplate: string
             self::SupportAppointmentBooked => 'Support Appointment Booked',
             self::CustomerWaitingFollowup => 'Customer Waiting Follow-up',
             self::CallbackSchedule => 'Callback Schedule',
+            self::FinalReminderBeforeClosure => 'Final Reminder Before Closure',
             self::DriverInstallationGuide => 'Driver Installation Guide',
             self::ReviewRequest => 'Review Request',
             self::BuyRdService => 'Buy RD Service',

@@ -38,6 +38,11 @@ class NotificationMailTemplateRegistry
                 view: 'emails.notifications.callback-schedule',
                 requiredVariables: ['customer_name', 'reference', 'booking_url'],
             ),
+            NotificationType::FinalReminderBeforeClosure => new NotificationMailTemplateDefinition(
+                subject: 'Final reminder before we close your support request {reference}',
+                view: 'emails.notifications.final-reminder-before-closure',
+                requiredVariables: ['customer_name', 'reference', 'booking_url'],
+            ),
             NotificationType::SupportAppointmentBooked => new NotificationMailTemplateDefinition(
                 subject: 'Your Support Appointment Is Confirmed',
                 view: 'emails.notifications.support-appointment-booked',
@@ -120,6 +125,11 @@ class NotificationMailTemplateRegistry
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
             ],
             NotificationType::CallbackSchedule => [
+                'customer_name' => $this->resolveCustomerName($message),
+                'reference' => trim((string) ($message->incident->reference_no ?? '')),
+                'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),
+            ],
+            NotificationType::FinalReminderBeforeClosure => [
                 'customer_name' => $this->resolveCustomerName($message),
                 'reference' => trim((string) ($message->incident->reference_no ?? '')),
                 'booking_url' => $this->supportAppointmentUrlService->bookingUrl($message->incident),

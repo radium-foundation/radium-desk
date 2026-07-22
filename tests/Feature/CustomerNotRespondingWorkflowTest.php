@@ -6,6 +6,8 @@ use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\NotificationLinkSource;
 use App\Enums\ServiceCaseCloseExceptionReason;
+use App\Enums\ServiceCaseCloseNotificationPreference;
+use App\Enums\ServiceCaseCloseReasonForClosing;
 use App\Enums\SupportAppointmentTimeSlot;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WaitingReason;
@@ -292,56 +294,65 @@ class CustomerNotRespondingWorkflowTest extends TestCase
         Notification::assertSentTo($agent, ServiceCaseCustomerRespondedNotification::class);
     }
 
-    public function test_customer_not_responding_close_is_blocked_before_follow_up_is_sent(): void
+    public function test_customer_not_responding_v2_close_requires_communication_preference(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
         [, $incident] = $this->createAssignedCase($agent);
+        $incident->order?->update(['transaction_id' => 'TXN-CNR-CLOSE']);
 
         $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.action', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
                 'action_type' => WorkspaceActionType::Close->value,
+                'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
                 'body' => 'Customer not responding.',
-                'serial_number_unavailable' => true,
-                'serial_exception_reason' => ServiceCaseCloseExceptionReason::CustomerNotResponding->value,
             ])
             ->assertUnprocessable()
-            ->assertJsonPath(
-                'message',
-                'Send the customer follow-up and wait for the response window before closing as customer not responding.',
-            );
+            ->assertJsonValidationErrors(['cnr_communication_preference']);
     }
 
-    public function test_customer_not_responding_close_is_allowed_after_callback_schedule_is_sent(): void
+    public function test_customer_not_responding_v2_close_sends_final_reminder_and_closes(): void
     {
         [$agent, $incident] = $this->createAssignedCase();
         $incident->order?->update(['transaction_id' => 'TXN-CNR-CLOSE']);
         $this->enableNotificationChannels();
 
+        config([
+            'interakt.templates.final_reminder_before_closure.name' => 'final_reminder_before_closure',
+            'interakt.templates.final_reminder_before_closure.language_code' => 'en',
+        ]);
+
         Http::fake([
-            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-callback-schedule-007'], 200),
+            'api.interakt.ai/v1/public/message/*' => Http::response(['id' => 'msg-final-reminder-007'], 200),
         ]);
         Mail::fake();
-
-        $this->actingAs($agent)->postJson(
-            route('incidents.workspace.customer-not-responding', $incident),
-            ['workspace_context' => 'customer'],
-        )->assertOk();
 
         $this->actingAs($agent)
             ->patchJson(route('incidents.workspace.action', $incident), [
                 'workspace_context' => WorkspaceContext::ServiceCase->value,
                 'action_type' => WorkspaceActionType::Close->value,
-                'body' => 'Customer not responding after callback schedule.',
-                'serial_number_unavailable' => true,
-                'serial_exception_reason' => ServiceCaseCloseExceptionReason::CustomerNotResponding->value,
+                'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
+                'cnr_communication_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+                'body' => 'Customer not responding after final reminder.',
             ])
             ->assertOk()
             ->assertJsonPath('success', true);
 
         $this->assertSame(IncidentStatus::Closed, $incident->fresh()->status);
+
+        $this->assertDatabaseHas('whatsapp_template_dispatches', [
+            'incident_id' => $incident->id,
+            'template_key' => 'final_reminder_before_closure',
+        ]);
+
+        $this->assertDatabaseHas('service_case_close_outcomes', [
+            'incident_id' => $incident->id,
+            'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
+            'notification_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+            'closed_by' => $agent->id,
+        ]);
     }
 
     public function test_request_serial_workflow_is_unchanged(): void

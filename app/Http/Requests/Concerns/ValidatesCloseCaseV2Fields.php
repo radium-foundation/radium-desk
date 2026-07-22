@@ -33,6 +33,16 @@ trait ValidatesCloseCaseV2Fields
                 'string',
                 Rule::in(ServiceCaseCloseNotificationPreference::values()),
             ],
+            'cnr_communication_preference' => [
+                Rule::requiredIf(fn (): bool => $reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding),
+                'nullable',
+                'string',
+                Rule::in([
+                    ServiceCaseCloseNotificationPreference::WhatsApp->value,
+                    ServiceCaseCloseNotificationPreference::Email->value,
+                    ServiceCaseCloseNotificationPreference::Both->value,
+                ]),
+            ],
             'expected_from' => [
                 Rule::requiredIf(fn (): bool => in_array($reason, [
                     ServiceCaseCloseReasonForClosing::ReferenceNumberPending,
@@ -43,18 +53,6 @@ trait ValidatesCloseCaseV2Fields
                 Rule::in(['customer', 'admin', 'distributor']),
             ],
             'expected_date' => ['nullable', 'date'],
-            'contact_attempt' => [
-                Rule::requiredIf(fn (): bool => $reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding),
-                'nullable',
-                'string',
-                Rule::in(['call', 'whatsapp', 'email']),
-            ],
-            'attempts' => [
-                Rule::requiredIf(fn (): bool => $reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding),
-                'nullable',
-                'integer',
-                'min:1',
-            ],
             'existing_case_id' => [
                 Rule::requiredIf(fn (): bool => $reason === ServiceCaseCloseReasonForClosing::DuplicateCase),
                 'nullable',
@@ -85,10 +83,9 @@ trait ValidatesCloseCaseV2Fields
             'reason_for_closing' => 'reason for closing',
             'resolution_type' => 'resolution type',
             'notification_preference' => 'customer notification',
+            'cnr_communication_preference' => 'communication channel',
             'expected_from' => 'expected from',
             'expected_date' => 'expected date',
-            'contact_attempt' => 'contact attempt',
-            'attempts' => 'attempts',
             'existing_case_id' => 'existing case ID',
             'replacement_order_id' => 'replacement order ID',
             'approval_reference' => 'approval reference',
@@ -102,6 +99,10 @@ trait ValidatesCloseCaseV2Fields
         }
 
         $reason = ServiceCaseCloseReasonForClosing::tryFrom((string) $this->input('reason_for_closing'));
+
+        if ($reason === ServiceCaseCloseReasonForClosing::CustomerNotResponding) {
+            return;
+        }
 
         if ($reason !== null && ! $reason->showsCustomerNotification()) {
             $this->merge([

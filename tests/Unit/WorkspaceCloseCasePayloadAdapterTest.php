@@ -14,7 +14,6 @@ use App\Services\IncidentReferenceService;
 use App\Services\WorkspaceCloseCasePayloadAdapter;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class WorkspaceCloseCasePayloadAdapterTest extends TestCase
@@ -111,20 +110,19 @@ class WorkspaceCloseCasePayloadAdapterTest extends TestCase
         $this->assertSame('Guidance shared with customer.', $outcomeData['closing_summary']);
     }
 
-    public function test_adapter_blocks_customer_not_responding_without_follow_up(): void
+    public function test_adapter_maps_customer_not_responding_without_post_close_notifications(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
         $incident = $this->createIncident();
         $adapter = app(WorkspaceCloseCasePayloadAdapter::class);
 
-        $this->expectException(ValidationException::class);
-
-        $adapter->validateBeforeClose($incident, $agent, [
+        $legacy = $adapter->toLegacyPayload($incident, [
             'reason_for_closing' => ServiceCaseCloseReasonForClosing::CustomerNotResponding->value,
-            'contact_attempt' => 'call',
-            'attempts' => 3,
+            'cnr_communication_preference' => ServiceCaseCloseNotificationPreference::WhatsApp->value,
+            'communication_template' => 'final_reminder_before_closure',
             'body' => 'No response.',
         ]);
+
+        $this->assertFalse($legacy['notify_whatsapp']);
+        $this->assertFalse($legacy['notify_email']);
     }
 }

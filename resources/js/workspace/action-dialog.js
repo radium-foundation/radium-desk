@@ -28,7 +28,7 @@ const SUBMIT_ACCENT_CLASSES = [
 
 const CLOSE_REASON_FIELDS = {
     issue_resolved: ['resolution_type'],
-    customer_not_responding: ['contact_attempt', 'attempts'],
+    customer_not_responding: ['cnr_communication'],
     customer_cancelled: [],
     reference_number_pending: ['expected_from', 'expected_date'],
     serial_number_pending: ['expected_from', 'expected_date'],
@@ -89,6 +89,13 @@ export const initActionDialog = (root = document) => {
             return;
         }
 
+        if (actionType === 'close' && closeReasonSelect?.value === 'customer_not_responding') {
+            submitButton.textContent = 'Send & Close Case';
+            submitButton.classList.remove(...SUBMIT_ACCENT_CLASSES);
+            submitButton.classList.add('workspace-action-submit--close');
+            return;
+        }
+
         submitButton.textContent = ACTION_LABELS[actionType] ?? 'Done';
         submitButton.classList.remove(...SUBMIT_ACCENT_CLASSES);
         submitButton.classList.add(`workspace-action-submit--${actionType}`);
@@ -140,6 +147,8 @@ export const initActionDialog = (root = document) => {
                 }
             }
         }
+
+        updateSubmitButton('close');
     };
 
     const setAction = (actionType) => {

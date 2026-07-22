@@ -121,6 +121,15 @@ return [
             // callback_schedule (en): body {{1}} = customer name, {{2}} = RD/support reference;
             // CTA "Schedule Callback" dynamic URL /support/schedule/{{1}}?source=whatsapp with tracked token in {{1}}.
         ],
+        'final_reminder_before_closure' => [
+            'enabled' => filter_var(env('INTERAKT_TEMPLATE_FINAL_REMINDER_BEFORE_CLOSURE_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+            'name' => env('INTERAKT_TEMPLATE_FINAL_REMINDER_BEFORE_CLOSURE', 'final_reminder_before_closure'),
+            'language_code' => env('INTERAKT_TEMPLATE_FINAL_REMINDER_BEFORE_CLOSURE_LANGUAGE', 'en'),
+            'language_code_is_default' => ! filled(env('INTERAKT_TEMPLATE_FINAL_REMINDER_BEFORE_CLOSURE_LANGUAGE')),
+            'display_name' => env('INTERAKT_TEMPLATE_FINAL_REMINDER_BEFORE_CLOSURE_DISPLAY', 'Final Reminder Before Closure'),
+            'purpose' => 'Final Reminder Before Closure',
+            'internal_note' => 'Final reminder sent before closing a customer-not-responding service case.',
+        ],
         'driver_installation_guide' => [
             'enabled' => filter_var(env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
             'name' => env('INTERAKT_TEMPLATE_DRIVER_INSTALLATION_GUIDE'),

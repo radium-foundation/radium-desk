@@ -8,6 +8,7 @@ enum NotificationType: string
     case RequestCorrectSerial = 'request_correct_serial';
     case CustomerWaitingFollowup = 'customer_waiting_followup';
     case CallbackSchedule = 'callback_schedule';
+    case FinalReminderBeforeClosure = 'final_reminder_before_closure';
     case SupportAppointmentBooked = 'support_appointment_booked';
     case SupportAppointmentAssigned = 'support_appointment_assigned';
     case ServiceCaseClosed = 'service_case_closed';

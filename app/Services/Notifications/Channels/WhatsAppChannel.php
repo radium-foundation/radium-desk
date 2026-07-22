@@ -32,6 +32,7 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule,
+            NotificationType::FinalReminderBeforeClosure,
             NotificationType::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed,
             NotificationType::DriverInstallationGuide,
@@ -92,6 +93,7 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::RequestCorrectSerial => WhatsAppTemplate::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup => WhatsAppTemplate::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule => WhatsAppTemplate::CallbackSchedule,
+            NotificationType::FinalReminderBeforeClosure => WhatsAppTemplate::FinalReminderBeforeClosure,
             NotificationType::SupportAppointmentBooked => WhatsAppTemplate::SupportAppointmentBooked,
             NotificationType::ServiceCaseClosed => WhatsAppTemplate::RepairCompleted,
             NotificationType::DriverInstallationGuide => WhatsAppTemplate::DriverInstallationGuide,
@@ -141,6 +143,7 @@ class WhatsAppChannel implements NotificationChannel
             NotificationType::RequestCorrectSerial,
             NotificationType::CustomerWaitingFollowup,
             NotificationType::CallbackSchedule,
+            NotificationType::FinalReminderBeforeClosure,
             NotificationType::ServiceCaseClosed,
             NotificationType::DriverInstallationGuide,
             NotificationType::ReviewRequest,
@@ -153,7 +156,8 @@ class WhatsAppChannel implements NotificationChannel
 
         return array_merge($context, match ($message->type) {
             NotificationType::CustomerWaitingFollowup,
-            NotificationType::CallbackSchedule => $this->customerWaitingFollowupTemplateVariables($message),
+            NotificationType::CallbackSchedule,
+            NotificationType::FinalReminderBeforeClosure => $this->customerWaitingFollowupTemplateVariables($message),
             NotificationType::ServiceCaseClosed => $this->serviceCaseClosedTemplateVariables($message),
             NotificationType::DriverInstallationGuide,
             NotificationType::ReviewRequest,

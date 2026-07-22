@@ -44,7 +44,7 @@ class WorkspaceCloseCaseV2Test extends TestCase
     {
         $order = Order::query()->create([
             'order_id' => $overrides['order_id'] ?? 'ORD-CLOSE-V2-1',
-            'serial_number' => $overrides['serial_number'] ?? 'SN-CLOSE-V2-1',
+            'serial_number' => $overrides['serial_number'] ?? '9620545',
             'product_name' => 'MFS 110',
             'device_model' => 'MFS 110',
             'transaction_id' => $overrides['transaction_id'] ?? 'TXN-CLOSE-V2',
@@ -86,6 +86,27 @@ class WorkspaceCloseCaseV2Test extends TestCase
             ->assertSee('Notify Customer', false)
             ->assertSee('Closing Summary', false)
             ->assertDontSee('Exceptions', false);
+    }
+
+    public function test_close_v2_ui_renders_cnr_communication_fields_for_agents(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $incident = $this->createIncident($agent, [
+            'assigned_to_user_id' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'action',
+                'context' => WorkspaceContext::ServiceCase->value,
+                'action' => WorkspaceActionType::Close->value,
+            ]))
+            ->assertOk()
+            ->assertSee('Select Communication', false)
+            ->assertSee('Final Reminder Before Closure', false)
+            ->assertSee('cnr_communication_preference', false);
     }
 
     public function test_close_v2_issue_resolved_stores_outcome_and_closes_case(): void

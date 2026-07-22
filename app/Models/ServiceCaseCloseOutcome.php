@@ -78,6 +78,22 @@ class ServiceCaseCloseOutcome extends Model
             $lines[] = 'Approval Reference: '.$metadata['approval_reference'];
         }
 
+        if (filled($metadata['communication_template_label'] ?? null)) {
+            $lines[] = 'Communication Template: '.$metadata['communication_template_label'];
+        }
+
+        if (filled($metadata['cnr_communication_preference'] ?? null)) {
+            $lines[] = 'Communication Channel: '.ucfirst((string) $metadata['cnr_communication_preference']);
+        }
+
+        if (filled($metadata['sticky_agent_user_id'] ?? null)) {
+            $stickyAgent = User::query()->find((int) $metadata['sticky_agent_user_id']);
+
+            if ($stickyAgent !== null) {
+                $lines[] = 'Sticky Agent: '.$stickyAgent->firstName();
+            }
+        }
+
         return $lines;
     }
 
