@@ -257,3 +257,120 @@ describe('live dashboard reverb reconnect fallback', () => {
         expect(typeof module.initLiveDashboardReverb).toBe('function');
     });
 });
+
+describe('live dashboard reverb network recovery', () => {
+    const connectionListeners = {};
+    const mockConnection = {
+        state: 'connected',
+        bind: vi.fn((event, handler) => {
+            connectionListeners[event] = handler;
+        }),
+        unbind: vi.fn(),
+        disconnect: vi.fn(() => {
+            mockConnection.state = 'disconnected';
+            connectionListeners.disconnected?.();
+        }),
+        connect: vi.fn(() => {
+            mockConnection.state = 'connected';
+            connectionListeners.connected?.();
+        }),
+    };
+
+    const refreshDashboard = vi.fn().mockResolvedValue(undefined);
+    const startFastPolling = vi.fn();
+    const startHeartbeatPolling = vi.fn();
+    const stopPolling = vi.fn();
+
+    beforeEach(() => {
+        vi.resetModules();
+        Object.keys(connectionListeners).forEach((key) => {
+            delete connectionListeners[key];
+        });
+        mockConnection.state = 'connected';
+        mockConnection.bind.mockClear();
+        mockConnection.unbind.mockClear();
+        mockConnection.disconnect.mockClear();
+        mockConnection.connect.mockClear();
+        refreshDashboard.mockClear();
+        startFastPolling.mockClear();
+        startHeartbeatPolling.mockClear();
+        stopPolling.mockClear();
+
+        document.body.innerHTML = `
+            <meta name="csrf-token" content="test-token">
+            <div id="dashboard-page"
+                 data-echo-key="test-key"
+                 data-echo-broadcaster="reverb"
+                 data-user-id="42"
+                 data-live-url="/dashboard/live"
+                 data-live-updates-enabled="1"></div>
+            <div id="notification-bell-root"></div>
+        `;
+
+        vi.doMock('laravel-echo', () => ({
+            default: vi.fn().mockImplementation(() => ({
+                private: vi.fn(() => ({
+                    listen: vi.fn(),
+                })),
+                connector: {
+                    pusher: {
+                        connection: mockConnection,
+                    },
+                },
+                disconnect: vi.fn(),
+            })),
+        }));
+
+        vi.doMock('../../resources/js/live-dashboard', () => ({
+            applyKpis: vi.fn(),
+            applyPartialDashboardUpdate: vi.fn(),
+            configureLiveDashboard: vi.fn(),
+            refreshDashboard,
+        }));
+
+        vi.doMock('../../resources/js/live-dashboard-polling', () => ({
+            destroyPolling: vi.fn(),
+            startFastPolling,
+            startHeartbeatPolling,
+            stopPolling,
+        }));
+    });
+
+    afterEach(() => {
+        vi.doUnmock('laravel-echo');
+        vi.doUnmock('../../resources/js/live-dashboard');
+        vi.doUnmock('../../resources/js/live-dashboard-polling');
+        vi.restoreAllMocks();
+    });
+
+    it('forces reconnect on browser online even when the socket still reports connected', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+        const pageRoot = document.getElementById('dashboard-page');
+
+        initLiveDashboardReverb({ pageRoot });
+        mockConnection.disconnect.mockClear();
+        mockConnection.connect.mockClear();
+        refreshDashboard.mockClear();
+
+        window.dispatchEvent(new Event('online'));
+
+        expect(mockConnection.disconnect).toHaveBeenCalledTimes(1);
+        expect(mockConnection.connect).toHaveBeenCalledTimes(1);
+        expect(refreshDashboard).toHaveBeenCalledWith(pageRoot);
+    });
+
+    it('disconnects and starts fast polling when the browser goes offline', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+        const pageRoot = document.getElementById('dashboard-page');
+
+        initLiveDashboardReverb({ pageRoot });
+        mockConnection.disconnect.mockClear();
+        startFastPolling.mockClear();
+
+        window.dispatchEvent(new Event('offline'));
+
+        expect(mockConnection.disconnect).toHaveBeenCalledTimes(1);
+        expect(stopPolling).toHaveBeenCalled();
+        expect(startFastPolling).toHaveBeenCalledWith(pageRoot);
+    });
+});

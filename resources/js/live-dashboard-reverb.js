@@ -768,19 +768,31 @@ export const initLiveDashboardReverb = ({
                 return;
             }
 
-            const liveConnection = echo?.connector?.pusher?.connection;
-
-            if (liveConnection && liveConnection.state !== 'connected') {
-                updateConnectionIndicator(pageRoot, 'connecting', metadata);
-                liveConnection.connect();
-            }
+            // Browser regained connectivity. Always cycle the transport: after
+            // ERR_NETWORK_CHANGED the socket can still report "connected" while
+            // private channel subscriptions are dead, so state checks alone miss recovery.
+            forceReconnect();
         };
 
         offlineHandler = () => {
+            reverbConnected = false;
+            stopStaleWatchdog();
             metadata.lastDisconnectReason = 'Browser offline';
             updateConnectionIndicator(pageRoot, 'offline', metadata);
             reportRealtimeConnectionStatus(pageRoot, 'offline', 'Browser offline', { force: true });
             logRealtime(pageRoot, 'disconnect', { reason: 'Browser offline' });
+
+            const liveConnection = echo?.connector?.pusher?.connection;
+
+            if (liveConnection && liveConnection.state !== 'disconnected') {
+                liveConnection.disconnect();
+            }
+
+            stopPolling();
+
+            if (dashboardLiveUpdates) {
+                startFastPolling(pageRoot);
+            }
         };
 
         window.addEventListener('online', onlineHandler);
