@@ -292,6 +292,31 @@ const debugRealtime = (pageRoot, message, detail = null) => {
     console.debug(`[realtime] ${message}`);
 };
 
+const isRealtimeLifecycleDebugEnabled = (pageRoot) => (
+    pageRoot?.dataset.realtimeLifecycleDebug === '1'
+    || pageRoot?.dataset.realtimeDebug === '1'
+);
+
+const connectionLifecycleSnapshot = (liveConnection) => ({
+    connectionState: liveConnection?.state ?? null,
+    socketId: liveConnection?.socket_id ?? null,
+});
+
+const logRealtimeLifecycle = (pageRoot, event, detail = null) => {
+    if (! isRealtimeLifecycleDebugEnabled(pageRoot)) {
+        return;
+    }
+
+    const payload = {
+        event,
+        at: new Date().toISOString(),
+        navigatorOnLine: typeof navigator !== 'undefined' ? navigator.onLine : null,
+        ...(detail ?? {}),
+    };
+
+    console.warn('[realtime-lifecycle]', payload);
+};
+
 const formatTooltip = (pageRoot, metadata) => {
     const provider = pageRoot?.dataset.realtimeProvider ?? 'polling';
     const lastConnected = metadata.lastConnectedAt ?? 'Never';
@@ -407,12 +432,25 @@ const bindConnectionHandlers = ({
         handlers.push({ event, handler });
     };
 
+    const logHandlerInvoked = (handlerName, detail = null) => {
+        logRealtimeLifecycle(pageRoot, 'bindConnectionHandlers_callback_invoked', {
+            handler: handlerName,
+            ...connectionLifecycleSnapshot(connection),
+            ...(detail ?? {}),
+        });
+    };
+
     /** Fast fallback mode: aggressive HTTP polling when the socket is down or stale. */
     const activateFastPollingFallback = (reason) => {
         if (! dashboardLiveUpdates || ! startFastPollingFn) {
             return;
         }
 
+        logRealtimeLifecycle(pageRoot, 'fast_polling_started', {
+            source: 'activateFastPollingFallback',
+            reason,
+            ...connectionLifecycleSnapshot(connection),
+        });
         startFastPollingFn(pageRoot);
         metadata.lastDisconnectReason = reason;
         updateConnectionIndicator(pageRoot, 'polling', metadata);
@@ -422,6 +460,8 @@ const bindConnectionHandlers = ({
     };
 
     bind('connected', () => {
+        logHandlerInvoked('connected');
+        logRealtimeLifecycle(pageRoot, 'connected', connectionLifecycleSnapshot(connection));
         const wasConnected = getConnected();
         setConnected(true);
         metadata.lastConnectedAt = new Date().toLocaleString();
@@ -435,7 +475,15 @@ const bindConnectionHandlers = ({
         // the first /dashboard/live past the 60s heartbeat interval.
         stopPollingFn?.();
         if (dashboardLiveUpdates) {
+            logRealtimeLifecycle(pageRoot, 'dashboard_refresh_triggered', {
+                source: 'bindConnectionHandlers.connected',
+                ...connectionLifecycleSnapshot(connection),
+            });
             void refreshDashboard(pageRoot);
+            logRealtimeLifecycle(pageRoot, 'heartbeat_polling_started', {
+                source: 'bindConnectionHandlers.connected',
+                ...connectionLifecycleSnapshot(connection),
+            });
             startHeartbeatPollingFn?.(pageRoot);
         }
 
@@ -443,6 +491,8 @@ const bindConnectionHandlers = ({
     });
 
     bind('disconnected', () => {
+        logHandlerInvoked('disconnected');
+        logRealtimeLifecycle(pageRoot, 'disconnected', connectionLifecycleSnapshot(connection));
         setConnected(false);
         const reason = 'WebSocket disconnected';
         metadata.lastDisconnectReason = reason;
@@ -455,6 +505,11 @@ const bindConnectionHandlers = ({
 
     bind('error', (error) => {
         const message = error?.error?.data?.message ?? error?.error?.message ?? 'Connection error';
+        logHandlerInvoked('error', { message });
+        logRealtimeLifecycle(pageRoot, 'failed', {
+            message,
+            ...connectionLifecycleSnapshot(connection),
+        });
         setConnected(false);
         metadata.lastDisconnectReason = message;
         updateConnectionIndicator(pageRoot, 'offline', metadata);
@@ -467,7 +522,34 @@ const bindConnectionHandlers = ({
         }
     });
 
+    bind('unavailable', () => {
+        logHandlerInvoked('unavailable');
+        logRealtimeLifecycle(pageRoot, 'unavailable', connectionLifecycleSnapshot(connection));
+    });
+
+    bind('failed', () => {
+        logHandlerInvoked('failed');
+        logRealtimeLifecycle(pageRoot, 'failed', connectionLifecycleSnapshot(connection));
+    });
+
     bind('state_change', (states) => {
+        const previous = states?.previous ?? null;
+        const current = states?.current ?? null;
+
+        if (current) {
+            logRealtimeLifecycle(pageRoot, current, {
+                previous,
+                ...connectionLifecycleSnapshot(connection),
+            });
+        }
+
+        if (current === 'connecting' && previous && previous !== 'connecting') {
+            logRealtimeLifecycle(pageRoot, 'reconnecting', {
+                previous,
+                ...connectionLifecycleSnapshot(connection),
+            });
+        }
+
         if (states.current === 'connecting') {
             updateConnectionIndicator(pageRoot, 'connecting', metadata);
         }
@@ -517,6 +599,9 @@ export const initLiveDashboardReverb = ({
 
     if (!pageRoot?.dataset.echoKey) {
         if (dashboardLiveUpdates) {
+            logRealtimeLifecycle(pageRoot, 'fast_polling_started', {
+                source: 'echo_unavailable',
+            });
             startFastPolling(pageRoot);
             updateConnectionIndicator(pageRoot, 'polling', {});
             reportRealtimeConnectionStatus(pageRoot, 'polling', 'fallback_activated: echo_unavailable');
@@ -537,6 +622,9 @@ export const initLiveDashboardReverb = ({
 
     if (!echo || !userId) {
         if (dashboardLiveUpdates) {
+            logRealtimeLifecycle(pageRoot, 'fast_polling_started', {
+                source: 'echo_or_user_missing',
+            });
             startFastPolling(pageRoot);
             updateConnectionIndicator(pageRoot, 'polling', metadata);
         }
@@ -565,6 +653,10 @@ export const initLiveDashboardReverb = ({
             staleReconnectAttempted = false;
             stopPolling();
             if (reverbConnected && dashboardLiveUpdates) {
+                logRealtimeLifecycle(pageRoot, 'heartbeat_polling_started', {
+                    source: 'stale_websocket_recovered',
+                    ...connectionLifecycleSnapshot(echo?.connector?.pusher?.connection),
+                });
                 startHeartbeatPolling(pageRoot);
             }
 
@@ -615,6 +707,11 @@ export const initLiveDashboardReverb = ({
 
             if (! staleRecoveryFastPoll && dashboardLiveUpdates) {
                 staleRecoveryFastPoll = true;
+                logRealtimeLifecycle(pageRoot, 'fast_polling_started', {
+                    source: 'stale_watchdog',
+                    silentForMs: Date.now() - lastWebSocketMessageAt,
+                    ...connectionLifecycleSnapshot(echo?.connector?.pusher?.connection),
+                });
                 startFastPolling(pageRoot);
                 updateConnectionIndicator(pageRoot, 'polling', metadata);
                 reportRealtimeConnectionStatus(
@@ -705,6 +802,13 @@ export const initLiveDashboardReverb = ({
     };
 
     const forceReconnect = () => {
+        logRealtimeLifecycle(pageRoot, 'forceReconnect_entered', {
+            destroyed,
+            hasEcho: Boolean(echo),
+            reverbConnected,
+            ...connectionLifecycleSnapshot(echo?.connector?.pusher?.connection),
+        });
+
         if (destroyed || ! echo) {
             return;
         }
@@ -713,12 +817,22 @@ export const initLiveDashboardReverb = ({
         const liveConnection = echo.connector?.pusher?.connection;
 
         if (! liveConnection) {
+            logRealtimeLifecycle(pageRoot, 'forceReconnect_aborted', {
+                reason: 'missing_live_connection',
+            });
+
             return;
         }
 
         updateConnectionIndicator(pageRoot, 'connecting', metadata);
         reportRealtimeConnectionStatus(pageRoot, 'connecting', null, { force: true });
+        logRealtimeLifecycle(pageRoot, 'liveConnection.disconnect', {
+            before: connectionLifecycleSnapshot(liveConnection),
+        });
         liveConnection.disconnect();
+        logRealtimeLifecycle(pageRoot, 'liveConnection.connect', {
+            afterDisconnect: connectionLifecycleSnapshot(liveConnection),
+        });
         liveConnection.connect();
     };
 
@@ -741,8 +855,20 @@ export const initLiveDashboardReverb = ({
             pageRoot,
             connection: liveConnection,
             metadata,
-            startFastPolling: (root) => startFastPolling(root),
-            startHeartbeatPolling: (root) => startHeartbeatPolling(root),
+            startFastPolling: (root) => {
+                logRealtimeLifecycle(pageRoot, 'fast_polling_started', {
+                    source: 'startFastPolling_wrapper',
+                    ...connectionLifecycleSnapshot(liveConnection),
+                });
+                startFastPolling(root);
+            },
+            startHeartbeatPolling: (root) => {
+                logRealtimeLifecycle(pageRoot, 'heartbeat_polling_started', {
+                    source: 'startHeartbeatPolling_wrapper',
+                    ...connectionLifecycleSnapshot(liveConnection),
+                });
+                startHeartbeatPolling(root);
+            },
             stopPolling,
             dashboardLiveUpdates,
             getConnected: () => reverbConnected,
@@ -758,41 +884,68 @@ export const initLiveDashboardReverb = ({
 
         updateConnectionIndicator(pageRoot, 'connecting', metadata);
         reportRealtimeConnectionStatus(pageRoot, 'connecting');
+        logRealtimeLifecycle(pageRoot, 'connecting', {
+            source: 'setupConnection',
+            ...connectionLifecycleSnapshot(liveConnection),
+        });
     };
 
     if (connection) {
+        logRealtimeLifecycle(pageRoot, 'initialized', {
+            userId,
+            initialConnectionState: connection.state ?? null,
+            navigatorOnLine: navigator.onLine,
+        });
+
         setupConnection();
 
         onlineHandler = () => {
+            const liveConnection = echo?.connector?.pusher?.connection;
+
+            logRealtimeLifecycle(pageRoot, 'online_event_fired', {
+                destroyed,
+                navigatorOnLine: navigator.onLine,
+                ...connectionLifecycleSnapshot(liveConnection),
+            });
+
             if (destroyed || ! navigator.onLine) {
+                logRealtimeLifecycle(pageRoot, 'online_event_ignored', {
+                    reason: destroyed ? 'destroyed' : 'navigator_offline',
+                    ...connectionLifecycleSnapshot(liveConnection),
+                });
+
                 return;
             }
 
-            // Browser regained connectivity. Always cycle the transport: after
-            // ERR_NETWORK_CHANGED the socket can still report "connected" while
-            // private channel subscriptions are dead, so state checks alone miss recovery.
-            forceReconnect();
+            if (liveConnection && liveConnection.state !== 'connected') {
+                logRealtimeLifecycle(pageRoot, 'online_handler_action', {
+                    action: 'liveConnection.connect',
+                    ...connectionLifecycleSnapshot(liveConnection),
+                });
+                updateConnectionIndicator(pageRoot, 'connecting', metadata);
+                liveConnection.connect();
+
+                return;
+            }
+
+            logRealtimeLifecycle(pageRoot, 'online_handler_action', {
+                action: 'none',
+                reason: 'connection_already_connected',
+                ...connectionLifecycleSnapshot(liveConnection),
+            });
         };
 
         offlineHandler = () => {
-            reverbConnected = false;
-            stopStaleWatchdog();
+            const liveConnection = echo?.connector?.pusher?.connection;
+
+            logRealtimeLifecycle(pageRoot, 'offline_event_fired', {
+                ...connectionLifecycleSnapshot(liveConnection),
+            });
+
             metadata.lastDisconnectReason = 'Browser offline';
             updateConnectionIndicator(pageRoot, 'offline', metadata);
             reportRealtimeConnectionStatus(pageRoot, 'offline', 'Browser offline', { force: true });
             logRealtime(pageRoot, 'disconnect', { reason: 'Browser offline' });
-
-            const liveConnection = echo?.connector?.pusher?.connection;
-
-            if (liveConnection && liveConnection.state !== 'disconnected') {
-                liveConnection.disconnect();
-            }
-
-            stopPolling();
-
-            if (dashboardLiveUpdates) {
-                startFastPolling(pageRoot);
-            }
         };
 
         window.addEventListener('online', onlineHandler);

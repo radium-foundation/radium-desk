@@ -258,7 +258,7 @@ describe('live dashboard reverb reconnect fallback', () => {
     });
 });
 
-describe('live dashboard reverb network recovery', () => {
+describe('live dashboard reverb lifecycle diagnostics', () => {
     const connectionListeners = {};
     const mockConnection = {
         state: 'connected',
@@ -280,9 +280,11 @@ describe('live dashboard reverb network recovery', () => {
     const startFastPolling = vi.fn();
     const startHeartbeatPolling = vi.fn();
     const stopPolling = vi.fn();
+    let warnSpy;
 
     beforeEach(() => {
         vi.resetModules();
+        warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         Object.keys(connectionListeners).forEach((key) => {
             delete connectionListeners[key];
         });
@@ -303,7 +305,8 @@ describe('live dashboard reverb network recovery', () => {
                  data-echo-broadcaster="reverb"
                  data-user-id="42"
                  data-live-url="/dashboard/live"
-                 data-live-updates-enabled="1"></div>
+                 data-live-updates-enabled="1"
+                 data-realtime-lifecycle-debug="1"></div>
             <div id="notification-bell-root"></div>
         `;
 
@@ -340,37 +343,43 @@ describe('live dashboard reverb network recovery', () => {
         vi.doUnmock('laravel-echo');
         vi.doUnmock('../../resources/js/live-dashboard');
         vi.doUnmock('../../resources/js/live-dashboard-polling');
+        warnSpy.mockRestore();
         vi.restoreAllMocks();
     });
 
-    it('forces reconnect on browser online even when the socket still reports connected', async () => {
-        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
-        const pageRoot = document.getElementById('dashboard-page');
+    const lifecycleEvents = () => warnSpy.mock.calls
+        .filter(([label]) => label === '[realtime-lifecycle]')
+        .map(([, payload]) => payload.event);
 
-        initLiveDashboardReverb({ pageRoot });
+    it('logs initialized and online handler noop when socket still reports connected', async () => {
+        const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
+
+        initLiveDashboardReverb({ pageRoot: document.getElementById('dashboard-page') });
+        warnSpy.mockClear();
         mockConnection.disconnect.mockClear();
         mockConnection.connect.mockClear();
-        refreshDashboard.mockClear();
 
         window.dispatchEvent(new Event('online'));
 
-        expect(mockConnection.disconnect).toHaveBeenCalledTimes(1);
-        expect(mockConnection.connect).toHaveBeenCalledTimes(1);
-        expect(refreshDashboard).toHaveBeenCalledWith(pageRoot);
+        expect(lifecycleEvents()).toContain('online_event_fired');
+        expect(lifecycleEvents()).toContain('online_handler_action');
+        expect(lifecycleEvents()).not.toContain('forceReconnect_entered');
+        expect(mockConnection.disconnect).not.toHaveBeenCalled();
+        expect(mockConnection.connect).not.toHaveBeenCalled();
     });
 
-    it('disconnects and starts fast polling when the browser goes offline', async () => {
+    it('logs offline event without tearing down transport', async () => {
         const { initLiveDashboardReverb } = await import('../../resources/js/live-dashboard-reverb');
-        const pageRoot = document.getElementById('dashboard-page');
 
-        initLiveDashboardReverb({ pageRoot });
+        initLiveDashboardReverb({ pageRoot: document.getElementById('dashboard-page') });
+        warnSpy.mockClear();
         mockConnection.disconnect.mockClear();
         startFastPolling.mockClear();
 
         window.dispatchEvent(new Event('offline'));
 
-        expect(mockConnection.disconnect).toHaveBeenCalledTimes(1);
-        expect(stopPolling).toHaveBeenCalled();
-        expect(startFastPolling).toHaveBeenCalledWith(pageRoot);
+        expect(lifecycleEvents()).toContain('offline_event_fired');
+        expect(mockConnection.disconnect).not.toHaveBeenCalled();
+        expect(startFastPolling).not.toHaveBeenCalled();
     });
 });
