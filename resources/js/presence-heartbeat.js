@@ -1,4 +1,5 @@
 import { csrfToken } from './workspace/http';
+import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
 
 const parseInterval = (value, fallback = 120) => {
     const parsed = Number.parseInt(String(value ?? ''), 10);
@@ -46,6 +47,11 @@ export const initPresenceHeartbeat = () => {
             }
 
             if (!response.ok) {
+                logRefreshLifecycle(document.getElementById('dashboard-page'), 'presence_heartbeat_response_ignored', {
+                    status: response.status,
+                    source: 'presence-heartbeat',
+                });
+
                 return;
             }
 
@@ -58,6 +64,10 @@ export const initPresenceHeartbeat = () => {
 
             timerId = window.setInterval(sendHeartbeat, nextInterval);
         } catch (error) {
+            logRefreshLifecycle(document.getElementById('dashboard-page'), 'presence_heartbeat_request_failed', {
+                source: 'presence-heartbeat',
+                errorMessage: error?.message ?? String(error),
+            });
             // Ignore transient network failures.
         }
     };

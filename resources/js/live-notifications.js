@@ -1,5 +1,6 @@
 import { getWorkspaceSession } from './workspace/session';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
+import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
 
 const animateNotificationBell = () => {
     const bellButton = document.querySelector('.notification-bell-btn');
@@ -131,6 +132,11 @@ const pollNotifications = async (state) => {
         });
 
         if (!response.ok) {
+            logRefreshLifecycle(document.getElementById('dashboard-page'), 'notifications_poll_response_ignored', {
+                status: response.status,
+                source: 'notifications-poll',
+            });
+
             return;
         }
 
@@ -157,6 +163,11 @@ const pollNotifications = async (state) => {
             maybeHandleIncomingCallInteraction(item.interaction);
         });
     } catch (error) {
+        logRefreshLifecycle(document.getElementById('dashboard-page'), 'notifications_poll_request_failed', {
+            source: 'notifications-poll',
+            errorName: error?.name ?? null,
+            errorMessage: error?.message ?? String(error),
+        });
         // Ignore transient network errors during background polling.
     }
 };

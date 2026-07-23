@@ -5,6 +5,8 @@
  * - heartbeat: low-frequency safety net while Reverb stays connected
  */
 
+import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
+
 export const POLL_MODE_LEGACY = 'legacy';
 export const POLL_MODE_FAST = 'fast';
 export const POLL_MODE_HEARTBEAT = 'heartbeat';
@@ -153,6 +155,13 @@ const reschedulePollingInterval = (pageRoot) => {
 
     const nextIntervalMs = resolvePollIntervalMs(pageRoot);
 
+    logRefreshLifecycle(pageRoot, 'poll_reschedule_evaluated', {
+        pollMode,
+        nextIntervalMs,
+        currentIntervalMs: pollIntervalMs,
+        hasTimeout: pollTimeoutId !== null,
+    });
+
     if (nextIntervalMs === null) {
         if (pollTimeoutId !== null) {
             window.clearTimeout(pollTimeoutId);
@@ -178,38 +187,84 @@ const reschedulePollingInterval = (pageRoot) => {
 
 const scheduleNextPoll = (pageRoot) => {
     if (! pollingActive || pollPageRoot === null || pollTimeoutId !== null) {
+        logRefreshLifecycle(pageRoot, 'poll_schedule_suppressed', {
+            pollingActive,
+            hasPollPageRoot: pollPageRoot !== null,
+            pollTimeoutId,
+            pollMode,
+        });
+
         return;
     }
 
     pollIntervalMs = resolvePollIntervalMs(pageRoot);
 
     if (pollIntervalMs === null) {
+        logRefreshLifecycle(pageRoot, 'poll_schedule_suppressed', {
+            reason: 'interval_null',
+            pollMode,
+            documentHidden: document.visibilityState === 'hidden',
+        });
+
         return;
     }
+
+    logRefreshLifecycle(pageRoot, 'poll_scheduled', {
+        pollMode,
+        pollIntervalMs,
+    });
 
     pollTimeoutId = window.setTimeout(async () => {
         pollTimeoutId = null;
 
         const activePageRoot = pollPageRoot;
 
+        logRefreshLifecycle(activePageRoot, 'poll_timer_fired', {
+            pollMode,
+            pollingActive,
+        });
+
         if (! pollingActive || activePageRoot === null) {
+            logRefreshLifecycle(activePageRoot, 'poll_timer_suppressed', {
+                reason: 'polling_inactive_or_missing_page_root',
+            });
+
             return;
         }
 
         if (typeof refreshDashboardFn === 'function') {
-            await refreshDashboardFn(activePageRoot);
+            await refreshDashboardFn(activePageRoot, `poll_${pollMode}`);
+        } else {
+            logRefreshLifecycle(activePageRoot, 'poll_timer_suppressed', {
+                reason: 'missing_refresh_dashboard_fn',
+            });
         }
 
         if (pollingActive && pollPageRoot === activePageRoot) {
             scheduleNextPoll(activePageRoot);
+        } else {
+            logRefreshLifecycle(activePageRoot, 'poll_reschedule_suppressed', {
+                pollingActive,
+                samePageRoot: pollPageRoot === activePageRoot,
+            });
         }
     }, pollIntervalMs);
 };
 
 const startPollingWithMode = (pageRoot, mode, intervalMs = null) => {
     if (! pageRoot || typeof refreshDashboardFn !== 'function') {
+        logRefreshLifecycle(pageRoot, 'poll_start_suppressed', {
+            reason: ! pageRoot ? 'missing_page_root' : 'missing_refresh_dashboard_fn',
+            mode,
+        });
+
         return;
     }
+
+    logRefreshLifecycle(pageRoot, 'poll_starting', {
+        mode,
+        intervalMs,
+    });
 
     stopPolling();
 
@@ -227,6 +282,11 @@ const startPollingWithMode = (pageRoot, mode, intervalMs = null) => {
 
     bindPollingIntervalListeners(pageRoot);
     scheduleNextPoll(pageRoot);
+
+    logRefreshLifecycle(pageRoot, 'poll_started', {
+        mode,
+        pollIntervalMs,
+    });
 };
 
 /** Legacy poll-only transport (no Reverb). Uses active/idle intervals from system settings. */
@@ -249,6 +309,15 @@ export const startHeartbeatPolling = (pageRoot, intervalMs = null) => {
 };
 
 export const stopPolling = () => {
+    const pageRoot = pollPageRoot;
+
+    if (pageRoot) {
+        logRefreshLifecycle(pageRoot, 'poll_stopping', {
+            pollMode,
+            hadTimeout: pollTimeoutId !== null,
+        });
+    }
+
     pollingActive = false;
     pollPageRoot = null;
     pollMode = POLL_MODE_LEGACY;
