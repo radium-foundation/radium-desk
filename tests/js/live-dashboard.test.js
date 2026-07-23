@@ -231,4 +231,38 @@ describe('live dashboard refresh session integration', () => {
             vi.useRealTimers();
         }
     });
+
+    it('logs refresh lifecycle suppression when refresh is already in flight', async () => {
+        document.getElementById('dashboard-page').dataset.realtimeLifecycleDebug = '1';
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        let resolveFetch;
+        fetch.mockImplementation(() => new Promise((resolve) => {
+            resolveFetch = resolve;
+        }));
+
+        const pageRoot = document.getElementById('dashboard-page');
+        const firstRefresh = refreshDashboard(pageRoot, 'test-first');
+
+        await Promise.resolve();
+
+        const secondRefresh = refreshDashboard(pageRoot, 'test-second');
+
+        await Promise.resolve();
+
+        const payloads = warnSpy.mock.calls
+            .filter(([label]) => label === '[dashboard-refresh-lifecycle]')
+            .map(([, payload]) => payload);
+
+        expect(payloads.some((payload) => payload.event === 'refreshDashboard_entered')).toBe(true);
+        expect(payloads.some((payload) => (
+            payload.event === 'refreshDashboard_suppressed'
+            && payload.reason === 'refresh_in_flight'
+        ))).toBe(true);
+
+        await firstRefresh;
+        await secondRefresh;
+
+        warnSpy.mockRestore();
+    });
 });

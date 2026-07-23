@@ -475,11 +475,28 @@ const bindConnectionHandlers = ({
         // the first /dashboard/live past the 60s heartbeat interval.
         stopPollingFn?.();
         if (dashboardLiveUpdates) {
+            const refreshStartedAt = Date.now();
+
             logRealtimeLifecycle(pageRoot, 'dashboard_refresh_triggered', {
                 source: 'bindConnectionHandlers.connected',
                 ...connectionLifecycleSnapshot(connection),
             });
-            void refreshDashboard(pageRoot);
+            void refreshDashboard(pageRoot, 'bindConnectionHandlers.connected').then(() => {
+                logRealtimeLifecycle(pageRoot, 'dashboard_refresh_promise_settled', {
+                    source: 'bindConnectionHandlers.connected',
+                    status: 'fulfilled',
+                    durationMs: Date.now() - refreshStartedAt,
+                    ...connectionLifecycleSnapshot(connection),
+                });
+            }).catch((error) => {
+                logRealtimeLifecycle(pageRoot, 'dashboard_refresh_promise_settled', {
+                    source: 'bindConnectionHandlers.connected',
+                    status: 'rejected',
+                    durationMs: Date.now() - refreshStartedAt,
+                    errorMessage: error?.message ?? String(error),
+                    ...connectionLifecycleSnapshot(connection),
+                });
+            });
             logRealtimeLifecycle(pageRoot, 'heartbeat_polling_started', {
                 source: 'bindConnectionHandlers.connected',
                 ...connectionLifecycleSnapshot(connection),

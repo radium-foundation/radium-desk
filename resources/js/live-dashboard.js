@@ -13,6 +13,10 @@ import {
     startPolling,
     stopPolling,
 } from './live-dashboard-polling';
+import {
+    logRefreshLifecycle,
+    setRefreshLifecycleState,
+} from './dashboard-refresh-lifecycle';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -84,6 +88,21 @@ let refreshInFlight = false;
 let pendingDashboardRefresh = null;
 let dashboardRefreshHooks = {};
 
+const syncRefreshLifecycleState = (pageRoot) => {
+    const session = getWorkspaceSession();
+
+    setRefreshLifecycleState({
+        refreshInFlight,
+        pendingDashboardRefresh: pendingDashboardRefresh !== null,
+        workspaceSessionActive: session.isActive(),
+        workspaceActiveReasons: session.getActiveReasons(),
+    });
+
+    return pageRoot;
+};
+
+const toIsoTimestamp = (epochMs) => new Date(epochMs).toISOString();
+
 const applyFilterCounts = (counts) => {
     if (!counts || typeof counts !== 'object') {
         return;
@@ -153,19 +172,32 @@ const removeRows = (incidentIds, lockedIncidentIds) => {
 };
 
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
+    const pageRoot = document.getElementById('dashboard-page');
+
     requestAnimationFrame(() => {
         if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
+            logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_suppressed', {
+                reason: isDashboardSearchActive() ? 'dashboard_search_active' : 'quick_filter_active',
+            });
             resolve();
 
             return;
         }
 
         if (getWorkspaceSession().isActive()) {
+            logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_queued', {
+                reason: 'workspace_session_active',
+            });
             queueDashboardRefresh(data);
             resolve();
 
             return;
         }
+
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_started', {
+            rowCount: Array.isArray(data?.rows) ? data.rows.length : 0,
+            hasKpiStrip: data?.kpi_strip_html !== undefined,
+        });
 
         applyKpis(data.kpi_strip_html);
         document.dispatchEvent(new CustomEvent('dashboard:live-refresh', { detail: data }));
@@ -185,6 +217,9 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             ],
         });
 
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_completed', {
+            rowCount: Array.isArray(data?.rows) ? data.rows.length : 0,
+        });
         resolve();
     });
 });
@@ -230,6 +265,15 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
 
 const queueDashboardRefresh = (data) => {
     pendingDashboardRefresh = data;
+
+    const session = getWorkspaceSession();
+
+    setRefreshLifecycleState({
+        refreshInFlight,
+        pendingDashboardRefresh: true,
+        workspaceSessionActive: session.isActive(),
+        workspaceActiveReasons: session.getActiveReasons(),
+    });
 };
 
 const flushPendingDashboardRefresh = async () => {
@@ -246,35 +290,133 @@ const buildLiveRefreshQuery = (pageRoot, loadedCount = 0) => buildDashboardLiveQ
     limit: loadedCount > 0 ? loadedCount : undefined,
 });
 
-const refreshDashboard = async (pageRoot) => {
-    const liveUrl = pageRoot.dataset.liveUrl;
+const refreshDashboard = async (pageRoot, source = 'unknown') => {
+    const liveUrl = pageRoot?.dataset.liveUrl;
 
-    if (!liveUrl || document.hidden || refreshInFlight || isDashboardSearchActive() || isDashboardQuickFilterActive()) {
+    logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_entered', {
+        source,
+        refreshInFlightBeforeEntry: refreshInFlight,
+    });
+
+    if (!liveUrl) {
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+            source,
+            reason: 'missing_live_url',
+        });
+
+        return;
+    }
+
+    if (document.hidden) {
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+            source,
+            reason: 'document_hidden',
+        });
+
+        return;
+    }
+
+    if (refreshInFlight) {
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+            source,
+            reason: 'refresh_in_flight',
+            refreshInFlightBeforeEntry: true,
+        });
+
+        return;
+    }
+
+    if (isDashboardSearchActive()) {
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+            source,
+            reason: 'dashboard_search_active',
+        });
+
+        return;
+    }
+
+    if (isDashboardQuickFilterActive()) {
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+            source,
+            reason: 'quick_filter_active',
+        });
+
         return;
     }
 
     refreshInFlight = true;
+    syncRefreshLifecycleState(pageRoot);
+
+    const requestStartedAt = Date.now();
+
+    logRefreshLifecycle(pageRoot, 'refreshInFlight_set', {
+        source,
+        value: true,
+        requestStartedAt: toIsoTimestamp(requestStartedAt),
+    });
+
+    let requestUrl = null;
+    let requestFinishedAt = null;
 
     try {
         const loadedCount = Number(
             pageRoot.querySelector('.dashboard-service-cases-card')?.dataset.serviceCasesLoaded ?? 0,
         );
         const query = buildLiveRefreshQuery(pageRoot, loadedCount);
+        requestUrl = `${liveUrl}?${query.toString()}`;
 
-        const response = await fetch(`${liveUrl}?${query.toString()}`, {
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_request_started', {
+            source,
+            url: requestUrl,
+            loadedCount,
+            requestStartedAt: toIsoTimestamp(requestStartedAt),
+        });
+
+        const response = await fetch(requestUrl, {
             headers: {
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
         });
 
+        requestFinishedAt = Date.now();
+
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_received', {
+            source,
+            status: response.status,
+            ok: response.ok,
+            requestStartedAt: toIsoTimestamp(requestStartedAt),
+            requestFinishedAt: toIsoTimestamp(requestFinishedAt),
+            durationMs: requestFinishedAt - requestStartedAt,
+        });
+
         if (!response.ok) {
+            logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_ignored', {
+                source,
+                reason: 'response_not_ok',
+                status: response.status,
+                requestFinishedAt: toIsoTimestamp(requestFinishedAt),
+                durationMs: requestFinishedAt - requestStartedAt,
+            });
+
             return;
         }
 
         const data = await response.json();
 
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_parsed', {
+            source,
+            rowCount: Array.isArray(data.rows) ? data.rows.length : 0,
+            hasKpiStrip: data.kpi_strip_html !== undefined,
+            requestFinishedAt: toIsoTimestamp(requestFinishedAt),
+            durationMs: requestFinishedAt - requestStartedAt,
+        });
+
         if (getWorkspaceSession().isActive()) {
+            logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_queued', {
+                source,
+                reason: 'workspace_session_active',
+            });
             queueDashboardRefresh(data);
 
             return;
@@ -282,9 +424,34 @@ const refreshDashboard = async (pageRoot) => {
 
         await applyDashboardRefresh(data);
     } catch (error) {
+        requestFinishedAt = Date.now();
+
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_request_failed', {
+            source,
+            requestStartedAt: toIsoTimestamp(requestStartedAt),
+            requestFinishedAt: toIsoTimestamp(requestFinishedAt),
+            durationMs: requestFinishedAt - requestStartedAt,
+            errorName: error?.name ?? null,
+            errorMessage: error?.message ?? String(error),
+            url: requestUrl,
+        });
         // Ignore transient network errors during background refresh.
     } finally {
         refreshInFlight = false;
+        requestFinishedAt = requestFinishedAt ?? Date.now();
+
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshInFlight_cleared', {
+            source,
+            value: false,
+            requestFinishedAt: toIsoTimestamp(requestFinishedAt),
+            durationMs: requestFinishedAt - requestStartedAt,
+        });
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_exited', {
+            source,
+            requestStartedAt: toIsoTimestamp(requestStartedAt),
+            requestFinishedAt: toIsoTimestamp(requestFinishedAt),
+            durationMs: requestFinishedAt - requestStartedAt,
+        });
     }
 };
 
