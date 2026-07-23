@@ -30,6 +30,7 @@
          data-realtime-desktop-notifications="{{ ($desktopNotificationsEnabled ?? true) ? '1' : '0' }}"
          data-realtime-connection-indicator="{{ ($connectionStatusIndicatorEnabled ?? false) ? '1' : '0' }}"
          data-realtime-debug="{{ ($debugModeEnabled ?? false) ? '1' : '0' }}"
+         data-realtime-lifecycle-debug="{{ ($debugModeEnabled ?? false) ? '1' : '0' }}"
          data-realtime-provider="{{ $realtimeProvider ?? 'polling' }}"
          data-realtime-status-url="{{ $realtimeStatusUrl ?? '' }}"
          data-realtime-force-reconnect-at="{{ $realtimeForceReconnectAt ?? '' }}"
