@@ -12,6 +12,12 @@ import {
     applyPartialDashboardUpdate,
     configureLiveDashboard,
 } from './live-dashboard';
+import {
+    destroyPolling,
+    startFastPolling,
+    startHeartbeatPolling,
+    stopPolling,
+} from './live-dashboard-polling';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
@@ -213,7 +219,13 @@ const REALTIME_LOG_EVENTS = new Set([
     'disconnect',
     'fallback_activated',
     'reconnect_success',
+    'stale_websocket_detected',
+    'stale_websocket_recovered',
 ]);
+
+/** No application WebSocket payload received for this long while still "connected". */
+const DEFAULT_STALE_WEBSOCKET_MS = 3 * 60_000;
+const STALE_WEBSOCKET_CHECK_MS = 30_000;
 
 let activeRealtimeSession = null;
 
@@ -378,12 +390,14 @@ const bindConnectionHandlers = ({
     pageRoot,
     connection,
     metadata,
-    startPolling,
-    stopPolling,
-    fallbackPoll,
+    startFastPolling: startFastPollingFn,
+    startHeartbeatPolling: startHeartbeatPollingFn,
+    stopPolling: stopPollingFn,
     dashboardLiveUpdates,
     getConnected,
     setConnected,
+    onWebSocketConnected,
+    onWebSocketDisconnected,
 }) => {
     const handlers = [];
 
@@ -392,16 +406,18 @@ const bindConnectionHandlers = ({
         handlers.push({ event, handler });
     };
 
-    const activatePollingFallback = (reason) => {
-        if (! fallbackPoll || ! dashboardLiveUpdates || ! startPolling) {
+    /** Fast fallback mode: aggressive HTTP polling when the socket is down or stale. */
+    const activateFastPollingFallback = (reason) => {
+        if (! dashboardLiveUpdates || ! startFastPollingFn) {
             return;
         }
 
-        startPolling();
+        startFastPollingFn(pageRoot);
         metadata.lastDisconnectReason = reason;
         updateConnectionIndicator(pageRoot, 'polling', metadata);
         reportRealtimeConnectionStatus(pageRoot, 'polling', `fallback_activated: ${reason}`);
         logRealtime(pageRoot, 'fallback_activated', { reason });
+        onWebSocketDisconnected?.();
     };
 
     bind('connected', () => {
@@ -412,7 +428,14 @@ const bindConnectionHandlers = ({
         updateConnectionIndicator(pageRoot, 'connected', metadata);
         reportRealtimeConnectionStatus(pageRoot, 'connected', null, { force: true });
         logRealtime(pageRoot, wasConnected ? 'reconnect_success' : 'connection_established');
-        stopPolling?.();
+
+        // Heartbeat mode: keep a low-frequency poll running as a safety net while Reverb is up.
+        stopPollingFn?.();
+        if (dashboardLiveUpdates) {
+            startHeartbeatPollingFn?.(pageRoot);
+        }
+
+        onWebSocketConnected?.();
     });
 
     bind('disconnected', () => {
@@ -422,7 +445,8 @@ const bindConnectionHandlers = ({
         updateConnectionIndicator(pageRoot, 'polling', metadata);
         reportRealtimeConnectionStatus(pageRoot, 'disconnected', reason, { force: true });
         logRealtime(pageRoot, 'disconnect', { reason });
-        activatePollingFallback(reason);
+        stopPollingFn?.();
+        activateFastPollingFallback(reason);
     });
 
     bind('error', (error) => {
@@ -434,7 +458,8 @@ const bindConnectionHandlers = ({
         logRealtime(pageRoot, 'disconnect', { reason: message });
 
         if (! getConnected()) {
-            activatePollingFallback(message);
+            stopPollingFn?.();
+            activateFastPollingFallback(message);
         }
     });
 
@@ -481,18 +506,14 @@ export const forceLiveDashboardRealtimeReconnect = () => {
 
 export const initLiveDashboardReverb = ({
     pageRoot,
-    startPolling,
-    stopPolling,
-    destroyPolling,
     hooks = {},
-    fallbackPoll = true,
     dashboardLiveUpdates = true,
 } = {}) => {
     destroyLiveDashboardRealtime();
 
     if (!pageRoot?.dataset.echoKey) {
-        if (fallbackPoll && dashboardLiveUpdates && startPolling) {
-            startPolling();
+        if (dashboardLiveUpdates) {
+            startFastPolling(pageRoot);
             updateConnectionIndicator(pageRoot, 'polling', {});
             reportRealtimeConnectionStatus(pageRoot, 'polling', 'fallback_activated: echo_unavailable');
         }
@@ -511,8 +532,8 @@ export const initLiveDashboardReverb = ({
     const userId = pageRoot.dataset.userId;
 
     if (!echo || !userId) {
-        if (fallbackPoll && dashboardLiveUpdates && startPolling) {
-            startPolling();
+        if (dashboardLiveUpdates) {
+            startFastPolling(pageRoot);
             updateConnectionIndicator(pageRoot, 'polling', metadata);
         }
 
@@ -526,8 +547,100 @@ export const initLiveDashboardReverb = ({
     let beforeUnloadHandler = null;
     let destroyed = false;
 
-    const dashboardChannel = echo.private(`dashboard.${userId}`);
-    const notificationsChannel = echo.private(`notifications.${userId}`);
+    const staleWebSocketMs = Number(pageRoot.dataset.liveStaleWebsocketMs ?? DEFAULT_STALE_WEBSOCKET_MS);
+    let lastWebSocketMessageAt = Date.now();
+    let staleReconnectAttempted = false;
+    let staleRecoveryFastPoll = false;
+    let staleWatchdogIntervalId = null;
+
+    const touchWebSocketActivity = () => {
+        lastWebSocketMessageAt = Date.now();
+
+        if (staleRecoveryFastPoll) {
+            staleRecoveryFastPoll = false;
+            staleReconnectAttempted = false;
+            stopPolling();
+            if (reverbConnected && dashboardLiveUpdates) {
+                startHeartbeatPolling(pageRoot);
+            }
+
+            updateConnectionIndicator(pageRoot, 'connected', metadata);
+            logRealtime(pageRoot, 'stale_websocket_recovered');
+        }
+    };
+
+    const resetStaleWatchdogState = () => {
+        lastWebSocketMessageAt = Date.now();
+        staleReconnectAttempted = false;
+        staleRecoveryFastPoll = false;
+    };
+
+    const stopStaleWatchdog = () => {
+        if (staleWatchdogIntervalId !== null) {
+            window.clearInterval(staleWatchdogIntervalId);
+            staleWatchdogIntervalId = null;
+        }
+    };
+
+    /**
+     * Stale websocket detection: transport can stay "connected" while application events stop flowing.
+     * Try one forced reconnect, then temporarily use fast fallback polling until events resume.
+     */
+    const startStaleWatchdog = (forceReconnect) => {
+        stopStaleWatchdog();
+
+        staleWatchdogIntervalId = window.setInterval(() => {
+            if (destroyed || ! reverbConnected || document.hidden) {
+                return;
+            }
+
+            if (Date.now() - lastWebSocketMessageAt < staleWebSocketMs) {
+                return;
+            }
+
+            logRealtime(pageRoot, 'stale_websocket_detected', {
+                silentForMs: Date.now() - lastWebSocketMessageAt,
+            });
+
+            if (! staleReconnectAttempted) {
+                staleReconnectAttempted = true;
+                forceReconnect();
+
+                return;
+            }
+
+            if (! staleRecoveryFastPoll && dashboardLiveUpdates) {
+                staleRecoveryFastPoll = true;
+                startFastPolling(pageRoot);
+                updateConnectionIndicator(pageRoot, 'polling', metadata);
+                reportRealtimeConnectionStatus(
+                    pageRoot,
+                    'polling',
+                    'stale_websocket_fast_poll',
+                );
+            }
+        }, STALE_WEBSOCKET_CHECK_MS);
+    };
+
+    const instrumentChannelForActivity = (channel) => {
+        if (! channel?.listen || channel.__activityInstrumented) {
+            return channel;
+        }
+
+        const originalListen = channel.listen.bind(channel);
+
+        channel.listen = (event, handler) => originalListen(event, (...args) => {
+            touchWebSocketActivity();
+
+            return handler(...args);
+        });
+        channel.__activityInstrumented = true;
+
+        return channel;
+    };
+
+    const dashboardChannel = instrumentChannelForActivity(echo.private(`dashboard.${userId}`));
+    const notificationsChannel = instrumentChannelForActivity(echo.private(`notifications.${userId}`));
 
     if (dashboardLiveUpdates) {
         SERVICE_CASE_EVENTS.forEach((eventName) => {
@@ -562,7 +675,8 @@ export const initLiveDashboardReverb = ({
         }
 
         destroyed = true;
-        stopPolling?.();
+        stopStaleWatchdog();
+        stopPolling();
 
         if (onlineHandler) {
             window.removeEventListener('online', onlineHandler);
@@ -583,7 +697,25 @@ export const initLiveDashboardReverb = ({
 
         destroyEchoInstance(echo);
         echo = null;
-        destroyPolling?.();
+        destroyPolling();
+    };
+
+    const forceReconnect = () => {
+        if (destroyed || ! echo) {
+            return;
+        }
+
+        reverbConnected = false;
+        const liveConnection = echo.connector?.pusher?.connection;
+
+        if (! liveConnection) {
+            return;
+        }
+
+        updateConnectionIndicator(pageRoot, 'connecting', metadata);
+        reportRealtimeConnectionStatus(pageRoot, 'connecting', null, { force: true });
+        liveConnection.disconnect();
+        liveConnection.connect();
     };
 
     const setupConnection = () => {
@@ -605,36 +737,23 @@ export const initLiveDashboardReverb = ({
             pageRoot,
             connection: liveConnection,
             metadata,
-            startPolling,
+            startFastPolling: (root) => startFastPolling(root),
+            startHeartbeatPolling: (root) => startHeartbeatPolling(root),
             stopPolling,
-            fallbackPoll,
             dashboardLiveUpdates,
             getConnected: () => reverbConnected,
             setConnected: (value) => {
                 reverbConnected = value;
             },
+            onWebSocketConnected: () => {
+                resetStaleWatchdogState();
+                startStaleWatchdog(forceReconnect);
+            },
+            onWebSocketDisconnected: stopStaleWatchdog,
         });
 
         updateConnectionIndicator(pageRoot, 'connecting', metadata);
         reportRealtimeConnectionStatus(pageRoot, 'connecting');
-    };
-
-    const forceReconnect = () => {
-        if (destroyed || ! echo) {
-            return;
-        }
-
-        reverbConnected = false;
-        const liveConnection = echo.connector?.pusher?.connection;
-
-        if (! liveConnection) {
-            return;
-        }
-
-        updateConnectionIndicator(pageRoot, 'connecting', metadata);
-        reportRealtimeConnectionStatus(pageRoot, 'connecting', null, { force: true });
-        liveConnection.disconnect();
-        liveConnection.connect();
     };
 
     if (connection) {

@@ -4,6 +4,15 @@ import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
 import { isDashboardQuickFilterActive, setServiceCasePagination } from './dashboard-service-case-state';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
+import {
+    configureDashboardPolling,
+    destroyPolling,
+    isPollingActive,
+    startFastPolling,
+    startHeartbeatPolling,
+    startPolling,
+    stopPolling,
+} from './live-dashboard-polling';
 
 const replaceInnerHtml = (elementId, html) => {
     const element = document.getElementById(elementId);
@@ -279,139 +288,26 @@ const refreshDashboard = async (pageRoot) => {
     }
 };
 
+configureDashboardPolling({
+    refreshDashboard,
+    getWorkspaceSession,
+});
+
 export const configureLiveDashboard = (hooks = {}) => {
     dashboardRefreshHooks = hooks;
 };
-
-let pollTimeoutId = null;
-let pollingActive = false;
-let pollPageRoot = null;
-let pollIntervalMs = 30000;
-let pollIntervalActiveMs = 30000;
-let pollIntervalIdleMs = 60000;
-let pollVisibilityHandler = null;
-let pollWorkspaceReleaseHandler = null;
-
-const isDashboardPollingIdle = (pageRoot) => {
-    if (document.visibilityState === 'hidden') {
-        return true;
-    }
-
-    return getWorkspaceSession().isActive();
-};
-
-const resolvePollIntervalMs = (pageRoot) => {
-    const activeMs = Number(pageRoot?.dataset.liveIntervalActive ?? pageRoot?.dataset.liveInterval ?? pollIntervalActiveMs);
-    const idleMs = Number(pageRoot?.dataset.liveIntervalIdle ?? pollIntervalIdleMs);
-
-    return isDashboardPollingIdle(pageRoot) ? idleMs : activeMs;
-};
-
-const reschedulePollingInterval = () => {
-    if (!pollingActive || pollPageRoot === null) {
-        return;
-    }
-
-    const nextIntervalMs = resolvePollIntervalMs(pollPageRoot);
-
-    if (nextIntervalMs === pollIntervalMs) {
-        return;
-    }
-
-    pollIntervalMs = nextIntervalMs;
-
-    if (pollTimeoutId !== null) {
-        window.clearTimeout(pollTimeoutId);
-        pollTimeoutId = null;
-        scheduleNextPoll();
-    }
-};
-
-const bindPollingIntervalListeners = (pageRoot) => {
-    if (pollVisibilityHandler !== null) {
-        return;
-    }
-
-    pollVisibilityHandler = () => {
-        reschedulePollingInterval();
-    };
-
-    pollWorkspaceReleaseHandler = () => {
-        reschedulePollingInterval();
-    };
-
-    document.addEventListener('visibilitychange', pollVisibilityHandler);
-    getWorkspaceSession().onIdle(pollWorkspaceReleaseHandler);
-};
-
-const scheduleNextPoll = () => {
-    if (!pollingActive || pollPageRoot === null || pollTimeoutId !== null) {
-        return;
-    }
-
-    pollIntervalMs = resolvePollIntervalMs(pollPageRoot);
-
-    pollTimeoutId = window.setTimeout(async () => {
-        pollTimeoutId = null;
-
-        const pageRoot = pollPageRoot;
-
-        if (!pollingActive || pageRoot === null) {
-            return;
-        }
-
-        await refreshDashboard(pageRoot);
-
-        if (pollingActive && pollPageRoot === pageRoot) {
-            scheduleNextPoll();
-        }
-    }, pollIntervalMs);
-};
-
-const startPolling = (pageRoot, intervalMs = null) => {
-    if (pollingActive) {
-        return;
-    }
-
-    pollIntervalActiveMs = Number(pageRoot.dataset.liveIntervalActive ?? pageRoot.dataset.liveInterval ?? 30000);
-    pollIntervalIdleMs = Number(pageRoot.dataset.liveIntervalIdle ?? 60000);
-    pollingActive = true;
-    pollPageRoot = pageRoot;
-    pollIntervalMs = intervalMs ?? resolvePollIntervalMs(pageRoot);
-    bindPollingIntervalListeners(pageRoot);
-    scheduleNextPoll();
-};
-
-const stopPolling = () => {
-    pollingActive = false;
-    pollPageRoot = null;
-
-    if (pollTimeoutId === null) {
-        return;
-    }
-
-    window.clearTimeout(pollTimeoutId);
-    pollTimeoutId = null;
-};
-
-const destroyPolling = () => {
-    stopPolling();
-
-    if (pollVisibilityHandler !== null) {
-        document.removeEventListener('visibilitychange', pollVisibilityHandler);
-        pollVisibilityHandler = null;
-    }
-
-    pollWorkspaceReleaseHandler = null;
-};
-
-const isPollingActive = () => pollingActive;
 
 export const initLiveDashboard = (hooks = {}) => {
     const pageRoot = document.getElementById('dashboard-page');
 
     if (!pageRoot?.dataset.liveUrl) {
-        return { startPolling, stopPolling, pageRoot: null };
+        return {
+            startPolling,
+            startFastPolling,
+            startHeartbeatPolling,
+            stopPolling,
+            pageRoot: null,
+        };
     }
 
     configureLiveDashboard(hooks);
@@ -436,6 +332,20 @@ export const initLiveDashboard = (hooks = {}) => {
 
             startPolling(pageRoot);
         },
+        startFastPolling: () => {
+            if (pageRoot.dataset.liveUpdatesEnabled === '0') {
+                return;
+            }
+
+            startFastPolling(pageRoot);
+        },
+        startHeartbeatPolling: () => {
+            if (pageRoot.dataset.liveUpdatesEnabled === '0') {
+                return;
+            }
+
+            startHeartbeatPolling(pageRoot);
+        },
         stopPolling,
         destroyPolling,
         isPollingActive,
@@ -454,6 +364,8 @@ export {
     queueDashboardRefresh,
     refreshDashboard,
     startPolling,
+    startFastPolling,
+    startHeartbeatPolling,
     stopPolling,
     destroyPolling,
     isPollingActive,

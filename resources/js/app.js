@@ -779,11 +779,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (shouldInitEcho) {
             realtimeHandle = initLiveDashboardReverb({
                 pageRoot,
-                startPolling: liveDashboard.startPolling,
-                stopPolling: liveDashboard.stopPolling,
-                destroyPolling: liveDashboard.destroyPolling,
                 hooks: dashboardLiveHooks,
-                fallbackPoll: liveUpdatesEnabled && liveMode === 'auto',
                 dashboardLiveUpdates: liveUpdatesEnabled,
             });
         }
