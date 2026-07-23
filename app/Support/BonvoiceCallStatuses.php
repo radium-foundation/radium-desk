@@ -62,6 +62,11 @@ class BonvoiceCallStatuses
         return in_array(strtolower((string) $direction), ['inbound', 'in', 'incoming'], true);
     }
 
+    public static function isOutbound(?string $direction): bool
+    {
+        return in_array(strtolower((string) $direction), ['outbound', 'out', 'outgoing'], true);
+    }
+
     public static function transitionedToAnswered(?string $previous, ?string $current): bool
     {
         if (! self::isAnsweredStatus($current)) {

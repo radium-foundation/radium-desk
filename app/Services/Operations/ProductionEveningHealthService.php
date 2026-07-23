@@ -12,6 +12,7 @@ use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
+use App\Support\BonvoiceCallStatuses;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
@@ -187,15 +188,15 @@ class ProductionEveningHealthService
             ->whereBetween('started_at', [$rangeStart, $rangeEnd])
             ->get(['direction', 'status']);
 
-        $inbound = $events->where('direction', 'inbound')->count();
-        $outbound = $events->where('direction', 'outbound')->count();
+        $inbound = $events
+            ->filter(fn (BonvoiceCallEvent $event): bool => BonvoiceCallStatuses::isInbound($event->direction))
+            ->count();
+        $outbound = $events
+            ->filter(fn (BonvoiceCallEvent $event): bool => BonvoiceCallStatuses::isOutbound($event->direction))
+            ->count();
         $missed = $events
-            ->where('direction', 'inbound')
-            ->filter(fn (BonvoiceCallEvent $event): bool => in_array(
-                strtolower((string) $event->status),
-                ['missed', 'no-answer', 'no_answer', 'busy', 'failed'],
-                true,
-            ))
+            ->filter(fn (BonvoiceCallEvent $event): bool => BonvoiceCallStatuses::isInbound($event->direction)
+                && BonvoiceCallStatuses::isMissedStatus($event->status))
             ->count();
 
         return [
