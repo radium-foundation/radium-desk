@@ -11,6 +11,7 @@ import {
     applyKpis,
     applyPartialDashboardUpdate,
     configureLiveDashboard,
+    refreshDashboard,
 } from './live-dashboard';
 import {
     destroyPolling,
@@ -430,8 +431,11 @@ const bindConnectionHandlers = ({
         logRealtime(pageRoot, wasConnected ? 'reconnect_success' : 'connection_established');
 
         // Heartbeat mode: keep a low-frequency poll running as a safety net while Reverb is up.
+        // Immediate refresh once per successful connection so reconnect churn cannot delay
+        // the first /dashboard/live past the 60s heartbeat interval.
         stopPollingFn?.();
         if (dashboardLiveUpdates) {
+            void refreshDashboard(pageRoot);
             startHeartbeatPollingFn?.(pageRoot);
         }
 

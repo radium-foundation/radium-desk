@@ -1026,6 +1026,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             bindCockpitChrome();
 
             const anchor = pendingOpenOptions.anchor;
+            const openMoreMenu = pendingOpenOptions.openMoreMenu;
 
             if (anchor) {
                 const drawerBody = drawer.querySelector('[data-customer-360-body]');
@@ -1039,7 +1040,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             }
 
             pendingOpenOptions = {};
-            if (options.openMoreMenu) {
+            if (openMoreMenu) {
                 requestAnimationFrame(() => {
                     openMoreMenuForHost(contentHost);
                 });
