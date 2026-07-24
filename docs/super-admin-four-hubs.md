@@ -4,7 +4,7 @@ Architecture and migration plan for consolidating Super Admin surfaces into four
 
 Routes, permissions, controllers, and business logic remain canonical until a later phase explicitly aliases, relocates, or retires a surface **after production validation and explicit approval**.
 
-**Document status:** H0 (planning) · H1 (sidebar) complete · **H2 (Administration Home) complete**
+**Document status:** H0 (planning) · H1 (sidebar) complete · H2 (Administration Home) complete · H3A (Workforce navigation) complete · H3B (Operations navigation) complete · H3C-1 (merged tab bar) complete · H3C-2A (Automation Health embed) complete · H3C-2B (Automation Pipeline embed) complete · **H3C-3 (Operations sidebar cleanup) complete**
 
 ---
 
@@ -95,7 +95,10 @@ Secondary sidebar links remain during H2/H3 transition; they are **not** removal
 | **H0** | This document + Feature Preservation Register | Inventory only | Delete doc |
 | **H1** ✅ | Sidebar regroup into 4 hubs; all old routes live | No removals | Revert sidebar |
 | **H2** ✅ | **Administration Home** (`admin.administration.index`) — permission-gated card grid linking to Users, System Settings, Application Settings, Audit Logs, Roles note, Integrations placeholder | All Administration routes unchanged; cards are links only | Remove Administration Home route; restore sidebar without Administration primary |
-| **H3** | In-hub tabs/drawers; collapse redundant sidebar children; Workforce360 tab consolidation; Operations automation surfaces as tabs | Every H3 merge keeps URL aliases; no feature deletion | Hide new tabs; restore sidebar children |
+| **H3A** ✅ | Workforce hub navigation: hub nav tabs (Team, Performance, Leave, Holidays) with deep links; remove duplicate Workforce from operator section for admin roles only | All workforce routes unchanged; sidebar Workforce Hub children preserved | Revert hub-nav partial; restore operator Workforce link |
+| **H3B** ✅ | Operations hub navigation: hub nav (Today, Team, Performance, System + Automation Health, Automation, Webhook Explorer deep links) on Control Center and child pages; sidebar unchanged | All operations routes unchanged; inner Control Center tabs preserved | Revert operations hub-nav; remove `hub_tab` JS helper |
+| **H3C** 📋 | Operations consolidation — see [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-consolidation.md). **H3C-1** ✅ · **H3C-2A** ✅ · **H3C-2B** ✅ · **H3C-3** ✅ sidebar cleanup; H3C-4+ pending | All routes preserved as alias entry points | Per sub-phase rollback |
+| **H3** *(umbrella)* | Remaining H3C items below | Every H3 merge keeps URL aliases; no feature deletion | Per sub-phase rollback |
 | **H4** | Mission Control lazy first paint; placeholder cards → deep links; shared KPI read facades (no metric loss) | Placeholders become links to existing surfaces, not deletions | Revert providers; keep aliases |
 | **H5** | Optional renames; deprecated nav cleanup; consolidation polish | Retirements only with explicit approval + production validation | Keep aliases permanently |
 
@@ -115,11 +118,112 @@ Secondary sidebar links remain during H2/H3 transition; they are **not** removal
 - Removing any KPI, widget, tab, drawer, filter, or action
 - Permission or route deletions
 
-### H3 direction (preview)
+### H3A scope (implemented)
+
+**In scope**
+
+- Workforce hub top navigation on `workforce.index`, Team Performance, Holidays, and Leave Requests (admin roles only)
+- Tabs deep-link to existing routes (no embedding)
+- Team sub-tabs limited to Overview + Timeline on hub home
+- Remove duplicate Workforce link from operator sidebar for `admin`, `operations_admin`, `superadmin` only
+
+**Out of scope (H3C+)**
+
+- Inline embedding of Performance / Leave / Holidays pages
+- Collapsing Workforce or Operations Hub sidebar children
+- Administration H3 work
+
+### H3B scope (implemented)
+
+**In scope**
+
+- Operations hub top navigation on Control Center, Automation Health, Automation Operations, Webhook Explorer
+- Control Center tabs Today / Team / Performance / System activate in-page (`data-operations-tab-target`) or via `?hub_tab=` deep link
+- Automation Health, Automation, Webhook Explorer deep-link from hub nav
+- Sidebar entries unchanged
+
+**Out of scope (H3C+)**
+
+- Collapsing Operations Hub sidebar children
+- Embedding automation pages into Control Center
+- KPI or service consolidation
+
+### H3C-1 scope (implemented)
+
+**In scope**
+
+- Single primary Operations hub tab bar on Control Center (merged H3B hub nav + inner dashboard tabs)
+- Today / Team / Performance / System remain Bootstrap lazy tabs with existing IDs, live groups, and polling
+- Automation Health, Automation, Webhook Explorer remain deep links in the merged bar
+- Child pages (Automation Health, Automation, Webhook Explorer) keep standalone hub nav with deep links
+- `?hub_tab=` deep links unchanged (`activateOperationsHubTabFromQuery` in `operations-dashboard.js`)
+
+**Out of scope (H3C-2+)**
+
+- Automation native tab embed
+- Sidebar collapse for Operations children
+- Route aliases
+- Controller, service, permission, polling, caching, or realtime changes
+
+### H3C-2A scope (implemented)
+
+**In scope**
+
+- Native **Automation** tab on Operations Control Center (`?hub_tab=automation`)
+- Lazy-load Automation Health by fetching existing `admin.operations.automation-health` embed fragment (`data-automation-health-embed`)
+- Shared `dashboard-body` partial for standalone page + embed (no duplicated business logic)
+- Execution detail drawer on Control Center; filters/pagination remain in-tab via embed navigation
+- Hub nav: Control Center shows Automation tab; child pages keep Automation Health deep link
+- Permission-gated: `automation-operations.view` required for tab, pane, drawer, and embed URL
+
+**Out of scope (H3C-2B+)**
+
+- Embedding Automation Operations into Automation tab
+- Sidebar collapse
+- Route aliases / redirects
+- Controller, service, query, API, permission, polling, caching, or realtime changes
+
+### H3C-2B scope (implemented)
+
+**In scope**
+
+- **Health** / **Pipeline** secondary nav inside Automation tab (default: Health)
+- Pipeline sub-view lazy-loads `admin.automation.index` embed fragment (`data-automation-pipeline-embed`)
+- Shared `admin/automation/partials/dashboard-body.blade.php` for standalone + embed
+- Deep link: `?hub_tab=automation&automation_view=pipeline`
+- Health sub-view unchanged (H3C-2A behavior)
+- Sidebar unchanged; standalone `/admin/automation` and `/admin/operations/automation-health` preserved
+
+**Out of scope (H3C-3+)**
+
+- Sidebar collapse for Automation Health / Automation
+- Route aliases / redirects
+- Controller, service, query, API, permission, polling, caching, or realtime changes
+
+### H3C-3 scope (implemented)
+
+**In scope**
+
+- Hide **Automation Health** and **Automation** sidebar items for `admin`, `operations_admin`, `superadmin`
+- **Operations** + **Webhook Explorer** remain the Operations Hub sidebar entries
+- Operations sidebar link active on automation standalone routes (`admin.operations.automation-health*`, `admin.automation.*`)
+- Hub nav on child pages: single **Automation** deep link → Control Center (`?hub_tab=automation` / `automation_view=pipeline`)
+- Removed duplicate Automation pipeline link from Control Center hub nav
+- All legacy routes continue to serve standalone pages (no redirects — least disruptive)
+
+**Out of scope (H3C-4+)**
+
+- Webhook Explorer sidebar hide
+- Route redirects
+- Controller, service, or backend changes
+
+### H3 direction — Operations (H3C plan approved for implementation)
+
+See [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-consolidation.md).
 
 | Area | Merge target | Pattern |
 |---|---|---|
-| Automation Health + Automation Operations | Operations Control Center | New tab(s) on existing `admin.operations.index`; routes remain |
+| Automation Health + Automation Operations | Operations Control Center **Automation tab** (Health + Pipeline sub-views) | Embed on `admin.operations.index`; standalone routes → aliases |
 | Team Performance, Holidays, Leave queue | Workforce360 | Inline tabs on `workforce.index`; routes remain |
 | Audit log detail | Administration | Drawer from Audit list |
 | Administration sidebar children | Administration Home | Hide nav items; cards + in-page links remain |
@@ -265,13 +369,13 @@ Secondary sidebar links remain during H2/H3 transition; they are **not** removal
 | WF-03 | Member list | Workforce360 team | Team roster + status | Ops lead | High | Workforce | Overview tab | Member list | Keep | No |
 | WF-04 | Tab: Overview | Team page | Default team view | Ops lead | High | Workforce | Hub home | Overview | Keep | No |
 | WF-05 | Tab: Timeline (placeholder) | Team page | Future timeline | Ops lead | Placeholder | Workforce | Hub home | Timeline | Keep stub | No |
-| WF-06 | Tab: Leave Queue → external | Team tabs | Admin leave review | Ops lead | Medium | Workforce | H3: inline tab | Leave | Convert tab | No |
-| WF-07 | Tab: Holidays → external | Team tabs | Holiday management | Ops lead | Medium | Workforce | H3: inline tab | Holidays | Convert tab | No |
+| WF-06 | Tab: Leave Queue → external | Team tabs | Admin leave review | Ops lead | Medium | Workforce | Hub nav → Leave (H3A) | Leave | **Deep link (H3A)** | No |
+| WF-07 | Tab: Holidays → external | Team tabs | Holiday management | Ops lead | Medium | Workforce | Hub nav → Holidays (H3A) | Holidays | **Deep link (H3A)** | No |
 | WF-08 | Member 360 (`workforce.show`) | Member page | Individual drill-down | Ops lead | High | Workforce | Standalone drill-down | Member tabs | Keep | No |
 | WF-09 | Member tabs (overview/schedule/attendance/leave/workload) | Member page | Self-service + admin view | Agent, ops lead | High | Workforce | Member page | Tabs | Keep | No |
 | WF-10 | Member: block reasons | Member overview | Explain non-assignment | Ops lead | Medium | Workforce | Member overview | Card | Keep | No |
 | WF-11 | Member: quick actions | Member overview | Leave request, performance link | Agent | Medium | Workforce | Member overview | Quick actions | Keep | No |
-| WF-12 | Team Performance page | `admin.workforce.performance.index` | Period team metrics | Ops lead | Medium | Workforce | H3: Workforce tab | Performance | Convert tab | No |
+| WF-12 | Team Performance page | `admin.workforce.performance.index` | Period team metrics | Ops lead | Medium | Workforce | Hub nav → Performance (H3A); embed H3B | Performance | **Deep link (H3A)** | No |
 | WF-13 | Performance period filter | Team Performance | Date range selection | Ops lead | Medium | Workforce | Performance tab | Filter | Keep | No |
 | WF-14 | IRA performance insights | Team Performance | Coaching insights | Ops lead | Medium | Workforce | Performance tab | Insights | Keep | No |
 | WF-15 | Per-member performance cards | Team Performance | Individual scorecards | Ops lead | Medium | Workforce | Performance tab | Cards | Keep | No |
@@ -280,7 +384,7 @@ Secondary sidebar links remain during H2/H3 transition; they are **not** removal
 | WF-18 | Leave approve/reject actions | Leave show | Admin approval | Ops lead | Medium | Workforce | Leave workflow | Actions | Keep | No |
 | WF-19 | My Workforce (`my-workforce.index`) | Self route | Agent self view | Agent | High | Workforce *(self)* | Out of Super Admin hubs | Member 360 | Keep as-is | No |
 | WF-20 | Your Performance (`my-performance.index`) | Self route | Agent self metrics | Agent | Medium | Workforce *(self)* | Out of Super Admin hubs | Performance | Keep as-is | No |
-| WF-21 | Duplicate Workforce nav (operator section) | Sidebar | Legacy entry | Admin | Medium | Workforce | H3: remove nav only | — | Hide nav | No |
+| WF-21 | Duplicate Workforce nav (operator section) | Sidebar | Legacy entry | Admin | Medium | Workforce | Removed for admin roles (H3A) | — | **Hide nav (H3A)** | No |
 
 ### Register G — Administration (current + H2 Administration Home)
 

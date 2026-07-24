@@ -8,6 +8,10 @@
         data-live-url="{{ route('admin.operations.live') }}"
         data-live-interval="{{ $operationsPollIntervalMs ?? 30000 }}"
         data-live-full-interval="{{ $operationsFullRefreshIntervalMs ?? 120000 }}"
+        @can('automation-operations.view')
+            data-automation-health-url="{{ route('admin.operations.automation-health') }}"
+            data-automation-pipeline-url="{{ route('admin.automation.index') }}"
+        @endcan
     >
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
             <div>
@@ -19,6 +23,13 @@
                 Updated {{ \App\Support\AppDateFormatter::format($dashboard->generatedAt, 'H:i') }}
             </div>
         </div>
+
+        @php
+            $operationsHubTab = request()->query('hub_tab', 'today');
+            $operationsHubActive = in_array($operationsHubTab, ['today', 'team', 'performance', 'system', 'automation'], true)
+                ? $operationsHubTab
+                : 'today';
+        @endphp
 
         <section class="operations-command-center" aria-label="Operations command center">
             <div id="operations-critical-alerts" class="operations-bento-row operations-bento-row--alerts">
@@ -56,68 +67,10 @@
 
         <div class="operations-dashboard-tabs card border-0 shadow-sm operations-card-hover">
             <div class="card-header bg-white border-bottom-0 pb-0 operations-dashboard-tabs-header">
-                <ul class="nav nav-tabs card-header-tabs operations-dashboard-tablist flex-nowrap overflow-auto" id="operations-dashboard-tabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button
-                            class="nav-link active"
-                            id="operations-tab-today"
-                            data-bs-toggle="tab"
-                            data-bs-target="#operations-pane-today"
-                            data-operations-live-group="today"
-                            type="button"
-                            role="tab"
-                            aria-controls="operations-pane-today"
-                            aria-selected="true"
-                        >
-                            Today
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button
-                            class="nav-link"
-                            id="operations-tab-team"
-                            data-bs-toggle="tab"
-                            data-bs-target="#operations-pane-team"
-                            data-operations-live-group="team"
-                            type="button"
-                            role="tab"
-                            aria-controls="operations-pane-team"
-                            aria-selected="false"
-                        >
-                            Team
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button
-                            class="nav-link"
-                            id="operations-tab-performance"
-                            data-bs-toggle="tab"
-                            data-bs-target="#operations-pane-performance"
-                            data-operations-live-group="performance"
-                            type="button"
-                            role="tab"
-                            aria-controls="operations-pane-performance"
-                            aria-selected="false"
-                        >
-                            Performance
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button
-                            class="nav-link"
-                            id="operations-tab-system"
-                            data-bs-toggle="tab"
-                            data-bs-target="#operations-pane-system"
-                            data-operations-live-group="system"
-                            type="button"
-                            role="tab"
-                            aria-controls="operations-pane-system"
-                            aria-selected="false"
-                        >
-                            System
-                        </button>
-                    </li>
-                </ul>
+                @include('admin.operations.partials.hub-nav', [
+                    'active' => $operationsHubActive,
+                    'onControlCenter' => true,
+                ])
             </div>
 
             <div class="card-body pt-3">
@@ -177,10 +130,30 @@
                             @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading system health…'])
                         </div>
                     </div>
+
+                    @can('automation-operations.view')
+                        <div
+                            class="tab-pane fade"
+                            id="operations-pane-automation"
+                            role="tabpanel"
+                            aria-labelledby="operations-tab-automation"
+                            tabindex="0"
+                            data-operations-lazy-group="automation"
+                            data-operations-lazy-loaded="false"
+                        >
+                            <div id="operations-tab-automation-content">
+                                @include('admin.operations.partials.automation-tab-shell')
+                            </div>
+                        </div>
+                    @endcan
                 </div>
             </div>
         </div>
     </div>
+
+    @can('automation-operations.view')
+        @include('admin.automation-health.partials.detail-drawer')
+    @endcan
 
     <div class="modal fade" id="operations-ira-full-analysis-modal" tabindex="-1" aria-labelledby="operations-ira-full-analysis-modal-label" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">

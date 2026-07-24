@@ -8,6 +8,8 @@
         <p class="text-muted mb-0">Operational intelligence for workforce attendance, presence, and customer work.</p>
     </div>
 
+    @include('workforce.partials.hub-nav', ['active' => 'performance'])
+
     @include('partials.performance-period-filter', [
         'action' => route('admin.workforce.performance.index'),
         'period' => $period,

@@ -51,10 +51,16 @@
             </li>
             <li class="nav-item">
                 @can('workforce360.viewTeam')
-                    <a @class(['nav-link', 'active' => request()->routeIs('workforce.*')]) href="{{ route('workforce.index') }}" title="Workforce">
-                        <i class="bi bi-people-fill nav-icon me-2"></i>
-                        <span class="nav-label">Workforce</span>
-                    </a>
+                    @unless(auth()->user()?->hasAnyRole([
+                        RolePermissionSeeder::ROLE_ADMIN,
+                        RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
+                        RolePermissionSeeder::ROLE_SUPERADMIN,
+                    ]))
+                        <a @class(['nav-link', 'active' => request()->routeIs('workforce.*')]) href="{{ route('workforce.index') }}" title="Workforce">
+                            <i class="bi bi-people-fill nav-icon me-2"></i>
+                            <span class="nav-label">Workforce</span>
+                        </a>
+                    @endunless
                 @endcan
             </li>
             <li class="nav-item">
@@ -105,25 +111,9 @@
             <ul class="nav flex-column">
                 <li class="nav-item">
                     @can('operations-dashboard.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.index', 'admin.operations.live')]) href="{{ route('admin.operations.index') }}" title="Operations Control Center">
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.index', 'admin.operations.live', 'admin.operations.automation-health*', 'admin.automation.*')]) href="{{ route('admin.operations.index') }}" title="Operations Control Center">
                             <i class="bi bi-sliders nav-icon me-2"></i>
                             <span class="nav-label">Operations</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('automation-operations.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.automation-health*')]) href="{{ route('admin.operations.automation-health') }}" title="Automation Health">
-                            <i class="bi bi-heart-pulse nav-icon me-2"></i>
-                            <span class="nav-label">Automation Health</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('automation-operations.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.automation.*')]) href="{{ route('admin.automation.index') }}" title="Automation Operations">
-                            <i class="bi bi-robot nav-icon me-2"></i>
-                            <span class="nav-label">Automation</span>
                         </a>
                     @endcan
                 </li>

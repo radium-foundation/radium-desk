@@ -8,13 +8,9 @@
         <p class="text-muted mb-0">Monitor automation platform health from the unified execution ledger.</p>
     </div>
 
-    @include('admin.automation-health.partials.overview-cards', ['overview' => $dashboard['overview']])
-    @include('admin.automation-health.partials.breakdown', ['breakdown' => $dashboard['breakdown']])
-    @include('admin.automation-health.partials.filters', [
-        'filterOptions' => $dashboard['filter_options'],
-        'filters' => $dashboard['filters'],
-    ])
-    @include('admin.automation-health.partials.activity-table', ['activity' => $dashboard['activity']])
-    @include('admin.automation-health.partials.failures', ['failures' => $dashboard['failures']])
+    @include('admin.operations.partials.hub-nav', ['active' => 'automation-health'])
+
+    @include('admin.automation-health.partials.dashboard-body', ['dashboard' => $dashboard])
+
     @include('admin.automation-health.partials.detail-drawer')
 @endsection

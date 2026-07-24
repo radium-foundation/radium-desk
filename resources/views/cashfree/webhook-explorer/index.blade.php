@@ -8,6 +8,8 @@
         <p class="text-muted mb-0">Inspect incoming Cashfree webhook payloads captured from production.</p>
     </div>
 
+    @include('admin.operations.partials.hub-nav', ['active' => 'webhook-explorer'])
+
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <h2 class="h6 mb-0">Security</h2>

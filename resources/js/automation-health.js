@@ -69,6 +69,50 @@ const openDrawer = async (drawer, url) => {
     }
 };
 
+export const bindAutomationHealthEmbed = (container, reload) => {
+    if (!container || typeof reload !== 'function' || container.dataset.automationHealthEmbedBound === 'true') {
+        return;
+    }
+
+    container.dataset.automationHealthEmbedBound = 'true';
+
+    const form = container.querySelector('form[action*="automation-health"]');
+
+    if (form) {
+        form.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const actionUrl = new URL(form.action, window.location.origin);
+            const formData = new FormData(form);
+
+            formData.forEach((value, key) => {
+                if (typeof value === 'string' && value === '') {
+                    actionUrl.searchParams.delete(key);
+
+                    return;
+                }
+
+                actionUrl.searchParams.set(key, String(value));
+            });
+
+            reload(actionUrl.toString());
+        });
+    }
+
+    container.addEventListener('click', (event) => {
+        const link = event.target instanceof Element
+            ? event.target.closest('a[href*="automation-health"]')
+            : null;
+
+        if (!link || !container.contains(link)) {
+            return;
+        }
+
+        event.preventDefault();
+        reload(link.href);
+    });
+};
+
 export const initAutomationHealth = () => {
     const drawer = document.querySelector('[data-automation-health-drawer]');
 

@@ -7,11 +7,13 @@
 
     @include('workforce.partials.capacity-strip', ['capacity' => $workforce->capacity])
 
+    @include('workforce.partials.hub-nav', ['active' => 'team'])
+
     @php
         $tabs = collect($workforce->tabs)
             ->filter(function (array $tab): bool {
-                if (($tab['key'] ?? '') === 'holidays') {
-                    return auth()->user()?->can('viewAny', App\Models\CompanyHoliday::class) ?? false;
+                if (! in_array($tab['key'] ?? '', ['overview', 'timeline'], true)) {
+                    return false;
                 }
 
                 return true;

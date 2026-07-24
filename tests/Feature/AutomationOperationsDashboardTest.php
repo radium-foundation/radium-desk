@@ -239,15 +239,22 @@ class AutomationOperationsDashboardTest extends TestCase
             ->assertSee('Shift Admin reassignment');
     }
 
-    public function test_sidebar_shows_automation_link_for_admin(): void
+    public function test_sidebar_shows_operations_entry_and_hides_automation_children_for_admin(): void
     {
         $admin = $this->createAdminUser('admin-nav@test.com');
 
-        $this->actingAs($admin)
+        $html = $this->actingAs($admin)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Automation')
-            ->assertSee(route('admin.automation.index'), false);
+            ->getContent();
+
+        $this->assertStringContainsString(route('admin.operations.index'), $html);
+        $this->assertStringNotContainsString('title="Automation Operations"', $html);
+        $this->assertStringNotContainsString('title="Automation Health"', $html);
+        $this->assertStringNotContainsString(
+            'href="'.route('admin.automation.index').'"',
+            $html,
+        );
     }
 
     public function test_dashboard_does_not_call_analyzer_on_http_request(): void

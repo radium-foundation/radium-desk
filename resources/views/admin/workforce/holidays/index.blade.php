@@ -8,6 +8,8 @@
         <p class="text-muted mb-0">Holidays block automatic assignment. Emergency overrides can be added in a future phase.</p>
     </div>
 
+    @include('workforce.partials.hub-nav', ['active' => 'holidays'])
+
     <div class="row g-4">
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm">

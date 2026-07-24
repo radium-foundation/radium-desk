@@ -15,6 +15,8 @@
         @endcan
     </div>
 
+    @include('workforce.partials.hub-nav', ['active' => 'leave'])
+
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" action="{{ route('leave-requests.index') }}" class="row g-3">

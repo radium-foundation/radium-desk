@@ -1,3 +1,5 @@
+import { bindAutomationHealthEmbed, initAutomationHealth } from './automation-health';
+
 const SECTION_TARGETS = {
     critical_alerts: 'operations-critical-alerts',
     overview_cards: 'operations-overview-cards',
@@ -52,6 +54,7 @@ const TAB_GROUP_BY_PANE = {
     'operations-pane-team': 'team',
     'operations-pane-performance': 'performance',
     'operations-pane-system': 'system',
+    'operations-pane-automation': 'automation',
 };
 
 const TAB_CONTENT_TARGETS = {
@@ -59,6 +62,7 @@ const TAB_CONTENT_TARGETS = {
     team: 'operations-tab-team-content',
     performance: 'operations-tab-performance-content',
     system: 'operations-tab-system-content',
+    automation: 'operations-tab-automation-content',
 };
 
 const TAB_SECTION_KEYS = {
@@ -66,6 +70,16 @@ const TAB_SECTION_KEYS = {
     team: 'team_tab',
     performance: 'performance_tab',
     system: 'system_tab',
+};
+
+const AUTOMATION_SUBVIEW_TARGETS = {
+    health: 'operations-automation-health-content',
+    pipeline: 'operations-automation-pipeline-content',
+};
+
+const AUTOMATION_EMBED_SELECTORS = {
+    health: '[data-automation-health-embed]',
+    pipeline: '[data-automation-pipeline-embed]',
 };
 
 const FETCH_TIMEOUT_MS = 30000;
@@ -303,6 +317,31 @@ const fetchLiveGroups = async (pageRoot, groups, { timeoutMs = FETCH_TIMEOUT_MS 
     }
 };
 
+const activateOperationsHubTabFromQuery = (pageRoot) => {
+    const hubTab = new URLSearchParams(window.location.search).get('hub_tab');
+    const selectors = {
+        today: '#operations-tab-today',
+        team: '#operations-tab-team',
+        performance: '#operations-tab-performance',
+        system: '#operations-tab-system',
+        automation: '#operations-tab-automation',
+    };
+
+    const selector = selectors[hubTab];
+
+    if (!selector) {
+        return;
+    }
+
+    const tabButton = pageRoot.querySelector(selector);
+
+    if (!tabButton || !window.bootstrap?.Tab) {
+        return;
+    }
+
+    window.bootstrap.Tab.getOrCreateInstance(tabButton).show();
+};
+
 const bindOperationsTabShortcuts = (pageRoot) => {
     pageRoot.querySelectorAll('[data-operations-tab-target]').forEach((trigger) => {
         if (trigger.dataset.operationsTabBound === 'true') {
@@ -386,7 +425,228 @@ const resetTabLoaded = (pageRoot, group) => {
     }
 };
 
+const resolveAutomationHealthEmbedUrl = (pageRoot, url = null) => {
+    const resolvedUrl = url ?? pageRoot.dataset.automationHealthUrl?.trim() ?? '';
+
+    if (resolvedUrl === '') {
+        throw new Error('Automation Health is not available on this page.');
+    }
+
+    return resolvedUrl;
+};
+
+const resolveAutomationPipelineEmbedUrl = (pageRoot, url = null) => {
+    const resolvedUrl = url ?? pageRoot.dataset.automationPipelineUrl?.trim() ?? '';
+
+    if (resolvedUrl === '') {
+        throw new Error('Automation Pipeline is not available on this page.');
+    }
+
+    return resolvedUrl;
+};
+
+const resolveAutomationSubviewFromQuery = () => {
+    const subview = new URLSearchParams(window.location.search).get('automation_view');
+
+    return subview === 'pipeline' ? 'pipeline' : 'health';
+};
+
+const fetchAutomationEmbedHtml = async (url, embedSelector) => {
+    const response = await fetch(url, {
+        credentials: 'same-origin',
+        headers: {
+            Accept: 'text/html',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Automation content failed to load (${response.status}).`);
+    }
+
+    const documentHtml = await response.text();
+    const parsedDocument = new DOMParser().parseFromString(documentHtml, 'text/html');
+    const embedRoot = parsedDocument.querySelector(embedSelector);
+
+    if (!embedRoot) {
+        throw new Error('Automation content is unavailable.');
+    }
+
+    return embedRoot.innerHTML;
+};
+
+const resetAutomationSubviewLoaded = (subview) => {
+    const targetElement = document.getElementById(AUTOMATION_SUBVIEW_TARGETS[subview]);
+
+    if (targetElement) {
+        targetElement.dataset.operationsAutomationSubviewLoaded = 'false';
+    }
+};
+
+const markAutomationSubviewLoaded = (subview) => {
+    const targetElement = document.getElementById(AUTOMATION_SUBVIEW_TARGETS[subview]);
+
+    if (targetElement) {
+        targetElement.dataset.operationsAutomationSubviewLoaded = 'true';
+    }
+};
+
+const bindAutomationSubnav = (pageRoot) => {
+    const automationRoot = pageRoot.querySelector('[data-operations-automation-tab]');
+
+    if (!automationRoot || automationRoot.dataset.automationSubnavBound === 'true') {
+        return;
+    }
+
+    automationRoot.dataset.automationSubnavBound = 'true';
+
+    automationRoot.querySelectorAll('[data-automation-subview-target]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const subview = button.dataset.automationSubviewTarget;
+
+            if (!subview) {
+                return;
+            }
+
+            activateAutomationSubview(pageRoot, subview);
+        });
+    });
+};
+
+const activateAutomationSubview = async (pageRoot, subview, { force = false } = {}) => {
+    const automationRoot = pageRoot.querySelector('[data-operations-automation-tab]');
+
+    if (!automationRoot) {
+        return false;
+    }
+
+    const normalizedSubview = subview === 'pipeline' ? 'pipeline' : 'health';
+
+    automationRoot.querySelectorAll('[data-automation-subview-target]').forEach((button) => {
+        const isActive = button.dataset.automationSubviewTarget === normalizedSubview;
+
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    automationRoot.querySelectorAll('[data-automation-subview-pane]').forEach((pane) => {
+        const isActive = pane.dataset.automationSubviewPane === normalizedSubview;
+
+        pane.classList.toggle('d-none', !isActive);
+    });
+
+    if (normalizedSubview === 'pipeline') {
+        return loadAutomationPipelineSubview(pageRoot, { force });
+    }
+
+    return loadAutomationHealthSubview(pageRoot, { force });
+};
+
+const loadAutomationHealthSubview = async (pageRoot, { force = false, url = null } = {}) => {
+    const targetId = AUTOMATION_SUBVIEW_TARGETS.health;
+    const targetElement = document.getElementById(targetId);
+
+    if (!targetElement) {
+        return false;
+    }
+
+    if (!force && targetElement.dataset.operationsAutomationSubviewLoaded === 'true') {
+        return true;
+    }
+
+    try {
+        const embedUrl = resolveAutomationHealthEmbedUrl(pageRoot, url);
+        const embedHtml = await fetchAutomationEmbedHtml(embedUrl, AUTOMATION_EMBED_SELECTORS.health);
+
+        replaceSectionHtml(targetId, embedHtml);
+        markAutomationSubviewLoaded('health');
+        delete targetElement.dataset.automationHealthEmbedBound;
+        bindAutomationHealthEmbed(targetElement, (nextUrl) => {
+            loadAutomationHealthSubview(pageRoot, { force: true, url: nextUrl });
+        });
+        initAutomationHealth();
+
+        return true;
+    } catch (error) {
+        resetAutomationSubviewLoaded('health');
+        showLazyLoadError(
+            targetId,
+            error instanceof Error ? error.message : 'Unable to load Automation Health right now.',
+            () => {
+                replaceSectionHtml(targetId, renderLazySkeleton('Retrying…'));
+                loadAutomationHealthSubview(pageRoot, { force: true, url });
+            },
+        );
+
+        return false;
+    }
+};
+
+const loadAutomationPipelineSubview = async (pageRoot, { force = false, url = null } = {}) => {
+    const targetId = AUTOMATION_SUBVIEW_TARGETS.pipeline;
+    const targetElement = document.getElementById(targetId);
+
+    if (!targetElement) {
+        return false;
+    }
+
+    if (!force && targetElement.dataset.operationsAutomationSubviewLoaded === 'true') {
+        return true;
+    }
+
+    try {
+        const embedUrl = resolveAutomationPipelineEmbedUrl(pageRoot, url);
+        const embedHtml = await fetchAutomationEmbedHtml(embedUrl, AUTOMATION_EMBED_SELECTORS.pipeline);
+
+        replaceSectionHtml(targetId, embedHtml);
+        markAutomationSubviewLoaded('pipeline');
+
+        return true;
+    } catch (error) {
+        resetAutomationSubviewLoaded('pipeline');
+        showLazyLoadError(
+            targetId,
+            error instanceof Error ? error.message : 'Unable to load Automation Pipeline right now.',
+            () => {
+                replaceSectionHtml(targetId, renderLazySkeleton('Retrying…'));
+                loadAutomationPipelineSubview(pageRoot, { force: true, url });
+            },
+        );
+
+        return false;
+    }
+};
+
+const loadAutomationTab = async (pageRoot, { force = false } = {}) => {
+    const pane = pageRoot.querySelector('[data-operations-lazy-group="automation"]');
+
+    if (!pane) {
+        return false;
+    }
+
+    if (!force && pane.dataset.operationsLazyLoaded === 'true') {
+        return true;
+    }
+
+    bindAutomationSubnav(pageRoot);
+
+    const subview = resolveAutomationSubviewFromQuery();
+    const loaded = await activateAutomationSubview(pageRoot, subview, { force });
+
+    if (loaded) {
+        markTabLoaded(pageRoot, 'automation');
+    } else {
+        resetTabLoaded(pageRoot, 'automation');
+    }
+
+    return loaded;
+};
+
 const loadLazyTab = async (pageRoot, group, { force = false } = {}) => {
+    if (group === 'automation') {
+        return loadAutomationTab(pageRoot, { force });
+    }
+
     const pane = pageRoot.querySelector(`[data-operations-lazy-group="${group}"]`);
     const targetId = TAB_CONTENT_TARGETS[group];
     const sectionKey = TAB_SECTION_KEYS[group];
@@ -745,6 +1005,22 @@ const guardAgainstStaleLazyPlaceholders = (pageRoot) => {
                 return;
             }
 
+            const automationTabPane = placeholder.closest('[data-operations-automation-tab]');
+
+            if (automationTabPane) {
+                const operationsAutomationPane = pageRoot.querySelector('#operations-pane-automation');
+
+                if (!operationsAutomationPane?.classList.contains('active')) {
+                    return;
+                }
+
+                const pipelineSubview = placeholder.closest('[data-automation-subview-pane="pipeline"]');
+
+                if (pipelineSubview?.classList.contains('d-none')) {
+                    return;
+                }
+            }
+
             const target = placeholder.closest('[id]');
 
             if (!target?.id || target.querySelector('.operations-lazy-error')) {
@@ -815,13 +1091,18 @@ const initOperationsDashboard = async () => {
 
     bindBatchRecoveryForms(pageRoot);
     bindOperationsTabShortcuts(pageRoot);
+    activateOperationsHubTabFromQuery(pageRoot);
     bindIraInsightToggleLabels(pageRoot);
     bindIraFullAnalysisModal(pageRoot);
     bindStickyOperationsTabs(pageRoot);
 
     await refreshOperationsDashboard(pageRoot, { surfaceErrors: true });
 
-    if (isTabStillLoading('today')) {
+    const hubTab = new URLSearchParams(window.location.search).get('hub_tab');
+
+    if (hubTab === 'automation' && pageRoot.dataset.automationHealthUrl) {
+        await loadAutomationTab(pageRoot, { force: true });
+    } else if (isTabStillLoading('today')) {
         await loadLazyTab(pageRoot, 'today', { force: true });
     }
 
@@ -839,6 +1120,9 @@ export {
     initOperationsDashboard,
     isLazyPlaceholderHtml,
     loadHealthDetail,
+    loadAutomationHealthSubview,
+    loadAutomationPipelineSubview,
+    loadAutomationTab,
     loadLazyTab,
     refreshOperationsDashboard,
     renderLazySkeleton,
