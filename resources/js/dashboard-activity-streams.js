@@ -37,10 +37,24 @@ const setStreamCollapsed = (section, collapsed) => {
     panel.hidden = collapsed;
 };
 
+const mountThreadHistory = (thread) => {
+    const history = thread.querySelector('[data-activity-thread-history]');
+    const source = thread.querySelector('template[data-activity-thread-history-source]');
+
+    if (!history || !source || history.childElementCount > 0) {
+        return history;
+    }
+
+    history.appendChild(source.content.cloneNode(true));
+
+    return history;
+};
+
 const setThreadExpanded = (thread, expanded) => {
     const toggle = thread.querySelector('[data-activity-thread-toggle]');
-    const history = thread.querySelector('[data-activity-thread-history]');
-    const label = thread.querySelector('[data-activity-thread-toggle-label]');
+    const history = expanded
+        ? mountThreadHistory(thread)
+        : thread.querySelector('[data-activity-thread-history]');
 
     if (!toggle || !history) {
         return;
@@ -48,11 +62,9 @@ const setThreadExpanded = (thread, expanded) => {
 
     thread.classList.toggle('is-expanded', expanded);
     toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    toggle.setAttribute('aria-label', expanded ? 'Hide history' : 'Show history');
+    toggle.setAttribute('title', expanded ? 'Hide history' : 'History');
     history.hidden = !expanded;
-
-    if (label) {
-        label.textContent = expanded ? 'Hide' : 'History';
-    }
 };
 
 const restoreStreamState = (feed) => {

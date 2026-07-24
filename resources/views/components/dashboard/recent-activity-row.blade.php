@@ -1,30 +1,21 @@
 @props([
     'item',
     'showIncident' => true,
-    'threadCount' => null,
 ])
 
 @php
-    $indicatorVariant = match ($item->indicatorVariant) {
-        'communication' => 'info',
-        'automation' => 'automation',
-        'remark' => 'muted',
-        'error' => 'danger',
-        default => $item->indicatorVariant,
-    };
-    $incidentLabel = $item->incidentLabel();
-    $primaryName = $item->primaryName();
-    $chips = $item->chips();
     $isClickable = $item->entityIncidentId !== null;
-    $customer360Label = filled($item->customerName) ? $item->customerName : ($incidentLabel !== '' ? $incidentLabel : $primaryName);
+    $statusMark = $item->statusMark();
+    $customer360Label = $isClickable ? $item->customer360Label() : null;
+    $incidentLabel = $showIncident ? $item->incidentLabel() : '';
 @endphp
 
 <div @class([
         'dashboard-activity-entry',
-        'dashboard-activity-entry--indicator-'.$indicatorVariant,
         'dashboard-activity-entry--clickable' => $isClickable,
         'dashboard-activity-entry--history' => ! $showIncident,
     ])
+     @if($statusMark) data-status="{{ $statusMark }}" @endif
      @if($isClickable)
          data-dashboard-activity-entry
          data-incident-id="{{ $item->entityIncidentId }}"
@@ -33,35 +24,19 @@
          tabindex="0"
          aria-label="Open Customer 360 for {{ $customer360Label }}"
      @endif>
-    <div class="dashboard-activity-entry-icon" aria-hidden="true">{{ $item->icon() }}</div>
+    <svg class="dashboard-activity-entry-icon" width="12" height="12" aria-hidden="true" focusable="false">
+        <use href="#da-{{ $item->iconKey() }}"></use>
+    </svg>
 
-    <div class="dashboard-activity-entry-main">
-        <div class="dashboard-activity-entry-top">
-            <span class="dashboard-activity-entry-name">{{ $primaryName }}</span>
-            <time class="dashboard-activity-entry-time"
-                  datetime="{{ $item->occurredAt->toIso8601String() }}"
-                  title="{{ $item->exactTime }}">
-                {{ $item->compactTime }}
-            </time>
-        </div>
+    <span class="dashboard-activity-entry-name" title="{{ $item->primaryName() }}">{{ $item->primaryName() }}</span>
 
-        <div class="dashboard-activity-entry-action">{{ $item->title }}</div>
+    <span class="dashboard-activity-entry-action" title="{{ $item->title }}">{{ $item->actionLabel() }}</span>
 
-        @if($showIncident && $incidentLabel !== '')
-            <div class="dashboard-activity-entry-ids">
-                <span class="dashboard-activity-entry-incident-label">{{ $incidentLabel }}</span>
-                @if($threadCount)
-                    <span class="dashboard-activity-thread-count">({{ $threadCount }})</span>
-                @endif
-            </div>
-        @endif
+    <span class="dashboard-activity-entry-incident-label" @if($incidentLabel !== '') title="{{ $incidentLabel }}" @endif>{{ $incidentLabel }}</span>
 
-        @if($chips !== [])
-            <div class="dashboard-activity-entry-chips">
-                @foreach($chips as $chip)
-                    <span class="dashboard-activity-pill">{{ $chip }}</span>
-                @endforeach
-            </div>
-        @endif
-    </div>
+    <span class="dashboard-activity-channel">{{ $item->channelBadge() }}</span>
+
+    <time class="dashboard-activity-entry-time"
+          datetime="{{ $item->occurredAt->toIso8601String() }}"
+          title="{{ $item->exactTime }}">{{ $item->compactTime }}</time>
 </div>

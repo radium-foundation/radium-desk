@@ -22,12 +22,13 @@ describe('dashboard activity streams', () => {
                     <section class="dashboard-activity-stream" data-dashboard-activity-stream="team" data-collapsed-default="0">
                         <button type="button" data-dashboard-activity-stream-toggle aria-expanded="true">Team</button>
                         <ul data-dashboard-activity-stream-panel>
-                            <li data-activity-thread data-activity-thread-incident="42">
+                            <li class="dashboard-activity-thread--collapsible" data-activity-thread data-activity-thread-incident="42">
                                 <div data-dashboard-activity-entry data-incident-id="42">row</div>
-                                <button type="button" data-activity-thread-toggle aria-expanded="false">
-                                    <span data-activity-thread-toggle-label>History</span>
-                                </button>
-                                <div data-activity-thread-history hidden>older</div>
+                                <button type="button" data-activity-thread-toggle aria-expanded="false" aria-label="Show history"></button>
+                                <template data-activity-thread-history-source>
+                                    <div class="history-row">older</div>
+                                </template>
+                                <div data-activity-thread-history hidden></div>
                             </li>
                         </ul>
                     </section>
@@ -66,7 +67,7 @@ describe('dashboard activity streams', () => {
         api?.destroy();
     });
 
-    it('toggles thread history without requiring per-element rebinding', () => {
+    it('lazy-mounts thread history from template on expand', () => {
         const root = document.getElementById('dashboard-page');
         initDashboardActivityStreams(root);
 
@@ -74,10 +75,15 @@ describe('dashboard activity streams', () => {
         const history = thread.querySelector('[data-activity-thread-history]');
         const toggle = thread.querySelector('[data-activity-thread-toggle]');
 
+        expect(history.childElementCount).toBe(0);
+
         toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
         expect(thread.classList.contains('is-expanded')).toBe(true);
         expect(history.hidden).toBe(false);
+        expect(history.childElementCount).toBe(1);
+        expect(history.textContent).toContain('older');
+        expect(toggle.getAttribute('aria-label')).toBe('Hide history');
         expect(sessionStorage.getItem('radium.dashboardActivityThread.42')).toBe('1');
     });
 

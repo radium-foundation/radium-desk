@@ -5,6 +5,8 @@
 <div class="dashboard-activity-feed" data-dashboard-activity-feed>
     <h2 class="dashboard-section-title dashboard-section-title--secondary mb-0">Recent Activity</h2>
 
+    <x-dashboard.recent-activity-icon-sprite />
+
     @foreach($streams->sections() as $section)
         <section class="dashboard-activity-stream @if($section['collapsed_default']) is-collapsed @endif"
                  data-dashboard-activity-stream="{{ $section['key'] }}"

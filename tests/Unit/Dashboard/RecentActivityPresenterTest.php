@@ -87,7 +87,7 @@ class RecentActivityPresenterTest extends TestCase
         $this->assertNotNull($item);
         $this->assertSame('Rahul Sharma', $item->customerName);
         $this->assertSame('RD345112', $item->orderReference);
-        $this->assertSame($incident->display_reference.' • RD345112', $item->incidentLabel());
+        $this->assertSame($incident->display_reference.' · RD345112', $item->incidentLabel());
         $this->assertSame($incident->id, $item->entityIncidentId);
         $this->assertSame($order->id, $incident->order_id);
     }
@@ -164,7 +164,11 @@ class RecentActivityPresenterTest extends TestCase
         $this->assertSame('Communication Sent', $item->title);
         $this->assertSame('WhatsApp', $item->typePill);
         $this->assertSame(['WhatsApp'], $item->chips());
+        $this->assertSame('WA', $item->channelBadge());
+        $this->assertSame('Comm Sent', $item->actionLabel());
+        $this->assertSame('message', $item->iconKey());
         $this->assertSame('💬', $item->icon());
+        $this->assertNull($item->statusMark());
     }
 
     public function test_threads_consecutive_incident_activities(): void
@@ -195,6 +199,21 @@ class RecentActivityPresenterTest extends TestCase
         $this->assertSame(2, $thread->count());
         $this->assertSame('Assigned', $thread->latest()?->title);
         $this->assertSame('Status Updated', $thread->items[1]->title);
+
+        $html = view('components.dashboard.recent-activity-thread', [
+            'thread' => $thread,
+        ])->render();
+
+        $this->assertStringContainsString('data-activity-thread-toggle', $html);
+        $this->assertStringContainsString('data-activity-thread-history-source', $html);
+        $this->assertStringContainsString('data-activity-thread-history', $html);
+        $this->assertStringContainsString('>Assigned</span>', $html);
+        $this->assertStringContainsString('>Status Upd</span>', $html);
+        $this->assertStringNotContainsString('>History</span>', $html);
+        $this->assertDoesNotMatchRegularExpression(
+            '/data-activity-thread-history[^>]*>\s*<div class="dashboard-activity-entry"/',
+            $html,
+        );
     }
 
     public function test_moves_automation_events_to_ira_stream_for_superadmin_only(): void
@@ -273,15 +292,17 @@ class RecentActivityPresenterTest extends TestCase
         $html = view('components.dashboard.recent-activity-row', [
             'item' => $item,
             'showIncident' => true,
-            'threadCount' => null,
         ])->render();
 
         $this->assertStringContainsString('data-dashboard-activity-entry', $html);
         $this->assertStringContainsString('data-incident-id="'.$incident->id.'"', $html);
         $this->assertStringContainsString('data-customer-360-label="Amit Patel"', $html);
         $this->assertStringContainsString('RD345112', $html);
-        $this->assertStringContainsString('Refund Completed', $html);
+        $this->assertStringContainsString('Refunded', $html);
         $this->assertStringContainsString('dashboard-activity-entry-name', $html);
+        $this->assertStringContainsString('title="Refund Completed"', $html);
+        $this->assertStringNotContainsString('data-status=', $html);
+        $this->assertStringNotContainsString('dashboard-activity-entry-chips', $html);
         $this->assertStringNotContainsString('>Team</span>', $html);
     }
 
