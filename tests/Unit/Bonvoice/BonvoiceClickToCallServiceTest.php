@@ -3,9 +3,11 @@
 namespace Tests\Unit\Bonvoice;
 
 use App\Data\Bonvoice\BonvoiceClickToCallContext;
+use App\Enums\BonvoiceClickToCallFailureCode;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Bonvoice\BonvoiceClickToCallMetrics;
 use App\Services\Bonvoice\BonvoiceClickToCallService;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
@@ -62,7 +64,9 @@ class BonvoiceClickToCallServiceTest extends TestCase
         );
 
         $this->assertFalse($result->success);
+        $this->assertSame(BonvoiceClickToCallFailureCode::AgentPhone, $result->failureCode);
         $this->assertStringContainsString('BonVoice mobile number is not configured', (string) $result->errorMessage);
+        $this->assertNotEmpty($result->correlationId);
     }
 
     public function test_initiate_call_posts_expected_payload_to_bonvoice(): void
@@ -159,7 +163,10 @@ class BonvoiceClickToCallServiceTest extends TestCase
 
         $this->assertFalse($result->success);
         $this->assertTrue($result->retriable);
+        $this->assertSame(BonvoiceClickToCallFailureCode::Connection, $result->failureCode);
         $this->assertSame('Automatic calling failed.', $result->errorMessage);
+        $this->assertNotEmpty($result->eventId);
+        $this->assertSame($result->eventId, $result->correlationId);
     }
 
     public function test_initiate_call_returns_failure_when_bonvoice_rejects_request(): void
@@ -184,8 +191,35 @@ class BonvoiceClickToCallServiceTest extends TestCase
         );
 
         $this->assertFalse($result->success);
+        $this->assertSame(BonvoiceClickToCallFailureCode::ProviderResponse, $result->failureCode);
         $this->assertSame('Automatic calling failed.', $result->errorMessage);
         $this->assertFalse($result->retriable);
+        $this->assertNotEmpty($result->eventId);
+    }
+
+    public function test_initiate_call_maps_auth_failure_to_auth_failure_code(): void
+    {
+        Http::fake([
+            'backend.pbx.bonvoice.com/usermanagement/external-auth/*' => Http::response([
+                'message' => 'Invalid credentials',
+            ], 401),
+        ]);
+
+        [$agent, $context] = $this->createContext(agentExtension: '9846098460');
+
+        $result = app(BonvoiceClickToCallService::class)->initiateCall(
+            agent: $agent,
+            context: $context,
+        );
+
+        $this->assertFalse($result->success);
+        $this->assertSame(BonvoiceClickToCallFailureCode::Auth, $result->failureCode);
+        $this->assertTrue($result->retriable);
+        $this->assertSame(503, $result->httpStatus);
+
+        $summary = app(BonvoiceClickToCallMetrics::class)->todaySummary();
+        $this->assertSame(1, $summary['failure']);
+        $this->assertSame(1, $summary['by_failure_code']['auth'] ?? 0);
     }
 
     /**

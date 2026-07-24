@@ -130,9 +130,11 @@ class BonvoiceClickToCallTest extends TestCase
             ->assertJson([
                 'success' => false,
                 'message' => 'Automatic calling failed.',
+                'failure_code' => 'disabled',
                 'fallback_available' => true,
                 'retriable' => false,
             ])
+            ->assertJsonStructure(['correlation_id'])
             ->assertJsonMissing(['use_fallback' => true]);
     }
 
@@ -156,10 +158,36 @@ class BonvoiceClickToCallTest extends TestCase
             ->assertJson([
                 'success' => false,
                 'message' => 'Automatic calling failed.',
+                'failure_code' => 'provider_http',
                 'retriable' => true,
                 'fallback_available' => true,
             ])
+            ->assertJsonStructure(['correlation_id', 'event_id'])
             ->assertJsonMissing(['use_fallback' => true]);
+    }
+
+    public function test_click_to_call_returns_agent_phone_failure_code_when_extension_missing(): void
+    {
+        [$agent, $incident] = $this->createAssignedIncident();
+        $agent->forceFill(['bonvoice_extension' => null])->save();
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('bonvoice.click-to-call'), [
+                'incident_id' => $incident->id,
+            ])
+            ->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'failure_code' => 'agent_phone',
+                'retriable' => false,
+                'fallback_available' => true,
+            ]);
+
+        $this->assertStringContainsString(
+            'call mobile number is not configured',
+            (string) $response->json('message'),
+        );
+        $this->assertNotEmpty($response->json('correlation_id'));
     }
 
     public function test_click_to_call_requires_customer_phone(): void

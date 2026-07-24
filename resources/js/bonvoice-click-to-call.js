@@ -29,7 +29,7 @@ const buildRequestBody = (button) => {
     return null;
 };
 
-const showFailureToast = (button, { showToast, fallbackTel, retriable = false }) => {
+const showFailureToast = (button, { showToast, fallbackTel, retriable = false, message = null }) => {
     const actions = [];
 
     if (retriable) {
@@ -50,7 +50,7 @@ const showFailureToast = (button, { showToast, fallbackTel, retriable = false })
 
     if (typeof showToast === 'function') {
         showToast({
-            message: 'Automatic calling failed.',
+            message: message || 'Automatic calling failed.',
             variant: 'danger',
             actions,
         });
@@ -98,6 +98,7 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
             showToast,
             fallbackTel: fallbackUrl,
             retriable,
+            message,
         });
 
         return { success: false, usedFallback: false, payload };
@@ -106,6 +107,7 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
             showToast,
             fallbackTel,
             retriable: true,
+            message: 'Automatic calling failed.',
         });
 
         return { success: false, usedFallback: false, error };

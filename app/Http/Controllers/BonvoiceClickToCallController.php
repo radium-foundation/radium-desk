@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\BonvoiceClickToCallFailureCode;
 use App\Http\Requests\BonvoiceClickToCallRequest;
 use App\Services\Bonvoice\BonvoiceClickToCallContextResolver;
+use App\Services\Bonvoice\BonvoiceClickToCallMetrics;
 use App\Services\Bonvoice\BonvoiceClickToCallService;
 use Illuminate\Http\JsonResponse;
 
@@ -12,6 +14,7 @@ class BonvoiceClickToCallController extends Controller
     public function __construct(
         private readonly BonvoiceClickToCallContextResolver $contextResolver,
         private readonly BonvoiceClickToCallService $clickToCallService,
+        private readonly BonvoiceClickToCallMetrics $metrics,
     ) {}
 
     public function __invoke(BonvoiceClickToCallRequest $request): JsonResponse
@@ -27,18 +30,37 @@ class BonvoiceClickToCallController extends Controller
         $fallbackTel = $context->customerPhone !== '' ? 'tel:'.$context->customerPhone : null;
 
         if ($context->customerDialable === '') {
+            $correlationId = $this->clickToCallService->generateEventId();
+            $this->metrics->recordFailure(
+                failureCode: BonvoiceClickToCallFailureCode::CustomerPhone,
+                correlationId: $correlationId,
+            );
+
             return response()->json([
                 'success' => false,
-                'message' => 'No customer phone number is available for calling.',
+                'message' => BonvoiceClickToCallFailureCode::CustomerPhone->userMessage(),
+                'failure_code' => BonvoiceClickToCallFailureCode::CustomerPhone->value,
+                'correlation_id' => $correlationId,
+                'event_id' => null,
                 'fallback_tel' => null,
                 'fallback_available' => false,
+                'retriable' => false,
             ], 422);
         }
 
         if (! $this->clickToCallService->isEnabled()) {
+            $correlationId = $this->clickToCallService->generateEventId();
+            $this->metrics->recordFailure(
+                failureCode: BonvoiceClickToCallFailureCode::Disabled,
+                correlationId: $correlationId,
+            );
+
             return response()->json([
                 'success' => false,
-                'message' => 'Automatic calling failed.',
+                'message' => BonvoiceClickToCallFailureCode::Disabled->userMessage(),
+                'failure_code' => BonvoiceClickToCallFailureCode::Disabled->value,
+                'correlation_id' => $correlationId,
+                'event_id' => null,
                 'fallback_tel' => $fallbackTel,
                 'fallback_available' => $fallbackTel !== null,
                 'retriable' => false,
@@ -51,9 +73,14 @@ class BonvoiceClickToCallController extends Controller
         );
 
         if (! $result->success) {
+            $failureCode = $result->failureCode ?? BonvoiceClickToCallFailureCode::InvalidResponse;
+
             return response()->json([
                 'success' => false,
-                'message' => $result->errorMessage ?? 'Automatic calling failed.',
+                'message' => $failureCode->userMessage(),
+                'failure_code' => $failureCode->value,
+                'correlation_id' => $result->correlationId,
+                'event_id' => $result->eventId,
                 'fallback_tel' => $fallbackTel,
                 'fallback_available' => $fallbackTel !== null,
                 'retriable' => $result->retriable,
@@ -64,6 +91,7 @@ class BonvoiceClickToCallController extends Controller
             'success' => true,
             'message' => $result->message,
             'event_id' => $result->eventId,
+            'correlation_id' => $result->correlationId ?? $result->eventId,
             'fallback_tel' => $fallbackTel,
             'fallback_available' => $fallbackTel !== null,
         ]);
