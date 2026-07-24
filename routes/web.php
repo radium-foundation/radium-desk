@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdministrationHomeController;
 use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
@@ -251,6 +252,9 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::put('users/{user}/work-schedule', [TeamWorkScheduleController::class, 'update'])
         ->name('users.work-schedule.update');
+
+    Route::get('/admin/administration', AdministrationHomeController::class)
+        ->name('admin.administration.index');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');

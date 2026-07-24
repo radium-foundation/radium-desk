@@ -168,6 +168,12 @@
             <div class="nav-section"><span class="nav-label">Administration</span></div>
             <ul class="nav flex-column">
                 <li class="nav-item">
+                    <a @class(['nav-link', 'active' => request()->routeIs('admin.administration.*')]) href="{{ route('admin.administration.index') }}" title="Administration">
+                        <i class="bi bi-shield-lock nav-icon me-2"></i>
+                        <span class="nav-label">Administration</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     @can('system-settings.manage')
                         <a @class(['nav-link', 'active' => request()->routeIs('admin.system-settings.*')]) href="{{ route('admin.system-settings.index') }}" title="System Settings">
                             <i class="bi bi-toggles nav-icon me-2"></i>
