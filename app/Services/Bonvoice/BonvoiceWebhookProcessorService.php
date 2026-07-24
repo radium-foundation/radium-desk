@@ -17,6 +17,7 @@ class BonvoiceWebhookProcessorService
         private readonly BonvoiceCallEventStore $callEventStore,
         private readonly BonvoiceLiveCallAssistService $liveCallAssistService,
         private readonly BonvoiceMissedCallRecoveryService $missedCallRecoveryService,
+        private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
     ) {}
 
     public function process(
@@ -27,25 +28,34 @@ class BonvoiceWebhookProcessorService
         $payload = $webhookLog->payload ?? [];
 
         try {
-            $previousStatus = null;
-
             if ($this->payloadParser->hasRequiredIdentifiers($payload)) {
-                $previousStatus = BonvoiceCallEvent::query()
-                    ->where('call_id', $this->payloadParser->callId($payload))
-                    ->where('leg', $this->payloadParser->leg($payload))
-                    ->value('status');
+                $this->incomingCallLatency->setCallId($this->payloadParser->callId($payload));
             }
 
-            $callEvent = DB::transaction(function () use ($webhookLog, $payload): BonvoiceCallEvent {
-                if (! $this->payloadParser->hasRequiredIdentifiers($payload)) {
-                    throw new \RuntimeException('BonVoice webhook payload is missing callID.');
-                }
+            $previousStatus = null;
 
-                $callEvent = $this->callEventStore->upsertFromWebhook($payload, $webhookLog->id);
-                $this->markProcessed($webhookLog);
+            $callEvent = $this->incomingCallLatency->measure(
+                BonvoiceIncomingCallLatency::STAGE_PROCESS,
+                function () use ($webhookLog, $payload, &$previousStatus): BonvoiceCallEvent {
+                    if ($this->payloadParser->hasRequiredIdentifiers($payload)) {
+                        $previousStatus = BonvoiceCallEvent::query()
+                            ->where('call_id', $this->payloadParser->callId($payload))
+                            ->where('leg', $this->payloadParser->leg($payload))
+                            ->value('status');
+                    }
 
-                return $callEvent;
-            });
+                    return DB::transaction(function () use ($webhookLog, $payload): BonvoiceCallEvent {
+                        if (! $this->payloadParser->hasRequiredIdentifiers($payload)) {
+                            throw new \RuntimeException('BonVoice webhook payload is missing callID.');
+                        }
+
+                        $callEvent = $this->callEventStore->upsertFromWebhook($payload, $webhookLog->id);
+                        $this->markProcessed($webhookLog);
+
+                        return $callEvent;
+                    });
+                },
+            );
 
             if (! $options->suppressNotifications) {
                 $this->liveCallAssistService->maybeNotify($callEvent);

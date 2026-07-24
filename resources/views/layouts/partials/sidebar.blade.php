@@ -88,16 +88,21 @@
             RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
             RolePermissionSeeder::ROLE_SUPERADMIN,
         ]))
-            <div class="nav-section"><span class="nav-label">Administration</span></div>
+            {{-- H1 four-hub nav: existing routes only; deep links preserved. See docs/super-admin-four-hubs.md --}}
+            <div class="nav-section"><span class="nav-label">Mission Control</span></div>
             <ul class="nav flex-column">
                 <li class="nav-item">
                     @can('platform-dashboard.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.platform.*')]) href="{{ route('admin.platform.index') }}" title="Command Center">
-                            <i class="bi bi-speedometer2 nav-icon me-2"></i>
-                            <span class="nav-label">Command Center</span>
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.platform.*')]) href="{{ route('admin.platform.index') }}" title="Mission Control">
+                            <i class="bi bi-radar nav-icon me-2"></i>
+                            <span class="nav-label">Mission Control</span>
                         </a>
                     @endcan
                 </li>
+            </ul>
+
+            <div class="nav-section"><span class="nav-label">Operations Hub</span></div>
+            <ul class="nav flex-column">
                 <li class="nav-item">
                     @can('operations-dashboard.view')
                         <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.index', 'admin.operations.live')]) href="{{ route('admin.operations.index') }}" title="Operations Control Center">
@@ -123,6 +128,46 @@
                     @endcan
                 </li>
                 <li class="nav-item">
+                    @can('viewAny', App\Models\CashfreeWebhookLog::class)
+                        <a @class(['nav-link', 'active' => request()->routeIs('cashfree.webhook-explorer.*')]) href="{{ route('cashfree.webhook-explorer.index') }}" title="Webhook Explorer">
+                            <i class="bi bi-broadcast nav-icon me-2"></i>
+                            <span class="nav-label">Webhook Explorer</span>
+                        </a>
+                    @endcan
+                </li>
+            </ul>
+
+            <div class="nav-section"><span class="nav-label">Workforce Hub</span></div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    @can('workforce360.viewTeam')
+                        <a @class(['nav-link', 'active' => request()->routeIs('workforce.*')]) href="{{ route('workforce.index') }}" title="Workforce">
+                            <i class="bi bi-people-fill nav-icon me-2"></i>
+                            <span class="nav-label">Workforce</span>
+                        </a>
+                    @endcan
+                </li>
+                <li class="nav-item">
+                    @can('team-performance.view')
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.performance.*')]) href="{{ route('admin.workforce.performance.index') }}" title="Team Performance">
+                            <i class="bi bi-graph-up nav-icon me-2"></i>
+                            <span class="nav-label">Team Performance</span>
+                        </a>
+                    @endcan
+                </li>
+                <li class="nav-item">
+                    @can('viewAny', App\Models\CompanyHoliday::class)
+                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.holidays.*')]) href="{{ route('admin.workforce.holidays.index') }}" title="Company Holidays">
+                            <i class="bi bi-calendar-event nav-icon me-2"></i>
+                            <span class="nav-label">Holidays</span>
+                        </a>
+                    @endcan
+                </li>
+            </ul>
+
+            <div class="nav-section"><span class="nav-label">Administration</span></div>
+            <ul class="nav flex-column">
+                <li class="nav-item">
                     @can('system-settings.manage')
                         <a @class(['nav-link', 'active' => request()->routeIs('admin.system-settings.*')]) href="{{ route('admin.system-settings.index') }}" title="System Settings">
                             <i class="bi bi-toggles nav-icon me-2"></i>
@@ -146,22 +191,6 @@
                         </a>
                     @endcan
                 </li>
-                <li class="nav-item">
-                    @can('team-performance.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.performance.*')]) href="{{ route('admin.workforce.performance.index') }}" title="Team Performance">
-                            <i class="bi bi-graph-up nav-icon me-2"></i>
-                            <span class="nav-label">Team Performance</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('viewAny', App\Models\CompanyHoliday::class)
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.holidays.*')]) href="{{ route('admin.workforce.holidays.index') }}" title="Company Holidays">
-                            <i class="bi bi-calendar-event nav-icon me-2"></i>
-                            <span class="nav-label">Holidays</span>
-                        </a>
-                    @endcan
-                </li>
                 @if(auth()->user()?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN))
                     <li class="nav-item">
                         @can('viewAny', App\Models\SettingProduct::class)
@@ -172,18 +201,6 @@
                         @endcan
                     </li>
                 @endif
-            </ul>
-
-            <div class="nav-section"><span class="nav-label">Cashfree</span></div>
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    @can('viewAny', App\Models\CashfreeWebhookLog::class)
-                        <a @class(['nav-link', 'active' => request()->routeIs('cashfree.webhook-explorer.*')]) href="{{ route('cashfree.webhook-explorer.index') }}" title="Webhook Explorer">
-                            <i class="bi bi-broadcast nav-icon me-2"></i>
-                            <span class="nav-label">Webhook Explorer</span>
-                        </a>
-                    @endcan
-                </li>
             </ul>
         @endif
     </nav>

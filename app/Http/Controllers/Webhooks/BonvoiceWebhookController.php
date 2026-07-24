@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Webhooks;
 
 use App\Http\Controllers\Controller;
 use App\Models\BonvoiceWebhookLog;
+use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use App\Services\Bonvoice\BonvoiceWebhookAuthVerifier;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookPayloadParser;
@@ -20,13 +21,22 @@ class BonvoiceWebhookController extends Controller
         private readonly BonvoiceWebhookOutboxWriter $outboxWriter,
         private readonly BonvoiceWebhookAuthVerifier $authVerifier,
         private readonly OutboxProcessorService $outboxProcessorService,
+        private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
     ) {}
 
     public function handle(Request $request): JsonResponse
     {
         try {
             $this->logWebhook($request);
+
+            $persistStartedAt = microtime(true);
             $webhookLog = $this->storeWebhook($request);
+            $this->incomingCallLatency->beginFromWebhookLog($webhookLog);
+            $this->incomingCallLatency->mark(
+                BonvoiceIncomingCallLatency::STAGE_PERSIST,
+                (microtime(true) - $persistStartedAt) * 1000,
+            );
+
             $payload = $webhookLog->payload ?? [];
 
             if ($this->authVerifier->shouldVerify()) {
@@ -44,6 +54,8 @@ class BonvoiceWebhookController extends Controller
 
             $this->outboxWriter->writeProcessingJob($webhookLog->id);
             $this->outboxProcessorService->process();
+
+            $this->incomingCallLatency->mark(BonvoiceIncomingCallLatency::STAGE_REQUEST);
 
             return response()->json(['status' => 'ok'], 200);
         } catch (Throwable $exception) {

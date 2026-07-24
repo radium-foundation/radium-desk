@@ -32,6 +32,7 @@ class BonvoiceLiveCallAssistService
         private readonly OperatorAlertCatalog $operatorAlertCatalog,
         private readonly IncomingCallTelegramMessageBuilder $incomingCallTelegramMessageBuilder,
         private readonly HybridRealtimeNotificationBroadcaster $hybridRealtimeBroadcaster,
+        private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
     ) {}
 
     public function maybeNotify(BonvoiceCallEvent $event): ?BonvoiceCallAlert
@@ -48,13 +49,31 @@ class BonvoiceLiveCallAssistService
             return null;
         }
 
-        $agent = $this->agentResolver->resolveUserForCall($event);
+        $this->incomingCallLatency->setCallId($event->call_id);
 
-        if ($agent === null) {
+        /** @var array{agent: ?User, match: ?array{alert_type: BonvoiceCallAlertType, customer_phone: ?string, order_id: ?int, order_label: ?string, incident_id: ?int}} $resolved */
+        $resolved = $this->incomingCallLatency->measure(
+            BonvoiceIncomingCallLatency::STAGE_RESOLVE,
+            function () use ($event): array {
+                $agent = $this->agentResolver->resolveUserForCall($event);
+
+                if ($agent === null) {
+                    return ['agent' => null, 'match' => null];
+                }
+
+                return [
+                    'agent' => $agent,
+                    'match' => $this->customerResolver->resolve($event->customer_phone),
+                ];
+            },
+        );
+
+        $agent = $resolved['agent'];
+        $match = $resolved['match'];
+
+        if ($agent === null || $match === null) {
             return null;
         }
-
-        $match = $this->customerResolver->resolve($event->customer_phone);
 
         try {
             $alert = BonvoiceCallAlert::query()->create([
@@ -80,7 +99,10 @@ class BonvoiceLiveCallAssistService
         $this->maybeTriggerRadiumBoxSync($match);
 
         $this->hybridRealtimeBroadcaster->broadcastIncomingCall($agent, $alert);
-        $this->sendNotificationSafely($agent, $alert);
+        $this->incomingCallLatency->measure(
+            BonvoiceIncomingCallLatency::STAGE_SIDE_PATHS,
+            fn () => $this->sendNotificationSafely($agent, $alert),
+        );
 
         return $alert;
     }

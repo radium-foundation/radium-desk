@@ -208,6 +208,7 @@ export const handleIncomingCallReceived = (payload) => {
         return;
     }
 
+    // S7 latency is logged inside showIncomingCallCard (first show + replace).
     showIncomingCallCard(call);
 };
 

@@ -32,6 +32,10 @@ Dashboard and notifications use 30-second HTTP polling. No WebSocket/Reverb inte
 
 **Recommendation:** Evaluate Reverb or SSE only if polling latency becomes an operational issue.
 
+### Dashboard Stale Metrics (backlog)
+
+Investigation of stale Operations / Mission Control metrics is **deferred** until production evidence is available (card timestamps, poll vs `?groups=` mismatch, or Reverb vs poll divergence). Do not start optimization without measured evidence. Related build overhead below.
+
 ### Operations Dashboard Build Overhead
 
 `/admin/operations` rebuilds the full metric bundle on every live poll, even when `?groups=` requests only a subset of sections. Profiling during P08-07-019 IVR analytics work identified these bottlenecks (not addressed in that phase):

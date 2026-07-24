@@ -15,6 +15,10 @@ return [
         env('BONVOICE_AUTO_OPEN_CUSTOMER360', false),
         FILTER_VALIDATE_BOOLEAN,
     ),
+    'incoming_latency_log' => filter_var(
+        env('BONVOICE_INCOMING_LATENCY_LOG', true),
+        FILTER_VALIDATE_BOOLEAN,
+    ),
     'click_to_call' => [
         'enabled' => filter_var(env('BONVOICE_CLICK_TO_CALL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
         'base_url' => rtrim((string) env('BONVOICE_API_BASE_URL', 'https://backend.pbx.bonvoice.com'), '/'),

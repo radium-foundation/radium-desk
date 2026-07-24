@@ -8,6 +8,38 @@ const formatPhone = (value) => {
     return value;
 };
 
+/**
+ * Observe-only browser stage (S7): time from call.received_at to card show.
+ * Never throws into the popup path.
+ */
+export const logIncomingCallPopupLatency = (call) => {
+    try {
+        if (!call?.call_id || !call?.received_at) {
+            return;
+        }
+
+        const receivedAtMs = Date.parse(call.received_at);
+
+        if (Number.isNaN(receivedAtMs)) {
+            return;
+        }
+
+        const totalMs = Math.max(0, Math.round(Date.now() - receivedAtMs));
+
+        // eslint-disable-next-line no-console
+        console.info('[BonVoice Incoming Latency]', {
+            stage: 'S7_browser_popup',
+            duration_ms: totalMs,
+            total_ms: totalMs,
+            call_id: call.call_id,
+            incident_id: call.incident_id ?? null,
+            received_at: call.received_at,
+        });
+    } catch {
+        // Observe-only.
+    }
+};
+
 const buildCard = (call) => {
     const card = document.createElement('div');
     card.className = 'incoming-call-card card border-0 shadow';
@@ -61,11 +93,13 @@ export const showIncomingCallCard = (call) => {
 
     if (existing) {
         existing.replaceWith(buildCard(call));
+        logIncomingCallPopupLatency(call);
 
         return;
     }
 
     container.prepend(buildCard(call));
+    logIncomingCallPopupLatency(call);
 };
 
 export const updateIncomingCallCard = (call) => {

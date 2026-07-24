@@ -7,6 +7,7 @@ use App\Models\OutboxEvent;
 use App\Models\InteraktWebhookLog;
 use App\Models\BonvoiceWebhookLog;
 use App\Models\IncomingEmailMessage;
+use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use App\Services\Bonvoice\BonvoiceWebhookOutboxWriter;
 use App\Services\Bonvoice\BonvoiceWebhookProcessorService;
 use App\Services\Cashfree\CashfreeWebhookDeferredOperationsService;
@@ -41,6 +42,7 @@ class OutboxProcessorService
         private readonly InteraktOutboundProcessorService $interaktOutboundProcessorService,
         private readonly BonvoiceWebhookProcessorService $bonvoiceWebhookProcessorService,
         private readonly IncomingEmailProcessorService $incomingEmailProcessorService,
+        private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
     ) {}
 
     public function process(?int $limit = null): int
@@ -56,7 +58,7 @@ class OutboxProcessorService
                 break;
             }
 
-            $this->processClaimedEvent($event);
+            $this->processClaimedEvent($event, $processed);
             $processed++;
         }
 
@@ -93,7 +95,7 @@ class OutboxProcessorService
             return;
         }
 
-        $this->processClaimedEvent($event);
+        $this->processClaimedEvent($event, 0);
     }
 
     private function recoverStaleProcessingEvents(): void
@@ -127,10 +129,10 @@ class OutboxProcessorService
         });
     }
 
-    private function processClaimedEvent(OutboxEvent $event): void
+    private function processClaimedEvent(OutboxEvent $event, int $processedBeforeInBatch): void
     {
         try {
-            $this->dispatch($event);
+            $this->dispatch($event, $processedBeforeInBatch);
 
             $event->update([
                 'status' => OutboxEventStatus::Completed,
@@ -152,14 +154,14 @@ class OutboxProcessorService
         }
     }
 
-    private function dispatch(OutboxEvent $event): void
+    private function dispatch(OutboxEvent $event, int $processedBeforeInBatch = 0): void
     {
         match ($event->event_type) {
             CashfreeWebhookOutboxWriter::EVENT_TYPE => $this->dispatchCashfreeDeferredOperation($event),
             InteraktWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktWebhookProcessing($event),
             InteraktFlowWebhookOutboxWriter::EVENT_TYPE => $this->dispatchInteraktFlowWebhookProcessing($event),
             InteraktOutboundOutboxWriter::EVENT_TYPE => $this->dispatchInteraktTemplateSend($event),
-            BonvoiceWebhookOutboxWriter::EVENT_TYPE => $this->dispatchBonvoiceWebhookProcessing($event),
+            BonvoiceWebhookOutboxWriter::EVENT_TYPE => $this->dispatchBonvoiceWebhookProcessing($event, $processedBeforeInBatch),
             IncomingEmailOutboxWriter::EVENT_TYPE => $this->dispatchIncomingEmailProcessing($event),
             default => throw new RuntimeException('Unknown outbox event type: '.$event->event_type),
         };
@@ -231,7 +233,7 @@ class OutboxProcessorService
         $this->interaktOutboundProcessorService->processDispatch($dispatchId);
     }
 
-    private function dispatchBonvoiceWebhookProcessing(OutboxEvent $event): void
+    private function dispatchBonvoiceWebhookProcessing(OutboxEvent $event, int $processedBeforeInBatch = 0): void
     {
         $payload = $event->payload ?? [];
         $webhookLogId = (int) ($payload['webhook_log_id'] ?? 0);
@@ -245,6 +247,29 @@ class OutboxProcessorService
         if ($webhookLog === null) {
             throw new RuntimeException('BonVoice webhook log not found: '.$webhookLogId);
         }
+
+        if (! $this->incomingCallLatency->enabled()) {
+            $this->bonvoiceWebhookProcessorService->process($webhookLog);
+
+            return;
+        }
+
+        if (! $this->incomingCallLatency->hasBegun()
+            || $this->incomingCallLatency->webhookLogId() !== $webhookLog->id) {
+            $this->incomingCallLatency->beginFromWebhookLog($webhookLog);
+        }
+
+        $outboxAheadCount = OutboxEvent::query()
+            ->where('id', '<', $event->id)
+            ->where('status', '!=', OutboxEventStatus::Completed)
+            ->count();
+
+        $this->incomingCallLatency->mark(BonvoiceIncomingCallLatency::STAGE_OUTBOX, null, [
+            'outbox_event_id' => $event->id,
+            'outbox_ahead_count' => $outboxAheadCount,
+            'outbox_processed_before' => $processedBeforeInBatch,
+            'outbox_event_type' => $event->event_type,
+        ]);
 
         $this->bonvoiceWebhookProcessorService->process($webhookLog);
     }

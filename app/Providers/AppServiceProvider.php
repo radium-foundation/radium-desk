@@ -24,6 +24,7 @@ use App\Services\Operations\RuleBasedReasoningProvider;
 use App\Services\Automation\AutomationIdempotencyKeyGenerator;
 use App\Services\Automation\AutomationRuntime;
 use App\Services\Automation\Handlers\NotificationActionHandler;
+use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use App\Services\GlobalSearch\ServiceCaseGlobalSearchProvider;
 use App\Services\GlobalSearchService;
 use App\Services\Notifications\Channels\DesktopChannel;
@@ -81,6 +82,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(RadiumBoxRequestCache::class);
+        $this->app->singleton(BonvoiceIncomingCallLatency::class);
         $this->app->singleton(Customer360TimelineRequestCache::class);
         $this->app->singleton(Customer360TimelineSourceRegistry::class, function ($app): Customer360TimelineSourceRegistry {
             return new Customer360TimelineSourceRegistry([

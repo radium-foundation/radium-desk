@@ -9,6 +9,7 @@ use App\Events\Dashboard\IncomingCallReceived;
 use App\Events\Dashboard\RealtimeNotificationDelivered;
 use App\Models\BonvoiceCallAlert;
 use App\Models\User;
+use App\Services\Bonvoice\BonvoiceIncomingCallLatency;
 use Illuminate\Support\Facades\DB;
 
 class HybridRealtimeNotificationBroadcaster
@@ -16,6 +17,7 @@ class HybridRealtimeNotificationBroadcaster
     public function __construct(
         private readonly HybridRealtimeFeatureService $hybridRealtime,
         private readonly HybridRealtimeNotificationDeliveryService $delivery,
+        private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
     ) {}
 
     public function incomingCallsEnabled(): bool
@@ -60,6 +62,12 @@ class HybridRealtimeNotificationBroadcaster
             if ($freshRecipient === null) {
                 return;
             }
+
+            $this->incomingCallLatency->setCallId($call['call_id'] ?? null);
+            $this->incomingCallLatency->mark(BonvoiceIncomingCallLatency::STAGE_BROADCAST, null, [
+                'recipient_user_id' => $freshRecipient->id,
+                'incident_id' => $call['incident_id'] ?? null,
+            ]);
 
             broadcast(new IncomingCallReceived($freshRecipient, $call));
         });
