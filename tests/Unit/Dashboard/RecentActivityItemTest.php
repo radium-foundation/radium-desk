@@ -36,6 +36,31 @@ class RecentActivityItemTest extends TestCase
         $this->assertSame('SC17454 · RD3459717', $item->incidentLabel());
     }
 
+    public function test_communication_action_uses_channel_and_incident_reference(): void
+    {
+        $item = $this->makeItem(
+            title: 'Communication Sent',
+            indicatorVariant: 'communication',
+            typePill: 'WhatsApp',
+            incidentReference: 'SC17526',
+        );
+
+        $this->assertSame('WA→SC17526', $item->actionLabel());
+        $this->assertSame('', $item->channelBadge());
+    }
+
+    public function test_communication_action_falls_back_without_incident_reference(): void
+    {
+        $item = $this->makeItem(
+            title: 'Communication Sent',
+            indicatorVariant: 'communication',
+            typePill: 'WhatsApp',
+        );
+
+        $this->assertSame('Comm Sent', $item->actionLabel());
+        $this->assertSame('WA', $item->channelBadge());
+    }
+
     /**
      * @return array<string, array{0: string, 1: string}>
      */
@@ -54,13 +79,14 @@ class RecentActivityItemTest extends TestCase
     private function makeItem(
         string $title = 'Assigned',
         string $indicatorVariant = 'muted',
+        ?string $typePill = null,
         ?string $incidentReference = null,
         ?string $orderReference = null,
     ): RecentActivityItem {
         return new RecentActivityItem(
             stream: 'team',
             title: $title,
-            typePill: null,
+            typePill: $typePill,
             indicatorVariant: $indicatorVariant,
             incidentReference: $incidentReference,
             orderReference: $orderReference,

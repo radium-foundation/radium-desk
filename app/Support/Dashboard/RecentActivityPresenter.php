@@ -7,6 +7,8 @@ use App\Data\RecentActivityStreams;
 use App\Data\RecentActivityThread;
 use App\Enums\CommunicationActionLifecycleStatus;
 use App\Enums\NotificationChannelType;
+use App\Enums\TeamAvailabilityChangeSource;
+use App\Enums\TeamAvailabilityStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -195,6 +197,15 @@ class RecentActivityPresenter
      */
     private function resolvePresentation(AuditLog $auditLog, array $config): ?array
     {
+        if ($auditLog->event === 'user.availability_changed') {
+            return [
+                'title' => $this->availabilityChangeTitle($auditLog),
+                'pill' => 'Team',
+                'variant' => 'muted',
+                'include_pill' => null,
+            ];
+        }
+
         if ($auditLog->event === 'communication_action.lifecycle') {
             $status = CommunicationActionLifecycleStatus::tryFrom(
                 (string) ($auditLog->new_values['status'] ?? ''),
@@ -345,6 +356,23 @@ class RecentActivityPresenter
         $channels = $this->notificationChannels($auditLog);
 
         return $channels[0] ?? null;
+    }
+
+    private function availabilityChangeTitle(AuditLog $auditLog): string
+    {
+        $status = TeamAvailabilityStatus::tryFrom((string) ($auditLog->new_values['status'] ?? ''));
+        $source = TeamAvailabilityChangeSource::tryFrom((string) ($auditLog->new_values['source'] ?? ''));
+
+        return match (true) {
+            $source === TeamAvailabilityChangeSource::Login
+                && $status === TeamAvailabilityStatus::Available => 'Logged In',
+            $source === TeamAvailabilityChangeSource::Logout => 'Logged Out',
+            $source === TeamAvailabilityChangeSource::Timeout => 'Offline',
+            $status === TeamAvailabilityStatus::Available => 'Available',
+            $status === TeamAvailabilityStatus::Busy => 'Busy',
+            $status === TeamAvailabilityStatus::Offline => 'Offline',
+            default => 'Availability Changed',
+        };
     }
 
     /**

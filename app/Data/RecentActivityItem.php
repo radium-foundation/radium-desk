@@ -44,6 +44,11 @@ readonly class RecentActivityItem
         'Closed — Customer Not Responding' => 'Closed',
         'Assigned' => 'Assigned',
         'Reassigned' => 'Reassigned',
+        'Logged In' => 'Logged In',
+        'Logged Out' => 'Logged Out',
+        'Available' => 'Available',
+        'Busy' => 'Busy',
+        'Offline' => 'Offline',
         'Status Updated' => 'Status Upd',
         'Service Case Escalated' => 'Escalated',
         'Notification Sent' => 'Notif Sent',
@@ -136,6 +141,12 @@ readonly class RecentActivityItem
      */
     public function actionLabel(): string
     {
+        $channelAction = $this->channelIncidentActionLabel();
+
+        if ($channelAction !== null) {
+            return $channelAction;
+        }
+
         if (isset(self::ACTION_LABELS[$this->title])) {
             return self::ACTION_LABELS[$this->title];
         }
@@ -216,17 +227,11 @@ readonly class RecentActivityItem
      */
     public function channelBadge(): string
     {
-        $pill = strtolower((string) $this->typePill);
-        $title = strtolower($this->title);
+        if ($this->usesChannelInAction()) {
+            return '';
+        }
 
-        return match (true) {
-            $pill === 'whatsapp' || str_contains($title, 'whatsapp') => 'WA',
-            $pill === 'email' || str_contains($title, 'email') => 'MAIL',
-            $pill === 'ivr' || str_contains($title, 'missed call') => 'IVR',
-            $pill === 'driver guide' || str_contains($title, 'driver guide') => 'DG',
-            $pill === 'sync' || str_contains($title, 'radiumbox') || str_contains($title, 'enrichment') => 'RB',
-            default => '',
-        };
+        return $this->resolvedChannelCode();
     }
 
     /**
@@ -265,5 +270,51 @@ readonly class RecentActivityItem
         }
 
         return [$pill];
+    }
+
+    private function channelIncidentActionLabel(): ?string
+    {
+        if (! $this->usesChannelInAction()) {
+            return null;
+        }
+
+        $label = $this->resolvedChannelCode().'→'.(string) $this->incidentReference;
+
+        return mb_strlen($label) > 12 ? mb_substr($label, 0, 12) : $label;
+    }
+
+    private function usesChannelInAction(): bool
+    {
+        return $this->resolvedChannelCode() !== ''
+            && $this->isCommunicationActivity()
+            && filled($this->incidentReference);
+    }
+
+    private function isCommunicationActivity(): bool
+    {
+        if ($this->indicatorVariant === 'communication') {
+            return true;
+        }
+
+        $title = strtolower($this->title);
+
+        return str_contains($title, 'communication')
+            || str_contains($title, 'whatsapp')
+            || str_contains($title, 'notification sent');
+    }
+
+    private function resolvedChannelCode(): string
+    {
+        $pill = strtolower((string) $this->typePill);
+        $title = strtolower($this->title);
+
+        return match (true) {
+            $pill === 'whatsapp' || str_contains($title, 'whatsapp') => 'WA',
+            $pill === 'email' || str_contains($title, 'email') => 'MAIL',
+            $pill === 'ivr' || str_contains($title, 'missed call') => 'IVR',
+            $pill === 'driver guide' || str_contains($title, 'driver guide') => 'DG',
+            $pill === 'sync' || str_contains($title, 'radiumbox') || str_contains($title, 'enrichment') => 'RB',
+            default => '',
+        };
     }
 }

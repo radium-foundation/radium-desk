@@ -1736,8 +1736,8 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-activity-feed {
-    margin-top: 0.5rem;
-    padding-top: 0.375rem;
+    margin-top: 0.375rem;
+    padding-top: 0.25rem;
     border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
@@ -1749,14 +1749,14 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-activity-stream + .dashboard-activity-stream {
-    margin-top: 0.375rem;
+    margin-top: 0.375rem; /* 6px */
 }
 
 .dashboard-activity-stream-toggle {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    margin: 0 0 0.125rem;
+    margin: 0 0 0.0625rem;
     padding: 0;
     border: 0;
     background: transparent;
@@ -1783,8 +1783,18 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-activity-stream-count {
-    font-weight: 500;
-    color: var(--dashboard-color-muted, #64748b);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0.875rem;
+    height: 0.875rem;
+    padding: 0 0.1875rem;
+    border-radius: 0.125rem;
+    font-size: 0.5625rem;
+    font-weight: 600;
+    line-height: 1;
+    color: #64748b;
+    background: #f1f5f9;
 }
 
 .dashboard-activity-list {
@@ -1802,8 +1812,8 @@ a:focus-visible .stat-card {
     grid-template-columns: minmax(0, 1fr);
     align-items: center;
     content-visibility: auto;
-    contain-intrinsic-size: auto 2.625rem;
-    border-bottom: 1px solid #f3f4f6;
+    contain-intrinsic-size: auto 2.375rem;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .dashboard-activity-thread:last-child {
@@ -1811,12 +1821,12 @@ a:focus-visible .stat-card {
 }
 
 .dashboard-activity-thread--collapsible {
-    grid-template-columns: minmax(0, 1fr) 0.875rem;
+    grid-template-columns: minmax(0, 1fr) 0.75rem;
     column-gap: 0.125rem;
 }
 
 .dashboard-activity-entry {
-    --dashboard-activity-row-height: 2.625rem; /* 42px */
+    --dashboard-activity-row-height: 2.375rem; /* 38px */
     display: grid;
     grid-template-columns:
         0.75rem
@@ -1829,7 +1839,7 @@ a:focus-visible .stat-card {
     align-items: center;
     height: var(--dashboard-activity-row-height);
     min-width: 0;
-    padding: 0 0.125rem;
+    padding: 0.25rem 0.125rem;
     contain: layout style;
 }
 
@@ -1957,7 +1967,7 @@ a:focus-visible .stat-card {
 .dashboard-activity-thread-history {
     grid-column: 1 / -1;
     margin: 0;
-    padding: 0 0 0.125rem 0.875rem;
+    padding: 0 0 0.0625rem 0.875rem;
 }
 
 .dashboard-activity-thread-history[hidden] {
@@ -1966,7 +1976,7 @@ a:focus-visible .stat-card {
 
 @media (max-width: 575.98px) {
     .dashboard-activity-entry {
-        --dashboard-activity-row-height: 2.5rem; /* 40px */
+        --dashboard-activity-row-height: 2.25rem; /* 36px */
         grid-template-columns:
             0.75rem
             5.5rem
@@ -1975,6 +1985,7 @@ a:focus-visible .stat-card {
             1.5rem
             1.5rem;
         column-gap: 0.25rem;
+        padding: 0.25rem 0.0625rem;
     }
 
     .dashboard-activity-entry-name {

@@ -164,11 +164,37 @@ class RecentActivityPresenterTest extends TestCase
         $this->assertSame('Communication Sent', $item->title);
         $this->assertSame('WhatsApp', $item->typePill);
         $this->assertSame(['WhatsApp'], $item->chips());
-        $this->assertSame('WA', $item->channelBadge());
-        $this->assertSame('Comm Sent', $item->actionLabel());
+        $this->assertSame('', $item->channelBadge());
+        $this->assertSame('WA→'.$incident->display_reference, $item->actionLabel());
         $this->assertSame('message', $item->iconKey());
         $this->assertSame('💬', $item->icon());
         $this->assertNull($item->statusMark());
+    }
+
+    public function test_maps_availability_change_to_operational_title(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $log = AuditLog::query()->create([
+            'user_id' => $agent->id,
+            'event' => 'user.availability_changed',
+            'auditable_type' => $agent->getMorphClass(),
+            'auditable_id' => $agent->id,
+            'new_values' => [
+                'status' => 'available',
+                'source' => 'login',
+            ],
+            'created_at' => now(),
+        ]);
+        $log->setRelation('auditable', $agent);
+        $log->setRelation('user', $agent);
+
+        $item = $this->presenter->presentStreams(collect([$log]), $agent)->team->first()?->latest();
+
+        $this->assertNotNull($item);
+        $this->assertSame('Logged In', $item->title);
+        $this->assertSame('Logged In', $item->actionLabel());
     }
 
     public function test_threads_consecutive_incident_activities(): void

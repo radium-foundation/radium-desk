@@ -17,7 +17,7 @@
                     aria-expanded="{{ $section['collapsed_default'] ? 'false' : 'true' }}">
                 <span class="dashboard-activity-stream-chevron" aria-hidden="true"></span>
                 <span class="dashboard-activity-stream-label">{{ $section['label'] }}</span>
-                <span class="dashboard-activity-stream-count">({{ $section['count'] }})</span>
+                <span class="dashboard-activity-stream-count">{{ $section['count'] }}</span>
             </button>
 
             <ul class="dashboard-activity-list list-unstyled mb-0"
