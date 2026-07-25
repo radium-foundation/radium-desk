@@ -5,6 +5,7 @@ namespace App\Services\Cashfree;
 use App\Data\CashfreeWebhookReliabilitySnapshot;
 use App\Enums\OutboxEventStatus;
 use App\Models\OutboxEvent;
+use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -16,6 +17,10 @@ class CashfreeWebhookReliabilityMetrics
 
     private const KEY_LAST_ORDER_CREATED_AT = self::CACHE_PREFIX.'last_order_created_at';
 
+    public function __construct(
+        private readonly CashfreeIntegrityReadModel $integrityReadModel,
+    ) {}
+
     public function recordOrderCreated(): void
     {
         $this->increment(self::KEY_ORDERS_CREATED);
@@ -24,8 +29,7 @@ class CashfreeWebhookReliabilityMetrics
 
     public function snapshot(): CashfreeWebhookReliabilitySnapshot
     {
-        $integrityService = app(CashfreePaymentIntegrityService::class);
-        $classification = $integrityService->classifyFailedWebhooks();
+        $classification = $this->integrityReadModel->classifyFailedWebhooks();
 
         return new CashfreeWebhookReliabilitySnapshot(
             ordersCreated: $this->counterValue(self::KEY_ORDERS_CREATED),
@@ -33,7 +37,7 @@ class CashfreeWebhookReliabilityMetrics
             outboxFailed: $this->outboxFailedCount(),
             outboxCompletedToday: $this->outboxCompletedTodayCount(),
             outboxRetryCount: $this->outboxRetryCount(),
-            paidWithoutDeskOrderCount: $integrityService->paidWithoutDeskOrderCount(),
+            paidWithoutDeskOrderCount: $this->integrityReadModel->paidWithoutDeskOrderCount(),
             activeFailedWebhooks: $classification->activeFailedWebhooks,
             historicalResolvedFailures: $classification->historicalResolvedFailures,
             lastOrderCreatedAt: $this->cachedTimestamp(self::KEY_LAST_ORDER_CREATED_AT),
@@ -43,7 +47,7 @@ class CashfreeWebhookReliabilityMetrics
 
     public function paidWithoutDeskOrderCount(): int
     {
-        return app(CashfreePaymentIntegrityService::class)->paidWithoutDeskOrderCount();
+        return $this->integrityReadModel->paidWithoutDeskOrderCount();
     }
 
     /**

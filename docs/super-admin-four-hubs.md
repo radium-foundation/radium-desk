@@ -4,7 +4,7 @@ Architecture and migration plan for consolidating Super Admin surfaces into four
 
 Routes, permissions, controllers, and business logic remain canonical until a later phase explicitly aliases, relocates, or retires a surface **after production validation and explicit approval**.
 
-**Document status:** H0 (planning) · H1 (sidebar) complete · H2 (Administration Home) complete · H3A (Workforce navigation) complete · H3B (Operations navigation) complete · H3C-1 (merged tab bar) complete · H3C-2A (Automation Health embed) complete · H3C-2B (Automation Pipeline embed) complete · **H3C-3 (Operations sidebar cleanup) complete**
+**Document status:** H0 (planning) · H1 (sidebar) complete · H2 (Administration Home) complete · H3A–H3C (hub navigation) complete · **H4-1 (KPI inventory) complete** · **H4-2 (Automation Health shared cache) complete** · **H4-3 (AutomationExecutionReadModel) complete** · **H4-4 (CashfreeIntegrityReadModel) complete** · **H4-5 (ExecutiveKpiReadModel) complete**
 
 ---
 
@@ -100,6 +100,11 @@ Secondary sidebar links remain during H2/H3 transition; they are **not** removal
 | **H3C** 📋 | Operations consolidation — see [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-consolidation.md). **H3C-1** ✅ · **H3C-2A** ✅ · **H3C-2B** ✅ · **H3C-3** ✅ sidebar cleanup; H3C-4+ pending | All routes preserved as alias entry points | Per sub-phase rollback |
 | **H3** *(umbrella)* | Remaining H3C items below | Every H3 merge keeps URL aliases; no feature deletion | Per sub-phase rollback |
 | **H4** | Mission Control lazy first paint; placeholder cards → deep links; shared KPI read facades (no metric loss) | Placeholders become links to existing surfaces, not deletions | Revert providers; keep aliases |
+| **H4-1** ✅ | KPI ownership & read model inventory — see [super-admin-h4-1-kpi-read-model-inventory.md](super-admin-h4-1-kpi-read-model-inventory.md) | Inventory only; no code changes | Delete doc |
+| **H4-2** ✅ | Automation Health shared aggregation cache — 60s owner cache in `AutomationHealthService` (`overview`, `breakdown`, `failures`); activity/filters uncached; TTL-only invalidation | KPI values unchanged; standalone + embedded Automation tab share cache via `dashboardData()` | Revert `AutomationHealthService` cache methods; delete cache tests |
+| **H4-3** ✅ | `AutomationExecutionReadModel` — read-only DTO facade over Health overview aggregation; Ops Performance metrics + activity summary + advisor counts consume shared KPIs (no duplicate COUNT SQL) | Controllers/routes/UI unchanged; Ops-only `partial_success` stays local | Remove ReadModel + restore prior Ops metrics SQL; revert Advisor to dashboard metrics array |
+| **H4-4** ✅ | `CashfreeIntegrityReadModel` — pure-delegate projection over `CashfreePaymentIntegrityService`; Ops health widget / integration card / reliability integrity fields / watchdog counts / IntegrationHealthService | Zero formula change; outbox/probe/evening/spike paths intentionally untouched; no ReadModel cache | Delete ReadModel + DTO; restore prior IntegrityService injections |
+| **H4-5** ✅ | `ExecutiveKpiReadModel` — pure-delegate projection over `ExecutiveMetricsService`; Mission Control cards + snapshot capture | Zero formula/TTL change; Ops/Admin not migrated (definitions differ or no KPIs) | Delete ReadModel + DTO; restore `ExecutiveMetricsService` injections on cards/snapshot |
 | **H5** | Optional renames; deprecated nav cleanup; consolidation polish | Retirements only with explicit approval + production validation | Keep aliases permanently |
 
 ### H2 scope (refined)
@@ -431,6 +436,8 @@ See [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-con
 
 ## KPI Ownership Matrix
 
+> **H4-1 complete:** Full inventory, duplicate analysis, read-model proposal, cache/poll/realtime ownership, dependency graph, and migration order are in **[super-admin-h4-1-kpi-read-model-inventory.md](super-admin-h4-1-kpi-read-model-inventory.md)**. The matrix below remains the quick-reference summary.
+
 **Goal:** Every KPI has exactly one authoritative owner service. Other dashboards **consume** the same data via read APIs/DTOs — no independent recomputation long-term.
 
 **Removal column:** All rows = **No** unless marked **Future candidate** (presentation merge only).
@@ -465,14 +472,14 @@ See [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-con
 
 | KPI | Source-of-truth | Primary owner page | Secondary consumers | Duplicated? | Long-term owner | Cache | Consolidation | Action | Removal |
 |---|---|---|---|---|---|---|---|---|---|
-| Executions today | `AutomationHealthService` + `OperationsAutomationMetricsService` | Automation Health | Operations Performance tab | **Yes** | `AutomationExecutionMetricsService` *(facade H4)* | 60s shared | Single facade | Keep both pages; merge source | No |
-| Failures today |同上 | Automation Health | Operations | **Yes** |同上 | 60s shared |同上 | Keep | No |
-| Pending executions |同上 | Automation Health | Operations | **Yes** |同上 | 60s shared |同上 | Keep | No |
-| Avg execution time |同上 | Automation Health | Operations | **Yes** |同上 | 60s shared |同上 | Keep | No |
-| Last success / failed run | `AutomationHealthService` | Automation Health | — | No | `AutomationHealthService` | Per request | — | Keep | No |
-| Breakdown by type | `AutomationHealthService` | Automation Health | — | No | `AutomationHealthService` | Per request | — | Keep | No |
-| Activity table + filters | `AutomationHealthService` | Automation Health | Ops recent activity (subset) | Partial | `AutomationHealthService` | Paginated | Ops shows summary + link | Keep; H3 tab merge | No |
-| Recent failures list | `AutomationHealthService` | Automation Health | — | No | `AutomationHealthService` | Per request | — | Keep | No |
+| Executions today | `AutomationExecutionReadModel` → `AutomationHealthService` | Automation Health | Operations Performance + activity summary | Resolved (H4-3) | `AutomationExecutionReadModel` | 60s Health aggregation | Single facade | Keep both pages; shared source | No |
+| Failures today |同上 | Automation Health | Operations + advisor | Resolved (H4-3) |同上 | 60s shared |同上 | Keep | No |
+| Pending executions |同上 | Automation Health | Activity summary | Resolved (H4-3) |同上 | 60s shared |同上 | Keep | No |
+| Avg execution time |同上 | Automation Health | Operations Performance | Resolved (H4-3) |同上 | 60s shared |同上 | Keep | No |
+| Last success / failed run | `AutomationHealthService` | Automation Health | — | No | `AutomationHealthService` | 60s aggregation cache | — | Keep | No |
+| Breakdown by type | `AutomationHealthService` | Automation Health | — | No | `AutomationHealthService` | 60s aggregation cache | — | Keep | No |
+| Activity table + filters | `AutomationHealthService` | Automation Health | Ops recent activity (subset) | Partial | `AutomationHealthService` | Paginated (uncached) | Ops shows summary + link | Keep; H3 tab merge | No |
+| Recent failures list | `AutomationHealthService` | Automation Health | — | No | `AutomationHealthService` | 60s aggregation cache | — | Keep | No |
 
 ### Service case automation pipeline
 
@@ -524,8 +531,13 @@ See [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-con
 4. **Sidebar** — Administration primary → Administration Home; keep secondary links.
 5. **Feature tests** — card visibility; linked routes unchanged; no regressions.
 6. **H3 planning gate** — no tab/drawer merge until each Register row has signed destination.
-7. **H4** — shared KPI facades; Mission Control lazy load; placeholder → deep links (not deletions).
-8. **H5** — retirements only with explicit approval after production validation.
+7. **H4-1** ✅ — KPI inventory + ownership matrix + read model proposal (planning only).
+8. **H4-2** ✅ — `AutomationHealthService` 60s shared aggregation cache (overview/breakdown/failures); standalone and embedded paths share `dashboardData()`.
+9. **H4-3** ✅ — `AutomationExecutionReadModel` DTO facade; Ops Performance + activity summary consume shared ledger KPIs.
+10. **H4-4** ✅ — `CashfreeIntegrityReadModel` pure-delegate facade; identical integrity consumers only; no cache/formula changes.
+11. **H4-5** ✅ — `ExecutiveKpiReadModel` pure-delegate facade; Mission Control + snapshot capture only.
+12. **H4** — remaining shared KPI facades; Mission Control lazy load; placeholder → deep links (not deletions).
+13. **H5** — retirements only with explicit approval after production validation.
 
 ---
 

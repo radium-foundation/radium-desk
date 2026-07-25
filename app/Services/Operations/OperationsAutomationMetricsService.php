@@ -4,10 +4,15 @@ namespace App\Services\Operations;
 
 use App\Enums\AutomationExecutionStatus;
 use App\Models\AutomationExecution;
+use App\ReadModels\Automation\AutomationExecutionReadModel;
 use Illuminate\Support\Facades\Schema;
 
 class OperationsAutomationMetricsService
 {
+    public function __construct(
+        private readonly AutomationExecutionReadModel $executionReadModel,
+    ) {}
+
     /**
      * @return array<string, mixed>
      */
@@ -17,8 +22,9 @@ class OperationsAutomationMetricsService
             return $this->emptyMetrics();
         }
 
-        $statusCounts = $snapshot?->todayAutomationExecutionCounts()
-            ?? $this->statusCountsFromDatabase();
+        $shared = $this->executionReadModel->metrics();
+
+        // Ops-only partial_success heuristic — not part of the shared ledger KPIs.
         $executions = $snapshot?->todayAutomationExecutions()
             ?? AutomationExecution::query()
                 ->where('created_at', '>=', today())
@@ -26,45 +32,21 @@ class OperationsAutomationMetricsService
                 ->limit(max(1, (int) config('operations.dashboard.automation_execution_limit', 1000)))
                 ->get();
 
-        $success = (int) ($statusCounts[AutomationExecutionStatus::Success->value] ?? 0);
-        $failed = (int) ($statusCounts[AutomationExecutionStatus::Failed->value] ?? 0);
         $partialSuccess = 0;
-        $durations = [];
 
         foreach ($executions as $execution) {
-            if ($execution->started_at !== null && $execution->completed_at !== null) {
-                $durations[] = $execution->started_at->diffInMilliseconds($execution->completed_at);
-            }
-
             if ($execution->status === AutomationExecutionStatus::Success && $this->isPartialSuccess($execution)) {
                 $partialSuccess++;
             }
         }
 
-        $total = array_sum($statusCounts);
-        $averageExecutionMs = $durations !== [] ? (int) round(array_sum($durations) / count($durations)) : null;
-
         return [
-            'executions_today' => $total,
-            'success' => max(0, $success - $partialSuccess),
+            'executions_today' => $shared->executionsToday,
+            'success' => max(0, $shared->successToday - $partialSuccess),
             'partial_success' => $partialSuccess,
-            'failed' => $failed,
-            'average_execution_ms' => $averageExecutionMs,
+            'failed' => $shared->failuresToday,
+            'average_execution_ms' => $shared->averageExecutionMs,
         ];
-    }
-
-    /**
-     * @return array<string, int>
-     */
-    private function statusCountsFromDatabase(): array
-    {
-        return AutomationExecution::query()
-            ->where('created_at', '>=', today())
-            ->selectRaw('status, count(*) as aggregate')
-            ->groupBy('status')
-            ->pluck('aggregate', 'status')
-            ->map(fn ($count): int => (int) $count)
-            ->all();
     }
 
     /**

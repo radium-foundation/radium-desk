@@ -10,7 +10,7 @@ use App\Data\Platform\PlatformMetric;
 use App\Enums\PlatformCardSize;
 use App\Enums\PlatformDashboardSection;
 use App\Models\User;
-use App\Services\Executive\ExecutiveMetricsService;
+use App\ReadModels\Executive\ExecutiveKpiReadModel;
 use App\Services\Platform\Concerns\InteractsWithPlatformCardDefinition;
 
 abstract class AbstractExecutiveMetricCardProvider implements PlatformCardProvider
@@ -18,7 +18,7 @@ abstract class AbstractExecutiveMetricCardProvider implements PlatformCardProvid
     use InteractsWithPlatformCardDefinition;
 
     public function __construct(
-        protected readonly ExecutiveMetricsService $metrics,
+        protected readonly ExecutiveKpiReadModel $metrics,
     ) {}
 
     abstract protected function metricId(): string;

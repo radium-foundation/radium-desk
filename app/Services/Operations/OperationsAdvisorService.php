@@ -38,6 +38,7 @@ class OperationsAdvisorService
         private readonly OperationsDashboardService $dashboardService,
         private readonly KnowledgeEngine $knowledgeEngine,
         private readonly RadiumBoxOrderEnrichmentSyncStore $enrichmentSyncStore,
+        private readonly OperationsRecentAutomationActivityService $recentAutomationActivityService,
     ) {}
 
     /**
@@ -400,10 +401,10 @@ class OperationsAdvisorService
     private function analyzeAutomationHealth(OperationsAdvisorSnapshot $snapshot): array
     {
         $insights = [];
-        $metrics = $snapshot->dashboard->automationMetrics;
+        $activitySummary = $this->recentAutomationActivityService->summary();
         $queueMetrics = $snapshot->dashboard->queueMetrics;
-        $failed = (int) ($metrics['failed'] ?? 0);
-        $executions = (int) ($metrics['executions_today'] ?? 0);
+        $failed = (int) ($activitySummary['failures_today'] ?? 0);
+        $executions = (int) ($activitySummary['executions_today'] ?? 0);
         $retries = (int) ($queueMetrics['retries'] ?? 0);
         $pending = (int) ($queueMetrics['pending'] ?? 0);
 

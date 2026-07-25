@@ -4,10 +4,25 @@ namespace App\Services\Operations;
 
 use App\Models\AutomationExecution;
 use App\Models\Incident;
+use App\ReadModels\Automation\AutomationExecutionReadModel;
 use Illuminate\Support\Facades\Schema;
 
 class OperationsRecentAutomationActivityService
 {
+    public function __construct(
+        private readonly AutomationExecutionReadModel $executionReadModel,
+    ) {}
+
+    /**
+     * Aggregate KPI summary for activity surfaces — shared ledger read model (no duplicate SQL).
+     *
+     * @return array<string, mixed>
+     */
+    public function summary(): array
+    {
+        return $this->executionReadModel->activitySummary()->toArray();
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

@@ -5,14 +5,14 @@ namespace App\Services\Executive\Snapshots;
 use App\Data\Executive\ExecutiveMetricsSnapshot;
 use App\Enums\ExecutiveSnapshotGranularity;
 use App\Models\ExecutiveMetricSnapshot;
-use App\Services\Executive\ExecutiveMetricsService;
+use App\ReadModels\Executive\ExecutiveKpiReadModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class ExecutiveSnapshotService
 {
     public function __construct(
-        private readonly ExecutiveMetricsService $metricsService,
+        private readonly ExecutiveKpiReadModel $kpiReadModel,
         private readonly ExecutiveSnapshotWriter $writer,
         private readonly ExecutiveSnapshotRepository $repository,
     ) {}
@@ -24,7 +24,7 @@ class ExecutiveSnapshotService
      */
     public function capture(?Carbon $at = null): array
     {
-        $live = $this->metricsService->snapshot(force: true);
+        $live = $this->kpiReadModel->snapshot(force: true);
         $written = $this->writer->write($live, $at);
 
         return [

@@ -5,7 +5,7 @@ namespace App\Services\Operations;
 use App\Enums\OperationsHealthStatus;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Models\AuditLog;
-use App\Services\Cashfree\CashfreePaymentIntegrityService;
+use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\SystemSettingsService;
@@ -17,7 +17,7 @@ class OperationsIntegrationHealthService
 {
     public function __construct(
         private readonly CashfreeIntegrationHealthProbe $cashfreeProbe,
-        private readonly CashfreePaymentIntegrityService $cashfreePaymentIntegrityService,
+        private readonly CashfreeIntegrityReadModel $cashfreeIntegrityReadModel,
         private readonly SystemSettingsService $systemSettings,
         private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
     ) {}
@@ -44,9 +44,9 @@ class OperationsIntegrationHealthService
     {
         $probeSnapshot = $snapshot?->cashfreeIntegrationSnapshot()
             ?? $this->cashfreeProbe->probe();
-        $classification = $this->cashfreePaymentIntegrityService->classifyFailedWebhooks();
-        $paidWithoutDeskOrder = $this->cashfreePaymentIntegrityService->paidWithoutDeskOrderCount();
-        $requiresAlert = $this->cashfreePaymentIntegrityService->requiresCashfreeHealthAlert();
+        $classification = $this->cashfreeIntegrityReadModel->classifyFailedWebhooks();
+        $paidWithoutDeskOrder = $this->cashfreeIntegrityReadModel->paidWithoutDeskOrderCount();
+        $requiresAlert = $this->cashfreeIntegrityReadModel->requiresCashfreeHealthAlert();
 
         $status = $requiresAlert
             ? OperationsHealthStatus::Failed

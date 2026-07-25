@@ -1,0 +1,72 @@
+<?php
+
+namespace App\ReadModels\Integrations;
+
+use App\Data\CashfreeFailedWebhookClassificationReport;
+use App\Data\Integrations\CashfreeIntegrityMetricsV1;
+use App\Services\Cashfree\CashfreePaymentIntegrityService;
+
+/**
+ * Read-only projection over CashfreePaymentIntegrityService.
+ *
+ * - No SQL, business rules, repair, or retry logic.
+ * - No cache layer (owner + OperationsCashfreeHealthService retain existing caches).
+ * - Methods pure-delegate to the owner so consumer call sequences stay identical.
+ */
+class CashfreeIntegrityReadModel
+{
+    public function __construct(
+        private readonly CashfreePaymentIntegrityService $integrityService,
+    ) {}
+
+    /**
+     * Stable integrity KPI projection.
+     *
+     * Call sequence matches OperationsCashfreeHealthService integrity reads:
+     * classifyFailedWebhooks → paidWithoutDeskOrderCount → requiresCashfreeHealthAlert.
+     */
+    public function metrics(): CashfreeIntegrityMetricsV1
+    {
+        $classification = $this->integrityService->classifyFailedWebhooks();
+        $paidWithoutDeskOrderCount = $this->integrityService->paidWithoutDeskOrderCount();
+        $requiresAlert = $this->integrityService->requiresCashfreeHealthAlert();
+
+        return new CashfreeIntegrityMetricsV1(
+            paidWithoutDeskOrderCount: $paidWithoutDeskOrderCount,
+            activeFailedWebhooks: $classification->activeFailedWebhooks,
+            historicalResolvedFailures: $classification->historicalResolvedFailures,
+            invalidEventFailures: $classification->invalidEventFailures,
+            totalFailedWebhooks: $classification->totalFailed,
+            countsByCategory: $classification->countsByCategory,
+            oldestFailedAt: $classification->oldestFailedAt,
+            newestFailedAt: $classification->newestFailedAt,
+            affectedOrderIds: $classification->affectedOrderIds,
+            requiresAlert: $requiresAlert,
+        );
+    }
+
+    public function paidWithoutDeskOrderCount(): int
+    {
+        return $this->integrityService->paidWithoutDeskOrderCount();
+    }
+
+    public function activeFailedWebhookCount(): int
+    {
+        return $this->integrityService->activeFailedWebhookCount();
+    }
+
+    public function historicalResolvedFailureCount(): int
+    {
+        return $this->integrityService->historicalResolvedFailureCount();
+    }
+
+    public function classifyFailedWebhooks(): CashfreeFailedWebhookClassificationReport
+    {
+        return $this->integrityService->classifyFailedWebhooks();
+    }
+
+    public function requiresCashfreeHealthAlert(): bool
+    {
+        return $this->integrityService->requiresCashfreeHealthAlert();
+    }
+}

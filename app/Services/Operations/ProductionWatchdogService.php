@@ -10,6 +10,7 @@ use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
+use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -25,6 +26,7 @@ class ProductionWatchdogService
     private const ERROR_SPIKE_THRESHOLD = 10;
 
     public function __construct(
+        private readonly CashfreeIntegrityReadModel $cashfreeIntegrityReadModel,
         private readonly CashfreePaymentIntegrityService $cashfreeIntegrityService,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly OperationsSystemHealthService $systemHealthService,
@@ -104,9 +106,10 @@ class ProductionWatchdogService
     private function cashfreeAlerts(): array
     {
         $alerts = [];
-        $paidMissing = $this->cashfreeIntegrityService->paidWithoutDeskOrderCount();
+        $paidMissing = $this->cashfreeIntegrityReadModel->paidWithoutDeskOrderCount();
 
         if ($paidMissing > 0) {
+            // reconcile() remains on the owner — sample IDs are reporting, not a shared integrity KPI.
             $missingRecords = collect($this->cashfreeIntegrityService->reconcile()->missingOrders)
                 ->take(5)
                 ->map(fn ($record): string => (string) ($record->orderId ?? $record->cfPaymentId ?? ''))
@@ -126,7 +129,7 @@ class ProductionWatchdogService
             );
         }
 
-        $activeFailed = $this->cashfreeIntegrityService->activeFailedWebhookCount();
+        $activeFailed = $this->cashfreeIntegrityReadModel->activeFailedWebhookCount();
 
         if ($activeFailed > 0) {
             $alerts[] = new ProductionCriticalAlert(

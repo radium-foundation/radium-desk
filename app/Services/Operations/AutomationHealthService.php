@@ -10,10 +10,15 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator as Paginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 class AutomationHealthService
 {
+    public const AGGREGATION_CACHE_KEY_PREFIX = 'operations:automation-health:aggregation';
+
+    private const AGGREGATION_CACHE_TTL_SECONDS = 60;
+
     public function __construct(
         private readonly AutomationExecutionClassifier $classifier,
         private readonly AutomationHealthStatusCalculator $healthCalculator,
@@ -28,6 +33,78 @@ class AutomationHealthService
             return $this->emptyDashboard();
         }
 
+        $aggregation = $this->cachedDashboardAggregation();
+
+        return [
+            // overviewAggregation() is the H4-3 shared KPI entry (also exposed via AutomationExecutionReadModel).
+            'overview' => $this->overviewAggregation(),
+            'breakdown' => $aggregation['breakdown'],
+            'activity' => $this->paginatedActivity($filters),
+            'failures' => $aggregation['failures'],
+            'filter_options' => [
+                'automation_types' => $this->classifier->typeOptions(),
+                'statuses' => [
+                    AutomationExecutionStatus::Pending->value => 'Pending',
+                    AutomationExecutionStatus::Success->value => 'Success',
+                    AutomationExecutionStatus::Failed->value => 'Failed',
+                    AutomationExecutionStatus::Skipped->value => 'Skipped',
+                ],
+            ],
+            'filters' => $this->normalizedFilters($filters),
+        ];
+    }
+
+    /**
+     * Cached overview KPIs for Automation Health and AutomationExecutionReadModel consumers.
+     *
+     * @return array<string, mixed>
+     */
+    public function overviewAggregation(): array
+    {
+        if (! Schema::hasTable('automation_executions')) {
+            return $this->emptyDashboard()['overview'];
+        }
+
+        return $this->cachedDashboardAggregation()['overview'];
+    }
+
+    public static function aggregationCacheKey(?Carbon $date = null): string
+    {
+        return self::AGGREGATION_CACHE_KEY_PREFIX.':'.($date ?? today())->toDateString();
+    }
+
+    /**
+     * Cached overview, breakdown, and failures aggregation shared by standalone and embedded views.
+     *
+     * Invalidation: TTL-only (60s). No event-driven invalidation exists today; new executions may
+     * take up to the TTL to appear in overview/breakdown/failures KPIs.
+     *
+     * @return array{overview: array<string, mixed>, breakdown: list<array<string, mixed>>, failures: list<array<string, mixed>>}
+     */
+    private function cachedDashboardAggregation(): array
+    {
+        $cacheKey = self::aggregationCacheKey();
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached)) {
+            return $this->hydrateAggregationFromCache($cached);
+        }
+
+        $aggregation = $this->buildDashboardAggregation();
+        Cache::put(
+            $cacheKey,
+            $this->serializeAggregationForCache($aggregation),
+            now()->addSeconds(self::AGGREGATION_CACHE_TTL_SECONDS),
+        );
+
+        return $aggregation;
+    }
+
+    /**
+     * @return array{overview: array<string, mixed>, breakdown: list<array<string, mixed>>, failures: list<array<string, mixed>>}
+     */
+    private function buildDashboardAggregation(): array
+    {
         $overview = $this->overviewMetrics();
         $health = $this->healthCalculator->calculate(
             lastSuccessAt: $overview['last_success_at'],
@@ -45,19 +122,102 @@ class AutomationHealthService
                 'health_detail' => $health['detail'],
             ]),
             'breakdown' => $this->breakdownByType(),
-            'activity' => $this->paginatedActivity($filters),
             'failures' => $this->recentFailures(),
-            'filter_options' => [
-                'automation_types' => $this->classifier->typeOptions(),
-                'statuses' => [
-                    AutomationExecutionStatus::Pending->value => 'Pending',
-                    AutomationExecutionStatus::Success->value => 'Success',
-                    AutomationExecutionStatus::Failed->value => 'Failed',
-                    AutomationExecutionStatus::Skipped->value => 'Skipped',
-                ],
-            ],
-            'filters' => $this->normalizedFilters($filters),
         ];
+    }
+
+    /**
+     * @param  array{overview: array<string, mixed>, breakdown: list<array<string, mixed>>, failures: list<array<string, mixed>>}  $aggregation
+     * @return array{overview: array<string, mixed>, breakdown: list<array<string, mixed>>, failures: list<array<string, mixed>>}
+     */
+    private function serializeAggregationForCache(array $aggregation): array
+    {
+        return [
+            'overview' => $this->serializeOverviewForCache($aggregation['overview']),
+            'breakdown' => array_map(
+                fn (array $row): array => $this->serializeBreakdownRowForCache($row),
+                $aggregation['breakdown'],
+            ),
+            'failures' => $aggregation['failures'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $cached
+     * @return array{overview: array<string, mixed>, breakdown: list<array<string, mixed>>, failures: list<array<string, mixed>>}
+     */
+    private function hydrateAggregationFromCache(array $cached): array
+    {
+        return [
+            'overview' => $this->hydrateOverviewFromCache($cached['overview'] ?? []),
+            'breakdown' => array_map(
+                fn (array $row): array => $this->hydrateBreakdownRowFromCache($row),
+                $cached['breakdown'] ?? [],
+            ),
+            'failures' => $cached['failures'] ?? [],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $overview
+     * @return array<string, mixed>
+     */
+    private function serializeOverviewForCache(array $overview): array
+    {
+        $serialized = $overview;
+
+        foreach (['last_success_at', 'last_failed_at', 'last_execution_at', 'oldest_pending_started_at'] as $field) {
+            $value = $overview[$field] ?? null;
+            $serialized[$field] = $value instanceof Carbon ? $value->toIso8601String() : null;
+        }
+
+        return $serialized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $overview
+     * @return array<string, mixed>
+     */
+    private function hydrateOverviewFromCache(array $overview): array
+    {
+        $hydrated = $overview;
+
+        foreach (['last_success_at', 'last_failed_at', 'last_execution_at', 'oldest_pending_started_at'] as $field) {
+            $value = $overview[$field] ?? null;
+            $hydrated[$field] = is_string($value) && $value !== ''
+                ? Carbon::parse($value)
+                : null;
+        }
+
+        return $hydrated;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function serializeBreakdownRowForCache(array $row): array
+    {
+        $serialized = $row;
+        $value = $row['last_execution_at'] ?? null;
+        $serialized['last_execution_at'] = $value instanceof Carbon ? $value->toIso8601String() : null;
+
+        return $serialized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function hydrateBreakdownRowFromCache(array $row): array
+    {
+        $hydrated = $row;
+        $value = $row['last_execution_at'] ?? null;
+        $hydrated['last_execution_at'] = is_string($value) && $value !== ''
+            ? Carbon::parse($value)
+            : null;
+
+        return $hydrated;
     }
 
     /**
@@ -169,6 +329,8 @@ class AutomationHealthService
             'last_failed_display' => $lastFailedAt !== null ? display_app_datetime_seconds($lastFailedAt) : '—',
             'last_execution_at' => $lastExecutionAt instanceof Carbon ? $lastExecutionAt : null,
             'executions_today' => array_sum($statusCounts),
+            'success_today' => (int) ($statusCounts[AutomationExecutionStatus::Success->value] ?? 0),
+            'skipped_today' => (int) ($statusCounts[AutomationExecutionStatus::Skipped->value] ?? 0),
             'failures_today' => (int) ($statusCounts[AutomationExecutionStatus::Failed->value] ?? 0),
             'pending_executions' => $pendingCount,
             'oldest_pending_started_at' => $oldestPendingStartedAt instanceof Carbon ? $oldestPendingStartedAt : null,
@@ -495,8 +657,11 @@ class AutomationHealthService
                 'last_success_display' => '—',
                 'last_failed_display' => '—',
                 'executions_today' => 0,
+                'success_today' => 0,
+                'skipped_today' => 0,
                 'failures_today' => 0,
                 'pending_executions' => 0,
+                'average_execution_ms' => null,
                 'average_execution_display' => '—',
             ],
             'breakdown' => array_map(

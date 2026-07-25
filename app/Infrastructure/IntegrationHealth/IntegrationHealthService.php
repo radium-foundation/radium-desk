@@ -7,7 +7,7 @@ use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
 use App\Infrastructure\Queue\QueueMetricsService;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Order;
-use App\Services\Cashfree\CashfreePaymentIntegrityService;
+use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Illuminate\Support\Facades\Schema;
@@ -21,7 +21,7 @@ class IntegrationHealthService
         private readonly RadiumBoxIntegrationHealthProbe $radiumBoxProbe,
         private readonly QueueMetricsService $queueMetricsService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
-        private readonly CashfreePaymentIntegrityService $cashfreePaymentIntegrityService,
+        private readonly CashfreeIntegrityReadModel $cashfreeIntegrityReadModel,
     ) {}
 
     public function cashfree(): CashfreeHealthDetails
@@ -46,7 +46,7 @@ class IntegrationHealthService
             ->latest('processed_at')
             ->value('processed_at');
 
-        $classification = $this->cashfreePaymentIntegrityService->classifyFailedWebhooks();
+        $classification = $this->cashfreeIntegrityReadModel->classifyFailedWebhooks();
 
         return new CashfreeHealthDetails(
             lastWebhookAt: $lastWebhook,
@@ -54,7 +54,7 @@ class IntegrationHealthService
             failedWebhooks: $classification->totalFailed,
             activeFailedWebhooks: $classification->activeFailedWebhooks,
             historicalResolvedFailures: $classification->historicalResolvedFailures,
-            paidWithoutDeskOrderCount: $this->cashfreePaymentIntegrityService->paidWithoutDeskOrderCount(),
+            paidWithoutDeskOrderCount: $this->cashfreeIntegrityReadModel->paidWithoutDeskOrderCount(),
         );
     }
 

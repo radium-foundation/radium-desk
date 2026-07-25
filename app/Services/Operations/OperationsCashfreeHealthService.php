@@ -3,7 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
-use App\Services\Cashfree\CashfreePaymentIntegrityService;
+use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +16,7 @@ class OperationsCashfreeHealthService
 
     public function __construct(
         private readonly CashfreeIntegrationHealthProbe $probe,
-        private readonly CashfreePaymentIntegrityService $integrityService,
+        private readonly CashfreeIntegrityReadModel $integrityReadModel,
     ) {}
 
     /**
@@ -43,10 +43,10 @@ class OperationsCashfreeHealthService
      */
     private function build(): array
     {
-        $classification = $this->integrityService->classifyFailedWebhooks();
+        $classification = $this->integrityReadModel->classifyFailedWebhooks();
         $probeSnapshot = $this->probe->probe();
-        $paidWithoutDeskOrder = $this->integrityService->paidWithoutDeskOrderCount();
-        $isHealthy = ! $this->integrityService->requiresCashfreeHealthAlert();
+        $paidWithoutDeskOrder = $this->integrityReadModel->paidWithoutDeskOrderCount();
+        $isHealthy = ! $this->integrityReadModel->requiresCashfreeHealthAlert();
 
         return [
             'is_healthy' => $isHealthy,
