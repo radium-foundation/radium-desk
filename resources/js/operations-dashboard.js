@@ -245,27 +245,12 @@ const renderGeneratedAtMarkup = (isoString) => {
     return `<span class="operations-live-indicator" aria-hidden="true">● Live</span> Updated ${formattedTime}`;
 };
 
-const getActiveTabGroup = (pageRoot) => {
-    const activePane = pageRoot.querySelector('.tab-pane.active');
-
-    if (!activePane?.id) {
-        return null;
-    }
-
-    return TAB_GROUP_BY_PANE[activePane.id] ?? null;
-};
-
 const buildLiveGroups = (pageRoot, forceFullRefresh, extraGroups = []) => {
     if (forceFullRefresh) {
         return null;
     }
 
     const groups = [...ALWAYS_REFRESH_GROUPS];
-    const activeGroup = getActiveTabGroup(pageRoot);
-
-    if (activeGroup) {
-        groups.push(activeGroup);
-    }
 
     extraGroups.forEach((group) => {
         if (!groups.includes(group)) {

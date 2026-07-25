@@ -240,8 +240,26 @@ class OperationsDashboardPerformanceTest extends TestCase
         DB::disableQueryLog();
 
         $this->assertSame([], $data->ivrAnalytics);
-        $this->assertNotEmpty($data->supportIntelligence);
+        $this->assertSame([], $data->supportIntelligence);
+        $this->assertSame([], $data->teamAvailability['on_duty'] ?? []);
         $this->assertGreaterThan(0, $queries);
+    }
+
+    public function test_always_on_partial_build_excludes_support_and_team_bundles(): void
+    {
+        Cache::flush();
+
+        $service = app(OperationsDashboardService::class);
+        $sections = OperationsDashboardLiveRenderer::resolveSections(['critical', 'summary', 'health', 'ira_compact']);
+        $bundles = OperationsDashboardSectionBundles::bundlesForSections($sections);
+
+        $this->assertNotContains(OperationsDashboardSectionBundles::SUPPORT_INTELLIGENCE, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::TEAM_AVAILABILITY, $bundles);
+
+        $data = $service->buildForSections($sections);
+
+        $this->assertSame([], $data->supportIntelligence);
+        $this->assertSame([], $data->teamAvailability['on_duty'] ?? []);
     }
 
     public function test_performance_group_build_excludes_support_intelligence(): void

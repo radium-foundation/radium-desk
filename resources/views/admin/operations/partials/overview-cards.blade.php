@@ -9,6 +9,11 @@
 
 @php
     $operations = $briefing?->snapshot->operations ?? [];
+
+    if ($intelligence === [] && isset($operations['support']) && is_array($operations['support'])) {
+        $intelligence = $operations['support'];
+    }
+
     $operational = $intelligence['operational'] ?? [];
     $supportToday = $intelligence['today'] ?? [];
     $teamWorkload = $intelligence['team_workload'] ?? [];

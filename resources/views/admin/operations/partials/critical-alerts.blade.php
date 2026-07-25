@@ -8,7 +8,8 @@
 
     $cashfreeHealth = $dashboard->cashfreeHealth ?? [];
     $radiumBoxHealth = $dashboard->radiumBoxHealth ?? [];
-    $supportToday = $dashboard->supportIntelligence['today'] ?? [];
+    $supportToday = $dashboard->supportIntelligence['today']
+        ?? ($briefing?->snapshot->operations['support']['today'] ?? []);
 
     $alerts = [];
 

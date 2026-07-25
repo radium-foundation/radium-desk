@@ -41,7 +41,6 @@ class OperationsDashboardSectionBundles
         'critical_alerts' => [
             self::CASHFREE_HEALTH,
             self::RADIUMBOX_HEALTH,
-            self::SUPPORT_INTELLIGENCE,
         ],
         'overview_cards' => [
             self::SYSTEM_HEALTH,
@@ -49,8 +48,6 @@ class OperationsDashboardSectionBundles
             self::CASHFREE_HEALTH,
             self::RADIUMBOX_HEALTH,
             self::TEAM_TELEGRAM_STATUS,
-            self::SUPPORT_INTELLIGENCE,
-            self::TEAM_AVAILABILITY,
         ],
         'ira_compact' => [],
         'ira_full_analysis' => [],
