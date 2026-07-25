@@ -24,6 +24,12 @@ const logCustomer360Failure = (endpoint, status, context, error = null) => {
 
 const drawerContentUrl = (baseUrl, incidentId) => `${baseUrl}/${incidentId}/customer-360`;
 
+const incidentIdFromCustomer360Url = (url) => {
+    const match = String(url).match(/\/(\d+)\/customer-360(?:\/|$|\?)/);
+
+    return match ? match[1] : null;
+};
+
 const verifyAiDomIntegrity = (contentHost) => {
     if (!import.meta.env?.DEV) {
         return;
@@ -170,6 +176,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     let activeIncidentId = null;
     let fetchController = null;
+    let subFetchController = null;
+    let contentGeneration = 0;
     let pendingOpenOptions = {};
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
@@ -179,6 +187,35 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         executiveSummary: false,
         timeline: false,
         ai: false,
+    };
+
+    const resetSubFetchController = () => {
+        subFetchController?.abort();
+        subFetchController = new AbortController();
+    };
+
+    const bumpContentGeneration = () => {
+        contentGeneration += 1;
+
+        return contentGeneration;
+    };
+
+    const isStaleCustomer360Content = (requestUrl, generation) => {
+        if (generation !== contentGeneration) {
+            return true;
+        }
+
+        if (activeIncidentId === null) {
+            return true;
+        }
+
+        const incidentId = incidentIdFromCustomer360Url(requestUrl);
+
+        if (incidentId === null) {
+            return false;
+        }
+
+        return String(incidentId) !== String(activeIncidentId);
     };
 
     const stopTimelinePolling = () => {
@@ -219,8 +256,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         return true;
     };
 
-    const refreshDeviceSection = async (refreshUrl) => {
-        if (!refreshUrl) {
+    const refreshDeviceSection = async (refreshUrl, generation = contentGeneration) => {
+        if (!refreshUrl || isStaleCustomer360Content(refreshUrl, generation)) {
             return;
         }
 
@@ -230,7 +267,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
+                signal: subFetchController?.signal,
             });
+
+            if (isStaleCustomer360Content(refreshUrl, generation)) {
+                return;
+            }
 
             if (!response.ok) {
                 logCustomer360Failure(refreshUrl, response.status, 'device-refresh');
@@ -240,10 +282,18 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
             const payload = await response.json();
 
+            if (isStaleCustomer360Content(refreshUrl, generation)) {
+                return;
+            }
+
             if (payload.html) {
                 replaceDeviceSection(payload.html);
             }
         } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
             logCustomer360Failure(refreshUrl, null, 'device-refresh', error);
         }
     };
@@ -263,13 +313,15 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             return;
         }
 
+        const generation = contentGeneration;
+
         devicePollTimer = setInterval(() => {
-            refreshDeviceSection(refreshUrl);
+            refreshDeviceSection(refreshUrl, generation);
         }, deviceSyncPollMs);
     };
 
-    const refreshTimelineSection = async (refreshUrl) => {
-        if (!refreshUrl) {
+    const refreshTimelineSection = async (refreshUrl, generation = contentGeneration) => {
+        if (!refreshUrl || isStaleCustomer360Content(refreshUrl, generation)) {
             return;
         }
 
@@ -279,7 +331,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
+                signal: subFetchController?.signal,
             });
+
+            if (isStaleCustomer360Content(refreshUrl, generation)) {
+                return;
+            }
 
             if (!response.ok) {
                 logCustomer360Failure(refreshUrl, response.status, 'timeline-refresh');
@@ -290,11 +347,19 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             const payload = await response.json();
             const section = contentHost.querySelector('[data-customer-360-timeline-section]');
 
+            if (isStaleCustomer360Content(refreshUrl, generation)) {
+                return;
+            }
+
             if (section && payload.html) {
                 section.outerHTML = payload.html;
                 initUnifiedTimeline(contentHost);
             }
         } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
             logCustomer360Failure(refreshUrl, null, 'timeline-refresh', error);
         }
     };
@@ -309,8 +374,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             return;
         }
 
+        const generation = contentGeneration;
+
         timelinePollTimer = setInterval(() => {
-            refreshTimelineSection(refreshUrl);
+            refreshTimelineSection(refreshUrl, generation);
         }, timelinePollMs);
     };
 
@@ -604,6 +671,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         lazyTabState.executiveSummary = true;
+        const generation = contentGeneration;
 
         try {
             const response = await fetch(loadUrl, {
@@ -611,7 +679,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
+                signal: subFetchController?.signal,
             });
+
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
 
             if (!response.ok) {
                 logCustomer360Failure(loadUrl, response.status, 'executive-summary-load');
@@ -622,6 +695,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
             const payload = await response.json();
 
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
+
             if (payload.html) {
                 placeholder.outerHTML = payload.html;
                 bindExecutiveSummaryTranslation();
@@ -629,6 +706,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 initTooltips?.(contentHost);
             }
         } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
             logCustomer360Failure(loadUrl, null, 'executive-summary-load', error);
             placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load executive summary.</p>';
         }
@@ -647,6 +728,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         lazyTabState.timeline = true;
+        const generation = contentGeneration;
 
         try {
             const response = await fetch(loadUrl, {
@@ -654,7 +736,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
+                signal: subFetchController?.signal,
             });
+
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
 
             if (!response.ok) {
                 logCustomer360Failure(loadUrl, response.status, 'timeline-tab-load');
@@ -665,6 +752,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
             const payload = await response.json();
 
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
+
             if (payload.html) {
                 placeholder.outerHTML = payload.html;
                 initUnifiedTimeline(contentHost);
@@ -672,6 +763,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 configureTimelinePolling();
             }
         } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
             logCustomer360Failure(loadUrl, null, 'timeline-tab-load', error);
             placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load timeline.</p>';
         }
@@ -690,6 +785,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         lazyTabState.ai = true;
+        const generation = contentGeneration;
 
         try {
             const response = await fetch(loadUrl, {
@@ -697,7 +793,12 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                     Accept: 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
+                signal: subFetchController?.signal,
             });
+
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
 
             if (!response.ok) {
                 logCustomer360Failure(loadUrl, response.status, 'ai-tab-load');
@@ -708,12 +809,20 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
             const payload = await response.json();
 
+            if (isStaleCustomer360Content(loadUrl, generation)) {
+                return;
+            }
+
             if (payload.html) {
                 placeholder.outerHTML = payload.html;
                 verifyAiDomIntegrity(contentHost);
                 bindWorkbenchActions();
             }
         } catch (error) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+
             logCustomer360Failure(loadUrl, null, 'ai-tab-load', error);
             placeholder.innerHTML = '<p class="text-muted small mb-0">Unable to load IRA AI.</p>';
         }
@@ -1065,6 +1174,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     const loadInitialContent = async (incidentId) => {
         fetchController?.abort();
         fetchController = new AbortController();
+        resetSubFetchController();
+        bumpContentGeneration();
         stopDeviceSyncPolling();
         stopTimelinePolling();
 
@@ -1148,6 +1259,9 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     const close = () => {
         fetchController?.abort();
         fetchController = null;
+        subFetchController?.abort();
+        subFetchController = null;
+        bumpContentGeneration();
         stopDeviceSyncPolling();
         stopTimelinePolling();
 

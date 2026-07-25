@@ -938,4 +938,99 @@ describe('initCustomer360Drawer', () => {
             vi.useRealTimers();
         }
     });
+
+    it('ignores stale timeline responses after switching incidents', async () => {
+        const pageRoot = setupDashboard();
+        const timelineRefreshUrlA = 'http://localhost/dashboard/service-cases/42/customer-360/timeline';
+        const timelineRefreshUrlC = 'http://localhost/dashboard/service-cases/99/customer-360/timeline';
+
+        let resolveTimelineTabA;
+
+        global.fetch = vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => `
+                    <div data-customer-360-content>
+                        <button type="button" data-customer-360-tab="overview">Overview</button>
+                        <button type="button" data-customer-360-tab="timeline">Timeline</button>
+                        <div data-customer-360-tab-pane="overview">Overview pane</div>
+                        <div data-customer-360-tab-pane="timeline" class="d-none">
+                            <div data-customer-360-timeline-tab data-timeline-tab-url="${timelineRefreshUrlA}/tab"></div>
+                        </div>
+                    </div>
+                `,
+            })
+            .mockImplementationOnce(() => new Promise((resolve) => {
+                resolveTimelineTabA = resolve;
+            }))
+            .mockResolvedValueOnce({
+                ok: true,
+                text: async () => `
+                    <div data-customer-360-content>
+                        <button type="button" data-customer-360-tab="overview">Overview</button>
+                        <button type="button" data-customer-360-tab="timeline">Timeline</button>
+                        <div data-customer-360-tab-pane="overview">Overview pane</div>
+                        <div data-customer-360-tab-pane="timeline" class="d-none">
+                            <div data-customer-360-timeline-tab data-timeline-tab-url="${timelineRefreshUrlC}/tab"></div>
+                        </div>
+                    </div>
+                `,
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    html: `
+                        <section data-customer-360-timeline-section data-timeline-refresh-url="${timelineRefreshUrlC}">
+                            <div data-unified-timeline>incident-c-timeline</div>
+                        </section>
+                    `,
+                }),
+            });
+
+        const drawer = initCustomer360Drawer({ pageRoot });
+
+        await drawer.open('42', 'SC-001');
+
+        document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalledWith(
+                `${timelineRefreshUrlA}/tab`,
+                expect.any(Object),
+            );
+        });
+
+        await drawer.open('99', 'SC-099');
+
+        document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true }),
+        );
+
+        await vi.waitFor(() => {
+            expect(contentHostText()).toContain('incident-c-timeline');
+        });
+
+        resolveTimelineTabA({
+            ok: true,
+            json: async () => ({
+                html: `
+                    <section data-customer-360-timeline-section data-timeline-refresh-url="${timelineRefreshUrlA}">
+                        <div data-unified-timeline>incident-a-timeline</div>
+                    </section>
+                `,
+            }),
+        });
+
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(contentHostText()).toContain('incident-c-timeline');
+        expect(contentHostText()).not.toContain('incident-a-timeline');
+    });
 });
+
+const contentHostText = () => (
+    document.querySelector('[data-customer-360-content-host]')?.textContent ?? ''
+);
