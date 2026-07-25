@@ -237,7 +237,7 @@ No KPIs displayed. Future read-only chips (H4+) may consume:
 | Facade | Wraps | Exposes |
 |---|---|---|
 | `App\ReadModels\Executive\ExecutiveKpiReadModel` ✅ H4-5 | `ExecutiveMetricsService` (no SQL in facade) | `ExecutiveKpiMetricsV1` + `get`/`snapshot`/`refresh` delegates |
-| `App\ReadModels\Cases\CaseQueueReadModel` | `DashboardSnapshot` | open, waiting, SLA, queue counts |
+| `App\ReadModels\Cases\CaseQueueReadModel` ✅ H4-6B shadow | `DashboardSnapshot` + classifier pass-through | `CaseQueueMetricsV1` (no production consumers yet) |
 | `App\ReadModels\Operations\SupportIntelligenceReadModel` | `OperationsSupportIntelligenceService` | `SupportIntelligenceSummary` |
 | `App\ReadModels\Automation\AutomationExecutionReadModel` ✅ H4-3 | `AutomationHealthService::overviewAggregation()` | `AutomationExecutionMetricsV1`, `AutomationActivitySummaryV1` |
 | `App\ReadModels\Automation\ServiceCaseAutomationReadModel` | `ServiceCaseAutomationHealthService` | pipeline counts |
@@ -275,7 +275,7 @@ No KPIs displayed. Future read-only chips (H4+) may consume:
 | `bonvoice:analytics:operations` | `BonvoiceAnalyticsService` | 60s | Time expiry | Direct |
 | `platform:scheduler:*`, `platform:presence:*` | `PlatformHealthCache` | Constant | Probe refresh | `PlatformHealthReadModel` |
 | `operations:automation-health:aggregation:{date}` | `AutomationHealthService` | 60s | TTL only — no event-driven invalidation (H4-2 ✅) | `AutomationExecutionReadModel` (H4-3 ✅) → Health page, Ops Performance metrics, activity summary, advisor |
-| Request-scoped | `DashboardSnapshotStore` | Request | `forgetSnapshot()` on broadcast | `CaseQueueReadModel` |
+| Request-scoped | `DashboardSnapshotStore` | Request | `forgetSnapshot()` on broadcast | `CaseQueueReadModel` (H4-6B ✅) adds **no** cache; shadow only |
 
 **Cache policy (H4):** Do not introduce a second cache for the same KPI. Facades delegate to owner cache. `AutomationHealthService` owns a single 60s aggregation cache (H4-2 ✅); `AutomationExecutionReadModel` (H4-3 ✅) reads through that owner with no nested layer.
 
@@ -389,7 +389,12 @@ flowchart TB
 | **H4-3** ✅ | `AutomationExecutionReadModel` | Unify execution today/failures/avg across Health + Ops Performance + activity summary | Medium | Automation Health + Ops Performance show identical shared numbers |
 | **H4-4** ✅ | `CashfreeIntegrityReadModel` | Pure-delegate integrity projection (paid-missing / classified failures / requires alert) | Low | Critical alerts + health widgets unchanged; outbox/probe/evening not merged |
 | **H4-5** ✅ | `ExecutiveKpiReadModel` | Pure-delegate over `ExecutiveMetricsService` (8 MC KPIs) | Low | MC cards + snapshot capture identical; Ops/Admin not merged |
-| **H4-6** | `CaseQueueReadModel` facade | Wrap `DashboardSnapshot` | High | Operator dashboard + Ops bento parity tests |
+| **H4-6A** ✅ | Case Queue inventory | See [super-admin-h4-6a-case-queue-inventory.md](super-admin-h4-6a-case-queue-inventory.md) | None | Investigation only |
+| **H4-6B** ✅ | `CaseQueueReadModel` shadow facade | Pure-delegate over `DashboardSnapshot` + classifier (no SQL/cache) | Low | Parity tests; **zero** production consumer switches |
+| **H4-6C** ✅ | Ops summary count migration | SupportIntelligence + IraMemory + IraOwner summary KPIs | Low | Identical counts; collections stay on snapshot |
+| **H4-6C.1** ✅ | Summary adoption audit | [super-admin-h4-6c1-case-queue-summary-adoption-audit.md](super-admin-h4-6c1-case-queue-summary-adoption-audit.md) | None | No further SAFE migrants this phase |
+| **H4-6D** ✅ | Workforce scoped open migration | TeamAvailability + Workforce360 via `forUser` / `forTeamMembers` | Low | Identical open_work_count; no Team model / no collections |
+| **H4-6E** | Operator dashboard consumers | Per inventory SAFE list only | High | Reverb + Ready Queue suites |
 | **H4-7** | Executive ↔ Ops appointment import (optional) | Only if product confirms SupportIntelligence ownership for `scheduledToday` | Medium | Cache path must stay explicit; no silent TTL change |
 | **H4-8** | `PresenceReadModel` | Unify active agents / on duty | High | Definition document + cross-surface tests |
 | **H4-9** | Mission Control lazy first paint | Placeholder cards → deep links | Low | No metric removal |

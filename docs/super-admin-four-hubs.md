@@ -4,7 +4,7 @@ Architecture and migration plan for consolidating Super Admin surfaces into four
 
 Routes, permissions, controllers, and business logic remain canonical until a later phase explicitly aliases, relocates, or retires a surface **after production validation and explicit approval**.
 
-**Document status:** H0 (planning) · H1 (sidebar) complete · H2 (Administration Home) complete · H3A–H3C (hub navigation) complete · **H4-1 (KPI inventory) complete** · **H4-2 (Automation Health shared cache) complete** · **H4-3 (AutomationExecutionReadModel) complete** · **H4-4 (CashfreeIntegrityReadModel) complete** · **H4-5 (ExecutiveKpiReadModel) complete**
+**Document status:** H0 (planning) · H1 (sidebar) complete · H2 (Administration Home) complete · H3A–H3C (hub navigation) complete · **H4-1–H4-5 complete** · **H4-6A–H4-6C (Case Queue) complete through Ops summary migration**
 
 ---
 
@@ -105,6 +105,11 @@ Secondary sidebar links remain during H2/H3 transition; they are **not** removal
 | **H4-3** ✅ | `AutomationExecutionReadModel` — read-only DTO facade over Health overview aggregation; Ops Performance metrics + activity summary + advisor counts consume shared KPIs (no duplicate COUNT SQL) | Controllers/routes/UI unchanged; Ops-only `partial_success` stays local | Remove ReadModel + restore prior Ops metrics SQL; revert Advisor to dashboard metrics array |
 | **H4-4** ✅ | `CashfreeIntegrityReadModel` — pure-delegate projection over `CashfreePaymentIntegrityService`; Ops health widget / integration card / reliability integrity fields / watchdog counts / IntegrationHealthService | Zero formula change; outbox/probe/evening/spike paths intentionally untouched; no ReadModel cache | Delete ReadModel + DTO; restore prior IntegrityService injections |
 | **H4-5** ✅ | `ExecutiveKpiReadModel` — pure-delegate projection over `ExecutiveMetricsService`; Mission Control cards + snapshot capture | Zero formula/TTL change; Ops/Admin not migrated (definitions differ or no KPIs) | Delete ReadModel + DTO; restore `ExecutiveMetricsService` injections on cards/snapshot |
+| **H4-6A** ✅ | Case Queue inventory & ownership analysis — see [super-admin-h4-6a-case-queue-inventory.md](super-admin-h4-6a-case-queue-inventory.md) | Investigation only; no code | Delete inventory doc |
+| **H4-6B** ✅ | Shadow `CaseQueueReadModel` + `CaseQueueMetricsV1` — pure-delegate over `DashboardSnapshot` / classifier; **zero production consumers** | No dashboard/Reverb/UI change; parity tests only | Delete ReadModel + DTO + shadow tests |
+| **H4-6C** ✅ | Ops summary consumers → `CaseQueueReadModel` (SupportIntelligence operational metrics, IraMemory ops counts, IraOwner summary counts only) | Collections/lists unchanged; operator/Workforce/MC untouched | Restore prior `DashboardSnapshot` count calls in the three services |
+| **H4-6C.1** ✅ | CaseQueue summary adoption audit — see [super-admin-h4-6c1-case-queue-summary-adoption-audit.md](super-admin-h4-6c1-case-queue-summary-adoption-audit.md); **no further SAFE migrants** | Workforce scoped open deferred to H4-6D; allowlist locked | Delete audit doc / restore allowlist tests |
+| **H4-6D** ✅ | Workforce scoped open → `CaseQueueReadModel` (`global`/`forUser`/`forTeamMembers`); TeamAvailability + Workforce360 summary counts only | No Team Eloquent model; no collections/assignment/operator/Reverb | Restore `DashboardSnapshot::openCount($user)` in the two services |
 | **H5** | Optional renames; deprecated nav cleanup; consolidation polish | Retirements only with explicit approval + production validation | Keep aliases permanently |
 
 ### H2 scope (refined)
@@ -536,8 +541,14 @@ See [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-con
 9. **H4-3** ✅ — `AutomationExecutionReadModel` DTO facade; Ops Performance + activity summary consume shared ledger KPIs.
 10. **H4-4** ✅ — `CashfreeIntegrityReadModel` pure-delegate facade; identical integrity consumers only; no cache/formula changes.
 11. **H4-5** ✅ — `ExecutiveKpiReadModel` pure-delegate facade; Mission Control + snapshot capture only.
-12. **H4** — remaining shared KPI facades; Mission Control lazy load; placeholder → deep links (not deletions).
-13. **H5** — retirements only with explicit approval after production validation.
+12. **H4-6A** ✅ — Case Queue inventory (definitions, cache, Reverb, duplicates); no code.
+13. **H4-6B** ✅ — Shadow `CaseQueueReadModel` (no production consumers).
+14. **H4-6C** ✅ — Ops SupportIntelligence + IRA memory/owner summary counts via ReadModel.
+15. **H4-6C.1** ✅ — Adoption audit; no additional SAFE consumers; allowlist + KEEP-list tests.
+16. **H4-6D** ✅ — Workforce / TeamAvailability scoped open via `CaseQueueReadModel`.
+17. **H4-6E+** — Operator dashboard / Reverb consumers only after SAFE-list review.
+18. **H4** — remaining shared KPI facades; Mission Control lazy load; placeholder → deep links (not deletions).
+19. **H5** — retirements only with explicit approval after production validation.
 
 ---
 

@@ -6,7 +6,7 @@ use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkSessionEndReason;
 use App\Models\User;
 use App\Models\WorkSession;
-use App\Services\Dashboard\DashboardSnapshot;
+use App\ReadModels\Cases\CaseQueueReadModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -19,6 +19,7 @@ class TeamAvailabilityOverviewService
         private readonly PresenceEngineService $presenceEngine,
         private readonly OperationsRoleService $roleService,
         private readonly WorkforceAuthorityService $workforceAuthority,
+        private readonly CaseQueueReadModel $caseQueue,
     ) {}
 
     /**
@@ -37,11 +38,10 @@ class TeamAvailabilityOverviewService
      */
     public function members(): array
     {
-        $snapshot = DashboardSnapshot::load();
-
+        // H4-6D: identical scoped open counts via CaseQueueReadModel (DashboardSnapshot owner).
         return $this->teamMembers()
             ->filter(fn (User $user): bool => $this->workforceAuthority->isOnDuty($user))
-            ->map(fn (User $user): array => $this->memberRow($user, $snapshot->openCount($user)))
+            ->map(fn (User $user): array => $this->memberRow($user, $this->caseQueue->forUser($user)->openCount()))
             ->values()
             ->all();
     }
@@ -51,11 +51,10 @@ class TeamAvailabilityOverviewService
      */
     public function unavailableMembers(): array
     {
-        $snapshot = DashboardSnapshot::load();
-
+        // H4-6D: identical scoped open counts via CaseQueueReadModel (DashboardSnapshot owner).
         return $this->teamMembers()
             ->filter(fn (User $user): bool => $this->isExpectedUnavailable($user))
-            ->map(fn (User $user): array => $this->unavailableMemberRow($user, $snapshot->openCount($user)))
+            ->map(fn (User $user): array => $this->unavailableMemberRow($user, $this->caseQueue->forUser($user)->openCount()))
             ->values()
             ->all();
     }
@@ -65,7 +64,7 @@ class TeamAvailabilityOverviewService
      */
     public function memberSnapshot(User $user): array
     {
-        return $this->memberRow($user, DashboardSnapshot::load()->openCount($user));
+        return $this->memberRow($user, $this->caseQueue->forUser($user)->openCount());
     }
 
     private function isExpectedUnavailable(User $user): bool

@@ -17,7 +17,7 @@ use App\Models\User;
 use App\Models\WorkforceAttendanceDay;
 use App\Models\WorkSession;
 use App\Policies\Workforce360Policy;
-use App\Services\Dashboard\DashboardSnapshot;
+use App\ReadModels\Cases\CaseQueueReadModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -33,6 +33,7 @@ class Workforce360Service
         private readonly TeamPerformanceMetricsService $performanceMetricsService,
         private readonly OperationsRoleService $roleService,
         private readonly Workforce360Policy $workforce360Policy,
+        private readonly CaseQueueReadModel $caseQueue,
     ) {}
 
     public function team(User $viewer, ?Carbon $at = null): Workforce360TeamData
@@ -155,7 +156,8 @@ class Workforce360Service
         $schedule = $this->teamWorkScheduleService->snapshotFor($subject);
         $attendanceDay = $this->attendanceRegisterService->resolveDay($subject, $at->copy()->startOfDay(), $at);
         $performance = $this->performanceMetricsService->metricsFor($subject, PerformancePeriod::Today, null, null, $at);
-        $openWorkCount = DashboardSnapshot::load()->openCount($subject);
+        // H4-6D: identical scoped open count via CaseQueueReadModel (DashboardSnapshot owner).
+        $openWorkCount = $this->caseQueue->forUser($subject)->openCount();
         $leaveSummary = $this->leaveSummaryFor($subject, $at);
 
         $statusChips = $this->memberStatusChips($authority, $presence, $calendar, $attendanceDay, $openWorkCount);

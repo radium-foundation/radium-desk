@@ -15,6 +15,7 @@ use App\Models\Incident;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Models\WorkforceAttendanceDay;
+use App\ReadModels\Cases\CaseQueueReadModel;
 use App\Services\Dashboard\DashboardSnapshot;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -30,6 +31,7 @@ class IraOwnerIntelligenceService
         private readonly OperationsRoleService $roleService,
         private readonly ProductionEveningHealthService $eveningHealthService,
         private readonly AttendanceRegisterService $attendanceRegisterService,
+        private readonly CaseQueueReadModel $caseQueueReadModel,
     ) {}
 
     public function buildMorningReport(?Carbon $at = null): IraOwnerReportData
@@ -149,14 +151,15 @@ class IraOwnerIntelligenceService
     {
         $operations = $briefing->snapshot->operations;
         $dashboard = DashboardSnapshot::load();
-        $slaCounts = $dashboard->slaCounts($at);
+        $slaCounts = $this->caseQueueReadModel->slaCounts($at);
 
         return [
-            'open_cases' => (int) ($operations['open_cases'] ?? $dashboard->openCount()),
+            'open_cases' => (int) ($operations['open_cases'] ?? $this->caseQueueReadModel->openCount()),
             'sla_overdue' => (int) ($operations['overdue'] ?? $slaCounts['service_overdue_cases'] ?? 0),
             'sla_warning' => (int) ($operations['warning'] ?? $slaCounts['service_warning_cases'] ?? 0),
             'overdue_cases' => (int) ($operations['total_overdue_cases'] ?? $slaCounts['overdue_cases'] ?? 0),
             'escalations_pending' => $this->pendingEscalationCount(),
+            // Collection scan — not a summary KPI; keep DashboardSnapshot (H4-6C).
             'unassigned_important' => $this->unassignedImportantCount($dashboard),
             'waiting_customers' => (int) ($operations['waiting'] ?? 0),
             'cases_created' => 0,
@@ -182,18 +185,19 @@ class IraOwnerIntelligenceService
     private function buildEveningOperationsSection(Carbon $at): array
     {
         $dashboard = DashboardSnapshot::load();
-        $slaCounts = $dashboard->slaCounts($at);
+        $slaCounts = $this->caseQueueReadModel->slaCounts($at);
         $rangeStart = $at->copy()->startOfDay();
         $rangeEnd = $at->copy()->endOfDay();
 
         return [
-            'open_cases' => $dashboard->openCount(),
+            'open_cases' => $this->caseQueueReadModel->openCount(),
             'sla_overdue' => (int) ($slaCounts['service_overdue_cases'] ?? 0),
             'sla_warning' => (int) ($slaCounts['service_warning_cases'] ?? 0),
             'overdue_cases' => (int) ($slaCounts['overdue_cases'] ?? 0),
             'escalations_pending' => $this->pendingEscalationCount(),
+            // Collection scan — not a summary KPI; keep DashboardSnapshot (H4-6C).
             'unassigned_important' => $this->unassignedImportantCount($dashboard),
-            'waiting_customers' => $dashboard->queueCounts()[OperationQueue::WaitingCustomer->value] ?? 0,
+            'waiting_customers' => $this->caseQueueReadModel->queueCount(OperationQueue::WaitingCustomer),
             'cases_created' => Incident::query()
                 ->whereBetween('created_at', [$rangeStart, $rangeEnd])
                 ->count(),

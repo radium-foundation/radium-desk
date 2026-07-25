@@ -11,7 +11,7 @@ use App\Models\IraOperationalMemorySnapshot;
 use App\Models\Incident;
 use App\Models\User;
 use App\Models\WorkSession;
-use App\Services\Dashboard\DashboardSnapshot;
+use App\ReadModels\Cases\CaseQueueReadModel;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -28,6 +28,7 @@ class IraMemoryService
         private readonly WorkCalendarService $workCalendarService,
         private readonly WorkforceAuthorityService $workforceAuthority,
         private readonly OperationsSupportIntelligenceService $supportIntelligenceService,
+        private readonly CaseQueueReadModel $caseQueueReadModel,
     ) {}
 
     public function capture(?Carbon $at = null): IraOperationalMemorySnapshot
@@ -113,15 +114,15 @@ class IraMemoryService
 
     private function buildSnapshotData(Carbon $at): IraOperationalSnapshotData
     {
-        $snapshot = DashboardSnapshot::load();
-        $queueCounts = $snapshot->queueCounts();
-        $slaCounts = $snapshot->slaCounts($at);
-        $serviceSlaCounts = $snapshot->serviceSlaCounts($at);
-        $hardwareSlaCounts = $snapshot->hardwareSlaCounts($at);
+        // H4-6C: identical queue/SLA summary counts via CaseQueueReadModel (DashboardSnapshot owner).
+        $queueCounts = $this->caseQueueReadModel->queueCounts();
+        $slaCounts = $this->caseQueueReadModel->slaCounts($at);
+        $serviceSlaCounts = $this->caseQueueReadModel->serviceSlaCounts($at);
+        $hardwareSlaCounts = $this->caseQueueReadModel->hardwareSlaCounts($at);
         $supportSummary = $this->supportIntelligenceService->summary($at);
 
         $operations = [
-            'open_cases' => $snapshot->openCount(),
+            'open_cases' => $this->caseQueueReadModel->openCount(),
             'scheduled' => $queueCounts[OperationQueue::Scheduled->value] ?? 0,
             'scheduled_today' => $supportSummary->scheduledToday,
             'waiting' => $queueCounts[OperationQueue::WaitingCustomer->value] ?? 0,

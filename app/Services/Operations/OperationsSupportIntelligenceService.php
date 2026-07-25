@@ -11,6 +11,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\User;
+use App\ReadModels\Cases\CaseQueueReadModel;
 use App\Services\Dashboard\DashboardSnapshot;
 use Illuminate\Support\Carbon;
 
@@ -21,6 +22,7 @@ class OperationsSupportIntelligenceService
         private readonly TeamWorkBriefingService $teamWorkBriefingService,
         private readonly SmartAssignmentService $smartAssignmentService,
         private readonly OperationsQueueClassifier $queueClassifier,
+        private readonly CaseQueueReadModel $caseQueueReadModel,
     ) {}
 
     public function summary(
@@ -52,10 +54,12 @@ class OperationsSupportIntelligenceService
             ->count();
 
         $serialSummary = $serialQuality ?? $this->missingSerialAutomationService->qualitySummary();
-        $slaCounts = $snapshot->slaCounts($at);
-        $serviceSlaCounts = $snapshot->serviceSlaCounts($at);
-        $hardwareSlaCounts = $snapshot->hardwareSlaCounts($at);
-        $queueCounts = $snapshot->queueCounts();
+        // H4-6C: summary queue/SLA counts via CaseQueueReadModel (identical DashboardSnapshot definitions).
+        // Snapshot retained for appointment/collection helpers below (not migrated).
+        $slaCounts = $this->caseQueueReadModel->slaCounts($at, $snapshot);
+        $serviceSlaCounts = $this->caseQueueReadModel->serviceSlaCounts($at, $snapshot);
+        $hardwareSlaCounts = $this->caseQueueReadModel->hardwareSlaCounts($at, $snapshot);
+        $queueCounts = $this->caseQueueReadModel->queueCounts(snapshot: $snapshot);
 
         return new SupportIntelligenceSummary(
             scheduledToday: $scheduledToday,
