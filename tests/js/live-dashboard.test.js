@@ -120,6 +120,29 @@ describe('live dashboard refresh session integration', () => {
         expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(12)');
     });
 
+    it('hides inactive zero-count queue tabs when configured', () => {
+        document.body.innerHTML = `
+            <div class="dashboard-service-cases-card" data-hide-zero-count-queue-tabs="true">
+                <a href="#" role="tab" class="is-active">
+                    <span data-dashboard-case-filter-count="attention">(1)</span>
+                </a>
+                <a href="#" role="tab">
+                    <span data-dashboard-case-filter-count="pending_review">(0)</span>
+                </a>
+            </div>
+        `;
+
+        applyFilterCounts({
+            attention: 1,
+            pending_review: 0,
+        });
+
+        const tabs = document.querySelectorAll('[role="tab"]');
+
+        expect(tabs[0]?.classList.contains('d-none')).toBe(false);
+        expect(tabs[1]?.classList.contains('d-none')).toBe(true);
+    });
+
     it('defers applyDashboardRefresh when session becomes active before requestAnimationFrame', async () => {
         const session = getWorkspaceSession();
 

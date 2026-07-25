@@ -154,7 +154,8 @@ class DashboardPersonalizationService
 
     public function hidesZeroCountQueueTabs(User $user): bool
     {
-        return $this->operationsRoles->usesSupportQueues($user);
+        return $this->operationsRoles->usesSupportQueues($user)
+            || $this->operationsRoles->usesAdminQueues($user);
     }
 
     /**

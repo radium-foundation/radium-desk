@@ -43,7 +43,8 @@
      data-service-case-filter="{{ $legacyServiceCaseFilter }}"
      data-operation-queue="{{ $activeQueue }}"
      @if($isScheduledWorkspace) data-scheduled-appointment-board="true" @endif
-     @if($compactAgentLayout) data-agent-compact-layout="true" @endif>
+     @if($compactAgentLayout) data-agent-compact-layout="true" @endif
+     @if($hideZeroCountTabs) data-hide-zero-count-queue-tabs="true" @endif>
     <div class="card-header bg-white dashboard-cases-card-header">
         <div class="dashboard-cases-header">
             @unless($compactAgentLayout)

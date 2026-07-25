@@ -180,4 +180,16 @@ class DashboardPersonalizationServiceTest extends TestCase
         $this->assertFalse($this->service->showsModuleNavigation($admin));
         $this->assertTrue($this->service->showsQueueNavigation($admin));
     }
+
+    public function test_zero_count_queue_tabs_are_hidden_for_admin_and_support_users(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $this->assertTrue($this->service->hidesZeroCountQueueTabs($agent));
+        $this->assertTrue($this->service->hidesZeroCountQueueTabs($admin));
+    }
 }

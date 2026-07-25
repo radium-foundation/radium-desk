@@ -108,14 +108,33 @@ const applyFilterCounts = (counts) => {
         return;
     }
 
+    const card = document.querySelector('.dashboard-service-cases-card');
+    const hideZeroCountTabs = card?.dataset.hideZeroCountQueueTabs === 'true';
+    const isAgentCompact = card?.dataset.agentCompactLayout === 'true';
+
     Object.entries(counts).forEach(([filterKey, count]) => {
         const countElement = document.querySelector(
             `[data-dashboard-case-filter-count="${filterKey}"]`,
         );
 
-        if (countElement) {
-            countElement.textContent = `(${count})`;
+        if (!countElement) {
+            return;
         }
+
+        countElement.textContent = isAgentCompact ? String(count) : `(${count})`;
+
+        if (!hideZeroCountTabs) {
+            return;
+        }
+
+        const tab = countElement.closest('[role="tab"]');
+        const isActive = tab?.classList.contains('is-active');
+
+        if (!tab || isActive) {
+            return;
+        }
+
+        tab.classList.toggle('d-none', Number(count) === 0);
     });
 };
 
