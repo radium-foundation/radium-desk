@@ -187,16 +187,14 @@ class IraRecommendationEngineService
         $lastWeekStart = $thisWeekStart->copy()->subWeek();
         $lastWeekEnd = $thisWeekStart->copy()->subDay();
 
-        $prefix = (string) config('operations.hardware_order_prefix', 'FM220');
-
         $thisWeekCount = Incident::query()
             ->where('created_at', '>=', $thisWeekStart)
-            ->whereHas('order', fn ($query) => $query->where('order_id', 'like', $prefix.'%'))
+            ->whereHas('order', fn ($query) => $query->whereHardwareOrderId())
             ->count();
 
         $lastWeekCount = Incident::query()
             ->whereBetween('created_at', [$lastWeekStart, $lastWeekEnd->endOfDay()])
-            ->whereHas('order', fn ($query) => $query->where('order_id', 'like', $prefix.'%'))
+            ->whereHas('order', fn ($query) => $query->whereHardwareOrderId())
             ->count();
 
         if ($lastWeekCount === 0 || $thisWeekCount <= $lastWeekCount) {

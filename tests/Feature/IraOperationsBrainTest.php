@@ -50,7 +50,7 @@ class IraOperationsBrainTest extends TestCase
             'ira.thresholds.sla_risk_cases' => 1,
             'ira.thresholds.member_overload_cases' => 3,
             'ira.thresholds.long_waiting_days' => 7,
-            'operations.hardware_order_prefix' => 'FM220',
+            'operations.hardware_order_prefixes' => ['FM220'],
         ]);
     }
 

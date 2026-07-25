@@ -132,15 +132,54 @@ class Order extends Model
         return self::isInquiryOrderId($this->order_id);
     }
 
+    /**
+     * @return list<string>
+     */
+    public static function hardwareOrderPrefixes(): array
+    {
+        $prefixes = config('operations.hardware_order_prefixes', ['RDE', 'RIN']);
+
+        if (! is_array($prefixes)) {
+            $prefixes = ['RDE', 'RIN'];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $prefix): string => strtoupper(trim((string) $prefix)),
+            $prefixes,
+        ))));
+    }
+
     public static function isHardwareOrderId(?string $orderId): bool
     {
         if ($orderId === null || trim($orderId) === '') {
             return false;
         }
 
-        $prefix = strtoupper((string) config('operations.hardware_order_prefix', 'RDE'));
+        $normalized = strtoupper(trim($orderId));
 
-        return str_starts_with(strtoupper(trim($orderId)), $prefix);
+        foreach (self::hardwareOrderPrefixes() as $prefix) {
+            if (str_starts_with($normalized, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function scopeWhereHardwareOrderId(Builder $query): void
+    {
+        $query->where(function (Builder $builder): void {
+            foreach (self::hardwareOrderPrefixes() as $prefix) {
+                $builder->orWhere('order_id', 'like', $prefix.'%');
+            }
+        });
+    }
+
+    public function scopeWhereNotHardwareOrderId(Builder $query): void
+    {
+        foreach (self::hardwareOrderPrefixes() as $prefix) {
+            $query->where('order_id', 'not like', $prefix.'%');
+        }
     }
 
     public static function isProductOrderId(?string $orderId): bool

@@ -289,10 +289,7 @@ class MissingSerialAutomationService
             ->cashfreeVerified()
             ->whereSerialMissing()
             ->where('status', OrderStatus::Active->value)
-            ->where(function (Builder $query): void {
-                $prefix = strtoupper((string) config('operations.hardware_order_prefix', 'RDE'));
-                $query->where('order_id', 'not like', $prefix.'%');
-            })
+            ->whereNotHardwareOrderId()
             ->where(function (Builder $query): void {
                 $query->where('radiumbox_sync_attempts', '>', 0)
                     ->orWhere('radiumbox_sync_status', '!=', RadiumBoxEnrichmentSyncStatus::NotSynced->value)

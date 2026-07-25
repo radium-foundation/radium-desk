@@ -132,6 +132,21 @@ class OperationsModelFoundationTest extends TestCase
         $this->assertFalse($classifier->isHardware($serviceCase->fresh(['order'])));
     }
 
+    public function test_hardware_rin_orders_are_separated(): void
+    {
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $hardwareCase = $this->createIncident('RIN3460196', $creator, $creator);
+        $serviceCase = $this->createIncident('RD-3460196', $creator, $creator);
+
+        $classifier = app(OperationsQueueClassifier::class);
+
+        $this->assertTrue($classifier->isHardware($hardwareCase->fresh(['order'])));
+        $this->assertSame('hardware', $classifier->classify($hardwareCase->fresh(['order', 'supportAppointments', 'activeWaitingState']))->value);
+        $this->assertFalse($classifier->isHardware($serviceCase->fresh(['order'])));
+    }
+
     public function test_waiting_customer_cases_are_excluded_from_action_required_counts(): void
     {
         $creator = User::factory()->create();
@@ -415,7 +430,7 @@ class OperationsModelFoundationTest extends TestCase
 
     private function createIncident(string $orderId, User $creator, ?User $assignee): Incident
     {
-        $isHardware = str_starts_with(strtoupper($orderId), 'RDE');
+        $isHardware = Order::isHardwareOrderId($orderId);
 
         $order = Order::query()->create([
             'order_id' => $orderId,

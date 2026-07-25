@@ -31,6 +31,8 @@ class ServiceCaseOrderAssignmentRoutingServiceTest extends TestCase
 
         $this->assertTrue($service->matches($this->incidentWithOrderId('RDE253851')));
         $this->assertTrue($service->matches($this->incidentWithOrderId('rde123')));
+        $this->assertTrue($service->matches($this->incidentWithOrderId('RIN3460196')));
+        $this->assertTrue($service->matches($this->incidentWithOrderId('RIN9999999')));
         $this->assertFalse($service->matches($this->incidentWithOrderId('RD-253851')));
     }
 

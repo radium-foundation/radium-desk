@@ -82,11 +82,14 @@ return [
         ],
         'hardware_team' => [
             'label' => 'Hardware Team',
-            'description' => 'RDE hardware orders and device processing.',
+            'description' => 'Hardware orders (RDE, RIN, and configured prefixes) and device processing.',
         ],
     ],
 
-    'hardware_order_prefix' => 'RDE',
+    'hardware_order_prefixes' => array_values(array_filter(array_map(
+        static fn (string $prefix): string => strtoupper(trim($prefix)),
+        explode(',', (string) env('OPERATIONS_HARDWARE_ORDER_PREFIXES', 'RDE,RIN')),
+    ))),
 
     'dashboard' => [
         'audit_log_limit' => (int) env('OPERATIONS_DASHBOARD_AUDIT_LOG_LIMIT', 2000),
