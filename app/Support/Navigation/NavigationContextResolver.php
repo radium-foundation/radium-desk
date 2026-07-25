@@ -2,7 +2,6 @@
 
 namespace App\Support\Navigation;
 
-use App\Models\ApprovalNumber;
 use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
@@ -71,9 +70,6 @@ class NavigationContextResolver
                     route('incidents.index'),
                     $context,
                 )
-                : null,
-            Gate::check('viewAny', ApprovalNumber::class)
-                ? $this->sidebarItem('operations.approvals', 'Approvals', 'bi-check2-square', route('approvals.index'), $context)
                 : null,
             Gate::check('viewAny', RefundRequest::class)
                 ? $this->sidebarItem('operations.refunds', 'Refunds', 'bi-currency-exchange', route('refunds.index'), $context)
@@ -240,7 +236,7 @@ class NavigationContextResolver
         }
 
         if ($request->routeIs('approvals.*')) {
-            return [NavigationMenu::Operations, 'operations.approvals', null];
+            return [NavigationMenu::Operations, 'operations.incidents', null];
         }
 
         if ($request->routeIs('refunds.*')) {

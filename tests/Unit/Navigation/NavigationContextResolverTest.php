@@ -160,6 +160,21 @@ class NavigationContextResolverTest extends TestCase
         $this->assertNotContains('super_admin.webhook_explorer', $keys);
         $this->assertNotContains('administration.users', $keys);
         $this->assertNotContains('administration.holiday_calendar', $keys);
+        $this->assertNotContains('operations.approvals', $keys);
+    }
+
+    public function test_approvals_route_highlights_service_cases_sidebar_item(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $request = $this->requestFor($user, route('approvals.index'));
+        $context = $this->resolver->resolve($request, 'Approvals');
+        $sidebar = $this->resolver->sidebar($request, $context);
+
+        $this->assertSame('operations.incidents', $context->activeItemKey);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'operations.incidents'));
+        $this->assertFalse($this->sidebarItemIsActive($sidebar, 'operations.approvals'));
     }
 
     /**

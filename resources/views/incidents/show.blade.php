@@ -33,7 +33,10 @@
             </div>
         </div>
 
-        @include('incidents.partials.related-information', ['incident' => $incident])
+        @include('incidents.partials.related-information', [
+            'incident' => $incident,
+            'linkableApprovals' => $linkableApprovals,
+        ])
 
         @include('incidents.partials.service-case-history', ['incident' => $incident])
 

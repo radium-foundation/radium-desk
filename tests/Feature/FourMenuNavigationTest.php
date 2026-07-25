@@ -57,6 +57,8 @@ class FourMenuNavigationTest extends TestCase
         $this->assertStringNotContainsString('Super Admin</span>', $html);
         $this->assertStringNotContainsString('Operations Hub', $html);
         $this->assertStringNotContainsString('Workforce Hub', $html);
+        $this->assertStringNotContainsString('title="Approvals"', $html);
+        $this->assertStringNotContainsString(route('approvals.index'), $html);
     }
 
     public function test_agent_sidebar_shows_operations_without_admin_menus(): void

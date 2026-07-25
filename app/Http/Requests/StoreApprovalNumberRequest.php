@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreApprovalNumberRequest extends FormRequest
 {
@@ -18,6 +19,16 @@ class StoreApprovalNumberRequest extends FormRequest
     {
         return [
             'description' => ['nullable', 'string', 'max:2000'],
+            'incident_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('incidents', 'id')->whereNull('deleted_at'),
+            ],
+            'return_incident' => [
+                'nullable',
+                'integer',
+                Rule::exists('incidents', 'id')->whereNull('deleted_at'),
+            ],
         ];
     }
 }

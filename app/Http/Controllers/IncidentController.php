@@ -7,6 +7,7 @@ use App\Enums\IncidentStatus;
 use App\Enums\RadiumBoxSyncTrigger;
 use App\Http\Requests\StoreIncidentRequest;
 use App\Http\Requests\UpdateIncidentRequest;
+use App\Models\ApprovalNumber;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
@@ -158,7 +159,26 @@ class IncidentController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->pluck('name'),
+            'linkableApprovals' => $this->linkableApprovalsForIncident($request, $incident),
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, ApprovalNumber>
+     */
+    private function linkableApprovalsForIncident(Request $request, Incident $incident): \Illuminate\Support\Collection
+    {
+        if (! $request->user()?->can('approvals.link')) {
+            return collect();
+        }
+
+        return ApprovalNumber::query()
+            ->withCount('incidents')
+            ->whereDoesntHave('incidents', fn ($query) => $query->where('incidents.id', $incident->id))
+            ->latest()
+            ->get()
+            ->filter(fn (ApprovalNumber $approval): bool => $approval->incidents_count < ApprovalNumber::MAX_INCIDENTS)
+            ->values();
     }
 
     public function edit(Incident $incident): View

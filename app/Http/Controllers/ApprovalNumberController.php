@@ -58,9 +58,20 @@ class ApprovalNumberController extends Controller
             request: $request,
         );
 
-        return redirect()
-            ->route('approvals.show', $approval)
-            ->with('status', 'approval-created');
+        $incidentId = $request->integer('incident_id');
+
+        if ($incidentId > 0 && $request->user()?->can('approvals.link')) {
+            $this->authorize('link', $approval);
+
+            $this->approvalNumberService->linkIncidents(
+                approval: $approval,
+                incidentIds: [$incidentId],
+                user: $request->user(),
+                request: $request,
+            );
+        }
+
+        return $this->approvalActionRedirect($request, $approval, 'approval-created');
     }
 
     public function show(ApprovalNumber $approval): View
@@ -148,14 +159,10 @@ class ApprovalNumberController extends Controller
         );
 
         if ($linkedCount === 0) {
-            return redirect()
-                ->route('approvals.show', $approval)
-                ->with('status', 'approval-incidents-already-linked');
+            return $this->approvalActionRedirect($request, $approval, 'approval-incidents-already-linked');
         }
 
-        return redirect()
-            ->route('approvals.show', $approval)
-            ->with('status', 'approval-incidents-linked');
+        return $this->approvalActionRedirect($request, $approval, 'approval-incidents-linked');
     }
 
     public function unlinkIncident(Request $request, ApprovalNumber $approval, Incident $incident): RedirectResponse
@@ -169,8 +176,28 @@ class ApprovalNumberController extends Controller
             request: $request,
         );
 
+        return $this->approvalActionRedirect($request, $approval, 'approval-incident-unlinked');
+    }
+
+    private function approvalActionRedirect(
+        Request $request,
+        ApprovalNumber $approval,
+        string $status,
+    ): RedirectResponse {
+        $returnIncidentId = $request->integer('return_incident');
+
+        if ($returnIncidentId > 0) {
+            $incident = Incident::query()->find($returnIncidentId);
+
+            if ($incident !== null) {
+                return redirect()
+                    ->route('incidents.show', $incident)
+                    ->with('status', $status);
+            }
+        }
+
         return redirect()
             ->route('approvals.show', $approval)
-            ->with('status', 'approval-incident-unlinked');
+            ->with('status', $status);
     }
 }
