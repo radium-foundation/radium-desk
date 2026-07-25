@@ -370,6 +370,12 @@ export const initAgentDashboard = ({ pageRoot, showToast } = {}) => {
     };
 };
 
+export const applyLiveRefreshNextAppointment = (dashboard, detail) => {
+    if (detail !== null && detail !== undefined && 'next_appointment' in detail) {
+        dashboard?.updateNextAppointment?.(detail.next_appointment);
+    }
+};
+
 export {
     dismissAppointmentBanner,
     openCustomer360,

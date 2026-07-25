@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    applyLiveRefreshNextAppointment,
     CUSTOMER360_APPOINTMENT_ANCHOR,
     CUSTOMER360_APPOINTMENT_TAB,
     dismissAppointmentBanner,
     initAgentDashboard,
     openCustomer360ForAppointment,
 } from '../../resources/js/agent-dashboard';
+import { applyPartialDashboardUpdate } from '../../resources/js/live-dashboard';
 
 describe('agent dashboard polish', () => {
     beforeEach(() => {
@@ -84,6 +86,200 @@ describe('agent dashboard polish', () => {
         dismissAppointmentBanner(pageRoot, '42');
 
         expect(localStorage.setItem).toHaveBeenCalledWith('radium.agent.appointmentBanner.dismissed.42', '1');
+    });
+});
+
+describe('dashboard live refresh appointment guard', () => {
+    const appointment = {
+        incident_id: 42,
+        customer_name: 'Rakesh Sharma',
+        starts_at: '2026-07-06T06:30:00.000Z',
+        time_label: '12:00 PM',
+        starts_in_label: 'Starts in 30 minutes',
+        is_overdue: false,
+        is_imminent: true,
+    };
+
+    beforeEach(() => {
+        vi.stubGlobal('localStorage', {
+            getItem: vi.fn(() => null),
+            setItem: vi.fn(),
+            removeItem: vi.fn(),
+        });
+        document.body.innerHTML = `
+            <div id="dashboard-page"
+                 data-next-appointment='${JSON.stringify(appointment)}'>
+                <div class="agent-appointment-banner-sticky-host"
+                     data-agent-appointment-sticky
+                     data-incident-id="42"></div>
+            </div>
+        `;
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+        vi.unstubAllGlobals();
+    });
+
+    it('preserves appointment state when live refresh omits next_appointment', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const dashboard = initAgentDashboard({ pageRoot });
+
+        applyLiveRefreshNextAppointment(dashboard, {
+            kpi_strip_html: 'stats-live',
+            service_case_filter_counts: { action_required: 3 },
+        });
+
+        expect(pageRoot.getAttribute('data-next-appointment')).not.toBeNull();
+        expect(JSON.parse(pageRoot.getAttribute('data-next-appointment'))).toMatchObject({
+            incident_id: 42,
+            customer_name: 'Rakesh Sharma',
+        });
+
+        dashboard?.destroy();
+    });
+
+    it('updates appointment when live refresh explicitly includes next_appointment', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const dashboard = initAgentDashboard({ pageRoot });
+        const updatedAppointment = {
+            ...appointment,
+            incident_id: 99,
+            customer_name: 'Updated Customer',
+        };
+
+        applyLiveRefreshNextAppointment(dashboard, {
+            next_appointment: updatedAppointment,
+            kpi_strip_html: 'stats-live',
+        });
+
+        expect(JSON.parse(pageRoot.getAttribute('data-next-appointment'))).toMatchObject({
+            incident_id: 99,
+            customer_name: 'Updated Customer',
+        });
+
+        dashboard?.destroy();
+    });
+
+    it('clears appointment when live refresh explicitly sends next_appointment null', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const dashboard = initAgentDashboard({ pageRoot });
+
+        applyLiveRefreshNextAppointment(dashboard, {
+            next_appointment: null,
+            kpi_strip_html: 'stats-live',
+        });
+
+        expect(pageRoot.hasAttribute('data-next-appointment')).toBe(false);
+
+        dashboard?.destroy();
+    });
+
+    it('preserves appointment through partial row-only live refresh payloads', () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const dashboard = initAgentDashboard({ pageRoot });
+
+        applyLiveRefreshNextAppointment(dashboard, {
+            rows: [{ incident_id: 10, html: '<tr id="service-case-row-10"></tr>' }],
+        });
+
+        expect(pageRoot.hasAttribute('data-next-appointment')).toBe(true);
+
+        dashboard?.destroy();
+    });
+});
+
+describe('dashboard partial refresh appointment integration', () => {
+    const appointment = {
+        incident_id: 42,
+        customer_name: 'Rakesh Sharma',
+        starts_at: '2026-07-06T06:30:00.000Z',
+        time_label: '12:00 PM',
+        starts_in_label: 'Starts in 30 minutes',
+        is_overdue: false,
+        is_imminent: true,
+    };
+
+    beforeEach(() => {
+        vi.stubGlobal('localStorage', {
+            getItem: vi.fn(() => null),
+            setItem: vi.fn(),
+            removeItem: vi.fn(),
+        });
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+        document.body.innerHTML = `
+            <div id="dashboard-page"
+                 data-next-appointment='${JSON.stringify(appointment)}'>
+                <div id="dashboard-kpi-strip">stats-old</div>
+                <div class="dashboard-service-cases-card" data-service-cases-loaded="1">
+                    <div id="dashboard-service-cases-scroll">
+                        <table>
+                            <tbody id="dashboard-service-cases-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+        vi.unstubAllGlobals();
+    });
+
+    const bindAppointmentLiveRefresh = (dashboard) => {
+        document.addEventListener('dashboard:live-refresh', (event) => {
+            applyLiveRefreshNextAppointment(dashboard, event.detail);
+        });
+    };
+
+    it('preserves appointment through KPI and row partial dashboard updates', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const dashboard = initAgentDashboard({ pageRoot });
+
+        bindAppointmentLiveRefresh(dashboard);
+
+        await applyPartialDashboardUpdate({
+            kpi_strip_html: 'stats-live',
+            service_case_filter_counts: { action_required: 2 },
+        });
+
+        expect(pageRoot.hasAttribute('data-next-appointment')).toBe(true);
+
+        await applyPartialDashboardUpdate({
+            rows: [{ incident_id: 10, html: '<tr id="service-case-row-10"><td>SC00010</td></tr>' }],
+        });
+
+        expect(pageRoot.hasAttribute('data-next-appointment')).toBe(true);
+
+        dashboard?.destroy();
+    });
+
+    it('updates appointment on full live refresh payload', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        const dashboard = initAgentDashboard({ pageRoot });
+
+        bindAppointmentLiveRefresh(dashboard);
+
+        await applyPartialDashboardUpdate({
+            kpi_strip_html: 'stats-live',
+            next_appointment: {
+                ...appointment,
+                incident_id: 55,
+                customer_name: 'Full Refresh Customer',
+            },
+        });
+
+        expect(JSON.parse(pageRoot.getAttribute('data-next-appointment'))).toMatchObject({
+            incident_id: 55,
+            customer_name: 'Full Refresh Customer',
+        });
+
+        dashboard?.destroy();
     });
 });
 

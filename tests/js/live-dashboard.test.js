@@ -5,6 +5,7 @@ import {
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,
+    resetLiveDashboardRefreshStateForTests,
     startPolling,
     stopPolling,
 } from '../../resources/js/live-dashboard';
@@ -36,6 +37,7 @@ describe('live dashboard refresh session integration', () => {
 
     afterEach(() => {
         stopPolling();
+        resetLiveDashboardRefreshStateForTests();
         resetWorkspaceSession();
         vi.unstubAllGlobals();
     });
@@ -228,23 +230,36 @@ describe('live dashboard refresh session integration', () => {
             expect(fetch).toHaveBeenCalledTimes(2);
         } finally {
             stopPolling();
+            resetLiveDashboardRefreshStateForTests();
             vi.useRealTimers();
+            await Promise.resolve();
+            await Promise.resolve();
         }
     });
 
     it('logs refresh lifecycle suppression when refresh is already in flight', async () => {
+        resetLiveDashboardRefreshStateForTests();
+        vi.useRealTimers();
+        stopPolling();
+
         document.getElementById('dashboard-page').dataset.realtimeLifecycleDebug = '1';
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
         let resolveFetch;
-        fetch.mockImplementation(() => new Promise((resolve) => {
+        const fetchMock = vi.fn().mockImplementation(() => new Promise((resolve) => {
             resolveFetch = resolve;
         }));
+
+        vi.stubGlobal('fetch', fetchMock);
 
         const pageRoot = document.getElementById('dashboard-page');
         const firstRefresh = refreshDashboard(pageRoot, 'test-first');
 
-        await Promise.resolve();
+        for (let attempt = 0; attempt < 20 && fetchMock.mock.calls.length === 0; attempt += 1) {
+            await Promise.resolve();
+        }
+
+        expect(fetchMock).toHaveBeenCalled();
 
         const secondRefresh = refreshDashboard(pageRoot, 'test-second');
 
@@ -260,9 +275,48 @@ describe('live dashboard refresh session integration', () => {
             && payload.reason === 'refresh_in_flight'
         ))).toBe(true);
 
-        await firstRefresh;
-        await secondRefresh;
+        resolveFetch({
+            ok: true,
+            json: async () => ({
+                kpi_strip_html: 'stats-new',
+                rows: [],
+                service_cases_empty: true,
+                service_cases_empty_html: '',
+            }),
+        });
 
         warnSpy.mockRestore();
+    });
+
+    it('applies KPI strip and filter counts only when kpisOnly is set', async () => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                kpi_strip_html: 'stats-reconciled',
+                service_case_filter_counts: {
+                    all: 5,
+                    pending_admin: 2,
+                },
+                rows: [{
+                    incident_id: 99,
+                    html: '<tr id="service-case-row-99"><td>SC00099</td></tr>',
+                }],
+            }),
+        });
+
+        await refreshDashboard(document.getElementById('dashboard-page'), 'test-kpis-only', {
+            kpisOnly: true,
+        });
+
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-reconciled');
+        expect(document.querySelector('[data-dashboard-case-filter-count="all"]')?.textContent).toBe('(5)');
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+        expect(document.querySelector('#service-case-row-99')).toBeNull();
     });
 });

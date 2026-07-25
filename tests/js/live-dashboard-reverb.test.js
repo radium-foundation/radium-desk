@@ -7,11 +7,14 @@ import {
     normalizeIncidentIds,
     resolveListAction,
 } from '../../resources/js/live-dashboard-reverb';
+import { resetHybridKpiReconcileForTests } from '../../resources/js/hybrid-kpi-reconcile';
+import * as liveDashboard from '../../resources/js/live-dashboard';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
 
 describe('live dashboard reverb handlers', () => {
     beforeEach(() => {
         resetWorkspaceSession();
+        resetHybridKpiReconcileForTests();
         document.body.innerHTML = `
             <div id="dashboard-page"
                  data-live-queue="action_required"
@@ -35,6 +38,7 @@ describe('live dashboard reverb handlers', () => {
 
     afterEach(() => {
         resetWorkspaceSession();
+        resetHybridKpiReconcileForTests();
         vi.unstubAllGlobals();
         vi.restoreAllMocks();
     });
@@ -247,6 +251,105 @@ describe('live dashboard reverb handlers', () => {
 
         expect(fetchMock).not.toHaveBeenCalled();
         expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010');
+    });
+
+    it('schedules KPI reconcile after hybrid row merge and cancels when KPI event arrives', async () => {
+        const pageRoot = document.getElementById('dashboard-page');
+        pageRoot.dataset.liveUrl = '/dashboard/live';
+
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                rows: [{
+                    incident_id: 10,
+                    html: '<tr id="service-case-row-10"><td>SC00010 hybrid</td></tr>',
+                }],
+                remove_incident_ids: [],
+            }),
+        });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+        await handleHybridIncidentsUpdated(pageRoot, { incident_ids: [10] });
+
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 hybrid');
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        await handleKpisUpdated({ kpi_strip_html: 'stats-live' });
+
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-live');
+
+        vi.useFakeTimers();
+
+        try {
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(refreshSpy).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+            refreshSpy.mockRestore();
+        }
+    });
+
+    it('reconciles KPI strip after hybrid row merge once debounce elapses', async () => {
+        vi.useFakeTimers();
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        try {
+            const pageRoot = document.getElementById('dashboard-page');
+            pageRoot.dataset.liveUrl = '/dashboard/live';
+
+            const fetchMock = vi.fn()
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        rows: [{
+                            incident_id: 10,
+                            html: '<tr id="service-case-row-10"><td>SC00010 assigned</td></tr>',
+                        }],
+                        remove_incident_ids: [],
+                    }),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        kpi_strip_html: 'stats-reconciled',
+                        service_case_filter_counts: {
+                            action_required: 3,
+                        },
+                    }),
+                });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            await handleHybridIncidentsUpdated(pageRoot, { incident_ids: [10] });
+
+            expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 assigned');
+            expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-old');
+
+            await vi.advanceTimersByTimeAsync(500);
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(fetchMock).toHaveBeenCalledTimes(2);
+            expect(String(fetchMock.mock.calls[1][0])).toContain('/dashboard/live');
+            expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-reconciled');
+            expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent).toBe('(3)');
+            expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 assigned');
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

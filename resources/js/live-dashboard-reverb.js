@@ -26,6 +26,10 @@ import { getWorkspaceSession } from './workspace/session';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 import { bindOperatorAlertsChannel } from './operator-alerts';
 import { bindRealtimeNotificationsChannel } from './realtime-notifications';
+import {
+    cancelHybridKpiReconcile,
+    scheduleHybridKpiReconcile,
+} from './hybrid-kpi-reconcile';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -128,6 +132,8 @@ const handleHybridIncidentsUpdated = async (pageRoot, payload) => {
         rows,
         remove_incident_ids: removeIncidentIds.filter((id) => !lockedIncidentIds.includes(Number(id))),
     });
+
+    scheduleHybridKpiReconcile(pageRoot);
 };
 
 const handleReferenceNumbersUpdated = handleHybridIncidentsUpdated;
@@ -168,6 +174,8 @@ const handleKpisUpdated = async (payload) => {
     if (isDashboardSearchActive() || isDashboardQuickFilterActive()) {
         return;
     }
+
+    cancelHybridKpiReconcile();
 
     const pageRoot = document.getElementById('dashboard-page');
     const liveScope = pageRoot?.dataset.liveScope ?? 'operations_scope';
@@ -793,6 +801,7 @@ export const initLiveDashboardReverb = ({
         }
 
         destroyed = true;
+        cancelHybridKpiReconcile();
         stopStaleWatchdog();
         stopPolling();
 

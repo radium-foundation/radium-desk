@@ -290,11 +290,13 @@ const buildLiveRefreshQuery = (pageRoot, loadedCount = 0) => buildDashboardLiveQ
     limit: loadedCount > 0 ? loadedCount : undefined,
 });
 
-const refreshDashboard = async (pageRoot, source = 'unknown') => {
+const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
+    const { kpisOnly = false } = options;
     const liveUrl = pageRoot?.dataset.liveUrl;
 
     logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_entered', {
         source,
+        kpisOnly,
         refreshInFlightBeforeEntry: refreshInFlight,
     });
 
@@ -406,11 +408,35 @@ const refreshDashboard = async (pageRoot, source = 'unknown') => {
 
         logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_parsed', {
             source,
+            kpisOnly,
             rowCount: Array.isArray(data.rows) ? data.rows.length : 0,
             hasKpiStrip: data.kpi_strip_html !== undefined,
             requestFinishedAt: toIsoTimestamp(requestFinishedAt),
             durationMs: requestFinishedAt - requestStartedAt,
         });
+
+        if (kpisOnly) {
+            if (getWorkspaceSession().isActive()) {
+                logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_queued', {
+                    source,
+                    reason: 'workspace_session_active',
+                    kpisOnly: true,
+                });
+                queueDashboardRefresh({
+                    kpi_strip_html: data.kpi_strip_html,
+                    service_case_filter_counts: data.service_case_filter_counts,
+                });
+
+                return;
+            }
+
+            await applyPartialDashboardUpdate({
+                kpi_strip_html: data.kpi_strip_html,
+                service_case_filter_counts: data.service_case_filter_counts,
+            });
+
+            return;
+        }
 
         if (getWorkspaceSession().isActive()) {
             logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_queued', {
@@ -459,6 +485,11 @@ configureDashboardPolling({
     refreshDashboard,
     getWorkspaceSession,
 });
+
+export const resetLiveDashboardRefreshStateForTests = () => {
+    refreshInFlight = false;
+    pendingDashboardRefresh = null;
+};
 
 export const configureLiveDashboard = (hooks = {}) => {
     dashboardRefreshHooks = hooks;
