@@ -188,6 +188,8 @@ export const initCustomer360Cockpit = ({
     let paletteActiveIndex = 0;
     let paletteOpen = false;
     let shortcutHelpOpen = false;
+    const listenersAbort = new AbortController();
+    const { signal } = listenersAbort;
 
     const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
     modKeyNodes.forEach((node) => {
@@ -430,9 +432,7 @@ export const initCustomer360Cockpit = ({
         activeNode?.scrollIntoView({ block: 'nearest' });
     };
 
-    paletteInput?.addEventListener('input', refreshPaletteResults);
-
-    paletteInput?.addEventListener('keydown', (event) => {
+    const handlePaletteKeydown = (event) => {
         if (event.key === 'ArrowDown') {
             event.preventDefault();
             movePaletteSelection(1);
@@ -452,9 +452,9 @@ export const initCustomer360Cockpit = ({
             event.preventDefault();
             closePalette();
         }
-    });
+    };
 
-    paletteResults?.addEventListener('click', (event) => {
+    const handlePaletteResultsClick = (event) => {
         const option = event.target.closest('[data-c360-command-palette-option]');
 
         if (!option) {
@@ -463,14 +463,9 @@ export const initCustomer360Cockpit = ({
 
         const index = Number(option.dataset.c360CommandPaletteOption);
         executePaletteResult(paletteResultsCache[index]);
-    });
+    };
 
-    paletteBackdrop?.addEventListener('click', closePalette);
-
-    shortcutHelpBackdrop?.addEventListener('click', closeShortcutHelp);
-    shortcutHelpClose?.addEventListener('click', closeShortcutHelp);
-
-    contentHost.addEventListener('click', (event) => {
+    const handleContentHostClick = (event) => {
         const openTabButton = event.target.closest('[data-c360-empty-open-tab]');
 
         if (openTabButton instanceof HTMLElement) {
@@ -498,7 +493,15 @@ export const initCustomer360Cockpit = ({
                 contentHost.querySelector(`[data-timeline-filter-chip="${filter}"]`)?.click();
             }, 250);
         }
-    });
+    };
+
+    paletteInput?.addEventListener('input', refreshPaletteResults, { signal });
+    paletteInput?.addEventListener('keydown', handlePaletteKeydown, { signal });
+    paletteResults?.addEventListener('click', handlePaletteResultsClick, { signal });
+    paletteBackdrop?.addEventListener('click', closePalette, { signal });
+    shortcutHelpBackdrop?.addEventListener('click', closeShortcutHelp, { signal });
+    shortcutHelpClose?.addEventListener('click', closeShortcutHelp, { signal });
+    contentHost.addEventListener('click', handleContentHostClick, { signal });
 
     const handleKeydown = (event) => {
         if (!isOpen?.()) {
@@ -589,7 +592,7 @@ export const initCustomer360Cockpit = ({
         }
     };
 
-    document.addEventListener('keydown', handleKeydown);
+    document.addEventListener('keydown', handleKeydown, { signal });
     bindIraDisclosures(contentHost);
 
     return {
@@ -598,7 +601,7 @@ export const initCustomer360Cockpit = ({
         openShortcutHelp,
         closeShortcutHelp,
         destroy: () => {
-            document.removeEventListener('keydown', handleKeydown);
+            listenersAbort.abort();
         },
     };
 };

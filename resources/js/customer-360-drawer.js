@@ -35,10 +35,15 @@ const verifyAiDomIntegrity = (contentHost) => {
         return;
     }
 
-    const aiTab = contentHost.querySelector('#customer-360-tab-ai-assistant');
     const workbench = contentHost.querySelector('#customer-360-ai-workbench');
 
-    if (!aiTab || !workbench || !aiTab.contains(workbench)) {
+    if (!workbench) {
+        return;
+    }
+
+    const aiTab = contentHost.querySelector('#customer-360-tab-ai-assistant');
+
+    if (!aiTab || !aiTab.contains(workbench)) {
         console.error('Customer360: IRA AI DOM structure invalid');
     }
 };
@@ -1129,6 +1134,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         try {
             bindCockpitInteractions();
             bindDeviceSectionInteractions();
+            bindWorkbenchActions();
+            verifyAiDomIntegrity(contentHost);
             syncTabState();
             configureDeviceSyncPolling();
             hydrateLazySectionsForTab(getPersistedTab() ?? 'overview');
@@ -1221,6 +1228,11 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     const refreshDrawerContent = async (incidentId) => {
         fetchController?.abort();
         fetchController = new AbortController();
+        resetSubFetchController();
+        bumpContentGeneration();
+        stopDeviceSyncPolling();
+        stopTimelinePolling();
+        resetLazyTabState();
 
         const url = drawerContentUrl(baseUrl, incidentId);
         const previousHtml = contentHost.innerHTML;

@@ -478,6 +478,8 @@ describe('initCustomer360Drawer', () => {
     });
 
     it('logs IRA AI DOM integrity errors in development when structure is invalid', async () => {
+        vi.stubEnv('DEV', true);
+
         const pageRoot = setupDashboard();
         const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -498,6 +500,7 @@ describe('initCustomer360Drawer', () => {
         expect(consoleError).toHaveBeenCalledWith('Customer360: IRA AI DOM structure invalid');
 
         consoleError.mockRestore();
+        vi.unstubAllEnvs();
     });
 
     it('preserves active tab after drawer refresh, workbench refresh, and customer360:refresh', async () => {
@@ -1028,6 +1031,80 @@ describe('initCustomer360Drawer', () => {
 
         expect(contentHostText()).toContain('incident-c-timeline');
         expect(contentHostText()).not.toContain('incident-a-timeline');
+    });
+
+    it('stops timeline polling when customer360:refresh replaces drawer content', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const pageRoot = setupDashboard();
+            const timelineRefreshUrl = 'http://localhost/dashboard/service-cases/42/customer-360/timeline';
+
+            global.fetch = vi.fn()
+                .mockResolvedValueOnce({
+                    ok: true,
+                    text: async () => `
+                        <div data-customer-360-content>
+                            <button type="button" data-customer-360-tab="overview">Overview</button>
+                            <button type="button" data-customer-360-tab="timeline">Timeline</button>
+                            <div data-customer-360-tab-pane="overview">Overview pane</div>
+                            <div data-customer-360-tab-pane="timeline" class="d-none">
+                                <div data-customer-360-timeline-tab data-timeline-tab-url="${timelineRefreshUrl}/tab"></div>
+                            </div>
+                        </div>
+                    `,
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        html: `
+                            <section data-customer-360-timeline-section data-timeline-refresh-url="${timelineRefreshUrl}">
+                                <div data-unified-timeline data-timeline-bound="true"></div>
+                            </section>
+                        `,
+                    }),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    text: async () => '<div data-customer-360-content>Refreshed overview</div>',
+                });
+
+            const drawer = initCustomer360Drawer({ pageRoot });
+
+            await drawer.open('42', 'SC-001');
+
+            document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
+                new MouseEvent('click', { bubbles: true }),
+            );
+
+            await vi.waitFor(() => {
+                expect(fetch).toHaveBeenCalledWith(
+                    `${timelineRefreshUrl}/tab`,
+                    expect.any(Object),
+                );
+            });
+
+            fetch.mockClear();
+
+            document.dispatchEvent(new CustomEvent('customer360:refresh', {
+                detail: { incidentId: '42' },
+            }));
+
+            await vi.waitFor(() => {
+                expect(fetch).toHaveBeenCalledWith(
+                    'http://localhost/dashboard/service-cases/42/customer-360',
+                    expect.any(Object),
+                );
+            });
+
+            fetch.mockClear();
+
+            await vi.advanceTimersByTimeAsync(60000);
+
+            expect(fetch).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 
