@@ -94,7 +94,9 @@ class TeamAvailabilityOverviewService
                 continue;
             }
 
-            if ($this->workCalendarService->isOnScheduledShift($user)) {
+            // Include approved-leave agents during their expected shift window.
+            // isOnScheduledShift() is false while on leave, which previously hid them.
+            if ($this->workCalendarService->isExpectedOnDutyWindow($user)) {
                 $sessionSummary = $sessionSummaries[$user->id] ?? $this->emptySessionSummary();
                 $unavailable[] = [
                     ...$row,
@@ -187,6 +189,10 @@ class TeamAvailabilityOverviewService
         }
 
         $blockReasons = $authority['block_reasons'] ?? [];
+
+        if (in_array('approved_leave', $blockReasons, true)) {
+            return 'Approved leave today';
+        }
 
         if (in_array('not_present', $blockReasons, true)) {
             return 'Not logged in';

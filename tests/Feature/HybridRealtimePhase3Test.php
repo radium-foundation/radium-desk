@@ -81,13 +81,66 @@ class HybridRealtimePhase3Test extends TestCase
 
     public function test_dashboard_includes_incoming_call_card_host(): void
     {
-        $admin = User::factory()->create(['is_active' => true]);
-        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
-        $admin->givePermissionTo('incidents.view');
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $agent->givePermissionTo('incidents.view');
 
-        $this->actingAs($admin)
+        $response = $this->actingAs($agent)
+            ->get(route('dashboard'));
+
+        $response->assertOk()
+            ->assertSee('id="incoming-call-card-host"', false);
+
+        $this->assertSame(1, substr_count($response->getContent(), 'id="incoming-call-card-host"'));
+    }
+
+    public function test_incoming_call_card_host_is_available_on_incident_and_order_pages(): void
+    {
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $agent->givePermissionTo('incidents.view');
+
+        $order = \App\Models\Order::query()->create([
+            'order_id' => 'RD3419607',
+            'serial_number' => 'SN-HUB-1',
+            'product_name' => 'MFS 110',
+            'device_model' => 'MFS 110',
+            'customer_name' => 'Jane Customer',
+            'status' => 'active',
+            'created_by' => $agent->id,
+        ]);
+
+        $incident = \App\Models\Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => 'SC-00001',
+            'category' => 'General',
+            'source' => \App\Enums\IncidentSource::Call->value,
+            'title' => 'Activation Issue',
+            'description' => 'Activation failed',
+            'status' => \App\Enums\IncidentStatus::Open->value,
+            'assigned_to_user_id' => $agent->id,
+            'created_by' => $agent->id,
+            'updated_by' => $agent->id,
+        ]);
+
+        $this->actingAs($agent)
+            ->get(route('incidents.show', $incident))
+            ->assertOk()
+            ->assertSee('id="incoming-call-card-host"', false);
+
+        $this->actingAs($agent)
+            ->get(route('orders.show', $order))
+            ->assertOk()
+            ->assertSee('id="incoming-call-card-host"', false);
+    }
+
+    public function test_non_team_member_does_not_receive_incoming_call_card_host(): void
+    {
+        $viewer = User::factory()->create(['is_active' => true]);
+
+        $this->actingAs($viewer)
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('incoming-call-card-host', false);
+            ->assertDontSee('id="incoming-call-card-host"', false);
     }
 }

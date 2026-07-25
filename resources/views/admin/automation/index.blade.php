@@ -8,7 +8,7 @@
         <p class="text-muted mb-0">Read-only automation health, queues, and activity for administrators.</p>
     </div>
 
-    @include('navigation.super-admin-workspace-nav', ['active' => 'automation'])
+    @include('navigation.mission-control-workspace-nav', ['active' => 'automation'])
 
     @include('admin.automation.partials.dashboard-body', ['dashboard' => $dashboard])
 @endsection

@@ -94,6 +94,12 @@ class NotificationAuthorityService
         NotificationCategory $category,
         ?Carbon $at = null,
     ): bool {
+        // Leave workflow notices must deliver even when approving leave flips
+        // today's calendar status to LeaveApproved (same-day decisions).
+        if ($category === NotificationCategory::LeaveApprovals) {
+            return true;
+        }
+
         $mode = $this->defaultScheduleModeFor($user);
 
         return match ($mode) {

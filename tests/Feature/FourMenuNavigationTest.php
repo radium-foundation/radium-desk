@@ -42,17 +42,19 @@ class FourMenuNavigationTest extends TestCase
         return substr_count($matches[0], 'class="nav-link active"');
     }
 
-    public function test_admin_sidebar_uses_four_menu_sections(): void
+    public function test_admin_sidebar_uses_standardized_menu_sections(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $html = $this->sidebarHtml($admin);
 
+        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Dashboard'));
         $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Operations'));
-        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Control Center'));
+        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Mission Control'));
         $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Administration'));
-        $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Super Admin'));
+        $this->assertStringNotContainsString('Control Center</span>', $html);
+        $this->assertStringNotContainsString('Super Admin</span>', $html);
         $this->assertStringNotContainsString('Operations Hub', $html);
         $this->assertStringNotContainsString('Workforce Hub', $html);
     }
@@ -67,28 +69,24 @@ class FourMenuNavigationTest extends TestCase
         $this->assertGreaterThanOrEqual(1, $this->navSectionCount($html, 'Operations'));
         $this->assertStringContainsString(route('orders.index'), $html);
         $this->assertStringContainsString('My Leave', $html);
-        $this->assertStringContainsString('Control Center</span>', $html);
+        $this->assertStringContainsString('Mission Control</span>', $html);
         $this->assertStringNotContainsString('Administration</span>', $html);
-        $this->assertStringNotContainsString('Super Admin</span>', $html);
         $this->assertStringNotContainsString('title="Automation Health"', $html);
         $this->assertStringNotContainsString('title="Automation Operations"', $html);
     }
 
-    public function test_admin_control_center_sidebar_points_to_primary_workspace(): void
+    public function test_admin_mission_control_sidebar_points_to_operations_workspace(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $html = $this->sidebarHtml($admin);
 
-        $this->assertSame(1, substr_count($html, 'title="Control Center"'));
+        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
         $this->assertStringContainsString(route('admin.operations.index'), $html);
-        $this->assertStringNotContainsString('title="Operations Control Center"', $html);
-        $this->assertStringNotContainsString('title="Workforce"', $html);
-        $this->assertStringNotContainsString('title="Team Performance"', $html);
-        $this->assertStringNotContainsString('title="Leave Management"', $html);
-        $this->assertStringNotContainsString('title="Agent Monitoring"', $html);
-        $this->assertStringNotContainsString('title="Automation Health"', $html);
+        $this->assertStringNotContainsString('title="Audit Logs"', $html);
+        $this->assertStringNotContainsString('title="Webhook Explorer"', $html);
+        $this->assertStringNotContainsString('title="Automation"', $html);
     }
 
     public function test_admin_administration_sidebar_points_to_primary_workspace(): void
@@ -105,7 +103,7 @@ class FourMenuNavigationTest extends TestCase
         $this->assertStringNotContainsString('title="Holiday Calendar"', $html);
     }
 
-    public function test_admin_super_admin_sidebar_is_deduplicated(): void
+    public function test_superadmin_mission_control_sidebar_is_deduplicated(): void
     {
         $superadmin = User::factory()->create(['is_active' => true]);
         $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
@@ -117,24 +115,22 @@ class FourMenuNavigationTest extends TestCase
         $this->assertStringNotContainsString('title="Audit Logs"', $html);
         $this->assertStringNotContainsString('title="Webhook Explorer"', $html);
         $this->assertStringNotContainsString('title="Automation"', $html);
-        $this->assertStringNotContainsString('title="Platform Analytics"', $html);
-        $this->assertStringNotContainsString('title="Integrations"', $html);
     }
 
-    public function test_plain_admin_keeps_super_admin_tool_links_without_mission_control(): void
+    public function test_plain_admin_uses_single_mission_control_entry(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $html = $this->sidebarHtml($admin);
 
-        $this->assertStringNotContainsString('title="Mission Control"', $html);
-        $this->assertStringContainsString('title="Audit Logs"', $html);
-        $this->assertStringContainsString('title="Webhook Explorer"', $html);
-        $this->assertStringContainsString('title="Automation"', $html);
+        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
+        $this->assertStringNotContainsString('title="Audit Logs"', $html);
+        $this->assertStringNotContainsString('title="Webhook Explorer"', $html);
+        $this->assertStringNotContainsString('title="Automation"', $html);
     }
 
-    public function test_operations_control_center_highlights_only_control_center_item(): void
+    public function test_operations_control_center_highlights_mission_control_item(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -146,12 +142,12 @@ class FourMenuNavigationTest extends TestCase
 
         $this->assertSame(1, $this->activeSidebarItemCount($html));
         $this->assertMatchesRegularExpression(
-            '/title="Control Center".*?class="[^"]*\bactive\b[^"]*"|class="[^"]*\bactive\b[^"]*".*?title="Control Center"/s',
+            '/title="Mission Control".*?class="[^"]*\bactive\b[^"]*"|class="[^"]*\bactive\b[^"]*".*?title="Mission Control"/s',
             $html,
         );
     }
 
-    public function test_team_hub_tab_highlights_control_center_not_super_admin(): void
+    public function test_team_hub_tab_highlights_mission_control_workspace(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -164,10 +160,10 @@ class FourMenuNavigationTest extends TestCase
         $this->assertSame(1, $this->activeSidebarItemCount($html));
         $this->assertStringContainsString('breadcrumb-item active', $html);
         $this->assertStringContainsString('Team', $html);
-        $this->assertStringContainsString('aria-label="Control Center workspace"', $html);
+        $this->assertStringContainsString('aria-label="Mission Control workspace"', $html);
     }
 
-    public function test_automation_hub_tab_uses_super_admin_workspace(): void
+    public function test_automation_hub_tab_uses_mission_control_workspace(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -178,9 +174,9 @@ class FourMenuNavigationTest extends TestCase
             ->getContent();
 
         $this->assertSame(1, $this->activeSidebarItemCount($html));
-        $this->assertStringContainsString('aria-label="Super Admin workspace"', $html);
+        $this->assertStringContainsString('aria-label="Mission Control workspace"', $html);
         $this->assertMatchesRegularExpression(
-            '/title="Automation".*?class="[^"]*\bactive\b[^"]*"|class="[^"]*\bactive\b[^"]*".*?title="Automation"/s',
+            '/aria-label="Mission Control workspace".*?aria-current="page"[^>]*>\s*Automation\s*</s',
             $html,
         );
     }
@@ -193,7 +189,7 @@ class FourMenuNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('<title>Control Center · Operations Control Center</title>', false);
+            ->assertSee('<title>Mission Control · Operations Control Center</title>', false);
     }
 
     public function test_administration_home_breadcrumb_shows_menu_only(): void
@@ -210,7 +206,7 @@ class FourMenuNavigationTest extends TestCase
             ->assertDontSee('Administration</a>', false);
     }
 
-    public function test_control_center_workspace_tabs_and_default_selection(): void
+    public function test_mission_control_workspace_tabs_and_default_selection(): void
     {
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -218,14 +214,14 @@ class FourMenuNavigationTest extends TestCase
         $html = $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('aria-label="Control Center workspace"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->assertSee(route('workforce.index'), false)
             ->assertSee(route('admin.workforce.performance.index'), false)
             ->assertSee(route('leave-requests.index'), false)
             ->getContent();
 
         $this->assertMatchesRegularExpression(
-            '/aria-label="Control Center workspace".*?aria-current="page"[^>]*>\s*Operations\s*</s',
+            '/aria-label="Mission Control workspace".*?aria-current="page"[^>]*>\s*Operations\s*</s',
             $html,
         );
     }
@@ -238,7 +234,7 @@ class FourMenuNavigationTest extends TestCase
         $html = $this->actingAs($admin)
             ->get(route('workforce.index'))
             ->assertOk()
-            ->assertSee('aria-label="Control Center workspace"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->getContent();
 
         $this->assertMatchesRegularExpression(
@@ -261,13 +257,14 @@ class FourMenuNavigationTest extends TestCase
             ->assertSee(route('admin.system-settings.index'), false)
             ->assertSee(route('admin.workforce.holidays.index'), false)
             ->assertSee('Holiday Calendar', false)
-            ->assertDontSee('Review system activity and record changes.', false);
+            ->assertSee('Users &amp; Roles', false)
+            ->assertSee('Settings', false);
 
         $html = $this->actingAs($admin)
             ->get(route('admin.workforce.holidays.index'))
             ->assertOk()
             ->assertSee('aria-label="Administration workspace"', false)
-            ->assertDontSee('aria-label="Control Center workspace"', false)
+            ->assertDontSee('aria-label="Mission Control workspace"', false)
             ->getContent();
 
         $this->assertMatchesRegularExpression(
@@ -284,12 +281,11 @@ class FourMenuNavigationTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('admin.platform.index'))
             ->assertOk()
-            ->assertSee('aria-label="Super Admin workspace"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->assertSee(route('admin.operations.index'), false)
             ->assertSee(route('admin.operations.index', ['hub_tab' => 'automation']), false)
             ->assertSee(route('cashfree.webhook-explorer.index'), false)
             ->assertSee(route('audit-logs.index'), false)
-            ->assertSee(route('admin.system-settings.index'), false)
             ->assertSee('#platform-health', false)
             ->assertSee('id="platform-health"', false)
             ->assertSee('data-platform-workspace-links', false);
@@ -327,7 +323,7 @@ class FourMenuNavigationTest extends TestCase
         $this->assertStringContainsString('data-agent-recent-customers', $html);
     }
 
-    public function test_rbac_hides_control_center_workspace_tabs_for_agent(): void
+    public function test_rbac_hides_mission_control_workspace_tabs_for_agent(): void
     {
         $agent = User::factory()->create(['is_active' => true]);
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -335,7 +331,7 @@ class FourMenuNavigationTest extends TestCase
         $this->actingAs($agent)
             ->get(route('workforce.index'))
             ->assertOk()
-            ->assertDontSee('aria-label="Control Center workspace"', false)
+            ->assertDontSee('aria-label="Mission Control workspace"', false)
             ->assertDontSee(route('admin.workforce.performance.index'), false);
     }
 }

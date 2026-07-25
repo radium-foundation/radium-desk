@@ -80,6 +80,15 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
         return { success: false, usedFallback: false };
     }
 
+    // Prevent duplicate submits while the request is in flight or an outbound
+    // call is already being tracked on this button.
+    if (button.dataset.bonvoiceCallInFlight === 'true' || button.disabled) {
+        return { success: false, usedFallback: false, skipped: true };
+    }
+
+    let keepDisabledForLifecycle = false;
+
+    button.dataset.bonvoiceCallInFlight = 'true';
     setButtonLoading(button, true);
 
     try {
@@ -106,6 +115,7 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
 
             if (eventId) {
                 trackOutboundClickToCall({ eventId, button });
+                keepDisabledForLifecycle = true;
             }
 
             showToast?.(message ?? 'Calling your registered mobile...', 'success');
@@ -132,7 +142,17 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
 
         return { success: false, usedFallback: false, error };
     } finally {
-        setButtonLoading(button, false);
+        delete button.dataset.bonvoiceCallInFlight;
+
+        // Successful initiate hands disable ownership to the lifecycle tracker.
+        // Clearing loading must not undo that (previously re-enabled the button).
+        if (keepDisabledForLifecycle) {
+            button.classList.remove('is-loading');
+            button.setAttribute('aria-busy', 'false');
+            button.disabled = true;
+        } else {
+            setButtonLoading(button, false);
+        }
     }
 };
 

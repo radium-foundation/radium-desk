@@ -47,7 +47,7 @@ class WorkforceHubNavigationTest extends TestCase
         $admin = $this->createAdmin();
         $html = $this->sidebarHtml($admin);
 
-        $this->assertSame(1, substr_count($html, 'title="Control Center"'));
+        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
         $this->assertStringNotContainsString('<span class="nav-label">Workforce</span>', $html);
     }
 
@@ -57,12 +57,12 @@ class WorkforceHubNavigationTest extends TestCase
 
         $html = $this->sidebarHtml($agent);
 
-        $this->assertSame(1, substr_count($html, 'title="Control Center"'));
+        $this->assertSame(1, substr_count($html, 'title="Mission Control"'));
         $this->assertStringContainsString(route('workforce.index'), $html);
         $this->assertStringContainsString(route('my-workforce.index'), $html);
         $this->assertStringContainsString('My Leave', $html);
         $this->assertStringNotContainsString('Workforce Hub', $html);
-        $this->assertStringContainsString('Control Center</span>', $html);
+        $this->assertStringContainsString('Mission Control</span>', $html);
         $this->assertStringNotContainsString('Team Performance', $html);
     }
 
@@ -73,7 +73,7 @@ class WorkforceHubNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('workforce.index'))
             ->assertOk()
-            ->assertSee('aria-label="Control Center workspace"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->assertSee('Operations', false)
             ->assertSee('Performance', false)
             ->assertSee('Leave', false)
@@ -90,7 +90,7 @@ class WorkforceHubNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.workforce.performance.index'))
             ->assertOk()
-            ->assertSee('aria-label="Control Center workspace"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->assertSee(route('workforce.index'), false);
     }
 
@@ -102,7 +102,7 @@ class WorkforceHubNavigationTest extends TestCase
             ->get(route('admin.workforce.holidays.index'))
             ->assertOk()
             ->assertSee('aria-label="Administration workspace"', false)
-            ->assertDontSee('aria-label="Control Center workspace"', false)
+            ->assertDontSee('aria-label="Mission Control workspace"', false)
             ->assertSee(route('admin.administration.index'), false);
     }
 
@@ -113,7 +113,7 @@ class WorkforceHubNavigationTest extends TestCase
         $this->actingAs($admin)
             ->get(route('leave-requests.index'))
             ->assertOk()
-            ->assertSee('aria-label="Control Center workspace"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->assertSee(route('workforce.index'), false);
     }
 
@@ -124,7 +124,7 @@ class WorkforceHubNavigationTest extends TestCase
         $this->actingAs($agent)
             ->get(route('leave-requests.index'))
             ->assertOk()
-            ->assertDontSee('aria-label="Control Center workspace"', false);
+            ->assertDontSee('aria-label="Mission Control workspace"', false);
     }
 
     public function test_existing_workforce_urls_continue_to_work_for_admin(): void

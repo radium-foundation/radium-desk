@@ -130,12 +130,6 @@ class UniversalSearchTest extends TestCase
             ->assertJsonPath('incident_ids.0', $incident->id)
             ->assertJsonPath('results.0.service_case', $incident->display_reference)
             ->assertJsonPath('results.0.order_id', 'RD3434509');
-
-        $this->actingAs($agent)
-            ->getJson(route('dashboard.search', ['q' => 'RD3434509']))
-            ->assertOk()
-            ->assertJsonPath('match_count', 1)
-            ->assertJsonPath('incident_ids.0', $incident->id);
     }
 
     public function test_search_finds_service_case_by_mobile_number(): void

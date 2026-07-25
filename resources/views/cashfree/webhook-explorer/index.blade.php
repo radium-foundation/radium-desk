@@ -8,7 +8,7 @@
         <p class="text-muted mb-0">Inspect incoming Cashfree webhook payloads captured from production.</p>
     </div>
 
-    @include('navigation.super-admin-workspace-nav', ['active' => 'webhook_explorer'])
+    @include('navigation.mission-control-workspace-nav', ['active' => 'webhook_explorer'])
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">

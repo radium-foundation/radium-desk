@@ -23,6 +23,7 @@ import { buildDashboardLiveQuery } from './dashboard-live-query';
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { isDashboardQuickFilterActive } from './dashboard-service-case-state';
 import { getWorkspaceSession } from './workspace/session';
+import { maybeShowIncomingCallCardFromNotification } from './incoming-call-bridge';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 import { bindOperatorAlertsChannel } from './operator-alerts';
 import { bindRealtimeNotificationsChannel } from './realtime-notifications';
@@ -191,6 +192,7 @@ const handleNotificationCreated = (pageRoot, payload) => {
     const root = document.getElementById('notification-bell-root');
 
     if (!root) {
+        maybeShowIncomingCallCardFromNotification(payload);
         maybeHandleIncomingCallInteraction(payload.interaction);
 
         return;
@@ -219,6 +221,7 @@ const handleNotificationCreated = (pageRoot, payload) => {
         });
     }
 
+    maybeShowIncomingCallCardFromNotification(payload);
     maybeHandleIncomingCallInteraction(payload.interaction);
 };
 

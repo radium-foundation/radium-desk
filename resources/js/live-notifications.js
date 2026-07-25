@@ -1,4 +1,5 @@
 import { getWorkspaceSession } from './workspace/session';
+import { maybeShowIncomingCallCardFromNotification } from './incoming-call-bridge';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
 
@@ -160,6 +161,7 @@ const pollNotifications = async (state) => {
 
         (data.new_notifications ?? []).forEach((item) => {
             showBrowserNotification(item);
+            maybeShowIncomingCallCardFromNotification(item);
             maybeHandleIncomingCallInteraction(item.interaction);
         });
     } catch (error) {

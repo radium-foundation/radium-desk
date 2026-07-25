@@ -4,7 +4,6 @@
 
 @php
     use App\Models\CompanyHoliday;
-    use App\Models\SettingProduct;
     use App\Models\SystemSetting;
     use App\Models\User;
     use Database\Seeders\RolePermissionSeeder;
@@ -12,6 +11,8 @@
 
     $user = auth()->user();
     $isAdminTeam = $user?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES) ?? false;
+    $canViewSettings = Gate::check('viewAny', SystemSetting::class)
+        || $user?->can('system-settings.manage');
 
     $tabs = [];
 
@@ -23,23 +24,16 @@
     }
 
     if (Gate::check('viewAny', User::class)) {
-        $tabs['users'] = [
-            'label' => 'Users',
+        $tabs['users_roles'] = [
+            'label' => 'Users & Roles',
             'url' => route('users.index'),
         ];
     }
 
-    if (Gate::check('system-settings.manage') || Gate::check('viewAny', SystemSetting::class)) {
-        $tabs['system_settings'] = [
-            'label' => 'System Settings',
+    if ($canViewSettings) {
+        $tabs['settings'] = [
+            'label' => 'Settings',
             'url' => route('admin.system-settings.index'),
-        ];
-    }
-
-    if ($user?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) && Gate::check('viewAny', SettingProduct::class)) {
-        $tabs['application_settings'] = [
-            'label' => 'Application Settings',
-            'url' => route('settings.index'),
         ];
     }
 
@@ -50,7 +44,7 @@
         ];
     }
 
-    if (Gate::check('viewAny', SystemSetting::class)) {
+    if ($canViewSettings) {
         $tabs['integrations'] = [
             'label' => 'Integrations',
             'url' => route('admin.administration.index').'#administration-integrations',

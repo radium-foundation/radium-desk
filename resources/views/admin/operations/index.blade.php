@@ -32,14 +32,9 @@
                 : 'today';
         @endphp
 
-        @if($operationsHubActive === 'automation')
-            @include('navigation.super-admin-workspace-nav', ['active' => 'automation'])
-        @else
-            @can('platform-dashboard.view')
-                @include('navigation.super-admin-workspace-nav', ['active' => 'control_center'])
-            @endcan
-            @include('navigation.control-center-workspace-nav', ['active' => 'operations'])
-        @endif
+        @include('navigation.mission-control-workspace-nav', [
+            'active' => $operationsHubActive === 'automation' ? 'automation' : 'operations',
+        ])
 
         <section class="operations-command-center" aria-label="Operations command center">
             <div id="operations-critical-alerts" class="operations-bento-row operations-bento-row--alerts">

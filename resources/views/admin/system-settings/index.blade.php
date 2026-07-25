@@ -8,10 +8,8 @@
         <p class="text-muted mb-0">Operational feature flags and integration toggles for administrators.</p>
     </div>
 
-    @can('platform-dashboard.view')
-        @include('navigation.super-admin-workspace-nav', ['active' => 'system_settings'])
-    @endcan
-    @include('navigation.administration-workspace-nav', ['active' => 'system_settings'])
+    @include('navigation.administration-workspace-nav', ['active' => 'settings'])
+    @include('navigation.settings-workspace-nav', ['active' => 'operational'])
 
     <form method="POST" action="{{ route('admin.system-settings.update') }}">
         @csrf
@@ -26,7 +24,7 @@
                     $category = $categories[$categoryKey] ?? ['label' => ucfirst($categoryKey), 'description' => null, 'icon' => 'bi-sliders'];
                 @endphp
 
-                <div class="card border-0 shadow-sm">
+                <div class="card border-0 shadow-sm" id="category-{{ $categoryKey }}">
                     <div class="card-header bg-white py-3">
                         <div class="d-flex align-items-center gap-2">
                             <i class="bi {{ $category['icon'] ?? 'bi-sliders' }} text-primary"></i>

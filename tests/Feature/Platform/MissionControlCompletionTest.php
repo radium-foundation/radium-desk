@@ -56,44 +56,34 @@ class MissionControlCompletionTest extends TestCase
         return $user;
     }
 
-    public function test_superadmin_mission_control_exposes_platform_workspace_deep_links(): void
+    public function test_superadmin_mission_control_exposes_workspace_tabs(): void
     {
-        $html = $this->actingAs($this->createSuperadmin())
+        $this->actingAs($this->createSuperadmin())
             ->get(route('admin.platform.index'))
             ->assertOk()
-            ->assertSee('aria-label="Super Admin workspace"', false)
-            ->assertSee('aria-label="Platform workspace shortcuts"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->assertSee('data-platform-workspace-links', false)
             ->assertSee(route('admin.operations.index'), false)
             ->assertSee(route('admin.operations.index', ['hub_tab' => 'automation']), false)
             ->assertSee(route('cashfree.webhook-explorer.index'), false)
             ->assertSee(route('audit-logs.index'), false)
-            ->assertSee(route('admin.system-settings.index'), false)
-            ->assertSee('#realtime-settings-card', false)
             ->assertSee('#platform-health', false)
             ->assertSee(route('workforce.index'), false)
             ->assertSee(route('refunds.index', ['status' => 'pending']), false)
-            ->assertSee(route('admin.administration.index').'#administration-integrations', false)
-            ->assertDontSee('Cards coming next', false)
-            ->getContent();
-
-        $this->assertStringContainsString('Control Center', $html);
-        $this->assertStringContainsString('System Settings', $html);
-        $this->assertStringContainsString('Realtime', $html);
+            ->assertDontSee('Cards coming next', false);
     }
 
-    public function test_operations_admin_sees_rbac_filtered_mission_control_links(): void
+    public function test_operations_admin_sees_rbac_filtered_mission_control_tabs(): void
     {
         $this->actingAs($this->createOperationsAdmin())
             ->get(route('admin.platform.index'))
             ->assertOk()
             ->assertSee(route('admin.operations.index'), false)
-            ->assertSee(route('admin.system-settings.index'), false)
             ->assertSee('data-platform-workspace-links', false)
             ->assertDontSee('Application Settings', false);
     }
 
-    public function test_plain_admin_cannot_open_mission_control_but_keeps_tool_routes(): void
+    public function test_plain_admin_cannot_open_mission_control_overview_but_keeps_tool_routes(): void
     {
         $admin = $this->createAdmin();
 
@@ -109,26 +99,25 @@ class MissionControlCompletionTest extends TestCase
             ->assertOk();
     }
 
-    public function test_superadmin_workspace_nav_includes_system_settings_and_control_center(): void
+    public function test_superadmin_workspace_nav_includes_operations_and_platform_health(): void
     {
         $html = $this->actingAs($this->createSuperadmin())
             ->get(route('admin.platform.index'))
             ->assertOk()
-            ->assertSee('aria-label="Super Admin workspace"', false)
+            ->assertSee('aria-label="Mission Control workspace"', false)
             ->getContent();
 
-        $this->assertMatchesRegularExpression('/aria-label="Super Admin workspace".*?Control Center/s', $html);
-        $this->assertMatchesRegularExpression('/aria-label="Super Admin workspace".*?System Settings/s', $html);
-        $this->assertMatchesRegularExpression('/aria-label="Super Admin workspace".*?Platform Health/s', $html);
+        $this->assertMatchesRegularExpression('/aria-label="Mission Control workspace".*?Operations/s', $html);
+        $this->assertMatchesRegularExpression('/aria-label="Mission Control workspace".*?Platform Health/s', $html);
     }
 
-    public function test_system_settings_shows_super_admin_workspace_for_platform_viewers(): void
+    public function test_system_settings_shows_administration_and_settings_workspace_nav(): void
     {
         $this->actingAs($this->createSuperadmin())
             ->get(route('admin.system-settings.index'))
             ->assertOk()
-            ->assertSee('aria-label="Super Admin workspace"', false)
             ->assertSee('aria-label="Administration workspace"', false)
+            ->assertSee('aria-label="Settings workspace"', false)
             ->assertSee('id="realtime-settings-card"', false);
     }
 

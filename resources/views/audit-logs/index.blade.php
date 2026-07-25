@@ -8,7 +8,7 @@
         <p class="text-muted mb-0">Review system activity and record changes.</p>
     </div>
 
-    @include('navigation.super-admin-workspace-nav', ['active' => 'audit'])
+    @include('navigation.mission-control-workspace-nav', ['active' => 'audit_logs'])
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">

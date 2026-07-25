@@ -37,7 +37,7 @@ class NavigationContextResolverTest extends TestCase
         return $request;
     }
 
-    public function test_dashboard_resolves_operations_menu_home(): void
+    public function test_dashboard_resolves_dashboard_menu_home(): void
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -45,14 +45,14 @@ class NavigationContextResolverTest extends TestCase
         $request = $this->requestFor($user, route('dashboard'));
         $context = $this->resolver->resolve($request, 'Dashboard');
 
-        $this->assertSame(NavigationMenu::Operations, $context->menu);
-        $this->assertSame('operations.dashboard', $context->activeItemKey);
-        $this->assertSame('Operations · Dashboard', $context->documentTitle);
-        $this->assertSame('Operations', $context->breadcrumbs[0]['label']);
+        $this->assertSame(NavigationMenu::Dashboard, $context->menu);
+        $this->assertSame('dashboard.home', $context->activeItemKey);
+        $this->assertSame('Dashboard · Dashboard', $context->documentTitle);
+        $this->assertSame('Dashboard', $context->breadcrumbs[0]['label']);
         $this->assertNull($context->breadcrumbs[0]['url']);
     }
 
-    public function test_operations_control_center_resolves_control_center_menu(): void
+    public function test_operations_control_center_resolves_mission_control_menu(): void
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -60,13 +60,13 @@ class NavigationContextResolverTest extends TestCase
         $request = $this->requestFor($user, route('admin.operations.index'));
         $context = $this->resolver->resolve($request, 'Operations Control Center');
 
-        $this->assertSame(NavigationMenu::ControlCenter, $context->menu);
-        $this->assertSame('control_center.home', $context->activeItemKey);
-        $this->assertSame('Control Center · Operations Control Center', $context->documentTitle);
+        $this->assertSame(NavigationMenu::MissionControl, $context->menu);
+        $this->assertSame('mission_control.home', $context->activeItemKey);
+        $this->assertSame('Mission Control · Operations Control Center', $context->documentTitle);
         $this->assertSame(route('admin.operations.index'), $context->menuHomeUrl());
     }
 
-    public function test_agent_control_center_home_resolves_to_workforce(): void
+    public function test_agent_mission_control_home_resolves_to_workforce(): void
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -75,13 +75,13 @@ class NavigationContextResolverTest extends TestCase
         $context = $this->resolver->resolve($request, 'Team Workforce');
         $sidebar = $this->resolver->sidebar($request, $context);
 
-        $this->assertSame(NavigationMenu::ControlCenter, $context->menu);
-        $this->assertSame('control_center.home', $context->activeItemKey);
+        $this->assertSame(NavigationMenu::MissionControl, $context->menu);
+        $this->assertSame('mission_control.home', $context->activeItemKey);
         $this->assertSame(route('workforce.index'), $context->menuHomeUrl());
-        $this->assertSame(route('workforce.index'), $sidebar['control_center']['home_url']);
+        $this->assertSame(route('workforce.index'), $sidebar['mission_control']['home_url']);
     }
 
-    public function test_automation_hub_tab_resolves_super_admin_for_plain_admin(): void
+    public function test_automation_hub_tab_resolves_mission_control_for_plain_admin(): void
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -90,9 +90,8 @@ class NavigationContextResolverTest extends TestCase
         $context = $this->resolver->resolve($request, 'Operations Control Center');
         $sidebar = $this->resolver->sidebar($request, $context);
 
-        $this->assertSame('super_admin.automation', $context->activeItemKey);
-        $this->assertFalse($this->sidebarItemIsActive($sidebar, 'control_center.home'));
-        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'super_admin.automation'));
+        $this->assertSame('mission_control.home', $context->activeItemKey);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'mission_control.home'));
     }
 
     public function test_automation_hub_tab_activates_mission_control_for_superadmin(): void
@@ -104,12 +103,11 @@ class NavigationContextResolverTest extends TestCase
         $context = $this->resolver->resolve($request, 'Operations Control Center');
         $sidebar = $this->resolver->sidebar($request, $context);
 
-        $this->assertSame('super_admin.mission_control', $context->activeItemKey);
-        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'super_admin.mission_control'));
-        $this->assertFalse($this->sidebarItemIsActive($sidebar, 'super_admin.automation'));
+        $this->assertSame('mission_control.home', $context->activeItemKey);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'mission_control.home'));
     }
 
-    public function test_team_hub_tab_keeps_control_center_home_active(): void
+    public function test_team_hub_tab_keeps_mission_control_home_active(): void
     {
         $user = User::factory()->create(['is_active' => true]);
         $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -118,9 +116,8 @@ class NavigationContextResolverTest extends TestCase
         $context = $this->resolver->resolve($request, 'Operations Control Center');
         $sidebar = $this->resolver->sidebar($request, $context);
 
-        $this->assertSame('control_center.home', $context->activeItemKey);
-        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'control_center.home'));
-        $this->assertFalse($this->sidebarItemIsActive($sidebar, 'super_admin.automation'));
+        $this->assertSame('mission_control.home', $context->activeItemKey);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'mission_control.home'));
     }
 
     public function test_holiday_calendar_resolves_administration_menu_home(): void
@@ -147,24 +144,22 @@ class NavigationContextResolverTest extends TestCase
         $keys = array_map(
             static fn (array $item): string => $item['key'],
             array_merge(
+                $sidebar['dashboard']['items'],
                 $sidebar['operations']['items'],
-                $sidebar['control_center']['items'],
+                $sidebar['mission_control']['items'],
                 $sidebar['administration']['items'],
-                $sidebar['super_admin']['items'],
+                $sidebar['personal']['items'],
             ),
         );
 
-        $this->assertContains('control_center.home', $keys);
+        $this->assertContains('dashboard.home', $keys);
+        $this->assertContains('mission_control.home', $keys);
         $this->assertContains('administration.home', $keys);
-        $this->assertContains('super_admin.mission_control', $keys);
-        $this->assertNotContains('control_center.workforce', $keys);
-        $this->assertNotContains('control_center.team_performance', $keys);
-        $this->assertNotContains('control_center.leave_management', $keys);
-        $this->assertNotContains('administration.users', $keys);
-        $this->assertNotContains('administration.holiday_calendar', $keys);
         $this->assertNotContains('super_admin.audit_logs', $keys);
         $this->assertNotContains('super_admin.automation', $keys);
-        $this->assertNotContains('administration.integrations', $keys);
+        $this->assertNotContains('super_admin.webhook_explorer', $keys);
+        $this->assertNotContains('administration.users', $keys);
+        $this->assertNotContains('administration.holiday_calendar', $keys);
     }
 
     /**

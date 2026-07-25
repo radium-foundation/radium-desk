@@ -2,9 +2,16 @@
 
 namespace App\Support\Navigation;
 
+use App\Models\ApprovalNumber;
 use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
+use App\Models\Incident;
 use App\Models\LeaveRequest;
+use App\Models\Order;
+use App\Models\RefundRequest;
+use App\Models\SystemSetting;
+use App\Models\User;
+use App\Services\Operations\OperationsRoleService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -36,58 +43,57 @@ class NavigationContextResolver
 
     /**
      * @return array{
+     *     dashboard: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     operations: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
-     *     control_center: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
+     *     mission_control: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     administration: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
-     *     super_admin: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
+     *     personal: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      * }
      */
     public function sidebar(Request $request, NavigationContext $context): array
     {
         $user = $request->user();
         $isAdminTeam = $user?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES) ?? false;
-        $canViewPlatform = $user?->can('platform-dashboard.view') ?? false;
+
+        $dashboardItems = [
+            $this->sidebarItem('dashboard.home', 'Dashboard', 'bi-speedometer2', route('dashboard'), $context),
+        ];
 
         $operationsItems = array_values(array_filter([
-            $this->sidebarItem('operations.dashboard', 'Dashboard', 'bi-speedometer2', route('dashboard'), $context),
-            $this->sidebarItem('operations.search', 'Search', 'bi-search', route('search.index'), $context),
-            $this->sidebarItem('operations.orders', 'Orders', 'bi-box-seam', route('orders.index'), $context),
-            $this->sidebarItem(
-                'operations.incidents',
-                config('ui.service_case.plural'),
-                'bi-exclamation-triangle',
-                route('incidents.index'),
-                $context,
-            ),
-            $this->sidebarItem('operations.approvals', 'Approvals', 'bi-check2-square', route('approvals.index'), $context),
-            $this->sidebarItem('operations.refunds', 'Refunds', 'bi-currency-exchange', route('refunds.index'), $context),
-            $user?->can('workforce360.viewSelf')
-                ? $this->sidebarItem('operations.my_workforce', 'My Workforce', 'bi-person-workspace', route('my-workforce.index'), $context)
+            Gate::check('viewAny', Order::class)
+                ? $this->sidebarItem('operations.orders', 'Orders', 'bi-box-seam', route('orders.index'), $context)
                 : null,
-            ($user?->hasAnyRole(RolePermissionSeeder::SUPPORT_TEAM_ROLES)
-                || $user?->hasRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST)
-                || $user?->hasRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM))
-                ? $this->sidebarItem('operations.my_performance', 'My Performance', 'bi-bar-chart', route('my-performance.index'), $context)
+            Gate::check('viewAny', Incident::class)
+                ? $this->sidebarItem(
+                    'operations.incidents',
+                    config('ui.service_case.plural'),
+                    'bi-exclamation-triangle',
+                    route('incidents.index'),
+                    $context,
+                )
                 : null,
-            (! $isAdminTeam && Gate::check('viewAny', LeaveRequest::class))
-                ? $this->sidebarItem('operations.my_leave', 'My Leave', 'bi-calendar-x', route('leave-requests.index'), $context)
+            Gate::check('viewAny', ApprovalNumber::class)
+                ? $this->sidebarItem('operations.approvals', 'Approvals', 'bi-check2-square', route('approvals.index'), $context)
+                : null,
+            Gate::check('viewAny', RefundRequest::class)
+                ? $this->sidebarItem('operations.refunds', 'Refunds', 'bi-currency-exchange', route('refunds.index'), $context)
                 : null,
         ]));
 
-        $controlCenterHomeUrl = $this->resolveMenuHomeUrl($request, NavigationMenu::ControlCenter);
-        $controlCenterItems = $controlCenterHomeUrl !== null
+        $missionControlHomeUrl = $this->resolveMenuHomeUrl($request, NavigationMenu::MissionControl);
+        $missionControlItems = $missionControlHomeUrl !== null
             ? [
                 $this->sidebarItem(
-                    'control_center.home',
-                    'Control Center',
-                    'bi-sliders',
-                    $controlCenterHomeUrl,
+                    'mission_control.home',
+                    'Mission Control',
+                    'bi-radar',
+                    $missionControlHomeUrl,
                     $context,
                 ),
             ]
             : [];
 
-        $administrationItems = $isAdminTeam
+        $administrationItems = ($isAdminTeam && $this->canAccessAdministration($user))
             ? [
                 $this->sidebarItem(
                     'administration.home',
@@ -99,65 +105,48 @@ class NavigationContextResolver
             ]
             : [];
 
-        $superAdminItems = array_values(array_filter([
-            $canViewPlatform
-                ? $this->sidebarItem(
-                    'super_admin.mission_control',
-                    'Mission Control',
-                    'bi-radar',
-                    route('admin.platform.index'),
-                    $context,
-                )
+        $personalItems = array_values(array_filter([
+            $user?->can('workforce360.viewSelf')
+                ? $this->sidebarItem('personal.my_workforce', 'My Workforce', 'bi-person-workspace', route('my-workforce.index'), $context)
                 : null,
-            (! $canViewPlatform && Gate::check('viewAny', AuditLog::class))
-                ? $this->sidebarItem('super_admin.audit_logs', 'Audit Logs', 'bi-journal-text', route('audit-logs.index'), $context)
+            $this->canViewMyPerformance($user)
+                ? $this->sidebarItem('personal.my_performance', 'My Performance', 'bi-bar-chart', route('my-performance.index'), $context)
                 : null,
-            (! $canViewPlatform && Gate::check('viewAny', CashfreeWebhookLog::class))
-                ? $this->sidebarItem(
-                    'super_admin.webhook_explorer',
-                    'Webhook Explorer',
-                    'bi-broadcast',
-                    route('cashfree.webhook-explorer.index'),
-                    $context,
-                )
-                : null,
-            (! $canViewPlatform && $user?->can('automation-operations.view'))
-                ? $this->sidebarItem(
-                    'super_admin.automation',
-                    'Automation',
-                    'bi-robot',
-                    route('admin.operations.index', ['hub_tab' => 'automation']),
-                    $context,
-                )
+            (! $isAdminTeam && Gate::check('viewAny', LeaveRequest::class))
+                ? $this->sidebarItem('personal.my_leave', 'My Leave', 'bi-calendar-x', route('leave-requests.index'), $context)
                 : null,
         ]));
 
         return [
+            'dashboard' => [
+                'label' => NavigationMenu::Dashboard->label(),
+                'home_url' => route(NavigationMenu::Dashboard->homeRoute()),
+                'visible' => true,
+                'items' => $dashboardItems,
+            ],
             'operations' => [
                 'label' => NavigationMenu::Operations->label(),
-                'home_url' => route(NavigationMenu::Operations->homeRoute()),
+                'home_url' => $operationsItems[0]['url'] ?? route('dashboard'),
                 'visible' => $operationsItems !== [],
                 'items' => $operationsItems,
             ],
-            'control_center' => [
-                'label' => NavigationMenu::ControlCenter->label(),
-                'home_url' => $controlCenterHomeUrl ?? route(NavigationMenu::ControlCenter->homeRoute()),
-                'visible' => $controlCenterItems !== [],
-                'items' => $controlCenterItems,
+            'mission_control' => [
+                'label' => NavigationMenu::MissionControl->label(),
+                'home_url' => $missionControlHomeUrl ?? route(NavigationMenu::MissionControl->homeRoute()),
+                'visible' => $missionControlItems !== [],
+                'items' => $missionControlItems,
             ],
             'administration' => [
                 'label' => NavigationMenu::Administration->label(),
                 'home_url' => route(NavigationMenu::Administration->homeRoute()),
-                'visible' => $isAdminTeam && $administrationItems !== [],
+                'visible' => $administrationItems !== [],
                 'items' => $administrationItems,
             ],
-            'super_admin' => [
-                'label' => NavigationMenu::SuperAdmin->label(),
-                'home_url' => $canViewPlatform
-                    ? route(NavigationMenu::SuperAdmin->homeRoute())
-                    : ($superAdminItems[0]['url'] ?? route('audit-logs.index')),
-                'visible' => $isAdminTeam && $superAdminItems !== [],
-                'items' => $superAdminItems,
+            'personal' => [
+                'label' => NavigationMenu::Personal->label(),
+                'home_url' => $personalItems[0]['url'] ?? route('my-workforce.index'),
+                'visible' => $personalItems !== [],
+                'items' => $personalItems,
             ],
         ];
     }
@@ -169,70 +158,49 @@ class NavigationContextResolver
     {
         $hubTab = (string) $request->query('hub_tab', 'today');
         $isAdminTeam = $request->user()?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES) ?? false;
-        $canViewPlatform = $request->user()?->can('platform-dashboard.view') ?? false;
 
         if ($request->routeIs('admin.platform.*')) {
-            return [NavigationMenu::SuperAdmin, 'super_admin.mission_control', null];
+            return [NavigationMenu::MissionControl, 'mission_control.home', null];
         }
 
         if ($request->routeIs('audit-logs.*')) {
-            return [
-                NavigationMenu::SuperAdmin,
-                $canViewPlatform ? 'super_admin.mission_control' : 'super_admin.audit_logs',
-                null,
-            ];
+            return [NavigationMenu::MissionControl, 'mission_control.home', null];
         }
 
         if ($request->routeIs('cashfree.webhook-explorer.*')) {
-            return [
-                NavigationMenu::SuperAdmin,
-                $canViewPlatform ? 'super_admin.mission_control' : 'super_admin.webhook_explorer',
-                null,
-            ];
+            return [NavigationMenu::MissionControl, 'mission_control.home', null];
         }
 
         if ($request->routeIs('admin.operations.automation-health*', 'admin.automation.*')) {
-            return [
-                NavigationMenu::SuperAdmin,
-                $canViewPlatform ? 'super_admin.mission_control' : 'super_admin.automation',
-                null,
-            ];
+            return [NavigationMenu::MissionControl, 'mission_control.home', null];
         }
 
         if ($request->routeIs('admin.operations.index', 'admin.operations.live')) {
-            if ($hubTab === 'automation') {
-                return [
-                    NavigationMenu::SuperAdmin,
-                    $canViewPlatform ? 'super_admin.mission_control' : 'super_admin.automation',
-                    'Automation',
-                ];
-            }
-
             $tabLabel = match ($hubTab) {
+                'automation' => 'Automation',
                 'team' => 'Team',
                 'performance' => 'Performance',
                 'system' => 'System',
-                'today' => null,
                 default => null,
             };
 
-            return [NavigationMenu::ControlCenter, 'control_center.home', $tabLabel];
+            return [NavigationMenu::MissionControl, 'mission_control.home', $tabLabel];
         }
 
         if ($request->routeIs('workforce.*') && ! $request->routeIs('admin.workforce.*')) {
-            return [NavigationMenu::ControlCenter, 'control_center.home', null];
+            return [NavigationMenu::MissionControl, 'mission_control.home', null];
         }
 
         if ($request->routeIs('admin.workforce.performance.*')) {
-            return [NavigationMenu::ControlCenter, 'control_center.home', null];
+            return [NavigationMenu::MissionControl, 'mission_control.home', null];
         }
 
         if ($request->routeIs('leave-requests.*')) {
             if ($isAdminTeam) {
-                return [NavigationMenu::ControlCenter, 'control_center.home', null];
+                return [NavigationMenu::MissionControl, 'mission_control.home', null];
             }
 
-            return [NavigationMenu::Operations, 'operations.my_leave', null];
+            return [NavigationMenu::Personal, 'personal.my_leave', null];
         }
 
         if ($request->routeIs('admin.administration.*')) {
@@ -256,11 +224,11 @@ class NavigationContextResolver
         }
 
         if ($request->routeIs('dashboard')) {
-            return [NavigationMenu::Operations, 'operations.dashboard', null];
+            return [NavigationMenu::Dashboard, 'dashboard.home', null];
         }
 
         if ($request->routeIs('search.*')) {
-            return [NavigationMenu::Operations, 'operations.search', null];
+            return [NavigationMenu::Dashboard, null, null];
         }
 
         if ($request->routeIs('orders.*')) {
@@ -280,14 +248,14 @@ class NavigationContextResolver
         }
 
         if ($request->routeIs('my-workforce.*')) {
-            return [NavigationMenu::Operations, 'operations.my_workforce', null];
+            return [NavigationMenu::Personal, 'personal.my_workforce', null];
         }
 
         if ($request->routeIs('my-performance.*')) {
-            return [NavigationMenu::Operations, 'operations.my_performance', null];
+            return [NavigationMenu::Personal, 'personal.my_performance', null];
         }
 
-        return [NavigationMenu::Operations, null, null];
+        return [NavigationMenu::Dashboard, null, null];
     }
 
     private function resolveMenuHomeUrl(Request $request, ?NavigationMenu $menu): ?string
@@ -296,43 +264,68 @@ class NavigationContextResolver
             return null;
         }
 
-        if ($menu === NavigationMenu::ControlCenter) {
+        if ($menu === NavigationMenu::MissionControl) {
+            return $this->resolveMissionControlHomeUrl($request);
+        }
+
+        if ($menu === NavigationMenu::Personal) {
             $user = $request->user();
 
-            if ($user?->can('operations-dashboard.view')) {
-                return route('admin.operations.index');
+            if ($user?->can('workforce360.viewSelf')) {
+                return route('my-workforce.index');
             }
 
-            if ($user?->can('workforce360.viewTeam')) {
-                return route('workforce.index');
+            if ($this->canViewMyPerformance($user)) {
+                return route('my-performance.index');
+            }
+
+            if (Gate::check('viewAny', LeaveRequest::class)) {
+                return route('leave-requests.index');
             }
 
             return null;
         }
 
-        if ($menu === NavigationMenu::SuperAdmin) {
-            $user = $request->user();
+        return route($menu->homeRoute());
+    }
 
-            if ($user?->can('platform-dashboard.view')) {
-                return route('admin.platform.index');
-            }
+    private function resolveMissionControlHomeUrl(Request $request): ?string
+    {
+        $user = $request->user();
 
-            if (Gate::check('viewAny', AuditLog::class)) {
-                return route('audit-logs.index');
-            }
-
-            if (Gate::check('viewAny', CashfreeWebhookLog::class)) {
-                return route('cashfree.webhook-explorer.index');
-            }
-
-            if ($user?->can('automation-operations.view')) {
-                return route('admin.operations.index', ['hub_tab' => 'automation']);
-            }
-
+        if ($user?->can('platform-dashboard.view')) {
             return route('admin.platform.index');
         }
 
-        return route($menu->homeRoute());
+        if ($user?->can('operations-dashboard.view')) {
+            return route('admin.operations.index');
+        }
+
+        if ($user?->can('workforce360.viewTeam')) {
+            return route('workforce.index');
+        }
+
+        if ($user?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES) && $user->can('team-performance.view')) {
+            return route('admin.workforce.performance.index');
+        }
+
+        if ($user?->can('automation-operations.view')) {
+            return route('admin.operations.index', ['hub_tab' => 'automation']);
+        }
+
+        if (Gate::check('viewAny', AuditLog::class)) {
+            return route('audit-logs.index');
+        }
+
+        if (Gate::check('viewAny', CashfreeWebhookLog::class)) {
+            return route('cashfree.webhook-explorer.index');
+        }
+
+        if ($user?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES) && Gate::check('viewAny', LeaveRequest::class)) {
+            return route('leave-requests.index');
+        }
+
+        return null;
     }
 
     /**
@@ -356,19 +349,6 @@ class NavigationContextResolver
         ];
 
         if ($suffix !== null) {
-            if ($suffix === 'Automation') {
-                $breadcrumbs[] = [
-                    'label' => 'Automation',
-                    'url' => null,
-                ];
-
-                return $breadcrumbs;
-            }
-
-            $breadcrumbs[] = [
-                'label' => 'Operations Control Center',
-                'url' => route('admin.operations.index'),
-            ];
             $breadcrumbs[] = [
                 'label' => $suffix,
                 'url' => null,
@@ -394,10 +374,11 @@ class NavigationContextResolver
     private function isMenuHomeTitle(NavigationMenu $menu, string $pageTitle): bool
     {
         return match ($menu) {
-            NavigationMenu::Operations => in_array($pageTitle, ['Dashboard'], true),
-            NavigationMenu::ControlCenter => in_array($pageTitle, ['Operations Control Center', 'Control Center'], true),
+            NavigationMenu::Dashboard => $pageTitle === 'Dashboard',
+            NavigationMenu::Operations => false,
+            NavigationMenu::MissionControl => in_array($pageTitle, ['Command Center', 'Mission Control'], true),
             NavigationMenu::Administration => $pageTitle === 'Administration',
-            NavigationMenu::SuperAdmin => in_array($pageTitle, ['Command Center', 'Mission Control'], true),
+            NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests'], true),
         };
     }
 
@@ -408,6 +389,33 @@ class NavigationContextResolver
         }
 
         return true;
+    }
+
+    private function canAccessAdministration(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        return Gate::check('viewAny', User::class)
+            || Gate::check('viewAny', SystemSetting::class)
+            || $user->can('system-settings.manage')
+            || Gate::check('viewAny', \App\Models\CompanyHoliday::class);
+    }
+
+    private function canViewMyPerformance(?User $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (! app(OperationsRoleService::class)->isTeamMember($user)) {
+            return false;
+        }
+
+        return $user->hasAnyRole(RolePermissionSeeder::SUPPORT_TEAM_ROLES)
+            || $user->hasRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST)
+            || $user->hasRole(RolePermissionSeeder::ROLE_HARDWARE_TEAM);
     }
 
     /**

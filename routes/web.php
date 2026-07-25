@@ -82,7 +82,6 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('/dashboard/realtime/connection-status', RealtimeConnectionStatusController::class)
         ->name('dashboard.realtime.connection-status');
     Route::get('/search', [SearchController::class, 'search'])->name('search.index');
-    Route::get('/dashboard/search', [SearchController::class, 'search'])->name('dashboard.search');
     Route::get('dashboard/service-cases/search-rows', [DashboardServiceCaseController::class, 'searchRows'])
         ->name('dashboard.service-cases.search-rows');
     Route::get('dashboard/service-cases/more', [DashboardServiceCaseController::class, 'loadMore'])

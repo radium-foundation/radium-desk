@@ -10,8 +10,12 @@
     $presence = $member['presence'] ?? [];
     $sessionSummary = $member['session_summary'] ?? [];
     $collapseId = $rowPrefix.'-team-member-details-'.$member['id'];
-    $workingTime = $workCalendar['work_hours']
-        ?? (($presence['active_duration'] ?? '0m') !== '0m' ? $presence['active_duration'] : null);
+    // Working time = actual active desk time (not scheduled shift hours).
+    // Shift schedule remains available in the Details collapse.
+    $workingTime = filled($presence['login_at'] ?? null)
+        ? ($presence['active_duration'] ?? '0m')
+        : null;
+    $shiftHours = $workCalendar['work_hours'] ?? null;
     $lastActivity = $presence['last_work_activity_label'] ?? $member['work_activity_label'] ?? null;
     $lastActivityAt = $presence['last_work_activity_at'] ?? $member['work_activity_relative'] ?? null;
     $openWork = (int) ($member['open_work_count'] ?? 0);
@@ -115,8 +119,8 @@
                 <span>Timeouts today: {{ number_format($sessionSummary['timeout_count']) }}</span>
             @endif
 
-            @if(filled($presence['active_duration'] ?? null) && ($presence['active_duration'] ?? '0m') !== '0m')
-                <span>Active: {{ $presence['active_duration'] }}</span>
+            @if(filled($shiftHours))
+                <span>Shift: {{ $shiftHours }}</span>
             @endif
 
             @if(filled($presence['idle_duration'] ?? null) && ($presence['idle_duration'] ?? '0m') !== '0m')

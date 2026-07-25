@@ -295,6 +295,39 @@ class Workforce360Test extends TestCase
             ->assertSee('workforce360-workload__value--danger', false);
     }
 
+    public function test_member_leave_pending_count_is_not_capped_by_recent_limit(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createAdmin();
+        $agent = $this->createScheduledAgent('Pending Leave Agent');
+
+        for ($offset = 0; $offset < 6; $offset++) {
+            LeaveRequest::query()->create([
+                'user_id' => $agent->id,
+                'start_date' => Carbon::parse('2026-07-20')->addDays($offset)->toDateString(),
+                'end_date' => Carbon::parse('2026-07-20')->addDays($offset)->toDateString(),
+                'reason' => 'Pending leave '.$offset,
+                'status' => LeaveRequestStatus::Pending,
+            ]);
+        }
+
+        LeaveRequest::query()->create([
+            'user_id' => $agent->id,
+            'start_date' => '2026-07-10',
+            'end_date' => '2026-07-10',
+            'reason' => 'Active approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $member = app(Workforce360Service::class)->member($admin, $agent);
+        $leave = $member->overview['leave'];
+
+        $this->assertSame(6, $leave['pending_count']);
+        $this->assertSame('2026-07-10', $leave['active']['start_date'] ?? null);
+        $this->assertCount(5, $leave['recent']);
+    }
+
     public function test_on_leave_count_and_attendance_exception_from_existing_rows(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Kolkata'));

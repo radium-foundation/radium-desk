@@ -107,7 +107,6 @@
             ])
         @endif
 
-        @include('dashboard.partials.incoming-call-card-host')
         @include('dashboard.partials.customer-360-drawer-host', [
             'customer360TimelinePollIntervalMs' => $customer360TimelinePollIntervalMs ?? 30000,
             'customer360DeviceSyncPollIntervalMs' => $customer360DeviceSyncPollIntervalMs ?? 10000,

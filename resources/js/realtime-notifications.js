@@ -7,7 +7,7 @@ import {
 } from './live-notifications';
 import { getWorkspaceSession } from './workspace/session';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
-import { showIncomingCallCard, updateIncomingCallCard } from './incoming-call-card';
+import { maybeShowIncomingCallCardFromNotification, renderIncomingCallNotification } from './incoming-call-bridge';
 import { bindOutboundClickToCallStatusChannel } from './bonvoice-outbound-call-status';
 
 const shownKeys = new Set();
@@ -193,24 +193,12 @@ export const handleRealtimeNotificationDelivered = (payload) => {
         playNotificationSound();
     }
 
+    maybeShowIncomingCallCardFromNotification(payload);
     maybeHandleIncomingCallInteraction(payload.interaction);
 };
 
 export const handleIncomingCallReceived = (payload) => {
-    const call = payload?.call;
-
-    if (!call?.call_id) {
-        return;
-    }
-
-    if (shouldDedupe(`incoming-call:${call.call_id}`)) {
-        updateIncomingCallCard(call);
-
-        return;
-    }
-
-    // S7 latency is logged inside showIncomingCallCard (first show + replace).
-    showIncomingCallCard(call);
+    renderIncomingCallNotification(payload, { dedupe: shouldDedupe });
 };
 
 export const bindRealtimeNotificationsChannel = (channel) => {

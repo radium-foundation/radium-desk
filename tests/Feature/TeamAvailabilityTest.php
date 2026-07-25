@@ -136,6 +136,42 @@ class TeamAvailabilityTest extends TestCase
         Carbon::setTestNow();
     }
 
+    public function test_operations_team_presence_working_time_uses_active_duration_not_shift_hours(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
+
+        $admin = User::factory()->create(['name' => 'Ops Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available, 'Working Time Agent');
+        $session = app(PresenceEngineService::class)->startSession($agent->fresh(['workSchedule']));
+        $session?->update(['active_duration_seconds' => 2460]);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $html = $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'team']))
+            ->assertOk()
+            ->json('html.team_tab');
+
+        $this->assertIsString($html);
+        $this->assertStringContainsString('Working Time Agent', $html);
+        $this->assertStringContainsString('Shift: 09:00 - 18:00', $html);
+
+        if (preg_match(
+            '/data-label="Working time"[^>]*>\s*<span[^>]*>\s*([^<]+)\s*<\/span>/',
+            $html,
+            $matches,
+        ) !== 1) {
+            $this->fail('Unable to locate Working time cell for team presence row.');
+        }
+
+        $this->assertSame('41m', trim($matches[1]));
+        $this->assertStringNotContainsString('09:00 - 18:00', trim($matches[1]));
+
+        Carbon::setTestNow();
+    }
+
     public function test_db_available_without_session_shows_effective_offline(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
@@ -589,6 +625,44 @@ class TeamAvailabilityTest extends TestCase
         $agent->refresh();
 
         $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
+    }
+
+    public function test_approved_leave_agents_appear_in_expected_unavailable_team_presence(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $onLeaveAgent = $this->createScheduledAgent(TeamAvailabilityStatus::Offline, 'Leave Presence Agent');
+
+        LeaveRequest::query()->create([
+            'user_id' => $onLeaveAgent->id,
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-06',
+            'reason' => 'Approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $overview = app(TeamAvailabilityOverviewService::class)->overview();
+
+        $this->assertCount(0, $overview['on_duty']);
+        $this->assertCount(1, $overview['unavailable']);
+        $this->assertSame($onLeaveAgent->id, $overview['unavailable'][0]['id']);
+        $this->assertSame('Approved leave today', $overview['unavailable'][0]['unavailability_label']);
+        $this->assertTrue($overview['unavailable'][0]['authority']['on_approved_leave']);
+
+        $admin = User::factory()->create(['name' => 'Ops Admin']);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $html = $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'team']))
+            ->assertOk()
+            ->json('html.team_tab');
+
+        $this->assertIsString($html);
+        $this->assertStringContainsString('Leave Presence Agent', $html);
+        $this->assertStringContainsString('Approved leave today', $html);
+        $this->assertStringContainsString('Expected today but unavailable', $html);
+
+        Carbon::setTestNow();
     }
 
     public function test_session_start_does_not_promote_user_outside_working_hours_to_available(): void

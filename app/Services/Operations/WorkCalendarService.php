@@ -88,7 +88,22 @@ class WorkCalendarService
     {
         $at ??= now();
 
-        if ($this->isCompanyHoliday($at) || $this->hasApprovedLeave($user, $at)) {
+        if ($this->hasApprovedLeave($user, $at)) {
+            return false;
+        }
+
+        return $this->isExpectedOnDutyWindow($user, $at);
+    }
+
+    /**
+     * True when the user would be inside today's scheduled shift window,
+     * ignoring approved leave (holidays / weekly offs still exclude).
+     */
+    public function isExpectedOnDutyWindow(User $user, ?Carbon $at = null): bool
+    {
+        $at ??= now();
+
+        if ($this->isCompanyHoliday($at)) {
             return false;
         }
 

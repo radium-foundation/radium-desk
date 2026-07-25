@@ -640,28 +640,35 @@ class Workforce360Service
      */
     private function leaveSummaryFor(User $subject, Carbon $at): array
     {
-        $requests = LeaveRequest::query()
+        $day = $at->copy()->startOfDay();
+
+        $pendingCount = (int) LeaveRequest::query()
+            ->where('user_id', $subject->id)
+            ->where('status', LeaveRequestStatus::Pending)
+            ->count();
+
+        $active = LeaveRequest::query()
+            ->where('user_id', $subject->id)
+            ->where('status', LeaveRequestStatus::Approved)
+            ->whereDate('start_date', '<=', $day->toDateString())
+            ->whereDate('end_date', '>=', $day->toDateString())
+            ->orderByDesc('start_date')
+            ->first();
+
+        $recent = LeaveRequest::query()
             ->where('user_id', $subject->id)
             ->orderByDesc('start_date')
             ->limit(5)
             ->get();
 
-        $active = $requests->first(
-            fn (LeaveRequest $leave): bool => $leave->status === LeaveRequestStatus::Approved
-                && $at->between(
-                    $leave->start_date->copy()->startOfDay(),
-                    $leave->end_date->copy()->endOfDay(),
-                ),
-        );
-
         return [
-            'pending_count' => $requests->where('status', LeaveRequestStatus::Pending)->count(),
+            'pending_count' => $pendingCount,
             'active' => $active !== null ? [
                 'start_date' => $active->start_date->toDateString(),
                 'end_date' => $active->end_date->toDateString(),
                 'reason' => $active->reason,
             ] : null,
-            'recent' => $requests->map(fn (LeaveRequest $leave): array => [
+            'recent' => $recent->map(fn (LeaveRequest $leave): array => [
                 'id' => $leave->id,
                 'start_date' => $leave->start_date->toDateString(),
                 'end_date' => $leave->end_date->toDateString(),

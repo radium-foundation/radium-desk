@@ -65,26 +65,24 @@ class AdministrationHomeTest extends TestCase
             ->assertOk()
             ->assertSee('Administration')
             ->assertSee('aria-label="Administration workspace"', false)
-            ->assertSee('Users')
-            ->assertSee('Roles &amp; Access', false)
-            ->assertSee('System Settings')
-            ->assertSee('Holiday Calendar')
-            ->assertSee('Integrations')
-            ->assertDontSee('Application Settings')
-            ->assertDontSee('Review system activity and record changes.', false);
+            ->assertSee('Users &amp; Roles', false)
+            ->assertSee('Settings', false)
+            ->assertSee('Holiday Calendar', false)
+            ->assertSee('Integrations', false)
+            ->assertDontSee('Application Settings', false);
     }
 
-    public function test_superadmin_sees_application_settings_card(): void
+    public function test_superadmin_sees_settings_tab_on_administration_workspace(): void
     {
         $superadmin = $this->createSuperAdmin();
 
         $this->actingAs($superadmin)
             ->get(route('admin.administration.index'))
             ->assertOk()
-            ->assertSee('Application Settings');
+            ->assertSee('Settings', false);
     }
 
-    public function test_administration_home_cards_link_to_existing_routes(): void
+    public function test_administration_workspace_tabs_link_to_existing_routes(): void
     {
         $admin = $this->createAdmin();
 
@@ -112,14 +110,13 @@ class AdministrationHomeTest extends TestCase
         $this->actingAs($superadmin)->get(route('settings.index'))->assertOk();
     }
 
-    public function test_integrations_placeholder_is_not_a_link(): void
+    public function test_integrations_tab_links_to_administration_anchor(): void
     {
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
             ->get(route('admin.administration.index'))
             ->assertOk()
-            ->assertSee('Coming Soon')
-            ->assertDontSee('href="'.route('admin.system-settings.index').'" title="Integrations"', false);
+            ->assertSee(route('admin.administration.index').'#administration-integrations', false);
     }
 }

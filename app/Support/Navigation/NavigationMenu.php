@@ -4,28 +4,31 @@ namespace App\Support\Navigation;
 
 enum NavigationMenu: string
 {
+    case Dashboard = 'dashboard';
     case Operations = 'operations';
-    case ControlCenter = 'control_center';
+    case MissionControl = 'mission_control';
     case Administration = 'administration';
-    case SuperAdmin = 'super_admin';
+    case Personal = 'personal';
 
     public function label(): string
     {
         return match ($this) {
+            self::Dashboard => 'Dashboard',
             self::Operations => 'Operations',
-            self::ControlCenter => 'Control Center',
+            self::MissionControl => 'Mission Control',
             self::Administration => 'Administration',
-            self::SuperAdmin => 'Super Admin',
+            self::Personal => 'Personal',
         };
     }
 
     public function homeRoute(): string
     {
         return match ($this) {
-            self::Operations => 'dashboard',
-            self::ControlCenter => 'admin.operations.index',
+            self::Dashboard => 'dashboard',
+            self::Operations => 'orders.index',
+            self::MissionControl => 'admin.platform.index',
             self::Administration => 'admin.administration.index',
-            self::SuperAdmin => 'admin.platform.index',
+            self::Personal => 'my-workforce.index',
         };
     }
 }

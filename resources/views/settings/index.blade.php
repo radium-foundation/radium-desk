@@ -10,7 +10,12 @@
         <p class="text-muted mb-0">Configure application behavior without code changes.</p>
     </div>
 
-    @include('navigation.administration-workspace-nav', ['active' => 'application_settings'])
+    @include('navigation.administration-workspace-nav', ['active' => 'settings'])
+    @include('navigation.settings-workspace-nav', ['active' => match (request('tab', 'general')) {
+        'general' => 'general',
+        'notifications' => 'notifications',
+        default => 'application',
+    }])
 
     <div class="row g-4">
         <div class="col-lg-3">

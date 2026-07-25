@@ -34,7 +34,7 @@ class ControlCenterFirstPaintTest extends TestCase
             ->get(route('admin.operations.index'))
             ->assertOk()
             ->assertSee('Operations Control Center')
-            ->assertSee('aria-label="Control Center workspace"', false);
+            ->assertSee('aria-label="Mission Control workspace"', false);
 
         $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections([
             'critical',

@@ -119,6 +119,46 @@ class LeaveRequestServiceTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_same_day_approve_still_sends_requester_notification(): void
+    {
+        Notification::fake();
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 46],
+            ], 200),
+        ]);
+
+        $supportAgent = $this->createScheduledSupportAgent([
+            'telegram_chat_id' => '987654321',
+            'telegram_notifications_enabled' => true,
+        ]);
+
+        $operationsAdmin = User::factory()->create(['is_active' => true]);
+        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+
+        $leaveRequest = $this->service->submit($supportAgent, [
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-06',
+            'reason' => 'Same-day leave',
+        ]);
+
+        Notification::fake();
+
+        Http::fake([
+            'api.telegram.org/*' => Http::response([
+                'ok' => true,
+                'result' => ['message_id' => 47],
+            ], 200),
+        ]);
+
+        $this->service->approve($leaveRequest, $operationsAdmin, 'Approved for today');
+
+        Notification::assertSentTo($supportAgent, LeaveRequestDecisionNotification::class);
+        Http::assertSentCount(1);
+    }
+
     public function test_reject_sends_requester_notification(): void
     {
         Notification::fake();

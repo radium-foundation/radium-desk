@@ -82,6 +82,31 @@ class NotificationAuthorityServiceTest extends TestCase
         ));
     }
 
+    public function test_leave_approvals_deliver_even_when_user_is_on_approved_leave(): void
+    {
+        $agent = $this->createScheduledAgent();
+
+        \App\Models\LeaveRequest::query()->create([
+            'user_id' => $agent->id,
+            'start_date' => '2026-07-06',
+            'end_date' => '2026-07-06',
+            'reason' => 'Approved leave',
+            'status' => \App\Enums\LeaveRequestStatus::Approved,
+        ]);
+
+        $this->assertFalse($this->authority->shouldDeliver(
+            $agent,
+            NotificationCategory::Assignment,
+            NotificationChannelType::InApp,
+        ));
+
+        $this->assertTrue($this->authority->shouldDeliver(
+            $agent,
+            NotificationCategory::LeaveApprovals,
+            NotificationChannelType::InApp,
+        ));
+    }
+
     public function test_existing_enabled_user_still_works_during_work_hours(): void
     {
         $this->enableTelegramChannel();

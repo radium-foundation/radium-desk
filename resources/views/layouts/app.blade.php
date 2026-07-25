@@ -65,6 +65,12 @@
     @include('layouts.partials.keyboard-shortcuts-modal')
     @include('layouts.partials.whats-new-modal')
 
+    @auth
+        @if(app(\App\Services\Operations\OperationsRoleService::class)->isTeamMember(auth()->user()))
+            @include('dashboard.partials.incoming-call-card-host')
+        @endif
+    @endauth
+
     @stack('scripts')
 </body>
 </html>

@@ -15,7 +15,7 @@
         @endcan
     </div>
 
-    @include('navigation.administration-workspace-nav', ['active' => 'users'])
+    @include('navigation.administration-workspace-nav', ['active' => 'users_roles'])
 
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">
