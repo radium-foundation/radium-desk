@@ -6,6 +6,7 @@ import {
     loadHealthDetail,
     loadLazyTab,
     showLazyLoadError,
+    stopOperationsPolling,
     validateSectionHtml,
 } from '../../resources/js/operations-dashboard';
 
@@ -236,5 +237,92 @@ describe('operations-dashboard SSR freshness', () => {
         expect(fetch).not.toHaveBeenCalled();
 
         vi.unstubAllGlobals();
+    });
+});
+
+describe('operations-dashboard visibility polling', () => {
+    const mountOperationsPage = () => {
+        document.body.innerHTML = `
+            <div
+                id="operations-dashboard-root"
+                data-live-url="/admin/operations/live"
+                data-generated-at="${new Date().toISOString()}"
+                data-live-interval="1000"
+                data-live-full-interval="5000"
+            >
+                <div id="operations-tab-today-content">Today content</div>
+            </div>
+        `;
+
+        return document.getElementById('operations-dashboard-root');
+    };
+
+    const setVisibilityState = (state) => {
+        Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => state,
+        });
+        Object.defineProperty(document, 'hidden', {
+            configurable: true,
+            get: () => state === 'hidden',
+        });
+    };
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                generated_at: new Date().toISOString(),
+                html: {
+                    critical_alerts: '<div>alerts</div>',
+                    overview_cards: '<div>overview</div>',
+                    health_status: '<div>health</div>',
+                    ira_compact: '<div>ira</div>',
+                },
+            }),
+        }));
+        setVisibilityState('visible');
+    });
+
+    afterEach(() => {
+        stopOperationsPolling();
+        document.body.innerHTML = '';
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        vi.useRealTimers();
+        setVisibilityState('visible');
+    });
+
+    it('pauses polling while the browser tab is hidden', async () => {
+        await initOperationsDashboard();
+
+        fetch.mockClear();
+
+        setVisibilityState('hidden');
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('performs a catch-up refresh when the tab becomes visible again', async () => {
+        await initOperationsDashboard();
+
+        fetch.mockClear();
+
+        setVisibilityState('hidden');
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fetch).not.toHaveBeenCalled();
+
+        setVisibilityState('visible');
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        await vi.waitFor(() => {
+            expect(fetch).toHaveBeenCalled();
+        });
     });
 });

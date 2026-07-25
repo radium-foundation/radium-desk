@@ -839,6 +839,10 @@ const refreshOperationsDashboard = async (
     pageRoot,
     { forceFullRefresh = false, extraGroups = [], surfaceErrors = false } = {},
 ) => {
+    if (document.hidden) {
+        return;
+    }
+
     const groups = buildLiveGroups(pageRoot, forceFullRefresh, extraGroups);
     const loadedHealthDetails = surfaceErrors ? [] : captureLoadedHealthDetails(pageRoot);
 
@@ -894,8 +898,77 @@ const refreshOperationsDashboard = async (
 
 let pollIntervalId = null;
 let pollCount = 0;
+let pollPageRoot = null;
+let pollIntervalMs = 30000;
+let pollFullRefreshIntervalMs = 120000;
+let pollVisibilityHandler = null;
+
+const stopOperationsPolling = () => {
+    if (pollIntervalId === null) {
+        return;
+    }
+
+    window.clearInterval(pollIntervalId);
+    pollIntervalId = null;
+};
+
+const bindOperationsTabRefreshShortcuts = (pageRoot) => {
+    if (pageRoot.dataset.operationsTabRefreshBound === 'true') {
+        return;
+    }
+
+    pageRoot.dataset.operationsTabRefreshBound = 'true';
+
+    pageRoot.querySelectorAll('[data-operations-live-group]').forEach((tabButton) => {
+        tabButton.addEventListener('shown.bs.tab', () => {
+            const group = tabButton.dataset.operationsLiveGroup;
+
+            if (group) {
+                loadLazyTab(pageRoot, group);
+            }
+
+            refreshOperationsDashboard(pageRoot);
+        });
+    });
+};
+
+const bindOperationsPollingVisibilityListener = () => {
+    if (pollVisibilityHandler !== null) {
+        return;
+    }
+
+    pollVisibilityHandler = () => {
+        if (document.visibilityState === 'hidden') {
+            stopOperationsPolling();
+
+            return;
+        }
+
+        if (pollPageRoot === null) {
+            return;
+        }
+
+        refreshOperationsDashboard(pollPageRoot);
+        startPolling(pollPageRoot, pollIntervalMs, pollFullRefreshIntervalMs);
+    };
+
+    document.addEventListener('visibilitychange', pollVisibilityHandler);
+};
 
 const startPolling = (pageRoot, intervalMs, fullRefreshIntervalMs) => {
+    pollPageRoot = pageRoot;
+    pollIntervalMs = intervalMs;
+    pollFullRefreshIntervalMs = fullRefreshIntervalMs;
+
+    bindOperationsTabRefreshShortcuts(pageRoot);
+    bindOperationsPollingVisibilityListener();
+
+    if (document.visibilityState === 'hidden') {
+        stopOperationsPolling();
+
+        return;
+    }
+
     if (pollIntervalId !== null) {
         return;
     }
@@ -911,18 +984,6 @@ const startPolling = (pageRoot, intervalMs, fullRefreshIntervalMs) => {
             pollCount = 0;
         }
     }, intervalMs);
-
-    pageRoot.querySelectorAll('[data-operations-live-group]').forEach((tabButton) => {
-        tabButton.addEventListener('shown.bs.tab', () => {
-            const group = tabButton.dataset.operationsLiveGroup;
-
-            if (group) {
-                loadLazyTab(pageRoot, group);
-            }
-
-            refreshOperationsDashboard(pageRoot);
-        });
-    });
 };
 
 const bindBatchRecoveryForms = (pageRoot) => {
@@ -1133,5 +1194,6 @@ export {
     renderLazySkeleton,
     restoreLoadedHealthDetails,
     showLazyLoadError,
+    stopOperationsPolling,
     validateSectionHtml,
 };
