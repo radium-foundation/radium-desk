@@ -273,8 +273,8 @@ AutomationExecutionReadModel  ← KEEP parallel (ledger)
 | **H4-6B** ✅ | `CaseQueueReadModel` pure-delegate + shadow parity tests | Low | Parity tests green; **no** consumer switch |
 | **H4-6C** ✅ | Point Ops SupportIntelligence + IraMemory/IraOwner **summary counts** to facade | Low | Same numbers asserted; collections unchanged |
 | **H4-6D** ✅ | Point Workforce / TeamAvailability open_work to facade | Low | Scoped open parity |
-| **H4-6E** | Point operator `DashboardService` to facade | Medium | Reverb + poll consistency suite |
-| **H4-6F (optional)** | Product-led unify MC open/waiting | High | Explicit definition change + MC copy/thresholds |
+| **H4-6E** ✅ | Point operator `DashboardService` summary counts to facade | Medium | Reverb + poll consistency suite |
+| **H4-6F (optional)** | Product-led unify MC open/waiting | High | Explicit definition change — **not required for H4** |
 | **Defer** | Fix unscoped Open vs openIncidents | High | Product decision on PendingReview / BusinessHold |
 
 Do **not** start with MC ↔ Ops unification.
@@ -316,4 +316,4 @@ Do **not** start with MC ↔ Ops unification.
 - [x] No production code modified  
 - [x] No ReadModel created  
 
-**Next phase:** H4-6E — operator dashboard / Reverb consumers only after SAFE-list review (still KEEP SEPARATE from MC open/waiting).
+**H4 complete.** Next: H5-0 inventory ✅ — await approval for H5-1 Refresh Platform facade.

@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\ReadModels\Cases\CaseQueueReadModel;
 use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
@@ -34,6 +35,11 @@ class DashboardService
         private readonly DashboardPersonalizationService $dashboardPersonalization,
     ) {}
 
+    private function caseQueue(): CaseQueueReadModel
+    {
+        return app(CaseQueueReadModel::class);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -44,7 +50,10 @@ class DashboardService
         $activeIncidents = $snapshot->activeIncidents();
         $activeKpis = $this->kpiAggregator->activeIncidentKpis($activeIncidents, $user);
         $incidentStatusCounts = $this->kpiAggregator->incidentStatusCounts();
-        $operationalKpis = $snapshot->operationalKpiCounts($this->resolveKpiScopeUser($user));
+        $operationalKpis = $this->caseQueue()->operationalKpiCounts(
+            $this->resolveKpiScopeUser($user),
+            $snapshot,
+        );
         $roles = app(OperationsRoleService::class);
 
         $stats = [
@@ -97,9 +106,10 @@ class DashboardService
         }
 
         if ($user->can('incidents.view')) {
-            $slaCounts = $snapshot->slaCounts();
-            $serviceSla = $snapshot->serviceSlaCounts();
-            $hardwareSla = $snapshot->hardwareSlaCounts();
+            // H4-6E: identical SLA summary counts via CaseQueueReadModel (DashboardSnapshot owner).
+            $slaCounts = $this->caseQueue()->slaCounts(snapshot: $snapshot);
+            $serviceSla = $this->caseQueue()->serviceSlaCounts(snapshot: $snapshot);
+            $hardwareSla = $this->caseQueue()->hardwareSlaCounts(snapshot: $snapshot);
 
             $stats = [
                 ...$stats,
@@ -460,7 +470,7 @@ class DashboardService
      */
     public function serviceCaseFilterCounts(?User $assignedTo = null, ?User $user = null): array
     {
-        return $this->snapshot()->filterCounts($assignedTo, $user);
+        return $this->caseQueue()->filterCounts($assignedTo, $user, $this->snapshot());
     }
 
     /**
@@ -468,7 +478,7 @@ class DashboardService
      */
     public function slaCounts(): array
     {
-        return $this->snapshot()->slaCounts();
+        return $this->caseQueue()->slaCounts(snapshot: $this->snapshot());
     }
 
     public function snapshot(): DashboardSnapshot

@@ -187,6 +187,7 @@ class CaseQueueReadModelTest extends TestCase
     {
         // H4-6C + H4-6D approved production consumers (summary counts only).
         $allowlist = [
+            'DashboardService.php',
             'OperationsSupportIntelligenceService.php',
             'IraMemoryService.php',
             'IraOwnerIntelligenceService.php',

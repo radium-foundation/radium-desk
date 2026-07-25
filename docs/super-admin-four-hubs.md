@@ -110,7 +110,8 @@ Secondary sidebar links remain during H2/H3 transition; they are **not** removal
 | **H4-6C** ✅ | Ops summary consumers → `CaseQueueReadModel` (SupportIntelligence operational metrics, IraMemory ops counts, IraOwner summary counts only) | Collections/lists unchanged; operator/Workforce/MC untouched | Restore prior `DashboardSnapshot` count calls in the three services |
 | **H4-6C.1** ✅ | CaseQueue summary adoption audit — see [super-admin-h4-6c1-case-queue-summary-adoption-audit.md](super-admin-h4-6c1-case-queue-summary-adoption-audit.md); **no further SAFE migrants** | Workforce scoped open deferred to H4-6D; allowlist locked | Delete audit doc / restore allowlist tests |
 | **H4-6D** ✅ | Workforce scoped open → `CaseQueueReadModel` (`global`/`forUser`/`forTeamMembers`); TeamAvailability + Workforce360 summary counts only | No Team Eloquent model; no collections/assignment/operator/Reverb | Restore `DashboardSnapshot::openCount($user)` in the two services |
-| **H5** | Optional renames; deprecated nav cleanup; consolidation polish | Retirements only with explicit approval + production validation | Keep aliases permanently |
+| **H4-6E** ✅ | Operator `DashboardService` summary counts → `CaseQueueReadModel` (operational KPIs, SLA, filter counts); lazy resolve avoids broadcast DI cycle | Collections/rows/Reverb unchanged | Restore direct snapshot count calls in `DashboardService` |
+| **H5** | Refresh scope inventory + optional Refresh Platform (planning) — see [super-admin-h5-0-refresh-scope-inventory.md](super-admin-h5-0-refresh-scope-inventory.md) | Coordination only; no business logic | Feature-flag off |
 
 ### H2 scope (refined)
 
@@ -546,9 +547,8 @@ See [super-admin-h3c-operations-consolidation.md](super-admin-h3c-operations-con
 14. **H4-6C** ✅ — Ops SupportIntelligence + IRA memory/owner summary counts via ReadModel.
 15. **H4-6C.1** ✅ — Adoption audit; no additional SAFE consumers; allowlist + KEEP-list tests.
 16. **H4-6D** ✅ — Workforce / TeamAvailability scoped open via `CaseQueueReadModel`.
-17. **H4-6E+** — Operator dashboard / Reverb consumers only after SAFE-list review.
-18. **H4** — remaining shared KPI facades; Mission Control lazy load; placeholder → deep links (not deletions).
-19. **H5** — retirements only with explicit approval after production validation.
+17. **H4-6E** ✅ — Operator dashboard summary counts via `CaseQueueReadModel`.
+18. **H4 complete** — H5-0 refresh scope inventory only; await approval before H5-1.
 
 ---
 

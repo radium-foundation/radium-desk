@@ -394,7 +394,9 @@ flowchart TB
 | **H4-6C** ✅ | Ops summary count migration | SupportIntelligence + IraMemory + IraOwner summary KPIs | Low | Identical counts; collections stay on snapshot |
 | **H4-6C.1** ✅ | Summary adoption audit | [super-admin-h4-6c1-case-queue-summary-adoption-audit.md](super-admin-h4-6c1-case-queue-summary-adoption-audit.md) | None | No further SAFE migrants this phase |
 | **H4-6D** ✅ | Workforce scoped open migration | TeamAvailability + Workforce360 via `forUser` / `forTeamMembers` | Low | Identical open_work_count; no Team model / no collections |
-| **H4-6E** | Operator dashboard consumers | Per inventory SAFE list only | High | Reverb + Ready Queue suites |
+| **H4-6E** ✅ | Operator summary count migration | `DashboardService` operational KPIs + SLA + filter counts | Medium | Reverb metrics consistency suite green |
+| **H5-0** ✅ | Refresh scope inventory | [super-admin-h5-0-refresh-scope-inventory.md](super-admin-h5-0-refresh-scope-inventory.md) | None | Planning only |
+| **H5-1+** | Refresh Platform facade | Per H5-0 scopes | High | Feature-flagged; Reverb + Ready Queue suites |
 | **H4-7** | Executive ↔ Ops appointment import (optional) | Only if product confirms SupportIntelligence ownership for `scheduledToday` | Medium | Cache path must stay explicit; no silent TTL change |
 | **H4-8** | `PresenceReadModel` | Unify active agents / on duty | High | Definition document + cross-surface tests |
 | **H4-9** | Mission Control lazy first paint | Placeholder cards → deep links | Low | No metric removal |
