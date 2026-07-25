@@ -6,6 +6,8 @@
     <div
         id="platform-dashboard-root"
         data-platform-dashboard
+        data-poll-interval-seconds="{{ $platformPollIntervalSeconds ?? 60 }}"
+        data-generated-at="{{ $dashboard->generatedAt->toIso8601String() }}"
     >
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-4">
             <div>

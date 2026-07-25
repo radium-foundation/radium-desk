@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Performance\PerformanceRuntimeConfig;
 use App\Services\Platform\PlatformDashboardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ class PlatformDashboardController extends Controller
 {
     public function __construct(
         private readonly PlatformDashboardService $dashboardService,
+        private readonly PerformanceRuntimeConfig $performanceRuntime,
     ) {}
 
     public function index(Request $request): View
@@ -22,6 +24,7 @@ class PlatformDashboardController extends Controller
 
         return view('admin.platform.index', [
             'dashboard' => $dashboard,
+            'platformPollIntervalSeconds' => $this->performanceRuntime->executiveDashboardPollIntervalSeconds(),
         ]);
     }
 
