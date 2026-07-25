@@ -1,6 +1,8 @@
 <div id="customer360Drawer"
      class="customer-360-drawer"
      data-customer-360-drawer
+     data-operations-widget="customer-360"
+     aria-label="Customer 360"
      data-timeline-poll-ms="{{ $customer360TimelinePollIntervalMs ?? 30000 }}"
      data-device-sync-poll-ms="{{ $customer360DeviceSyncPollIntervalMs ?? 10000 }}"
      aria-hidden="true"

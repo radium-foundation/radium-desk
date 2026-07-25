@@ -109,15 +109,23 @@ class Customer360Controller extends Controller
         $payload = $this->customer360Service->devicePayload($incident);
 
         return response()->json([
-            'html' => $this->renderDeviceSection($incident),
+            'html' => $this->renderDeviceSectionFromPayload($payload),
             'should_poll_sync' => (bool) ($payload['device']['should_poll_sync'] ?? false),
         ]);
     }
 
     private function renderDeviceSection(Incident $incident): string
     {
-        $payload = $this->customer360Service->devicePayload($incident);
+        return $this->renderDeviceSectionFromPayload(
+            $this->customer360Service->devicePayload($incident)
+        );
+    }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function renderDeviceSectionFromPayload(array $payload): string
+    {
         return view('customer-360.partials.device-section', [
             'device' => $payload['device'],
             'sync_history' => $payload['sync_history'],

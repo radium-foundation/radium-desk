@@ -106,6 +106,10 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(OperationsQueueClassifier::class);
         $this->app->scoped(ServiceCaseAutomationStatusService::class);
         $this->app->scoped(RadiumBoxOrderEnrichmentSyncStore::class);
+        $this->app->scoped(\App\Services\Operations\TeamAvailabilityOverviewService::class);
+        $this->app->scoped(\App\Services\Operations\TeamPerformanceMetricsService::class);
+        $this->app->scoped(\App\Services\Operations\WorkforceAuthorityService::class);
+        $this->app->scoped(\App\Services\Operations\WorkCalendarService::class);
         $this->app->bind(
             \App\Support\Dashboard\Contracts\DashboardAttentionScoreCalculator::class,
             \App\Support\Dashboard\NullDashboardAttentionScoreCalculator::class,

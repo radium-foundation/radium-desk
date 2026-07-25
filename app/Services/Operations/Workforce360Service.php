@@ -39,15 +39,16 @@ class Workforce360Service
     public function team(User $viewer, ?Carbon $at = null): Workforce360TeamData
     {
         $at ??= now();
+        // Reuse Control Center team-availability overview + tracked member set (single load).
         $overview = $this->availabilityOverviewService->overview();
         $onDuty = $overview['on_duty'] ?? [];
         $unavailable = $overview['unavailable'] ?? [];
-        $trackedMembers = $this->attendanceTrackedMembers();
+        $trackedMembers = $this->availabilityOverviewService->trackedMembers();
         $trackedIds = $trackedMembers->pluck('id')->all();
         $sessionSignals = $this->todaySessionSignals($trackedIds, $at);
         $attendanceExceptionCount = $this->attendanceExceptionCount($trackedIds, $at);
 
-        $workforceCounts = $this->workforceTodayCounts($trackedMembers, $at);
+        $workforceCounts = $this->workforceTodayCountsFromOverview($onDuty, $unavailable, $trackedMembers, $at);
         $pendingLeave = LeaveRequest::query()
             ->where('status', LeaveRequestStatus::Pending)
             ->count();
@@ -286,17 +287,49 @@ class Workforce360Service
     }
 
     /**
+     * Derive hero counts from overview rows already built by TeamAvailabilityOverviewService.
+     * Only remaining tracked members (neither on-duty nor unavailable) need a fresh authority walk.
+     *
+     * @param  list<array<string, mixed>>  $onDuty
+     * @param  list<array<string, mixed>>  $unavailable
      * @param  Collection<int, User>  $trackedMembers
      * @return array{available: int, busy: int, offline: int, on_leave: int}
      */
-    private function workforceTodayCounts(Collection $trackedMembers, Carbon $at): array
-    {
+    private function workforceTodayCountsFromOverview(
+        array $onDuty,
+        array $unavailable,
+        Collection $trackedMembers,
+        Carbon $at,
+    ): array {
         $available = 0;
         $busy = 0;
         $offline = 0;
         $onLeave = 0;
+        $seen = [];
+
+        foreach (array_merge($onDuty, $unavailable) as $row) {
+            $memberId = (int) ($row['id'] ?? 0);
+            $seen[$memberId] = true;
+            $authority = $row['authority'] ?? [];
+
+            if ($authority['on_approved_leave'] ?? false) {
+                $onLeave++;
+
+                continue;
+            }
+
+            match ($authority['effective_availability'] ?? TeamAvailabilityStatus::Offline->value) {
+                TeamAvailabilityStatus::Available->value => $available++,
+                TeamAvailabilityStatus::Busy->value => $busy++,
+                default => $offline++,
+            };
+        }
 
         foreach ($trackedMembers as $member) {
+            if (isset($seen[$member->id])) {
+                continue;
+            }
+
             if ($this->workforceAuthorityService->isOnApprovedLeave($member, $at)) {
                 $onLeave++;
 
@@ -696,18 +729,4 @@ class Workforce360Service
             ->all();
     }
 
-    /**
-     * @return Collection<int, User>
-     */
-    private function attendanceTrackedMembers(): Collection
-    {
-        return User::query()
-            ->with(['roles', 'workSchedule'])
-            ->where('is_active', true)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->attendanceTrackedRoleSlugs()))
-            ->orderBy('first_name')
-            ->orderBy('last_name')
-            ->get()
-            ->filter(fn (User $user): bool => $this->roleService->isAttendanceTracked($user));
-    }
 }

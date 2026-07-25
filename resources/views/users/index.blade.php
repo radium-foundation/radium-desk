@@ -15,6 +15,8 @@
         @endcan
     </div>
 
+    @include('navigation.administration-workspace-nav', ['active' => 'users'])
+
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white py-3">
             <h2 class="h6 mb-0">Filters</h2>

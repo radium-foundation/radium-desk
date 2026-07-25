@@ -114,7 +114,10 @@ class ExecutiveCommandCenterTest extends TestCase
             ->assertSee('Platform Health', false)
             ->assertSee('Business Operations', false)
             ->assertSee('Customer Operations', false)
-            ->assertSee('Cards coming next', false);
+            ->assertSee('data-platform-workspace-links', false)
+            ->assertSee('Open Control Center for live operational command.', false)
+            ->assertSee(route('admin.operations.index'), false)
+            ->assertDontSee('Cards coming next', false);
     }
 
     public function test_executive_kpi_counts_reflect_data(): void

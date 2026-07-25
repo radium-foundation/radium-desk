@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', config('app.name', 'Radium Desk'))</title>
+    @php
+        $pageTitle = trim($__env->yieldContent('title')) ?: config('app.name', 'Radium Desk');
+        $navigationContext = app(\App\Support\Navigation\NavigationContextResolver::class)->resolve(request(), $pageTitle);
+        $navigationSidebar = app(\App\Support\Navigation\NavigationContextResolver::class)->sidebar(request(), $navigationContext);
+    @endphp
+
+    <title>{{ $navigationContext->documentTitle }}</title>
 
     @include('layouts.partials.head-meta')
 
@@ -47,6 +53,8 @@
 
             <main class="app-content">
                 @include('layouts.partials.flash')
+
+                @include('layouts.partials.navigation-breadcrumb')
 
                 @yield('content')
             </main>

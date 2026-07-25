@@ -20,6 +20,9 @@ use Illuminate\Support\Collection;
 
 class TeamPerformanceMetricsService
 {
+    /** @var array<string, list<TeamMemberPerformanceMetrics>> */
+    private array $teamMetricsCache = [];
+
     public function __construct(
         private readonly PerformancePeriodService $periodService,
         private readonly WorkCalendarService $workCalendarService,
@@ -65,7 +68,14 @@ class TeamPerformanceMetricsService
         ?Carbon $customEnd = null,
         ?Carbon $at = null,
     ): array {
-        return User::query()
+        $cacheKey = implode('|', [
+            $period instanceof PerformancePeriod ? $period->value : (string) $period,
+            $customStart?->toDateString() ?? '',
+            $customEnd?->toDateString() ?? '',
+            $at?->toIso8601String() ?? '',
+        ]);
+
+        return $this->teamMetricsCache[$cacheKey] ??= User::query()
             ->where('is_active', true)
             ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->attendanceTrackedRoleSlugs()))
             ->orderBy('name')

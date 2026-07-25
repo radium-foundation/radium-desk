@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Company Holidays')
+@section('title', 'Holiday Calendar')
 
 @section('content')
     <div class="mb-4">
@@ -8,7 +8,7 @@
         <p class="text-muted mb-0">Holidays block automatic assignment. Emergency overrides can be added in a future phase.</p>
     </div>
 
-    @include('workforce.partials.hub-nav', ['active' => 'holidays'])
+    @include('navigation.administration-workspace-nav', ['active' => 'holiday_calendar'])
 
     <div class="row g-4">
         <div class="col-lg-4">

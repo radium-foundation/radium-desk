@@ -2,8 +2,8 @@
     'streams',
 ])
 
-<div class="dashboard-activity-feed" data-dashboard-activity-feed>
-    <h2 class="dashboard-section-title dashboard-section-title--secondary mb-0">Recent Activity</h2>
+<div class="dashboard-activity-feed" data-dashboard-activity-feed data-operations-widget="my-activity" aria-label="My Activity">
+    <h2 class="dashboard-section-title dashboard-section-title--secondary mb-0">My Activity</h2>
 
     <x-dashboard.recent-activity-icon-sprite />
 

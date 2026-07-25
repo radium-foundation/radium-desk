@@ -12,6 +12,12 @@ use Illuminate\Support\Carbon;
 
 class WorkCalendarService
 {
+    /** @var array<string, bool> */
+    private array $companyHolidayCache = [];
+
+    /** @var array<string, bool> */
+    private array $approvedLeaveCache = [];
+
     /**
      * @return list<int>
      */
@@ -32,9 +38,10 @@ class WorkCalendarService
     public function isCompanyHoliday(?Carbon $at = null): bool
     {
         $at ??= now();
+        $dateKey = $at->toDateString();
 
-        return CompanyHoliday::query()
-            ->whereDate('holiday_date', $at->toDateString())
+        return $this->companyHolidayCache[$dateKey] ??= CompanyHoliday::query()
+            ->whereDate('holiday_date', $dateKey)
             ->exists();
     }
 
@@ -42,8 +49,9 @@ class WorkCalendarService
     {
         $at ??= now();
         $date = $at->copy()->startOfDay();
+        $cacheKey = $user->id.'|'.$date->toDateString();
 
-        return LeaveRequest::query()
+        return $this->approvedLeaveCache[$cacheKey] ??= LeaveRequest::query()
             ->where('user_id', $user->id)
             ->where('status', LeaveRequestStatus::Approved)
             ->whereDate('start_date', '<=', $date)

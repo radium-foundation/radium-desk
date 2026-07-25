@@ -120,17 +120,6 @@
                 @endif
             @endcan
 
-            @can('viewAny', App\Models\CashfreeWebhookLog::class)
-                <li class="nav-item" role="presentation">
-                    <a
-                        @class(['nav-link', 'active' => $active === 'webhook-explorer'])
-                        href="{{ route('cashfree.webhook-explorer.index') }}"
-                        @if($active === 'webhook-explorer') aria-current="page" @endif
-                    >
-                        Webhook Explorer
-                    </a>
-                </li>
-            @endcan
         </ul>
     </nav>
 @endif

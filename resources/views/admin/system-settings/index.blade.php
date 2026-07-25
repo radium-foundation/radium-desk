@@ -8,6 +8,11 @@
         <p class="text-muted mb-0">Operational feature flags and integration toggles for administrators.</p>
     </div>
 
+    @can('platform-dashboard.view')
+        @include('navigation.super-admin-workspace-nav', ['active' => 'system_settings'])
+    @endcan
+    @include('navigation.administration-workspace-nav', ['active' => 'system_settings'])
+
     <form method="POST" action="{{ route('admin.system-settings.update') }}">
         @csrf
         @method('PUT')

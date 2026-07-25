@@ -61,6 +61,8 @@
             </div>
             <div class="dashboard-recent-customers d-none"
                  data-agent-recent-customers
+                 data-operations-widget="recent-customers"
+                 aria-label="Recent Customers"
                  hidden>
                 <span class="dashboard-recent-customers__label">Recent Customers</span>
                 <div class="dashboard-recent-customers__chips"

@@ -8,7 +8,7 @@
         <p class="text-muted mb-0">Monitor automation platform health from the unified execution ledger.</p>
     </div>
 
-    @include('admin.operations.partials.hub-nav', ['active' => 'automation-health'])
+    @include('navigation.super-admin-workspace-nav', ['active' => 'automation'])
 
     @include('admin.automation-health.partials.dashboard-body', ['dashboard' => $dashboard])
 

@@ -58,29 +58,32 @@ class OperationsHubNavigationTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_sidebar_shows_single_operations_hub_entry(): void
+    public function test_admin_sidebar_shows_single_control_center_entry(): void
     {
         $admin = $this->createAdmin();
 
         $html = $this->sidebarHtml($admin);
 
-        $this->assertSame(1, substr_count($html, 'title="Operations Control Center"'));
+        $this->assertSame(1, substr_count($html, 'title="Control Center"'));
         $this->assertSame(1, substr_count($html, 'title="Webhook Explorer"'));
         $this->assertSame(0, $this->operationsHubSidebarLabelCount($html, 'Automation Health'));
         $this->assertStringContainsString(route('admin.operations.index'), $html);
         $this->assertStringNotContainsString('title="Automation Operations"', $html);
         $this->assertStringNotContainsString('title="Automation Health"', $html);
+        $this->assertStringNotContainsString('title="Operations Control Center"', $html);
     }
 
-    public function test_agent_sidebar_navigation_is_unchanged_without_operations_hub_section(): void
+    public function test_agent_sidebar_navigation_excludes_admin_control_center_entries(): void
     {
         $agent = $this->createAgent();
 
         $html = $this->sidebarHtml($agent);
 
         $this->assertStringNotContainsString('Operations Hub', $html);
+        $this->assertStringNotContainsString('title="Operations Control Center"', $html);
         $this->assertStringNotContainsString('title="Automation Health"', $html);
         $this->assertStringNotContainsString('title="Automation Operations"', $html);
+        $this->assertStringContainsString('Control Center</span>', $html);
         $this->assertStringContainsString(route('orders.index'), $html);
     }
 
@@ -91,6 +94,7 @@ class OperationsHubNavigationTest extends TestCase
         $response = $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
+            ->assertSee('aria-label="Control Center workspace"', false)
             ->assertSee('aria-label="Operations hub"', false)
             ->assertSee('id="operations-dashboard-tabs"', false)
             ->assertSee('id="operations-tab-today"', false)
@@ -105,8 +109,7 @@ class OperationsHubNavigationTest extends TestCase
             ->assertSee('data-automation-subview-target="pipeline"', false)
             ->assertSee('id="operations-automation-health-content"', false)
             ->assertSee('id="operations-automation-pipeline-content"', false)
-            ->assertSee(route('admin.automation.index'), false)
-            ->assertSee(route('cashfree.webhook-explorer.index'), false);
+            ->assertSee(route('admin.automation.index'), false);
 
         $html = $response->getContent();
 
@@ -116,6 +119,7 @@ class OperationsHubNavigationTest extends TestCase
         $this->assertSame(1, substr_count($html, 'id="operations-tab-performance"'));
         $this->assertSame(1, substr_count($html, 'id="operations-tab-system"'));
         $this->assertSame(1, substr_count($html, 'id="operations-tab-automation"'));
+        $this->assertStringNotContainsString('>Webhook Explorer</a>', $html);
     }
 
     public function test_admin_operations_hub_supports_automation_hub_tab_query(): void
@@ -128,7 +132,8 @@ class OperationsHubNavigationTest extends TestCase
             ->assertSee('id="operations-tab-automation"', false)
             ->assertSee('data-bs-target="#operations-pane-automation"', false)
             ->assertSee('data-automation-health-url="'.route('admin.operations.automation-health').'"', false)
-            ->assertSee('data-automation-subview-target="health"', false);
+            ->assertSee('data-automation-subview-target="health"', false)
+            ->assertSee('aria-label="Super Admin workspace"', false);
     }
 
     public function test_admin_operations_hub_supports_automation_pipeline_subview_query(): void
@@ -214,43 +219,43 @@ class OperationsHubNavigationTest extends TestCase
         $this->assertGreaterThan($cardPos, $hubNavPos);
     }
 
-    public function test_automation_health_page_shows_operations_hub_navigation(): void
+    public function test_automation_health_page_shows_super_admin_workspace_navigation(): void
     {
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
             ->get(route('admin.operations.automation-health'))
             ->assertOk()
-            ->assertSee('aria-label="Operations hub"', false)
-            ->assertSee(route('admin.operations.index', ['hub_tab' => 'today']), false)
+            ->assertSee('aria-label="Super Admin workspace"', false)
             ->assertSee(route('admin.operations.index', ['hub_tab' => 'automation']), false)
+            ->assertSee(route('cashfree.webhook-explorer.index'), false)
             ->assertSee('Automation Health')
-            ->assertDontSee('operations-hub-nav--card-header', false)
-            ->assertDontSee('>Automation Health</a>', false);
+            ->assertDontSee('aria-label="Operations hub"', false)
+            ->assertDontSee('operations-hub-nav--card-header', false);
     }
 
-    public function test_automation_operations_page_shows_operations_hub_navigation(): void
+    public function test_automation_operations_page_shows_super_admin_workspace_navigation(): void
     {
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
             ->get(route('admin.automation.index'))
             ->assertOk()
-            ->assertSee('aria-label="Operations hub"', false)
-            ->assertSee(route('admin.operations.index', ['hub_tab' => 'performance']), false)
+            ->assertSee('aria-label="Super Admin workspace"', false)
             ->assertSee('hub_tab=automation', false)
-            ->assertSee('automation_view=pipeline', false);
+            ->assertDontSee('aria-label="Operations hub"', false);
     }
 
-    public function test_webhook_explorer_page_shows_operations_hub_navigation(): void
+    public function test_webhook_explorer_page_shows_super_admin_workspace_navigation(): void
     {
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
             ->get(route('cashfree.webhook-explorer.index'))
             ->assertOk()
-            ->assertSee('aria-label="Operations hub"', false)
-            ->assertSee(route('admin.operations.index'), false);
+            ->assertSee('aria-label="Super Admin workspace"', false)
+            ->assertSee(route('audit-logs.index'), false)
+            ->assertDontSee('aria-label="Operations hub"', false);
     }
 
     public function test_existing_operations_urls_continue_to_work_for_admin(): void

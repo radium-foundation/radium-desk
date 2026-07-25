@@ -7,11 +7,16 @@ use App\Enums\WorkSessionEndReason;
 use App\Models\User;
 use App\Models\WorkSession;
 use App\ReadModels\Cases\CaseQueueReadModel;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class TeamAvailabilityOverviewService
 {
+    /** @var Collection<int, User>|null */
+    private ?Collection $cachedTeamMembers = null;
+
+    /** @var array{on_duty: list<array<string, mixed>>, unavailable: list<array<string, mixed>>}|null */
+    private ?array $cachedOverview = null;
+
     public function __construct(
         private readonly TeamAvailabilityService $availabilityService,
         private readonly WorkCalendarService $workCalendarService,
@@ -27,10 +32,17 @@ class TeamAvailabilityOverviewService
      */
     public function overview(): array
     {
-        return [
-            'on_duty' => $this->members(),
-            'unavailable' => $this->unavailableMembers(),
-        ];
+        return $this->cachedOverview ??= $this->buildOverview();
+    }
+
+    /**
+     * Attendance-tracked team members for the current request (shared with Workforce360).
+     *
+     * @return Collection<int, User>
+     */
+    public function trackedMembers(): Collection
+    {
+        return $this->teamMembers();
     }
 
     /**
@@ -38,12 +50,7 @@ class TeamAvailabilityOverviewService
      */
     public function members(): array
     {
-        // H4-6D: identical scoped open counts via CaseQueueReadModel (DashboardSnapshot owner).
-        return $this->teamMembers()
-            ->filter(fn (User $user): bool => $this->workforceAuthority->isOnDuty($user))
-            ->map(fn (User $user): array => $this->memberRow($user, $this->caseQueue->forUser($user)->openCount()))
-            ->values()
-            ->all();
+        return $this->overview()['on_duty'];
     }
 
     /**
@@ -51,12 +58,7 @@ class TeamAvailabilityOverviewService
      */
     public function unavailableMembers(): array
     {
-        // H4-6D: identical scoped open counts via CaseQueueReadModel (DashboardSnapshot owner).
-        return $this->teamMembers()
-            ->filter(fn (User $user): bool => $this->isExpectedUnavailable($user))
-            ->map(fn (User $user): array => $this->unavailableMemberRow($user, $this->caseQueue->forUser($user)->openCount()))
-            ->values()
-            ->all();
+        return $this->overview()['unavailable'];
     }
 
     /**
@@ -67,10 +69,45 @@ class TeamAvailabilityOverviewService
         return $this->memberRow($user, $this->caseQueue->forUser($user)->openCount());
     }
 
-    private function isExpectedUnavailable(User $user): bool
+    /**
+     * @return array{on_duty: list<array<string, mixed>>, unavailable: list<array<string, mixed>>}
+     */
+    private function buildOverview(): array
     {
-        return $this->workCalendarService->isOnScheduledShift($user)
-            && ! $this->workforceAuthority->isOnDuty($user);
+        $teamMembers = $this->teamMembers();
+        // H4-6D: one CaseQueueReadModel pass for the whole team (DashboardSnapshot owner).
+        $openCounts = $this->caseQueue->forTeamMembers($teamMembers);
+        $sessionSummaries = $this->todaySessionSummariesFor(
+            $teamMembers->map(fn (User $user): int => $user->id)->all()
+        );
+
+        $onDuty = [];
+        $unavailable = [];
+
+        foreach ($teamMembers as $user) {
+            $openCount = $openCounts[$user->id] ?? 0;
+            $row = $this->memberRow($user, $openCount);
+
+            if ($row['on_duty'] === true) {
+                $onDuty[] = $row;
+
+                continue;
+            }
+
+            if ($this->workCalendarService->isOnScheduledShift($user)) {
+                $sessionSummary = $sessionSummaries[$user->id] ?? $this->emptySessionSummary();
+                $unavailable[] = [
+                    ...$row,
+                    'unavailability_label' => $this->unavailabilityLabel($row['authority'], $sessionSummary),
+                    'session_summary' => $sessionSummary,
+                ];
+            }
+        }
+
+        return [
+            'on_duty' => $onDuty,
+            'unavailable' => $unavailable,
+        ];
     }
 
     /**
@@ -78,14 +115,15 @@ class TeamAvailabilityOverviewService
      */
     private function teamMembers(): Collection
     {
-        return User::query()
+        return $this->cachedTeamMembers ??= User::query()
             ->with(['roles', 'workSchedule'])
             ->where('is_active', true)
             ->whereHas('roles', fn ($query) => $query->whereIn('name', $this->roleService->attendanceTrackedRoleSlugs()))
             ->orderBy('first_name')
             ->orderBy('last_name')
             ->get()
-            ->filter(fn (User $user): bool => $this->roleService->isAttendanceTracked($user));
+            ->filter(fn (User $user): bool => $this->roleService->isAttendanceTracked($user))
+            ->values();
     }
 
     /**
@@ -94,10 +132,10 @@ class TeamAvailabilityOverviewService
     private function memberRow(User $user, int $openWorkCount): array
     {
         $authority = $this->workforceAuthority->snapshotFor($user);
-        $storedAvailability = $this->availabilityService->snapshotFor($user);
+        $storedAvailability = $authority['availability'] ?? $this->availabilityService->snapshotFor($user);
         $effectiveStatus = TeamAvailabilityStatus::from($authority['effective_availability']);
-        $workCalendar = $this->workCalendarService->todayStatusFor($user);
-        $presence = $this->presenceEngine->snapshotFor($user);
+        $workCalendar = $authority['work_calendar'] ?? $this->workCalendarService->todayStatusFor($user);
+        $presence = $authority['presence'] ?? $this->presenceEngine->snapshotFor($user);
         $activity = $this->activityService->snapshotFor($user);
         $workActivity = $this->activityService->primaryWorkActivity($user);
 
@@ -133,21 +171,6 @@ class TeamAvailabilityOverviewService
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    private function unavailableMemberRow(User $user, int $openWorkCount): array
-    {
-        $row = $this->memberRow($user, $openWorkCount);
-        $sessionSummary = $this->todaySessionSummary($user);
-
-        return [
-            ...$row,
-            'unavailability_label' => $this->unavailabilityLabel($row['authority'], $sessionSummary),
-            'session_summary' => $sessionSummary,
-        ];
-    }
-
-    /**
      * @param  array<string, mixed>  $authority
      * @param  array<string, mixed>  $sessionSummary
      */
@@ -177,6 +200,55 @@ class TeamAvailabilityOverviewService
     }
 
     /**
+     * @param  list<int>  $userIds
+     * @return array<int, array{
+     *     manual_logout_count: int,
+     *     timeout_count: int,
+     *     last_logout_at: string|null,
+     *     last_logout_relative: string|null,
+     *     last_ended_reason: string|null
+     * }>
+     */
+    private function todaySessionSummariesFor(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        $sessions = WorkSession::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('work_date', now()->toDateString())
+            ->whereNotNull('logout_at')
+            ->orderByDesc('logout_at')
+            ->get()
+            ->groupBy('user_id');
+
+        $summaries = [];
+
+        foreach ($userIds as $userId) {
+            $userSessions = $sessions->get($userId, collect());
+            $lastSession = $userSessions->first();
+            $lastLogoutAt = $lastSession?->logout_at;
+
+            $summaries[$userId] = [
+                'manual_logout_count' => $userSessions
+                    ->where('ended_reason', WorkSessionEndReason::ManualLogout)
+                    ->count(),
+                'timeout_count' => $userSessions
+                    ->where('ended_reason', WorkSessionEndReason::AwayTimeout)
+                    ->count(),
+                'last_logout_at' => $lastLogoutAt?->toIso8601String(),
+                'last_logout_relative' => $lastLogoutAt !== null
+                    ? display_app_timeline_relative($lastLogoutAt)
+                    : null,
+                'last_ended_reason' => $lastSession?->ended_reason?->value,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
      * @return array{
      *     manual_logout_count: int,
      *     timeout_count: int,
@@ -185,30 +257,14 @@ class TeamAvailabilityOverviewService
      *     last_ended_reason: string|null
      * }
      */
-    private function todaySessionSummary(User $user): array
+    private function emptySessionSummary(): array
     {
-        $sessions = WorkSession::query()
-            ->where('user_id', $user->id)
-            ->whereDate('work_date', now()->toDateString())
-            ->whereNotNull('logout_at')
-            ->orderByDesc('logout_at')
-            ->get();
-
-        $lastSession = $sessions->first();
-        $lastLogoutAt = $lastSession?->logout_at;
-
         return [
-            'manual_logout_count' => $sessions
-                ->where('ended_reason', WorkSessionEndReason::ManualLogout)
-                ->count(),
-            'timeout_count' => $sessions
-                ->where('ended_reason', WorkSessionEndReason::AwayTimeout)
-                ->count(),
-            'last_logout_at' => $lastLogoutAt?->toIso8601String(),
-            'last_logout_relative' => $lastLogoutAt !== null
-                ? display_app_timeline_relative($lastLogoutAt)
-                : null,
-            'last_ended_reason' => $lastSession?->ended_reason?->value,
+            'manual_logout_count' => 0,
+            'timeout_count' => 0,
+            'last_logout_at' => null,
+            'last_logout_relative' => null,
+            'last_ended_reason' => null,
         ];
     }
 }

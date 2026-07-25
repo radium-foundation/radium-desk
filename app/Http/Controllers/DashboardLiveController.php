@@ -7,7 +7,6 @@ use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class DashboardLiveController extends Controller
 {
@@ -84,49 +83,48 @@ class DashboardLiveController extends Controller
         $pageSize = $this->dashboardService->serviceCasePageSize();
         $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
-        return DB::transaction(function () use ($user, $serviceCaseFilter, $assignedTo, $prioritizeRecentAssignments, $limit, $operationQueue, $requestedQueue, $legacyView, $legacyFilter): JsonResponse {
-            $metrics = $this->dashboardService->liveMetricsFor(
+        // Read-only live refresh — no transaction (avoids holding a DB connection unnecessarily).
+        $metrics = $this->dashboardService->liveMetricsFor(
+            $user,
+            is_string($requestedQueue) ? $requestedQueue : null,
+            is_string($legacyView) ? $legacyView : null,
+            is_string($legacyFilter) ? $legacyFilter : null,
+        );
+        $filterCounts = $metrics['service_case_filter_counts'];
+
+        $serviceCasesPayload = $user->can('incidents.view')
+            ? $this->dashboardService->serviceCasesPayload(
                 $user,
-                is_string($requestedQueue) ? $requestedQueue : null,
-                is_string($legacyView) ? $legacyView : null,
-                is_string($legacyFilter) ? $legacyFilter : null,
-            );
-            $filterCounts = $metrics['service_case_filter_counts'];
+                $serviceCaseFilter,
+                $assignedTo,
+                $prioritizeRecentAssignments,
+                $limit,
+                filterCounts: $filterCounts,
+                dashboardOperationQueue: $operationQueue,
+            )
+            : [
+                'rows' => [],
+                'incident_ids' => collect(),
+                'service_cases_empty' => true,
+                'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
+                'total_count' => 0,
+                'has_more' => false,
+                'loaded_count' => 0,
+            ];
 
-            $serviceCasesPayload = $user->can('incidents.view')
-                ? $this->dashboardService->serviceCasesPayload(
-                    $user,
-                    $serviceCaseFilter,
-                    $assignedTo,
-                    $prioritizeRecentAssignments,
-                    $limit,
-                    filterCounts: $filterCounts,
-                    dashboardOperationQueue: $operationQueue,
-                )
-                : [
-                    'rows' => [],
-                    'incident_ids' => collect(),
-                    'service_cases_empty' => true,
-                    'service_cases_empty_html' => view('dashboard.partials.service-cases-empty')->render(),
-                    'total_count' => 0,
-                    'has_more' => false,
-                    'loaded_count' => 0,
-                ];
-
-            return response()->json([
-                'kpi_strip_html' => $metrics['kpi_strip_html'],
-                'next_appointment' => $metrics['next_appointment'],
-                'online_count' => $metrics['online_count'],
-                'online_users' => $metrics['online_users'],
-                'service_case_filter_counts' => $filterCounts,
-                'service_cases_empty' => $serviceCasesPayload['service_cases_empty'],
-                'service_cases_empty_html' => $serviceCasesPayload['service_cases_empty_html'],
-                'rows' => $serviceCasesPayload['rows'],
-                'incident_ids' => $serviceCasesPayload['incident_ids'],
-                'total_count' => $serviceCasesPayload['total_count'],
-                'has_more' => $serviceCasesPayload['has_more'],
-                'loaded_count' => $serviceCasesPayload['loaded_count'],
-            ]);
-        });
+        return response()->json([
+            'kpi_strip_html' => $metrics['kpi_strip_html'],
+            'next_appointment' => $metrics['next_appointment'],
+            'online_count' => $metrics['online_count'],
+            'online_users' => $metrics['online_users'],
+            'service_case_filter_counts' => $filterCounts,
+            'service_cases_empty' => $serviceCasesPayload['service_cases_empty'],
+            'service_cases_empty_html' => $serviceCasesPayload['service_cases_empty_html'],
+            'rows' => $serviceCasesPayload['rows'],
+            'incident_ids' => $serviceCasesPayload['incident_ids'],
+            'total_count' => $serviceCasesPayload['total_count'],
+            'has_more' => $serviceCasesPayload['has_more'],
+            'loaded_count' => $serviceCasesPayload['loaded_count'],
+        ]);
     }
 }

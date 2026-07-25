@@ -42,6 +42,7 @@
      data-service-case-filter-total="{{ $totalServiceCaseCount }}"
      data-service-case-filter="{{ $legacyServiceCaseFilter }}"
      data-operation-queue="{{ $activeQueue }}"
+     data-operations-widget="{{ $isScheduledWorkspace ? 'appointments' : ($activeQueue === DashboardPersonalizationService::QUEUE_ACTION_REQUIRED ? 'ready-queue' : 'service-cases') }}"
      @if($isScheduledWorkspace) data-scheduled-appointment-board="true" @endif
      @if($compactAgentLayout) data-agent-compact-layout="true" @endif
      @if($hideZeroCountTabs) data-hide-zero-count-queue-tabs="true" @endif>

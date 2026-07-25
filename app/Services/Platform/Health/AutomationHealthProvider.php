@@ -7,13 +7,16 @@ use App\Data\Platform\PlatformHealthComponent;
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\PlatformHealthStatus;
 use App\Models\AutomationExecution;
+use App\ReadModels\Automation\AutomationExecutionReadModel;
 use App\Services\SystemSettingsService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class AutomationHealthProvider implements PlatformHealthProvider
 {
     public function __construct(
         private readonly SystemSettingsService $systemSettings,
+        private readonly AutomationExecutionReadModel $automationExecutions,
     ) {}
 
     public function key(): string
@@ -55,12 +58,18 @@ class AutomationHealthProvider implements PlatformHealthProvider
             );
         }
 
+        // Reuse H4 AutomationExecutionReadModel (60s aggregation cache) for last-run timestamp.
+        $overview = $this->automationExecutions->healthOverview();
+        $lastRunRaw = $overview['last_execution_at'] ?? null;
+        $lastRun = $lastRunRaw instanceof Carbon
+            ? $lastRunRaw
+            : (is_string($lastRunRaw) && $lastRunRaw !== '' ? Carbon::parse($lastRunRaw) : null);
+
+        // Keep the existing 24h failure window semantics (not failures_today).
         $recentFailure = AutomationExecution::query()
             ->where('status', AutomationExecutionStatus::Failed)
             ->where('created_at', '>=', $checkedAt->copy()->subHours(24))
             ->exists();
-
-        $lastRun = AutomationExecution::query()->latest('created_at')->value('created_at');
 
         if ($lastRun === null) {
             return new PlatformHealthComponent(
@@ -92,7 +101,7 @@ class AutomationHealthProvider implements PlatformHealthProvider
             detail: $detail,
             checkedAt: $checkedAt,
             metrics: [
-                'last_execution_at' => \Illuminate\Support\Carbon::parse($lastRun)->toIso8601String(),
+                'last_execution_at' => $lastRun->toIso8601String(),
                 'recent_failure' => $recentFailure,
             ],
         );

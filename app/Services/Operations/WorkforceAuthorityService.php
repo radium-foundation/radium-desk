@@ -9,6 +9,9 @@ use Illuminate\Support\Carbon;
 
 class WorkforceAuthorityService
 {
+    /** @var array<string, array<string, mixed>> */
+    private array $snapshotCache = [];
+
     public function __construct(
         private readonly WorkCalendarService $workCalendarService,
         private readonly TeamAvailabilityService $availabilityService,
@@ -112,23 +115,81 @@ class WorkforceAuthorityService
      */
     public function snapshotFor(User $user, ?Carbon $at = null): array
     {
+        $cacheKey = $user->id.'|'.($at?->getTimestamp() ?? 'now');
+
+        return $this->snapshotCache[$cacheKey] ??= $this->buildSnapshot($user, $at);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildSnapshot(User $user, ?Carbon $at = null): array
+    {
+        // Compute shared calendar/presence/availability inputs once for this snapshot.
+        $calendarAllows = $this->calendarAllows($user, $at);
+        $onApprovedLeave = $this->isOnApprovedLeave($user, $at);
+        $isPresent = $this->isPresent($user, $at);
         $storedAvailability = $this->availabilityService->statusFor($user);
-        $effectiveAvailability = $this->effectiveAvailability($user, $at);
+        $availabilitySnapshot = $this->availabilityService->snapshotFor($user);
+        $workCalendar = $this->workCalendarService->todayStatusFor($user, $at);
+        $presence = $this->presenceEngine->snapshotFor($user, $at);
+
+        if ($onApprovedLeave || ! $calendarAllows || ! $isPresent) {
+            $effectiveAvailability = TeamAvailabilityStatus::Offline;
+        } else {
+            $effectiveAvailability = $storedAvailability;
+        }
+
+        $onDuty = in_array($effectiveAvailability, [
+            TeamAvailabilityStatus::Available,
+            TeamAvailabilityStatus::Busy,
+        ], true);
+
+        $blockReasons = [];
+
+        if (! $calendarAllows) {
+            $blockReasons[] = 'calendar_blocked';
+        }
+
+        if ($onApprovedLeave) {
+            $blockReasons[] = 'approved_leave';
+        }
+
+        if (! $isPresent) {
+            $blockReasons[] = 'not_present';
+        }
+
+        if ($storedAvailability === TeamAvailabilityStatus::Offline) {
+            $blockReasons[] = 'availability_offline';
+        }
+
+        if (! $user->is_active || $user->trashed()) {
+            $blockReasons[] = 'inactive_user';
+        }
+
+        if (! $this->roleService->isNormalAssignmentPool($user)) {
+            $blockReasons[] = 'not_assignment_pool';
+        }
+
+        $eligibleForNormalAssignment = $user->is_active
+            && ! $user->trashed()
+            && $this->roleService->isNormalAssignmentPool($user)
+            && $onDuty;
 
         return [
-            'calendar_allows' => $this->calendarAllows($user, $at),
-            'on_approved_leave' => $this->isOnApprovedLeave($user, $at),
-            'is_present' => $this->isPresent($user, $at),
+            'calendar_allows' => $calendarAllows,
+            'on_approved_leave' => $onApprovedLeave,
+            'is_present' => $isPresent,
             'stored_availability' => $storedAvailability->value,
             'stored_availability_label' => $storedAvailability->label(),
             'effective_availability' => $effectiveAvailability->value,
             'effective_availability_label' => $effectiveAvailability->label(),
-            'on_duty' => $this->isOnDuty($user, $at),
-            'eligible_for_normal_assignment' => $this->isEligibleForNormalAssignment($user, $at),
-            'block_reasons' => $this->blockReasons($user, $at),
-            'work_calendar' => $this->workCalendarService->todayStatusFor($user, $at),
-            'presence' => $this->presenceEngine->snapshotFor($user, $at),
-            'availability' => $this->availabilityService->snapshotFor($user),
+            'on_duty' => $onDuty,
+            'eligible_for_normal_assignment' => $eligibleForNormalAssignment,
+            'block_reasons' => $blockReasons,
+            'work_calendar' => $workCalendar,
+            'presence' => $presence,
+            'availability' => $availabilitySnapshot,
         ];
     }
 }

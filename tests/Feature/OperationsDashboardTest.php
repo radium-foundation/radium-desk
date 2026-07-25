@@ -506,7 +506,7 @@ class OperationsDashboardTest extends TestCase
         $this->actingAs($this->createAdminUser('admin-ops-nav@test.com'))
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Operations')
+            ->assertSee('Control Center')
             ->assertSee(route('admin.operations.index'), false);
     }
 

@@ -168,7 +168,8 @@ html:not(.sidebar-expanded) .app-sidebar .nav-link .nav-icon {
 
 html:not(.sidebar-expanded) .app-sidebar .nav-label,
 html:not(.sidebar-expanded) .app-sidebar .brand-text,
-html:not(.sidebar-expanded) .app-sidebar .nav-section {
+html:not(.sidebar-expanded) .app-sidebar .nav-section,
+html:not(.sidebar-expanded) .app-sidebar .nav-section-link {
     display: none;
 }
 
@@ -188,13 +189,33 @@ html:not(.sidebar-expanded) .app-sidebar .nav-section {
     pointer-events: none;
 }
 
-.app-sidebar .nav-section {
+.app-sidebar .nav-section,
+.app-sidebar .nav-section-link {
     color: rgba(255, 255, 255, 0.45);
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
     padding: 0.75rem 1.5rem 0.35rem;
+}
+
+.app-sidebar .nav-section-link:hover,
+.app-sidebar .nav-section-link:focus {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.workspace-nav .workspace-nav-tabs {
+    border-bottom-color: #dee2e6;
+}
+
+.workspace-nav .workspace-nav-tabs .nav-link {
+    white-space: nowrap;
+    color: #495057;
+}
+
+.workspace-nav .workspace-nav-tabs .nav-link.active {
+    color: var(--brand-primary);
+    font-weight: 600;
 }
 
 .app-main {
@@ -8872,7 +8893,19 @@ body.customer-360-drawer-open {
 }
 
 .platform-placeholder-section {
-    opacity: 0.85;
+    opacity: 1;
+}
+
+.platform-workspace-link {
+    background: #fff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.platform-workspace-link:hover,
+.platform-workspace-link:focus {
+    border-color: rgba(13, 110, 253, 0.35) !important;
+    background-color: rgba(13, 110, 253, 0.03);
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
 }
 
 .status-badge {

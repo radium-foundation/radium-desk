@@ -34,8 +34,16 @@ class OperationsDashboardController extends Controller
 
     public function index(): View
     {
+        // First-paint bundles only — lazy tabs load via live groups (same as always-on poll set).
+        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections([
+            'critical',
+            'summary',
+            'health',
+            'ira_compact',
+        ]);
+
         return view('admin.operations.index', [
-            'dashboard' => $this->dashboardService->dashboardData(),
+            'dashboard' => $this->dashboardService->dashboardDataForSections($firstPaintSections),
             'operationsPollIntervalMs' => $this->performanceRuntime->operationsPollIntervalMs(),
             'operationsFullRefreshIntervalMs' => $this->performanceRuntime->operationsFullRefreshIntervalMs(),
         ]);

@@ -64,12 +64,14 @@ class AdministrationHomeTest extends TestCase
             ->get(route('admin.administration.index'))
             ->assertOk()
             ->assertSee('Administration')
+            ->assertSee('aria-label="Administration workspace"', false)
             ->assertSee('Users')
             ->assertSee('Roles &amp; Access', false)
             ->assertSee('System Settings')
-            ->assertSee('Audit Logs')
+            ->assertSee('Holiday Calendar')
             ->assertSee('Integrations')
-            ->assertDontSee('Application Settings');
+            ->assertDontSee('Application Settings')
+            ->assertDontSee('Review system activity and record changes.', false);
     }
 
     public function test_superadmin_sees_application_settings_card(): void
@@ -91,7 +93,7 @@ class AdministrationHomeTest extends TestCase
         $response->assertOk();
         $response->assertSee(route('users.index'), false);
         $response->assertSee(route('admin.system-settings.index'), false);
-        $response->assertSee(route('audit-logs.index'), false);
+        $response->assertSee(route('admin.workforce.holidays.index'), false);
     }
 
     public function test_existing_administration_pages_remain_accessible_for_admin(): void

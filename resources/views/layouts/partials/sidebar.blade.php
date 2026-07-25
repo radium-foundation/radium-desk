@@ -1,5 +1,6 @@
 @php
-    use Database\Seeders\RolePermissionSeeder;
+    /** @var \App\Support\Navigation\NavigationContext $navigationContext */
+    /** @var array<string, array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>}> $navigationSidebar */
 @endphp
 
 <aside class="app-sidebar" id="appSidebar" aria-label="Main navigation">
@@ -8,197 +9,29 @@
     </div>
 
     <nav class="py-2">
-        <ul class="nav flex-column">
-            <li class="nav-item">
-                <a @class(['nav-link', 'active' => request()->routeIs('dashboard')]) href="{{ route('dashboard') }}" title="Dashboard">
-                    <i class="bi bi-speedometer2 nav-icon me-2"></i>
-                    <span class="nav-label">Dashboard</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a @class(['nav-link', 'active' => request()->routeIs('search.*')]) href="{{ route('search.index') }}" title="Search">
-                    <i class="bi bi-search nav-icon me-2"></i>
-                    <span class="nav-label">Search</span>
-                </a>
-            </li>
-        </ul>
-
-        <div class="nav-section"><span class="nav-label">Operations</span></div>
-        <ul class="nav flex-column">
-            <li class="nav-item">
-                <a @class(['nav-link', 'active' => request()->routeIs('orders.*')]) href="{{ route('orders.index') }}" title="Orders">
-                    <i class="bi bi-box-seam nav-icon me-2"></i>
-                    <span class="nav-label">Orders</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a @class(['nav-link', 'active' => request()->routeIs('incidents.*')]) href="{{ route('incidents.index') }}" title="{{ config('ui.service_case.plural') }}">
-                    <i class="bi bi-exclamation-triangle nav-icon me-2"></i>
-                    <span class="nav-label">{{ config('ui.service_case.plural') }}</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a @class(['nav-link', 'active' => request()->routeIs('approvals.*')]) href="{{ route('approvals.index') }}" title="Approvals">
-                    <i class="bi bi-check2-square nav-icon me-2"></i>
-                    <span class="nav-label">Approvals</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a @class(['nav-link', 'active' => request()->routeIs('refunds.*')]) href="{{ route('refunds.index') }}" title="Refunds">
-                    <i class="bi bi-currency-exchange nav-icon me-2"></i>
-                    <span class="nav-label">Refunds</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                @can('workforce360.viewTeam')
-                    @unless(auth()->user()?->hasAnyRole([
-                        RolePermissionSeeder::ROLE_ADMIN,
-                        RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-                        RolePermissionSeeder::ROLE_SUPERADMIN,
-                    ]))
-                        <a @class(['nav-link', 'active' => request()->routeIs('workforce.*')]) href="{{ route('workforce.index') }}" title="Workforce">
-                            <i class="bi bi-people-fill nav-icon me-2"></i>
-                            <span class="nav-label">Workforce</span>
-                        </a>
-                    @endunless
-                @endcan
-            </li>
-            <li class="nav-item">
-                @can('workforce360.viewSelf')
-                    <a @class(['nav-link', 'active' => request()->routeIs('my-workforce.*')]) href="{{ route('my-workforce.index') }}" title="My Workforce">
-                        <i class="bi bi-person-workspace nav-icon me-2"></i>
-                        <span class="nav-label">My Workforce</span>
+        @foreach($navigationSidebar as $menuKey => $menu)
+            @if($menu['visible'])
+                <div class="nav-section">
+                    <a href="{{ $menu['home_url'] }}" class="nav-section-link text-decoration-none" title="{{ $menu['label'] }} home">
+                        <span class="nav-label">{{ $menu['label'] }}</span>
                     </a>
-                @endcan
-            </li>
-            <li class="nav-item">
-                @can('viewAny', App\Models\LeaveRequest::class)
-                    <a @class(['nav-link', 'active' => request()->routeIs('leave-requests.*')]) href="{{ route('leave-requests.index') }}" title="Leave Requests">
-                        <i class="bi bi-calendar-x nav-icon me-2"></i>
-                        <span class="nav-label">Leave Requests</span>
-                    </a>
-                @endcan
-            </li>
-            <li class="nav-item">
-                @if(auth()->user()?->hasAnyRole(\Database\Seeders\RolePermissionSeeder::SUPPORT_TEAM_ROLES) || auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST) || auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_HARDWARE_TEAM))
-                    <a @class(['nav-link', 'active' => request()->routeIs('my-performance.*')]) href="{{ route('my-performance.index') }}" title="Your Performance">
-                        <i class="bi bi-bar-chart nav-icon me-2"></i>
-                        <span class="nav-label">Your Performance</span>
-                    </a>
-                @endif
-            </li>
-        </ul>
-
-        @if(auth()->user()?->hasAnyRole([
-            RolePermissionSeeder::ROLE_ADMIN,
-            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-            RolePermissionSeeder::ROLE_SUPERADMIN,
-        ]))
-            {{-- H1 four-hub nav: existing routes only; deep links preserved. See docs/super-admin-four-hubs.md --}}
-            <div class="nav-section"><span class="nav-label">Mission Control</span></div>
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    @can('platform-dashboard.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.platform.*')]) href="{{ route('admin.platform.index') }}" title="Mission Control">
-                            <i class="bi bi-radar nav-icon me-2"></i>
-                            <span class="nav-label">Mission Control</span>
-                        </a>
-                    @endcan
-                </li>
-            </ul>
-
-            <div class="nav-section"><span class="nav-label">Operations Hub</span></div>
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    @can('operations-dashboard.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.operations.index', 'admin.operations.live', 'admin.operations.automation-health*', 'admin.automation.*')]) href="{{ route('admin.operations.index') }}" title="Operations Control Center">
-                            <i class="bi bi-sliders nav-icon me-2"></i>
-                            <span class="nav-label">Operations</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('viewAny', App\Models\CashfreeWebhookLog::class)
-                        <a @class(['nav-link', 'active' => request()->routeIs('cashfree.webhook-explorer.*')]) href="{{ route('cashfree.webhook-explorer.index') }}" title="Webhook Explorer">
-                            <i class="bi bi-broadcast nav-icon me-2"></i>
-                            <span class="nav-label">Webhook Explorer</span>
-                        </a>
-                    @endcan
-                </li>
-            </ul>
-
-            <div class="nav-section"><span class="nav-label">Workforce Hub</span></div>
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    @can('workforce360.viewTeam')
-                        <a @class(['nav-link', 'active' => request()->routeIs('workforce.*')]) href="{{ route('workforce.index') }}" title="Workforce">
-                            <i class="bi bi-people-fill nav-icon me-2"></i>
-                            <span class="nav-label">Workforce</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('team-performance.view')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.performance.*')]) href="{{ route('admin.workforce.performance.index') }}" title="Team Performance">
-                            <i class="bi bi-graph-up nav-icon me-2"></i>
-                            <span class="nav-label">Team Performance</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('viewAny', App\Models\CompanyHoliday::class)
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.workforce.holidays.*')]) href="{{ route('admin.workforce.holidays.index') }}" title="Company Holidays">
-                            <i class="bi bi-calendar-event nav-icon me-2"></i>
-                            <span class="nav-label">Holidays</span>
-                        </a>
-                    @endcan
-                </li>
-            </ul>
-
-            <div class="nav-section"><span class="nav-label">Administration</span></div>
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a @class(['nav-link', 'active' => request()->routeIs('admin.administration.*')]) href="{{ route('admin.administration.index') }}" title="Administration">
-                        <i class="bi bi-shield-lock nav-icon me-2"></i>
-                        <span class="nav-label">Administration</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    @can('system-settings.manage')
-                        <a @class(['nav-link', 'active' => request()->routeIs('admin.system-settings.*')]) href="{{ route('admin.system-settings.index') }}" title="System Settings">
-                            <i class="bi bi-toggles nav-icon me-2"></i>
-                            <span class="nav-label">System Settings</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('viewAny', App\Models\AuditLog::class)
-                        <a @class(['nav-link', 'active' => request()->routeIs('audit-logs.*')]) href="{{ route('audit-logs.index') }}" title="Audit Logs">
-                            <i class="bi bi-journal-text nav-icon me-2"></i>
-                            <span class="nav-label">Audit Logs</span>
-                        </a>
-                    @endcan
-                </li>
-                <li class="nav-item">
-                    @can('viewAny', App\Models\User::class)
-                        <a @class(['nav-link', 'active' => request()->routeIs('users.*')]) href="{{ route('users.index') }}" title="Users">
-                            <i class="bi bi-people nav-icon me-2"></i>
-                            <span class="nav-label">Users</span>
-                        </a>
-                    @endcan
-                </li>
-                @if(auth()->user()?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN))
-                    <li class="nav-item">
-                        @can('viewAny', App\Models\SettingProduct::class)
-                            <a @class(['nav-link', 'active' => request()->routeIs('settings.*')]) href="{{ route('settings.index') }}" title="Application Settings">
-                                <i class="bi bi-gear nav-icon me-2"></i>
-                                <span class="nav-label">Application Settings</span>
+                </div>
+                <ul class="nav flex-column">
+                    @foreach($menu['items'] as $item)
+                        <li class="nav-item">
+                            <a @class(['nav-link', 'active' => $item['active']])
+                               href="{{ $item['url'] }}"
+                               title="{{ $item['title'] }}"
+                               data-nav-key="{{ $item['key'] }}"
+                               @if($item['active']) aria-current="page" @endif>
+                                <i class="bi {{ $item['icon'] }} nav-icon me-2"></i>
+                                <span class="nav-label">{{ $item['label'] }}</span>
                             </a>
-                        @endcan
-                    </li>
-                @endif
-            </ul>
-        @endif
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        @endforeach
     </nav>
 
     @include('layouts.partials.version-footer')

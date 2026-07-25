@@ -8,7 +8,12 @@
     $cards = $section['cards'] ?? [];
 @endphp
 
-<section class="mb-4" data-platform-section="{{ $key }}" aria-labelledby="platform-section-{{ $key }}">
+<section
+    @class(['mb-4'])
+    @if($key === 'platform_health') id="platform-health" @endif
+    data-platform-section="{{ $key }}"
+    aria-labelledby="platform-section-{{ $key }}"
+>
     <h2 id="platform-section-{{ $key }}" class="h5 mb-3">{{ $label }}</h2>
 
     <div class="row g-3">

@@ -50,7 +50,7 @@ class OperationsDashboardPerformanceTest extends TestCase
         $this->assertGreaterThan(0, $result['total_ms']);
     }
 
-    public function test_initial_page_payload_is_smaller_than_full_live_refresh(): void
+    public function test_initial_page_payload_stays_within_first_paint_budget(): void
     {
         Cache::flush();
 
@@ -58,17 +58,20 @@ class OperationsDashboardPerformanceTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $indexResponse = $this->actingAs($admin)->get(route('admin.operations.index'));
-        $liveResponse = $this->actingAs($admin)->getJson(route('admin.operations.live'));
-
         $indexBytes = strlen($indexResponse->getContent());
-        $liveBytes = strlen((string) $liveResponse->getContent());
 
-        $this->assertLessThan(
-            $liveBytes,
-            $indexBytes,
-            'Initial SSR payload should be smaller than a full live refresh payload.',
-        );
+        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections([
+            'critical',
+            'summary',
+            'health',
+            'ira_compact',
+        ]);
+        $normalized = $firstPaintSections;
+        sort($normalized);
+        $sectionCacheKey = 'operations:dashboard:sections:'.hash('xxh128', implode(',', $normalized));
 
+        $this->assertTrue(Cache::has($sectionCacheKey), 'SSR should warm first-paint section cache.');
+        $this->assertFalse(Cache::has('operations:dashboard:latest:v2'), 'SSR should not warm the full dashboard cache.');
         $this->assertLessThan(
             120000,
             $indexBytes,

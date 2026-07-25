@@ -109,6 +109,8 @@ class PlatformDashboardServiceProvider extends ServiceProvider
     }
 
     /**
+     * S1: MC-18–MC-24 deep-link workspace cards (existing routes only).
+     *
      * @return list<PlaceholderSectionCardProvider>
      */
     private function placeholderCards(): array
@@ -118,50 +120,202 @@ class PlatformDashboardServiceProvider extends ServiceProvider
                 sectionId: PlatformDashboardSection::Operations->value,
                 cardTitle: 'Business Operations',
                 priority: 10,
-                upcomingCards: ['Open Orders', 'Pending Verification', 'Serial Requests', 'Appointments', 'Delayed Orders', 'Escalations'],
+                workspaceLinks: [
+                    [
+                        'label' => 'Operations Control Center',
+                        'route' => 'admin.operations.index',
+                        'description' => 'Live ops health, support load, and team status.',
+                    ],
+                    [
+                        'label' => 'Today',
+                        'route' => 'admin.operations.index',
+                        'params' => ['hub_tab' => 'today'],
+                        'description' => 'Support intelligence for the current day.',
+                    ],
+                    [
+                        'label' => 'Performance',
+                        'route' => 'admin.operations.index',
+                        'params' => ['hub_tab' => 'performance'],
+                        'description' => 'Queues, IVR, and operational metrics.',
+                    ],
+                ],
+                detailRoute: ['route' => 'admin.operations.index'],
+                permission: 'operations-dashboard.view',
                 icon: 'bi-sliders',
+                message: 'Open Control Center for live operational command.',
             ),
             new PlaceholderSectionCardProvider(
                 sectionId: PlatformDashboardSection::Customers->value,
                 cardTitle: 'Customer Operations',
                 priority: 10,
-                upcomingCards: ['Open Cases', 'Waiting Customer', 'Waiting Internal', 'Overdue', 'SLA Risk', 'Top Categories'],
+                workspaceLinks: [
+                    [
+                        'label' => 'Operator Dashboard',
+                        'route' => 'dashboard',
+                        'description' => 'Ready Queue, appointments, and My Activity.',
+                    ],
+                    [
+                        'label' => 'Service Cases',
+                        'route' => 'incidents.index',
+                        'description' => 'Browse and filter open customer cases.',
+                    ],
+                    [
+                        'label' => 'Waiting Customers',
+                        'route' => 'dashboard',
+                        'params' => ['queue' => 'waiting_customer'],
+                        'description' => 'Customers waiting for a response.',
+                    ],
+                ],
+                detailRoute: ['route' => 'dashboard'],
+                permission: 'incidents.view',
                 icon: 'bi-person-badge',
+                message: 'Jump into operator queues and case workspaces.',
             ),
             new PlaceholderSectionCardProvider(
                 sectionId: PlatformDashboardSection::Workforce->value,
                 cardTitle: 'Workforce',
                 priority: 10,
-                upcomingCards: ['Active Now', 'Late Login', 'Attendance Exceptions', 'Leave Today', 'Top Performers', 'Idle Users'],
+                workspaceLinks: [
+                    [
+                        'label' => 'Workforce Overview',
+                        'route' => 'workforce.index',
+                        'description' => 'Team capacity, presence, and attention items.',
+                    ],
+                    [
+                        'label' => 'Team Performance',
+                        'route' => 'admin.workforce.performance.index',
+                        'description' => 'Attendance, presence, and customer-work metrics.',
+                    ],
+                    [
+                        'label' => 'Leave Management',
+                        'route' => 'leave-requests.index',
+                        'description' => 'Pending and approved leave for planning.',
+                    ],
+                ],
+                detailRoute: ['route' => 'workforce.index'],
+                permission: 'workforce360.viewTeam',
                 icon: 'bi-people',
+                message: 'Open the Control Center workforce workspace.',
             ),
             new PlaceholderSectionCardProvider(
                 sectionId: PlatformDashboardSection::Communications->value,
                 cardTitle: 'Communications',
                 priority: 10,
-                upcomingCards: ['Email', 'WhatsApp', 'Telegram', 'Failed Messages', 'Pending Queue'],
+                workspaceLinks: [
+                    [
+                        'label' => 'Ops System Health',
+                        'route' => 'admin.operations.index',
+                        'params' => ['hub_tab' => 'system'],
+                        'description' => 'Notification failures and recent channel activity.',
+                    ],
+                    [
+                        'label' => 'Audit Logs',
+                        'route' => 'audit-logs.index',
+                        'description' => 'System activity and communication-related events.',
+                    ],
+                ],
+                detailRoute: [
+                    'route' => 'admin.operations.index',
+                    'params' => ['hub_tab' => 'system'],
+                ],
+                permission: 'operations-dashboard.view',
                 icon: 'bi-chat-dots',
+                message: 'Review communication health from existing ops surfaces.',
             ),
             new PlaceholderSectionCardProvider(
                 sectionId: PlatformDashboardSection::Finance->value,
                 cardTitle: 'Finance',
                 priority: 10,
-                upcomingCards: ['Refund Queue', 'Pending Payments', 'Cashfree', 'Settlement', 'Failures'],
+                workspaceLinks: [
+                    [
+                        'label' => 'Refund Queue',
+                        'route' => 'refunds.index',
+                        'params' => ['status' => 'pending'],
+                        'description' => 'Pending refunds awaiting action.',
+                    ],
+                    [
+                        'label' => 'Webhook Explorer',
+                        'route' => 'cashfree.webhook-explorer.index',
+                        'description' => 'Inspect Cashfree payment webhook payloads.',
+                    ],
+                    [
+                        'label' => 'Cashfree Health',
+                        'route' => 'admin.operations.index',
+                        'params' => ['hub_tab' => 'system'],
+                        'description' => 'Integration health inside Control Center.',
+                    ],
+                ],
+                detailRoute: [
+                    'route' => 'refunds.index',
+                    'params' => ['status' => 'pending'],
+                ],
+                permission: null,
                 icon: 'bi-cash-stack',
+                message: 'Reach finance and Cashfree tools without leaving the platform workspace.',
             ),
             new PlaceholderSectionCardProvider(
                 sectionId: PlatformDashboardSection::Automation->value,
                 cardTitle: 'Automation',
                 priority: 10,
-                upcomingCards: ['IRA', 'Scheduled Rules', 'Queue', 'Failures', 'Retry Queue'],
+                workspaceLinks: [
+                    [
+                        'label' => 'Automation Hub',
+                        'route' => 'admin.operations.index',
+                        'params' => ['hub_tab' => 'automation'],
+                        'description' => 'Health and pipeline in one Control Center tab.',
+                    ],
+                    [
+                        'label' => 'Automation Health',
+                        'route' => 'admin.operations.automation-health',
+                        'description' => 'Execution ledger and failure forensics.',
+                    ],
+                    [
+                        'label' => 'Automation Pipeline',
+                        'route' => 'admin.automation.index',
+                        'description' => 'Queues, validation, and pipeline activity.',
+                    ],
+                ],
+                detailRoute: [
+                    'route' => 'admin.operations.index',
+                    'params' => ['hub_tab' => 'automation'],
+                ],
+                permission: 'automation-operations.view',
                 icon: 'bi-robot',
+                message: 'Reuse the shared AutomationExecutionReadModel surfaces.',
             ),
             new PlaceholderSectionCardProvider(
                 sectionId: PlatformDashboardSection::System->value,
                 cardTitle: 'System',
                 priority: 10,
-                upcomingCards: ['Storage', 'Cache', 'Queue', 'Database', 'Scheduler', 'Logs'],
+                workspaceLinks: [
+                    [
+                        'label' => 'Platform Health',
+                        'route' => 'admin.platform.index',
+                        'fragment' => 'platform-health',
+                        'description' => 'Scheduler, queue, cache, database, and storage probes.',
+                    ],
+                    [
+                        'label' => 'System Settings',
+                        'route' => 'admin.system-settings.index',
+                        'description' => 'Realtime, feature flags, and integration toggles.',
+                    ],
+                    [
+                        'label' => 'Realtime',
+                        'route' => 'admin.system-settings.index',
+                        'fragment' => 'realtime-settings-card',
+                        'description' => 'Broadcast provider and connection health.',
+                    ],
+                    [
+                        'label' => 'Integrations',
+                        'route' => 'admin.administration.index',
+                        'fragment' => 'administration-integrations',
+                        'description' => 'Administration integrations placeholder hub.',
+                    ],
+                ],
+                detailRoute: ['route' => 'admin.system-settings.index'],
+                permission: 'system-settings.manage',
                 icon: 'bi-gear',
+                message: 'System controls and infrastructure health from one platform section.',
             ),
         ];
     }

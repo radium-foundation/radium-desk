@@ -7,17 +7,19 @@
       $canManageUsers = Gate::check('viewAny', App\Models\User::class);
       $canManageSystemSettings = Gate::check('viewAny', App\Models\SystemSetting::class);
       $canManageApplicationSettings = Gate::check('viewAny', App\Models\SettingProduct::class);
-      $canViewAuditLogs = Gate::check('viewAny', App\Models\AuditLog::class);
+      $canManageHolidays = Gate::check('viewAny', App\Models\CompanyHoliday::class);
       $visibleCards = (int) $canManageUsers * 2
           + (int) $canManageSystemSettings * 2
           + (int) $canManageApplicationSettings
-          + (int) $canViewAuditLogs;
+          + (int) $canManageHolidays;
   @endphp
 
   <div class="mb-4">
       <h1 class="h3 mb-1">Administration</h1>
-      <p class="text-muted mb-0">Users, access, system configuration, audit, and application settings.</p>
+      <p class="text-muted mb-0">Users, access, system configuration, holidays, and application settings.</p>
   </div>
+
+  @include('navigation.administration-workspace-nav', ['active' => 'overview'])
 
   @if($visibleCards === 0)
       <div class="card border-0 shadow-sm">
@@ -69,19 +71,19 @@
               </div>
           @endcan
 
-          @can('viewAny', App\Models\AuditLog::class)
+          @can('viewAny', App\Models\CompanyHoliday::class)
               <div class="col-md-6 col-lg-4">
                   @include('admin.hubs.partials.link-card', [
-                      'href' => route('audit-logs.index'),
-                      'icon' => 'bi-journal-text',
-                      'title' => 'Audit Logs',
-                      'description' => 'Review system activity and record changes.',
+                      'href' => route('admin.workforce.holidays.index'),
+                      'icon' => 'bi-calendar-event',
+                      'title' => 'Holiday Calendar',
+                      'description' => 'Company holidays that block automatic assignment.',
                   ])
               </div>
           @endcan
 
           @can('viewAny', App\Models\SystemSetting::class)
-              <div class="col-md-6 col-lg-4">
+              <div class="col-md-6 col-lg-4" id="administration-integrations">
                   @include('admin.hubs.partials.placeholder-card', [
                       'icon' => 'bi-plug',
                       'title' => 'Integrations',
