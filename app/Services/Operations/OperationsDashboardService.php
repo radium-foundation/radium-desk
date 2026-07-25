@@ -48,27 +48,29 @@ class OperationsDashboardService
      */
     public function dashboardDataForSections(array $sections, bool $useCache = true): OperationsDashboardData
     {
-        if (OperationsDashboardSectionBundles::isFullRefresh($sections)) {
-            if ($useCache) {
-                $cached = Cache::get(self::CACHE_KEY);
+        $cacheKey = $this->cacheKeyForSections($sections);
 
-                if ($cached instanceof OperationsDashboardData && $this->isCachedDashboardValid($cached)) {
-                    return $cached;
-                }
+        if ($useCache) {
+            $cached = Cache::get($cacheKey);
 
-                if ($cached !== null) {
-                    Cache::forget(self::CACHE_KEY);
-                }
+            if ($cached instanceof OperationsDashboardData && $this->isCachedDashboardValid($cached)) {
+                return $cached;
             }
 
-            $data = $this->build();
-
-            Cache::put(self::CACHE_KEY, $data, now()->addSeconds(self::CACHE_TTL_SECONDS));
-
-            return $data;
+            if ($cached !== null) {
+                Cache::forget($cacheKey);
+            }
         }
 
-        return $this->buildForSections($sections);
+        $data = OperationsDashboardSectionBundles::isFullRefresh($sections)
+            ? $this->build()
+            : $this->buildForSections($sections);
+
+        if ($useCache) {
+            Cache::put($cacheKey, $data, now()->addSeconds(self::CACHE_TTL_SECONDS));
+        }
+
+        return $data;
     }
 
     public function build(?OperationsDashboardBuildProfiler $profiler = null): OperationsDashboardData
@@ -188,6 +190,21 @@ class OperationsDashboardService
             || isset($bundleSet[OperationsDashboardSectionBundles::AUTOMATION_METRICS])
             || isset($bundleSet[OperationsDashboardSectionBundles::QUEUE_METRICS])
             || isset($bundleSet[OperationsDashboardSectionBundles::INTEGRATION_HEALTH]);
+    }
+
+    /**
+     * @param  list<string>  $sections
+     */
+    private function cacheKeyForSections(array $sections): string
+    {
+        if (OperationsDashboardSectionBundles::isFullRefresh($sections)) {
+            return self::CACHE_KEY;
+        }
+
+        $normalized = $sections;
+        sort($normalized);
+
+        return 'operations:dashboard:sections:'.hash('xxh128', implode(',', $normalized));
     }
 
     private function isCachedDashboardValid(OperationsDashboardData $cached): bool

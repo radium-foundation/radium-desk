@@ -6,6 +6,7 @@
     <div
         id="operations-dashboard-root"
         data-live-url="{{ route('admin.operations.live') }}"
+        data-generated-at="{{ $dashboard->generatedAt->toIso8601String() }}"
         data-live-interval="{{ $operationsPollIntervalMs ?? 30000 }}"
         data-live-full-interval="{{ $operationsFullRefreshIntervalMs ?? 120000 }}"
         @can('automation-operations.view')

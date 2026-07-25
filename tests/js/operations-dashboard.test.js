@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     guardAgainstStaleLazyPlaceholders,
+    initOperationsDashboard,
+    isOperationsSsrFresh,
     loadHealthDetail,
     loadLazyTab,
     showLazyLoadError,
@@ -178,5 +180,61 @@ describe('operations-dashboard lazy loading', () => {
         expect(content.querySelector('.operations-lazy-placeholder')).toBeNull();
         expect(content.querySelector('.operations-lazy-error')).not.toBeNull();
         expect(content.textContent).toContain('Failed to load');
+    });
+});
+
+describe('operations-dashboard SSR freshness', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+        vi.restoreAllMocks();
+        vi.useRealTimers();
+    });
+
+    it('treats SSR timestamp within 30s as fresh', () => {
+        const freshAt = new Date(Date.now() - 5000).toISOString();
+
+        document.body.innerHTML = `
+            <div id="operations-dashboard-root" data-generated-at="${freshAt}"></div>
+        `;
+
+        const pageRoot = document.getElementById('operations-dashboard-root');
+
+        expect(isOperationsSsrFresh(pageRoot)).toBe(true);
+    });
+
+    it('treats SSR timestamp older than 30s as stale', () => {
+        const staleAt = new Date(Date.now() - 31000).toISOString();
+
+        document.body.innerHTML = `
+            <div id="operations-dashboard-root" data-generated-at="${staleAt}"></div>
+        `;
+
+        const pageRoot = document.getElementById('operations-dashboard-root');
+
+        expect(isOperationsSsrFresh(pageRoot)).toBe(false);
+    });
+
+    it('skips boot live refresh when SSR is fresh', async () => {
+        vi.stubGlobal('fetch', vi.fn());
+
+        const freshAt = new Date().toISOString();
+
+        document.body.innerHTML = `
+            <div
+                id="operations-dashboard-root"
+                data-live-url="/admin/operations/live"
+                data-generated-at="${freshAt}"
+                data-live-interval="30000"
+                data-live-full-interval="120000"
+            >
+                <div id="operations-tab-today-content">Today content</div>
+            </div>
+        `;
+
+        await initOperationsDashboard();
+
+        expect(fetch).not.toHaveBeenCalled();
+
+        vi.unstubAllGlobals();
     });
 });

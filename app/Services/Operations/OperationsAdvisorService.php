@@ -46,7 +46,7 @@ class OperationsAdvisorService
      */
     public function platformInsights(bool $useCache = true, ?\App\Data\Operations\OperationsDashboardData $dashboard = null): array
     {
-        if ($useCache && $dashboard === null) {
+        if ($useCache) {
             $cached = Cache::get(self::PLATFORM_CACHE_KEY);
 
             if (is_array($cached) && $this->isCachedInsightList($cached)) {
@@ -56,7 +56,7 @@ class OperationsAdvisorService
 
         $insights = $this->buildPlatformInsights($dashboard);
 
-        if ($dashboard === null) {
+        if ($useCache) {
             Cache::put(self::PLATFORM_CACHE_KEY, $insights, now()->addSeconds(self::CACHE_TTL_SECONDS));
         }
 

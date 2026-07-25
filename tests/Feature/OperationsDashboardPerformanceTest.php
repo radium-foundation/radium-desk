@@ -289,6 +289,35 @@ class OperationsDashboardPerformanceTest extends TestCase
         );
     }
 
+    public function test_partial_dashboard_build_uses_section_cache_within_ttl(): void
+    {
+        Cache::flush();
+
+        $service = app(OperationsDashboardService::class);
+        $sections = OperationsDashboardLiveRenderer::resolveSections(['critical', 'summary', 'health', 'ira_compact']);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $service->dashboardDataForSections($sections);
+
+        $coldQueryCount = count(DB::getQueryLog());
+        DB::flushQueryLog();
+
+        $service->dashboardDataForSections($sections);
+
+        $warmQueryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $normalized = $sections;
+        sort($normalized);
+        $cacheKey = 'operations:dashboard:sections:'.hash('xxh128', implode(',', $normalized));
+
+        $this->assertTrue(Cache::has($cacheKey));
+        $this->assertGreaterThan(0, $coldQueryCount);
+        $this->assertSame(0, $warmQueryCount, 'Warm partial dashboard build should reuse section cache.');
+    }
+
     public function test_ira_snapshot_data_is_cached_within_ttl(): void
     {
         Cache::flush();

@@ -84,6 +84,7 @@ const AUTOMATION_EMBED_SELECTORS = {
 
 const FETCH_TIMEOUT_MS = 30000;
 const LAZY_LOAD_GUARD_MS = FETCH_TIMEOUT_MS;
+const SSR_FRESHNESS_MS = 30000;
 
 const LAZY_PLACEHOLDER_SELECTOR = '.operations-lazy-placeholder';
 
@@ -1080,6 +1081,22 @@ const bindStickyOperationsTabs = (pageRoot) => {
     observer.observe(sentinel);
 };
 
+const isOperationsSsrFresh = (pageRoot, maxAgeMs = SSR_FRESHNESS_MS) => {
+    const generatedAt = pageRoot.dataset.generatedAt?.trim() ?? '';
+
+    if (generatedAt === '') {
+        return false;
+    }
+
+    const timestamp = Date.parse(generatedAt);
+
+    if (Number.isNaN(timestamp)) {
+        return false;
+    }
+
+    return Date.now() - timestamp < maxAgeMs;
+};
+
 const initOperationsDashboard = async () => {
     const pageRoot = document.getElementById('operations-dashboard-root');
 
@@ -1096,7 +1113,9 @@ const initOperationsDashboard = async () => {
     bindIraFullAnalysisModal(pageRoot);
     bindStickyOperationsTabs(pageRoot);
 
-    await refreshOperationsDashboard(pageRoot, { surfaceErrors: true });
+    if (!isOperationsSsrFresh(pageRoot)) {
+        await refreshOperationsDashboard(pageRoot, { surfaceErrors: true });
+    }
 
     const hubTab = new URLSearchParams(window.location.search).get('hub_tab');
 
@@ -1118,6 +1137,7 @@ export {
     findStaleLazySectionTargets,
     guardAgainstStaleLazyPlaceholders,
     initOperationsDashboard,
+    isOperationsSsrFresh,
     isLazyPlaceholderHtml,
     loadHealthDetail,
     loadAutomationHealthSubview,

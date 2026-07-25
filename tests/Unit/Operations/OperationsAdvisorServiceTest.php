@@ -15,11 +15,13 @@ use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
 use App\Services\Operations\OperationsAdvisorService;
+use App\Services\Operations\OperationsDashboardService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OperationsAdvisorServiceTest extends TestCase
@@ -244,6 +246,28 @@ class OperationsAdvisorServiceTest extends TestCase
 
         $second = $service->platformInsights();
         $this->assertSame($first, $second);
+    }
+
+    public function test_platform_insights_use_cache_when_dashboard_is_passed(): void
+    {
+        Cache::flush();
+
+        $service = app(OperationsAdvisorService::class);
+        $dashboard = app(OperationsDashboardService::class)->dashboardData(useCache: false);
+
+        $first = $service->platformInsights(dashboard: $dashboard);
+        $this->assertTrue(Cache::has('operations:advisor:platform'));
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $second = $service->platformInsights(dashboard: $dashboard);
+
+        $warmQueries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertSame($first, $second);
+        $this->assertSame(0, $warmQueries, 'Advisor insights should reuse cache even when dashboard is passed.');
     }
 
     public function test_incident_insights_include_sla_repeat_and_amc_advice(): void
