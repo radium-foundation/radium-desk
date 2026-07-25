@@ -17,7 +17,7 @@
 
     <div class="system-settings-header__actions @if($compact) system-settings-header__actions--full @endif">
             <div class="system-settings-header__search">
-                <i class="bi bi-search" aria-hidden="true"></i>
+                <x-settings-center.icon name="search" class="settings-center-icon settings-center-icon--sm" />
                 <input type="search"
                        class="form-control form-control-sm"
                        placeholder="Search settings…"
@@ -28,7 +28,7 @@
 
             @if($lastUpdated)
                 <div class="system-settings-header__meta" title="Most recent setting change">
-                    <i class="bi bi-clock-history" aria-hidden="true"></i>
+                    <x-settings-center.icon name="clock" class="settings-center-icon settings-center-icon--sm" />
                     <span>Updated {{ $lastUpdated->timezone(config('app.timezone'))->diffForHumans() }}</span>
                 </div>
             @endif
@@ -49,7 +49,7 @@
                     data-system-settings-audit-open
                     aria-controls="system-settings-audit-drawer"
                     aria-expanded="false">
-                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <x-settings-center.icon name="clock" class="settings-center-icon settings-center-icon--sm" />
                 <span class="d-none d-md-inline">Audit History</span>
             </button>
 

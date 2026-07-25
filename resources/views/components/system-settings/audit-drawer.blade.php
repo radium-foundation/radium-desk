@@ -19,7 +19,7 @@
                     class="btn btn-sm btn-outline-secondary"
                     data-system-settings-audit-close
                     aria-label="Close audit history">
-                <i class="bi bi-x-lg" aria-hidden="true"></i>
+                <x-settings-center.icon name="x" class="settings-center-icon settings-center-icon--sm" />
             </button>
         </header>
 

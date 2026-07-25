@@ -3,14 +3,14 @@
     $components = is_array($card->meta['components'] ?? null) ? $card->meta['components'] : [];
 @endphp
 
-<div class="platform-health-components">
+<div class="settings-center-platform-metrics settings-center-platform-metrics--health">
     @forelse($components as $healthComponent)
-        <div class="d-flex justify-content-between align-items-start gap-3 py-2 border-bottom">
-            <div class="min-w-0">
-                <div class="fw-semibold small">{{ $healthComponent['label'] ?? '' }}</div>
-                <div class="text-muted small">{{ $healthComponent['detail'] ?? '' }}</div>
+        <div class="settings-center-platform-metric">
+            <div class="settings-center-platform-metric__text">
+                <div class="settings-center-platform-metric__label">{{ $healthComponent['label'] ?? '' }}</div>
+                <div class="settings-center-platform-metric__detail">{{ $healthComponent['detail'] ?? '' }}</div>
             </div>
-            <div class="flex-shrink-0">
+            <div class="settings-center-platform-metric__value">
                 <x-platform.status-badge
                     :status="$healthComponent['status'] ?? 'disabled'"
                     :label="$healthComponent['status_label'] ?? null"
@@ -18,6 +18,6 @@
             </div>
         </div>
     @empty
-        <p class="text-muted small mb-0">No health providers registered.</p>
+        <p class="settings-center-platform-metric__empty">No health providers registered.</p>
     @endforelse
 </div>

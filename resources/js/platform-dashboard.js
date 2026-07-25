@@ -179,4 +179,10 @@ export const initPlatformDashboard = () => {
     if (intervalMs > 0) {
         startPlatformPolling(root, intervalMs);
     }
+
+    window.RadiumDesk = window.RadiumDesk || {};
+    window.RadiumDesk.platformDashboard = {
+        refreshAll: (pageRoot = root) => refreshAllPlatformCards(pageRoot, { surfaceErrors: true }),
+        refreshCard: (card) => refreshPlatformCard(card, { surfaceErrors: true }),
+    };
 };

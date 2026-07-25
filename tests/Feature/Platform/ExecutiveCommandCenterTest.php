@@ -101,7 +101,7 @@ class ExecutiveCommandCenterTest extends TestCase
             ->get(route('admin.platform.index'));
 
         $response->assertOk()
-            ->assertSee('Command Center', false)
+            ->assertSee('Platform', false)
             ->assertSee('Executive Snapshot', false)
             ->assertSee('Open Cases', false)
             ->assertSee('Critical Cases', false)
@@ -190,7 +190,7 @@ class ExecutiveCommandCenterTest extends TestCase
             ->assertJsonPath('key', 'exec_open_cases')
             ->assertJsonStructure(['html', 'payload', 'generated_at']);
 
-        $this->assertStringContainsString('platform-executive-metric', (string) $response->json('html'));
+        $this->assertStringContainsString('settings-center-platform-executive', (string) $response->json('html'));
     }
 
     public function test_executive_card_refresh_bypasses_metrics_cache(): void

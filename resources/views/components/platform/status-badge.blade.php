@@ -8,8 +8,15 @@
         ? $status
         : \App\Enums\PlatformHealthStatus::tryFrom((string) $status);
 
-    $badgeClass = $statusEnum?->badgeClass() ?? 'secondary';
     $statusLabel = $label ?? $statusEnum?->label() ?? 'Unknown';
+
+    $tone = match ($statusEnum) {
+        \App\Enums\PlatformHealthStatus::Healthy => 'success',
+        \App\Enums\PlatformHealthStatus::Warning => 'warning',
+        \App\Enums\PlatformHealthStatus::Critical => 'danger',
+        \App\Enums\PlatformHealthStatus::Disabled => 'neutral',
+        default => 'neutral',
+    };
 @endphp
 
-<span {{ $attributes->class(['badge', 'bg-'.$badgeClass]) }}>{{ $statusLabel }}</span>
+<x-settings-center.status-pill :label="$statusLabel" :tone="$tone" size="sm" {{ $attributes }} />

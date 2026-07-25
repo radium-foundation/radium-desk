@@ -4,50 +4,66 @@
 
 @php
     /** @var \App\Data\Platform\PlatformCardPayload $card */
+    use App\Enums\PlatformHealthStatus;
+
     $refreshUrl = route('admin.platform.cards.show', ['card' => $card->key]);
     $updatedLabel = \App\Support\AppDateFormatter::format($card->generatedAt, 'H:i');
+
+    $statusTone = match ($card->status) {
+        PlatformHealthStatus::Healthy => 'success',
+        PlatformHealthStatus::Warning => 'warning',
+        PlatformHealthStatus::Critical => 'danger',
+        PlatformHealthStatus::Disabled => 'neutral',
+    };
 @endphp
 
 <article
-    class="card border-0 shadow-sm h-100 platform-dashboard-card"
+    class="settings-center-card settings-center-platform-card h-100"
     data-platform-card
     data-card-key="{{ $card->key }}"
     @if($card->refreshable)
         data-refresh-url="{{ $refreshUrl }}"
     @endif
 >
-    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-start gap-2">
-        <div class="min-w-0">
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <h3 class="h6 mb-0">{{ $card->title }}</h3>
-                <x-platform.status-badge :status="$card->status" />
-            </div>
-            <div class="text-muted small mt-1" data-platform-card-updated>
-                Updated {{ $updatedLabel }}
+    <header class="settings-center-card__header settings-center-platform-card__header">
+        <div class="settings-center-card__heading">
+            @if(filled($card->icon))
+                <span class="settings-center-card__icon" aria-hidden="true">
+                    <i class="bi {{ $card->icon }}"></i>
+                </span>
+            @endif
+            <div class="min-w-0">
+                <h3 class="settings-center-card__title">{{ $card->title }}</h3>
+                @if(filled($card->subtitle))
+                    <p class="settings-center-card__description">{{ $card->subtitle }}</p>
+                @endif
+                <div class="settings-center-platform-card__updated text-muted small" data-platform-card-updated>
+                    Updated {{ $updatedLabel }}
+                </div>
             </div>
         </div>
-        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+
+        <div class="settings-center-platform-card__actions">
+            <x-settings-center.status-pill :label="$card->statusLabel()" :tone="$statusTone" size="sm" />
+
             @if($card->refreshable)
-                <button
-                    type="button"
-                    class="btn btn-sm btn-outline-secondary"
-                    data-platform-card-refresh
-                    title="Refresh card"
-                    aria-label="Refresh {{ $card->title }}"
-                >
-                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary settings-center-platform-card__refresh"
+                        data-platform-card-refresh
+                        title="Refresh card"
+                        aria-label="Refresh {{ $card->title }}">
+                    <x-settings-center.icon name="refresh-cw" class="settings-center-icon settings-center-icon--sm" />
                 </button>
             @endif
+
             @if($card->actions !== [])
-                <div class="dropdown">
-                    <button
-                        type="button"
-                        class="btn btn-sm btn-outline-secondary"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                        aria-label="More actions"
-                    >
-                        <i class="bi bi-three-dots" aria-hidden="true"></i>
+                <div class="dropdown settings-center-table-actions">
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary settings-center-table-actions__trigger"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            aria-label="More actions for {{ $card->title }}">
+                        <x-settings-center.icon name="more-vertical" class="settings-center-icon settings-center-icon--sm" />
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                         @foreach($card->actions as $action)
@@ -61,24 +77,26 @@
                 </div>
             @endif
         </div>
-    </div>
+    </header>
 
-    <div class="card-body">
+    <div class="settings-center-card__body settings-center-platform-card__body">
         @if(filled($card->bodyPartial))
             @include($card->bodyPartial, ['card' => $card])
         @else
-            @foreach($card->metrics as $metric)
-                <x-platform.metric-row :metric="$metric" />
-            @endforeach
+            <div class="settings-center-platform-metrics">
+                @foreach($card->metrics as $metric)
+                    <x-platform.metric-row :metric="$metric" />
+                @endforeach
+            </div>
         @endif
     </div>
 
     @if(filled($card->detailUrl))
-        <div class="card-footer bg-white border-top">
-            <a href="{{ $card->detailUrl }}" class="small text-decoration-none">
-                View Details
-                <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+        <footer class="settings-center-card__footer settings-center-card__footer--inline">
+            <a href="{{ $card->detailUrl }}" class="settings-center-platform-card__detail-link">
+                View details
+                <x-settings-center.icon name="external-link" class="settings-center-icon settings-center-icon--sm" />
             </a>
-        </div>
+        </footer>
     @endif
 </article>

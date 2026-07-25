@@ -32,6 +32,7 @@ import { buildSmartToastActions } from './customer-360-cockpit';
 import { getDashboardConfig } from './dashboard-config';
 import { initOperationsDashboard } from './operations-dashboard';
 import { initPlatformDashboard } from './platform-dashboard';
+import { initPlatformCenter } from './platform-center';
 import { initAutomationHealth } from './automation-health';
 import { initPresenceHeartbeat } from './presence-heartbeat';
 import { initSystemSettingsPerformance } from './system-settings-performance';
@@ -827,6 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initOperationsDashboard();
     initPlatformDashboard();
+    initPlatformCenter();
     initAutomationHealth();
     initPresenceHeartbeat();
     initSystemSettingsPerformance();

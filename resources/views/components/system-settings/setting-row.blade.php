@@ -52,7 +52,7 @@
                             data-bs-placement="top"
                             title="{{ $setting['description'] }}"
                             aria-label="More information about {{ $setting['label'] }}">
-                        <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        <x-settings-center.icon name="info" class="settings-center-icon settings-center-icon--sm" />
                     </button>
                 @endif
             </div>

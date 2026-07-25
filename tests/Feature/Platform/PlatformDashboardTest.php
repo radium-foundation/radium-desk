@@ -102,7 +102,7 @@ class PlatformDashboardTest extends TestCase
         $this->actingAs($this->createSuperadmin())
             ->get(route('admin.platform.index'))
             ->assertOk()
-            ->assertSee('Command Center', false)
+            ->assertSee('Platform', false)
             ->assertSee('Platform Health', false)
             ->assertSee('Scheduler', false)
             ->assertSee('Presence Engine', false)

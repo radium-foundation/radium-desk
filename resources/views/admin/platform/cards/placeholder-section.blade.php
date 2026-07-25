@@ -5,30 +5,28 @@
     $message = $card->meta['message'] ?? 'Open the existing workspace for this area.';
 @endphp
 
-<div class="platform-placeholder-section">
-    <p class="small text-muted mb-3">{{ $message }}</p>
+<div class="settings-center-platform-placeholder">
+    <p class="settings-center-platform-placeholder__message">{{ $message }}</p>
 
     @if($links !== [])
-        <div class="row g-2" data-platform-workspace-links>
+        <div class="settings-center-platform-links" data-platform-workspace-links>
             @foreach($links as $link)
-                <div class="col-md-6 col-xl-4">
-                    <a
-                        href="{{ $link['url'] }}"
-                        class="platform-workspace-link d-flex align-items-start gap-2 text-decoration-none border rounded-3 p-3 h-100"
-                    >
-                        <i class="bi bi-box-arrow-up-right text-primary mt-1" aria-hidden="true"></i>
-                        <span>
-                            <span class="d-block text-body fw-semibold">{{ $link['label'] }}</span>
-                            @if(! empty($link['description']))
-                                <span class="d-block text-muted small">{{ $link['description'] }}</span>
-                            @endif
-                        </span>
-                    </a>
-                </div>
+                <a href="{{ $link['url'] }}"
+                   class="settings-center-platform-link">
+                    <span class="settings-center-platform-link__icon" aria-hidden="true">
+                        <x-settings-center.icon name="external-link" class="settings-center-icon settings-center-icon--sm" />
+                    </span>
+                    <span class="settings-center-platform-link__content">
+                        <span class="settings-center-platform-link__label">{{ $link['label'] }}</span>
+                        @if(! empty($link['description']))
+                            <span class="settings-center-platform-link__description">{{ $link['description'] }}</span>
+                        @endif
+                    </span>
+                </a>
             @endforeach
         </div>
     @elseif($upcoming !== [])
-        <ul class="small text-muted mb-0 ps-3">
+        <ul class="settings-center-platform-placeholder__list">
             @foreach($upcoming as $upcomingCard)
                 <li>{{ $upcomingCard }}</li>
             @endforeach

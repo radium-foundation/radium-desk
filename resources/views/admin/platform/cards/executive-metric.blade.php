@@ -7,24 +7,24 @@
     $icon = $card->meta['icon'] ?? $card->icon;
 
     $trendClass = match ($trendDirection) {
-        'positive' => 'text-success',
-        'negative' => 'text-danger',
-        'neutral' => 'text-muted',
-        default => 'text-muted',
+        'positive' => 'settings-center-platform-executive__trend--positive',
+        'negative' => 'settings-center-platform-executive__trend--negative',
+        'neutral' => 'settings-center-platform-executive__trend--neutral',
+        default => 'settings-center-platform-executive__trend--neutral',
     };
 @endphp
 
-<div class="platform-executive-metric">
+<div class="settings-center-platform-executive">
     @if(filled($icon))
-        <div class="platform-executive-metric__icon text-muted mb-2" aria-hidden="true">
+        <div class="settings-center-platform-executive__icon" aria-hidden="true">
             <i class="bi {{ $icon }}"></i>
         </div>
     @endif
-    <div class="platform-executive-metric__value">{{ $value }}</div>
+    <div class="settings-center-platform-executive__value">{{ $value }}</div>
     @if(filled($trend))
-        <div class="platform-executive-metric__trend {{ $trendClass }} small mt-1">{{ $trend }}</div>
+        <div class="settings-center-platform-executive__trend {{ $trendClass }}">{{ $trend }}</div>
     @endif
     @if(filled($comparisonLabel) && filled($trend))
-        <div class="platform-executive-metric__comparison text-muted small">{{ $comparisonLabel }}</div>
+        <div class="settings-center-platform-executive__comparison">{{ $comparisonLabel }}</div>
     @endif
 </div>

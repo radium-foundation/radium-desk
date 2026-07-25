@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Settings')
+@section('title', 'System Settings')
 
 @section('content')
     @php
@@ -29,7 +29,7 @@
     @endphp
 
     <x-settings-center.shell
-        title="Settings"
+        title="System Settings"
         subtitle="Manage operational behaviour, integrations and platform configuration."
     >
         <form method="POST"

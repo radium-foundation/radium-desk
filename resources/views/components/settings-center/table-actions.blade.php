@@ -1,6 +1,9 @@
 @props([
     'saveFormId' => null,
     'toggleUrl' => null,
+    'deleteUrl' => null,
+    'deleteConfirm' => 'Delete this item?',
+    'deleteHiddenFields' => [],
     'isEnabled' => true,
     'entityLabel' => 'item',
 ])
@@ -27,6 +30,19 @@
                     <button type="submit" class="dropdown-item">
                         {{ $isEnabled ? 'Disable' : 'Enable' }}
                     </button>
+                </form>
+            </li>
+        @endif
+        @if($deleteUrl)
+            <li><hr class="dropdown-divider"></li>
+            <li>
+                <form method="POST" action="{{ $deleteUrl }}" onsubmit="return confirm(@js($deleteConfirm));">
+                    @csrf
+                    @method('DELETE')
+                    @foreach($deleteHiddenFields as $name => $value)
+                        <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+                    @endforeach
+                    <button type="submit" class="dropdown-item text-danger">Delete</button>
                 </form>
             </li>
         @endif

@@ -4,10 +4,11 @@
     'icon' => null,
     'status' => null,
     'statusTone' => 'neutral',
+    'flush' => false,
 ])
 
 <div {{ $attributes->merge(['class' => 'settings-center-card']) }}>
-    @if($title || $icon || $status)
+    @if($title || $icon || $status || isset($headerActions))
         <header class="settings-center-card__header">
             <div class="settings-center-card__heading">
                 @if($icon)
@@ -24,18 +25,19 @@
                     @endif
                 </div>
             </div>
-            @if($status)
-                <span @class([
-                    'settings-center-status-pill',
-                    'settings-center-status-pill--'.$statusTone,
-                ])>
-                    <span class="settings-center-status-pill__dot" aria-hidden="true"></span>
-                    {{ $status }}
-                </span>
-            @endif
+            <div class="settings-center-card__header-meta">
+                @if($status)
+                    <x-settings-center.status-pill :label="$status" :tone="$statusTone" size="sm" />
+                @endif
+                @if(isset($headerActions))
+                    <div class="settings-center-card__header-actions">
+                        {{ $headerActions }}
+                    </div>
+                @endif
+            </div>
         </header>
     @endif
-    <div class="settings-center-card__body">
+    <div @class(['settings-center-card__body', 'settings-center-card__body--flush' => $flush])>
         {{ $slot }}
     </div>
     @if(isset($footer))
