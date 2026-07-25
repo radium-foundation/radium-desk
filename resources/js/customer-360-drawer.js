@@ -1065,6 +1065,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     const loadInitialContent = async (incidentId) => {
         fetchController?.abort();
         fetchController = new AbortController();
+        stopDeviceSyncPolling();
+        stopTimelinePolling();
 
         setError('');
         closeMoreMenu();
@@ -1147,6 +1149,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         fetchController?.abort();
         fetchController = null;
         stopDeviceSyncPolling();
+        stopTimelinePolling();
 
         if (!drawer.classList.contains('is-open') && activeIncidentId === null) {
             return;

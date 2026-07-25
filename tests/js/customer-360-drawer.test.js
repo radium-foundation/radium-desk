@@ -813,4 +813,129 @@ describe('initCustomer360Drawer', () => {
             vi.unstubAllGlobals();
         }
     });
+
+    it('stops timeline polling when the drawer is closed', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const pageRoot = setupDashboard();
+            const timelineRefreshUrl = 'http://localhost/dashboard/service-cases/42/customer-360/timeline';
+
+            global.fetch = vi.fn()
+                .mockResolvedValueOnce({
+                    ok: true,
+                    text: async () => `
+                        <div data-customer-360-content>
+                            <button type="button" data-customer-360-tab="overview">Overview</button>
+                            <button type="button" data-customer-360-tab="timeline">Timeline</button>
+                            <div data-customer-360-tab-pane="overview">Overview pane</div>
+                            <div data-customer-360-tab-pane="timeline" class="d-none">
+                                <div data-customer-360-timeline-tab data-timeline-tab-url="${timelineRefreshUrl}/tab"></div>
+                            </div>
+                        </div>
+                    `,
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        html: `
+                            <section data-customer-360-timeline-section data-timeline-refresh-url="${timelineRefreshUrl}">
+                                <div data-unified-timeline data-timeline-bound="true"></div>
+                            </section>
+                        `,
+                    }),
+                });
+
+            const drawer = initCustomer360Drawer({ pageRoot });
+
+            await drawer.open('42', 'SC-001');
+
+            document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
+                new MouseEvent('click', { bubbles: true }),
+            );
+
+            await vi.waitFor(() => {
+                expect(fetch).toHaveBeenCalledWith(
+                    `${timelineRefreshUrl}/tab`,
+                    expect.any(Object),
+                );
+            });
+
+            fetch.mockClear();
+
+            drawer.close();
+
+            await vi.advanceTimersByTimeAsync(60000);
+
+            expect(fetch).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('stops timeline polling when switching to another incident', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const pageRoot = setupDashboard();
+            const timelineRefreshUrlA = 'http://localhost/dashboard/service-cases/42/customer-360/timeline';
+
+            global.fetch = vi.fn()
+                .mockResolvedValueOnce({
+                    ok: true,
+                    text: async () => `
+                        <div data-customer-360-content>
+                            <button type="button" data-customer-360-tab="overview">Overview</button>
+                            <button type="button" data-customer-360-tab="timeline">Timeline</button>
+                            <div data-customer-360-tab-pane="overview">Overview pane</div>
+                            <div data-customer-360-tab-pane="timeline" class="d-none">
+                                <div data-customer-360-timeline-tab data-timeline-tab-url="${timelineRefreshUrlA}/tab"></div>
+                            </div>
+                        </div>
+                    `,
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({
+                        html: `
+                            <section data-customer-360-timeline-section data-timeline-refresh-url="${timelineRefreshUrlA}">
+                                <div data-unified-timeline data-timeline-bound="true"></div>
+                            </section>
+                        `,
+                    }),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    text: async () => '<div data-customer-360-content>Incident 99 overview</div>',
+                });
+
+            const drawer = initCustomer360Drawer({ pageRoot });
+
+            await drawer.open('42', 'SC-001');
+
+            document.querySelector('[data-customer-360-tab="timeline"]')?.dispatchEvent(
+                new MouseEvent('click', { bubbles: true }),
+            );
+
+            await vi.waitFor(() => {
+                expect(fetch).toHaveBeenCalledWith(
+                    `${timelineRefreshUrlA}/tab`,
+                    expect.any(Object),
+                );
+            });
+
+            fetch.mockClear();
+
+            await drawer.open('99', 'SC-099');
+
+            await vi.advanceTimersByTimeAsync(60000);
+
+            expect(fetch).not.toHaveBeenCalledWith(
+                expect.stringContaining('/customer-360/timeline'),
+                expect.any(Object),
+            );
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });
