@@ -1,5 +1,4 @@
 @php
-    $oldSettings = old('settings', []);
     $providerLabels = [
         'auto' => 'Auto (from server)',
         'polling' => 'Polling',
@@ -17,205 +16,180 @@
     };
     $effectiveProvider = $realtimeHealth['effective_provider'] ?? 'polling';
     $effectiveProviderLabel = $providerLabels[$effectiveProvider] ?? ucfirst($effectiveProvider);
+    $transportMode = match ($effectiveProvider) {
+        'polling' => 'Polling',
+        'ably', 'reverb' => 'WebSocket',
+        default => 'Hybrid',
+    };
+    $reconnectEnabled = collect($realtimeSettings)->firstWhere('key', 'realtime.auto_fallback_polling');
+    $reconnectValue = $reconnectEnabled
+        ? (is_array(old('settings', [])) && array_key_exists('realtime.auto_fallback_polling', old('settings', []))
+            ? filter_var(old('settings.realtime.auto_fallback_polling'), FILTER_VALIDATE_BOOLEAN)
+            : filter_var($reconnectEnabled['value'], FILTER_VALIDATE_BOOLEAN))
+        : true;
+
+    $connectionSettings = collect($realtimeSettings)->filter(fn ($s) => in_array($s['key'], [
+        'realtime.enabled',
+        'realtime.connection_status_indicator',
+    ]));
+    $providerSettings = collect($realtimeSettings)->filter(fn ($s) => in_array($s['key'], [
+        'realtime.provider',
+    ]));
+    $browserSettings = collect($realtimeSettings)->filter(fn ($s) => in_array($s['key'], [
+        'realtime.dashboard_live_updates',
+        'realtime.desktop_notifications',
+    ]));
+    $fallbackSettings = collect($realtimeSettings)->filter(fn ($s) => in_array($s['key'], [
+        'realtime.auto_fallback_polling',
+        'realtime.polling_interval_active_seconds',
+        'realtime.polling_interval_idle_seconds',
+    ]));
+    $debugSettings = collect($realtimeSettings)->filter(fn ($s) => $s['key'] === 'realtime.debug_mode');
 @endphp
 
-<div class="card border-0 shadow-sm" id="realtime-settings-card">
-    <div class="card-header bg-white py-3">
-        <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-broadcast text-primary"></i>
-            <div>
-                <h2 class="h6 mb-0">Realtime</h2>
-                <p class="text-muted small mb-0">Dashboard live updates, transport provider, and polling fallback.</p>
-            </div>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="accordion" id="realtimeSettingsAccordion">
-            <div class="accordion-item">
-                <h3 class="accordion-header">
-                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#realtimeConfigurationSection" aria-expanded="true" aria-controls="realtimeConfigurationSection">
-                        Configuration
-                    </button>
-                </h3>
-                <div id="realtimeConfigurationSection" class="accordion-collapse collapse show" data-bs-parent="#realtimeSettingsAccordion">
-                    <div class="accordion-body">
-                        <p class="text-muted small mb-3">Changes apply after users refresh their browser. Secrets (ABLY_KEY, REVERB_*) remain in environment variables.</p>
-                        <div class="vstack gap-3">
-                            @foreach($realtimeSettings as $setting)
-                                @continue(($setting['key'] ?? '') === 'realtime.debug_mode' && ! auth()->user()?->hasRole(\Database\Seeders\RolePermissionSeeder::ROLE_SUPERADMIN))
-
-                                @php
-                                    $inputId = 'setting_' . str_replace('.', '_', $setting['key']);
-                                    $fieldName = 'settings[' . $setting['key'] . ']';
-                                    $oldValue = is_array($oldSettings) && array_key_exists($setting['key'], $oldSettings)
-                                        ? $oldSettings[$setting['key']]
-                                        : $setting['value'];
-                                @endphp
-
-                                <div class="border rounded p-3 @if(! empty($setting['disabled'])) opacity-75 @endif">
-                                    @if($setting['type'] === 'boolean')
-                                        <div class="form-check form-switch mb-0">
-                                            <input type="hidden" name="{{ $fieldName }}" value="{{ ! empty($setting['disabled']) ? (filter_var($oldValue, FILTER_VALIDATE_BOOLEAN) ? '1' : '0') : '0' }}">
-                                            <input type="checkbox"
-                                                   name="{{ $fieldName }}"
-                                                   value="1"
-                                                   id="{{ $inputId }}"
-                                                   class="form-check-input @error('settings.' . $setting['key']) is-invalid @enderror"
-                                                   @checked(filter_var($oldValue, FILTER_VALIDATE_BOOLEAN))
-                                                   @disabled(! empty($setting['disabled']))>
-                                            <label class="form-check-label fw-medium" for="{{ $inputId }}">
-                                                {{ $setting['label'] }}
-                                                @if($setting['key'] === 'realtime.debug_mode')
-                                                    <span class="badge text-bg-warning ms-1">Superadmin</span>
-                                                @endif
-                                                @if(! empty($setting['disabled']))
-                                                    <span class="badge text-bg-secondary ms-1">Coming Soon</span>
-                                                @endif
-                                            </label>
-                                        </div>
-                                    @elseif($setting['type'] === 'string' && is_array($setting['allowed']))
-                                        <label class="form-label fw-medium" for="{{ $inputId }}">{{ $setting['label'] }}</label>
-                                        <select name="{{ $fieldName }}"
-                                                id="{{ $inputId }}"
-                                                class="form-select @error('settings.' . $setting['key']) is-invalid @enderror"
-                                                style="max-width: 20rem;"
-                                                @disabled(! empty($setting['disabled']))>
-                                            @foreach($setting['allowed'] as $option)
-                                                <option value="{{ $option }}" @selected((string) $oldValue === (string) $option) @disabled($option === 'reverb')>
-                                                    {{ $providerLabels[$option] ?? ucfirst($option) }}@if($option === 'reverb') (Coming Soon)@endif
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    @else
-                                        <label class="form-label fw-medium" for="{{ $inputId }}">{{ $setting['label'] }}</label>
-                                        <div class="input-group" style="max-width: 16rem;">
-                                            <input type="number"
-                                                   name="{{ $fieldName }}"
-                                                   id="{{ $inputId }}"
-                                                   value="{{ $oldValue }}"
-                                                   class="form-control @error('settings.' . $setting['key']) is-invalid @enderror"
-                                                   @if($setting['min'] !== null) min="{{ $setting['min'] }}" @endif
-                                                   @if($setting['max'] !== null) max="{{ $setting['max'] }}" @endif
-                                                   @disabled(! empty($setting['disabled']))>
-                                            @if($setting['unit'])
-                                                <span class="input-group-text">{{ $setting['unit'] }}</span>
-                                            @endif
-                                        </div>
-                                    @endif
-
-                                    @if(! empty($setting['description']))
-                                        <div class="form-text">{{ $setting['description'] }}</div>
-                                    @endif
-                                    @error('settings.' . $setting['key'])
-                                        <div class="invalid-feedback d-block">{{ $message }}</div>
-                                    @enderror
-                                    @if($setting['updated_at'])
-                                        <div class="text-muted small mt-2">
-                                            Last updated {{ $setting['updated_at']->timezone(config('app.timezone'))->format('M j, Y g:i A') }}
-                                            @if($setting['updated_by_name'])
-                                                by {{ $setting['updated_by_name'] }}
-                                            @endif
-                                        </div>
-                                    @endif
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
+<x-system-settings.section
+    id="realtime-settings-card"
+    icon="bi-broadcast"
+    title="Realtime"
+    description="Dashboard live updates, transport provider, and polling fallback."
+>
+    <x-system-settings.card
+        title="Connection"
+        description="Live snapshot from the most recent dashboard client report."
+        class="mb-3"
+    >
+        <div class="system-settings-connection-status">
+            <div class="system-settings-connection-status__hero">
+                <span @class([
+                    'system-settings-status-pill',
+                    'system-settings-status-pill--success' => $connectionStatus === 'connected',
+                    'system-settings-status-pill--info' => $connectionStatus === 'connecting',
+                    'system-settings-status-pill--warning' => $connectionStatus === 'polling',
+                    'system-settings-status-pill--neutral' => in_array($connectionStatus, ['unknown', 'offline'], true),
+                    'system-settings-status-pill--danger' => $connectionStatus === 'disconnected',
+                ])>
+                    <span class="system-settings-status-pill__dot" aria-hidden="true"></span>
+                    {{ $connectionLabel }}
+                </span>
+                <div class="system-settings-connection-status__details">
+                    <span><strong>Provider</strong> {{ $effectiveProviderLabel }}</span>
+                    <span><strong>Transport</strong> {{ $transportMode }}</span>
+                    <span><strong>Fallback</strong> {{ $reconnectValue ? 'Active' : 'Off' }}</span>
                 </div>
             </div>
 
-            <div class="accordion-item">
-                <h3 class="accordion-header">
-                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#realtimeHealthSection" aria-expanded="false" aria-controls="realtimeHealthSection">
-                        Connection Status
-                    </button>
-                </h3>
-                <div id="realtimeHealthSection" class="accordion-collapse collapse" data-bs-parent="#realtimeSettingsAccordion">
-                    <div class="accordion-body">
-                        <p class="text-muted small mb-3">Read-only snapshot from the most recent dashboard client report.</p>
-                        <dl class="row mb-0 small">
-                            <dt class="col-sm-4">Configured provider</dt>
-                            <dd class="col-sm-8"><code>{{ $realtimeHealth['configured_provider'] ?? 'auto' }}</code></dd>
-
-                            <dt class="col-sm-4">Current provider</dt>
-                            <dd class="col-sm-8">{{ $effectiveProviderLabel }}</dd>
-
-                            <dt class="col-sm-4">Current connection</dt>
-                            <dd class="col-sm-8">
-                                <span @class([
-                                    'badge',
-                                    'text-bg-success' => $connectionStatus === 'connected',
-                                    'text-bg-info' => $connectionStatus === 'connecting',
-                                    'text-bg-warning' => $connectionStatus === 'polling',
-                                    'text-bg-secondary' => in_array($connectionStatus, ['unknown', 'offline'], true),
-                                    'text-bg-danger' => $connectionStatus === 'disconnected',
-                                ])>{{ $connectionLabel }}</span>
-                            </dd>
-
-                            <dt class="col-sm-4">Polling active</dt>
-                            <dd class="col-sm-8">{{ ! empty($realtimeHealth['polling_active']) ? 'Yes' : 'No' }}</dd>
-
-                            <dt class="col-sm-4">Last connected</dt>
-                            <dd class="col-sm-8">
-                                @if(! empty($realtimeHealth['last_connected_at']))
-                                    {{ \Illuminate\Support\Carbon::parse($realtimeHealth['last_connected_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A T') }}
-                                @else
-                                    <span class="text-muted">Never reported</span>
-                                @endif
-                            </dd>
-
-                            <dt class="col-sm-4">Latest error</dt>
-                            <dd class="col-sm-8">
-                                @if(! empty($realtimeHealth['last_error']))
-                                    <code class="text-danger">{{ $realtimeHealth['last_error'] }}</code>
-                                @else
-                                    <span class="text-muted">None</span>
-                                @endif
-                            </dd>
-
-                            <dt class="col-sm-4">Last disconnect reason</dt>
-                            <dd class="col-sm-8">
-                                @if(! empty($realtimeHealth['last_disconnect_reason']))
-                                    <code>{{ $realtimeHealth['last_disconnect_reason'] }}</code>
-                                @else
-                                    <span class="text-muted">None</span>
-                                @endif
-                            </dd>
-
-                            <dt class="col-sm-4">Last report</dt>
-                            <dd class="col-sm-8">
-                                @if(! empty($realtimeHealth['reported_at']))
-                                    {{ \Illuminate\Support\Carbon::parse($realtimeHealth['reported_at'])->timezone(config('app.timezone'))->format('M j, Y g:i A T') }}
-                                @else
-                                    <span class="text-muted">Never</span>
-                                @endif
-                            </dd>
-                        </dl>
-
-                        <div class="d-flex flex-wrap gap-2 mt-3">
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-primary"
-                                    data-realtime-test
-                                    data-url="{{ route('admin.system-settings.realtime.test') }}">
-                                Test Realtime Connection
-                            </button>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-secondary"
-                                    data-realtime-force-reconnect
-                                    data-url="{{ route('admin.system-settings.realtime.force-reconnect') }}">
-                                Force Reconnect
-                            </button>
-                            <button type="button"
-                                    class="btn btn-sm btn-outline-danger"
-                                    data-realtime-reset-status
-                                    data-url="{{ route('admin.system-settings.realtime.reset-status') }}">
-                                Reset Connection Status
-                            </button>
-                        </div>
-                        <div class="small mt-2 d-none" data-realtime-admin-message aria-live="polite"></div>
-                    </div>
+            <div class="system-settings-mini-metrics">
+                <div class="system-settings-mini-metric">
+                    <span class="system-settings-mini-metric__label">Polling active</span>
+                    <span class="system-settings-mini-metric__value">{{ ! empty($realtimeHealth['polling_active']) ? 'Yes' : 'No' }}</span>
+                </div>
+                <div class="system-settings-mini-metric">
+                    <span class="system-settings-mini-metric__label">Last connected</span>
+                    <span class="system-settings-mini-metric__value">
+                        @if(! empty($realtimeHealth['last_connected_at']))
+                            {{ \Illuminate\Support\Carbon::parse($realtimeHealth['last_connected_at'])->timezone(config('app.timezone'))->format('M j, g:i A') }}
+                        @else
+                            Never
+                        @endif
+                    </span>
                 </div>
             </div>
+
+            @if(! empty($realtimeHealth['last_error']) || ! empty($realtimeHealth['last_disconnect_reason']))
+                <div class="system-settings-status-alerts mt-3">
+                    @if(! empty($realtimeHealth['last_error']))
+                        <div class="system-settings-status-alert system-settings-status-alert--error">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            <span>{{ $realtimeHealth['last_error'] }}</span>
+                        </div>
+                    @endif
+                    @if(! empty($realtimeHealth['last_disconnect_reason']))
+                        <div class="system-settings-status-alert">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            <span>{{ $realtimeHealth['last_disconnect_reason'] }}</span>
+                        </div>
+                    @endif
+                </div>
+            @endif
+
+            <div class="system-settings-action-row">
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        data-realtime-test
+                        data-url="{{ route('admin.system-settings.realtime.test') }}">
+                    <i class="bi bi-wifi" aria-hidden="true"></i> Test Connection
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-realtime-force-reconnect
+                        data-url="{{ route('admin.system-settings.realtime.force-reconnect') }}">
+                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Force Reconnect
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger"
+                        data-realtime-reset-status
+                        data-url="{{ route('admin.system-settings.realtime.reset-status') }}">
+                    Reset Status
+                </button>
+            </div>
+            <div class="small mt-2 d-none" data-realtime-admin-message aria-live="polite"></div>
         </div>
+    </x-system-settings.card>
+
+    <div class="system-settings-subcards">
+        @if($connectionSettings->isNotEmpty())
+            <x-system-settings.card title="Realtime Mode" description="Master switches for live dashboard behaviour." class="mb-3">
+                <div class="system-settings-rows">
+                    @foreach($connectionSettings as $setting)
+                        <x-system-settings.setting-row
+                            :setting="$setting"
+                            :high-impact="$setting['key'] === 'realtime.enabled'"
+                            impact-message="Disabling realtime will stop all live dashboard updates. Users will rely on manual refresh."
+                            :affected-modules="['Dashboard', 'Operations', 'Notifications']"
+                        />
+                    @endforeach
+                </div>
+            </x-system-settings.card>
+        @endif
+
+        @if($providerSettings->isNotEmpty())
+            <x-system-settings.card title="Realtime Provider" description="Transport layer for live events." class="mb-3">
+                <div class="system-settings-rows">
+                    @foreach($providerSettings as $setting)
+                        <x-system-settings.setting-row :setting="$setting" :option-labels="$providerLabels" control-width="14rem" />
+                    @endforeach
+                </div>
+            </x-system-settings.card>
+        @endif
+
+        @if($browserSettings->isNotEmpty())
+            <x-system-settings.card title="Browser Events" description="Client-side live update behaviour." class="mb-3">
+                <div class="system-settings-rows">
+                    @foreach($browserSettings as $setting)
+                        <x-system-settings.setting-row :setting="$setting" />
+                    @endforeach
+                </div>
+            </x-system-settings.card>
+        @endif
+
+        @if($fallbackSettings->isNotEmpty())
+            <x-system-settings.card title="Fallback & Polling" description="HTTP polling intervals when WebSocket is unavailable.">
+                <div class="system-settings-rows">
+                    @foreach($fallbackSettings as $setting)
+                        <x-system-settings.setting-row :setting="$setting" control-width="12rem" />
+                    @endforeach
+                </div>
+            </x-system-settings.card>
+        @endif
+
+        @if($debugSettings->isNotEmpty())
+            <x-system-settings.card title="Advanced" description="Superadmin diagnostic controls." class="mt-3">
+                <div class="system-settings-rows">
+                    @foreach($debugSettings as $setting)
+                        <x-system-settings.setting-row :setting="$setting" />
+                    @endforeach
+                </div>
+            </x-system-settings.card>
+        @endif
     </div>
-</div>
+</x-system-settings.section>

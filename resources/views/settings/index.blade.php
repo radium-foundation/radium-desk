@@ -1,46 +1,29 @@
 @extends('layouts.app')
 
-@section('title', 'Application Settings')
+@section('title', 'Settings')
 
 @section('content')
-    @php($activeTab = request('tab', 'general'))
+    @php
+        $activeTab = request('tab', 'general');
+        $applicationTabs = [
+            'products' => 'Service Cases',
+            'device-models' => 'Models',
+            'sources' => 'Sources',
+            'assignment' => 'Assignment',
+            'sla' => 'SLA',
+            'search' => 'Search',
+        ];
+    @endphp
 
-    <div class="mb-4">
-        <h1 class="h3 mb-1">Application Settings</h1>
-        <p class="text-muted mb-0">Configure application behavior without code changes.</p>
-    </div>
+    <x-settings-center.shell
+        title="Settings"
+        subtitle="Configure application behaviour, integrations, and platform controls."
+    >
+        @if(in_array($activeTab, array_keys($applicationTabs), true))
+            <x-settings-center.application-subnav :tabs="$applicationTabs" :active="$activeTab" />
+        @endif
 
-    @include('navigation.administration-workspace-nav', ['active' => 'settings'])
-    @include('navigation.settings-workspace-nav', ['active' => match (request('tab', 'general')) {
-        'general' => 'general',
-        'notifications' => 'notifications',
-        default => 'application',
-    }])
-
-    <div class="row g-4">
-        <div class="col-lg-3">
-            <div class="card border-0 shadow-sm">
-                <div class="list-group list-group-flush rounded-3">
-                    @foreach([
-                        'general' => 'General',
-                        'products' => 'Service Cases',
-                        'device-models' => 'Models',
-                        'sources' => 'Sources',
-                        'assignment' => 'Assignment',
-                        'notifications' => 'Notifications',
-                        'sla' => 'SLA',
-                        'search' => 'Search',
-                    ] as $tabKey => $tabLabel)
-                        <a href="{{ route('settings.index', ['tab' => $tabKey]) }}"
-                           @class(['list-group-item list-group-item-action', 'active' => $activeTab === $tabKey])>
-                            {{ $tabLabel }}
-                        </a>
-                    @endforeach
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-9">
+        <div class="settings-center-content">
             @if($activeTab === 'general')
                 @include('settings.partials.general')
             @elseif($activeTab === 'products')
@@ -59,5 +42,5 @@
                 @include('settings.partials.search')
             @endif
         </div>
-    </div>
+    </x-settings-center.shell>
 @endsection

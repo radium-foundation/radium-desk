@@ -1,8 +1,11 @@
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white py-3">
-        <h2 class="h6 mb-0">General</h2>
+<div class="settings-center-card">
+    <div class="settings-center-card__header">
+        <div class="settings-center-card__heading">
+            <h2 class="settings-center-card__title">General</h2>
+            <p class="settings-center-card__description">Company identity and regional defaults.</p>
+        </div>
     </div>
-    <div class="card-body">
+    <div class="settings-center-card__body">
         <form method="POST" action="{{ route('settings.general.update') }}">
             @csrf
             @method('PUT')
@@ -34,7 +37,7 @@
                     <div class="form-text">Logo upload will be available in a future release.</div>
                 </div>
             </div>
-            <div class="mt-4">
+            <div class="settings-center-card__footer settings-center-card__footer--inline">
                 <button type="submit" class="btn btn-primary">Save General Settings</button>
             </div>
         </form>

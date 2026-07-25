@@ -1,0 +1,143 @@
+<?php
+
+namespace App\Support\Settings;
+
+use App\Models\SettingProduct;
+use App\Models\SystemSetting;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Support\Facades\Gate;
+
+final class SettingsCenterNav
+{
+    /**
+     * @return array<int, array{label: string, items: array<int, array<string, mixed>>}>
+     */
+    public static function groups(?string $activeKey = null): array
+    {
+        $user = auth()->user();
+        $canViewApplication = $user?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)
+            && Gate::check('viewAny', SettingProduct::class);
+        $canViewSystem = Gate::check('viewAny', SystemSetting::class);
+
+        $groups = [];
+
+        $systemItems = [];
+
+        if ($canViewSystem) {
+            $systemItems[] = self::item(
+                'overview',
+                'Overview',
+                'layout-dashboard',
+                route('admin.system-settings.index').'#section-overview',
+                $activeKey === 'overview',
+            );
+        }
+
+        if ($canViewApplication) {
+            $systemItems[] = self::item(
+                'general',
+                'General',
+                'settings',
+                route('settings.index', ['tab' => 'general']),
+                $activeKey === 'general',
+            );
+            $systemItems[] = self::item(
+                'application',
+                'Application',
+                'monitor',
+                route('settings.index', ['tab' => 'products']),
+                in_array($activeKey, ['application', 'products', 'device-models', 'sources', 'assignment', 'sla', 'search'], true),
+            );
+        }
+
+        if ($systemItems !== []) {
+            $groups[] = ['label' => 'System', 'items' => $systemItems];
+        }
+
+        if ($canViewSystem) {
+            $groups[] = [
+                'label' => 'Operations',
+                'items' => [
+                    self::item(
+                        'operational-center',
+                        'Operational Center',
+                        'zap',
+                        route('admin.system-settings.index').'#section-operational-center',
+                        $activeKey === 'operational-center',
+                    ),
+                ],
+            ];
+
+            $groups[] = [
+                'label' => 'Platform',
+                'items' => [
+                    self::item(
+                        'notifications',
+                        'Notifications',
+                        'bell',
+                        $canViewApplication
+                            ? route('settings.index', ['tab' => 'notifications'])
+                            : route('admin.system-settings.index').'#category-notifications',
+                        in_array($activeKey, ['notifications', 'category-notifications'], true),
+                    ),
+                    self::item(
+                        'diagnostics',
+                        'Diagnostics',
+                        'heart-pulse',
+                        route('admin.system-settings.index').'#category-system',
+                        in_array($activeKey, ['diagnostics', 'category-system'], true),
+                    ),
+                    self::item(
+                        'advanced',
+                        'Advanced',
+                        'wrench',
+                        route('admin.system-settings.index').'#section-advanced',
+                        $activeKey === 'advanced',
+                    ),
+                ],
+            ];
+        } elseif ($canViewApplication) {
+            $groups[] = [
+                'label' => 'Platform',
+                'items' => [
+                    self::item(
+                        'notifications',
+                        'Notifications',
+                        'bell',
+                        route('settings.index', ['tab' => 'notifications']),
+                        $activeKey === 'notifications',
+                    ),
+                ],
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function item(string $key, string $label, string $icon, string $url, bool $active): array
+    {
+        return [
+            'key' => $key,
+            'label' => $label,
+            'icon' => $icon,
+            'url' => $url,
+            'active' => $active,
+        ];
+    }
+
+    public static function resolveActiveKey(): string
+    {
+        if (request()->routeIs('admin.system-settings.*')) {
+            return 'overview';
+        }
+
+        return match (request('tab', 'general')) {
+            'general' => 'general',
+            'notifications' => 'notifications',
+            default => 'application',
+        };
+    }
+}

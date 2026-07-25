@@ -1,15 +1,18 @@
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-white py-3">
-        <h2 class="h6 mb-0">Products</h2>
+<div class="settings-center-card">
+    <div class="settings-center-card__header">
+        <div class="settings-center-card__heading">
+            <h2 class="settings-center-card__title">Service Cases</h2>
+            <p class="settings-center-card__description">Manage product types available for new service requests.</p>
+        </div>
     </div>
-    <div class="card-body p-0">
+    <div class="settings-center-card__body settings-center-card__body--flush">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+            <table class="table settings-center-table align-middle mb-0">
+                <thead>
                     <tr>
+                        <th>Status</th>
                         <th>Name</th>
                         <th>Sort Order</th>
-                        <th>Status</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -17,31 +20,32 @@
                     @foreach($products as $product)
                         <tr>
                             <td>
+                                <span @class([
+                                    'settings-center-status-pill settings-center-status-pill--sm',
+                                    'settings-center-status-pill--success' => $product->is_enabled,
+                                    'settings-center-status-pill--neutral' => ! $product->is_enabled,
+                                ])>
+                                    <span class="settings-center-status-pill__dot" aria-hidden="true"></span>
+                                    {{ $product->is_enabled ? 'Enabled' : 'Disabled' }}
+                                </span>
+                            </td>
+                            <td>
                                 <form method="POST" action="{{ route('settings.products.update', $product) }}" id="product-form-{{ $product->id }}">
                                     @csrf
                                     @method('PUT')
-                                    <input type="text" name="name" class="form-control form-control-sm" value="{{ $product->name }}" required form="product-form-{{ $product->id }}">
+                                    <input type="text" name="name" class="form-control form-control-sm settings-center-table-input" value="{{ $product->name }}" required form="product-form-{{ $product->id }}">
                             </td>
                             <td>
-                                    <input type="number" name="sort_order" class="form-control form-control-sm" value="{{ $product->sort_order }}" min="0" required form="product-form-{{ $product->id }}">
-                            </td>
-                            <td>
-                                @if($product->is_enabled)
-                                    <span class="badge text-bg-success">Enabled</span>
-                                @else
-                                    <span class="badge text-bg-secondary">Disabled</span>
-                                @endif
+                                    <input type="number" name="sort_order" class="form-control form-control-sm settings-center-table-input settings-center-table-input--narrow" value="{{ $product->sort_order }}" min="0" required form="product-form-{{ $product->id }}">
                             </td>
                             <td class="text-end">
-                                    <button type="submit" class="btn btn-sm btn-outline-primary" form="product-form-{{ $product->id }}">Save</button>
                                 </form>
-                                <form method="POST" action="{{ route('settings.products.toggle', $product) }}" class="d-inline">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit" class="btn btn-sm btn-outline-{{ $product->is_enabled ? 'warning' : 'success' }}">
-                                        {{ $product->is_enabled ? 'Disable' : 'Enable' }}
-                                    </button>
-                                </form>
+                                <x-settings-center.table-actions
+                                    :save-form-id="'product-form-'.$product->id"
+                                    :toggle-url="route('settings.products.toggle', $product)"
+                                    :is-enabled="$product->is_enabled"
+                                    entity-label="product"
+                                />
                             </td>
                         </tr>
                     @endforeach
@@ -51,11 +55,11 @@
     </div>
 </div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white py-3">
-        <h2 class="h6 mb-0">Add Product</h2>
+<div class="settings-center-card mt-3">
+    <div class="settings-center-card__header">
+        <h2 class="settings-center-card__title">Add Service Case Type</h2>
     </div>
-    <div class="card-body">
+    <div class="settings-center-card__body">
         <form method="POST" action="{{ route('settings.products.store') }}" class="row g-3 align-items-end">
             @csrf
             <div class="col-md-6">

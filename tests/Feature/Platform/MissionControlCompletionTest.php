@@ -111,14 +111,15 @@ class MissionControlCompletionTest extends TestCase
         $this->assertMatchesRegularExpression('/aria-label="Mission Control workspace".*?Platform Health/s', $html);
     }
 
-    public function test_system_settings_shows_administration_and_settings_workspace_nav(): void
+    public function test_system_settings_shows_unified_settings_center(): void
     {
         $this->actingAs($this->createSuperadmin())
             ->get(route('admin.system-settings.index'))
             ->assertOk()
-            ->assertSee('aria-label="Administration workspace"', false)
-            ->assertSee('aria-label="Settings workspace"', false)
-            ->assertSee('id="realtime-settings-card"', false);
+            ->assertSee('aria-label="Settings"', false)
+            ->assertSee('Operational Center', false)
+            ->assertSee('id="realtime-settings-card"', false)
+            ->assertDontSee('aria-label="Settings workspace"', false);
     }
 
     public function test_existing_platform_routes_remain_reachable(): void

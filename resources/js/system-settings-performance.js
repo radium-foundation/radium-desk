@@ -15,6 +15,8 @@ export const initSystemSettingsPerformance = () => {
 
     const profileInputs = root.querySelectorAll('[data-performance-profile-option]');
     const pollingInputs = root.querySelectorAll('[data-performance-polling-input]');
+    const manualConfigSection = root.querySelector('[data-performance-manual-config]');
+    const profileCards = root.querySelectorAll('.system-settings-profile-card');
 
     const selectedProfile = () => {
         const checked = root.querySelector('[data-performance-profile-option]:checked');
@@ -44,14 +46,31 @@ export const initSystemSettingsPerformance = () => {
                 return;
             }
 
-            const hiddenSibling = input.closest('.border')?.querySelector('input[type="hidden"][name="' + input.name + '"]');
+            const hiddenSibling = input.closest('[data-setting-row]')?.querySelector('input[type="hidden"][name="' + input.name + '"]');
 
             if (hiddenSibling) {
                 return;
             }
 
             input.readOnly = ! editable;
-            input.classList.toggle('bg-light', ! editable);
+            input.closest('[data-setting-row]')?.classList.toggle('system-settings-row--readonly', ! editable);
+        });
+    };
+
+    const setManualConfigVisible = (visible) => {
+        if (! manualConfigSection) {
+            return;
+        }
+
+        manualConfigSection.hidden = ! visible;
+    };
+
+    const syncProfileCardSelection = () => {
+        const profile = selectedProfile();
+
+        profileCards.forEach((card) => {
+            const input = card.querySelector('[data-performance-profile-option]');
+            card.classList.toggle('system-settings-profile-card--selected', input?.checked ?? false);
         });
     };
 
@@ -59,7 +78,9 @@ export const initSystemSettingsPerformance = () => {
         const profile = selectedProfile();
         const isManual = profile === 'manual';
 
+        setManualConfigVisible(isManual);
         setPollingEditable(isManual);
+        syncProfileCardSelection();
 
         if (! isManual) {
             applyPreset(profile);
@@ -80,7 +101,9 @@ export const initSystemSettingsPerformance = () => {
 
             if (manualInput) {
                 manualInput.checked = true;
+                setManualConfigVisible(true);
                 setPollingEditable(true);
+                syncProfileCardSelection();
             }
         });
     });
