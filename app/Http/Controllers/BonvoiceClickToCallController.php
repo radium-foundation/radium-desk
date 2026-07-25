@@ -7,6 +7,7 @@ use App\Http\Requests\BonvoiceClickToCallRequest;
 use App\Services\Bonvoice\BonvoiceClickToCallContextResolver;
 use App\Services\Bonvoice\BonvoiceClickToCallMetrics;
 use App\Services\Bonvoice\BonvoiceClickToCallService;
+use App\Support\Bonvoice\BonvoiceClickToCallSupportReference;
 use Illuminate\Http\JsonResponse;
 
 class BonvoiceClickToCallController extends Controller
@@ -28,43 +29,30 @@ class BonvoiceClickToCallController extends Controller
         );
 
         $fallbackTel = $context->customerPhone !== '' ? 'tel:'.$context->customerPhone : null;
+        $logContext = [
+            'user_id' => $request->user()->id,
+            'incident_id' => $context->incidentId(),
+            'order_id' => $context->orderId(),
+        ];
 
         if ($context->customerDialable === '') {
-            $correlationId = $this->clickToCallService->generateEventId();
-            $this->metrics->recordFailure(
+            return $this->controllerFailureResponse(
                 failureCode: BonvoiceClickToCallFailureCode::CustomerPhone,
-                correlationId: $correlationId,
+                message: BonvoiceClickToCallFailureCode::CustomerPhone->userMessage(),
+                fallbackTel: null,
+                logContext: $logContext,
+                status: 422,
             );
-
-            return response()->json([
-                'success' => false,
-                'message' => BonvoiceClickToCallFailureCode::CustomerPhone->userMessage(),
-                'failure_code' => BonvoiceClickToCallFailureCode::CustomerPhone->value,
-                'correlation_id' => $correlationId,
-                'event_id' => null,
-                'fallback_tel' => null,
-                'fallback_available' => false,
-                'retriable' => false,
-            ], 422);
         }
 
         if (! $this->clickToCallService->isEnabled()) {
-            $correlationId = $this->clickToCallService->generateEventId();
-            $this->metrics->recordFailure(
+            return $this->controllerFailureResponse(
                 failureCode: BonvoiceClickToCallFailureCode::Disabled,
-                correlationId: $correlationId,
+                message: BonvoiceClickToCallFailureCode::Disabled->userMessage(),
+                fallbackTel: $fallbackTel,
+                logContext: $logContext,
+                status: 503,
             );
-
-            return response()->json([
-                'success' => false,
-                'message' => BonvoiceClickToCallFailureCode::Disabled->userMessage(),
-                'failure_code' => BonvoiceClickToCallFailureCode::Disabled->value,
-                'correlation_id' => $correlationId,
-                'event_id' => null,
-                'fallback_tel' => $fallbackTel,
-                'fallback_available' => $fallbackTel !== null,
-                'retriable' => false,
-            ], 503);
         }
 
         $result = $this->clickToCallService->initiateCall(
@@ -75,16 +63,16 @@ class BonvoiceClickToCallController extends Controller
         if (! $result->success) {
             $failureCode = $result->failureCode ?? BonvoiceClickToCallFailureCode::InvalidResponse;
 
-            return response()->json([
-                'success' => false,
-                'message' => $failureCode->userMessage(),
-                'failure_code' => $failureCode->value,
-                'correlation_id' => $result->correlationId,
-                'event_id' => $result->eventId,
-                'fallback_tel' => $fallbackTel,
-                'fallback_available' => $fallbackTel !== null,
-                'retriable' => $result->retriable,
-            ], $result->httpStatus && $result->httpStatus >= 400 ? $result->httpStatus : 422);
+            return $this->failureResponse(
+                failureCode: $failureCode,
+                message: $failureCode->userMessage(),
+                referenceId: $result->referenceId,
+                correlationId: $result->correlationId,
+                eventId: $result->eventId,
+                retriable: $result->retriable,
+                fallbackTel: $fallbackTel,
+                status: $result->httpStatus && $result->httpStatus >= 400 ? $result->httpStatus : 422,
+            );
         }
 
         return response()->json([
@@ -95,5 +83,69 @@ class BonvoiceClickToCallController extends Controller
             'fallback_tel' => $fallbackTel,
             'fallback_available' => $fallbackTel !== null,
         ]);
+    }
+
+    /**
+     * @param  array<string, int|string|null>  $logContext
+     */
+    private function controllerFailureResponse(
+        BonvoiceClickToCallFailureCode $failureCode,
+        string $message,
+        ?string $fallbackTel,
+        array $logContext,
+        int $status,
+    ): JsonResponse {
+        $correlationId = $this->clickToCallService->generateEventId();
+        $referenceId = BonvoiceClickToCallSupportReference::format(correlationId: $correlationId);
+
+        BonvoiceClickToCallSupportReference::logFailure(
+            referenceId: $referenceId,
+            failureCode: $failureCode,
+            context: [
+                ...$logContext,
+                'correlation_id' => $correlationId,
+            ],
+            retriable: false,
+        );
+
+        $this->metrics->recordFailure(
+            failureCode: $failureCode,
+            correlationId: $correlationId,
+        );
+
+        return $this->failureResponse(
+            failureCode: $failureCode,
+            message: $message,
+            referenceId: $referenceId,
+            correlationId: $correlationId,
+            eventId: null,
+            retriable: false,
+            fallbackTel: $fallbackTel,
+            status: $status,
+        );
+    }
+
+    private function failureResponse(
+        BonvoiceClickToCallFailureCode $failureCode,
+        string $message,
+        ?string $referenceId,
+        ?string $correlationId,
+        ?string $eventId,
+        bool $retriable,
+        ?string $fallbackTel,
+        int $status,
+    ): JsonResponse {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'failure_code' => $failureCode->value,
+            'correlation_id' => $correlationId,
+            'reference_id' => $referenceId,
+            'event_id' => $eventId,
+            'timestamp' => now()->toIso8601String(),
+            'fallback_tel' => $fallbackTel,
+            'fallback_available' => $fallbackTel !== null,
+            'retriable' => $retriable,
+        ], $status);
     }
 }

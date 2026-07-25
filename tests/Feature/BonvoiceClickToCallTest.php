@@ -12,6 +12,7 @@ use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class BonvoiceClickToCallTest extends TestCase
@@ -60,7 +61,8 @@ class BonvoiceClickToCallTest extends TestCase
                 'message' => 'Calling your registered mobile...',
                 'fallback_available' => true,
             ])
-            ->assertJsonStructure(['event_id', 'fallback_tel']);
+            ->assertJsonStructure(['event_id', 'fallback_tel'])
+            ->assertJsonMissing(['reference_id', 'timestamp', 'failure_code']);
 
         Http::assertSent(fn ($request): bool => str_contains($request->url(), '/autoDialManagement/autoCallBridging/'));
     }
@@ -122,7 +124,7 @@ class BonvoiceClickToCallTest extends TestCase
 
         [$agent, $incident] = $this->createAssignedIncident();
 
-        $this->actingAs($agent)
+        $response = $this->actingAs($agent)
             ->postJson(route('bonvoice.click-to-call'), [
                 'incident_id' => $incident->id,
             ])
@@ -134,12 +136,16 @@ class BonvoiceClickToCallTest extends TestCase
                 'fallback_available' => true,
                 'retriable' => false,
             ])
-            ->assertJsonStructure(['correlation_id'])
+            ->assertJsonStructure(['correlation_id', 'reference_id', 'timestamp'])
             ->assertJsonMissing(['use_fallback' => true]);
+
+        $this->assertMatchesRegularExpression('/^BV-[A-F0-9]{8}$/', (string) $response->json('reference_id'));
     }
 
     public function test_click_to_call_returns_retriable_failure_on_api_error(): void
     {
+        Log::spy();
+
         Http::fake([
             'backend.pbx.bonvoice.com/usermanagement/external-auth/*' => Http::response([
                 'status' => '1',
@@ -150,7 +156,7 @@ class BonvoiceClickToCallTest extends TestCase
 
         [$agent, $incident] = $this->createAssignedIncident();
 
-        $this->actingAs($agent)
+        $response = $this->actingAs($agent)
             ->postJson(route('bonvoice.click-to-call'), [
                 'incident_id' => $incident->id,
             ])
@@ -162,8 +168,22 @@ class BonvoiceClickToCallTest extends TestCase
                 'retriable' => true,
                 'fallback_available' => true,
             ])
-            ->assertJsonStructure(['correlation_id', 'event_id'])
+            ->assertJsonStructure(['correlation_id', 'event_id', 'reference_id', 'timestamp'])
             ->assertJsonMissing(['use_fallback' => true]);
+
+        $referenceId = (string) $response->json('reference_id');
+        $this->assertMatchesRegularExpression('/^BV-[A-F0-9]{8}$/', $referenceId);
+        $this->assertSame('Automatic calling failed.', $response->json('message'));
+        $this->assertArrayNotHasKey('provider_response_description', $response->json());
+        $this->assertArrayNotHasKey('provider_response_code', $response->json());
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context) use ($referenceId): bool {
+                return $message === '[BonVoice Click-to-Call] Failure'
+                    && ($context['reference_id'] ?? null) === $referenceId
+                    && ($context['failure_code'] ?? null) === 'provider_http';
+            })
+            ->once();
     }
 
     public function test_click_to_call_returns_agent_phone_failure_code_when_extension_missing(): void
@@ -188,6 +208,8 @@ class BonvoiceClickToCallTest extends TestCase
             (string) $response->json('message'),
         );
         $this->assertNotEmpty($response->json('correlation_id'));
+        $this->assertMatchesRegularExpression('/^BV-[A-F0-9]{8}$/', (string) $response->json('reference_id'));
+        $this->assertNotEmpty($response->json('timestamp'));
     }
 
     public function test_click_to_call_requires_customer_phone(): void

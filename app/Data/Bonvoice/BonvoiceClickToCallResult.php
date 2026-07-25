@@ -10,6 +10,7 @@ readonly class BonvoiceClickToCallResult
         public bool $success,
         public ?string $eventId = null,
         public ?string $correlationId = null,
+        public ?string $referenceId = null,
         public ?string $message = null,
         public ?string $errorMessage = null,
         public ?BonvoiceClickToCallFailureCode $failureCode = null,
@@ -32,13 +33,17 @@ readonly class BonvoiceClickToCallResult
         BonvoiceClickToCallFailureCode $failureCode,
         ?string $eventId = null,
         ?string $correlationId = null,
+        ?string $referenceId = null,
         ?int $httpStatus = null,
         bool $retriable = false,
     ): self {
+        $resolvedCorrelationId = $correlationId ?? $eventId;
+
         return new self(
             success: false,
             eventId: $eventId,
-            correlationId: $correlationId ?? $eventId,
+            correlationId: $resolvedCorrelationId,
+            referenceId: $referenceId,
             errorMessage: $errorMessage,
             failureCode: $failureCode,
             httpStatus: $httpStatus,

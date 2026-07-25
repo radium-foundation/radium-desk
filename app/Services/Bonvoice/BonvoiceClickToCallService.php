@@ -6,6 +6,7 @@ use App\Data\Bonvoice\BonvoiceClickToCallContext;
 use App\Data\Bonvoice\BonvoiceClickToCallResult;
 use App\Enums\BonvoiceClickToCallFailureCode;
 use App\Models\User;
+use App\Support\Bonvoice\BonvoiceClickToCallSupportReference;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -30,10 +31,17 @@ class BonvoiceClickToCallService
 
     public function initiateCall(User $agent, BonvoiceClickToCallContext $context): BonvoiceClickToCallResult
     {
+        $logContext = [
+            'user_id' => $agent->id,
+            'incident_id' => $context->incidentId(),
+            'order_id' => $context->orderId(),
+        ];
+
         if (! $this->isEnabled()) {
             return $this->fail(
                 errorMessage: 'BonVoice Click-to-Call is not configured.',
                 failureCode: BonvoiceClickToCallFailureCode::NotConfigured,
+                logContext: $logContext,
             );
         }
 
@@ -43,6 +51,7 @@ class BonvoiceClickToCallService
             return $this->fail(
                 errorMessage: 'Your BonVoice mobile number is not configured. Ask an admin to set it on your user profile.',
                 failureCode: BonvoiceClickToCallFailureCode::AgentPhone,
+                logContext: $logContext,
             );
         }
 
@@ -50,6 +59,7 @@ class BonvoiceClickToCallService
             return $this->fail(
                 errorMessage: 'Customer phone number is not valid for calling.',
                 failureCode: BonvoiceClickToCallFailureCode::CustomerPhone,
+                logContext: $logContext,
             );
         }
 
@@ -59,6 +69,7 @@ class BonvoiceClickToCallService
             return $this->fail(
                 errorMessage: 'BonVoice outbound DID is not configured.',
                 failureCode: BonvoiceClickToCallFailureCode::NotConfigured,
+                logContext: $logContext,
             );
         }
 
@@ -132,48 +143,35 @@ class BonvoiceClickToCallService
                 ->withHeaders($this->authentication->headers())
                 ->post('/autoDialManagement/autoCallBridging/', $body);
         } catch (ConnectionException $exception) {
-            Log::warning('[BonVoice Click-to-Call] Connection failed', [
-                ...$context,
-                'failure_code' => BonvoiceClickToCallFailureCode::Connection->value,
-                'message' => $exception->getMessage(),
-                'execution_time_ms' => $this->executionTimeMs($startedAt),
-            ]);
-
             return $this->fail(
                 errorMessage: 'Automatic calling failed.',
                 failureCode: BonvoiceClickToCallFailureCode::Connection,
                 eventId: $eventId,
+                correlationId: isset($context['correlation_id']) ? (string) $context['correlation_id'] : $eventId,
                 retriable: true,
+                logContext: $context,
+                executionTimeMs: $this->executionTimeMs($startedAt),
             );
         } catch (RuntimeException $exception) {
-            Log::warning('[BonVoice Click-to-Call] Authentication failed', [
-                ...$context,
-                'failure_code' => BonvoiceClickToCallFailureCode::Auth->value,
-                'message' => $exception->getMessage(),
-                'execution_time_ms' => $this->executionTimeMs($startedAt),
-            ]);
-
             return $this->fail(
                 errorMessage: 'Automatic calling failed.',
                 failureCode: BonvoiceClickToCallFailureCode::Auth,
                 eventId: $eventId,
+                correlationId: isset($context['correlation_id']) ? (string) $context['correlation_id'] : $eventId,
                 httpStatus: 503,
                 retriable: true,
+                logContext: $context,
+                executionTimeMs: $this->executionTimeMs($startedAt),
             );
         } catch (Throwable $exception) {
-            Log::warning('[BonVoice Click-to-Call] Unexpected dispatch failure', [
-                ...$context,
-                'failure_code' => BonvoiceClickToCallFailureCode::Connection->value,
-                'message' => $exception->getMessage(),
-                'exception' => $exception::class,
-                'execution_time_ms' => $this->executionTimeMs($startedAt),
-            ]);
-
             return $this->fail(
                 errorMessage: 'Automatic calling failed.',
                 failureCode: BonvoiceClickToCallFailureCode::Connection,
                 eventId: $eventId,
+                correlationId: isset($context['correlation_id']) ? (string) $context['correlation_id'] : $eventId,
                 retriable: true,
+                logContext: $context,
+                executionTimeMs: $this->executionTimeMs($startedAt),
             );
         }
 
@@ -198,77 +196,78 @@ class BonvoiceClickToCallService
     {
         $responseBody = $response->json();
         $eventId = isset($context['event_id']) ? (string) $context['event_id'] : null;
+        $correlationId = isset($context['correlation_id']) ? (string) $context['correlation_id'] : $eventId;
         $providerDescription = is_array($responseBody)
             ? data_get($responseBody, 'responseDescription')
             : null;
+        $providerResponseCode = is_array($responseBody)
+            ? (int) data_get($responseBody, 'responseCode', 0)
+            : null;
+        $executionTimeMs = $this->executionTimeMs($startedAt);
         $logContext = [
             ...$context,
-            'response' => is_array($responseBody) ? $responseBody : $response->body(),
-            'provider_response_description' => is_string($providerDescription) ? $providerDescription : null,
-            'http_status' => $response->status(),
-            'execution_time_ms' => $this->executionTimeMs($startedAt),
+            'correlation_id' => $correlationId,
         ];
+        $fail = fn (
+            BonvoiceClickToCallFailureCode $failureCode,
+            ?int $httpStatus = null,
+            bool $retriable = false,
+            ?int $responseCode = null,
+            ?string $responseDescription = null,
+        ) => $this->fail(
+            errorMessage: 'Automatic calling failed.',
+            failureCode: $failureCode,
+            eventId: $eventId,
+            correlationId: $correlationId,
+            httpStatus: $httpStatus,
+            retriable: $retriable,
+            logContext: $logContext,
+            executionTimeMs: $executionTimeMs,
+            providerResponseCode: $responseCode,
+            providerResponseDescription: $responseDescription,
+        );
 
         if ($response->status() === 429 || $response->serverError()) {
-            Log::warning('[BonVoice Click-to-Call] Retriable API failure', [
-                ...$logContext,
-                'failure_code' => BonvoiceClickToCallFailureCode::ProviderHttp->value,
-            ]);
-
-            return $this->fail(
-                errorMessage: 'Automatic calling failed.',
+            return $fail(
                 failureCode: BonvoiceClickToCallFailureCode::ProviderHttp,
-                eventId: $eventId,
                 httpStatus: $response->status(),
                 retriable: true,
+                responseCode: $providerResponseCode ?: null,
+                responseDescription: is_string($providerDescription) ? $providerDescription : null,
             );
         }
 
         if ($response->failed()) {
-            Log::warning('[BonVoice Click-to-Call] API rejected request', [
-                ...$logContext,
-                'failure_code' => BonvoiceClickToCallFailureCode::ProviderHttp->value,
-            ]);
-
-            return $this->fail(
-                errorMessage: 'Automatic calling failed.',
+            return $fail(
                 failureCode: BonvoiceClickToCallFailureCode::ProviderHttp,
-                eventId: $eventId,
                 httpStatus: $response->status(),
+                responseCode: $providerResponseCode ?: null,
+                responseDescription: is_string($providerDescription) ? $providerDescription : null,
             );
         }
 
         if (! is_array($responseBody)) {
-            Log::warning('[BonVoice Click-to-Call] Invalid response body', [
-                ...$logContext,
-                'failure_code' => BonvoiceClickToCallFailureCode::InvalidResponse->value,
-            ]);
-
-            return $this->fail(
-                errorMessage: 'Automatic calling failed.',
+            return $fail(
                 failureCode: BonvoiceClickToCallFailureCode::InvalidResponse,
-                eventId: $eventId,
             );
         }
 
-        $responseCode = (int) data_get($responseBody, 'responseCode', 0);
-
-        if ($responseCode !== 200) {
-            Log::warning('[BonVoice Click-to-Call] API returned non-success response', [
-                ...$logContext,
-                'failure_code' => BonvoiceClickToCallFailureCode::ProviderResponse->value,
-                'provider_response_code' => $responseCode,
-            ]);
-
-            return $this->fail(
-                errorMessage: 'Automatic calling failed.',
+        if ($providerResponseCode !== 200) {
+            return $fail(
                 failureCode: BonvoiceClickToCallFailureCode::ProviderResponse,
-                eventId: $eventId,
                 httpStatus: $response->status(),
+                responseCode: $providerResponseCode,
+                responseDescription: is_string($providerDescription) ? $providerDescription : null,
             );
         }
 
-        Log::info('[BonVoice Click-to-Call] Call initiated', $logContext);
+        Log::info('[BonVoice Click-to-Call] Call initiated', [
+            ...$logContext,
+            'response' => $responseBody,
+            'provider_response_description' => is_string($providerDescription) ? $providerDescription : null,
+            'http_status' => $response->status(),
+            'execution_time_ms' => $executionTimeMs,
+        ]);
 
         $result = BonvoiceClickToCallResult::success(
             eventId: (string) ($context['event_id'] ?? ''),
@@ -286,14 +285,34 @@ class BonvoiceClickToCallService
         ?string $correlationId = null,
         ?int $httpStatus = null,
         bool $retriable = false,
+        array $logContext = [],
+        ?float $executionTimeMs = null,
+        ?int $providerResponseCode = null,
+        ?string $providerResponseDescription = null,
     ): BonvoiceClickToCallResult {
         $correlationId ??= $eventId ?? $this->generateEventId();
+        $referenceId = BonvoiceClickToCallSupportReference::format($eventId, $correlationId);
+
+        BonvoiceClickToCallSupportReference::logFailure(
+            referenceId: $referenceId,
+            failureCode: $failureCode,
+            context: [
+                ...$logContext,
+                'event_id' => $eventId ?? ($logContext['event_id'] ?? null),
+                'correlation_id' => $correlationId,
+            ],
+            retriable: $retriable,
+            executionTimeMs: $executionTimeMs,
+            providerResponseCode: $providerResponseCode,
+            providerResponseDescription: $providerResponseDescription,
+        );
 
         $result = BonvoiceClickToCallResult::failure(
             errorMessage: $errorMessage,
             failureCode: $failureCode,
             eventId: $eventId,
             correlationId: $correlationId,
+            referenceId: $referenceId,
             httpStatus: $httpStatus,
             retriable: $retriable,
         );

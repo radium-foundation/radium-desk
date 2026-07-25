@@ -1,5 +1,15 @@
 const getCsrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
+export const appendSupportReference = (message, referenceId) => {
+    const base = message || 'Automatic calling failed.';
+
+    if (!referenceId || typeof referenceId !== 'string') {
+        return base;
+    }
+
+    return `${base}\n\nRef: ${referenceId}`;
+};
+
 const openTelFallback = (telUrl) => {
     if (!telUrl) {
         return;
@@ -29,7 +39,7 @@ const buildRequestBody = (button) => {
     return null;
 };
 
-const showFailureToast = (button, { showToast, fallbackTel, retriable = false, message = null }) => {
+const showFailureToast = (button, { showToast, fallbackTel, retriable = false, message = null, referenceId = null }) => {
     const actions = [];
 
     if (retriable) {
@@ -50,7 +60,7 @@ const showFailureToast = (button, { showToast, fallbackTel, retriable = false, m
 
     if (typeof showToast === 'function') {
         showToast({
-            message: message || 'Automatic calling failed.',
+            message: appendSupportReference(message, referenceId),
             variant: 'danger',
             actions,
         });
@@ -87,6 +97,7 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
         const message = typeof payload.message === 'string' ? payload.message : null;
         const fallbackUrl = typeof payload.fallback_tel === 'string' ? payload.fallback_tel : fallbackTel;
         const retriable = payload.retriable === true;
+        const referenceId = typeof payload.reference_id === 'string' ? payload.reference_id : null;
 
         if (response.ok && payload.success === true) {
             showToast?.(message ?? 'Calling your registered mobile...', 'success');
@@ -99,6 +110,7 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
             fallbackTel: fallbackUrl,
             retriable,
             message,
+            referenceId,
         });
 
         return { success: false, usedFallback: false, payload };

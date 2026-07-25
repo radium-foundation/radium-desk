@@ -14,6 +14,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class BonvoiceClickToCallServiceTest extends TestCase
@@ -67,6 +68,7 @@ class BonvoiceClickToCallServiceTest extends TestCase
         $this->assertSame(BonvoiceClickToCallFailureCode::AgentPhone, $result->failureCode);
         $this->assertStringContainsString('BonVoice mobile number is not configured', (string) $result->errorMessage);
         $this->assertNotEmpty($result->correlationId);
+        $this->assertMatchesRegularExpression('/^BV-[A-F0-9]{8}$/', (string) $result->referenceId);
     }
 
     public function test_initiate_call_posts_expected_payload_to_bonvoice(): void
@@ -146,6 +148,8 @@ class BonvoiceClickToCallServiceTest extends TestCase
 
     public function test_initiate_call_returns_retriable_failure_on_connection_error(): void
     {
+        Log::spy();
+
         Http::fake([
             'backend.pbx.bonvoice.com/usermanagement/external-auth/*' => Http::response([
                 'status' => '1',
@@ -167,6 +171,16 @@ class BonvoiceClickToCallServiceTest extends TestCase
         $this->assertSame('Automatic calling failed.', $result->errorMessage);
         $this->assertNotEmpty($result->eventId);
         $this->assertSame($result->eventId, $result->correlationId);
+        $this->assertMatchesRegularExpression('/^BV-[A-F0-9]{8}$/', (string) $result->referenceId);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context) use ($result): bool {
+                return $message === '[BonVoice Click-to-Call] Failure'
+                    && ($context['reference_id'] ?? null) === $result->referenceId
+                    && ($context['failure_code'] ?? null) === 'connection'
+                    && ($context['event_id'] ?? null) === $result->eventId;
+            })
+            ->once();
     }
 
     public function test_initiate_call_returns_failure_when_bonvoice_rejects_request(): void
@@ -195,6 +209,7 @@ class BonvoiceClickToCallServiceTest extends TestCase
         $this->assertSame('Automatic calling failed.', $result->errorMessage);
         $this->assertFalse($result->retriable);
         $this->assertNotEmpty($result->eventId);
+        $this->assertMatchesRegularExpression('/^BV-[A-F0-9]{8}$/', (string) $result->referenceId);
     }
 
     public function test_initiate_call_maps_auth_failure_to_auth_failure_code(): void
