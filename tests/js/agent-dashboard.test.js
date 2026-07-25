@@ -6,6 +6,7 @@ import {
     dismissAppointmentBanner,
     initAgentDashboard,
     openCustomer360ForAppointment,
+    rememberLastCustomer,
 } from '../../resources/js/agent-dashboard';
 import { applyPartialDashboardUpdate } from '../../resources/js/live-dashboard';
 
@@ -86,6 +87,71 @@ describe('agent dashboard polish', () => {
         dismissAppointmentBanner(pageRoot, '42');
 
         expect(localStorage.setItem).toHaveBeenCalledWith('radium.agent.appointmentBanner.dismissed.42', '1');
+    });
+
+    it('renders recent customer shortcuts from storage', () => {
+        const storage = new Map([
+            ['radium.agent.recentCustomers', JSON.stringify([
+                { incidentId: '101', referenceLabel: 'SC10101', openedAt: '2026-07-12T10:00:00.000Z' },
+                { incidentId: '98', referenceLabel: 'SC10098', openedAt: '2026-07-12T09:00:00.000Z' },
+                { incidentId: '81', referenceLabel: 'SC10081', openedAt: '2026-07-12T08:00:00.000Z' },
+            ])],
+        ]);
+
+        vi.stubGlobal('localStorage', {
+            getItem: vi.fn((key) => storage.get(key) ?? null),
+            setItem: vi.fn((key, value) => storage.set(key, value)),
+            removeItem: vi.fn((key) => storage.delete(key)),
+        });
+
+        document.body.innerHTML = `
+            <div id="dashboard-page">
+                <div class="dashboard-recent-customers d-none"
+                     data-agent-recent-customers
+                     hidden>
+                    <span class="dashboard-recent-customers__label">Recent Customers</span>
+                    <div class="dashboard-recent-customers__chips"
+                         data-agent-recent-customers-list></div>
+                </div>
+            </div>
+        `;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        const host = pageRoot.querySelector('[data-agent-recent-customers]');
+        const dashboard = initAgentDashboard({ pageRoot });
+
+        expect(host?.hidden).toBe(false);
+        expect(host?.querySelectorAll('.dashboard-recent-customers__chip')).toHaveLength(3);
+        expect(host?.textContent).toContain('SC10101');
+        expect(host?.textContent).toContain('SC10098');
+        expect(host?.textContent).toContain('SC10081');
+
+        dashboard?.destroy();
+    });
+
+    it('stores up to three recent customers with most recent first', () => {
+        const storage = new Map();
+
+        vi.stubGlobal('localStorage', {
+            getItem: vi.fn((key) => storage.get(key) ?? null),
+            setItem: vi.fn((key, value) => storage.set(key, value)),
+            removeItem: vi.fn((key) => storage.delete(key)),
+        });
+
+        rememberLastCustomer('1', 'SC10001');
+        rememberLastCustomer('2', 'SC10002');
+        rememberLastCustomer('3', 'SC10003');
+        rememberLastCustomer('4', 'SC10004');
+        rememberLastCustomer('2', 'SC10002');
+
+        const recent = JSON.parse(storage.get('radium.agent.recentCustomers') ?? '[]');
+
+        expect(recent).toHaveLength(3);
+        expect(recent.map((entry) => entry.referenceLabel)).toEqual([
+            'SC10002',
+            'SC10004',
+            'SC10003',
+        ]);
     });
 });
 

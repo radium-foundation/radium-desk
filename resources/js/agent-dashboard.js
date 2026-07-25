@@ -1,4 +1,6 @@
 const LAST_CUSTOMER_STORAGE_KEY = 'radium.agent.lastCustomer';
+const RECENT_CUSTOMERS_STORAGE_KEY = 'radium.agent.recentCustomers';
+const MAX_RECENT_CUSTOMERS = 3;
 const NOTIFICATION_PERMISSION_KEY = 'radium.agent.appointmentNotifications.permissionRequested';
 const NOTIFICATION_SENT_PREFIX = 'radium.agent.appointmentNotifications.sent.';
 const BANNER_DISMISSED_PREFIX = 'radium.agent.appointmentBanner.dismissed.';
@@ -8,36 +10,69 @@ const REMINDER_THRESHOLDS = [30, 10, 0];
 export const CUSTOMER360_APPOINTMENT_TAB = 'overview';
 export const CUSTOMER360_APPOINTMENT_ANCHOR = 'support-appointments';
 
-const readLastCustomer = () => {
-    try {
-        const raw = localStorage.getItem(LAST_CUSTOMER_STORAGE_KEY);
-
-        if (!raw) {
-            return null;
-        }
-
-        const parsed = JSON.parse(raw);
-
-        if (!parsed?.incidentId) {
-            return null;
-        }
-
-        return parsed;
-    } catch {
+const normalizeRecentCustomer = (entry) => {
+    if (!entry?.incidentId) {
         return null;
+    }
+
+    return {
+        incidentId: String(entry.incidentId),
+        referenceLabel: entry.referenceLabel ?? entry.customerName ?? 'Customer',
+        openedAt: entry.openedAt ?? null,
+    };
+};
+
+const readRecentCustomers = () => {
+    try {
+        const raw = localStorage.getItem(RECENT_CUSTOMERS_STORAGE_KEY);
+
+        if (raw) {
+            const parsed = JSON.parse(raw);
+
+            if (Array.isArray(parsed)) {
+                return parsed
+                    .map(normalizeRecentCustomer)
+                    .filter(Boolean)
+                    .slice(0, MAX_RECENT_CUSTOMERS);
+            }
+        }
+
+        const legacyRaw = localStorage.getItem(LAST_CUSTOMER_STORAGE_KEY);
+
+        if (!legacyRaw) {
+            return [];
+        }
+
+        const legacyEntry = normalizeRecentCustomer(JSON.parse(legacyRaw));
+
+        return legacyEntry ? [legacyEntry] : [];
+    } catch {
+        return [];
     }
 };
 
-export const rememberLastCustomer = (incidentId, customerName = '') => {
+export const rememberLastCustomer = (incidentId, referenceLabel = '') => {
     if (!incidentId) {
         return;
     }
 
+    const entry = {
+        incidentId: String(incidentId),
+        referenceLabel: referenceLabel || 'Customer',
+        openedAt: new Date().toISOString(),
+    };
+
+    const recentCustomers = [
+        entry,
+        ...readRecentCustomers().filter((customer) => customer.incidentId !== entry.incidentId),
+    ].slice(0, MAX_RECENT_CUSTOMERS);
+
     try {
+        localStorage.setItem(RECENT_CUSTOMERS_STORAGE_KEY, JSON.stringify(recentCustomers));
         localStorage.setItem(LAST_CUSTOMER_STORAGE_KEY, JSON.stringify({
-            incidentId: String(incidentId),
-            customerName: customerName || 'Customer',
-            openedAt: new Date().toISOString(),
+            incidentId: entry.incidentId,
+            customerName: entry.referenceLabel,
+            openedAt: entry.openedAt,
         }));
     } catch {
         // Ignore unavailable storage in test or private browsing contexts.
@@ -233,21 +268,44 @@ const evaluateAppointmentReminders = (appointment, pageRoot, showToast) => {
     });
 };
 
-const bindResumeLastCustomer = (pageRoot, button) => {
-    const lastCustomer = readLastCustomer();
+const bindRecentCustomers = (pageRoot, container) => {
+    const recentCustomers = readRecentCustomers();
 
-    if (!lastCustomer) {
+    if (recentCustomers.length === 0) {
         return;
     }
 
-    button.hidden = false;
-    button.classList.remove('d-none');
-    button.textContent = lastCustomer.customerName
-        ? `Resume Last Customer: ${lastCustomer.customerName}`
-        : 'Resume Last Customer';
+    const list = container.querySelector('[data-agent-recent-customers-list]');
 
-    button.addEventListener('click', () => {
-        openCustomer360(pageRoot, lastCustomer.incidentId, lastCustomer.customerName);
+    if (!list) {
+        return;
+    }
+
+    container.hidden = false;
+    container.classList.remove('d-none');
+    list.replaceChildren();
+
+    recentCustomers.forEach((customer, index) => {
+        const chip = document.createElement('button');
+
+        chip.type = 'button';
+        chip.className = 'dashboard-recent-customers__chip dashboard-u-focus-ring';
+        chip.textContent = customer.referenceLabel;
+
+        if (index > 0) {
+            chip.classList.add('dashboard-recent-customers__chip--compact');
+        }
+
+        chip.setAttribute(
+            'aria-label',
+            `Open ${customer.referenceLabel} in Customer360`,
+        );
+
+        chip.addEventListener('click', () => {
+            openCustomer360(pageRoot, customer.incidentId, customer.referenceLabel);
+        });
+
+        list.appendChild(chip);
     });
 };
 
@@ -347,10 +405,10 @@ export const initAgentDashboard = ({ pageRoot, showToast } = {}) => {
     bindCustomer360Triggers(root);
     bindAppointmentBannerDismissal(root);
 
-    const resumeButton = root.querySelector('[data-agent-resume-customer]');
+    const recentCustomersHost = root.querySelector('[data-agent-recent-customers]');
 
-    if (resumeButton) {
-        bindResumeLastCustomer(root, resumeButton);
+    if (recentCustomersHost) {
+        bindRecentCustomers(root, recentCustomersHost);
     }
 
     syncStickyBannerVisibility(root, appointment);

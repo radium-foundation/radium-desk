@@ -59,12 +59,13 @@
                     <p class="text-muted small mb-0">Welcome back, {{ auth()->user()->firstName() }}.</p>
                 @endunless
             </div>
-            <button type="button"
-                    class="btn btn-sm btn-outline-primary agent-resume-customer d-none dashboard-u-focus-ring"
-                    data-agent-resume-customer
-                    hidden>
-                Resume Last Customer
-            </button>
+            <div class="dashboard-recent-customers d-none"
+                 data-agent-recent-customers
+                 hidden>
+                <span class="dashboard-recent-customers__label">Recent Customers</span>
+                <div class="dashboard-recent-customers__chips"
+                     data-agent-recent-customers-list></div>
+            </div>
         </div>
 
         <div id="dashboard-kpi-strip" class="dashboard-kpi-strip-host mb-1">
