@@ -1,3 +1,5 @@
+import { trackOutboundClickToCall } from './bonvoice-outbound-call-status';
+
 const getCsrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
 export const appendSupportReference = (message, referenceId) => {
@@ -100,6 +102,12 @@ export const initiateBonvoiceClickToCall = async (button, { showToast } = {}) =>
         const referenceId = typeof payload.reference_id === 'string' ? payload.reference_id : null;
 
         if (response.ok && payload.success === true) {
+            const eventId = typeof payload.event_id === 'string' ? payload.event_id : null;
+
+            if (eventId) {
+                trackOutboundClickToCall({ eventId, button });
+            }
+
             showToast?.(message ?? 'Calling your registered mobile...', 'success');
 
             return { success: true, usedFallback: false, payload };

@@ -34,7 +34,7 @@
                 @if($shortcutAction) data-c360-shortcut-action="{{ $shortcutAction }}" @endif>
             <i class="{{ $iconClass }}" aria-hidden="true"></i>
             @if($showLabel)
-                <span>Call</span>
+                <span data-bonvoice-call-status-label>Call</span>
             @endif
         </button>
     @else

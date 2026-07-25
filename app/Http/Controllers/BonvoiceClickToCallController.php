@@ -7,6 +7,7 @@ use App\Http\Requests\BonvoiceClickToCallRequest;
 use App\Services\Bonvoice\BonvoiceClickToCallContextResolver;
 use App\Services\Bonvoice\BonvoiceClickToCallMetrics;
 use App\Services\Bonvoice\BonvoiceClickToCallService;
+use App\Services\Bonvoice\BonvoiceOutboundClickToCallLiveStatusService;
 use App\Support\Bonvoice\BonvoiceClickToCallSupportReference;
 use Illuminate\Http\JsonResponse;
 
@@ -16,6 +17,7 @@ class BonvoiceClickToCallController extends Controller
         private readonly BonvoiceClickToCallContextResolver $contextResolver,
         private readonly BonvoiceClickToCallService $clickToCallService,
         private readonly BonvoiceClickToCallMetrics $metrics,
+        private readonly BonvoiceOutboundClickToCallLiveStatusService $outboundLiveStatusService,
     ) {}
 
     public function __invoke(BonvoiceClickToCallRequest $request): JsonResponse
@@ -74,6 +76,12 @@ class BonvoiceClickToCallController extends Controller
                 status: $result->httpStatus && $result->httpStatus >= 400 ? $result->httpStatus : 422,
             );
         }
+
+        $this->outboundLiveStatusService->broadcastStarted(
+            agent: $request->user(),
+            eventId: (string) $result->eventId,
+            context: $context,
+        );
 
         return response()->json([
             'success' => true,

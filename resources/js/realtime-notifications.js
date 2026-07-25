@@ -8,6 +8,7 @@ import {
 import { getWorkspaceSession } from './workspace/session';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 import { showIncomingCallCard, updateIncomingCallCard } from './incoming-call-card';
+import { bindOutboundClickToCallStatusChannel } from './bonvoice-outbound-call-status';
 
 const shownKeys = new Set();
 const criticalToasts = new Map();
@@ -219,6 +220,7 @@ export const bindRealtimeNotificationsChannel = (channel) => {
 
     channel.listen('.RealtimeNotificationDelivered', handleRealtimeNotificationDelivered);
     channel.listen('.IncomingCallReceived', handleIncomingCallReceived);
+    bindOutboundClickToCallStatusChannel(channel);
 };
 
 export const resetRealtimeNotificationDedupe = () => {

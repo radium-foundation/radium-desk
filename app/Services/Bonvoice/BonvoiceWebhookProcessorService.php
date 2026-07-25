@@ -17,6 +17,7 @@ class BonvoiceWebhookProcessorService
         private readonly BonvoiceCallEventStore $callEventStore,
         private readonly BonvoiceLiveCallAssistService $liveCallAssistService,
         private readonly BonvoiceMissedCallRecoveryService $missedCallRecoveryService,
+        private readonly BonvoiceOutboundClickToCallLiveStatusService $outboundClickToCallLiveStatusService,
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
     ) {}
 
@@ -60,6 +61,7 @@ class BonvoiceWebhookProcessorService
             if (! $options->suppressNotifications) {
                 $this->liveCallAssistService->maybeNotify($callEvent);
                 $this->liveCallAssistService->maybeBroadcastAnsweredAutoOpen($callEvent, $previousStatus);
+                $this->outboundClickToCallLiveStatusService->maybeBroadcast($callEvent, $previousStatus);
             }
 
             if (! $options->suppressRecovery) {
