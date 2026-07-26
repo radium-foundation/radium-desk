@@ -114,3 +114,7 @@
         @include('dashboard.partials.serial-number-modal')
     </div>
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/dashboard.js')
+@endpush

@@ -63,3 +63,7 @@
         </form>
     </x-settings-center.shell>
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/system-settings.js')
+@endpush

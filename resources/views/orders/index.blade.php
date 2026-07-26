@@ -123,3 +123,7 @@
         @endif
     </div>
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/orders.js')
+@endpush

@@ -26,3 +26,7 @@
         @include('partials.legacy-verification-modal')
     @endcan
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/orders.js')
+@endpush

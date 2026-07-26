@@ -44,3 +44,7 @@
         </div>
     </x-settings-center.shell>
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/application-settings.js')
+@endpush

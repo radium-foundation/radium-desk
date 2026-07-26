@@ -176,3 +176,7 @@
         @endif
     </div>
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/refunds.js')
+@endpush

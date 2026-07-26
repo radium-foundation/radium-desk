@@ -14,3 +14,7 @@
 
     @include('admin.automation-health.partials.detail-drawer')
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/mission-control.js')
+@endpush

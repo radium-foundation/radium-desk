@@ -174,3 +174,7 @@
         </div>
     </div>
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/mission-control.js')
+@endpush

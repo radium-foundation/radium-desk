@@ -34,3 +34,7 @@
         </div>
     </div>
 @endsection
+
+@push('vite')
+    @vite('resources/js/pages/service-cases.js')
+@endpush
