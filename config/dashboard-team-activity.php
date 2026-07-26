@@ -42,16 +42,17 @@ return [
         'serial.corrected_by_ira',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | IRA Today · N completion events
+    |--------------------------------------------------------------------------
+    |
+    | One successfully processed incident = one KPI unit. Pipeline milestones
+    | remain in ira_event_allowlist for Latest Activity / status only.
+    |
+    */
     'ira_event_count_allowlist' => [
-        'service_case.automation.payment_received',
-        'service_case.automation.waiting_radiumbox',
-        'service_case.automation.radiumbox_verified',
         'service_case.automation.validation_passed',
-        'service_case.automation.validation_failed',
-        'service_case.automation.waiting_manual_correction',
-        'service_case.automation_pending',
-        'service_case.customer_waiting_auto_closed',
-        'serial.corrected_by_ira',
     ],
 
     /*
@@ -104,12 +105,13 @@ return [
     | Human operational KPI allowlist (Today · N activities only)
     |--------------------------------------------------------------------------
     |
-    | Counts meaningful completed business operations, not raw audit volume.
+    | One intentional business decision = one Today · N count.
     | Latest Activity and expanded history continue using event_allowlist above.
     |
-    | The generic "created" / "deleted" events are morph-filtered in
-    | TeamActivityPanelService for remarks only. Approval numbers use
-    | approval_numbers.submitted / approval_numbers.deleted business events.
+    | Special filters in TeamActivityPanelService:
+    | - created / deleted → Remark morph + origin=manual only
+    | - whatsapp.template_sent → trigger_source=manual only
+    | - incoming_email.promoted_to_service_case → manual promote (not auto-link)
     |
     */
     'event_count_allowlist' => [
@@ -117,10 +119,7 @@ return [
         'service_case.reassigned',
         'service_case.status_changed',
         'service_case.escalated',
-        'service_case.customer_waiting_started',
-        'service_reference.driver_guide_sent',
         'whatsapp.template_sent',
-        'incoming_email.linked',
         'incoming_email.promoted_to_service_case',
         'created',
         'deleted',
@@ -130,9 +129,6 @@ return [
         'refund.approved',
         'refund.rejected',
         'refund.completed',
-        'radiumbox.sync.manual',
-        'legacy_order.imported',
-        'missed_call_recovery.created',
         'workforce.leave.approved',
         'approval_numbers.submitted',
         'approval_numbers.deleted',

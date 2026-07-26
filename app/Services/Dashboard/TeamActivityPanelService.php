@@ -7,6 +7,7 @@ use App\Data\TeamActivityAgentRow;
 use App\Data\TeamActivityEntry;
 use App\Data\TeamActivityPanel;
 use App\Enums\RemarkOrigin;
+use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\AuditLog;
 use App\Models\Remark;
 use App\Models\User;
@@ -223,9 +224,10 @@ class TeamActivityPanelService
         }
 
         $dayStart = Carbon::now()->startOfDay();
+        $filteredEvents = ['created', 'deleted', 'whatsapp.template_sent'];
         $directEvents = array_values(array_filter(
             $allowlist,
-            static fn (string $event): bool => ! in_array($event, ['created', 'deleted'], true),
+            static fn (string $event): bool => ! in_array($event, $filteredEvents, true),
         ));
 
         $counts = array_fill_keys($userIds, 0);
@@ -244,12 +246,40 @@ class TeamActivityPanelService
             }
         }
 
+        if (in_array('whatsapp.template_sent', $allowlist, true)) {
+            $this->mergeOperationalCounts($counts, $this->manualWhatsAppCounts($userIds, $dayStart));
+        }
+
         if (in_array('created', $allowlist, true)) {
             $this->mergeOperationalCounts($counts, $this->createdOperationCounts($userIds, $dayStart));
         }
 
         if (in_array('deleted', $allowlist, true)) {
             $this->mergeOperationalCounts($counts, $this->deletedOperationCounts($userIds, $dayStart));
+        }
+
+        return $counts;
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @return array<int, int>
+     */
+    private function manualWhatsAppCounts(array $userIds, Carbon $dayStart): array
+    {
+        $counts = array_fill_keys($userIds, 0);
+
+        foreach (
+            AuditLog::query()
+                ->selectRaw('user_id, COUNT(*) as aggregate_count')
+                ->whereIn('user_id', $userIds)
+                ->where('event', 'whatsapp.template_sent')
+                ->where('new_values->trigger_source', WhatsAppTemplateTriggerSource::Manual->value)
+                ->where('created_at', '>=', $dayStart)
+                ->groupBy('user_id')
+                ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
+        ) {
+            $counts[(int) $userId] += (int) $aggregate;
         }
 
         return $counts;
@@ -271,10 +301,7 @@ class TeamActivityPanelService
                 ->where('event', 'created')
                 ->where('auditable_type', $remarkMorph)
                 ->where('created_at', '>=', $dayStart)
-                ->where(function ($query): void {
-                    $query->whereNull('new_values->origin')
-                        ->orWhere('new_values->origin', RemarkOrigin::Manual->value);
-                })
+                ->where('new_values->origin', RemarkOrigin::Manual->value)
                 ->groupBy('user_id')
                 ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
         ) {
@@ -300,10 +327,7 @@ class TeamActivityPanelService
                 ->where('event', 'deleted')
                 ->where('auditable_type', $remarkMorph)
                 ->where('created_at', '>=', $dayStart)
-                ->where(function ($query): void {
-                    $query->whereNull('old_values->origin')
-                        ->orWhere('old_values->origin', RemarkOrigin::Manual->value);
-                })
+                ->where('old_values->origin', RemarkOrigin::Manual->value)
                 ->groupBy('user_id')
                 ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
         ) {

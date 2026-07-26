@@ -41,7 +41,12 @@ class RemarkMetadataTest extends TestCase
         $restored = RemarkMetadata::fromArray($stored);
 
         $this->assertFalse($restored->countsForTeamActivityKpi());
-        $this->assertTrue((new RemarkMetadata)->countsForTeamActivityKpi());
+        $this->assertFalse((new RemarkMetadata)->countsForTeamActivityKpi());
+        $this->assertTrue(
+            (new RemarkMetadata)
+                ->withOrigin(\App\Enums\RemarkOrigin::Manual)
+                ->countsForTeamActivityKpi()
+        );
     }
 
     public function test_future_keys_are_preserved_but_ignored_by_helpers(): void

@@ -104,7 +104,7 @@ class DashboardTeamActivityRemarkCountTest extends TestCase
         $this->assertSame(1, $this->todayCountFor($actor));
     }
 
-    public function test_system_whatsapp_remark_does_not_count_toward_kpi(): void
+    public function test_system_whatsapp_remark_and_auto_whatsapp_do_not_count_toward_kpi(): void
     {
         $actor = $this->createTrackedAdmin();
         [$incident] = $this->createIncident($actor);
@@ -121,10 +121,13 @@ class DashboardTeamActivityRemarkCountTest extends TestCase
             'event' => 'whatsapp.template_sent',
             'auditable_type' => $incident->getMorphClass(),
             'auditable_id' => $incident->id,
-            'new_values' => ['template_key' => 'follow_up'],
+            'new_values' => [
+                'template_key' => 'driver_installation_guide',
+                'trigger_source' => 'automation',
+            ],
         ]);
 
-        $this->assertSame(1, $this->todayCountFor($actor));
+        $this->assertSame(0, $this->todayCountFor($actor));
     }
 
     public function test_system_remarks_remain_in_audit_history(): void

@@ -91,6 +91,7 @@ class DashboardTeamActivityCountTest extends TestCase
             'event' => 'created',
             'auditable_type' => $remark->getMorphClass(),
             'auditable_id' => $remark->id,
+            'new_values' => ['origin' => 'manual'],
             'created_at' => now(),
         ]);
 
@@ -243,7 +244,7 @@ class DashboardTeamActivityCountTest extends TestCase
 
         AuditLog::query()->create([
             'user_id' => $agent->id,
-            'event' => 'missed_call_recovery.created',
+            'event' => 'service_case.escalated',
             'auditable_type' => $incident->getMorphClass(),
             'auditable_id' => $incident->id,
             'created_at' => now(),

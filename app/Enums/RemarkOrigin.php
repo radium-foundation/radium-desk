@@ -15,9 +15,9 @@ enum RemarkOrigin: string
     public static function countsForTeamActivityKpiValue(?string $value): bool
     {
         if ($value === null || $value === '') {
-            return true;
+            return false;
         }
 
-        return self::tryFrom($value)?->countsForTeamActivityKpi() ?? true;
+        return self::tryFrom($value)?->countsForTeamActivityKpi() ?? false;
     }
 }

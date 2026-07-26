@@ -145,7 +145,8 @@ class DashboardTeamActivitySortingAndIraTest extends TestCase
         $ira = collect($panel->agents)->firstWhere('isVirtual', true);
 
         $this->assertNotNull($ira);
-        $this->assertSame(2, $ira->todayCount);
+        // Pipeline stages do not inflate KPI — only distinct completed incidents count.
+        $this->assertSame(1, $ira->todayCount);
     }
 
     public function test_ira_is_positioned_after_active_humans_and_before_off_duty_humans(): void

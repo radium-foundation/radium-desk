@@ -26,12 +26,14 @@ class TeamActivityIraMemberBuilder
         $countEvents = $this->countEventAllowlist();
         $dayStart = Carbon::now()->startOfDay();
 
+        // One successfully processed incident = one KPI unit (not every pipeline stage).
         $todayCount = $countEvents === []
             ? 0
             : (int) AuditLog::query()
                 ->whereIn('event', $countEvents)
                 ->where('created_at', '>=', $dayStart)
-                ->count();
+                ->distinct()
+                ->count('auditable_id');
 
         $latestAudit = $activityEvents === []
             ? null
