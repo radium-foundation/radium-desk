@@ -278,6 +278,51 @@ class DashboardTeamActivityKpiRefinementTest extends TestCase
 
         $this->assertNotNull($ira);
         $this->assertSame(1, $ira->todayCount);
+        $this->assertSame(2, $ira->supplementaryKpiCount);
+    }
+
+    public function test_ira_automation_cases_count_is_separate_from_kpi(): void
+    {
+        $this->createTrackedAgent();
+        $owner = User::factory()->create();
+        [$incidentA] = $this->createIncident($owner);
+        [$incidentB] = $this->createIncident($owner);
+
+        foreach ([
+            'service_case.automation_pending',
+            ServiceCaseAutomationMonitorService::EVENT_PAYMENT_RECEIVED,
+            ServiceCaseAutomationMonitorService::EVENT_WAITING_RADIUMBOX,
+            ServiceCaseAutomationMonitorService::EVENT_RADIUMBOX_VERIFIED,
+            ServiceCaseAutomationMonitorService::EVENT_VALIDATION_PASSED,
+        ] as $index => $event) {
+            AuditLog::query()->create([
+                'user_id' => $owner->id,
+                'event' => $event,
+                'auditable_type' => $incidentA->getMorphClass(),
+                'auditable_id' => $incidentA->id,
+                'created_at' => now()->subMinutes(10 - $index),
+            ]);
+        }
+
+        foreach ([
+            'service_case.automation_pending',
+            ServiceCaseAutomationMonitorService::EVENT_PAYMENT_RECEIVED,
+        ] as $index => $event) {
+            AuditLog::query()->create([
+                'user_id' => $owner->id,
+                'event' => $event,
+                'auditable_type' => $incidentB->getMorphClass(),
+                'auditable_id' => $incidentB->id,
+                'created_at' => now()->subMinutes(5 - $index),
+            ]);
+        }
+
+        $ira = collect(app(TeamActivityPanelService::class)->build()->agents)
+            ->firstWhere('isVirtual', true);
+
+        $this->assertNotNull($ira);
+        $this->assertSame(1, $ira->todayCount);
+        $this->assertSame(2, $ira->supplementaryKpiCount);
     }
 
     public function test_manual_email_promote_counts_auto_link_does_not(): void

@@ -127,6 +127,9 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('team-activity-avatar--ira', $html);
         $this->assertStringContainsString('team-activity-avatar--virtual', $html);
         $this->assertStringContainsString('team-activity-status-pill--ira', $html);
+        $this->assertStringContainsString('team-activity-kpi--ira', $html);
+        $this->assertStringContainsString('Automated Cases', $html);
+        $this->assertStringNotContainsString('calendar-pill__icon', $html);
     }
 
     public function test_auto_logged_out_and_offline_status_pills_render(): void

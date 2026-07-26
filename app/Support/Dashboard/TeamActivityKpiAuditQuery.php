@@ -67,19 +67,40 @@ class TeamActivityKpiAuditQuery
 
     public function todayCountForIra(?Carbon $dayStart = null): int
     {
-        $countEvents = $this->iraCountAllowlist();
+        return $this->todayIraPanelCounts($dayStart)['kpi'];
+    }
 
-        if ($countEvents === []) {
-            return 0;
-        }
-
+    /**
+     * IRA supervisor display metrics (single query).
+     *
+     * @return array{kpi: int, automation_cases: int}
+     */
+    public function todayIraPanelCounts(?Carbon $dayStart = null): array
+    {
+        $kpiEvents = $this->iraCountAllowlist();
+        $automationEvents = $this->iraActivityAllowlist();
         $dayStart ??= $this->dayStart();
 
-        return (int) AuditLog::query()
-            ->whereIn('event', $countEvents)
+        if ($kpiEvents === [] && $automationEvents === []) {
+            return ['kpi' => 0, 'automation_cases' => 0];
+        }
+
+        $allEvents = array_values(array_unique(array_merge($kpiEvents, $automationEvents)));
+
+        $kpiExpression = $this->distinctCaseCountExpression('auditable_id', $kpiEvents, 'kpi_count');
+        $automationExpression = $this->distinctCaseCountExpression('auditable_id', $automationEvents, 'automation_cases');
+
+        $row = AuditLog::query()
             ->where('created_at', '>=', $dayStart)
-            ->distinct()
-            ->count('auditable_id');
+            ->whereIn('event', $allEvents)
+            ->selectRaw($kpiExpression['sql'], $kpiExpression['bindings'])
+            ->selectRaw($automationExpression['sql'], $automationExpression['bindings'])
+            ->first();
+
+        return [
+            'kpi' => (int) ($row->kpi_count ?? 0),
+            'automation_cases' => (int) ($row->automation_cases ?? 0),
+        ];
     }
 
     /**
@@ -351,5 +372,39 @@ class TeamActivityKpiAuditQuery
             is_array($events) ? $events : [],
             static fn (mixed $event): bool => is_string($event) && $event !== '',
         ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function iraActivityAllowlist(): array
+    {
+        $events = config('dashboard-team-activity.ira_event_allowlist', []);
+
+        return array_values(array_filter(
+            is_array($events) ? $events : [],
+            static fn (mixed $event): bool => is_string($event) && $event !== '',
+        ));
+    }
+
+    /**
+     * @param  list<string>  $events
+     * @return array{sql: string, bindings: list<mixed>}
+     */
+    private function distinctCaseCountExpression(string $column, array $events, string $alias): array
+    {
+        if ($events === []) {
+            return [
+                'sql' => '0 as '.$alias,
+                'bindings' => [],
+            ];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($events), '?'));
+
+        return [
+            'sql' => "COUNT(DISTINCT CASE WHEN event IN ({$placeholders}) THEN {$column} END) as {$alias}",
+            'bindings' => $events,
+        ];
     }
 }

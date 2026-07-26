@@ -29,6 +29,8 @@ readonly class TeamActivityAgentRow
         public ?string $todayDurationLabel = null,
         public ?string $currentDurationLabel = null,
         public ?int $sessionsToday = null,
+        public ?int $supplementaryKpiCount = null,
+        public ?string $supplementaryKpiLabel = null,
     ) {}
 
     /**
@@ -58,6 +60,8 @@ readonly class TeamActivityAgentRow
             'today_duration_label' => $this->todayDurationLabel,
             'current_duration_label' => $this->currentDurationLabel,
             'sessions_today' => $this->sessionsToday,
+            'supplementary_kpi_count' => $this->supplementaryKpiCount,
+            'supplementary_kpi_label' => $this->supplementaryKpiLabel,
         ];
     }
 }

@@ -28,7 +28,8 @@ class TeamActivityIraMemberBuilder
     public function build(bool $expanded = false, array $itemsByAuditId = []): TeamActivityAgentRow
     {
         $activityEvents = $this->activityEventAllowlist();
-        $todayCount = $this->kpiAuditQuery->todayCountForIra();
+        $iraCounts = $this->kpiAuditQuery->todayIraPanelCounts();
+        $todayCount = $iraCounts['kpi'];
 
         $latestAudit = $activityEvents === []
             ? null
@@ -82,6 +83,8 @@ class TeamActivityIraMemberBuilder
             isVirtual: true,
             badge: null,
             latestActivityAt: $latestAudit?->created_at,
+            supplementaryKpiCount: $iraCounts['automation_cases'],
+            supplementaryKpiLabel: 'Automated Cases',
         );
     }
 
