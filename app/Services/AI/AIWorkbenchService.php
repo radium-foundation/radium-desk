@@ -91,14 +91,14 @@ class AIWorkbenchService
             return ['key' => 'repair_completed', 'label' => 'Repair completed'];
         }
 
-        if ($incident->status === IncidentStatus::InProgress && $context->waitingState === null) {
+        if ($incident->status === IncidentStatus::InProgress && ! $this->hasActiveWaitingState($context->waitingState)) {
             return ['key' => 'device_received', 'label' => 'Device received'];
         }
 
-        if ($context->waitingState !== null) {
+        if ($this->hasActiveWaitingState($context->waitingState)) {
             return [
                 'key' => 'waiting_for_customer',
-                'label' => 'Waiting for '.$context->waitingState['reason_label'],
+                'label' => 'Waiting for '.$this->activeWaitingReasonLabel($context->waitingState),
             ];
         }
 
@@ -164,7 +164,7 @@ class AIWorkbenchService
             $lines[] = 'Review incident details and confirm next operational step with the customer.';
         }
 
-        $primaryAction = $response->suggestedNextActions[0]->title ?? 'Review incident details';
+        $primaryAction = ($response->suggestedNextActions[0] ?? null)?->title ?? 'Review incident details';
 
         return [
             'content' => implode("\n", $lines),
@@ -390,14 +390,68 @@ class AIWorkbenchService
         return $incident->activeWaitingState?->waiting_reason;
     }
 
+    /**
+     * True only for a CURRENT waiting state.
+     * lifecycle_history alone is historical evidence, not an active wait.
+     *
+     * @param  array<string, mixed>|null  $waitingState
+     */
+    private function hasActiveWaitingState(?array $waitingState): bool
+    {
+        if ($waitingState === null || $waitingState === []) {
+            return false;
+        }
+
+        if (filled($waitingState['reason_label'] ?? null)) {
+            return true;
+        }
+
+        if (filled($waitingState['waiting_reason'] ?? null)) {
+            return true;
+        }
+
+        // Active-card metadata (present on customer360Card, absent on lifecycleOnlyCard).
+        if (($waitingState['started_at'] ?? null) !== null
+            || ($waitingState['customer_waiting_since'] ?? null) !== null) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Label for an active waiting state only. Never reads lifecycle_history.
+     *
+     * @param  array<string, mixed>  $waitingState
+     */
+    private function activeWaitingReasonLabel(array $waitingState): string
+    {
+        $reasonLabel = $waitingState['reason_label'] ?? null;
+        if (filled($reasonLabel)) {
+            return (string) $reasonLabel;
+        }
+
+        $waitingReason = $waitingState['waiting_reason'] ?? null;
+        if (filled($waitingReason)) {
+            return is_string($waitingReason)
+                ? $waitingReason
+                : (string) $waitingReason;
+        }
+
+        return 'customer';
+    }
+
     private function waitingSummary(AIContextDTO $context): string
     {
         if ($context->serialMissing) {
             return 'Waiting for serial number';
         }
 
-        if ($context->waitingState !== null) {
-            return 'Waiting for '.($context->waitingState['reason_label'] ?? 'customer input');
+        if ($this->hasActiveWaitingState($context->waitingState)) {
+            /** @var array<string, mixed> $waitingState */
+            $waitingState = $context->waitingState;
+
+            return 'Waiting for '.$this->activeWaitingReasonLabel($waitingState);
         }
 
         return 'Continue standard repair workflow';
