@@ -23,10 +23,11 @@ class ServiceCaseActionRemarkService
         ?Request $request = null,
     ): Incident {
         return DB::transaction(function () use ($incident, $actor, $status, $body, $request): Incident {
-            $this->remarkService->createForRemarkable(
+            $this->remarkService->createSystemRemarkForRemarkable(
                 remarkable: $incident,
                 actor: $actor,
                 body: $body,
+                systemSource: \App\Support\Remarks\RemarkSystemSource::STATUS_CHANGE,
                 request: $request,
             );
 

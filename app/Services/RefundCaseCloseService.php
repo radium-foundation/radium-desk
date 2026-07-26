@@ -46,10 +46,11 @@ class RefundCaseCloseService
                     type: \App\Enums\BusinessHoldType::Refund,
                 );
 
-                $this->remarkService->createForRemarkable(
+                $this->remarkService->createSystemRemarkForRemarkable(
                     remarkable: $incident,
                     actor: $actor,
                     body: "Service case closed after refund {$refund->reference_no} was completed.",
+                    systemSource: \App\Support\Remarks\RemarkSystemSource::REFUND_CLOSE,
                     request: $request,
                 );
 

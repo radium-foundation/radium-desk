@@ -6,6 +6,7 @@ use App\Data\RecentActivityItem;
 use App\Data\TeamActivityAgentRow;
 use App\Data\TeamActivityEntry;
 use App\Data\TeamActivityPanel;
+use App\Enums\RemarkOrigin;
 use App\Models\AuditLog;
 use App\Models\Remark;
 use App\Models\User;
@@ -270,6 +271,10 @@ class TeamActivityPanelService
                 ->where('event', 'created')
                 ->where('auditable_type', $remarkMorph)
                 ->where('created_at', '>=', $dayStart)
+                ->where(function ($query): void {
+                    $query->whereNull('new_values->origin')
+                        ->orWhere('new_values->origin', RemarkOrigin::Manual->value);
+                })
                 ->groupBy('user_id')
                 ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
         ) {
@@ -295,6 +300,10 @@ class TeamActivityPanelService
                 ->where('event', 'deleted')
                 ->where('auditable_type', $remarkMorph)
                 ->where('created_at', '>=', $dayStart)
+                ->where(function ($query): void {
+                    $query->whereNull('old_values->origin')
+                        ->orWhere('old_values->origin', RemarkOrigin::Manual->value);
+                })
                 ->groupBy('user_id')
                 ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
         ) {

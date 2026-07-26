@@ -213,10 +213,11 @@ TEXT;
         $shouldNotify = self::shouldNotifyCustomerOnAutoClose($followupSentAt);
 
         $result = DB::transaction(function () use ($waitingState, $incident, $actor, $followupSentAt, $shouldNotify): ActionHandlerResult {
-            $this->remarkService->createForRemarkable(
+            $this->remarkService->createSystemRemarkForRemarkable(
                 remarkable: $incident,
                 actor: $actor,
                 body: self::AUTO_CLOSE_REMARK,
+                systemSource: \App\Support\Remarks\RemarkSystemSource::CUSTOMER_WAITING_AUTO_CLOSE,
             );
 
             $this->serviceCaseStatusService->updateStatus($incident, IncidentStatus::Closed, $actor);

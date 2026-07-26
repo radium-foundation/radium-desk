@@ -81,10 +81,11 @@ class WhatsAppTemplateDispatchCompletionService
         );
 
         if ($configuration->internalNote !== null && $dispatch->triggeredBy !== null) {
-            $this->remarkService->createForRemarkable(
+            $this->remarkService->createSystemRemarkForRemarkable(
                 remarkable: $dispatch->incident,
                 actor: $dispatch->triggeredBy,
                 body: $configuration->internalNote,
+                systemSource: \App\Support\Remarks\RemarkSystemSource::WHATSAPP_DISPATCH,
                 request: $request,
             );
         }

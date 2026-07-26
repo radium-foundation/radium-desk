@@ -220,10 +220,11 @@ class InquirySpamCleanupService
 
         try {
             DB::transaction(function () use ($incident, $actor): void {
-                $this->remarkService->createForRemarkable(
+                $this->remarkService->createSystemRemarkForRemarkable(
                     remarkable: $incident,
                     actor: $actor,
                     body: self::ARCHIVE_REMARK,
+                    systemSource: \App\Support\Remarks\RemarkSystemSource::INQUIRY_SPAM_CLEANUP,
                 );
 
                 $this->serviceCaseStatusService->updateStatus($incident, IncidentStatus::Closed, $actor);

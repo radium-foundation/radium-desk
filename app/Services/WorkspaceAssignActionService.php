@@ -35,10 +35,11 @@ class WorkspaceAssignActionService
     ): WorkspaceActionResponse {
         try {
             $freshIncident = DB::transaction(function () use ($incident, $assignee, $actor, $body, $request): Incident {
-                $this->remarkService->createForRemarkable(
+                $this->remarkService->createSystemRemarkForRemarkable(
                     remarkable: $incident,
                     actor: $actor,
                     body: $body,
+                    systemSource: \App\Support\Remarks\RemarkSystemSource::WORKSPACE_ASSIGN,
                     request: $request,
                 );
 

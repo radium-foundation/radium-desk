@@ -32,10 +32,11 @@ class ServiceCaseReopenService
         }
 
         return DB::transaction(function () use ($incident, $actor, $body, $assignee, $request): Incident {
-            $this->remarkService->createForRemarkable(
+            $this->remarkService->createSystemRemarkForRemarkable(
                 remarkable: $incident,
                 actor: $actor,
                 body: $body,
+                systemSource: \App\Support\Remarks\RemarkSystemSource::REOPEN,
                 request: $request,
             );
 

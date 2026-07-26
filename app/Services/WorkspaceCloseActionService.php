@@ -188,10 +188,11 @@ class WorkspaceCloseActionService
                 );
             }
 
-            $this->remarkService->createForRemarkable(
+            $this->remarkService->createSystemRemarkForRemarkable(
                 remarkable: $incident,
                 actor: $actor,
                 body: (string) $payload['body'],
+                systemSource: \App\Support\Remarks\RemarkSystemSource::WORKSPACE_CLOSE,
                 request: $request,
             );
 

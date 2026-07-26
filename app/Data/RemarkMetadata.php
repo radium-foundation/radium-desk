@@ -22,6 +22,10 @@ readonly class RemarkMetadata
 
     public const KEY_AI_MENTIONS = 'ai_mentions';
 
+    public const KEY_ORIGIN = 'origin';
+
+    public const KEY_SYSTEM_SOURCE = 'system_source';
+
     /**
      * @param  array<string, mixed>|null  $reminder
      * @param  array<string, mixed>|null  $pinned
@@ -29,6 +33,7 @@ readonly class RemarkMetadata
      * @param  list<array<string, mixed>>|null  $attachments
      * @param  array<string, mixed>|null  $voiceNote
      * @param  list<string>|null  $aiMentions
+     * @param  \App\Enums\RemarkOrigin|null  $origin
      */
     public function __construct(
         public ?array $reminder = null,
@@ -37,6 +42,8 @@ readonly class RemarkMetadata
         public ?array $attachments = null,
         public ?array $voiceNote = null,
         public ?array $aiMentions = null,
+        public ?\App\Enums\RemarkOrigin $origin = null,
+        public ?string $systemSource = null,
     ) {}
 
     /**
@@ -55,6 +62,12 @@ readonly class RemarkMetadata
             attachments: self::listOrNull($data[self::KEY_ATTACHMENTS] ?? null),
             voiceNote: self::arrayOrNull($data[self::KEY_VOICE_NOTE] ?? null),
             aiMentions: self::stringListOrNull($data[self::KEY_AI_MENTIONS] ?? null),
+            origin: isset($data[self::KEY_ORIGIN])
+                ? \App\Enums\RemarkOrigin::tryFrom((string) $data[self::KEY_ORIGIN])
+                : null,
+            systemSource: filled($data[self::KEY_SYSTEM_SOURCE] ?? null)
+                ? (string) $data[self::KEY_SYSTEM_SOURCE]
+                : null,
         );
     }
 
@@ -70,7 +83,28 @@ readonly class RemarkMetadata
             self::KEY_ATTACHMENTS => $this->attachments,
             self::KEY_VOICE_NOTE => $this->voiceNote,
             self::KEY_AI_MENTIONS => $this->aiMentions,
+            self::KEY_ORIGIN => $this->origin?->value,
+            self::KEY_SYSTEM_SOURCE => $this->systemSource,
         ], fn (mixed $value): bool => $value !== null && $value !== []);
+    }
+
+    public function countsForTeamActivityKpi(): bool
+    {
+        return \App\Enums\RemarkOrigin::countsForTeamActivityKpiValue($this->origin?->value);
+    }
+
+    public function withOrigin(\App\Enums\RemarkOrigin $origin, ?string $systemSource = null): self
+    {
+        return new self(
+            reminder: $this->reminder,
+            pinned: $this->pinned,
+            customerNotification: $this->customerNotification,
+            attachments: $this->attachments,
+            voiceNote: $this->voiceNote,
+            aiMentions: $this->aiMentions,
+            origin: $origin,
+            systemSource: $systemSource,
+        );
     }
 
     /**
@@ -90,6 +124,8 @@ readonly class RemarkMetadata
             attachments: $this->attachments,
             voiceNote: $this->voiceNote,
             aiMentions: $normalized === [] ? null : $normalized,
+            origin: $this->origin,
+            systemSource: $this->systemSource,
         );
     }
 

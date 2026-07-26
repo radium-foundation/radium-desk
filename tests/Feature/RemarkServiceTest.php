@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Data\RemarkMetadata;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
@@ -93,6 +94,9 @@ class RemarkServiceTest extends TestCase
             body: 'Standard operational note.',
         );
 
-        $this->assertNull($remark->fresh()->metadata);
+        $this->assertSame(
+            [RemarkMetadata::KEY_ORIGIN => 'manual'],
+            $remark->fresh()->metadata,
+        );
     }
 }

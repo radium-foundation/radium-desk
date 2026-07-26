@@ -28,6 +28,22 @@ class RemarkMetadataTest extends TestCase
         $this->assertSame(['ira'], $restored->aiMentions);
     }
 
+    public function test_origin_metadata_round_trips(): void
+    {
+        $metadata = (new RemarkMetadata)
+            ->withOrigin(\App\Enums\RemarkOrigin::System, 'workspace_assign');
+
+        $stored = $metadata->toArray();
+
+        $this->assertSame('system', $stored[RemarkMetadata::KEY_ORIGIN]);
+        $this->assertSame('workspace_assign', $stored[RemarkMetadata::KEY_SYSTEM_SOURCE]);
+
+        $restored = RemarkMetadata::fromArray($stored);
+
+        $this->assertFalse($restored->countsForTeamActivityKpi());
+        $this->assertTrue((new RemarkMetadata)->countsForTeamActivityKpi());
+    }
+
     public function test_future_keys_are_preserved_but_ignored_by_helpers(): void
     {
         $data = [

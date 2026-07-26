@@ -33,10 +33,11 @@ class WorkspaceEscalateActionService
     ): WorkspaceActionResponse {
         try {
             $freshIncident = DB::transaction(function () use ($incident, $actor, $body, $request): Incident {
-                $this->remarkService->createForRemarkable(
+                $this->remarkService->createSystemRemarkForRemarkable(
                     remarkable: $incident,
                     actor: $actor,
                     body: $body,
+                    systemSource: \App\Support\Remarks\RemarkSystemSource::WORKSPACE_ESCALATE,
                     request: $request,
                 );
 

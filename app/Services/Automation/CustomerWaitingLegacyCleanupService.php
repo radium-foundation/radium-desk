@@ -139,10 +139,11 @@ class CustomerWaitingLegacyCleanupService
 
         try {
             DB::transaction(function () use ($incident, $waitingState, $actor): void {
-                $this->remarkService->createForRemarkable(
+                $this->remarkService->createSystemRemarkForRemarkable(
                     remarkable: $incident,
                     actor: $actor,
                     body: CustomerWaitingLifecycleService::LEGACY_CLEANUP_REMARK,
+                    systemSource: \App\Support\Remarks\RemarkSystemSource::CUSTOMER_WAITING_LEGACY_CLEANUP,
                 );
 
                 $this->serviceCaseStatusService->updateStatus($incident, IncidentStatus::Closed, $actor);

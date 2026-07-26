@@ -35,6 +35,8 @@ class RemarkController extends Controller
     {
         $this->authorize('delete', $remark);
 
+        $metadata = $remark->metadataDto();
+
         $this->auditLogService->log(
             userId: $request->user()->id,
             event: 'deleted',
@@ -43,6 +45,8 @@ class RemarkController extends Controller
                 'body' => $remark->body,
                 'remarkable_type' => $remark->remarkable_type,
                 'remarkable_id' => $remark->remarkable_id,
+                'origin' => $metadata->origin?->value,
+                'system_source' => $metadata->systemSource,
             ],
             request: $request,
         );

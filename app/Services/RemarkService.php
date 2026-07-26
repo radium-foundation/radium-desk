@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Data\RemarkMetadata;
+use App\Enums\RemarkOrigin;
 use App\Models\Remark;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -21,9 +22,11 @@ class RemarkService
         User $actor,
         string $body,
         ?Request $request = null,
+        RemarkOrigin $origin = RemarkOrigin::Manual,
+        ?string $systemSource = null,
     ): Remark {
         $normalizedBody = trim($body);
-        $metadata = $this->buildInitialMetadata($normalizedBody);
+        $metadata = $this->buildInitialMetadata($normalizedBody, $origin, $systemSource);
 
         $remark = Remark::query()->create([
             'user_id' => $actor->id,
@@ -43,6 +46,8 @@ class RemarkService
                 'body' => $remark->body,
                 'remarkable_type' => $remark->remarkable_type,
                 'remarkable_id' => $remark->remarkable_id,
+                'origin' => $origin->value,
+                'system_source' => $systemSource,
             ],
             request: $request,
         );
@@ -53,6 +58,23 @@ class RemarkService
         }
 
         return $remark;
+    }
+
+    public function createSystemRemarkForRemarkable(
+        Model $remarkable,
+        User $actor,
+        string $body,
+        string $systemSource,
+        ?Request $request = null,
+    ): Remark {
+        return $this->createForRemarkable(
+            remarkable: $remarkable,
+            actor: $actor,
+            body: $body,
+            request: $request,
+            origin: RemarkOrigin::System,
+            systemSource: $systemSource,
+        );
     }
 
     private function syncMentions(Remark $remark, string $body): void
@@ -66,14 +88,18 @@ class RemarkService
         }
     }
 
-    private function buildInitialMetadata(string $body): RemarkMetadata
-    {
+    private function buildInitialMetadata(
+        string $body,
+        RemarkOrigin $origin,
+        ?string $systemSource,
+    ): RemarkMetadata {
+        $metadata = (new RemarkMetadata)->withOrigin($origin, $systemSource);
         $aiMentions = $this->mentionParser->mentionedAiAgents($body);
 
         if ($aiMentions === []) {
-            return new RemarkMetadata;
+            return $metadata;
         }
 
-        return (new RemarkMetadata)->withAiMentions($aiMentions);
+        return $metadata->withAiMentions($aiMentions);
     }
 }
