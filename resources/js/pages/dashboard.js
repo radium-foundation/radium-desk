@@ -15,6 +15,7 @@ import { initCustomer360Drawer } from '../customer-360-drawer';
 import { applyLiveRefreshNextAppointment, initAgentDashboard } from '../agent-dashboard';
 import { initDashboardActivityStreams } from '../dashboard-activity-streams';
 import { initDashboardActivityRefresh } from '../dashboard-activity-refresh';
+import { initDashboardTeamActivity } from '../dashboard-team-activity';
 import { buildSmartToastActions } from '../customer-360-cockpit';
 import { getDashboardConfig } from '../dashboard-config';
 import { initUniversalSearch } from '../universal-search';
@@ -359,8 +360,13 @@ export const bootDashboard = () => {
         showToast: showAppToast,
     }) };
 
-    initDashboardActivityStreams(pageRoot);
-    initDashboardActivityRefresh(pageRoot);
+    initDashboardTeamActivity(pageRoot);
+
+    // Legacy My Activity path (feature-flag rollback only).
+    if (pageRoot.querySelector('[data-dashboard-activity-feed]')) {
+        initDashboardActivityStreams(pageRoot);
+        initDashboardActivityRefresh(pageRoot);
+    }
 
     document.addEventListener('dashboard:live-refresh', (event) => {
         applyLiveRefreshNextAppointment(agentDashboardRef.current, event.detail);

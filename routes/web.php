@@ -13,6 +13,7 @@ use App\Http\Controllers\CompanyHolidayController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardActivityController;
+use App\Http\Controllers\DashboardTeamActivityController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
@@ -81,6 +82,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
     Route::get('/dashboard/live/rows', [DashboardLiveController::class, 'rows'])->name('dashboard.live.rows');
     Route::get('/dashboard/activity', [DashboardActivityController::class, 'refresh'])->name('dashboard.activity');
+    Route::get('/dashboard/team-activity', [DashboardTeamActivityController::class, 'refresh'])->name('dashboard.team-activity');
     Route::post('/dashboard/realtime/connection-status', RealtimeConnectionStatusController::class)
         ->name('dashboard.realtime.connection-status');
     Route::get('/search', [SearchController::class, 'search'])->name('search.index');

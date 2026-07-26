@@ -1,0 +1,291 @@
+<?php
+
+namespace App\Services\Dashboard;
+
+use App\Data\RecentActivityItem;
+use App\Data\TeamActivityAgentRow;
+use App\Data\TeamActivityEntry;
+use App\Data\TeamActivityPanel;
+use App\Models\AuditLog;
+use App\Services\Operations\TeamAvailabilityOverviewService;
+use App\Support\Dashboard\RecentActivityPresenter;
+use App\Support\Dashboard\TeamActivityLabelFormatter;
+use App\Support\Dashboard\TeamActivityStatusResolver;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+
+class TeamActivityPanelService
+{
+    public function __construct(
+        private readonly TeamAvailabilityOverviewService $overviewService,
+        private readonly RecentActivityPresenter $activityPresenter,
+        private readonly TeamActivityStatusResolver $statusResolver,
+        private readonly TeamActivityLabelFormatter $labelFormatter,
+    ) {}
+
+    /**
+     * @param  list<int>  $expandedAgentIds
+     */
+    public function build(array $expandedAgentIds = []): TeamActivityPanel
+    {
+        if (! config('dashboard-team-activity.enabled', true)) {
+            return TeamActivityPanel::empty();
+        }
+
+        $overview = $this->overviewService->overview();
+        $members = array_values([
+            ...$overview['on_duty'],
+            ...$overview['unavailable'],
+        ]);
+
+        if ($members === []) {
+            return TeamActivityPanel::empty();
+        }
+
+        $userIds = array_map(static fn (array $member): int => (int) $member['id'], $members);
+        $expandedIds = $this->normalizeExpandedIds($expandedAgentIds, $userIds);
+        $historyLimit = max(1, (int) config('dashboard-team-activity.history_limit', 12));
+        $allowlist = $this->eventAllowlist();
+
+        $todayCounts = $this->todayCountsFor($userIds, $allowlist);
+        $latestByUser = $this->latestAuditsFor($userIds, $allowlist);
+        $historyByUser = $expandedIds === []
+            ? []
+            : $this->historyAuditsFor($expandedIds, $allowlist, $historyLimit);
+
+        $allAudits = collect($latestByUser)
+            ->merge(collect($historyByUser)->flatten(1))
+            ->filter()
+            ->unique(fn (AuditLog $log): int => (int) $log->id)
+            ->values();
+
+        $itemsByAuditId = $this->activityPresenter
+            ->presentItemsById($allAudits)
+            ->all();
+
+        $agents = [];
+
+        foreach ($members as $member) {
+            $userId = (int) $member['id'];
+            $latestAudit = $latestByUser[$userId] ?? null;
+            $status = $this->statusResolver->resolve($member, $latestAudit);
+            $expanded = in_array($userId, $expandedIds, true);
+            $latestEntry = $latestAudit !== null
+                ? $this->entryFromAudit($latestAudit, $itemsByAuditId)
+                : null;
+
+            $history = [];
+
+            if ($expanded) {
+                foreach ($historyByUser[$userId] ?? [] as $audit) {
+                    $entry = $this->entryFromAudit($audit, $itemsByAuditId);
+
+                    if ($entry !== null) {
+                        $history[] = $entry;
+                    }
+                }
+            }
+
+            $agents[] = new TeamActivityAgentRow(
+                id: $userId,
+                name: (string) ($member['name'] ?? 'Agent'),
+                status: $status,
+                statusLabel: $status->label(),
+                statusTone: $status->tone(),
+                workingLabel: $this->statusResolver->workingLabel($member, $status),
+                overtimeLabel: null,
+                todayCount: (int) ($todayCounts[$userId] ?? 0),
+                latest: $latestEntry,
+                history: $history,
+                expanded: $expanded,
+            );
+        }
+
+        usort(
+            $agents,
+            static fn (TeamActivityAgentRow $a, TeamActivityAgentRow $b): int => strcmp($a->name, $b->name),
+        );
+
+        return new TeamActivityPanel($agents, false);
+    }
+
+    public function render(TeamActivityPanel $panel): string
+    {
+        return view('dashboard.partials.team-activity-panel', [
+            'panel' => $panel,
+        ])->render();
+    }
+
+    /**
+     * @param  list<int>  $expandedAgentIds
+     * @param  list<int>  $rosterIds
+     * @return list<int>
+     */
+    private function normalizeExpandedIds(array $expandedAgentIds, array $rosterIds): array
+    {
+        $max = max(0, (int) config('dashboard-team-activity.max_expanded_agents', 20));
+        $rosterLookup = array_fill_keys($rosterIds, true);
+
+        $normalized = [];
+
+        foreach ($expandedAgentIds as $id) {
+            $id = (int) $id;
+
+            if ($id <= 0 || ! isset($rosterLookup[$id])) {
+                continue;
+            }
+
+            $normalized[$id] = $id;
+
+            if (count($normalized) >= $max) {
+                break;
+            }
+        }
+
+        return array_values($normalized);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function eventAllowlist(): array
+    {
+        $events = config('dashboard-team-activity.event_allowlist', []);
+
+        return array_values(array_filter(
+            is_array($events) ? $events : [],
+            static fn (mixed $event): bool => is_string($event) && $event !== '',
+        ));
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @param  list<string>  $allowlist
+     * @return array<int, int>
+     */
+    private function todayCountsFor(array $userIds, array $allowlist): array
+    {
+        if ($userIds === [] || $allowlist === []) {
+            return [];
+        }
+
+        $dayStart = Carbon::now()->startOfDay();
+
+        return AuditLog::query()
+            ->selectRaw('user_id, COUNT(*) as aggregate_count')
+            ->whereIn('user_id', $userIds)
+            ->whereIn('event', $allowlist)
+            ->where('created_at', '>=', $dayStart)
+            ->groupBy('user_id')
+            ->pluck('aggregate_count', 'user_id')
+            ->map(static fn (mixed $count): int => (int) $count)
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @param  list<string>  $allowlist
+     * @return array<int, AuditLog>
+     */
+    private function latestAuditsFor(array $userIds, array $allowlist): array
+    {
+        if ($userIds === [] || $allowlist === []) {
+            return [];
+        }
+
+        $latestIds = AuditLog::query()
+            ->selectRaw('MAX(id) as id')
+            ->whereIn('user_id', $userIds)
+            ->whereIn('event', $allowlist)
+            ->groupBy('user_id')
+            ->pluck('id')
+            ->filter()
+            ->all();
+
+        if ($latestIds === []) {
+            return [];
+        }
+
+        return AuditLog::query()
+            ->with(RecentActivityPresenter::eagerLoadRelations())
+            ->whereIn('id', $latestIds)
+            ->get()
+            ->keyBy(fn (AuditLog $log): int => (int) $log->user_id)
+            ->all();
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @param  list<string>  $allowlist
+     * @return array<int, list<AuditLog>>
+     */
+    private function historyAuditsFor(array $userIds, array $allowlist, int $historyLimit): array
+    {
+        if ($userIds === [] || $allowlist === []) {
+            return [];
+        }
+
+        $fetchLimit = min(count($userIds) * $historyLimit * 2, 5000);
+
+        $logs = AuditLog::query()
+            ->with(RecentActivityPresenter::eagerLoadRelations())
+            ->whereIn('user_id', $userIds)
+            ->whereIn('event', $allowlist)
+            ->latest('created_at')
+            ->latest('id')
+            ->limit($fetchLimit)
+            ->get();
+
+        $buckets = [];
+
+        foreach ($logs as $log) {
+            $userId = (int) $log->user_id;
+
+            if (! in_array($userId, $userIds, true)) {
+                continue;
+            }
+
+            $buckets[$userId] ??= [];
+
+            if (count($buckets[$userId]) >= $historyLimit) {
+                continue;
+            }
+
+            $buckets[$userId][] = $log;
+        }
+
+        return $buckets;
+    }
+
+    /**
+     * @param  array<int, RecentActivityItem>  $itemsByAuditId
+     */
+    private function entryFromAudit(AuditLog $audit, array $itemsByAuditId): ?TeamActivityEntry
+    {
+        $item = $itemsByAuditId[(int) $audit->id] ?? null;
+
+        if (! $item instanceof RecentActivityItem || $audit->created_at === null) {
+            return null;
+        }
+
+        $reference = $item->incidentLabel();
+        if ($reference === '') {
+            $reference = null;
+        }
+
+        $label = $this->labelFormatter->labelFor($audit, $item);
+
+        // Reference is already embedded for assign/reassign labels.
+        $showReference = ! str_starts_with($label, 'Assigned ')
+            && ! str_starts_with($label, 'Reassigned ')
+            && ! str_starts_with($label, 'Escalated ');
+
+        return new TeamActivityEntry(
+            at: $audit->created_at,
+            time: $audit->created_at->format('H:i'),
+            label: $label,
+            reference: $showReference ? $reference : null,
+            incidentId: $item->entityIncidentId,
+        );
+    }
+}

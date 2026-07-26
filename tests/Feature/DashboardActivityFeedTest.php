@@ -69,8 +69,10 @@ class DashboardActivityFeedTest extends TestCase
             ]);
     }
 
-    public function test_dashboard_page_includes_activity_refresh_attributes(): void
+    public function test_dashboard_page_includes_activity_refresh_attributes_when_team_activity_disabled(): void
     {
+        config(['dashboard-team-activity.enabled' => false]);
+
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 

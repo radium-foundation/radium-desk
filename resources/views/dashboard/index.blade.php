@@ -93,7 +93,9 @@
             </div>
         @endif
 
-        @if(! $recentActivityStreams->isEmpty())
+        @if(($teamActivityEnabled ?? true) && ! ($teamActivityPanel?->empty ?? true))
+            @include('dashboard.partials.team-activity-panel', ['panel' => $teamActivityPanel])
+        @elseif(! ($teamActivityEnabled ?? true) && ! $recentActivityStreams->isEmpty())
             @include('dashboard.partials.recent-activity-feed', ['streams' => $recentActivityStreams])
         @endif
 

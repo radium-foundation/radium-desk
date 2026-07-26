@@ -41,13 +41,7 @@ class RecentActivityPresenter
     {
         $perStream = $perStreamLimit ?? (int) config('dashboard-activity.limits.per_stream', 12);
 
-        $items = $this->collapseGroups(
-            $auditLogs
-                ->map(fn (AuditLog $auditLog): ?MappedRecentActivity => $this->mapAuditLog($auditLog))
-                ->filter()
-                ->values(),
-        );
-
+        $items = $this->presentItems($auditLogs);
         $grouped = $items->groupBy(fn (RecentActivityItem $item): string => $item->stream);
         $showIra = $viewer->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
@@ -59,6 +53,45 @@ class RecentActivityPresenter
                 : collect(),
             showIra: $showIra,
         );
+    }
+
+    /**
+     * Present audit logs as flat activity items (no stream partitioning).
+     *
+     * @param  Collection<int, AuditLog>  $auditLogs
+     * @return Collection<int, RecentActivityItem>
+     */
+    public function presentItems(Collection $auditLogs): Collection
+    {
+        return $this->collapseGroups(
+            $auditLogs
+                ->map(fn (AuditLog $auditLog): ?MappedRecentActivity => $this->mapAuditLog($auditLog))
+                ->filter()
+                ->values(),
+        );
+    }
+
+    /**
+     * Present audit logs keyed by audit log id (no group collapse).
+     *
+     * @param  Collection<int, AuditLog>  $auditLogs
+     * @return Collection<int, RecentActivityItem>
+     */
+    public function presentItemsById(Collection $auditLogs): Collection
+    {
+        $items = collect();
+
+        foreach ($auditLogs as $auditLog) {
+            $mapped = $this->mapAuditLog($auditLog);
+
+            if ($mapped === null) {
+                continue;
+            }
+
+            $items->put((int) $auditLog->id, $mapped->toItem());
+        }
+
+        return $items;
     }
 
     /**
