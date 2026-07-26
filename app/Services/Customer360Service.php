@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Data\AI\AIContextBuildSnapshot;
 use App\Data\AI\CustomerJourneyBuildContext;
 use App\Data\AI\AIWorkbenchDTO;
+use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\TimelineViewModel;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
@@ -18,6 +19,7 @@ use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Customer360\Customer360RecentCommunicationService;
+use App\Services\Customer360\Intelligence\CaseIntelligenceEngine;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
@@ -73,6 +75,7 @@ class Customer360Service
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly Customer360CommunicationActionStatusPresenter $communicationActionStatusPresenter,
         private readonly Customer360RecentCommunicationService $recentCommunicationService,
+        private readonly CaseIntelligenceEngine $caseIntelligenceEngine,
     ) {}
 
     /**
@@ -227,6 +230,36 @@ class Customer360Service
             return ['html' => ''];
         }
 
+        $executiveSummary = $this->caseIntelligenceEngine->enabled()
+            ? $this->caseIntelligenceEngine->executiveSummary($incident)
+            : $this->legacyExecutiveSummary($incident);
+
+        if ($executiveSummary === null) {
+            return ['html' => ''];
+        }
+
+        return [
+            'html' => view('customer-360.partials.executive-summary', [
+                'incident' => $incident,
+                'executiveSummary' => $executiveSummary,
+                'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
+                'correctSerialRequestState' => $this->correctSerialRequestState($order),
+            ])->render(),
+        ];
+    }
+
+    /**
+     * Legacy executive-summary assembly path (pre CaseIntelligenceEngine).
+     * Kept for instant rollback via ira.case_intelligence_engine.enabled=false.
+     */
+    private function legacyExecutiveSummary(Incident $incident): ?IRAExecutiveSummaryDTO
+    {
+        $order = $incident->order;
+
+        if ($order === null) {
+            return null;
+        }
+
         $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
         $activeServices = $this->activeServices($incident, $order, $enrichmentMetadata);
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
@@ -251,24 +284,15 @@ class Customer360Service
         );
         $aiBundle = $this->aiService->buildBundle($incident, $snapshot, $scopeCache);
         $operationsAdvisorInsights = $this->operationsAdvisorService->incidentInsightsFromBundle($incident, $aiBundle, $snapshot);
-        $executiveSummary = $this->executiveSummaryService->buildFromBundle(
+
+        return $this->executiveSummaryService->buildFromBundle(
             $incident,
             $aiBundle,
             $snapshot,
             $operationsAdvisorInsights,
         );
-
-        return [
-            'html' => view('customer-360.partials.executive-summary', [
-                'incident' => $incident,
-                'executiveSummary' => $executiveSummary,
-                'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
-                'correctSerialRequestState' => $order !== null
-                    ? $this->correctSerialRequestState($order)
-                    : ['requested' => false],
-            ])->render(),
-        ];
     }
+
 
     /**
      * @return array{timeline: TimelineViewModel, html: string, customerHealthCard: array<string, mixed>|null, customerInsights: list<array{key: string, label: string, description: string, icon: string}>, iraAdvisor: array<string, mixed>|null}

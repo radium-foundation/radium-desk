@@ -3,6 +3,20 @@
 return [
     'reasoning_provider' => env('IRA_REASONING_PROVIDER', 'rule_based'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Customer 360 Case Intelligence Engine (IRA v2 foundation)
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Customer360 executive summary assembly goes through
+    | CaseIntelligenceEngine. Disable to instantly roll back to the legacy
+    | inline path in Customer360Service.
+    |
+    */
+    'case_intelligence_engine' => [
+        'enabled' => (bool) env('IRA_CASE_INTELLIGENCE_ENGINE', false),
+    ],
+
     'memory' => [
         'retention_days' => 90,
     ],

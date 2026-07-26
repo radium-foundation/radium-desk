@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\AI\AIProvider;
+use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Contracts\Operations\IraReasoningProvider;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
@@ -18,6 +19,7 @@ use App\Policies\Workforce360Policy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
 use App\Services\AI\Providers\NullAIProvider;
+use App\Services\Customer360\Intelligence\NullCaseIntelligenceLanguageEnhancer;
 use App\Services\MissingSerial\MissingSerialAutomationService;
 use App\Services\Operations\OpenAIReasoningProvider;
 use App\Services\Operations\RuleBasedReasoningProvider;
@@ -131,6 +133,8 @@ class AppServiceProvider extends ServiceProvider
                 default => $app->make(NullAIProvider::class),
             };
         });
+
+        $this->app->singleton(CaseIntelligenceLanguageEnhancer::class, NullCaseIntelligenceLanguageEnhancer::class);
 
         $this->app->singleton(GlobalSearchService::class, function ($app): GlobalSearchService {
             return new GlobalSearchService([
