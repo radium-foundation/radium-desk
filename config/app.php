@@ -28,6 +28,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Release Date
+    |--------------------------------------------------------------------------
+    |
+    | Optional ISO date (YYYY-MM-DD) for the current release. Used when a
+    | changelog entry does not declare its own release date.
+    |
+    */
+
+    'release_date' => env('APP_RELEASE_DATE'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Environment
     |--------------------------------------------------------------------------
     |

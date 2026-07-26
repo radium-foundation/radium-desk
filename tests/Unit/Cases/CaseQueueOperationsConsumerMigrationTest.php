@@ -15,6 +15,7 @@ use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\IraMemoryService;
+use App\Services\Operations\OperationsDashboardLiveRenderer;
 use App\Services\Operations\OperationsSupportIntelligenceService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use Database\Seeders\RolePermissionSeeder;
@@ -107,12 +108,14 @@ class CaseQueueOperationsConsumerMigrationTest extends TestCase
         $admin = User::factory()->create(['is_active' => true]);
         $admin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
+        $firstPaintGroups = implode(',', OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS);
+
         $first = $this->actingAs($admin)
-            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
+            ->getJson(route('admin.operations.live', ['groups' => $firstPaintGroups]))
             ->assertOk();
 
         $second = $this->actingAs($admin)
-            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
+            ->getJson(route('admin.operations.live', ['groups' => $firstPaintGroups]))
             ->assertOk();
 
         $this->assertSame($first->json('html'), $second->json('html'));

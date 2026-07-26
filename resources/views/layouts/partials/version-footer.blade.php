@@ -1,8 +1,3 @@
-@php
-    $appName = config('app.name', 'Radium Desk');
-    $version = config('app.version', '0.0.0');
-@endphp
-
 <div class="app-version-footer px-3 py-2">
     <button
         type="button"
@@ -11,6 +6,6 @@
         data-bs-target="#whatsNewModal"
         title="What's New"
     >
-        <span class="app-version-footer__label">{{ $appName }} v{{ $version }}</span>
+        <span class="app-version-footer__label">{{ $applicationLabel }}</span>
     </button>
 </div>

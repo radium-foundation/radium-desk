@@ -60,12 +60,9 @@ class OperationsDashboardPerformanceTest extends TestCase
         $indexResponse = $this->actingAs($admin)->get(route('admin.operations.index'));
         $indexBytes = strlen($indexResponse->getContent());
 
-        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections([
-            'critical',
-            'summary',
-            'health',
-            'ira_compact',
-        ]);
+        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections(
+            OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS,
+        );
         $normalized = $firstPaintSections;
         sort($normalized);
         $sectionCacheKey = 'operations:dashboard:sections:'.hash('xxh128', implode(',', $normalized));
@@ -89,16 +86,18 @@ class OperationsDashboardPerformanceTest extends TestCase
             ->assertOk();
 
         $partialResponse = $this->actingAs($admin)
-            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
+            ->getJson(route('admin.operations.live', [
+                'groups' => implode(',', OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS),
+            ]))
             ->assertOk()
-            ->assertJsonPath('groups', ['critical', 'summary', 'health', 'ira_compact']);
+            ->assertJsonPath('groups', OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS);
 
         $fullSections = array_keys($fullResponse->json('html'));
         $partialSections = array_keys($partialResponse->json('html'));
 
         $this->assertGreaterThan(count($partialSections), count($fullSections));
         $this->assertSame(
-            ['critical_alerts', 'overview_cards', 'health_status', 'ira_compact'],
+            ['critical_alerts', 'overview_cards', 'queue_summary', 'active_operators'],
             $partialSections,
         );
     }
@@ -128,6 +127,8 @@ class OperationsDashboardPerformanceTest extends TestCase
         $lazyGroups = [
             'critical',
             'summary',
+            'queue',
+            'operators',
             'ira_compact',
             'ira_full',
             'health',
@@ -224,12 +225,14 @@ class OperationsDashboardPerformanceTest extends TestCase
         $this->assertSame($before, $classifier->classificationComputeCount());
     }
 
-    public function test_partial_dashboard_build_skips_ivr_analytics_bundle(): void
+    public function test_deferred_command_center_build_skips_ivr_analytics_bundle(): void
     {
         Cache::flush();
 
         $service = app(OperationsDashboardService::class);
-        $sections = OperationsDashboardLiveRenderer::resolveSections(['critical', 'summary', 'health', 'ira_compact']);
+        $sections = OperationsDashboardLiveRenderer::resolveSections(
+            OperationsDashboardLiveRenderer::DEFERRED_COMMAND_CENTER_GROUPS,
+        );
         $bundles = OperationsDashboardSectionBundles::bundlesForSections($sections);
 
         $this->assertNotContains(OperationsDashboardSectionBundles::IVR_ANALYTICS, $bundles);
@@ -248,21 +251,28 @@ class OperationsDashboardPerformanceTest extends TestCase
         $this->assertGreaterThan(0, $queries);
     }
 
-    public function test_always_on_partial_build_excludes_support_and_team_bundles(): void
+    public function test_first_paint_build_includes_support_team_and_queue_bundles(): void
     {
         Cache::flush();
 
         $service = app(OperationsDashboardService::class);
-        $sections = OperationsDashboardLiveRenderer::resolveSections(['critical', 'summary', 'health', 'ira_compact']);
+        $sections = OperationsDashboardLiveRenderer::resolveSections(
+            OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS,
+        );
         $bundles = OperationsDashboardSectionBundles::bundlesForSections($sections);
 
-        $this->assertNotContains(OperationsDashboardSectionBundles::SUPPORT_INTELLIGENCE, $bundles);
-        $this->assertNotContains(OperationsDashboardSectionBundles::TEAM_AVAILABILITY, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::SUPPORT_INTELLIGENCE, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::TEAM_AVAILABILITY, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::QUEUE_METRICS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::IVR_ANALYTICS, $bundles);
 
         $data = $service->buildForSections($sections);
 
-        $this->assertSame([], $data->supportIntelligence);
-        $this->assertSame([], $data->teamAvailability['on_duty'] ?? []);
+        $this->assertIsArray($data->supportIntelligence);
+        $this->assertIsArray($data->queueMetrics);
+        $this->assertArrayHasKey('pending', $data->queueMetrics);
+        $this->assertIsArray($data->teamAvailability);
+        $this->assertIsArray($data->ivrAnalytics);
     }
 
     public function test_performance_group_build_excludes_support_intelligence(): void
@@ -297,7 +307,9 @@ class OperationsDashboardPerformanceTest extends TestCase
         DB::flushQueryLog();
 
         $this->actingAs($admin)
-            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
+            ->getJson(route('admin.operations.live', [
+                'groups' => implode(',', OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS),
+            ]))
             ->assertOk();
 
         $partialQueryCount = count(DB::getQueryLog());

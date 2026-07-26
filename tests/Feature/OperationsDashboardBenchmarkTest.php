@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
+use App\Services\Operations\OperationsDashboardLiveRenderer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class OperationsDashboardBenchmarkTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $full = $this->measureLiveRequest($admin);
-        $partial = $this->measureLiveRequest($admin, 'critical,summary,health,ira_compact');
+        $partial = $this->measureLiveRequest($admin, implode(',', OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS));
         $performance = $this->measureLiveRequest($admin, 'performance');
 
         fwrite(STDERR, json_encode([

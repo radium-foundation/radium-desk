@@ -34,13 +34,9 @@ class OperationsDashboardController extends Controller
 
     public function index(): View
     {
-        // First-paint bundles only — lazy tabs load via live groups (same as always-on poll set).
-        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections([
-            'critical',
-            'summary',
-            'health',
-            'ira_compact',
-        ]);
+        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections(
+            OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS,
+        );
 
         return view('admin.operations.index', [
             'dashboard' => $this->dashboardService->dashboardDataForSections($firstPaintSections),
@@ -138,8 +134,6 @@ class OperationsDashboardController extends Controller
     private function sectionsNeedIra(array $sections): bool
     {
         return collect($sections)->contains(fn (string $section): bool => in_array($section, [
-            'critical_alerts',
-            'overview_cards',
             'ira_compact',
             'ira_full_analysis',
             'ira_briefing',
@@ -154,7 +148,6 @@ class OperationsDashboardController extends Controller
     private function sectionsNeedAdvisor(array $sections): bool
     {
         return collect($sections)->contains(fn (string $section): bool => in_array($section, [
-            'overview_cards',
             'advisor_insights',
         ], true));
     }

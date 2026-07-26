@@ -270,6 +270,11 @@ describe('operations-dashboard visibility polling', () => {
 
     beforeEach(() => {
         vi.useFakeTimers();
+        vi.stubGlobal('requestIdleCallback', (callback) => {
+            window.setTimeout(() => callback({ didTimeout: false, timeRemaining: () => 0 }), 0);
+
+            return 1;
+        });
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
@@ -277,6 +282,8 @@ describe('operations-dashboard visibility polling', () => {
                 html: {
                     critical_alerts: '<div>alerts</div>',
                     overview_cards: '<div>overview</div>',
+                    queue_summary: '<div>queue</div>',
+                    active_operators: '<div>operators</div>',
                     health_status: '<div>health</div>',
                     ira_compact: '<div>ira</div>',
                 },
@@ -309,6 +316,7 @@ describe('operations-dashboard visibility polling', () => {
 
     it('performs a catch-up refresh when the tab becomes visible again', async () => {
         await initOperationsDashboard();
+        await vi.advanceTimersByTimeAsync(0);
 
         fetch.mockClear();
 

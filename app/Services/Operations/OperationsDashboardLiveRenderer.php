@@ -9,9 +9,25 @@ use App\Data\Operations\OperationsDashboardData;
 class OperationsDashboardLiveRenderer
 {
     /** @var list<string> */
+    public const FIRST_PAINT_GROUPS = [
+        'critical',
+        'summary',
+        'queue',
+        'operators',
+    ];
+
+    /** @var list<string> */
+    public const DEFERRED_COMMAND_CENTER_GROUPS = [
+        'health',
+        'ira_compact',
+    ];
+
+    /** @var list<string> */
     public const ALL_SECTIONS = [
         'critical_alerts',
         'overview_cards',
+        'queue_summary',
+        'active_operators',
         'ira_compact',
         'health_status',
         'today_tab',
@@ -24,6 +40,8 @@ class OperationsDashboardLiveRenderer
     public const GROUP_SECTIONS = [
         'critical' => ['critical_alerts'],
         'summary' => ['overview_cards'],
+        'queue' => ['queue_summary'],
+        'operators' => ['active_operators'],
         'ira_compact' => ['ira_compact'],
         'ira_full' => ['ira_full_analysis'],
         'health' => ['health_status'],
@@ -107,6 +125,12 @@ class OperationsDashboardLiveRenderer
                 'members' => $dashboard->teamAvailability['on_duty'] ?? [],
                 'insights' => $advisorInsights,
                 'intelligence' => $dashboard->supportIntelligence,
+            ])->render(),
+            'queue_summary' => view('admin.operations.partials.queue-summary-compact', [
+                'metrics' => $dashboard->queueMetrics,
+            ])->render(),
+            'active_operators' => view('admin.operations.partials.active-operators-compact', [
+                'teamAvailability' => $dashboard->teamAvailability,
             ])->render(),
             'ira_compact' => view('admin.operations.partials.ira-briefing-compact', [
                 'briefing' => $iraBriefing,

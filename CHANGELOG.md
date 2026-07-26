@@ -1,6 +1,6 @@
 # Changelog
 
-## P09 Workforce Platform Update
+## 4.0.0 — 2026-07-26 — P09 Workforce Platform Update
 
 - Workforce availability intelligence
 - Role management improvements

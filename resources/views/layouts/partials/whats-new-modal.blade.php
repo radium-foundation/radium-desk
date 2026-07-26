@@ -11,7 +11,7 @@
             </div>
             <div class="modal-body py-3">
                 <p class="text-muted small mb-3">
-                    {{ config('app.name', 'Radium Desk') }} v{{ config('app.version', '0.0.0') }}
+                    {{ $applicationLabel }}
                 </p>
 
                 @forelse($changelogEntries as $entry)

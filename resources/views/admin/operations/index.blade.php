@@ -48,23 +48,30 @@
                 <div id="operations-overview-cards" class="operations-bento-cell operations-bento-cell--overview">
                     @include('admin.operations.partials.overview-cards', [
                         'dashboard' => $dashboard,
-                        'members' => $dashboard->teamAvailability['on_duty'] ?? [],
+                        'members' => [],
                         'intelligence' => $dashboard->supportIntelligence,
                     ])
                 </div>
 
+                <div id="operations-queue-summary" class="operations-bento-cell operations-bento-cell--queue">
+                    @include('admin.operations.partials.queue-summary-compact', [
+                        'metrics' => $dashboard->queueMetrics,
+                    ])
+                </div>
+
+                <div id="operations-active-operators" class="operations-bento-cell operations-bento-cell--operators">
+                    @include('admin.operations.partials.active-operators-compact', [
+                        'teamAvailability' => $dashboard->teamAvailability,
+                    ])
+                </div>
+
                 <div id="operations-ira-briefing-compact" class="operations-bento-cell operations-bento-cell--ira">
-                    @include('admin.operations.partials.ira-briefing-compact')
+                    @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading Ira insights…'])
                 </div>
             </div>
 
             <div id="operations-health-status" class="operations-bento-row operations-bento-row--health">
-                @include('admin.operations.partials.health-status-compact', [
-                    'cashfreeHealth' => $dashboard->cashfreeHealth,
-                    'radiumBoxHealth' => $dashboard->radiumBoxHealth,
-                    'teamTelegramStatus' => $dashboard->teamTelegramStatus,
-                    'integrationHealth' => $dashboard->integrationHealth,
-                ])
+                @include('admin.operations.partials.lazy-tab-placeholder', ['label' => 'Loading integration health…'])
             </div>
         </section>
 

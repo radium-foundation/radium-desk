@@ -34,14 +34,15 @@ class ControlCenterFirstPaintTest extends TestCase
             ->get(route('admin.operations.index'))
             ->assertOk()
             ->assertSee('Operations Control Center')
-            ->assertSee('aria-label="Mission Control workspace"', false);
+            ->assertSee('aria-label="Mission Control workspace"', false)
+            ->assertSee('operations-queue-summary-compact', false)
+            ->assertSee('operations-active-operators-compact', false)
+            ->assertSee('Loading integration health', false)
+            ->assertSee('Loading Ira insights', false);
 
-        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections([
-            'critical',
-            'summary',
-            'health',
-            'ira_compact',
-        ]);
+        $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections(
+            OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS,
+        );
         $normalized = $firstPaintSections;
         sort($normalized);
         $sectionCacheKey = 'operations:dashboard:sections:'.hash('xxh128', implode(',', $normalized));
@@ -50,8 +51,12 @@ class ControlCenterFirstPaintTest extends TestCase
         $this->assertFalse(Cache::has('operations:dashboard:latest:v2'), 'SSR should not build the full dashboard cache key.');
 
         $bundles = OperationsDashboardSectionBundles::bundlesForSections($firstPaintSections);
-        $this->assertNotContains(OperationsDashboardSectionBundles::TEAM_AVAILABILITY, $bundles);
-        $this->assertNotContains(OperationsDashboardSectionBundles::SUPPORT_INTELLIGENCE, $bundles);
-        $this->assertNotContains(OperationsDashboardSectionBundles::IVR_ANALYTICS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::TEAM_AVAILABILITY, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::QUEUE_METRICS, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::SUPPORT_INTELLIGENCE, $bundles);
+        $this->assertContains(OperationsDashboardSectionBundles::IVR_ANALYTICS, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::SYSTEM_HEALTH, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::INTEGRATION_HEALTH, $bundles);
+        $this->assertNotContains(OperationsDashboardSectionBundles::TEAM_TELEGRAM_STATUS, $bundles);
     }
 }

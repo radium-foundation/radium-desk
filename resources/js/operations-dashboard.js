@@ -3,6 +3,8 @@ import { bindAutomationHealthEmbed, initAutomationHealth } from './automation-he
 const SECTION_TARGETS = {
     critical_alerts: 'operations-critical-alerts',
     overview_cards: 'operations-overview-cards',
+    queue_summary: 'operations-queue-summary',
+    active_operators: 'operations-active-operators',
     ira_compact: 'operations-ira-briefing-compact',
     ira_full_analysis: 'operations-ira-full-analysis-modal-body',
     health_status: 'operations-health-status',
@@ -48,7 +50,8 @@ const HEALTH_DETAIL_TARGETS = {
     health_telegram: 'operations-health-detail-telegram',
 };
 
-const ALWAYS_REFRESH_GROUPS = ['critical', 'summary', 'health', 'ira_compact'];
+const ALWAYS_REFRESH_GROUPS = ['critical', 'summary', 'queue', 'operators'];
+const DEFERRED_COMMAND_CENTER_GROUPS = ['health', 'ira_compact'];
 const TAB_GROUP_BY_PANE = {
     'operations-pane-today': 'today',
     'operations-pane-team': 'team',
@@ -828,8 +831,37 @@ const bindIraFullAnalysisModal = (pageRoot) => {
     });
 };
 
+const loadDeferredCommandCenterSections = async (pageRoot) => {
+    try {
+        const payload = await fetchLiveGroups(pageRoot, DEFERRED_COMMAND_CENTER_GROUPS);
+        applyLiveHtml(pageRoot, payload.html ?? {});
+        bindBatchRecoveryForms(pageRoot);
+        bindOperationsTabShortcuts(pageRoot);
+        bindIraInsightToggleLabels(pageRoot);
+        bindHealthAccordionLazyLoad(pageRoot);
+    } catch {
+        // Keep skeleton placeholders; polling or manual retry can recover.
+    }
+};
+
+const scheduleDeferredCommandCenterSections = (pageRoot) => {
+    const run = () => {
+        loadDeferredCommandCenterSections(pageRoot);
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(run, { timeout: 2500 });
+    } else {
+        window.setTimeout(run, 0);
+    }
+};
+
 const retryInitialOperationsLoad = async (pageRoot) => {
-    replaceSectionHtml(TAB_CONTENT_TARGETS.today, renderLazySkeleton('Retrying…'));
+    const hubTab = new URLSearchParams(window.location.search).get('hub_tab');
+
+    if (hubTab === 'today') {
+        replaceSectionHtml(TAB_CONTENT_TARGETS.today, renderLazySkeleton('Retrying…'));
+    }
 
     await refreshOperationsDashboard(pageRoot, { surfaceErrors: true });
     await loadLazyTab(pageRoot, 'today', { force: true });
@@ -1163,12 +1195,20 @@ const initOperationsDashboard = async () => {
         await refreshOperationsDashboard(pageRoot, { surfaceErrors: true });
     }
 
+    scheduleDeferredCommandCenterSections(pageRoot);
+
     const hubTab = new URLSearchParams(window.location.search).get('hub_tab');
 
     if (hubTab === 'automation' && pageRoot.dataset.automationHealthUrl) {
         await loadAutomationTab(pageRoot, { force: true });
-    } else if (isTabStillLoading('today')) {
+    } else if (hubTab === 'today' && isTabStillLoading('today')) {
         await loadLazyTab(pageRoot, 'today', { force: true });
+    } else if (hubTab === 'team' && isTabStillLoading('team')) {
+        await loadLazyTab(pageRoot, 'team', { force: true });
+    } else if (hubTab === 'performance' && isTabStillLoading('performance')) {
+        await loadLazyTab(pageRoot, 'performance', { force: true });
+    } else if (hubTab === 'system' && isTabStillLoading('system')) {
+        await loadLazyTab(pageRoot, 'system', { force: true });
     }
 
     const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
@@ -1185,6 +1225,8 @@ export {
     initOperationsDashboard,
     isOperationsSsrFresh,
     isLazyPlaceholderHtml,
+    loadDeferredCommandCenterSections,
+    scheduleDeferredCommandCenterSections,
     loadHealthDetail,
     loadAutomationHealthSubview,
     loadAutomationPipelineSubview,

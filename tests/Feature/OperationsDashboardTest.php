@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Notifications\NotificationAuditTrailService;
+use App\Services\Operations\OperationsDashboardLiveRenderer;
 use App\Services\Operations\OperationsDashboardService;
 use App\Services\Operations\OperationsSupportIntelligenceService;
 use App\Services\Operations\PresenceEngineService;
@@ -167,17 +168,15 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('Operations Control Center')
             ->assertSee('Critical Alerts')
             ->assertSee('Command Center')
-            ->assertSee('Integration Health')
-            ->assertSee('System Health')
-            ->assertSee('Operations Queue')
+            ->assertSee('Queue Summary')
+            ->assertSee('Active Operators')
             ->assertSee('Support Today')
             ->assertSee('Team Load')
-            ->assertSee('View Full Analysis')
-            ->assertSee('Loading recommendations')
+            ->assertSee('Loading integration health')
+            ->assertSee('Loading Ira insights')
             ->assertSee('operations-live-indicator', false)
             ->assertSee('operations-skeleton-loader', false)
-            ->assertSee('Cashfree')
-            ->assertSee('id="operations-dashboard-tabs"', false)
+            ->assertSee('operations-dashboard-tabs', false)
             ->assertSee('operations-tab-team', false)
             ->assertSee('operations-tab-performance', false)
             ->assertSee('operations-tab-system', false)
@@ -257,8 +256,8 @@ class OperationsDashboardTest extends TestCase
         $this->actingAs($this->createAdminUser('admin-command-cards@test.com'))
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('System Health', false)
-            ->assertSee('Operations Queue', false)
+            ->assertSee('Queue Summary', false)
+            ->assertSee('Active Operators', false)
             ->assertSee('Support Today', false)
             ->assertSee('Team Load', false)
             ->assertSee('operations-command-card', false);
@@ -266,8 +265,15 @@ class OperationsDashboardTest extends TestCase
 
     public function test_healthy_integration_systems_render_collapsed_on_initial_page(): void
     {
-        $response = $this->actingAs($this->createAdminUser('admin-health-collapsed@test.com'))
+        $admin = $this->createAdminUser('admin-health-collapsed@test.com');
+
+        $this->actingAs($admin)
             ->get(route('admin.operations.index'))
+            ->assertOk()
+            ->assertSee('Loading integration health', false);
+
+        $response = $this->actingAs($admin)
+            ->getJson(route('admin.operations.live', ['groups' => 'health']))
             ->assertOk()
             ->assertSee('operations-integration-grid', false)
             ->assertSee('operations-integration-pill', false)
@@ -278,7 +284,11 @@ class OperationsDashboardTest extends TestCase
         if (str_contains($html, 'All systems operational')) {
             $this->assertStringContainsString('All systems operational', $html);
         } else {
-            $this->assertStringContainsString('operations-health-issue-detail', $html);
+            $this->assertTrue(
+                str_contains($html, 'operations-health-issue-detail')
+                || str_contains($html, 'operations-health-accordion'),
+                'Expected collapsed health issue UI for integrations needing attention.',
+            );
         }
     }
 
@@ -461,15 +471,17 @@ class OperationsDashboardTest extends TestCase
         $admin = $this->createAdminUser('admin-live-refresh@test.com');
 
         $this->actingAs($admin)
-            ->getJson(route('admin.operations.live', ['groups' => 'critical,summary,health,ira_compact']))
+            ->getJson(route('admin.operations.live', [
+                'groups' => implode(',', OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS),
+            ]))
             ->assertOk()
-            ->assertJsonPath('groups', ['critical', 'summary', 'health', 'ira_compact'])
+            ->assertJsonPath('groups', OperationsDashboardLiveRenderer::FIRST_PAINT_GROUPS)
             ->assertJsonStructure([
                 'html' => [
                     'critical_alerts',
                     'overview_cards',
-                    'health_status',
-                    'ira_compact',
+                    'queue_summary',
+                    'active_operators',
                 ],
             ]);
     }
@@ -506,7 +518,7 @@ class OperationsDashboardTest extends TestCase
         $this->actingAs($this->createAdminUser('admin-ops-nav@test.com'))
             ->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('Control Center')
+            ->assertSee('Mission Control')
             ->assertSee(route('admin.operations.index'), false);
     }
 

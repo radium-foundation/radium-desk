@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\ChangelogService;
+use App\Services\VersionService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,7 +32,7 @@ class PlatformIdentityTest extends TestCase
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertOk();
-        $response->assertSee('Radium Desk v'.config('app.version'), false);
+        $response->assertSee(app(VersionService::class)->applicationLabel(), false);
         $response->assertSee('data-bs-target="#whatsNewModal"', false);
     }
 
@@ -98,7 +99,12 @@ class PlatformIdentityTest extends TestCase
         $response = $this->actingAs($user)->get(route('changelog.index'));
 
         $response->assertOk();
+        $response->assertSee(app(VersionService::class)->applicationLabel(), false);
         $response->assertSee('P09 Workforce Platform Update', false);
+        $response->assertSee('Version:', false);
+        $response->assertSee('Release date:', false);
+        $response->assertSee('Environment:', false);
+        $response->assertSee('Git commit:', false);
         $response->assertSee('Workforce availability intelligence', false);
         $response->assertSee('IVR foundation improvements', false);
     }
@@ -109,7 +115,9 @@ class PlatformIdentityTest extends TestCase
 
         $this->assertNotEmpty($entries);
         $this->assertSame('P09 Workforce Platform Update', $entries[0]['title']);
+        $this->assertSame(config('app.version'), $entries[0]['version']);
         $this->assertContains('Better assignment accuracy', $entries[0]['items']);
+        $this->assertTrue($entries[0]['is_current']);
     }
 
     public function test_robots_txt_disallows_all_crawling(): void

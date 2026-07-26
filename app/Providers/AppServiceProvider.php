@@ -71,6 +71,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use App\Services\ChangelogService;
+use App\Services\VersionService;
 use App\Services\Performance\PerformanceRuntimeConfig;
 use App\Services\SupportContactConfiguration;
 use App\Services\SupportContactResolver;
@@ -237,6 +238,13 @@ class AppServiceProvider extends ServiceProvider
                 },
                 'latestNotifications' => $user->notifications()->latest()->limit(10)->get(),
             ]);
+        });
+
+        View::composer([
+            'layouts.partials.version-footer',
+            'layouts.partials.whats-new-modal',
+        ], function ($view): void {
+            $view->with('applicationLabel', app(VersionService::class)->applicationLabel());
         });
 
         View::composer('layouts.partials.whats-new-modal', function ($view): void {
