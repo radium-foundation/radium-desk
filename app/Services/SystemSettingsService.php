@@ -15,16 +15,24 @@ class SystemSettingsService
 
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly SystemSettingsAdminCollection $adminCollection,
     ) {}
 
     public function get(string $key, mixed $default = null): mixed
     {
+        if ($this->adminCollection->loaded()) {
+            $definition = $this->definition($key);
+            $default ??= $definition['default'] ?? null;
+
+            return $this->valueForAdmin($key, $default, $definition['type'] ?? 'string');
+        }
+
         $definition = $this->definition($key);
         $default ??= $definition['default'] ?? null;
         $type = $definition['type'] ?? 'string';
 
         $raw = Cache::rememberForever($this->cacheKey($key), function () use ($key, $default, $type): string {
-            $row = SystemSetting::query()->where('key', $key)->first();
+            $row = $this->adminRows()->get($key);
 
             if ($row === null || $row->value === null) {
                 return $this->serializeValue($default, $type);
@@ -60,6 +68,7 @@ class SystemSettingsService
             );
 
             $this->forget($key);
+            $this->invalidateAdminRows();
 
             if ($oldValue !== $serialized && $actor !== null) {
                 $this->auditLogService->log(
@@ -88,6 +97,70 @@ class SystemSettingsService
     }
 
     /**
+     * @return Collection<string, SystemSetting>
+     */
+    public function adminRows(): Collection
+    {
+        $wasLoaded = $this->adminCollection->loaded();
+        $rows = $this->adminCollection->rows();
+
+        if (! $wasLoaded) {
+            $this->warmSettingsCacheFromAdminRows($rows);
+        }
+
+        return $rows;
+    }
+
+    public function valueForAdmin(string $key, mixed $default = null, ?string $type = null): mixed
+    {
+        if ($type === null) {
+            $definition = $this->definition($key);
+            $default ??= $definition['default'] ?? null;
+            $type = $definition['type'] ?? 'string';
+        }
+
+        $row = $this->adminRows()->get($key);
+
+        if ($row === null || $row->value === null) {
+            return $default;
+        }
+
+        return $this->castValue((string) $row->value, $type);
+    }
+
+    /**
+     * @param  array<string, mixed>  $definition
+     * @param  array<string, mixed>  $extra
+     * @return array{
+     *     key: string,
+     *     label: string,
+     *     description: string|null,
+     *     type: string,
+     *     value: mixed,
+     *     disabled: bool,
+     *     updated_at: \Illuminate\Support\Carbon|null,
+     *     updated_by_name: string|null
+     * }
+     */
+    public function adminSettingEntry(string $key, array $definition, array $extra = []): array
+    {
+        $row = $this->adminRows()->get($key);
+        $type = $definition['type'] ?? 'string';
+
+        return array_merge([
+            'key' => $key,
+            'label' => $definition['label'],
+            'description' => $definition['description'] ?? null,
+            'type' => $type,
+            'value' => $this->valueForAdmin($key, $definition['default'] ?? null, $type),
+            'disabled' => (bool) ($definition['disabled'] ?? false),
+            'updated_at' => $row?->updated_at,
+            'updated_by_name' => $row?->updatedBy?->name,
+        ], $extra);
+    }
+
+    /**
+     * @param  list<string>  $excludeCategories
      * @return Collection<string, Collection<int, array{
      *     key: string,
      *     label: string,
@@ -98,16 +171,14 @@ class SystemSettingsService
      *     updated_by_name: string|null
      * }>>
      */
-    public function groupedForAdmin(): Collection
+    public function groupedForAdmin(array $excludeCategories = []): Collection
     {
-        $rows = SystemSetting::query()
-            ->with('updatedBy')
-            ->get()
-            ->keyBy('key');
+        $rows = $this->adminRows();
 
         $categories = collect(config('system_settings.categories', []))
             ->sortBy('sort')
-            ->keys();
+            ->keys()
+            ->reject(fn (string $categoryKey): bool => in_array($categoryKey, $excludeCategories, true));
 
         $settings = collect(config('system_settings.settings', []));
 
@@ -116,13 +187,14 @@ class SystemSettingsService
                 ->filter(fn (array $definition): bool => ($definition['category'] ?? '') === $categoryKey)
                 ->map(function (array $definition, string $key) use ($rows): array {
                     $row = $rows->get($key);
+                    $type = $definition['type'] ?? 'string';
 
                     return [
                         'key' => $key,
                         'label' => $definition['label'],
                         'description' => $definition['description'] ?? null,
-                        'type' => $definition['type'] ?? 'string',
-                        'value' => $this->get($key, $definition['default'] ?? null),
+                        'type' => $type,
+                        'value' => $this->valueForAdmin($key, $definition['default'] ?? null, $type),
                         'disabled' => (bool) ($definition['disabled'] ?? false),
                         'updated_at' => $row?->updated_at,
                         'updated_by_name' => $row?->updatedBy?->name,
@@ -175,5 +247,28 @@ class SystemSettingsService
             'integer' => (int) $raw,
             default => $raw,
         };
+    }
+
+    /**
+     * @param  Collection<string, SystemSetting>  $rows
+     */
+    private function warmSettingsCacheFromAdminRows(Collection $rows): void
+    {
+        foreach (config('system_settings.settings', []) as $key => $definition) {
+            $type = $definition['type'] ?? 'string';
+            $default = $definition['default'] ?? null;
+            $row = $rows->get($key);
+
+            $raw = ($row === null || $row->value === null)
+                ? $this->serializeValue($default, $type)
+                : (string) $row->value;
+
+            Cache::forever($this->cacheKey($key), $raw);
+        }
+    }
+
+    private function invalidateAdminRows(): void
+    {
+        $this->adminCollection->invalidate();
     }
 }

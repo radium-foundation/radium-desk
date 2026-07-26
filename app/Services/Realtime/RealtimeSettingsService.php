@@ -2,7 +2,6 @@
 
 namespace App\Services\Realtime;
 
-use App\Models\SystemSetting;
 use App\Services\SystemSettingsService;
 
 class RealtimeSettingsService
@@ -38,25 +37,12 @@ class RealtimeSettingsService
                 continue;
             }
 
-            $row = SystemSetting::query()
-                ->with('updatedBy')
-                ->where('key', $key)
-                ->first();
-
-            $settings[] = [
-                'key' => $key,
-                'label' => $definition['label'],
-                'description' => $definition['description'] ?? null,
-                'type' => $definition['type'] ?? 'string',
-                'value' => $this->systemSettings->get($key, $definition['default'] ?? null),
-                'disabled' => (bool) ($definition['disabled'] ?? false),
+            $settings[] = $this->systemSettings->adminSettingEntry($key, $definition, [
                 'min' => isset($definition['min']) ? (int) $definition['min'] : null,
                 'max' => isset($definition['max']) ? (int) $definition['max'] : null,
                 'unit' => $definition['unit'] ?? null,
                 'allowed' => $definition['allowed'] ?? null,
-                'updated_at' => $row?->updated_at,
-                'updated_by_name' => $row?->updatedBy?->name,
-            ];
+            ]);
         }
 
         return $settings;

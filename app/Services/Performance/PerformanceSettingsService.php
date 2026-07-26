@@ -147,25 +147,12 @@ class PerformanceSettingsService
                 continue;
             }
 
-            $row = \App\Models\SystemSetting::query()
-                ->with('updatedBy')
-                ->where('key', $key)
-                ->first();
-
-            $settings[$key] = [
-                'key' => $key,
-                'label' => $definition['label'],
-                'description' => $definition['description'] ?? null,
-                'type' => $definition['type'] ?? 'integer',
-                'value' => $this->systemSettings->get($key, $definition['default'] ?? null),
-                'disabled' => (bool) ($definition['disabled'] ?? false),
+            $settings[$key] = $this->systemSettings->adminSettingEntry($key, $definition, [
                 'min' => isset($definition['min']) ? (int) $definition['min'] : null,
                 'max' => isset($definition['max']) ? (int) $definition['max'] : null,
                 'recommended' => isset($definition['recommended']) ? (int) $definition['recommended'] : null,
                 'unit' => $definition['unit'] ?? null,
-                'updated_at' => $row?->updated_at,
-                'updated_by_name' => $row?->updatedBy?->name,
-            ];
+            ]);
         }
 
         return $settings;
@@ -192,21 +179,7 @@ class PerformanceSettingsService
                 continue;
             }
 
-            $row = \App\Models\SystemSetting::query()
-                ->with('updatedBy')
-                ->where('key', $key)
-                ->first();
-
-            $settings[] = [
-                'key' => $key,
-                'label' => $definition['label'],
-                'description' => $definition['description'] ?? null,
-                'type' => $definition['type'] ?? 'boolean',
-                'value' => $this->systemSettings->get($key, $definition['default'] ?? null),
-                'disabled' => (bool) ($definition['disabled'] ?? false),
-                'updated_at' => $row?->updated_at,
-                'updated_by_name' => $row?->updatedBy?->name,
-            ];
+            $settings[] = $this->systemSettings->adminSettingEntry($key, $definition);
         }
 
         return $settings;
@@ -238,26 +211,13 @@ class PerformanceSettingsService
                 continue;
             }
 
-            $row = \App\Models\SystemSetting::query()
-                ->with('updatedBy')
-                ->where('key', $key)
-                ->first();
-
-            $settings[] = [
-                'key' => $key,
-                'label' => $definition['label'],
-                'description' => $definition['description'] ?? null,
-                'type' => $definition['type'] ?? 'string',
-                'value' => $this->systemSettings->get($key, $definition['default'] ?? null),
-                'disabled' => (bool) ($definition['disabled'] ?? false),
+            $settings[] = $this->systemSettings->adminSettingEntry($key, $definition, [
                 'min' => isset($definition['min']) ? (int) $definition['min'] : null,
                 'max' => isset($definition['max']) ? (int) $definition['max'] : null,
                 'recommended' => isset($definition['recommended']) ? (int) $definition['recommended'] : null,
                 'unit' => $definition['unit'] ?? null,
                 'allowed' => $definition['allowed'] ?? null,
-                'updated_at' => $row?->updated_at,
-                'updated_by_name' => $row?->updatedBy?->name,
-            ];
+            ]);
         }
 
         return $settings;

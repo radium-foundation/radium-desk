@@ -46,6 +46,7 @@ use App\Services\CommunicationActions\Targets\DeviceModelRdServiceTargetProvider
 use App\Services\CommunicationActions\Targets\ReviewPlatformTargetProvider;
 use App\Services\SettingService;
 use App\Services\Interakt\InteraktTemplateConfigurationValidator;
+use App\Services\SystemSettingsAdminCollection;
 use App\Services\SystemSettingsService;
 use App\Services\Timeline\Customer360TimelineRequestCache;
 use App\Services\Timeline\Customer360TimelineSourceRegistry;
@@ -102,6 +103,7 @@ class AppServiceProvider extends ServiceProvider
             ]);
         });
         $this->app->scoped(DashboardSnapshotStore::class);
+        $this->app->scoped(SystemSettingsAdminCollection::class);
         $this->app->scoped(DashboardBroadcastService::class);
         $this->app->scoped(OperationsQueueClassifier::class);
         $this->app->scoped(ServiceCaseAutomationStatusService::class);

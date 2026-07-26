@@ -28,8 +28,7 @@ class OperationalSystemSettingsController extends Controller
 
     public function index(): View
     {
-        $groupedSettings = $this->systemSettingsService->groupedForAdmin()
-            ->except(['performance', 'realtime']);
+        $groupedSettings = $this->systemSettingsService->groupedForAdmin(['performance', 'realtime']);
 
         return view('admin.system-settings.index', [
             'categories' => config('system_settings.categories', []),
