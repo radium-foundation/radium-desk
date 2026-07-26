@@ -115,7 +115,6 @@ class ExecutiveCommandCenterTest extends TestCase
             ->assertSee('Business Operations', false)
             ->assertSee('Customer Operations', false)
             ->assertSee('data-platform-workspace-links', false)
-            ->assertSee('Open Control Center for live operational command.', false)
             ->assertSee(route('admin.operations.index'), false)
             ->assertDontSee('Cards coming next', false);
     }

@@ -2,7 +2,6 @@
     /** @var \App\Data\Platform\PlatformCardPayload $card */
     $value = $card->meta['formatted_value'] ?? ($card->metrics[0]->value ?? '—');
     $trend = $card->meta['trend'] ?? null;
-    $comparisonLabel = $card->meta['comparison_label'] ?? null;
     $trendDirection = $card->meta['trend_direction'] ?? null;
     $icon = $card->meta['icon'] ?? $card->icon;
 
@@ -20,11 +19,15 @@
             <i class="bi {{ $icon }}"></i>
         </div>
     @endif
+
+    <div class="settings-center-platform-executive__label">{{ $card->title }}</div>
     <div class="settings-center-platform-executive__value">{{ $value }}</div>
+
     @if(filled($trend))
-        <div class="settings-center-platform-executive__trend {{ $trendClass }}">{{ $trend }}</div>
+        <div class="settings-center-platform-executive__trend-badge {{ $trendClass }}">
+            {{ $trend }}
+        </div>
     @endif
-    @if(filled($comparisonLabel) && filled($trend))
-        <div class="settings-center-platform-executive__comparison">{{ $comparisonLabel }}</div>
-    @endif
+
+    <div class="settings-center-platform-executive__sparkline" aria-hidden="true"></div>
 </div>

@@ -3,31 +3,41 @@
 @section('title', 'Platform')
 
 @section('content')
+    @php
+        $executiveSection = collect($dashboard->sections)->firstWhere('key', 'executive');
+        $healthSection = collect($dashboard->sections)->firstWhere('key', 'platform_health');
+        $launchpadSections = collect($dashboard->sections)
+            ->reject(fn (array $section): bool => in_array($section['key'] ?? '', ['executive', 'platform_health'], true))
+            ->values()
+            ->all();
+    @endphp
+
     <x-settings-center.shell
         title="Platform"
-        subtitle="Manage platform configuration, service case defaults, operational masters and administration data."
+        subtitle="Enterprise command center for live operations, health, and workspace navigation."
         workspace-nav="mission-control"
         workspace-active="overview"
+        class="settings-center-platform-page"
     >
         <x-slot:sidebar>
             <x-settings-center.platform-sidebar :sections="$dashboard->sections" />
         </x-slot:sidebar>
 
         <x-slot:actions>
-            <div class="settings-center-toolbar" data-platform-toolbar>
+            <div class="settings-center-toolbar settings-center-platform-toolbar" data-platform-toolbar>
                 <div class="settings-center-toolbar__search">
                     <x-settings-center.icon name="search" class="settings-center-icon settings-center-icon--sm settings-center-toolbar__search-icon" />
                     <input type="search"
                            class="form-control form-control-sm"
-                           placeholder="Search platform…"
-                           aria-label="Search platform"
+                           placeholder="Jump to module…"
+                           aria-label="Search platform modules"
                            data-platform-search
                            autocomplete="off">
                     <kbd class="settings-center-toolbar__shortcut d-none d-md-inline" aria-hidden="true">⌘K</kbd>
                 </div>
 
-                <div class="settings-center-toolbar__meta" data-platform-dashboard-generated-at>
-                    Snapshot {{ \App\Support\AppDateFormatter::format($dashboard->generatedAt, 'H:i') }}
+                <div class="settings-center-toolbar__meta text-muted small" data-platform-dashboard-generated-at>
+                    Last updated {{ \App\Support\AppDateFormatter::format($dashboard->generatedAt, 'g:i A') }}
                 </div>
 
                 <button type="button"
@@ -47,15 +57,31 @@
              data-poll-interval-seconds="{{ $platformPollIntervalSeconds ?? 60 }}"
              data-generated-at="{{ $dashboard->generatedAt->toIso8601String() }}">
             <div class="settings-center-platform__sections" data-platform-sections>
-                @forelse($dashboard->sections as $section)
-                    @include('admin.platform.partials.section', ['section' => $section])
-                @empty
+                @if($executiveSection)
+                    @include('admin.platform.partials.section', [
+                        'section' => $executiveSection,
+                        'variant' => 'executive',
+                    ])
+                @endif
+
+                @if($healthSection)
+                    @include('admin.platform.partials.section', [
+                        'section' => $healthSection,
+                        'variant' => 'health',
+                    ])
+                @endif
+
+                @if($launchpadSections !== [])
+                    @include('admin.platform.partials.launchpad-grid', ['sections' => $launchpadSections])
+                @endif
+
+                @if($executiveSection === null && $healthSection === null && $launchpadSections === [])
                     <x-settings-center.empty-state
                         title="No platform cards registered"
                         description="Platform dashboard cards will appear here once providers are registered."
                         icon="layout-dashboard"
                     />
-                @endforelse
+                @endif
             </div>
         </div>
     </x-settings-center.shell>

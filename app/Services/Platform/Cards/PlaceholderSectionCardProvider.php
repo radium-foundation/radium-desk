@@ -65,7 +65,7 @@ class PlaceholderSectionCardProvider implements PlatformCardProvider
             expandable: false,
             permission: $this->permission,
             size: PlatformCardSize::Full,
-            subtitle: 'Workspace shortcuts',
+            subtitle: null,
             bodyPartial: 'admin.platform.cards.placeholder-section',
             detailUrl: $this->resolvedDetailUrl($links),
             actions: $actions,
