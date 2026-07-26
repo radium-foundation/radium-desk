@@ -3,6 +3,8 @@
 return [
     'collapse_window_seconds' => 5,
 
+    'poll_interval_ms' => 30000,
+
     'limits' => [
         'per_stream' => 12,
         'fetch' => 60,

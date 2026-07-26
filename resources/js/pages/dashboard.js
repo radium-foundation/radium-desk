@@ -14,6 +14,7 @@ import { getWorkspaceSession } from '../workspace/session';
 import { initCustomer360Drawer } from '../customer-360-drawer';
 import { applyLiveRefreshNextAppointment, initAgentDashboard } from '../agent-dashboard';
 import { initDashboardActivityStreams } from '../dashboard-activity-streams';
+import { initDashboardActivityRefresh } from '../dashboard-activity-refresh';
 import { buildSmartToastActions } from '../customer-360-cockpit';
 import { getDashboardConfig } from '../dashboard-config';
 import { initUniversalSearch } from '../universal-search';
@@ -359,6 +360,7 @@ export const bootDashboard = () => {
     }) };
 
     initDashboardActivityStreams(pageRoot);
+    initDashboardActivityRefresh(pageRoot);
 
     document.addEventListener('dashboard:live-refresh', (event) => {
         applyLiveRefreshNextAppointment(agentDashboardRef.current, event.detail);
