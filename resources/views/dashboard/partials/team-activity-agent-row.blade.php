@@ -6,7 +6,7 @@
     /** @var \App\Data\TeamActivityAgentRow $agent */
     $latest = $agent->latest;
     $historyId = 'team-activity-history-'.$agent->id;
-    $todayLabel = 'Today · '.number_format($agent->todayCount).' '.($agent->todayCount === 1 ? 'activity' : 'activities');
+    $activityCountLabel = $agent->todayCount === 1 ? 'Activity Today' : 'Activities Today';
     $hasPresenceMetrics = ! $agent->isVirtual && (
         filled($agent->todayDurationLabel)
         || filled($agent->currentDurationLabel)
@@ -15,6 +15,7 @@
 @endphp
 
 <li class="team-activity-row @if($agent->expanded) is-expanded @endif @if($agent->isVirtual) is-virtual @endif"
+    role="row"
     data-team-activity-agent="{{ $agent->id }}"
     data-team-activity-expanded="{{ $agent->expanded ? '1' : '0' }}">
     <button type="button"
@@ -22,20 +23,33 @@
             data-team-activity-row-toggle
             aria-expanded="{{ $agent->expanded ? 'true' : 'false' }}"
             aria-controls="{{ $historyId }}">
-        <span class="team-activity-status-dot" aria-hidden="true"></span>
+        <span class="team-activity-col team-activity-col--member" role="cell">
+            <span class="team-activity-member">
+                <x-team-activity.agent-avatar
+                    :name="$agent->name"
+                    :status="$agent->status->value"
+                    :is-virtual="$agent->isVirtual" />
+                <span class="team-activity-name" title="{{ $agent->name }}">{{ $agent->name }}</span>
+            </span>
+        </span>
 
-        <span class="team-activity-name" title="{{ $agent->name }}">{{ $agent->name }}</span>
-
-        <span class="team-activity-status-block">
-            <span class="team-activity-status-line">
-                <span class="team-activity-status-label">{{ $agent->statusLabel }}</span>
+        <span class="team-activity-col team-activity-col--status" role="cell">
+            <span class="team-activity-status-stack">
+                <x-team-activity.status-badge
+                    :status="$agent->status->value"
+                    :label="$agent->statusLabel" />
                 @if(filled($agent->calendarBadge))
-                    <span class="team-activity-badge">{{ $agent->calendarBadge }}</span>
+                    <x-team-activity.calendar-badge :label="$agent->calendarBadge" />
+                @endif
+                @if(! $hasPresenceMetrics && ! $agent->isVirtual && filled($agent->workingLabel))
+                    <span class="team-activity-status-note" title="{{ $agent->workingLabel }}">{{ $agent->workingLabel }}</span>
                 @endif
             </span>
+        </span>
 
+        <span class="team-activity-col team-activity-col--presence" role="cell">
             @if($hasPresenceMetrics)
-                <span class="team-activity-presence-metrics">
+                <span class="team-activity-presence">
                     @if(filled($agent->todayDurationLabel))
                         <span class="team-activity-metric">
                             <span class="team-activity-metric-label">Today</span>
@@ -55,22 +69,23 @@
                         </span>
                     @endif
                 </span>
-            @elseif(! $agent->isVirtual && filled($agent->workingLabel))
-                <span class="team-activity-working-label" title="{{ $agent->workingLabel }}">{{ $agent->workingLabel }}</span>
+            @else
+                <span class="team-activity-presence team-activity-presence--empty" aria-hidden="true">—</span>
             @endif
         </span>
 
-        <span class="team-activity-today" title="{{ $todayLabel }}">{{ $todayLabel }}</span>
+        <span class="team-activity-col team-activity-col--kpi" role="cell">
+            <span class="team-activity-kpi" aria-label="{{ number_format($agent->todayCount).' '.$activityCountLabel }}">
+                <span class="team-activity-kpi-count">{{ number_format($agent->todayCount) }}</span>
+                <span class="team-activity-kpi-label">{{ $activityCountLabel }}</span>
+            </span>
+        </span>
 
-        <span class="team-activity-latest">
+        <span class="team-activity-col team-activity-col--latest" role="cell">
             @if($latest)
-                <span class="team-activity-latest-label">
-                    {{ $latest->label }}@if(filled($latest->reference)) {{ $latest->reference }}@endif
-                </span>
-                <time class="team-activity-latest-time"
-                      datetime="{{ $latest->at->toIso8601String() }}">{{ display_app_timeline_relative($latest->at) }}</time>
+                <x-team-activity.latest-event :entry="$latest" />
             @else
-                <span class="team-activity-latest-label text-muted">—</span>
+                <span class="team-activity-latest-empty text-muted">—</span>
             @endif
         </span>
 

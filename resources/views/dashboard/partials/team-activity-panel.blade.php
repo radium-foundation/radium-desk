@@ -29,11 +29,22 @@
         @if($panel->empty || $panel->agents === [])
             <p class="team-activity-empty text-muted small mb-0">No team members to show.</p>
         @else
-            <ul class="team-activity-list list-unstyled mb-0" data-team-activity-list>
-                @foreach($panel->agents as $agent)
-                    @include('dashboard.partials.team-activity-agent-row', ['agent' => $agent])
-                @endforeach
-            </ul>
+            <div class="team-activity-grid" role="table" aria-label="Team activity roster">
+                <div class="team-activity-grid-header" role="row">
+                    <span class="team-activity-grid-header__cell team-activity-col--member" role="columnheader">Team Member</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--status" role="columnheader">Status</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--presence" role="columnheader">Presence</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--kpi" role="columnheader">Today's Activity</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--chevron" aria-hidden="true"></span>
+                </div>
+
+                <ul class="team-activity-list list-unstyled mb-0" data-team-activity-list role="rowgroup">
+                    @foreach($panel->agents as $agent)
+                        @include('dashboard.partials.team-activity-agent-row', ['agent' => $agent])
+                    @endforeach
+                </ul>
+            </div>
         @endif
     </div>
 </div>

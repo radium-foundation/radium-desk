@@ -72,10 +72,13 @@ class DashboardTeamActivityTest extends TestCase
         $this->assertStringContainsString('data-team-activity-refresh-url', $html);
         $this->assertStringContainsString((string) $admin->name, $html);
         $this->assertStringContainsString('Assigned', $html);
-        $this->assertStringContainsString('Today ·', $html);
-        $this->assertMatchesRegularExpression('/Today · \d+ activit(?:y|ies)/', $html);
+        $this->assertStringContainsString('team-activity-kpi-count', $html);
+        $this->assertStringContainsString('Activities Today', $html);
         $this->assertStringContainsString('Active', $html);
-        $this->assertStringNotContainsString('team-activity-status-dot--', $html);
+        $this->assertStringContainsString('team-activity-grid-header', $html);
+        $this->assertStringContainsString('team-activity-avatar', $html);
+        $this->assertStringContainsString('team-activity-status-pill', $html);
+        $this->assertStringNotContainsString('team-activity-status-dot', $html);
     }
 
     public function test_team_activity_refresh_returns_empty_payload_without_permission(): void
