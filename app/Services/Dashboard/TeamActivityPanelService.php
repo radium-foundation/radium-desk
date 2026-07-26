@@ -4,19 +4,15 @@ namespace App\Services\Dashboard;
 
 use App\Data\RecentActivityItem;
 use App\Data\TeamActivityAgentRow;
-use App\Data\TeamActivityEntry;
 use App\Data\TeamActivityPanel;
-use App\Enums\RemarkOrigin;
-use App\Enums\WhatsAppTemplateTriggerSource;
 use App\Models\AuditLog;
-use App\Models\Remark;
 use App\Models\User;
 use App\Services\Operations\TeamAvailabilityOverviewService;
 use App\Support\Dashboard\RecentActivityPresenter;
-use App\Support\Dashboard\TeamActivityLabelFormatter;
+use App\Support\Dashboard\TeamActivityEntryPresenter;
+use App\Support\Dashboard\TeamActivityKpiAuditQuery;
 use App\Support\Dashboard\TeamActivityRowSorter;
 use App\Support\Dashboard\TeamActivityStatusResolver;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class TeamActivityPanelService
@@ -25,7 +21,8 @@ class TeamActivityPanelService
         private readonly TeamAvailabilityOverviewService $overviewService,
         private readonly RecentActivityPresenter $activityPresenter,
         private readonly TeamActivityStatusResolver $statusResolver,
-        private readonly TeamActivityLabelFormatter $labelFormatter,
+        private readonly TeamActivityEntryPresenter $entryPresenter,
+        private readonly TeamActivityKpiAuditQuery $kpiAuditQuery,
         private readonly TeamActivityIraMemberBuilder $iraMemberBuilder,
         private readonly TeamActivityRowSorter $rowSorter,
     ) {}
@@ -47,25 +44,35 @@ class TeamActivityPanelService
         }
 
         $userIds = array_map(static fn (array $member): int => (int) $member['id'], $members);
-        $expandedIds = $this->normalizeExpandedIds($expandedAgentIds, $userIds);
-        $historyLimit = max(1, (int) config('dashboard-team-activity.history_limit', 12));
+        $iraAgentId = $this->iraAgentId();
+        $expandedIds = $this->normalizeExpandedIds($expandedAgentIds, $userIds, $iraAgentId);
         $allowlist = $this->eventAllowlist();
 
-        $todayCounts = $this->todayCountsFor($userIds);
+        $todayCounts = $this->kpiAuditQuery->todayCountsForUsers($userIds);
         $latestByUser = $this->latestAuditsFor($userIds, $allowlist);
-        $historyByUser = $expandedIds === []
+        $countedAuditsByUser = $expandedIds === []
             ? []
-            : $this->historyAuditsFor($expandedIds, $allowlist, $historyLimit);
+            : $this->kpiAuditQuery->todayCountedAuditsForUsers(
+                array_values(array_filter(
+                    $expandedIds,
+                    static fn (int $id): bool => $id !== $iraAgentId,
+                )),
+            );
 
         $allAudits = collect($latestByUser)
-            ->merge(collect($historyByUser)->flatten(1))
+            ->merge(collect($countedAuditsByUser)->flatten(1))
             ->filter()
             ->unique(fn (AuditLog $log): int => (int) $log->id)
             ->values();
 
-        $itemsByAuditId = $this->activityPresenter
-            ->presentItemsById($allAudits)
-            ->all();
+        if (in_array($iraAgentId, $expandedIds, true)) {
+            $allAudits = $allAudits
+                ->merge($this->iraMemberBuilder->todayCountedAuditsForPresentation())
+                ->unique(fn (AuditLog $log): int => (int) $log->id)
+                ->values();
+        }
+
+        $itemsByAuditId = $this->presentItemsById($allAudits)->all();
 
         $agents = [];
 
@@ -75,14 +82,14 @@ class TeamActivityPanelService
             $status = $this->statusResolver->resolve($member, $latestAudit);
             $expanded = in_array($userId, $expandedIds, true);
             $latestEntry = $latestAudit !== null
-                ? $this->entryFromAudit($latestAudit, $itemsByAuditId)
+                ? $this->entryPresenter->fromAudit($latestAudit, $itemsByAuditId)
                 : null;
 
             $history = [];
 
             if ($expanded) {
-                foreach ($historyByUser[$userId] ?? [] as $audit) {
-                    $entry = $this->entryFromAudit($audit, $itemsByAuditId);
+                foreach ($countedAuditsByUser[$userId] ?? [] as $audit) {
+                    $entry = $this->entryPresenter->fromAudit($audit, $itemsByAuditId);
 
                     if ($entry !== null) {
                         $history[] = $entry;
@@ -106,7 +113,11 @@ class TeamActivityPanelService
             );
         }
 
-        $agents = $this->rowSorter->sort($agents, $this->iraMemberBuilder->build());
+        $iraExpanded = in_array($iraAgentId, $expandedIds, true);
+        $agents = $this->rowSorter->sort(
+            $agents,
+            $this->iraMemberBuilder->build(expanded: $iraExpanded, itemsByAuditId: $itemsByAuditId),
+        );
 
         return new TeamActivityPanel($agents, false);
     }
@@ -123,7 +134,7 @@ class TeamActivityPanelService
      * @param  list<int>  $rosterIds
      * @return list<int>
      */
-    private function normalizeExpandedIds(array $expandedAgentIds, array $rosterIds): array
+    private function normalizeExpandedIds(array $expandedAgentIds, array $rosterIds, int $iraAgentId): array
     {
         $max = max(0, (int) config('dashboard-team-activity.max_expanded_agents', 20));
         $rosterLookup = array_fill_keys($rosterIds, true);
@@ -133,7 +144,7 @@ class TeamActivityPanelService
         foreach ($expandedAgentIds as $id) {
             $id = (int) $id;
 
-            if ($id <= 0 || ! isset($rosterLookup[$id])) {
+            if ($id !== $iraAgentId && ($id <= 0 || ! isset($rosterLookup[$id]))) {
                 continue;
             }
 
@@ -166,6 +177,11 @@ class TeamActivityPanelService
         ));
     }
 
+    private function iraAgentId(): int
+    {
+        return (int) config('dashboard-team-activity.ira_agent_id', 0);
+    }
+
     private function automationActorUserId(): ?int
     {
         $systemEmail = (string) config('cashfree.system_user_email');
@@ -190,162 +206,6 @@ class TeamActivityPanelService
             is_array($events) ? $events : [],
             static fn (mixed $event): bool => is_string($event) && $event !== '',
         ));
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function eventCountAllowlist(): array
-    {
-        $events = config('dashboard-team-activity.event_count_allowlist', []);
-
-        return array_values(array_filter(
-            is_array($events) ? $events : [],
-            static fn (mixed $event): bool => is_string($event) && $event !== '',
-        ));
-    }
-
-    /**
-     * Meaningful human operational actions for the Today · N KPI.
-     *
-     * @param  list<int>  $userIds
-     * @return array<int, int>
-     */
-    private function todayCountsFor(array $userIds): array
-    {
-        if ($userIds === []) {
-            return [];
-        }
-
-        $allowlist = $this->eventCountAllowlist();
-
-        if ($allowlist === []) {
-            return [];
-        }
-
-        $dayStart = Carbon::now()->startOfDay();
-        $filteredEvents = ['created', 'deleted', 'whatsapp.template_sent'];
-        $directEvents = array_values(array_filter(
-            $allowlist,
-            static fn (string $event): bool => ! in_array($event, $filteredEvents, true),
-        ));
-
-        $counts = array_fill_keys($userIds, 0);
-
-        if ($directEvents !== []) {
-            foreach (
-                AuditLog::query()
-                    ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                    ->whereIn('user_id', $userIds)
-                    ->whereIn('event', $directEvents)
-                    ->where('created_at', '>=', $dayStart)
-                    ->groupBy('user_id')
-                    ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-            ) {
-                $counts[(int) $userId] += (int) $aggregate;
-            }
-        }
-
-        if (in_array('whatsapp.template_sent', $allowlist, true)) {
-            $this->mergeOperationalCounts($counts, $this->manualWhatsAppCounts($userIds, $dayStart));
-        }
-
-        if (in_array('created', $allowlist, true)) {
-            $this->mergeOperationalCounts($counts, $this->createdOperationCounts($userIds, $dayStart));
-        }
-
-        if (in_array('deleted', $allowlist, true)) {
-            $this->mergeOperationalCounts($counts, $this->deletedOperationCounts($userIds, $dayStart));
-        }
-
-        return $counts;
-    }
-
-    /**
-     * @param  list<int>  $userIds
-     * @return array<int, int>
-     */
-    private function manualWhatsAppCounts(array $userIds, Carbon $dayStart): array
-    {
-        $counts = array_fill_keys($userIds, 0);
-
-        foreach (
-            AuditLog::query()
-                ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                ->whereIn('user_id', $userIds)
-                ->where('event', 'whatsapp.template_sent')
-                ->where('new_values->trigger_source', WhatsAppTemplateTriggerSource::Manual->value)
-                ->where('created_at', '>=', $dayStart)
-                ->groupBy('user_id')
-                ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-        ) {
-            $counts[(int) $userId] += (int) $aggregate;
-        }
-
-        return $counts;
-    }
-
-    /**
-     * @param  list<int>  $userIds
-     * @return array<int, int>
-     */
-    private function createdOperationCounts(array $userIds, Carbon $dayStart): array
-    {
-        $remarkMorph = (new Remark)->getMorphClass();
-        $counts = array_fill_keys($userIds, 0);
-
-        foreach (
-            AuditLog::query()
-                ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                ->whereIn('user_id', $userIds)
-                ->where('event', 'created')
-                ->where('auditable_type', $remarkMorph)
-                ->where('created_at', '>=', $dayStart)
-                ->where('new_values->origin', RemarkOrigin::Manual->value)
-                ->groupBy('user_id')
-                ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-        ) {
-            $counts[(int) $userId] += (int) $aggregate;
-        }
-
-        return $counts;
-    }
-
-    /**
-     * @param  list<int>  $userIds
-     * @return array<int, int>
-     */
-    private function deletedOperationCounts(array $userIds, Carbon $dayStart): array
-    {
-        $remarkMorph = (new Remark)->getMorphClass();
-        $counts = array_fill_keys($userIds, 0);
-
-        foreach (
-            AuditLog::query()
-                ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                ->whereIn('user_id', $userIds)
-                ->where('event', 'deleted')
-                ->where('auditable_type', $remarkMorph)
-                ->where('created_at', '>=', $dayStart)
-                ->where('old_values->origin', RemarkOrigin::Manual->value)
-                ->groupBy('user_id')
-                ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-        ) {
-            $counts[(int) $userId] += (int) $aggregate;
-        }
-
-        return $counts;
-    }
-
-    /**
-     * @param  array<int, int>  $target
-     * @param  array<int, int>  $additions
-     */
-    private function mergeOperationalCounts(array &$target, array $additions): void
-    {
-        foreach ($additions as $userId => $count) {
-            $target[$userId] = ($target[$userId] ?? 0) + $count;
-        }
     }
 
     /**
@@ -381,77 +241,26 @@ class TeamActivityPanelService
     }
 
     /**
-     * @param  list<int>  $userIds
-     * @param  list<string>  $allowlist
-     * @return array<int, list<AuditLog>>
+     * @param  Collection<int, AuditLog>  $auditLogs
+     * @return Collection<int, RecentActivityItem>
      */
-    private function historyAuditsFor(array $userIds, array $allowlist, int $historyLimit): array
+    private function presentItemsById(Collection $auditLogs): Collection
     {
-        if ($userIds === [] || $allowlist === []) {
-            return [];
+        if ($auditLogs->isEmpty()) {
+            return collect();
         }
 
-        $fetchLimit = min(count($userIds) * $historyLimit * 2, 5000);
-
-        $logs = AuditLog::query()
-            ->with(RecentActivityPresenter::eagerLoadRelations())
-            ->whereIn('user_id', $userIds)
-            ->whereIn('event', $allowlist)
-            ->latest('created_at')
-            ->latest('id')
-            ->limit($fetchLimit)
-            ->get();
-
-        $buckets = [];
-
-        foreach ($logs as $log) {
-            $userId = (int) $log->user_id;
-
-            if (! in_array($userId, $userIds, true)) {
-                continue;
-            }
-
-            $buckets[$userId] ??= [];
-
-            if (count($buckets[$userId]) >= $historyLimit) {
-                continue;
-            }
-
-            $buckets[$userId][] = $log;
-        }
-
-        return $buckets;
-    }
-
-    /**
-     * @param  array<int, RecentActivityItem>  $itemsByAuditId
-     */
-    private function entryFromAudit(AuditLog $audit, array $itemsByAuditId): ?TeamActivityEntry
-    {
-        $item = $itemsByAuditId[(int) $audit->id] ?? null;
-
-        if (! $item instanceof RecentActivityItem || $audit->created_at === null) {
-            return null;
-        }
-
-        $reference = $item->incidentLabel();
-        if ($reference === '') {
-            $reference = null;
-        }
-
-        $label = $this->labelFormatter->labelFor($audit, $item);
-
-        // Reference is already embedded for assign/reassign labels.
-        $showReference = ! str_starts_with($label, 'Assigned ')
-            && ! str_starts_with($label, 'Reassigned ')
-            && ! str_starts_with($label, 'Escalated ');
-
-        return new TeamActivityEntry(
-            at: $audit->created_at,
-            time: $audit->created_at->format('H:i'),
-            label: $label,
-            reference: $showReference ? $reference : null,
-            incidentId: $item->entityIncidentId,
+        $missingRelations = $auditLogs->filter(
+            static fn (AuditLog $log): bool => ! $log->relationLoaded('auditable') || ! $log->relationLoaded('user'),
         );
+
+        if ($missingRelations->isNotEmpty()) {
+            $auditLogs = AuditLog::query()
+                ->with(RecentActivityPresenter::eagerLoadRelations())
+                ->whereIn('id', $auditLogs->pluck('id'))
+                ->get();
+        }
+
+        return $this->activityPresenter->presentItemsById($auditLogs);
     }
 }

@@ -87,7 +87,7 @@ class DashboardTeamActivitySortingAndIraTest extends TestCase
 
         $this->assertCount(1, $iraRows);
         $this->assertSame('IRA', $iraRows[0]->name);
-        $this->assertSame('AI / Automation', $iraRows[0]->badge);
+        $this->assertNull($iraRows[0]->badge);
         $this->assertNull($iraRows[0]->workingLabel);
         $this->assertTrue($iraRows[0]->isVirtual);
     }

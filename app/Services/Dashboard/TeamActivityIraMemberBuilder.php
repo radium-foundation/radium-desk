@@ -9,31 +9,26 @@ use App\Enums\TeamActivityStatus;
 use App\Models\AuditLog;
 use App\Services\ServiceCaseAutomationHealthService;
 use App\Support\Dashboard\RecentActivityPresenter;
-use App\Support\Dashboard\TeamActivityLabelFormatter;
-use Illuminate\Support\Carbon;
+use App\Support\Dashboard\TeamActivityEntryPresenter;
+use App\Support\Dashboard\TeamActivityKpiAuditQuery;
+use Illuminate\Support\Collection;
 
 class TeamActivityIraMemberBuilder
 {
     public function __construct(
         private readonly ServiceCaseAutomationHealthService $healthService,
         private readonly RecentActivityPresenter $activityPresenter,
-        private readonly TeamActivityLabelFormatter $labelFormatter,
+        private readonly TeamActivityEntryPresenter $entryPresenter,
+        private readonly TeamActivityKpiAuditQuery $kpiAuditQuery,
     ) {}
 
-    public function build(): TeamActivityAgentRow
+    /**
+     * @param  array<int, RecentActivityItem>  $itemsByAuditId
+     */
+    public function build(bool $expanded = false, array $itemsByAuditId = []): TeamActivityAgentRow
     {
         $activityEvents = $this->activityEventAllowlist();
-        $countEvents = $this->countEventAllowlist();
-        $dayStart = Carbon::now()->startOfDay();
-
-        // One successfully processed incident = one KPI unit (not every pipeline stage).
-        $todayCount = $countEvents === []
-            ? 0
-            : (int) AuditLog::query()
-                ->whereIn('event', $countEvents)
-                ->where('created_at', '>=', $dayStart)
-                ->distinct()
-                ->count('auditable_id');
+        $todayCount = $this->kpiAuditQuery->todayCountForIra();
 
         $latestAudit = $activityEvents === []
             ? null
@@ -44,9 +39,31 @@ class TeamActivityIraMemberBuilder
                 ->latest('id')
                 ->first();
 
-        $itemsByAuditId = $latestAudit instanceof AuditLog
-            ? $this->activityPresenter->presentItemsById(collect([$latestAudit]))->all()
-            : [];
+        $presentationItems = $itemsByAuditId;
+
+        if ($latestAudit instanceof AuditLog && ! isset($presentationItems[(int) $latestAudit->id])) {
+            $presentationItems += $this->activityPresenter
+                ->presentItemsById(collect([$latestAudit]))
+                ->all();
+        }
+
+        $history = [];
+
+        if ($expanded) {
+            foreach ($this->todayCountedAuditsForPresentation() as $audit) {
+                if (! isset($presentationItems[(int) $audit->id])) {
+                    $presentationItems += $this->activityPresenter
+                        ->presentItemsById(collect([$audit]))
+                        ->all();
+                }
+
+                $entry = $this->entryPresenter->fromAudit($audit, $presentationItems);
+
+                if ($entry instanceof TeamActivityEntry) {
+                    $history[] = $entry;
+                }
+            }
+        }
 
         return new TeamActivityAgentRow(
             id: (int) config('dashboard-team-activity.ira_agent_id', 0),
@@ -57,13 +74,35 @@ class TeamActivityIraMemberBuilder
             workingLabel: null,
             overtimeLabel: null,
             todayCount: $todayCount,
-            latest: $this->entryFromAudit($latestAudit, $itemsByAuditId),
-            history: [],
-            expanded: false,
+            latest: $latestAudit instanceof AuditLog
+                ? $this->entryPresenter->fromAudit($latestAudit, $presentationItems)
+                : null,
+            history: $history,
+            expanded: $expanded,
             isVirtual: true,
-            badge: (string) config('dashboard-team-activity.ira_badge', 'AI / Automation'),
+            badge: null,
             latestActivityAt: $latestAudit?->created_at,
         );
+    }
+
+    /**
+     * @return list<AuditLog>
+     */
+    public function todayCountedAuditsForPresentation(): array
+    {
+        $audits = $this->kpiAuditQuery->todayCountedAuditsForIra();
+
+        if ($audits === []) {
+            return [];
+        }
+
+        return AuditLog::query()
+            ->with(RecentActivityPresenter::eagerLoadRelations())
+            ->whereIn('id', collect($audits)->pluck('id'))
+            ->latest('created_at')
+            ->latest('id')
+            ->get()
+            ->all();
     }
 
     private function resolveStatusLabel(): string
@@ -96,14 +135,6 @@ class TeamActivityIraMemberBuilder
     /**
      * @return list<string>
      */
-    private function countEventAllowlist(): array
-    {
-        return $this->normalizedEventList('ira_event_count_allowlist');
-    }
-
-    /**
-     * @return list<string>
-     */
     private function normalizedEventList(string $configKey): array
     {
         $events = config('dashboard-team-activity.'.$configKey, []);
@@ -112,37 +143,5 @@ class TeamActivityIraMemberBuilder
             is_array($events) ? $events : [],
             static fn (mixed $event): bool => is_string($event) && $event !== '',
         ));
-    }
-
-    /**
-     * @param  array<int, RecentActivityItem>  $itemsByAuditId
-     */
-    private function entryFromAudit(?AuditLog $audit, array $itemsByAuditId): ?TeamActivityEntry
-    {
-        if (! $audit instanceof AuditLog || $audit->created_at === null) {
-            return null;
-        }
-
-        $item = $itemsByAuditId[(int) $audit->id] ?? null;
-
-        if (! $item instanceof RecentActivityItem) {
-            return null;
-        }
-
-        $reference = $item->incidentLabel();
-
-        if ($reference === '') {
-            $reference = null;
-        }
-
-        $label = $this->labelFormatter->labelFor($audit, $item);
-
-        return new TeamActivityEntry(
-            at: $audit->created_at,
-            time: $audit->created_at->format('H:i'),
-            label: $label,
-            reference: $reference,
-            incidentId: $item->entityIncidentId,
-        );
     }
 }

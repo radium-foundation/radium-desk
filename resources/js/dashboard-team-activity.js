@@ -40,7 +40,7 @@ const readExpandedAgentIds = () => {
             return [];
         }
 
-        return parsed.map((id) => Number(id)).filter((id) => id > 0);
+        return parsed.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id >= 0);
     } catch {
         return [];
     }
@@ -98,7 +98,7 @@ const clearPollTimeout = () => {
 const collectExpandedFromDom = (panel) => Array.from(
     panel.querySelectorAll('[data-team-activity-agent][data-team-activity-expanded="1"]'),
 ).map((row) => Number(row.getAttribute('data-team-activity-agent')))
-    .filter((id) => id > 0);
+    .filter((id) => Number.isFinite(id) && id >= 0);
 
 const setPanelCollapsed = (panel, collapsed) => {
     panel.classList.toggle('is-collapsed', collapsed);
