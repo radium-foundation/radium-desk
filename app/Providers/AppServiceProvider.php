@@ -135,6 +135,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(CaseIntelligenceLanguageEnhancer::class, NullCaseIntelligenceLanguageEnhancer::class);
+        $this->app->scoped(\App\Services\Customer360\Intelligence\CaseIntelligenceEngine::class);
 
         $this->app->singleton(GlobalSearchService::class, function ($app): GlobalSearchService {
             return new GlobalSearchService([

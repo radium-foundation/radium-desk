@@ -6,6 +6,7 @@ use App\Data\AI\AIContextBuildSnapshot;
 use App\Data\AI\CustomerJourneyBuildContext;
 use App\Data\AI\AIWorkbenchDTO;
 use App\Data\AI\IRAExecutiveSummaryDTO;
+use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
 use App\Data\TimelineViewModel;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
@@ -230,9 +231,8 @@ class Customer360Service
             return ['html' => ''];
         }
 
-        $executiveSummary = $this->caseIntelligenceEngine->enabled()
-            ? $this->caseIntelligenceEngine->executiveSummary($incident)
-            : $this->legacyExecutiveSummary($incident);
+        $snapshot = $this->caseIntelligenceSnapshot($incident);
+        $executiveSummary = $snapshot?->executiveSummary ?? $this->legacyExecutiveSummary($incident);
 
         if ($executiveSummary === null) {
             return ['html' => ''];
@@ -242,6 +242,7 @@ class Customer360Service
             'html' => view('customer-360.partials.executive-summary', [
                 'incident' => $incident,
                 'executiveSummary' => $executiveSummary,
+                'evidenceItems' => $snapshot?->evidenceForView() ?? null,
                 'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
                 'correctSerialRequestState' => $this->correctSerialRequestState($order),
             ])->render(),
@@ -305,7 +306,11 @@ class Customer360Service
         $timelineUrl = route('dashboard.service-cases.customer-360.timeline', $incident);
         $customerHealthCard = $this->customerHealthCardViewData($incident, $order);
         $customerInsights = $this->customerInsightsViewData($incident, $order, $customerHealthCard);
-        $iraAdvisor = $this->iraAdvisorViewData($incident, $order, $customerHealthCard);
+
+        $intelligence = $this->caseIntelligenceSnapshot($incident);
+        $iraAdvisor = $intelligence !== null
+            ? $this->iraAdvisorPresenter->presentFromSnapshot($intelligence)
+            : $this->iraAdvisorViewData($incident, $order, $customerHealthCard);
 
         return [
             'timeline' => $viewModel,
@@ -346,6 +351,61 @@ class Customer360Service
             ];
         }
 
+        $intelligence = $this->caseIntelligenceSnapshot($incident);
+
+        if ($intelligence !== null) {
+            $workbench = $this->aiWorkbenchService->fromSnapshot($intelligence);
+
+            return [
+                'html' => view('customer-360.partials.ai-tab', [
+                    'incident' => $incident,
+                    'aiAssistant' => $intelligence->aiBundle->response,
+                    'operationsAdvisorInsights' => $intelligence->operationsAdvisorInsights,
+                    'aiWorkbench' => $workbench,
+                ])->render(),
+                'workbench' => $workbench,
+            ];
+        }
+
+        return $this->legacyAiTabPayload($incident);
+    }
+
+    public function refreshAiWorkbench(Incident $incident): AIWorkbenchDTO
+    {
+        $incident->loadMissing(['order.deviceModel', 'activeWaitingState', 'assignee']);
+
+        if ($this->caseIntelligenceEngine->enabled()) {
+            $this->caseIntelligenceEngine->forget($incident);
+            $snapshot = $this->caseIntelligenceEngine->build($incident, force: true);
+
+            if ($snapshot !== null) {
+                return $this->aiWorkbenchService->fromSnapshot($snapshot);
+            }
+        }
+
+        $bundle = $this->aiService->buildBundle($incident);
+
+        return $this->aiWorkbenchService->buildFromBundle($incident, $bundle);
+    }
+
+    /**
+     * Shared request-scoped intelligence snapshot when the engine flag is enabled.
+     */
+    private function caseIntelligenceSnapshot(Incident $incident): ?CaseIntelligenceSnapshot
+    {
+        if (! $this->caseIntelligenceEngine->enabled()) {
+            return null;
+        }
+
+        return $this->caseIntelligenceEngine->build($incident);
+    }
+
+    /**
+     * @return array{html: string, workbench: AIWorkbenchDTO}
+     */
+    private function legacyAiTabPayload(Incident $incident): array
+    {
+        $order = $incident->order;
         $enrichmentMetadata = $this->enrichmentSyncStore->metadata($order->id) ?? [];
         $activeServices = $this->activeServices($incident, $order, $enrichmentMetadata);
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
@@ -381,14 +441,6 @@ class Customer360Service
             ])->render(),
             'workbench' => $workbench,
         ];
-    }
-
-    public function refreshAiWorkbench(Incident $incident): AIWorkbenchDTO
-    {
-        $incident->loadMissing(['order.deviceModel', 'activeWaitingState', 'assignee']);
-        $bundle = $this->aiService->buildBundle($incident);
-
-        return $this->aiWorkbenchService->buildFromBundle($incident, $bundle);
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Customer360\Intelligence;
 
+use App\Data\AI\AIWorkbenchDTO;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceBlocker;
 use App\Data\Customer360\Intelligence\CaseIntelligenceEvidence;
@@ -60,6 +61,10 @@ class CaseIntelligenceSnapshotTest extends TestCase
         ]);
 
         $bundle = app(AIService::class)->buildBundle($incident->fresh(['order', 'assignee']));
+        $workbench = app(\App\Services\AI\AIWorkbenchService::class)->buildFromBundle(
+            $incident->fresh(['order', 'assignee', 'activeWaitingState']),
+            $bundle,
+        );
 
         $snapshot = new CaseIntelligenceSnapshot(
             incidentId: $incident->id,
@@ -131,10 +136,17 @@ class CaseIntelligenceSnapshotTest extends TestCase
             aiBundle: $bundle,
             context: $bundle->context,
             operationsAdvisorInsights: [],
+            workbench: $workbench,
+            advisorViewModel: null,
+            evidenceViewItems: [
+                ['title' => 'Serial missing', 'source' => 'IRA', 'tone' => 'negative'],
+            ],
         );
 
         $this->assertTrue((new \ReflectionClass($snapshot))->isReadOnly());
-        $this->assertSame('1.0', $snapshot->schemaVersion);
+        $this->assertSame(CaseIntelligenceSnapshot::SCHEMA_VERSION, $snapshot->schemaVersion);
+        $this->assertInstanceOf(AIWorkbenchDTO::class, $snapshot->workbench);
+        $this->assertSame('Serial missing', $snapshot->evidenceForView()[0]['title']);
         $this->assertSame('request_serial', $snapshot->recommendedAction->actionKey);
         $this->assertCount(1, $snapshot->blockers);
         $this->assertSame('serial_missing', $snapshot->blockers[0]->key);

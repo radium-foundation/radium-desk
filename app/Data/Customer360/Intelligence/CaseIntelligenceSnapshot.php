@@ -4,6 +4,7 @@ namespace App\Data\Customer360\Intelligence;
 
 use App\Data\AI\AIContextDTO;
 use App\Data\AI\AIIncidentBundle;
+use App\Data\AI\AIWorkbenchDTO;
 use App\Data\AI\CustomerJourneyDTO;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Operations\OperationsInsightDTO;
@@ -19,7 +20,7 @@ use Illuminate\Support\Carbon;
  */
 readonly class CaseIntelligenceSnapshot
 {
-    public const SCHEMA_VERSION = '1.0';
+    public const SCHEMA_VERSION = '1.1';
 
     /**
      * @param  array<string, int>  $customerSummary
@@ -34,6 +35,8 @@ readonly class CaseIntelligenceSnapshot
      * @param  list<string>  $priorityDrivers
      * @param  list<string>  $openQuestions
      * @param  list<string>  $supervisorInsights
+     * @param  array<string, mixed>|null  $advisorViewModel
+     * @param  list<array{title: string, source: string, tone: string}>  $evidenceViewItems
      */
     public function __construct(
         public int $incidentId,
@@ -74,7 +77,29 @@ readonly class CaseIntelligenceSnapshot
         public AIIncidentBundle $aiBundle,
         public AIContextDTO $context,
         public array $operationsAdvisorInsights,
+        public AIWorkbenchDTO $workbench,
+        public ?array $advisorViewModel = null,
+        public array $evidenceViewItems = [],
     ) {}
+
+    /**
+     * @return list<array{title: string, source: string, tone: string}>
+     */
+    public function evidenceForView(): array
+    {
+        if ($this->evidenceViewItems !== []) {
+            return $this->evidenceViewItems;
+        }
+
+        return array_map(
+            fn (CaseIntelligenceEvidence $item): array => [
+                'title' => $item->title,
+                'source' => $item->source,
+                'tone' => $item->tone,
+            ],
+            $this->evidence,
+        );
+    }
 
     /**
      * Facts-only projection safe to send to a future language enhancer.

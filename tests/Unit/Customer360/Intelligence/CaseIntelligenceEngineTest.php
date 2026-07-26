@@ -27,19 +27,19 @@ class CaseIntelligenceEngineTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    public function test_feature_flag_defaults_to_disabled(): void
+    public function test_feature_flag_defaults_to_enabled(): void
     {
         $engine = app(CaseIntelligenceEngine::class);
 
-        $this->assertFalse($engine->enabled());
-        $this->assertFalse((bool) config('ira.case_intelligence_engine.enabled'));
+        $this->assertTrue($engine->enabled());
+        $this->assertTrue((bool) config('ira.case_intelligence_engine.enabled'));
     }
 
-    public function test_feature_flag_can_be_enabled(): void
+    public function test_feature_flag_can_be_disabled_for_rollback(): void
     {
-        config(['ira.case_intelligence_engine.enabled' => true]);
+        config(['ira.case_intelligence_engine.enabled' => false]);
 
-        $this->assertTrue(app(CaseIntelligenceEngine::class)->enabled());
+        $this->assertFalse(app(CaseIntelligenceEngine::class)->enabled());
     }
 
     public function test_build_returns_null_when_facts_collector_finds_no_order(): void
@@ -81,6 +81,8 @@ class CaseIntelligenceEngineTest extends TestCase
         $this->assertIsArray($snapshot->blockers);
         $this->assertIsArray($snapshot->risks);
         $this->assertIsArray($snapshot->evidence);
+        $this->assertNotNull($snapshot->workbench);
+        $this->assertIsArray($snapshot->evidenceForView());
     }
 
     public function test_executive_summary_matches_legacy_path_output(): void

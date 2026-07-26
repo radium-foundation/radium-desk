@@ -6,6 +6,7 @@
     <x-c360.ira-command-center
         :executiveSummary="$executiveSummary"
         :incident="$incident"
+        :evidenceItems="$evidenceItems ?? null"
         :canRequestCorrectSerial="$canRequestCorrectSerial ?? false"
         :correctSerialRequestState="$correctSerialRequestState ?? ['requested' => false]"
         :translateUrl="$translateUrl"

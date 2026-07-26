@@ -7,6 +7,7 @@ use App\Data\AI\AIContextDTO;
 use App\Data\AI\AIIncidentBundle;
 use App\Data\AI\AIResponseDTO;
 use App\Data\AI\AIWorkbenchDTO;
+use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
 use App\Enums\AI\AIConfidenceLevel;
 use App\Enums\IncidentStatus;
 use App\Enums\WaitingReason;
@@ -51,6 +52,14 @@ class AIWorkbenchService
     public function buildFromBundle(Incident $incident, AIIncidentBundle $bundle): AIWorkbenchDTO
     {
         return $this->build($incident, $bundle->response, $bundle->context);
+    }
+
+    /**
+     * Thin adapter — workbench must already be on the snapshot.
+     */
+    public function fromSnapshot(CaseIntelligenceSnapshot $snapshot): AIWorkbenchDTO
+    {
+        return $snapshot->workbench;
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Data\Customer360\Intelligence\CaseIntelligenceEvidence;
 use App\Data\Customer360\Intelligence\CaseIntelligenceFacts;
 use App\Data\SerialInsight;
 use App\Enums\SerialInsightStatus;
+use App\Enums\ServiceCaseSlaStatus;
 use App\Services\SerialValidation\SerialInsightService;
 
 /**
@@ -117,6 +118,61 @@ class CaseEvidenceBuilder
             );
         }
 
-        return $evidence;
+        $slaStatus = $facts->incident->slaStatus();
+        if ($slaStatus === ServiceCaseSlaStatus::Overdue) {
+            $evidence[] = new CaseIntelligenceEvidence(
+                id: 'sla',
+                title: 'SLA breached',
+                source: 'SLA',
+                tone: 'negative',
+                supportsFields: ['risks', 'current_status', 'priority'],
+            );
+        } elseif ($slaStatus === ServiceCaseSlaStatus::Warning) {
+            $evidence[] = new CaseIntelligenceEvidence(
+                id: 'sla',
+                title: 'SLA warning',
+                source: 'SLA',
+                tone: 'warning',
+                supportsFields: ['risks', 'current_status', 'priority'],
+            );
+        }
+
+        return $this->dedupe($evidence);
+    }
+
+    /**
+     * @return list<array{title: string, source: string, tone: string}>
+     */
+    public function toViewItems(array $evidence): array
+    {
+        return array_map(
+            fn (CaseIntelligenceEvidence $item): array => [
+                'title' => $item->title,
+                'source' => $item->source,
+                'tone' => $item->tone,
+            ],
+            $evidence,
+        );
+    }
+
+    /**
+     * @param  list<CaseIntelligenceEvidence>  $evidence
+     * @return list<CaseIntelligenceEvidence>
+     */
+    private function dedupe(array $evidence): array
+    {
+        $seen = [];
+        $unique = [];
+
+        foreach ($evidence as $item) {
+            $key = $item->title.'|'.$item->source;
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $unique[] = $item;
+        }
+
+        return $unique;
     }
 }

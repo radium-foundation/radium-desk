@@ -1,6 +1,7 @@
 @props([
     'executiveSummary',
     'incident',
+    'evidenceItems' => null,
     'canRequestCorrectSerial' => false,
     'correctSerialRequestState' => ['requested' => false],
     'translateUrl' => null,
@@ -43,53 +44,42 @@
     $confidenceLevel = $serialInsight?->confidence->value ?? 'medium';
     $confidenceLabel = $serialInsight?->confidence->label() ?? 'Medium';
 
-    $evidenceItems = [];
+    // Prefer structured evidence from CaseIntelligenceSnapshot; legacy heuristics only as fallback.
+    if (! is_array($evidenceItems)) {
+        $evidenceItems = [];
 
-    if (filled($incident->order?->product_name)) {
-        $evidenceItems[] = ['title' => 'Product matched', 'source' => 'Order', 'tone' => 'positive'];
-    }
+        if (filled($incident->order?->product_name)) {
+            $evidenceItems[] = ['title' => 'Product matched', 'source' => 'Order', 'tone' => 'positive'];
+        }
 
-    if (filled($incident->order?->serial_number)) {
-        $evidenceItems[] = ['title' => 'Device identified', 'source' => 'RadiumBox', 'tone' => 'positive'];
-    }
+        if (filled($incident->order?->serial_number)) {
+            $evidenceItems[] = ['title' => 'Device identified', 'source' => 'RadiumBox', 'tone' => 'positive'];
+        }
 
-    if ($serialInsight !== null) {
-        $evidenceItems[] = match ($serialInsight->status) {
-            SerialInsightStatus::Valid => ['title' => 'Serial verified', 'source' => 'IRA', 'tone' => 'positive'],
-            SerialInsightStatus::Suspicious, SerialInsightStatus::Warning => ['title' => 'Serial mismatch', 'source' => 'IRA', 'tone' => 'warning'],
-            SerialInsightStatus::Missing => ['title' => 'Serial missing', 'source' => 'IRA', 'tone' => 'negative'],
-            default => ['title' => $serialInsight->status->label(), 'source' => 'IRA', 'tone' => 'warning'],
-        };
-    }
+        if ($serialInsight !== null) {
+            $evidenceItems[] = match ($serialInsight->status) {
+                SerialInsightStatus::Valid => ['title' => 'Serial verified', 'source' => 'IRA', 'tone' => 'positive'],
+                SerialInsightStatus::Suspicious, SerialInsightStatus::Warning => ['title' => 'Serial mismatch', 'source' => 'IRA', 'tone' => 'warning'],
+                SerialInsightStatus::Missing => ['title' => 'Serial missing', 'source' => 'IRA', 'tone' => 'negative'],
+                default => ['title' => $serialInsight->status->label(), 'source' => 'IRA', 'tone' => 'warning'],
+            };
+        }
 
-    foreach ($whyLines as $line) {
-        $lower = strtolower($line);
-
-        if (str_contains($lower, 'payment') && str_contains($lower, 'receiv')) {
-            $evidenceItems[] = ['title' => 'Payment received', 'source' => 'Timeline', 'tone' => 'positive'];
-        } elseif (str_contains($lower, 'whatsapp') && (str_contains($lower, 'replied') || str_contains($lower, 'respond'))) {
-            $evidenceItems[] = ['title' => 'Customer replied', 'source' => 'WhatsApp', 'tone' => 'positive'];
-        } elseif (str_contains($lower, 'email') && str_contains($lower, 'replied')) {
-            $evidenceItems[] = ['title' => 'Customer replied', 'source' => 'Email', 'tone' => 'positive'];
-        } elseif (str_contains($lower, 'waiting')) {
+        if ($incident->activeWaitingState !== null) {
             $evidenceItems[] = ['title' => 'Waiting state active', 'source' => 'IRA', 'tone' => 'warning'];
         }
-    }
 
-    if ($incident->activeWaitingState !== null) {
-        $evidenceItems[] = ['title' => 'Waiting state active', 'source' => 'IRA', 'tone' => 'warning'];
-    }
+        if ($incident->slaStatus() === ServiceCaseSlaStatus::Overdue) {
+            $evidenceItems[] = ['title' => 'SLA breached', 'source' => 'SLA', 'tone' => 'negative'];
+        } elseif ($incident->slaStatus() === ServiceCaseSlaStatus::Warning) {
+            $evidenceItems[] = ['title' => 'SLA warning', 'source' => 'SLA', 'tone' => 'warning'];
+        }
 
-    if ($incident->slaStatus() === ServiceCaseSlaStatus::Overdue) {
-        $evidenceItems[] = ['title' => 'SLA breached', 'source' => 'Timeline', 'tone' => 'negative'];
-    } elseif ($incident->slaStatus() === ServiceCaseSlaStatus::Warning) {
-        $evidenceItems[] = ['title' => 'SLA warning', 'source' => 'Timeline', 'tone' => 'warning'];
+        $evidenceItems = collect($evidenceItems)
+            ->unique(fn (array $item) => $item['title'].'|'.$item['source'])
+            ->values()
+            ->all();
     }
-
-    $evidenceItems = collect($evidenceItems)
-        ->unique(fn (array $item) => $item['title'].'|'.$item['source'])
-        ->values()
-        ->all();
 
     $signalCount = count($evidenceItems);
     $confidencePercent = match ($confidenceLevel) {

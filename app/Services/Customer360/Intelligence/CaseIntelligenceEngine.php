@@ -6,7 +6,10 @@ use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
 use App\Models\Incident;
+use App\Models\User;
 use App\Services\AI\AIService;
+use App\Services\AI\AIWorkbenchService;
+use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Customer360\Intelligence\Builders\CaseEvidenceBuilder;
 use App\Services\Customer360\Intelligence\Builders\CaseIntelligenceFactCollector;
 use App\Services\Customer360\Intelligence\Builders\CaseRecommendationBuilder;
@@ -14,18 +17,23 @@ use App\Services\Customer360\Intelligence\Builders\CaseRiskBuilder;
 use App\Services\Customer360\Intelligence\Builders\CaseStateBuilder;
 use App\Services\Customer360\Intelligence\Builders\CaseSummaryBuilder;
 use App\Services\Operations\OperationsAdvisorService;
+use App\Services\ServiceCaseEscalationService;
+use App\Support\Customer360\Customer360HealthCardPresenter;
 
 /**
  * Customer 360 case intelligence orchestration layer.
  *
  * Owns assembly of CaseIntelligenceSnapshot from deterministic builders.
- * Contains no SQL and does not invent business facts.
- *
- * Future LLM providers plug in via CaseIntelligenceLanguageEnhancer and
- * receive only the completed snapshot (never raw timeline).
+ * Request-scoped: build() is memoized per incident id for the request lifetime.
  */
 class CaseIntelligenceEngine
 {
+    /** @var array<int, CaseIntelligenceSnapshot|null> */
+    private array $snapshotCache = [];
+
+    /** @var array<int, int> */
+    private array $buildCounts = [];
+
     public function __construct(
         private readonly CaseIntelligenceFactCollector $factCollector,
         private readonly CaseStateBuilder $stateBuilder,
@@ -34,8 +42,12 @@ class CaseIntelligenceEngine
         private readonly CaseRecommendationBuilder $recommendationBuilder,
         private readonly CaseSummaryBuilder $summaryBuilder,
         private readonly AIService $aiService,
+        private readonly AIWorkbenchService $workbenchService,
         private readonly OperationsAdvisorService $operationsAdvisorService,
         private readonly CaseIntelligenceLanguageEnhancer $languageEnhancer,
+        private readonly Customer360ActionVisibilityService $actionVisibilityService,
+        private readonly ServiceCaseEscalationService $escalationService,
+        private readonly Customer360HealthCardPresenter $healthCardPresenter,
     ) {}
 
     public function enabled(): bool
@@ -43,12 +55,20 @@ class CaseIntelligenceEngine
         return (bool) config('ira.case_intelligence_engine.enabled', false);
     }
 
-    public function build(Incident $incident): ?CaseIntelligenceSnapshot
+    public function build(Incident $incident, bool $force = false): ?CaseIntelligenceSnapshot
     {
+        $cacheKey = $incident->id;
+
+        if (! $force && array_key_exists($cacheKey, $this->snapshotCache)) {
+            return $this->snapshotCache[$cacheKey];
+        }
+
+        $this->buildCounts[$cacheKey] = ($this->buildCounts[$cacheKey] ?? 0) + 1;
+
         $facts = $this->factCollector->collect($incident);
 
         if ($facts === null) {
-            return null;
+            return $this->snapshotCache[$cacheKey] = null;
         }
 
         $aiBundle = $this->aiService->buildBundle(
@@ -62,6 +82,22 @@ class CaseIntelligenceEngine
             $facts->buildSnapshot,
         );
 
+        $user = auth()->user();
+        $actionVisibility = $this->actionVisibilityService->forIncident($facts->incident, $user);
+        $canEscalate = $user instanceof User
+            && $this->escalationService->canEscalate($facts->incident, $user);
+        $healthCardViewModel = $this->healthCardPresenter->present(
+            [
+                'active_service_cases' => $facts->customerSummary['open_cases'] ?? 0,
+                'repeat_contact' => null,
+                'last_whatsapp' => null,
+                'last_email' => null,
+                'last_call' => null,
+            ],
+            $facts->customerSummary,
+            $facts->order->customer_phone,
+        );
+
         $state = $this->stateBuilder->build($facts, $aiBundle);
         $riskProjection = $this->riskBuilder->build($aiBundle, $operationsAdvisorInsights);
         $evidence = $this->evidenceBuilder->build($facts, $aiBundle);
@@ -71,11 +107,16 @@ class CaseIntelligenceEngine
             $facts,
             $operationsAdvisorInsights,
         );
-        $recommendedAction = $this->recommendationBuilder->build(
+        $recommendation = $this->recommendationBuilder->build(
             $facts,
             $aiBundle,
             $executiveSummary,
+            $operationsAdvisorInsights,
+            $healthCardViewModel,
+            $actionVisibility,
+            $canEscalate,
         );
+        $workbench = $this->workbenchService->buildFromBundle($facts->incident, $aiBundle);
 
         $snapshot = new CaseIntelligenceSnapshot(
             incidentId: $facts->incident->id,
@@ -105,7 +146,7 @@ class CaseIntelligenceEngine
             risks: $riskProjection['risks'],
             priorityLevel: $state['priority_level'],
             priorityDrivers: $state['priority_drivers'],
-            recommendedAction: $recommendedAction,
+            recommendedAction: $recommendation['recommended_action'],
             executiveSummary: $executiveSummary,
             evidence: $evidence,
             confidenceLevel: $aiBundle->response->confidenceLevel,
@@ -116,13 +157,32 @@ class CaseIntelligenceEngine
             aiBundle: $aiBundle,
             context: $aiBundle->context,
             operationsAdvisorInsights: $operationsAdvisorInsights,
+            workbench: $workbench,
+            advisorViewModel: $recommendation['advisor_view_model'],
+            evidenceViewItems: $this->evidenceBuilder->toViewItems($evidence),
         );
 
-        return $this->languageEnhancer->enhance($snapshot);
+        return $this->snapshotCache[$cacheKey] = $this->languageEnhancer->enhance($snapshot);
     }
 
     public function executiveSummary(Incident $incident): ?IRAExecutiveSummaryDTO
     {
         return $this->build($incident)?->executiveSummary;
+    }
+
+    public function forget(?Incident $incident = null): void
+    {
+        if ($incident === null) {
+            $this->snapshotCache = [];
+
+            return;
+        }
+
+        unset($this->snapshotCache[$incident->id]);
+    }
+
+    public function buildCountFor(Incident $incident): int
+    {
+        return $this->buildCounts[$incident->id] ?? 0;
     }
 }

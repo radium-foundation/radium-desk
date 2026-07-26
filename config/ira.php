@@ -14,7 +14,9 @@ return [
     |
     */
     'case_intelligence_engine' => [
-        'enabled' => (bool) env('IRA_CASE_INTELLIGENCE_ENGINE', false),
+        // Phase 2: default on so Customer360 intelligence surfaces share one snapshot.
+        // Set IRA_CASE_INTELLIGENCE_ENGINE=false for instant legacy rollback.
+        'enabled' => (bool) env('IRA_CASE_INTELLIGENCE_ENGINE', true),
     ],
 
     'memory' => [
