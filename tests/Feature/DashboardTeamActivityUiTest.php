@@ -63,7 +63,8 @@ class DashboardTeamActivityUiTest extends TestCase
         $html = $this->panelHtml($viewer);
 
         $this->assertStringContainsString('team-activity-kpi-count">0<', $html);
-        $this->assertStringContainsString('Activities Today', $html);
+        $this->assertStringNotContainsString('Activities Today', $html);
+        $this->assertStringContainsString('aria-label="0 activities today"', $html);
     }
 
     public function test_high_activity_count_and_latest_event_formatting(): void
@@ -128,7 +129,7 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('team-activity-avatar--virtual', $html);
         $this->assertStringContainsString('team-activity-status-pill--ira', $html);
         $this->assertStringContainsString('team-activity-kpi--ira', $html);
-        $this->assertStringContainsString('Automated Cases', $html);
+        $this->assertStringContainsString('team-activity-kpi-supplementary', $html);
         $this->assertStringNotContainsString('calendar-pill__icon', $html);
     }
 

@@ -73,7 +73,7 @@ class DashboardTeamActivityTest extends TestCase
         $this->assertStringContainsString((string) $admin->name, $html);
         $this->assertStringContainsString('Assigned', $html);
         $this->assertStringContainsString('team-activity-kpi-count', $html);
-        $this->assertMatchesRegularExpression('/team-activity-kpi-label">\s*Activit(?:y|ies) Today/', $html);
+        $this->assertStringNotContainsString('team-activity-kpi-label', $html);
         $this->assertStringContainsString('Active', $html);
         $this->assertStringContainsString('team-activity-grid-header', $html);
         $this->assertStringContainsString('team-activity-avatar', $html);

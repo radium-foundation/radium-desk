@@ -6,7 +6,7 @@
     /** @var \App\Data\TeamActivityAgentRow $agent */
     $latest = $agent->latest;
     $historyId = 'team-activity-history-'.$agent->id;
-    $activityCountLabel = $agent->todayCount === 1 ? 'Activity Today' : 'Activities Today';
+    $activityCountAriaLabel = $agent->todayCount === 1 ? '1 activity today' : number_format($agent->todayCount).' activities today';
     $hasPresenceMetrics = ! $agent->isVirtual && (
         filled($agent->todayDurationLabel)
         || filled($agent->currentDurationLabel)
@@ -77,22 +77,15 @@
         <span class="team-activity-col team-activity-col--kpi" role="cell">
             @if($agent->isVirtual)
                 <span class="team-activity-kpi team-activity-kpi--ira"
-                      aria-label="{{ number_format($agent->todayCount).' '.($agent->todayCount === 1 ? 'Activity' : 'Activities') }}@if(filled($agent->supplementaryKpiCount)) +{{ number_format($agent->supplementaryKpiCount) }} {{ $agent->supplementaryKpiLabel }}@endif">
-                    <span class="team-activity-kpi-primary">
-                        <span class="team-activity-kpi-count">{{ number_format($agent->todayCount) }}</span>
-                        <span class="team-activity-kpi-label">{{ $agent->todayCount === 1 ? 'Activity' : 'Activities' }}</span>
-                    </span>
+                      aria-label="{{ $activityCountAriaLabel }}@if(filled($agent->supplementaryKpiCount)) +{{ number_format($agent->supplementaryKpiCount) }} {{ $agent->supplementaryKpiLabel }}@endif">
+                    <span class="team-activity-kpi-count">{{ number_format($agent->todayCount) }}</span>
                     @if($agent->supplementaryKpiCount !== null)
-                        <span class="team-activity-kpi-secondary">
-                            <span class="team-activity-kpi-supplementary">+{{ number_format($agent->supplementaryKpiCount) }}</span>
-                            <span class="team-activity-kpi-label">{{ $agent->supplementaryKpiLabel }}</span>
-                        </span>
+                        <span class="team-activity-kpi-supplementary">+{{ number_format($agent->supplementaryKpiCount) }}</span>
                     @endif
                 </span>
             @else
-                <span class="team-activity-kpi" aria-label="{{ number_format($agent->todayCount).' '.$activityCountLabel }}">
+                <span class="team-activity-kpi" aria-label="{{ $activityCountAriaLabel }}">
                     <span class="team-activity-kpi-count">{{ number_format($agent->todayCount) }}</span>
-                    <span class="team-activity-kpi-label">{{ $activityCountLabel }}</span>
                 </span>
             @endif
         </span>

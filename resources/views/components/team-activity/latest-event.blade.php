@@ -29,13 +29,28 @@
     if ($references === '' && filled($entry->reference)) {
         $references = (string) $entry->reference;
     }
+
+    $actionTitle = null;
+    $embeddedReference = null;
+
+    foreach (['Assigned', 'Reassigned', 'Escalated'] as $prefix) {
+        if (str_starts_with($label, $prefix.' ')) {
+            $actionTitle = $prefix;
+            $embeddedReference = substr($label, strlen($prefix) + 1);
+            break;
+        }
+    }
 @endphp
 
 <div {{ $attributes->class(['team-activity-latest-event']) }}>
     <span class="team-activity-latest-event__title">
         <i class="bi {{ $icon }} team-activity-latest-event__icon" aria-hidden="true"></i>
-        <span class="team-activity-latest-event__label">{{ $label }}</span>
+        <span class="team-activity-latest-event__label">{{ $actionTitle ?? $label }}</span>
     </span>
+
+    @if(filled($embeddedReference))
+        <span class="team-activity-latest-event__embedded-ref">{{ $embeddedReference }}</span>
+    @endif
 
     @if($references !== '')
         <span class="team-activity-latest-event__refs">{{ $references }}</span>
