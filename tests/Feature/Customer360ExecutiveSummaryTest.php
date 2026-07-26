@@ -47,13 +47,13 @@ class Customer360ExecutiveSummaryTest extends TestCase
 
         $this->assertStringContainsString('data-customer-360-section="executive-summary"', $summaryHtml);
         $this->assertStringContainsString('data-ira-panel', $summaryHtml);
-        $this->assertStringContainsString('Case intelligence', $summaryHtml);
-        $this->assertStringContainsString('Executive Summary', $summaryHtml);
+        $this->assertStringContainsString('Operations briefing', $summaryHtml);
+        $this->assertStringContainsString('Executive Brief', $summaryHtml);
+        $this->assertStringContainsString('Executive Narrative', $summaryHtml);
+        $this->assertStringContainsString('Next Action', $summaryHtml);
+        $this->assertStringContainsString('Communication', $summaryHtml);
+        $this->assertStringContainsString('Case Contributors', $summaryHtml);
         $this->assertStringContainsString('Current Status', $summaryHtml);
-        $this->assertStringContainsString('Who are we waiting for?', $summaryHtml);
-        $this->assertStringContainsString('Current Blockers', $summaryHtml);
-        $this->assertStringContainsString('Risk Indicators', $summaryHtml);
-        $this->assertStringContainsString('Recommended Next Action', $summaryHtml);
         $this->assertStringContainsString('Why IRA thinks this', $summaryHtml);
         $this->assertStringContainsString('Timeline', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-lang-toggle', $summaryHtml);
@@ -61,6 +61,8 @@ class Customer360ExecutiveSummaryTest extends TestCase
         $this->assertStringContainsString('data-ira-summary-block="executive"', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-block="recommendation"', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-block="opinion"', $summaryHtml);
+        $this->assertStringContainsString('c360-ira-brief-grid', $summaryHtml);
+        $this->assertStringContainsString('c360-ira-next-action', $summaryHtml);
 
         $html = $response->getContent();
         $healthPos = strpos($html, 'data-customer-360-section="health-card"');
@@ -132,8 +134,9 @@ class Customer360ExecutiveSummaryTest extends TestCase
 
         $this->assertStringContainsString('data-ira-serial-insight', $summaryHtml);
         $this->assertStringContainsString('product code', $summaryHtml);
-        $this->assertStringContainsString('Request the correct serial number from the customer before closing this case.', $summaryHtml);
+        $this->assertStringContainsString('Customer identity or serial details need verification before closing.', $summaryHtml);
         $this->assertStringContainsString('Request the customer to share the correct serial number via WhatsApp.', $summaryHtml);
+        $this->assertStringContainsString('c360-ira-person', $summaryHtml);
         $this->assertStringContainsString('Send request', $summaryHtml);
 
         preg_match("/data-ira-summary-en='([^']+)'/", $summaryHtml, $matches);

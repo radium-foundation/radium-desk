@@ -31,12 +31,46 @@ class Customer360IraPanelPresenterTest extends TestCase
     {
         $reflection = new ReflectionClass(Customer360IraPanelPresenter::class);
         $constructor = $reflection->getConstructor();
+        $params = $constructor?->getParameters() ?? [];
 
-        $this->assertNull($constructor?->getNumberOfParameters() ?: null);
-        $this->assertSame(0, $constructor?->getNumberOfParameters() ?? 0);
+        // Presenter may depend on pure formatting helpers only — never domain services.
+        foreach ($params as $param) {
+            $type = $param->getType()?->getName();
+            $this->assertNotNull($type);
+            $this->assertStringStartsWith('App\\Support\\Customer360\\', $type);
+            $this->assertStringNotContainsString('Service', class_basename($type));
+        }
     }
 
-    public function test_present_builds_scannable_panel_view_model_from_snapshot(): void
+    public function test_present_emphasizes_people_and_renders_communication_block(): void
+    {
+        [$incident, , $agent] = $this->createIncident();
+        $agent->forceFill(['name' => 'Jayram'])->save();
+        $incident->forceFill(['assigned_to_user_id' => $agent->id])->save();
+        $this->actingAs($agent);
+
+        $snapshot = app(CaseIntelligenceEngine::class)->build($incident->fresh(['order', 'assignee']));
+        $this->assertNotNull($snapshot);
+
+        $panel = app(Customer360IraPanelPresenter::class)->present(
+            snapshot: $snapshot,
+            incident: $incident->fresh(['assignee']),
+        );
+
+        $this->assertTrue($panel['executive_summary_allows_html']);
+        $this->assertNotEmpty($panel['executive_brief']);
+        $this->assertStringContainsString('c360-ira-person', $panel['executive_narrative_html']);
+        $this->assertStringContainsString('Jayram', strip_tags($panel['executive_narrative_html']));
+        $this->assertTrue($panel['has_contributors']);
+        $this->assertSame('Current Owner', $panel['case_contributors'][0]['role']);
+        $this->assertSame('Jayram', $panel['case_contributors'][0]['name']);
+        // Plain payload for translation must not include markup.
+        foreach ($panel['summary_payload']['executive_summary'] as $plainLine) {
+            $this->assertStringNotContainsString('<strong', $plainLine);
+        }
+    }
+
+    public function test_present_builds_operations_briefing_hierarchy(): void
     {
         [$incident, , $agent] = $this->createIncident();
         $this->actingAs($agent);
@@ -51,8 +85,11 @@ class Customer360IraPanelPresenterTest extends TestCase
         );
 
         $this->assertSame('IRA', $panel['heading']);
-        $this->assertSame('Case intelligence', $panel['subtitle']);
-        $this->assertNotEmpty($panel['executive_summary_lines']);
+        $this->assertSame('Operations briefing', $panel['subtitle']);
+        $this->assertNotEmpty($panel['executive_brief']);
+        $this->assertNotSame('', $panel['executive_narrative_plain']);
+        $this->assertArrayHasKey('communication_items', $panel);
+        $this->assertArrayHasKey('case_contributors', $panel);
         $this->assertArrayHasKey('label', $panel['current_status']);
         $this->assertContains($panel['waiting']['party'], ['Customer', 'Engineer', 'Internal Team', 'Nobody']);
         $this->assertIsArray($panel['blockers']);
@@ -65,6 +102,10 @@ class Customer360IraPanelPresenterTest extends TestCase
         $this->assertSame($canonical, $panel['summary_payload']['recommendation']);
         $this->assertSame($canonical, $panel['recommended_action']['text']);
         $this->assertSame($canonical, $snapshot->executiveSummary->recommendation);
+
+        $briefLabels = array_column($panel['executive_brief'], 'label');
+        $this->assertContains('Current Status', $briefLabels);
+        $this->assertContains('Product', $briefLabels);
 
         foreach ($panel['evidence'] as $item) {
             $this->assertArrayHasKey('title', $item);

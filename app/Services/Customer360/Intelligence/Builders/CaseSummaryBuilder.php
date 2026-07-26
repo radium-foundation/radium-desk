@@ -63,10 +63,11 @@ class CaseSummaryBuilder
         $serialMissing = $context->serialMissing
             || $serialInsight?->status === SerialInsightStatus::Missing;
 
+        // Communication briefing is injected by the IRA panel presenter from
+        // CommunicationSummary::briefingLines (chronological human bullets).
         $sections = array_values(array_filter([
             $this->caseIntroduction($incident, $model, $state),
             $this->currentSituation($facts, $state, $serialInsight, $serialMissing),
-            $this->customerCommunicationSummary($communication),
             $this->internalProgress($facts, $state, $serialInsight, $serialMissing, $context->lastPayment),
             $this->businessImpact($incident, $state, $serialInsight),
         ]));
@@ -153,43 +154,6 @@ class CaseSummaryBuilder
         return rtrim(implode('. ', $parts), '.').'.';
     }
 
-    private function customerCommunicationSummary(CommunicationSummary $communication): ?string
-    {
-        if ($communication->isEmpty() && ! filled($communication->briefingParagraph)) {
-            return null;
-        }
-
-        $lines = [];
-
-        if (filled($communication->briefingParagraph)) {
-            $lines[] = rtrim((string) $communication->briefingParagraph, '.');
-        }
-
-        if ($communication->latestWhatsapp?->preview) {
-            $lines[] = 'WhatsApp preview: "'.$communication->latestWhatsapp->preview.'"';
-        }
-
-        if ($communication->latestEmail !== null) {
-            if (filled($communication->latestEmail->subject)) {
-                $lines[] = 'Email subject: '.$communication->latestEmail->subject;
-            }
-            if (filled($communication->latestEmail->preview)) {
-                $lines[] = 'Email preview: "'.$communication->latestEmail->preview.'"';
-            }
-        }
-
-        if ($lines === []) {
-            return null;
-        }
-
-        return implode(' ', array_map(
-            fn (string $line): string => str_ends_with($line, '.') || str_ends_with($line, '"')
-                ? $line
-                : $line.'.',
-            $lines,
-        ));
-    }
-
     /**
      * @param  array<string, mixed>  $state
      * @param  array{label: string, occurred_at: Carbon}|null  $lastPayment
@@ -207,7 +171,7 @@ class CaseSummaryBuilder
         if ($ownership !== null) {
             $parts[] = $ownership;
         } elseif (filled($facts->incident->assignee?->name)) {
-            $parts[] = 'Current owner is '.$facts->incident->assignee->name;
+            $parts[] = 'Current owner: '.$facts->incident->assignee->name;
         }
 
         $appointment = $facts->supportAppointment;
@@ -219,7 +183,7 @@ class CaseSummaryBuilder
             } elseif ($appointment['is_active'] ?? false) {
                 $assignee = $appointment['assignee_name'] ?? null;
                 $parts[] = filled($assignee)
-                    ? "Support appointment is assigned to {$assignee}"
+                    ? 'Engineer: '.$assignee
                     : 'A support appointment is on the calendar';
             }
         }
@@ -355,7 +319,7 @@ class CaseSummaryBuilder
         $from = $names[$names->count() - 2];
         $to = $names[$names->count() - 1];
 
-        return "Ownership changed from {$from} to {$to}, increasing the risk of further delay";
+        return "Ownership changed from {$from} → {$to}, increasing the risk of further delay";
     }
 
     private function resolveSerialInsight(Incident $incident): ?SerialInsight

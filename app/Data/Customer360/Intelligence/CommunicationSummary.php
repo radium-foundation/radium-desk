@@ -12,6 +12,10 @@ readonly class CommunicationSummary
 {
     public const PREVIEW_MAX_CHARS = 100;
 
+    public const EMAIL_PREVIEW_MIN_CHARS = 40;
+
+    public const EMAIL_PREVIEW_MAX_CHARS = 80;
+
     public const JOURNEY_MAX_ENTRIES = 8;
 
     /**
@@ -19,6 +23,7 @@ readonly class CommunicationSummary
      * @param  list<string>  $channelsUsed
      * @param  list<string>  $agentsInvolved
      * @param  list<CommunicationTouchpoint>  $touchpoints
+     * @param  list<string>  $briefingLines
      */
     public function __construct(
         public ?CommunicationTouchpoint $latestWhatsapp,
@@ -31,6 +36,7 @@ readonly class CommunicationSummary
         public array $agentsInvolved,
         public array $touchpoints,
         public ?string $briefingParagraph,
+        public array $briefingLines = [],
         public ?Carbon $sinceLastCustomerReplyAt = null,
         public ?string $sinceLastCustomerReplyLabel = null,
     ) {}
@@ -58,6 +64,7 @@ readonly class CommunicationSummary
             'channels_used' => $this->channelsUsed,
             'agents_involved' => $this->agentsInvolved,
             'briefing_paragraph' => $this->briefingParagraph,
+            'briefing_lines' => $this->briefingLines,
             'since_last_customer_reply_at' => $this->sinceLastCustomerReplyAt?->toIso8601String(),
             'since_last_customer_reply_label' => $this->sinceLastCustomerReplyLabel,
             'touchpoint_count' => count($this->touchpoints),

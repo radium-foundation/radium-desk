@@ -10,6 +10,7 @@ use App\Data\Customer360\Intelligence\CommunicationTouchpoint;
 use App\Data\TimelineEvent;
 use App\Enums\TimelineActorKind;
 use App\Enums\TimelineEventType;
+use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -17,6 +18,7 @@ use Illuminate\Support\Str;
 /**
  * Builds structured CommunicationSummary from timeline + context facts only.
  * Never invents conversations, names, or previews.
+ * Filters transport/system success noise from operator-facing briefings.
  */
 class CommunicationSummaryBuilder
 {
@@ -59,16 +61,11 @@ class CommunicationSummaryBuilder
             ->all();
 
         $journey = $this->buildJourney($touchpoints);
-        $sinceLabel = $this->sinceCustomerReplyLabel($customerLastReply);
-        $briefing = $this->buildBriefingParagraph(
-            $touchpoints,
-            $latestWhatsapp,
-            $latestEmail,
-            $latestCall,
-            $customerLastReply,
-            $sinceLabel,
-            $bundle,
-        );
+        $sinceLabel = $this->sinceCustomerReplyLabel($customerLastReply, $ourLastContact);
+        $briefingLines = $this->buildBriefingLines($touchpoints, $customerLastReply, $ourLastContact);
+        $briefing = $briefingLines === []
+            ? $this->emptyBriefingFallback($bundle)
+            : implode(' ', $briefingLines);
 
         return new CommunicationSummary(
             latestWhatsapp: $latestWhatsapp,
@@ -81,6 +78,7 @@ class CommunicationSummaryBuilder
             agentsInvolved: $agentsInvolved,
             touchpoints: $touchpoints->all(),
             briefingParagraph: $briefing,
+            briefingLines: $briefingLines,
             sinceLastCustomerReplyAt: $customerLastReply?->occurredAt,
             sinceLastCustomerReplyLabel: $sinceLabel,
         );
@@ -103,20 +101,32 @@ class CommunicationSummaryBuilder
         $direction = $this->directionFor($event);
         $actorName = $this->actorNameFor($event, $direction);
         $subject = $this->fieldValue($event, 'Subject');
-        $preview = $this->truncatePreview(
-            $this->fieldValue($event, 'Preview')
-                ?? $event->summary
-                ?? $this->channelDetailPreview($event),
-        );
+        $templateName = $this->templateNameFor($event);
+        $language = $this->languageFor($event, $templateName);
+        $preview = $this->previewFor($event, $channel, $direction);
+        $outcome = $this->outcomeFor($event, $channel, $direction, $preview);
 
         return new CommunicationTouchpoint(
             channel: $channel,
             occurredAt: $event->occurredAt,
             direction: $direction,
             actorName: $actorName,
-            summary: $this->touchpointSummary($event, $channel, $direction, $actorName),
+            summary: $this->touchpointSummary(
+                $event,
+                $channel,
+                $direction,
+                $actorName,
+                $templateName,
+                $language,
+                $subject,
+                $preview,
+                $outcome,
+            ),
             preview: $preview,
             subject: filled($subject) ? $subject : null,
+            templateName: $templateName,
+            language: $language,
+            outcome: $outcome,
         );
     }
 
@@ -217,15 +227,100 @@ class CommunicationSummaryBuilder
             return null;
         }
 
-        if (strcasecmp($name, 'Template') === 0 || $event->actor->kind === TimelineActorKind::Automation) {
+        if (strcasecmp($name, 'Template') === 0
+            || $event->actor->kind === TimelineActorKind::Automation
+            || in_array(strtolower($name), ['automation', 'scheduler', 'webhook', 'system', 'radium desk'], true)) {
             return 'IRA';
         }
 
-        if (strcasecmp($name, 'Radium Desk') === 0 || strcasecmp($name, 'System') === 0) {
-            return 'IRA';
+        if (strcasecmp($name, 'Manual') === 0) {
+            return 'Support';
         }
 
         return $name;
+    }
+
+    private function templateNameFor(TimelineEvent $event): ?string
+    {
+        $template = $this->fieldValue($event, 'Template');
+        if (filled($template) && ! $this->isTransportNoise($template)) {
+            return $template;
+        }
+
+        $title = trim($event->title);
+        if ($event->type === TimelineEventType::WhatsAppTemplateSent) {
+            return null;
+        }
+
+        if ($this->looksLikeTemplateTitle($title)) {
+            return $this->humanizeTemplateTitle($title);
+        }
+
+        // Notification titles like "Driver Installation Guide Sent".
+        if ($event->type === TimelineEventType::Notification
+            && $this->channelFor($event) === 'whatsapp'
+            && $title !== ''
+            && ! $this->isTransportNoise($title)) {
+            return $this->humanizeTemplateTitle($title);
+        }
+
+        return null;
+    }
+
+    private function languageFor(TimelineEvent $event, ?string $templateName): ?string
+    {
+        $explicit = $this->fieldValue($event, 'Language');
+        if (filled($explicit)) {
+            return $this->languageLabel($explicit);
+        }
+
+        return $this->resolveLanguageFromConfig($templateName, $this->fieldValue($event, 'Template Key'));
+    }
+
+    private function previewFor(TimelineEvent $event, string $channel, string $direction): ?string
+    {
+        $raw = $this->fieldValue($event, 'Preview')
+            ?? $event->summary
+            ?? $this->channelDetailPreview($event);
+
+        if ($raw === null || $this->isTransportNoise($raw)) {
+            // Outbound WhatsApp must never fall back to transport success text.
+            if ($channel === 'whatsapp' && $direction === 'outbound') {
+                return null;
+            }
+
+            return null;
+        }
+
+        $max = $channel === 'email'
+            ? CommunicationSummary::EMAIL_PREVIEW_MAX_CHARS
+            : CommunicationSummary::PREVIEW_MAX_CHARS;
+
+        return $this->truncatePreview($raw, $max);
+    }
+
+    private function outcomeFor(
+        TimelineEvent $event,
+        string $channel,
+        string $direction,
+        ?string $preview,
+    ): ?string {
+        if ($channel !== 'phone') {
+            return null;
+        }
+
+        foreach (['Outcome', 'Notes', 'Note', 'Summary'] as $label) {
+            $value = $this->fieldValue($event, $label);
+            if (filled($value) && ! $this->isTransportNoise($value)) {
+                return $this->truncatePreview($value, 120);
+            }
+        }
+
+        if ($direction === 'inbound' && filled($preview) && ! $this->isTransportNoise($preview)) {
+            return $preview;
+        }
+
+        return null;
     }
 
     private function touchpointSummary(
@@ -233,46 +328,66 @@ class CommunicationSummaryBuilder
         string $channel,
         string $direction,
         ?string $actorName,
+        ?string $templateName,
+        ?string $language,
+        ?string $subject,
+        ?string $preview,
+        ?string $outcome,
     ): string {
         $who = $actorName ?? ($direction === 'inbound' ? 'Customer' : 'Support');
-        $channelLabel = match ($channel) {
-            'whatsapp' => 'WhatsApp',
-            'email' => 'email',
-            'phone' => 'phone',
-            default => 'message',
-        };
+        $when = $this->relativeTimeLabel($event->occurredAt);
 
-        if ($direction === 'inbound' && $channel === 'phone') {
-            return filled($actorName)
-                ? "Customer called {$actorName}."
-                : 'Customer called support.';
-        }
-
-        if ($direction === 'inbound' && $channel === 'email') {
-            return 'Customer emailed support.';
-        }
-
-        if ($direction === 'inbound' && $channel === 'whatsapp') {
-            return 'Customer replied on WhatsApp.';
-        }
-
-        if ($channel === 'email') {
-            return "{$who} emailed the customer".($this->fieldValue($event, 'Subject')
-                ? ' regarding '.$this->fieldValue($event, 'Subject')
-                : '').'.';
+        if ($channel === 'whatsapp' && $direction === 'inbound') {
+            return filled($preview)
+                ? 'Customer replied: "'.$preview.'"'
+                : 'Customer replied on WhatsApp.';
         }
 
         if ($channel === 'whatsapp') {
+            if (filled($templateName)) {
+                $lang = filled($language) ? " ({$language})" : '';
+
+                return "{$who} sent \"{$templateName}\"{$lang} via WhatsApp{$when}.";
+            }
+
             $purpose = $this->outboundPurpose($event);
 
-            return "{$who} sent a WhatsApp {$purpose}.";
+            return "{$who} sent {$purpose} on WhatsApp{$when}.";
+        }
+
+        if ($channel === 'email' && $direction === 'inbound') {
+            return filled($subject)
+                ? "Customer emailed: \"{$subject}\"."
+                : 'Customer emailed support.';
+        }
+
+        if ($channel === 'email') {
+            if (filled($subject)) {
+                return "{$who} sent: \"{$subject}\"{$when}.";
+            }
+
+            return "{$who} emailed the customer{$when}.";
         }
 
         if ($channel === 'phone') {
-            return "{$who} called the customer.";
+            if ($direction === 'inbound') {
+                $base = filled($actorName)
+                    ? "Customer spoke with {$actorName}{$when}."
+                    : "Customer called support{$when}.";
+            } else {
+                $base = filled($actorName)
+                    ? "{$actorName} spoke with the customer{$when}."
+                    : "Support called the customer{$when}.";
+            }
+
+            if (filled($outcome)) {
+                return $base.' Outcome: '.$outcome;
+            }
+
+            return $base;
         }
 
-        return "{$who} contacted the customer via {$channelLabel}.";
+        return "{$who} contacted the customer{$when}.";
     }
 
     private function outboundPurpose(TimelineEvent $event): string
@@ -280,11 +395,103 @@ class CommunicationSummaryBuilder
         $title = strtolower($event->title);
 
         return match (true) {
-            str_contains($title, 'reminder') => 'reminder',
-            str_contains($title, 'serial') => 'serial-number request',
-            str_contains($title, 'follow') => 'follow-up',
-            default => 'message',
+            str_contains($title, 'appointment') && str_contains($title, 'reminder') => 'an appointment reminder',
+            str_contains($title, 'appointment') => 'an appointment update',
+            str_contains($title, 'reminder') => 'a reminder',
+            str_contains($title, 'serial') => 'a serial-number request',
+            str_contains($title, 'follow') => 'a follow-up',
+            str_contains($title, 'callback') => 'a callback request',
+            str_contains($title, 'driver') => 'a driver installation guide',
+            default => 'a message',
         };
+    }
+
+    /**
+     * @param  Collection<int, CommunicationTouchpoint>  $touchpoints
+     * @return list<string>
+     */
+    private function buildBriefingLines(
+        Collection $touchpoints,
+        ?CommunicationTouchpoint $customerLastReply,
+        ?CommunicationTouchpoint $ourLastContact,
+    ): array {
+        if ($touchpoints->isEmpty()) {
+            return [];
+        }
+
+        $lines = [];
+        $lastOutboundWhatsappAt = null;
+
+        foreach ($touchpoints as $touchpoint) {
+            $line = rtrim($touchpoint->summary, '.');
+
+            if ($touchpoint->channel === 'email'
+                && $touchpoint->direction === 'outbound'
+                && filled($touchpoint->preview)) {
+                $line .= '. Preview: "'.$touchpoint->preview.'"';
+            }
+
+            $lines[] = $line.'.';
+
+            if ($touchpoint->channel === 'whatsapp' && $touchpoint->direction === 'outbound') {
+                $lastOutboundWhatsappAt = $touchpoint->occurredAt;
+            }
+
+            if ($touchpoint->channel === 'whatsapp'
+                && $touchpoint->direction === 'inbound'
+                && $lastOutboundWhatsappAt !== null) {
+                $lastOutboundWhatsappAt = null;
+            }
+        }
+
+        $hasInboundAfterLastOutbound = $customerLastReply !== null
+            && $ourLastContact !== null
+            && $customerLastReply->occurredAt->greaterThanOrEqualTo($ourLastContact->occurredAt);
+
+        if ($ourLastContact?->channel === 'whatsapp'
+            && $ourLastContact->direction === 'outbound'
+            && ! $hasInboundAfterLastOutbound
+            && ($customerLastReply === null
+                || $customerLastReply->occurredAt->lt($ourLastContact->occurredAt))) {
+            $lines[] = 'Customer has not replied.';
+        }
+
+        return $this->compactBriefingLines($lines);
+    }
+
+    /**
+     * @param  list<string>  $lines
+     * @return list<string>
+     */
+    private function compactBriefingLines(array $lines): array
+    {
+        $unique = [];
+        foreach ($lines as $line) {
+            $key = Str::lower(trim($line));
+            if ($key === '' || isset($unique[$key])) {
+                continue;
+            }
+            $unique[$key] = $line;
+        }
+
+        $compact = array_values($unique);
+
+        if (count($compact) <= CommunicationSummary::JOURNEY_MAX_ENTRIES) {
+            return $compact;
+        }
+
+        $keep = array_slice($compact, -CommunicationSummary::JOURNEY_MAX_ENTRIES);
+        $omitted = count($compact) - count($keep);
+        array_unshift($keep, "{$omitted} earlier communication events omitted for brevity.");
+
+        return $keep;
+    }
+
+    private function emptyBriefingFallback(AIIncidentBundle $bundle): ?string
+    {
+        $repeat = trim((string) ($bundle->context->operationalIntelligence->repeatContactSummary ?? ''));
+
+        return $repeat !== '' ? $repeat : null;
     }
 
     /**
@@ -302,7 +509,7 @@ class CommunicationSummaryBuilder
                 $touchpoint->direction,
                 $touchpoint->actorName ?? '',
                 $touchpoint->occurredAt->format('Y-m-d H:i'),
-                Str::lower(Str::limit($touchpoint->summary, 80, '')),
+                Str::lower(Str::limit($touchpoint->templateName ?? $touchpoint->subject ?? $touchpoint->summary, 80, '')),
             ]);
 
             if (isset($seen[$key])) {
@@ -360,8 +567,15 @@ class CommunicationSummaryBuilder
         return $keep;
     }
 
-    private function sinceCustomerReplyLabel(?CommunicationTouchpoint $customerLastReply): ?string
-    {
+    private function sinceCustomerReplyLabel(
+        ?CommunicationTouchpoint $customerLastReply,
+        ?CommunicationTouchpoint $ourLastContact,
+    ): ?string {
+        if ($ourLastContact !== null
+            && ($customerLastReply === null || $customerLastReply->occurredAt->lt($ourLastContact->occurredAt))) {
+            return 'Customer has not replied.';
+        }
+
         if ($customerLastReply === null) {
             return null;
         }
@@ -378,100 +592,6 @@ class CommunicationSummaryBuilder
         }
 
         return "No further customer response has been received for {$days} day(s).";
-    }
-
-    /**
-     * @param  Collection<int, CommunicationTouchpoint>  $touchpoints
-     */
-    private function buildBriefingParagraph(
-        Collection $touchpoints,
-        ?CommunicationTouchpoint $latestWhatsapp,
-        ?CommunicationTouchpoint $latestEmail,
-        ?CommunicationTouchpoint $latestCall,
-        ?CommunicationTouchpoint $customerLastReply,
-        ?string $sinceLabel,
-        AIIncidentBundle $bundle,
-    ): ?string {
-        if ($touchpoints->isEmpty()) {
-            $repeat = trim((string) ($bundle->context->operationalIntelligence->repeatContactSummary ?? ''));
-
-            return $repeat !== '' ? $repeat : null;
-        }
-
-        $parts = [];
-
-        $whatsappAgents = $touchpoints
-            ->filter(fn (CommunicationTouchpoint $t): bool => $t->channel === 'whatsapp' && $t->direction === 'outbound')
-            ->map(fn (CommunicationTouchpoint $t): ?string => $t->actorName)
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($whatsappAgents->isNotEmpty()) {
-            $parts[] = $this->agentSequenceSentence($whatsappAgents->all(), 'WhatsApp');
-        } elseif ($latestWhatsapp !== null) {
-            $parts[] = rtrim($latestWhatsapp->summary, '.');
-        }
-
-        if ($latestEmail !== null && $latestEmail->direction === 'outbound') {
-            $parts[] = rtrim($latestEmail->summary, '.');
-            if (filled($latestEmail->subject)) {
-                $parts[count($parts) - 1] .= ' (Subject: '.$latestEmail->subject.')';
-            }
-        } elseif ($latestEmail !== null) {
-            $parts[] = rtrim($latestEmail->summary, '.');
-        }
-
-        if ($latestCall !== null) {
-            $parts[] = rtrim($latestCall->summary, '.');
-            if ($latestCall->direction === 'inbound' && filled($latestCall->preview)) {
-                $parts[count($parts) - 1] .= ' Customer said: "'.$latestCall->preview.'"';
-            }
-        }
-
-        if ($customerLastReply !== null && filled($customerLastReply->preview)
-            && $customerLastReply->channel !== 'phone') {
-            $parts[] = 'Customer reply preview: "'.$customerLastReply->preview.'"';
-        }
-
-        if ($sinceLabel !== null && $customerLastReply !== null) {
-            $parts[] = rtrim($sinceLabel, '.');
-        }
-
-        $parts = array_values(array_unique(array_filter($parts)));
-
-        if ($parts === []) {
-            return null;
-        }
-
-        return implode('. ', $parts).'.';
-    }
-
-    /**
-     * @param  list<string>  $agents
-     */
-    private function agentSequenceSentence(array $agents, string $channelLabel): string
-    {
-        $agents = array_values(array_unique($agents));
-
-        if ($agents === []) {
-            return "Support contacted the customer on {$channelLabel}";
-        }
-
-        if (count($agents) === 1) {
-            return "{$agents[0]} contacted the customer on {$channelLabel}";
-        }
-
-        if (count($agents) === 2) {
-            return "{$agents[0]} contacted the customer on {$channelLabel}, followed by {$agents[1]}";
-        }
-
-        $last = array_pop($agents);
-        $first = array_shift($agents);
-
-        return "{$first} sent the first {$channelLabel} message, followed by "
-            .implode(', ', $agents)
-            ." and later {$last}";
     }
 
     private function fieldValue(TimelineEvent $event, string $label): ?string
@@ -491,42 +611,146 @@ class CommunicationSummaryBuilder
     {
         foreach ($event->communicationChannels as $channel) {
             $detail = trim((string) ($channel['detail'] ?? ''));
-            if ($detail !== '' && ! str_contains(strtolower($detail), 'unavailable')) {
+            if ($detail !== '' && ! $this->isTransportNoise($detail)) {
                 return $detail;
             }
         }
 
         $detail = trim((string) ($event->detail ?? ''));
 
-        return $detail !== '' ? $detail : null;
+        return ($detail !== '' && ! $this->isTransportNoise($detail)) ? $detail : null;
     }
 
-    private function truncatePreview(?string $preview): ?string
+    private function truncatePreview(?string $preview, int $maxChars = CommunicationSummary::PREVIEW_MAX_CHARS): ?string
     {
         $preview = trim((string) $preview);
-        if ($preview === '') {
+        if ($preview === '' || $this->isTransportNoise($preview)) {
             return null;
         }
 
         $preview = preg_replace('/\s+/', ' ', $preview) ?? $preview;
 
-        if (Str::length($preview) <= CommunicationSummary::PREVIEW_MAX_CHARS) {
+        if (Str::length($preview) <= $maxChars) {
             return $preview;
         }
 
         $trimmed = rtrim(
-            Str::limit($preview, CommunicationSummary::PREVIEW_MAX_CHARS - 1, ''),
+            Str::limit($preview, $maxChars - 1, ''),
             " \t\n\r\0\x0B.,;:",
         );
 
         return $trimmed.'…';
     }
 
+    private function isTransportNoise(string $text): bool
+    {
+        $normalized = Str::lower(trim($text));
+
+        if ($normalized === '') {
+            return true;
+        }
+
+        $patterns = [
+            'whatsapp template sent successfully',
+            'email sent successfully',
+            'notification sent successfully',
+            'message sent successfully',
+            'template sent successfully',
+            'sent successfully',
+            'delivery status unavailable',
+            'queued for delivery',
+            'outbox will retry',
+            'aggregate_success',
+            'http ',
+            'status code',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (str_contains($normalized, $pattern)) {
+                return true;
+            }
+        }
+
+        return (bool) preg_match('/\b(api|queue|webhook|smtp|provider)\b.*\b(success|failed|status)\b/i', $text);
+    }
+
+    private function relativeTimeLabel(Carbon $at): string
+    {
+        $local = AppDateFormatter::inAppTimezone($at) ?? $at;
+        $time = $local->format('g:i A');
+        $days = (int) $local->copy()->startOfDay()->diffInDays(now(AppDateFormatter::timezone())->startOfDay());
+
+        return match (true) {
+            $days <= 0 => " today at {$time}",
+            $days === 1 => " yesterday at {$time}",
+            $days < 7 => ' on '.$local->format('l')." at {$time}",
+            default => ' on '.$local->format('j M')." at {$time}",
+        };
+    }
+
+    private function looksLikeTemplateTitle(string $title): bool
+    {
+        $lower = strtolower($title);
+
+        return str_contains($lower, 'reminder')
+            || str_contains($lower, 'appointment')
+            || str_contains($lower, 'serial')
+            || str_contains($lower, 'callback')
+            || str_contains($lower, 'follow');
+    }
+
+    private function humanizeTemplateTitle(string $title): string
+    {
+        $title = trim(preg_replace('/\s+sent$/i', '', $title) ?? $title);
+
+        return $title !== '' ? $title : 'WhatsApp message';
+    }
+
+    private function resolveLanguageFromConfig(?string $displayName, ?string $templateKey): ?string
+    {
+        /** @var array<string, mixed> $templates */
+        $templates = config('interakt.templates', []);
+
+        foreach ($templates as $key => $cfg) {
+            if (! is_array($cfg)) {
+                continue;
+            }
+
+            if (filled($templateKey) && strcasecmp((string) $key, $templateKey) === 0) {
+                return $this->languageLabel((string) ($cfg['language_code'] ?? 'en'));
+            }
+
+            if (filled($displayName)
+                && strcasecmp((string) ($cfg['display_name'] ?? ''), $displayName) === 0) {
+                return $this->languageLabel((string) ($cfg['language_code'] ?? 'en'));
+            }
+
+            if (filled($displayName)
+                && strcasecmp((string) ($cfg['name'] ?? ''), $displayName) === 0) {
+                return $this->languageLabel((string) ($cfg['language_code'] ?? 'en'));
+            }
+        }
+
+        return null;
+    }
+
+    private function languageLabel(string $codeOrLabel): string
+    {
+        $value = strtolower(trim($codeOrLabel));
+
+        return match (true) {
+            $value === 'hi', str_contains($value, 'hindi') => 'Hindi',
+            $value === 'en', str_contains($value, 'english') => 'English',
+            $value !== '' => Str::headline($codeOrLabel),
+            default => 'English',
+        };
+    }
+
     private function isNonAgentName(string $name): bool
     {
         $lower = strtolower($name);
 
-        return in_array($lower, ['customer', 'template', 'system', 'radium desk', 'ira'], true)
+        return in_array($lower, ['customer', 'template', 'system', 'radium desk', 'support', 'manual'], true)
             || str_starts_with($lower, 'customer');
     }
 }

@@ -972,16 +972,20 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             const recommendationBlock = contentRoot.querySelector('[data-ira-summary-block="recommendation"]');
 
             if (executiveBlock) {
-                executiveBlock.innerHTML = '';
-                (payload.executive_summary ?? []).forEach((line) => {
-                    if (typeof line === 'string' && line.startsWith('Customer journey:')) {
-                        return;
-                    }
-
-                    const item = document.createElement('li');
-                    item.textContent = line;
-                    executiveBlock.appendChild(item);
+                const lines = (payload.executive_summary ?? []).filter((line) => {
+                    return !(typeof line === 'string' && line.startsWith('Customer journey:'));
                 });
+
+                if (executiveBlock.dataset.iraSummaryMode === 'narrative' || executiveBlock.tagName === 'P') {
+                    executiveBlock.textContent = lines.join(' ');
+                } else {
+                    executiveBlock.innerHTML = '';
+                    lines.forEach((line) => {
+                        const item = document.createElement('li');
+                        item.textContent = line;
+                        executiveBlock.appendChild(item);
+                    });
+                }
             }
 
             if (opinionBlock) {

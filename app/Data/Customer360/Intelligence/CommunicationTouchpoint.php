@@ -17,6 +17,9 @@ readonly class CommunicationTouchpoint
         public string $summary,
         public ?string $preview = null,
         public ?string $subject = null,
+        public ?string $templateName = null,
+        public ?string $language = null,
+        public ?string $outcome = null,
     ) {}
 
     /**
@@ -32,6 +35,9 @@ readonly class CommunicationTouchpoint
             'summary' => $this->summary,
             'preview' => $this->preview,
             'subject' => $this->subject,
+            'template_name' => $this->templateName,
+            'language' => $this->language,
+            'outcome' => $this->outcome,
         ];
     }
 }

@@ -46,34 +46,37 @@ class CommunicationSummaryBuilderTest extends TestCase
     public function test_orders_communication_journey_chronologically(): void
     {
         $summary = $this->buildFromEvents([
-            $this->whatsapp('IRA', 'Support Reminder Sent', now()->subDays(4), TimelineActorKind::Automation),
+            $this->whatsappTemplate('IRA', 'Appointment Reminder', 'Hindi', now()->subDays(4), TimelineActorKind::Automation),
             $this->whatsapp('Shubhanshi', 'Support Reminder Sent', now()->subDays(3)),
             $this->emailOutbound('Shubhanshi', 'Serial Number Required for Service', 'Please share the device serial number for service.', now()->subDays(2)),
             $this->whatsapp('Avinash', 'Support Reminder Sent', now()->subDays(1)),
-            $this->callInbound('Sumit', now()),
+            $this->callInbound('Sumit', now(), 'Customer promised to share the serial number today.'),
         ]);
 
         $this->assertCount(5, $summary->communicationJourney);
-        $this->assertSame('IRA sent a WhatsApp reminder.', $summary->communicationJourney[0]->narrative);
-        $this->assertSame('Shubhanshi sent a WhatsApp reminder.', $summary->communicationJourney[1]->narrative);
-        $this->assertStringContainsString('Shubhanshi emailed', $summary->communicationJourney[2]->narrative);
-        $this->assertSame('Avinash sent a WhatsApp reminder.', $summary->communicationJourney[3]->narrative);
-        $this->assertSame('Customer called Sumit.', $summary->communicationJourney[4]->narrative);
+        $this->assertStringContainsString('Appointment Reminder', $summary->communicationJourney[0]->narrative);
+        $this->assertStringContainsString('Hindi', $summary->communicationJourney[0]->narrative);
+        $this->assertStringContainsString('Shubhanshi sent', $summary->communicationJourney[1]->narrative);
+        $this->assertStringContainsString('Shubhanshi sent:', $summary->communicationJourney[2]->narrative);
+        $this->assertStringContainsString('Avinash sent', $summary->communicationJourney[3]->narrative);
+        $this->assertStringContainsString('Customer spoke with Sumit', $summary->communicationJourney[4]->narrative);
     }
 
     public function test_tracks_multiple_agents_in_briefing(): void
     {
         $summary = $this->buildFromEvents([
-            $this->whatsapp('IRA', 'Support Reminder Sent', now()->subDays(3), TimelineActorKind::Automation),
+            $this->whatsappTemplate('IRA', 'Support Reminder', 'English', now()->subDays(3), TimelineActorKind::Automation),
             $this->whatsapp('Shubhanshi', 'Support Reminder Sent', now()->subDays(2)),
             $this->whatsapp('Avinash', 'Support Reminder Sent', now()->subDay()),
         ]);
 
         $this->assertContains('Shubhanshi', $summary->agentsInvolved);
         $this->assertContains('Avinash', $summary->agentsInvolved);
-        $this->assertStringContainsString('IRA', (string) $summary->briefingParagraph);
-        $this->assertStringContainsString('Shubhanshi', (string) $summary->briefingParagraph);
-        $this->assertStringContainsString('Avinash', (string) $summary->briefingParagraph);
+        $joined = implode(' ', $summary->briefingLines);
+        $this->assertStringContainsString('IRA', $joined);
+        $this->assertStringContainsString('Shubhanshi', $joined);
+        $this->assertStringContainsString('Avinash', $joined);
+        $this->assertStringContainsString('Customer has not replied.', $joined);
     }
 
     public function test_whatsapp_preview_is_truncated_to_100_chars(): void
@@ -87,6 +90,22 @@ class CommunicationSummaryBuilderTest extends TestCase
         $this->assertLessThanOrEqual(CommunicationSummary::PREVIEW_MAX_CHARS, mb_strlen($summary->latestWhatsapp->preview));
         $this->assertStringEndsWith('…', $summary->latestWhatsapp->preview);
         $this->assertSame('inbound', $summary->customerLastReply?->direction);
+        $this->assertStringContainsString('Customer replied:', $summary->latestWhatsapp->summary);
+    }
+
+    public function test_filters_whatsapp_transport_success_noise(): void
+    {
+        $summary = $this->buildFromEvents([
+            $this->whatsappTransportNoise('IRA', now()->subHour()),
+            $this->whatsappTemplate('IRA', 'Appointment Reminder', 'Hindi', now()),
+        ]);
+
+        $joined = implode(' ', $summary->briefingLines);
+        $this->assertStringNotContainsString('template sent successfully', strtolower($joined));
+        $this->assertStringNotContainsString('WhatsApp preview:', $joined);
+        $this->assertStringContainsString('Appointment Reminder', $joined);
+        $this->assertStringContainsString('Hindi', $joined);
+        $this->assertNull($summary->latestWhatsapp?->preview);
     }
 
     public function test_email_subject_and_preview_extraction(): void
@@ -94,27 +113,36 @@ class CommunicationSummaryBuilderTest extends TestCase
         $summary = $this->buildFromEvents([
             $this->emailOutbound(
                 'Shubhanshi',
-                'Serial Number Required for Service',
-                'Please share the device serial number so we can continue repair.',
+                'Service Update - FM220',
+                'Engineer has been assigned and will visit after serial confirmation.',
                 now()->subDay(),
             ),
         ]);
 
         $this->assertSame('email', $summary->latestEmail?->channel);
-        $this->assertSame('Serial Number Required for Service', $summary->latestEmail?->subject);
-        $this->assertStringContainsString('Please share the device serial number', (string) $summary->latestEmail?->preview);
-        $this->assertStringContainsString('Subject: Serial Number Required for Service', (string) $summary->briefingParagraph);
+        $this->assertSame('Service Update - FM220', $summary->latestEmail?->subject);
+        $this->assertNotNull($summary->latestEmail?->preview);
+        $this->assertLessThanOrEqual(
+            CommunicationSummary::EMAIL_PREVIEW_MAX_CHARS,
+            mb_strlen((string) $summary->latestEmail?->preview),
+        );
+        $joined = implode(' ', $summary->briefingLines);
+        $this->assertStringContainsString('Shubhanshi sent:', $joined);
+        $this->assertStringContainsString('Service Update - FM220', $joined);
+        $this->assertStringContainsString('Preview:', $joined);
+        $this->assertStringNotContainsString('Email sent successfully', $joined);
     }
 
-    public function test_phone_summary_includes_agent(): void
+    public function test_phone_summary_includes_agent_and_outcome(): void
     {
         $summary = $this->buildFromEvents([
-            $this->callInbound('Sumit', now()->subHour()),
+            $this->callInbound('Sumit', now()->subHour(), 'Customer promised to share the serial number today.'),
         ]);
 
         $this->assertSame('phone', $summary->latestCall?->channel);
         $this->assertSame('Sumit', $summary->latestCall?->actorName);
-        $this->assertSame('Customer called Sumit.', $summary->latestCall?->summary);
+        $this->assertStringContainsString('Customer spoke with Sumit', (string) $summary->latestCall?->summary);
+        $this->assertStringContainsString('Outcome:', (string) $summary->latestCall?->summary);
         $this->assertContains('phone', $summary->channelsUsed);
     }
 
@@ -139,6 +167,7 @@ class CommunicationSummaryBuilderTest extends TestCase
         $this->assertNull($summary->latestEmail);
         $this->assertNull($summary->latestCall);
         $this->assertSame([], $summary->communicationJourney);
+        $this->assertSame([], $summary->briefingLines);
         $this->assertNull($summary->briefingParagraph);
     }
 
@@ -154,6 +183,7 @@ class CommunicationSummaryBuilderTest extends TestCase
         $this->assertLessThanOrEqual(CommunicationSummary::JOURNEY_MAX_ENTRIES + 1, count($summary->communicationJourney));
         $this->assertSame('Earlier', $summary->communicationJourney[0]->dateLabel);
         $this->assertStringContainsString('earlier customer communication', $summary->communicationJourney[0]->narrative);
+        $this->assertLessThanOrEqual(CommunicationSummary::JOURNEY_MAX_ENTRIES + 1, count($summary->briefingLines));
     }
 
     /**
@@ -213,7 +243,7 @@ class CommunicationSummaryBuilderTest extends TestCase
     {
         $agent = User::factory()->create();
         $order = Order::query()->create([
-            'order_id' => 'RD-COMM-SUM',
+            'order_id' => 'RD-COMM-SUM-'.uniqid(),
             'serial_number' => 'SN-COMM-1',
             'product_name' => 'FM220',
             'device_model' => 'FM220',
@@ -261,6 +291,48 @@ class CommunicationSummaryBuilderTest extends TestCase
         );
     }
 
+    private function whatsappTemplate(
+        string $actor,
+        string $template,
+        string $language,
+        Carbon $at,
+        TimelineActorKind $kind = TimelineActorKind::Agent,
+    ): TimelineEvent {
+        return new TimelineEvent(
+            type: TimelineEventType::WhatsAppTemplateSent,
+            occurredAt: $at,
+            title: 'WhatsApp Template Sent',
+            actor: new TimelineActor(
+                displayName: $actor,
+                isAutomation: $kind === TimelineActorKind::Automation,
+                kind: $kind,
+            ),
+            dedupeKey: 'wa-tpl:'.uniqid(),
+            summaryFields: [
+                ['label' => 'Template', 'value' => $template],
+                ['label' => 'Language', 'value' => $language],
+            ],
+        );
+    }
+
+    private function whatsappTransportNoise(string $actor, Carbon $at): TimelineEvent
+    {
+        return new TimelineEvent(
+            type: TimelineEventType::Notification,
+            occurredAt: $at,
+            title: 'Support Reminder Sent',
+            actor: new TimelineActor($actor, kind: TimelineActorKind::Automation, isAutomation: true),
+            dedupeKey: 'wa-noise:'.uniqid(),
+            summary: 'WhatsApp template sent successfully.',
+            summaryFields: [
+                ['label' => 'Preview', 'value' => 'WhatsApp template sent successfully.'],
+            ],
+            communicationChannels: [
+                ['label' => 'WhatsApp', 'success' => true, 'detail' => 'WhatsApp template sent successfully.'],
+            ],
+        );
+    }
+
     private function customerWhatsappReply(string $preview, Carbon $at): TimelineEvent
     {
         return new TimelineEvent(
@@ -295,17 +367,22 @@ class CommunicationSummaryBuilderTest extends TestCase
         );
     }
 
-    private function callInbound(string $agent, Carbon $at): TimelineEvent
+    private function callInbound(string $agent, Carbon $at, ?string $outcome = null): TimelineEvent
     {
+        $fields = [
+            ['label' => 'Agent', 'value' => $agent],
+        ];
+        if ($outcome !== null) {
+            $fields[] = ['label' => 'Outcome', 'value' => $outcome];
+        }
+
         return new TimelineEvent(
             type: TimelineEventType::IvrCall,
             occurredAt: $at,
             title: 'Inbound Call',
             actor: new TimelineActor('Customer → '.$agent, kind: TimelineActorKind::Customer),
             dedupeKey: 'call:'.uniqid(),
-            summaryFields: [
-                ['label' => 'Agent', 'value' => $agent],
-            ],
+            summaryFields: $fields,
         );
     }
 }
