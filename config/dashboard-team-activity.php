@@ -224,6 +224,7 @@ return [
         'break' => ['label' => 'Break', 'tone' => 'muted'],
         'leave' => ['label' => 'Leave', 'tone' => 'muted'],
         'off_duty' => ['label' => 'Off Duty', 'tone' => 'muted'],
+        'offline' => ['label' => 'Offline', 'tone' => 'muted'],
         'not_started_shift' => ['label' => 'Not Started Shift', 'tone' => 'muted'],
         'ira' => ['label' => 'IRA', 'tone' => 'muted'],
         'unknown' => ['label' => 'Unknown', 'tone' => 'muted'],

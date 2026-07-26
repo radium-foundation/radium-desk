@@ -25,6 +25,7 @@ class TeamActivityPanelService
         private readonly TeamActivityKpiAuditQuery $kpiAuditQuery,
         private readonly TeamActivityIraMemberBuilder $iraMemberBuilder,
         private readonly TeamActivityRowSorter $rowSorter,
+        private readonly TeamActivityPresenceMetricsService $presenceMetricsService,
     ) {}
 
     /**
@@ -73,13 +74,15 @@ class TeamActivityPanelService
         }
 
         $itemsByAuditId = $this->presentItemsById($allAudits)->all();
+        $presenceMetricsByUser = $this->presenceMetricsService->forUsers($userIds);
 
         $agents = [];
 
         foreach ($members as $member) {
             $userId = (int) $member['id'];
             $latestAudit = $latestByUser[$userId] ?? null;
-            $status = $this->statusResolver->resolve($member, $latestAudit);
+            $presenceMetrics = $presenceMetricsByUser[$userId] ?? null;
+            $status = $this->statusResolver->resolve($member, $latestAudit, $presenceMetrics);
             $expanded = in_array($userId, $expandedIds, true);
             $latestEntry = $latestAudit !== null
                 ? $this->entryPresenter->fromAudit($latestAudit, $itemsByAuditId)
@@ -110,6 +113,12 @@ class TeamActivityPanelService
                 history: $history,
                 expanded: $expanded,
                 latestActivityAt: $latestAudit?->created_at,
+                calendarBadge: $this->statusResolver->calendarBadge($member),
+                todayDurationLabel: $presenceMetrics?->todayDurationLabel,
+                currentDurationLabel: $presenceMetrics?->currentDurationLabel,
+                sessionsToday: ($presenceMetrics?->sessionsToday ?? 0) > 0
+                    ? $presenceMetrics->sessionsToday
+                    : null,
             );
         }
 

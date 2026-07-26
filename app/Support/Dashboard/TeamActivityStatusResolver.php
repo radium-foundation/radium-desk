@@ -2,6 +2,7 @@
 
 namespace App\Support\Dashboard;
 
+use App\Data\TeamActivityPresenceMetrics;
 use App\Enums\TeamActivityStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkCalendarDayStatus;
@@ -29,45 +30,90 @@ class TeamActivityStatusResolver
     /**
      * @param  array<string, mixed>  $member  Row from TeamAvailabilityOverviewService
      */
-    public function resolve(array $member, ?AuditLog $latestAudit = null): TeamActivityStatus
-    {
+    public function resolve(
+        array $member,
+        ?AuditLog $latestAudit = null,
+        ?TeamActivityPresenceMetrics $presenceMetrics = null,
+    ): TeamActivityStatus {
         $authority = $member['authority'] ?? [];
         $blockReasons = $authority['block_reasons'] ?? [];
         $presence = $member['presence'] ?? [];
         $sessionSummary = $member['session_summary'] ?? [];
         $workCalendar = $member['work_calendar'] ?? [];
-        $onDuty = (bool) ($member['on_duty'] ?? false);
+        $sessionOpen = (bool) ($presence['session_open'] ?? false);
 
         if (in_array('approved_leave', $blockReasons, true)) {
             return TeamActivityStatus::Leave;
         }
 
-        if (! $onDuty) {
-            if ($this->isAutoLogout($sessionSummary)) {
-                return TeamActivityStatus::AutoLogout;
-            }
-
-            if ($this->isNotStartedShift($workCalendar)) {
-                return TeamActivityStatus::NotStartedShift;
-            }
-
-            return TeamActivityStatus::OffDuty;
+        if ($sessionOpen) {
+            return $this->resolveOpenSession($member, $latestAudit, $authority, $workCalendar);
         }
 
-        $sessionOpen = (bool) ($presence['session_open'] ?? false);
-
-        if (! $sessionOpen) {
-            if ($this->isAutoLogout($sessionSummary)) {
-                return TeamActivityStatus::AutoLogout;
-            }
-
-            if ($this->isNotStartedShift($workCalendar)) {
-                return TeamActivityStatus::NotStartedShift;
-            }
-
-            return TeamActivityStatus::OffDuty;
+        if ($this->isAutoLogout($sessionSummary)) {
+            return TeamActivityStatus::AutoLogout;
         }
 
+        if ($this->isNotStartedShift($workCalendar)) {
+            return TeamActivityStatus::NotStartedShift;
+        }
+
+        if ($this->sessionsToday($sessionSummary, $presenceMetrics) === 0) {
+            return TeamActivityStatus::Offline;
+        }
+
+        return TeamActivityStatus::OffDuty;
+    }
+
+    /**
+     * Calendar badge shown alongside live status (does not replace presence).
+     *
+     * @param  array<string, mixed>  $member
+     */
+    public function calendarBadge(array $member): ?string
+    {
+        $workCalendar = $member['work_calendar'] ?? [];
+        $status = $workCalendar['status'] ?? '';
+
+        return match ($status) {
+            WorkCalendarDayStatus::WeeklyOff->value => 'Weekly Off',
+            WorkCalendarDayStatus::Holiday->value => is_string($workCalendar['label'] ?? null) && $workCalendar['label'] !== ''
+                ? $workCalendar['label']
+                : 'Holiday',
+            default => null,
+        };
+    }
+
+    /**
+     * Compact secondary line for operational metadata.
+     *
+     * @param  array<string, mixed>  $member
+     */
+    public function workingLabel(array $member, TeamActivityStatus $status): ?string
+    {
+        return match ($status) {
+            TeamActivityStatus::Leave => $this->leaveWorkingLabel($member),
+            TeamActivityStatus::AutoLogout,
+            TeamActivityStatus::Offline => null,
+            TeamActivityStatus::OffDuty,
+            TeamActivityStatus::Logout => $this->offDutyWorkingLabel($member),
+            TeamActivityStatus::NotStartedShift => $this->notStartedWorkingLabel($member),
+            TeamActivityStatus::Working,
+            TeamActivityStatus::Break => null,
+            default => $this->activeWorkingLabel($member),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $authority
+     * @param  array<string, mixed>  $workCalendar
+     */
+    private function resolveOpenSession(
+        array $member,
+        ?AuditLog $latestAudit,
+        array $authority,
+        array $workCalendar,
+    ): TeamActivityStatus {
         if ($latestAudit !== null) {
             $overlay = $this->overlayFromEvent((string) $latestAudit->event);
 
@@ -84,20 +130,15 @@ class TeamActivityStatusResolver
     }
 
     /**
-     * Compact secondary line for operational metadata.
-     *
-     * @param  array<string, mixed>  $member
+     * @param  array<string, mixed>  $sessionSummary
      */
-    public function workingLabel(array $member, TeamActivityStatus $status): ?string
+    private function sessionsToday(array $sessionSummary, ?TeamActivityPresenceMetrics $presenceMetrics): int
     {
-        return match ($status) {
-            TeamActivityStatus::Leave => $this->leaveWorkingLabel($member),
-            TeamActivityStatus::AutoLogout => null,
-            TeamActivityStatus::OffDuty,
-            TeamActivityStatus::Logout => $this->offDutyWorkingLabel($member),
-            TeamActivityStatus::NotStartedShift => $this->notStartedWorkingLabel($member),
-            default => $this->activeWorkingLabel($member),
-        };
+        if ($presenceMetrics !== null) {
+            return $presenceMetrics->sessionsToday;
+        }
+
+        return (int) ($sessionSummary['sessions_today'] ?? 0);
     }
 
     /**

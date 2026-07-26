@@ -25,6 +25,10 @@ readonly class TeamActivityAgentRow
         public bool $isVirtual = false,
         public ?string $badge = null,
         public ?Carbon $latestActivityAt = null,
+        public ?string $calendarBadge = null,
+        public ?string $todayDurationLabel = null,
+        public ?string $currentDurationLabel = null,
+        public ?int $sessionsToday = null,
     ) {}
 
     /**
@@ -50,6 +54,10 @@ readonly class TeamActivityAgentRow
             'is_virtual' => $this->isVirtual,
             'badge' => $this->badge,
             'latest_activity_at' => $this->latestActivityAt?->toIso8601String(),
+            'calendar_badge' => $this->calendarBadge,
+            'today_duration_label' => $this->todayDurationLabel,
+            'current_duration_label' => $this->currentDurationLabel,
+            'sessions_today' => $this->sessionsToday,
         ];
     }
 }

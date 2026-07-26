@@ -2062,7 +2062,7 @@ a:focus-visible .stat-card {
 }
 
 .team-activity-row {
-    --team-activity-row-height: 2.375rem;
+    --team-activity-row-height: auto;
     border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 }
 
@@ -2082,9 +2082,9 @@ a:focus-visible .stat-card {
     align-items: center;
     column-gap: 0.5rem;
     width: 100%;
-    height: var(--team-activity-row-height);
+    min-height: var(--team-activity-row-height, 2.375rem);
     margin: 0;
-    padding: 0 0.125rem;
+    padding: 0.25rem 0.125rem;
     border: 0;
     background: transparent;
     text-align: left;
@@ -2138,8 +2138,42 @@ a:focus-visible .stat-card {
 .team-activity-status-block {
     display: flex;
     flex-direction: column;
+    gap: 0.125rem;
     min-width: 0;
     line-height: 1.15;
+}
+
+.team-activity-status-line {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+}
+
+.team-activity-presence-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+    min-width: 0;
+}
+
+.team-activity-metric {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.1875rem;
+    font-size: 0.625rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.team-activity-metric-label {
+    font-weight: 500;
+}
+
+.team-activity-metric-value {
+    font-weight: 600;
+    color: #475569;
+    font-variant-numeric: tabular-nums;
 }
 
 .team-activity-status-label {

@@ -93,13 +93,59 @@ class TeamActivityStatusResolverTest extends TestCase
             'shift_times' => ['start' => '9:00 AM', 'end' => '6:00 PM'],
         ]);
 
-        $this->assertSame(TeamActivityStatus::OffDuty, $status);
-        $this->assertSame(
-            'Shift ended 6:00 PM',
-            $resolver->workingLabel([
-                'shift_times' => ['start' => '9:00 AM', 'end' => '6:00 PM'],
-            ], $status),
-        );
+        $this->assertSame(TeamActivityStatus::Offline, $status);
+        $this->assertNull($resolver->workingLabel([
+            'shift_times' => ['start' => '9:00 AM', 'end' => '6:00 PM'],
+        ], $status));
+    }
+
+    public function test_open_session_overrides_auto_logout_even_when_off_duty(): void
+    {
+        $resolver = new TeamActivityStatusResolver;
+
+        $status = $resolver->resolve([
+            'on_duty' => false,
+            'authority' => [
+                'block_reasons' => ['calendar_blocked', 'availability_offline'],
+                'stored_availability' => TeamAvailabilityStatus::Offline->value,
+            ],
+            'presence' => [
+                'session_open' => true,
+                'status' => PresenceStatus::Active->value,
+            ],
+            'session_summary' => [
+                'last_ended_reason' => WorkSessionEndReason::AwayTimeout->value,
+            ],
+            'work_calendar' => ['status' => WorkCalendarDayStatus::WeeklyOff->value],
+        ]);
+
+        $this->assertSame(TeamActivityStatus::Working, $status);
+    }
+
+    public function test_calendar_badge_shows_weekly_off_without_replacing_status(): void
+    {
+        $resolver = new TeamActivityStatusResolver;
+
+        $badge = $resolver->calendarBadge([
+            'work_calendar' => ['status' => WorkCalendarDayStatus::WeeklyOff->value],
+        ]);
+
+        $this->assertSame('Weekly Off', $badge);
+    }
+
+    public function test_offline_when_no_sessions_today_and_no_open_session(): void
+    {
+        $resolver = new TeamActivityStatusResolver;
+
+        $status = $resolver->resolve([
+            'on_duty' => false,
+            'authority' => ['block_reasons' => []],
+            'presence' => ['session_open' => false],
+            'session_summary' => [],
+            'work_calendar' => ['status' => WorkCalendarDayStatus::OutsideHours->value],
+        ]);
+
+        $this->assertSame(TeamActivityStatus::Offline, $status);
     }
 
     public function test_idle_presence_resolves_to_active_working_status(): void
@@ -208,7 +254,7 @@ class TeamActivityStatusResolverTest extends TestCase
         $this->assertSame(TeamActivityStatus::Ira, $status);
     }
 
-    public function test_working_label_combines_since_duration_and_overtime(): void
+    public function test_working_label_is_null_when_presence_metrics_are_shown_separately(): void
     {
         $resolver = new TeamActivityStatusResolver;
 
@@ -221,6 +267,6 @@ class TeamActivityStatusResolverTest extends TestCase
             'session_summary' => [],
         ], TeamActivityStatus::Working);
 
-        $this->assertSame('Since 9:00 AM • 5h 12m (+1h 8m OT)', $label);
+        $this->assertNull($label);
     }
 }

@@ -7,6 +7,11 @@
     $latest = $agent->latest;
     $historyId = 'team-activity-history-'.$agent->id;
     $todayLabel = 'Today · '.number_format($agent->todayCount).' '.($agent->todayCount === 1 ? 'activity' : 'activities');
+    $hasPresenceMetrics = ! $agent->isVirtual && (
+        filled($agent->todayDurationLabel)
+        || filled($agent->currentDurationLabel)
+        || filled($agent->sessionsToday)
+    );
 @endphp
 
 <li class="team-activity-row @if($agent->expanded) is-expanded @endif @if($agent->isVirtual) is-virtual @endif"
@@ -22,8 +27,35 @@
         <span class="team-activity-name" title="{{ $agent->name }}">{{ $agent->name }}</span>
 
         <span class="team-activity-status-block">
-            <span class="team-activity-status-label">{{ $agent->statusLabel }}</span>
-            @if(! $agent->isVirtual && filled($agent->workingLabel))
+            <span class="team-activity-status-line">
+                <span class="team-activity-status-label">{{ $agent->statusLabel }}</span>
+                @if(filled($agent->calendarBadge))
+                    <span class="team-activity-badge">{{ $agent->calendarBadge }}</span>
+                @endif
+            </span>
+
+            @if($hasPresenceMetrics)
+                <span class="team-activity-presence-metrics">
+                    @if(filled($agent->todayDurationLabel))
+                        <span class="team-activity-metric">
+                            <span class="team-activity-metric-label">Today</span>
+                            <span class="team-activity-metric-value">{{ $agent->todayDurationLabel }}</span>
+                        </span>
+                    @endif
+                    @if(filled($agent->currentDurationLabel))
+                        <span class="team-activity-metric">
+                            <span class="team-activity-metric-label">Current</span>
+                            <span class="team-activity-metric-value">{{ $agent->currentDurationLabel }}</span>
+                        </span>
+                    @endif
+                    @if(filled($agent->sessionsToday))
+                        <span class="team-activity-metric">
+                            <span class="team-activity-metric-label">Sessions</span>
+                            <span class="team-activity-metric-value">{{ number_format($agent->sessionsToday) }}</span>
+                        </span>
+                    @endif
+                </span>
+            @elseif(! $agent->isVirtual && filled($agent->workingLabel))
                 <span class="team-activity-working-label" title="{{ $agent->workingLabel }}">{{ $agent->workingLabel }}</span>
             @endif
         </span>

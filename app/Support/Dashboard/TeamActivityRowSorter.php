@@ -64,6 +64,7 @@ class TeamActivityRowSorter
             TeamActivityStatus::Break => 1,
             TeamActivityStatus::OffDuty,
             TeamActivityStatus::AutoLogout,
+            TeamActivityStatus::Offline,
             TeamActivityStatus::Leave,
             TeamActivityStatus::NotStartedShift,
             TeamActivityStatus::Logout => 2,
@@ -76,6 +77,7 @@ class TeamActivityRowSorter
         return match ($agent->status) {
             TeamActivityStatus::OffDuty,
             TeamActivityStatus::AutoLogout,
+            TeamActivityStatus::Offline,
             TeamActivityStatus::Leave,
             TeamActivityStatus::NotStartedShift,
             TeamActivityStatus::Logout => 2,
