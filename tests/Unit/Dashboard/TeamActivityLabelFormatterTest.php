@@ -54,5 +54,13 @@ class TeamActivityLabelFormatterTest extends TestCase
             'IVR Call',
             $formatter->labelFor(new AuditLog(['event' => 'missed_call_recovery.created'])),
         );
+        $this->assertSame(
+            'Leave Approved',
+            $formatter->labelFor(new AuditLog(['event' => 'workforce.leave.approved'])),
+        );
+        $this->assertSame(
+            'IRA Validation Passed',
+            $formatter->labelFor(new AuditLog(['event' => 'service_case.automation.validation_passed'])),
+        );
     }
 }

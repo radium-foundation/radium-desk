@@ -3,6 +3,8 @@
 namespace App\Support\Dashboard;
 
 use App\Enums\TeamActivityStatus;
+use App\Enums\TeamAvailabilityStatus;
+use App\Enums\WorkCalendarDayStatus;
 use App\Enums\WorkSessionEndReason;
 use App\Models\AuditLog;
 use Illuminate\Support\Carbon;
@@ -21,6 +23,7 @@ class TeamActivityStatusResolver
         'waiting_customer',
         'email',
         'whatsapp',
+        'ira',
     ];
 
     /**
@@ -32,6 +35,7 @@ class TeamActivityStatusResolver
         $blockReasons = $authority['block_reasons'] ?? [];
         $presence = $member['presence'] ?? [];
         $sessionSummary = $member['session_summary'] ?? [];
+        $workCalendar = $member['work_calendar'] ?? [];
         $onDuty = (bool) ($member['on_duty'] ?? false);
 
         if (in_array('approved_leave', $blockReasons, true)) {
@@ -39,13 +43,29 @@ class TeamActivityStatusResolver
         }
 
         if (! $onDuty) {
-            return $this->resolveUnavailableStatus($sessionSummary);
+            if ($this->isAutoLogout($sessionSummary)) {
+                return TeamActivityStatus::AutoLogout;
+            }
+
+            if ($this->isNotStartedShift($workCalendar)) {
+                return TeamActivityStatus::NotStartedShift;
+            }
+
+            return TeamActivityStatus::OffDuty;
         }
 
         $sessionOpen = (bool) ($presence['session_open'] ?? false);
 
         if (! $sessionOpen) {
-            return $this->resolveUnavailableStatus($sessionSummary);
+            if ($this->isAutoLogout($sessionSummary)) {
+                return TeamActivityStatus::AutoLogout;
+            }
+
+            if ($this->isNotStartedShift($workCalendar)) {
+                return TeamActivityStatus::NotStartedShift;
+            }
+
+            return TeamActivityStatus::OffDuty;
         }
 
         if ($latestAudit !== null) {
@@ -56,28 +76,70 @@ class TeamActivityStatusResolver
             }
         }
 
-        // Idle / Away / Active session → Active (single working status).
+        if ($this->isOnBreak($authority, $workCalendar)) {
+            return TeamActivityStatus::Break;
+        }
+
         return TeamActivityStatus::Working;
     }
 
     /**
-     * Compact secondary line: Since 09:00 AM • 5h 12m (+1h OT)
+     * Compact secondary line for operational metadata.
      *
      * @param  array<string, mixed>  $member
      */
     public function workingLabel(array $member, TeamActivityStatus $status): ?string
     {
-        $presence = $member['presence'] ?? [];
-
-        if (in_array($status, [
-            TeamActivityStatus::Leave,
+        return match ($status) {
+            TeamActivityStatus::Leave => $this->leaveWorkingLabel($member),
+            TeamActivityStatus::AutoLogout => null,
             TeamActivityStatus::OffDuty,
-            TeamActivityStatus::AutoLogout,
-            TeamActivityStatus::Logout,
-        ], true)) {
-            return null;
+            TeamActivityStatus::Logout => $this->offDutyWorkingLabel($member),
+            TeamActivityStatus::NotStartedShift => $this->notStartedWorkingLabel($member),
+            default => $this->activeWorkingLabel($member),
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     */
+    private function leaveWorkingLabel(array $member): ?string
+    {
+        $reason = $member['leave_reason'] ?? null;
+
+        if (is_string($reason) && $reason !== '') {
+            return $reason;
         }
 
+        return 'Leave';
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     */
+    private function offDutyWorkingLabel(array $member): ?string
+    {
+        $end = $this->shiftEndLabel($member);
+
+        return $end !== null ? 'Shift ended '.$end : 'Off Duty';
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     */
+    private function notStartedWorkingLabel(array $member): ?string
+    {
+        $start = $this->shiftStartLabel($member);
+
+        return $start !== null ? 'Shift starts '.$start : 'Not Started';
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     */
+    private function activeWorkingLabel(array $member): ?string
+    {
+        $presence = $member['presence'] ?? [];
         $since = $this->formatSince($presence);
         $duration = $this->formatActiveDuration($presence);
         $overtime = $this->formatOvertimeSuffix($presence);
@@ -100,15 +162,52 @@ class TeamActivityStatusResolver
     /**
      * @param  array<string, mixed>  $sessionSummary
      */
-    private function resolveUnavailableStatus(array $sessionSummary): TeamActivityStatus
+    private function isAutoLogout(array $sessionSummary): bool
     {
-        $endedReason = $sessionSummary['last_ended_reason'] ?? null;
+        return ($sessionSummary['last_ended_reason'] ?? null) === WorkSessionEndReason::AwayTimeout->value;
+    }
 
-        if ($endedReason === WorkSessionEndReason::AwayTimeout->value) {
-            return TeamActivityStatus::AutoLogout;
+    /**
+     * @param  array<string, mixed>  $workCalendar
+     */
+    private function isNotStartedShift(array $workCalendar): bool
+    {
+        return ($workCalendar['status'] ?? '') === WorkCalendarDayStatus::StartsLater->value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $authority
+     * @param  array<string, mixed>  $workCalendar
+     */
+    private function isOnBreak(array $authority, array $workCalendar): bool
+    {
+        if (($workCalendar['status'] ?? '') === WorkCalendarDayStatus::Lunch->value) {
+            return true;
         }
 
-        return TeamActivityStatus::OffDuty;
+        $storedAvailability = $authority['stored_availability'] ?? null;
+
+        return $storedAvailability === TeamAvailabilityStatus::Busy->value;
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     */
+    private function shiftStartLabel(array $member): ?string
+    {
+        $shiftTimes = $member['shift_times'] ?? [];
+
+        return is_array($shiftTimes) ? ($shiftTimes['start'] ?? null) : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     */
+    private function shiftEndLabel(array $member): ?string
+    {
+        $shiftTimes = $member['shift_times'] ?? [];
+
+        return is_array($shiftTimes) ? ($shiftTimes['end'] ?? null) : null;
     }
 
     private function overlayFromEvent(string $event): ?TeamActivityStatus

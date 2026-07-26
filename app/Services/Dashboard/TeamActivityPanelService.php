@@ -32,11 +32,8 @@ class TeamActivityPanelService
             return TeamActivityPanel::empty();
         }
 
-        $overview = $this->overviewService->overview();
-        $members = array_values([
-            ...$overview['on_duty'],
-            ...$overview['unavailable'],
-        ]);
+        $overview = $this->overviewService->operationalRoster();
+        $members = array_values($overview);
 
         if ($members === []) {
             return TeamActivityPanel::empty();

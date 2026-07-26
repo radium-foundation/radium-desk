@@ -86,4 +86,39 @@ class TeamAvailabilityOverviewOptimizationTest extends TestCase
         $this->assertSame($overview['on_duty'], $service->members());
         $this->assertSame($overview['unavailable'], $service->unavailableMembers());
     }
+
+    public function test_operational_roster_includes_all_tracked_members_with_batched_queries(): void
+    {
+        $agents = User::factory()->count(3)->create(['is_active' => true]);
+
+        foreach ($agents as $agent) {
+            $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        }
+
+        $service = app(TeamAvailabilityOverviewService::class);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $roster = $service->operationalRoster();
+        $again = $service->operationalRoster();
+
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $this->assertSame($roster, $again);
+        $this->assertCount(3, $roster);
+
+        $batchedSessionSummaryQueries = collect($queries)
+            ->filter(function (array $query): bool {
+                $sql = strtolower($query['sql'] ?? $query['query']);
+
+                return str_contains($sql, 'work_sessions')
+                    && str_contains($sql, 'user_id')
+                    && (str_contains($sql, ' in (') || str_contains($sql, ' in('));
+            })
+            ->count();
+
+        $this->assertSame(1, $batchedSessionSummaryQueries);
+    }
 }

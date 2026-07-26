@@ -52,6 +52,14 @@ return [
         'legacy_order.imported',
         'missed_call_recovery.created',
         'user.availability_changed',
+        'workforce.leave.approved',
+        'service_case.automation.payment_received',
+        'service_case.automation.waiting_radiumbox',
+        'service_case.automation.radiumbox_verified',
+        'service_case.automation.validation_passed',
+        'service_case.automation.validation_failed',
+        'service_case.automation.waiting_manual_correction',
+        'service_case.customer_waiting_auto_closed',
     ],
 
     /*
@@ -70,6 +78,13 @@ return [
         'incoming_email.received' => 'email',
         'incoming_email.promoted_to_service_case' => 'email',
         'missed_call_recovery.created' => 'on_ivr',
+        'service_case.automation.payment_received' => 'ira',
+        'service_case.automation.waiting_radiumbox' => 'ira',
+        'service_case.automation.radiumbox_verified' => 'ira',
+        'service_case.automation.validation_passed' => 'ira',
+        'service_case.automation.validation_failed' => 'ira',
+        'service_case.automation.waiting_manual_correction' => 'ira',
+        'service_case.customer_waiting_auto_closed' => 'ira',
     ],
 
     /*
@@ -105,6 +120,14 @@ return [
         'legacy_order.imported' => 'Legacy Imported',
         'missed_call_recovery.created' => 'IVR Call',
         'user.availability_changed' => 'Availability Changed',
+        'workforce.leave.approved' => 'Leave Approved',
+        'service_case.automation.payment_received' => 'IRA Payment Received',
+        'service_case.automation.waiting_radiumbox' => 'IRA Waiting RadiumBox',
+        'service_case.automation.radiumbox_verified' => 'IRA RadiumBox Verified',
+        'service_case.automation.validation_passed' => 'IRA Validation Passed',
+        'service_case.automation.validation_failed' => 'IRA Validation Failed',
+        'service_case.automation.waiting_manual_correction' => 'IRA Waiting Input',
+        'service_case.customer_waiting_auto_closed' => 'IRA Auto Closed',
     ],
 
     'statuses' => [
@@ -127,6 +150,7 @@ return [
         'break' => ['label' => 'Break', 'tone' => 'muted'],
         'leave' => ['label' => 'Leave', 'tone' => 'muted'],
         'off_duty' => ['label' => 'Off Duty', 'tone' => 'muted'],
+        'not_started_shift' => ['label' => 'Not Started Shift', 'tone' => 'muted'],
         'ira' => ['label' => 'IRA', 'tone' => 'muted'],
         'unknown' => ['label' => 'Unknown', 'tone' => 'muted'],
     ],

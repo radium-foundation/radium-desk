@@ -2,10 +2,12 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\LeaveRequestStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkSessionEndReason;
 use App\Models\User;
 use App\Models\WorkSession;
+use App\Models\LeaveRequest;
 use App\ReadModels\Cases\CaseQueueReadModel;
 use Illuminate\Support\Collection;
 
@@ -16,6 +18,9 @@ class TeamAvailabilityOverviewService
 
     /** @var array{on_duty: list<array<string, mixed>>, unavailable: list<array<string, mixed>>}|null */
     private ?array $cachedOverview = null;
+
+    /** @var list<array<string, mixed>>|null */
+    private ?array $cachedOperationalRoster = null;
 
     public function __construct(
         private readonly TeamAvailabilityService $availabilityService,
@@ -43,6 +48,116 @@ class TeamAvailabilityOverviewService
     public function trackedMembers(): Collection
     {
         return $this->teamMembers();
+    }
+
+    /**
+     * Full attendance-tracked operational roster for Team Activity.
+     * Every tracked member appears exactly once regardless of on-duty state.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function operationalRoster(): array
+    {
+        return $this->cachedOperationalRoster ??= $this->buildOperationalRoster();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function buildOperationalRoster(): array
+    {
+        $teamMembers = $this->teamMembers();
+
+        if ($teamMembers->isEmpty()) {
+            return [];
+        }
+
+        $userIds = $teamMembers->map(fn (User $user): int => $user->id)->all();
+        $openCounts = $this->caseQueue->forTeamMembers($teamMembers);
+        $sessionSummaries = $this->todaySessionSummariesFor($userIds);
+        $leaveReasons = $this->approvedLeaveReasonsFor($userIds);
+
+        $rows = [];
+
+        foreach ($teamMembers as $user) {
+            $sessionSummary = $sessionSummaries[$user->id] ?? $this->emptySessionSummary();
+            $row = $this->memberRow($user, $openCounts[$user->id] ?? 0);
+
+            $rows[] = [
+                ...$row,
+                'leave_reason' => $leaveReasons[$user->id] ?? null,
+                'shift_times' => $this->shiftTimeLabelsFor($user),
+                'unavailability_label' => $row['on_duty']
+                    ? null
+                    : $this->unavailabilityLabel($row['authority'], $sessionSummary),
+                'session_summary' => $sessionSummary,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @return array<int, string>
+     */
+    private function approvedLeaveReasonsFor(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        $date = now()->toDateString();
+
+        return LeaveRequest::query()
+            ->whereIn('user_id', $userIds)
+            ->where('status', LeaveRequestStatus::Approved)
+            ->whereDate('start_date', '<=', $date)
+            ->whereDate('end_date', '>=', $date)
+            ->pluck('reason', 'user_id')
+            ->map(static fn (mixed $reason): string => trim((string) $reason))
+            ->filter(static fn (string $reason): bool => $reason !== '')
+            ->all();
+    }
+
+    /**
+     * @return array{start: string|null, end: string|null}
+     */
+    private function shiftTimeLabelsFor(User $user): array
+    {
+        $schedule = $this->workCalendarService->scheduleFor($user);
+
+        if ($schedule === null) {
+            return ['start' => null, 'end' => null];
+        }
+
+        return [
+            'start' => $this->formatShiftClock($schedule->work_start_time),
+            'end' => $this->formatShiftClock($schedule->work_end_time),
+        ];
+    }
+
+    private function formatShiftClock(mixed $time): ?string
+    {
+        if ($time === null || $time === '') {
+            return null;
+        }
+
+        try {
+            $value = $time instanceof \Illuminate\Support\Carbon
+                ? $time->format('H:i:s')
+                : (string) $time;
+
+            if (strlen($value) === 5) {
+                $value .= ':00';
+            }
+
+            return \Illuminate\Support\Carbon::today()
+                ->setTimeFromTimeString($value)
+                ->format('g:i A');
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

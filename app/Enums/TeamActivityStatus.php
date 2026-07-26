@@ -23,6 +23,7 @@ enum TeamActivityStatus: string
     case Break = 'break';
     case Leave = 'leave';
     case OffDuty = 'off_duty';
+    case NotStartedShift = 'not_started_shift';
     case Ira = 'ira';
     case Unknown = 'unknown';
 
@@ -51,6 +52,7 @@ enum TeamActivityStatus: string
             self::Logout, self::OffDuty => 'Off Duty',
             self::Break => 'Break',
             self::Leave => 'Leave',
+            self::NotStartedShift => 'Not Started Shift',
             self::Ira => 'IRA',
             self::Unknown => 'Unknown',
         };

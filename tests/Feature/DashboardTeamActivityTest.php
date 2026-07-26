@@ -3,15 +3,21 @@
 namespace Tests\Feature;
 
 use App\Enums\IncidentSource;
+use App\Enums\LeaveRequestStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
+use App\Models\LeaveRequest;
 use App\Models\Order;
+use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Models\WorkSession;
+use App\Services\Dashboard\TeamActivityPanelService;
 use App\Services\IncidentReferenceService;
+use App\Services\Operations\PresenceEngineService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class DashboardTeamActivityTest extends TestCase
@@ -141,6 +147,158 @@ class DashboardTeamActivityTest extends TestCase
 
         $this->assertStringContainsString('team-activity-history', $html);
         $this->assertStringContainsString('is-expanded', $html);
+    }
+
+    public function test_operational_roster_includes_all_attendance_tracked_users(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $onDuty = $this->createTrackedAgent('On Duty Agent', startSession: true);
+        $offDuty = $this->createTrackedAgent('Off Duty Agent');
+        $onLeave = $this->createTrackedAgent('Leave Agent');
+        LeaveRequest::query()->create([
+            'user_id' => $onLeave->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+            'reason' => 'Annual Leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $superadmin = User::factory()->create(['is_active' => true, 'name' => 'Super Admin']);
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $panel = app(TeamActivityPanelService::class)->build();
+        $names = array_map(static fn ($agent) => $agent->name, $panel->agents);
+
+        $this->assertFalse($panel->empty);
+        $this->assertCount(3, $panel->agents);
+        $this->assertContains('On Duty Agent', $names);
+        $this->assertContains('Off Duty Agent', $names);
+        $this->assertContains('Leave Agent', $names);
+        $this->assertNotContains('Super Admin', $names);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_off_duty_and_leave_agents_remain_visible_in_refresh_payload(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $offDuty = $this->createTrackedAgent('Off Duty Agent');
+        $onLeave = $this->createTrackedAgent('Leave Agent');
+        LeaveRequest::query()->create([
+            'user_id' => $onLeave->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+            'reason' => 'Annual Leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $viewer = User::factory()->create(['is_active' => true]);
+        $viewer->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $html = (string) $this->actingAs($viewer)
+            ->getJson(route('dashboard.team-activity'))
+            ->assertOk()
+            ->assertJsonPath('empty', false)
+            ->assertJsonPath('agent_count', 2)
+            ->json('html');
+
+        $this->assertStringContainsString('Off Duty Agent', $html);
+        $this->assertStringContainsString('Leave Agent', $html);
+        $this->assertStringContainsString('Off Duty', $html);
+        $this->assertStringContainsString('Leave', $html);
+        $this->assertStringContainsString('Annual Leave', $html);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_not_started_shift_agent_remains_visible_before_shift(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 08:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createTrackedAgent('Early Agent');
+
+        $viewer = User::factory()->create(['is_active' => true]);
+        $viewer->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $html = (string) $this->actingAs($viewer)
+            ->getJson(route('dashboard.team-activity'))
+            ->assertOk()
+            ->assertJsonPath('agent_count', 1)
+            ->json('html');
+
+        $this->assertStringContainsString('Early Agent', $html);
+        $this->assertStringContainsString('Not Started Shift', $html);
+        $this->assertStringContainsString('Shift starts 9:00 AM', $html);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_supervisor_friendly_latest_activity_labels_remain(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $admin = $this->createTrackedAgent('Active Agent', startSession: true);
+        [$incident] = $this->createIncident($admin);
+
+        AuditLog::query()->create([
+            'user_id' => $admin->id,
+            'event' => 'workforce.leave.approved',
+            'auditable_type' => $admin->getMorphClass(),
+            'auditable_id' => $admin->id,
+            'new_values' => [],
+            'created_at' => now(),
+        ]);
+
+        AuditLog::query()->create([
+            'user_id' => $admin->id,
+            'event' => 'service_case.status_changed',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'new_values' => [],
+            'created_at' => now()->addMinute(),
+        ]);
+
+        $viewer = User::factory()->create(['is_active' => true]);
+        $viewer->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $html = (string) $this->actingAs($viewer)
+            ->getJson(route('dashboard.team-activity'))
+            ->assertOk()
+            ->json('html');
+
+        $this->assertStringContainsString('Status Changed', $html);
+        $this->assertStringContainsString('Active', $html);
+
+        Carbon::setTestNow();
+    }
+
+    private function createTrackedAgent(string $name, bool $startSession = false): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'is_active' => true,
+            'availability_status' => TeamAvailabilityStatus::Available,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        TeamMemberWorkSchedule::query()->create([
+            'user_id' => $user->id,
+            'work_start_time' => '09:00:00',
+            'work_end_time' => '18:00:00',
+            'lunch_start_time' => '13:30:00',
+            'lunch_end_time' => '14:00:00',
+            'short_break_count' => 2,
+            'short_break_minutes' => 10,
+            'weekly_off_days' => [Carbon::SUNDAY],
+        ]);
+
+        if ($startSession) {
+            app(PresenceEngineService::class)->startSession($user->fresh(['workSchedule', 'roles']));
+        }
+
+        return $user->fresh(['workSchedule', 'roles']);
     }
 
     /**
