@@ -86,6 +86,10 @@ class CaseStateBuilder
             return ['waiting_customer', 'Waiting for customer'];
         }
 
+        if ($this->isAppointmentOverdue($appointment)) {
+            return ['appointment_overdue', 'Support appointment overdue'];
+        }
+
         if (is_array($appointment) && ($appointment['is_active'] ?? false)) {
             return ['scheduled', 'Support appointment scheduled'];
         }
@@ -143,7 +147,24 @@ class CaseStateBuilder
         }
 
         $appointment = $facts->supportAppointment;
-        if (is_array($appointment)
+        if ($this->isAppointmentOverdue($appointment)) {
+            $preferredDate = $appointment['preferred_date'] ?? null;
+            $since = $preferredDate instanceof Carbon
+                ? $preferredDate->copy()->startOfDay()
+                : (is_string($preferredDate) && $preferredDate !== ''
+                    ? Carbon::parse($preferredDate)->startOfDay()
+                    : null);
+
+            $blockers[] = new CaseIntelligenceBlocker(
+                key: 'appointment_overdue',
+                label: 'Support appointment is overdue',
+                party: 'engineer',
+                severity: 'high',
+                since: $since,
+                evidenceRefs: ['appointment'],
+                clearsWhen: 'Overdue appointment is completed, cancelled, or rescheduled',
+            );
+        } elseif (is_array($appointment)
             && isset($appointment['status'])
             && (string) ($appointment['status']->value ?? $appointment['status']) === 'missed') {
             $blockers[] = new CaseIntelligenceBlocker(
@@ -157,6 +178,31 @@ class CaseStateBuilder
         }
 
         return $blockers;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $appointment
+     */
+    private function isAppointmentOverdue(?array $appointment): bool
+    {
+        if (! is_array($appointment)) {
+            return false;
+        }
+
+        if (! (bool) ($appointment['is_active'] ?? false) || (bool) ($appointment['is_completed'] ?? false)) {
+            return false;
+        }
+
+        $preferredDate = $appointment['preferred_date'] ?? null;
+        if ($preferredDate instanceof Carbon) {
+            return $preferredDate->copy()->startOfDay()->lt(now()->startOfDay());
+        }
+
+        if (is_string($preferredDate) && $preferredDate !== '') {
+            return Carbon::parse($preferredDate)->startOfDay()->lt(now()->startOfDay());
+        }
+
+        return false;
     }
 
     /**

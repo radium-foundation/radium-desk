@@ -4,6 +4,8 @@ namespace Tests\Unit\Customer360\Intelligence;
 
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
+use App\Data\Customer360\Intelligence\CaseReasoningResult;
+use App\Data\Customer360\Intelligence\CaseStory;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
@@ -83,21 +85,47 @@ class CaseIntelligenceEngineTest extends TestCase
         $this->assertIsArray($snapshot->evidence);
         $this->assertNotNull($snapshot->workbench);
         $this->assertIsArray($snapshot->evidenceForView());
+        $this->assertInstanceOf(CaseReasoningResult::class, $snapshot->reasoning);
+        $this->assertInstanceOf(CaseStory::class, $snapshot->caseStory);
+        $this->assertArrayHasKey('current_situation', $snapshot->caseStory->toArray());
+        $this->assertNotNull($snapshot->toLanguageEnhancerPayload()['case_story']);
     }
 
-    public function test_executive_summary_matches_legacy_path_output(): void
+    public function test_executive_summary_recommendation_matches_canonical_recommended_action(): void
     {
-        config(['ira.case_intelligence_engine.enabled' => false]);
-
         [$incident] = $this->createSerialPendingIncident();
-        $service = app(Customer360Service::class);
 
-        $legacyHtml = $service->executiveSummaryPayload($incident)['html'];
+        $snapshot = app(CaseIntelligenceEngine::class)->build($incident);
+        $this->assertNotNull($snapshot);
+        $this->assertInstanceOf(IRAExecutiveSummaryDTO::class, $snapshot->executiveSummary);
+
+        // Q2: one canonical recommendation across executive summary + recommended action + case story.
+        $canonical = (string) ($snapshot->recommendedAction->recommendationText
+            ?? $snapshot->recommendedAction->label);
+        $this->assertSame($canonical, $snapshot->executiveSummary->recommendation);
+        $this->assertContains($canonical, $snapshot->caseStory?->recommendedAction ?? []);
+        $this->assertSame(
+            $snapshot->recommendedAction->label,
+            $snapshot->caseStory?->recommendedAction[0] ?? null,
+        );
+    }
+
+    public function test_executive_summary_opinion_still_surfaces_in_legacy_payload_when_flag_off(): void
+    {
+        [$incident] = $this->createSerialPendingIncident();
 
         config(['ira.case_intelligence_engine.enabled' => true]);
-        $engineHtml = $service->executiveSummaryPayload($incident)['html'];
+        $engineSummary = app(CaseIntelligenceEngine::class)->executiveSummary($incident);
+        $this->assertInstanceOf(IRAExecutiveSummaryDTO::class, $engineSummary);
 
-        $this->assertSame($legacyHtml, $engineHtml);
+        config(['ira.case_intelligence_engine.enabled' => false]);
+        $legacySummary = app(Customer360Service::class)
+            ->executiveSummaryPayload($incident);
+
+        $this->assertStringContainsString(
+            $engineSummary->opinion,
+            $legacySummary['html'],
+        );
     }
 
     public function test_language_enhancer_payload_excludes_raw_timeline_collection(): void

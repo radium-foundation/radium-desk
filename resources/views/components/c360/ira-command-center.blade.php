@@ -1,117 +1,41 @@
 @props([
-    'executiveSummary',
+    'panel',
     'incident',
-    'evidenceItems' => null,
-    'canRequestCorrectSerial' => false,
-    'correctSerialRequestState' => ['requested' => false],
-    'translateUrl' => null,
 ])
 
 @php
     use App\Enums\SerialInsightStatus;
-    use App\Enums\ServiceCaseSlaStatus;
-    use App\Support\Customer360\RequestCorrectSerialMenuPresenter;
 
-    $requestCorrectSerialMenu = RequestCorrectSerialMenuPresenter::resolve(
-        (bool) ($canRequestCorrectSerial ?? false),
-        $correctSerialRequestState,
-    );
-
-    $summaryLines = $executiveSummary->executiveSummary ?? [];
-    $summaryPayload = [
-        'executive_summary' => $summaryLines,
-        'opinion' => $executiveSummary->opinion,
-        'recommendation' => $executiveSummary->recommendation,
-    ];
-
-    $journeyLine = collect($summaryLines)->first(
-        fn (string $line): bool => str_starts_with($line, 'Customer journey:'),
-    );
-    $journeySteps = [];
-    if (is_string($journeyLine)) {
-        $journeyText = trim(str_replace('Customer journey:', '', $journeyLine));
-        $journeySteps = array_values(array_filter(array_map('trim', explode('→', $journeyText))));
-    }
-
-    $whyLines = collect($summaryLines)
-        ->reject(fn (string $line): bool => str_starts_with($line, 'Customer journey:'))
-        ->reject(fn (string $line): bool => str_contains(strtolower($line), 'confidence:'))
-        ->values()
-        ->all();
-
-    $recommendation = trim($executiveSummary->recommendation, " \t\n\r\0\x0B\"'");
-    $serialInsight = $executiveSummary->serialInsight;
-    $confidenceLevel = $serialInsight?->confidence->value ?? 'medium';
-    $confidenceLabel = $serialInsight?->confidence->label() ?? 'Medium';
-
-    // Prefer structured evidence from CaseIntelligenceSnapshot; legacy heuristics only as fallback.
-    if (! is_array($evidenceItems)) {
-        $evidenceItems = [];
-
-        if (filled($incident->order?->product_name)) {
-            $evidenceItems[] = ['title' => 'Product matched', 'source' => 'Order', 'tone' => 'positive'];
-        }
-
-        if (filled($incident->order?->serial_number)) {
-            $evidenceItems[] = ['title' => 'Device identified', 'source' => 'RadiumBox', 'tone' => 'positive'];
-        }
-
-        if ($serialInsight !== null) {
-            $evidenceItems[] = match ($serialInsight->status) {
-                SerialInsightStatus::Valid => ['title' => 'Serial verified', 'source' => 'IRA', 'tone' => 'positive'],
-                SerialInsightStatus::Suspicious, SerialInsightStatus::Warning => ['title' => 'Serial mismatch', 'source' => 'IRA', 'tone' => 'warning'],
-                SerialInsightStatus::Missing => ['title' => 'Serial missing', 'source' => 'IRA', 'tone' => 'negative'],
-                default => ['title' => $serialInsight->status->label(), 'source' => 'IRA', 'tone' => 'warning'],
-            };
-        }
-
-        if ($incident->activeWaitingState !== null) {
-            $evidenceItems[] = ['title' => 'Waiting state active', 'source' => 'IRA', 'tone' => 'warning'];
-        }
-
-        if ($incident->slaStatus() === ServiceCaseSlaStatus::Overdue) {
-            $evidenceItems[] = ['title' => 'SLA breached', 'source' => 'SLA', 'tone' => 'negative'];
-        } elseif ($incident->slaStatus() === ServiceCaseSlaStatus::Warning) {
-            $evidenceItems[] = ['title' => 'SLA warning', 'source' => 'SLA', 'tone' => 'warning'];
-        }
-
-        $evidenceItems = collect($evidenceItems)
-            ->unique(fn (array $item) => $item['title'].'|'.$item['source'])
-            ->values()
-            ->all();
-    }
-
-    $signalCount = count($evidenceItems);
-    $confidencePercent = match ($confidenceLevel) {
-        'high' => min(95, 82 + ($signalCount * 2)),
-        'low' => max(28, 35 + $signalCount),
-        default => min(88, 58 + ($signalCount * 3)),
-    };
-
-    $hasSerialAction = $serialInsight?->isActionable()
-        && in_array($serialInsight->status, [
-            SerialInsightStatus::Suspicious,
-            SerialInsightStatus::Warning,
-        ], true)
-        && in_array($requestCorrectSerialMenu['status'], ['available', 're-request'], true);
-    $serialActionLabel = $requestCorrectSerialMenu['status'] === 're-request'
-        ? 'Re-request serial'
-        : 'Send request';
+    $summaryPayload = $panel['summary_payload'] ?? [];
+    $translateUrl = $panel['translate_url'] ?? null;
+    $status = $panel['current_status'] ?? ['label' => 'Unknown', 'tone' => 'neutral'];
+    $waiting = $panel['waiting'] ?? ['party' => 'Nobody', 'since_label' => null];
+    $blockers = is_array($panel['blockers'] ?? null) ? $panel['blockers'] : [];
+    $risks = is_array($panel['risks'] ?? null) ? $panel['risks'] : [];
+    $action = $panel['recommended_action'] ?? [];
+    $evidence = is_array($panel['evidence'] ?? null) ? $panel['evidence'] : [];
+    $timelineEvents = is_array($panel['timeline_events'] ?? null) ? $panel['timeline_events'] : [];
+    $summaryLines = is_array($panel['executive_summary_lines'] ?? null) ? $panel['executive_summary_lines'] : [];
+    $serialInsight = $panel['serial_insight'] ?? null;
+    $incidentId = $panel['incident_id'] ?? $incident->id;
 @endphp
 
-<section {{ $attributes->merge(['class' => 'c360-ira-command-center']) }}
+<section {{ $attributes->merge(['class' => 'c360-ira-panel']) }}
          data-customer-360-section="executive-summary"
          data-ira-executive-summary
+         data-ira-panel
          @if($translateUrl) data-ira-translate-url="{{ $translateUrl }}" @endif
-         aria-labelledby="c360-ira-command-center-heading">
-    <div class="c360-ira-command-center-glow" aria-hidden="true"></div>
+         aria-labelledby="c360-ira-panel-heading">
 
-    <div class="c360-ira-command-center-header">
-        <h2 class="c360-ira-command-center-heading" id="c360-ira-command-center-heading">
-            <i class="bi bi-stars c360-ira-sparkle" aria-hidden="true"></i>
-            IRA command center
-        </h2>
-        <div class="c360-ira-command-center-header-actions">
+    <header class="c360-ira-panel-header">
+        <div class="c360-ira-panel-heading-wrap">
+            <h2 class="c360-ira-panel-heading" id="c360-ira-panel-heading">
+                <i class="bi bi-stars" aria-hidden="true"></i>
+                {{ $panel['heading'] ?? 'IRA' }}
+            </h2>
+            <p class="c360-ira-panel-subtitle">{{ $panel['subtitle'] ?? 'Case intelligence' }}</p>
+        </div>
+        <div class="c360-ira-panel-header-actions">
             @if($translateUrl)
                 <button type="button"
                         class="c360-ira-lang-toggle"
@@ -121,142 +45,213 @@
                     हिन्दी
                 </button>
             @endif
-            <span class="c360-ira-readonly-badge">AI · Read only</span>
+            <span class="c360-ira-panel-badge">Read only</span>
         </div>
-    </div>
+    </header>
 
-    <div class="c360-ira-command-center-body"
+    <div class="c360-ira-panel-body"
          data-ira-summary-content
          data-ira-summary-en='@json($summaryPayload)'>
-        <div class="c360-ira-section">
-            <h3 class="c360-ira-section-label">
-                <i class="bi bi-stars" aria-hidden="true"></i>
-                Recommendation
-            </h3>
-            <p class="c360-ira-recommendation-text" data-ira-summary-block="recommendation">
-                {{ $recommendation }}
-            </p>
-        </div>
 
-        <div class="c360-ira-section c360-ira-section--action">
-            <h3 class="c360-ira-section-label">Primary action</h3>
-            @if($hasSerialAction)
+        {{-- 1. Executive Summary --}}
+        <section class="c360-ira-panel-section" aria-labelledby="ira-section-summary">
+            <h3 class="c360-ira-panel-section-title" id="ira-section-summary">Executive Summary</h3>
+            <ul class="c360-ira-panel-summary-list" data-ira-summary-block="executive">
+                @foreach($summaryLines as $line)
+                    @continue(str_starts_with($line, 'Customer journey:'))
+                    @continue(str_contains(strtolower($line), 'confidence:'))
+                    <li>{{ $line }}</li>
+                @endforeach
+            </ul>
+            @if(($panel['executive_paragraph'] ?? '') !== '' && $summaryLines === [])
+                <p class="c360-ira-panel-summary-text">{{ $panel['executive_paragraph'] }}</p>
+            @endif
+        </section>
+
+        {{-- 2. Current Status --}}
+        <section class="c360-ira-panel-section" aria-labelledby="ira-section-status">
+            <h3 class="c360-ira-panel-section-title" id="ira-section-status">Current Status</h3>
+            <p class="c360-ira-panel-status c360-ira-panel-status--{{ $status['tone'] ?? 'neutral' }}">
+                {{ $status['label'] ?? 'Unknown' }}
+            </p>
+        </section>
+
+        {{-- 3. Waiting party --}}
+        <section class="c360-ira-panel-section" aria-labelledby="ira-section-waiting">
+            <h3 class="c360-ira-panel-section-title" id="ira-section-waiting">Who are we waiting for?</h3>
+            <div class="c360-ira-panel-waiting">
+                <span class="c360-ira-panel-waiting-party">{{ $waiting['party'] ?? 'Nobody' }}</span>
+                @if(filled($waiting['since_label'] ?? null))
+                    <span class="c360-ira-panel-waiting-meta">
+                        Waiting since {{ $waiting['since_label'] }}
+                    </span>
+                @endif
+                @if(filled($waiting['reason_label'] ?? null) && ($waiting['is_waiting'] ?? false))
+                    <span class="c360-ira-panel-waiting-meta">
+                        For {{ $waiting['reason_label'] }}
+                    </span>
+                @endif
+            </div>
+        </section>
+
+        {{-- 4. Blockers --}}
+        <section class="c360-ira-panel-section" aria-labelledby="ira-section-blockers">
+            <h3 class="c360-ira-panel-section-title" id="ira-section-blockers">Current Blockers</h3>
+            @if($blockers === [])
+                <p class="c360-ira-panel-empty">No active blockers.</p>
+            @else
+                <ul class="c360-ira-panel-blockers">
+                    @foreach($blockers as $blocker)
+                        <li class="c360-ira-panel-blocker c360-ira-panel-blocker--{{ $blocker['severity'] ?? 'medium' }}">
+                            <span class="c360-ira-panel-blocker-label">{{ $blocker['label'] }}</span>
+                            <span class="c360-ira-panel-blocker-party">{{ $blocker['party'] }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </section>
+
+        {{-- 5. Risks --}}
+        <section class="c360-ira-panel-section" aria-labelledby="ira-section-risks">
+            <h3 class="c360-ira-panel-section-title" id="ira-section-risks">Risk Indicators</h3>
+            @if($risks === [])
+                <p class="c360-ira-panel-empty">No elevated risks detected.</p>
+            @else
+                <ul class="c360-ira-panel-risks">
+                    @foreach($risks as $risk)
+                        <li class="c360-ira-panel-risk c360-ira-panel-risk--{{ $risk['level'] }}">
+                            <span class="c360-ira-panel-risk-level">{{ $risk['level_label'] }}</span>
+                            <span class="c360-ira-panel-risk-copy">
+                                <span class="c360-ira-panel-risk-title">{{ $risk['label'] }}</span>
+                                <span class="c360-ira-panel-risk-explain">{{ $risk['explanation'] }}</span>
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </section>
+
+        {{-- 6. Recommended Next Action --}}
+        <section class="c360-ira-panel-section c360-ira-panel-section--action" aria-labelledby="ira-section-action">
+            <h3 class="c360-ira-panel-section-title" id="ira-section-action">Recommended Next Action</h3>
+            <p class="c360-ira-panel-action-text" data-ira-summary-block="recommendation">
+                {{ $action['text'] ?? '' }}
+            </p>
+
+            @if($action['has_serial_action'] ?? false)
                 <button type="button"
-                        class="c360-ira-primary-action"
+                        class="c360-ira-panel-primary-btn"
                         data-workspace-trigger="request-correct-serial"
-                        data-workspace-incident-id="{{ $incident->id }}"
+                        data-workspace-incident-id="{{ $incidentId }}"
                         data-workspace-context="customer">
                     <i class="bi bi-send" aria-hidden="true"></i>
-                    {{ $serialActionLabel }}
+                    {{ $action['serial_action_label'] ?? 'Send request' }}
                 </button>
-            @elseif($requestCorrectSerialMenu['status'] === 'pending')
-                <div class="c360-ira-primary-action c360-ira-primary-action--display c360-ira-primary-action--sent" role="status">
+            @elseif($action['serial_request_pending'] ?? false)
+                <div class="c360-ira-panel-primary-btn c360-ira-panel-primary-btn--sent" role="status">
                     <i class="bi bi-check-circle" aria-hidden="true"></i>
                     <span>Serial Requested</span>
                 </div>
             @else
-                <div class="c360-ira-primary-action c360-ira-primary-action--display" role="status">
+                <div class="c360-ira-panel-primary-btn c360-ira-panel-primary-btn--display" role="status">
                     <i class="bi bi-lightning-charge" aria-hidden="true"></i>
-                    <span>{{ $recommendation }}</span>
+                    <span>{{ $action['label'] ?? 'Next action' }}</span>
                 </div>
             @endif
-        </div>
 
-        <div class="c360-ira-section">
-            <x-c360.ira-confidence
-                :level="$confidenceLevel"
-                :label="$confidenceLabel"
-                :percent="$confidencePercent"
-                :signal-count="$signalCount"
-            />
-        </div>
-
-        @if($whyLines !== [])
-            <div class="c360-ira-section">
-                <h3 class="c360-ira-section-label">Why this recommendation</h3>
-                <ul class="c360-ira-why-list" data-ira-summary-block="executive">
-                    @foreach($whyLines as $line)
-                        <li>{{ $line }}</li>
+            @if(!empty($action['secondary_actions']))
+                <ul class="c360-ira-panel-secondary" aria-label="Secondary actions">
+                    @foreach($action['secondary_actions'] as $secondary)
+                        <li>
+                            <i class="bi {{ $secondary['icon'] ?? 'bi-circle' }}" aria-hidden="true"></i>
+                            {{ $secondary['label'] ?? '' }}
+                        </li>
                     @endforeach
                 </ul>
-            </div>
-        @endif
+            @endif
+        </section>
 
-        @if($journeySteps !== [])
-            <details class="c360-ira-collapse" data-c360-ira-collapse>
-                <summary class="c360-ira-collapse-summary">
-                    <span>Journey</span>
-                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                </summary>
-                <div class="c360-ira-collapse-body">
-                    <x-c360.customer-journey-tracker :milestones="$journeySteps" />
-                </div>
-            </details>
-        @endif
+        {{-- 7. Why IRA thinks this (structured evidence) --}}
+        <section class="c360-ira-panel-section" aria-labelledby="ira-section-why" id="ira-why-evidence">
+            <h3 class="c360-ira-panel-section-title" id="ira-section-why">Why IRA thinks this</h3>
+            @if($evidence === [])
+                <p class="c360-ira-panel-empty">No structured evidence available yet.</p>
+            @else
+                <ul class="c360-ira-panel-evidence" role="list">
+                    @foreach($evidence as $item)
+                        @php
+                            $tone = $item['tone'] ?? 'positive';
+                            $icon = match ($tone) {
+                                'warning' => '⚠',
+                                'negative' => '✖',
+                                default => '✓',
+                            };
+                            $anchor = $item['anchor'] ?? null;
+                        @endphp
+                        <li @class(['c360-ira-panel-evidence-item', 'c360-ira-panel-evidence-item--'.$tone])
+                            @if($anchor) id="{{ $anchor }}" @endif
+                            role="listitem">
+                            <span class="c360-ira-panel-evidence-icon" aria-hidden="true">{{ $icon }}</span>
+                            <span class="c360-ira-panel-evidence-copy">
+                                <a @if($anchor) href="#{{ $anchor }}" @endif class="c360-ira-panel-evidence-title">
+                                    {{ $item['title'] }}
+                                </a>
+                                @if(filled($item['source'] ?? null))
+                                    <span class="c360-ira-panel-evidence-source">{{ $item['source'] }}</span>
+                                @endif
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
 
-        @if($evidenceItems !== [])
-            <details class="c360-ira-collapse" data-c360-ira-collapse>
-                <summary class="c360-ira-collapse-summary">
-                    <span>Evidence</span>
-                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                </summary>
-                <div class="c360-ira-collapse-body">
-                    <x-c360.ira-evidence-panel :items="$evidenceItems" />
-                </div>
-            </details>
-        @endif
-
-        <details class="c360-ira-collapse" data-c360-ira-collapse>
-            <summary class="c360-ira-collapse-summary">
-                <span>Explain</span>
-                <i class="bi bi-chevron-down" aria-hidden="true"></i>
-            </summary>
-            <div class="c360-ira-collapse-body c360-ira-explain-body">
+            <details class="c360-ira-panel-details">
+                <summary>IRA opinion</summary>
+                <p class="c360-ira-panel-opinion" data-ira-summary-block="opinion">
+                    {{ $panel['opinion'] ?? '' }}
+                </p>
                 @if($serialInsight?->isActionable())
-                    <div class="c360-ira-explain-block" data-ira-serial-insight>
-                        <x-c360.status-banner
-                            :variant="match ($serialInsight->status->value) {
-                                'valid' => 'success',
-                                'suspicious', 'warning' => 'warning',
-                                'missing', 'pending' => 'info',
-                                default => 'info',
-                            }"
-                            :icon="match ($serialInsight->status->value) {
-                                'valid' => '✓',
-                                'suspicious', 'warning' => '⚠',
-                                'missing' => '✖',
-                                default => 'ⓘ',
-                            }">
+                    <div class="c360-ira-panel-serial" data-ira-serial-insight>
+                        <p class="c360-ira-panel-serial-status">
                             {{ $serialInsight->status->label() }}
                             · {{ $serialInsight->confidence->label() }} confidence
-                        </x-c360.status-banner>
-                        <p class="c360-ira-explain-text">{{ $serialInsight->explanation }}</p>
+                        </p>
+                        <p class="c360-ira-panel-opinion">{{ $serialInsight->explanation }}</p>
                         @if(filled($serialInsight->suggestedAction))
-                            <p class="c360-ira-explain-text c360-ira-explain-text--muted">
+                            <p class="c360-ira-panel-opinion c360-ira-panel-opinion--muted">
                                 {{ $serialInsight->suggestedAction }}
                             </p>
                         @endif
                     </div>
                 @endif
-                <div class="c360-ira-explain-block">
-                    <h4 class="c360-ira-explain-label">IRA opinion</h4>
-                    <p class="c360-ira-explain-text" data-ira-summary-block="opinion">
-                        {{ trim($executiveSummary->opinion, " \t\n\r\0\x0B\"'") }}
-                    </p>
-                </div>
-            </div>
-        </details>
+            </details>
+        </section>
 
-        <details class="c360-ira-collapse c360-ira-collapse--muted" data-c360-ira-collapse>
-            <summary class="c360-ira-collapse-summary">
-                <span>Operational memory</span>
-                <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        {{-- 8. Timeline (collapsed) --}}
+        <details class="c360-ira-panel-details c360-ira-panel-timeline" data-c360-ira-collapse>
+            <summary>
+                <span>Timeline</span>
+                @if(($panel['timeline_total'] ?? 0) > 0)
+                    <span class="c360-ira-panel-timeline-count">{{ $panel['timeline_total'] }}</span>
+                @endif
             </summary>
-            <div class="c360-ira-collapse-body">
-                <p class="c360-ira-memory-placeholder mb-0">
-                    Prior case context and operator notes will surface here in a future release.
-                </p>
-            </div>
+            @if($timelineEvents === [])
+                <p class="c360-ira-panel-empty mb-0">No timeline events in this snapshot.</p>
+            @else
+                <ol class="c360-ira-panel-timeline-list">
+                    @foreach($timelineEvents as $event)
+                        <li>
+                            <span class="c360-ira-panel-timeline-title">{{ $event['title'] }}</span>
+                            <time class="c360-ira-panel-timeline-time">{{ $event['occurred_at_label'] }}</time>
+                        </li>
+                    @endforeach
+                </ol>
+                <button type="button"
+                        class="c360-ira-panel-timeline-link"
+                        data-customer-360-tab="timeline">
+                    Open full timeline
+                </button>
+            @endif
         </details>
     </div>
 </section>

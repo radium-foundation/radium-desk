@@ -11402,6 +11402,476 @@ body.customer-360-drawer-open {
     background: rgba(255, 255, 255, 0.5);
 }
 
+/* IRA Case Intelligence Panel (Phase 3) */
+.c360-ira-panel {
+    position: relative;
+    padding: 1rem 1.125rem 1.125rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    background:
+        linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(255, 255, 255, 0.98) 100%);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(79, 70, 229, 0.06);
+}
+
+.c360-ira-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.875rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.c360-ira-panel-heading-wrap {
+    min-width: 0;
+}
+
+.c360-ira-panel-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: #1e1b4b;
+}
+
+.c360-ira-panel-heading .bi {
+    color: #6366f1;
+}
+
+.c360-ira-panel-subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.c360-ira-panel-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.c360-ira-panel-badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #475569;
+    padding: 0.2rem 0.45rem;
+    border-radius: 999px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+}
+
+.c360-ira-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.c360-ira-panel-section {
+    padding: 0.75rem 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.c360-ira-panel-section:first-child {
+    padding-top: 0;
+    border-top: none;
+}
+
+.c360-ira-panel-section-title {
+    margin: 0 0 0.4rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #64748b;
+}
+
+.c360-ira-panel-summary-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: #1e293b;
+    font-weight: 500;
+}
+
+.c360-ira-panel-summary-list li + li {
+    margin-top: 0.2rem;
+}
+
+.c360-ira-panel-summary-text {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: #1e293b;
+    font-weight: 500;
+}
+
+.c360-ira-panel-status {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: 0.4rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.c360-ira-panel-status--danger {
+    color: #991b1b;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+}
+
+.c360-ira-panel-status--warning {
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+}
+
+.c360-ira-panel-status--info {
+    color: #1e40af;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+}
+
+.c360-ira-panel-status--muted,
+.c360-ira-panel-status--neutral {
+    color: #334155;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.c360-ira-panel-waiting {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.c360-ira-panel-waiting-party {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.c360-ira-panel-waiting-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.c360-ira-panel-empty {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: #64748b;
+}
+
+.c360-ira-panel-blockers,
+.c360-ira-panel-risks,
+.c360-ira-panel-evidence,
+.c360-ira-panel-secondary,
+.c360-ira-panel-timeline-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.c360-ira-panel-blocker,
+.c360-ira-panel-risk,
+.c360-ira-panel-evidence-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: 0.5rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+
+.c360-ira-panel-blocker-label,
+.c360-ira-panel-risk-title {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.c360-ira-panel-blocker-party,
+.c360-ira-panel-risk-explain,
+.c360-ira-panel-evidence-source {
+    display: block;
+    font-size: 0.6875rem;
+    color: #64748b;
+}
+
+.c360-ira-panel-blocker--high,
+.c360-ira-panel-risk--high {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.c360-ira-panel-blocker--medium,
+.c360-ira-panel-risk--medium {
+    border-color: #fde68a;
+    background: #fffbeb;
+}
+
+.c360-ira-panel-risk-level {
+    flex-shrink: 0;
+    font-size: 0.625rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    color: #fff;
+    background: #64748b;
+}
+
+.c360-ira-panel-risk--high .c360-ira-panel-risk-level { background: #dc2626; }
+.c360-ira-panel-risk--medium .c360-ira-panel-risk-level { background: #d97706; }
+.c360-ira-panel-risk--low .c360-ira-panel-risk-level { background: #0f766e; }
+
+.c360-ira-panel-action-text {
+    margin: 0 0 0.6rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #1e1b4b;
+}
+
+.c360-ira-panel-primary-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border: none;
+    border-radius: 0.55rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+    cursor: pointer;
+}
+
+.c360-ira-panel-primary-btn:hover {
+    filter: brightness(1.03);
+}
+
+.c360-ira-panel-primary-btn:focus-visible {
+    outline: 2px solid #312e81;
+    outline-offset: 2px;
+}
+
+.c360-ira-panel-primary-btn--display {
+    cursor: default;
+    background: #eef2ff;
+    color: #312e81;
+    box-shadow: none;
+    border: 1px solid #c7d2fe;
+}
+
+.c360-ira-panel-primary-btn--sent {
+    cursor: default;
+    background: #ecfdf5;
+    color: #047857;
+    box-shadow: none;
+    border: 1px solid #a7f3d0;
+}
+
+.c360-ira-panel-secondary {
+    margin-top: 0.55rem;
+}
+
+.c360-ira-panel-secondary li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: #475569;
+    padding: 0.3rem 0;
+}
+
+.c360-ira-panel-evidence-item {
+    justify-content: flex-start;
+}
+
+.c360-ira-panel-evidence-icon {
+    flex-shrink: 0;
+    width: 1.25rem;
+    text-align: center;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.c360-ira-panel-evidence-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #0f172a;
+    text-decoration: none;
+}
+
+.c360-ira-panel-evidence-title:hover {
+    color: #4338ca;
+    text-decoration: underline;
+}
+
+.c360-ira-panel-evidence-item--warning {
+    border-color: #fde68a;
+    background: #fffbeb;
+}
+
+.c360-ira-panel-evidence-item--negative {
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.c360-ira-panel-details {
+    margin-top: 0.65rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.c360-ira-panel-details > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    list-style: none;
+}
+
+.c360-ira-panel-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.c360-ira-panel-details[open] > summary {
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.c360-ira-panel-details > *:not(summary) {
+    padding: 0.65rem 0.7rem;
+}
+
+.c360-ira-panel-opinion {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: #334155;
+}
+
+.c360-ira-panel-opinion--muted {
+    margin-top: 0.35rem;
+    color: #64748b;
+}
+
+.c360-ira-panel-serial-status {
+    margin: 0 0 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #92400e;
+}
+
+.c360-ira-panel-timeline-count {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #64748b;
+    background: #f1f5f9;
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+}
+
+.c360-ira-panel-timeline-list {
+    gap: 0.5rem;
+}
+
+.c360-ira-panel-timeline-list li {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.c360-ira-panel-timeline-list li:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.c360-ira-panel-timeline-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.c360-ira-panel-timeline-time {
+    font-size: 0.6875rem;
+    color: #64748b;
+}
+
+.c360-ira-panel-timeline-link {
+    margin-top: 0.55rem;
+    border: none;
+    background: transparent;
+    color: #4f46e5;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+}
+
+.c360-ira-panel-timeline-link:hover,
+.c360-ira-panel-timeline-link:focus-visible {
+    text-decoration: underline;
+}
+
+@media (max-width: 575.98px) {
+    .c360-ira-panel {
+        padding: 0.875rem;
+    }
+
+    .c360-ira-panel-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .c360-ira-panel-header-actions {
+        justify-content: flex-start;
+    }
+
+    .c360-ira-panel-blocker,
+    .c360-ira-panel-risk {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .c360-ira-panel-primary-btn {
+        transition: none;
+    }
+}
+
 /* Customer journey tracker */
 .c360-journey-tracker {
     display: flex;

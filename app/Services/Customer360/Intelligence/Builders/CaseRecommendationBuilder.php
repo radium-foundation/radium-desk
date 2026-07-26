@@ -50,16 +50,20 @@ class CaseRecommendationBuilder
         ]);
 
         if ($advisorViewModel === null) {
+            $fallbackText = filled($executiveSummary->opinion)
+                ? $executiveSummary->opinion
+                : 'Contact the customer to advance this case.';
+
             return [
                 'recommended_action' => new CaseIntelligenceRecommendedAction(
                     actionKey: 'contact_customer',
                     label: 'Contact Customer',
-                    rationale: [$executiveSummary->opinion],
+                    rationale: [$fallbackText],
                     confidence: 'low',
                     matchedRuleId: 'inactive_or_unavailable',
                     secondaryActionKeys: [],
                     secondaryActions: [],
-                    recommendationText: $executiveSummary->recommendation,
+                    recommendationText: $fallbackText,
                     priority: 0,
                     signals: [],
                 ),
@@ -74,24 +78,47 @@ class CaseRecommendationBuilder
         $ruleContext = is_array($advisorViewModel['rule_context'] ?? null)
             ? $advisorViewModel['rule_context']
             : [];
+        $rationale = is_array($advisorViewModel['reasons'] ?? null) ? $advisorViewModel['reasons'] : [];
+        $label = (string) ($action['label'] ?? 'Contact Customer');
+        $recommendationText = $this->canonicalRecommendationText($label, $rationale);
+
+        $recommendedAction = new CaseIntelligenceRecommendedAction(
+            actionKey: (string) ($action['key'] ?? 'contact_customer'),
+            label: $label,
+            rationale: $rationale,
+            confidence: (string) ($advisorViewModel['confidence']['level'] ?? 'medium'),
+            matchedRuleId: isset($ruleContext['matched_rule']) ? (string) $ruleContext['matched_rule'] : null,
+            secondaryActionKeys: array_values(array_map(
+                fn (array $item): string => (string) ($item['key'] ?? ''),
+                $secondaryActions,
+            )),
+            secondaryActions: $secondaryActions,
+            recommendationText: $recommendationText,
+            priority: (int) ($ruleContext['priority'] ?? 0),
+            signals: is_array($ruleContext['signals'] ?? null) ? $ruleContext['signals'] : [],
+        );
+
+        // Keep advisor view model aligned with the same canonical recommendation (Q2).
+        $advisorViewModel['recommended_action']['recommendation_text'] = $recommendationText;
+        $advisorViewModel['recommendation_text'] = $recommendationText;
 
         return [
-            'recommended_action' => new CaseIntelligenceRecommendedAction(
-                actionKey: (string) ($action['key'] ?? 'contact_customer'),
-                label: (string) ($action['label'] ?? 'Contact Customer'),
-                rationale: is_array($advisorViewModel['reasons'] ?? null) ? $advisorViewModel['reasons'] : [],
-                confidence: (string) ($advisorViewModel['confidence']['level'] ?? 'medium'),
-                matchedRuleId: isset($ruleContext['matched_rule']) ? (string) $ruleContext['matched_rule'] : null,
-                secondaryActionKeys: array_values(array_map(
-                    fn (array $item): string => (string) ($item['key'] ?? ''),
-                    $secondaryActions,
-                )),
-                secondaryActions: $secondaryActions,
-                recommendationText: $executiveSummary->recommendation,
-                priority: (int) ($ruleContext['priority'] ?? 0),
-                signals: is_array($ruleContext['signals'] ?? null) ? $ruleContext['signals'] : [],
-            ),
+            'recommended_action' => $recommendedAction,
             'advisor_view_model' => $advisorViewModel,
         ];
+    }
+
+    /**
+     * @param  list<string>  $rationale
+     */
+    private function canonicalRecommendationText(string $label, array $rationale): string
+    {
+        $primary = trim((string) ($rationale[0] ?? ''));
+
+        if ($primary !== '') {
+            return $primary;
+        }
+
+        return 'Next action: '.$label.'.';
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services\Customer360\Intelligence;
 use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
+use App\Data\Customer360\Intelligence\CaseIntelligenceRecommendedAction;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\AI\AIService;
@@ -45,6 +46,7 @@ class CaseIntelligenceEngine
         private readonly AIWorkbenchService $workbenchService,
         private readonly OperationsAdvisorService $operationsAdvisorService,
         private readonly CaseIntelligenceLanguageEnhancer $languageEnhancer,
+        private readonly CaseReasoningEngine $reasoningEngine,
         private readonly Customer360ActionVisibilityService $actionVisibilityService,
         private readonly ServiceCaseEscalationService $escalationService,
         private readonly Customer360HealthCardPresenter $healthCardPresenter,
@@ -116,6 +118,9 @@ class CaseIntelligenceEngine
             $actionVisibility,
             $canEscalate,
         );
+        $recommendedAction = $recommendation['recommended_action'];
+        // Single canonical recommendation — executive summary must not diverge (Q2).
+        $executiveSummary = $this->withCanonicalRecommendation($executiveSummary, $recommendedAction);
         $workbench = $this->workbenchService->buildFromBundle($facts->incident, $aiBundle);
 
         $snapshot = new CaseIntelligenceSnapshot(
@@ -146,7 +151,7 @@ class CaseIntelligenceEngine
             risks: $riskProjection['risks'],
             priorityLevel: $state['priority_level'],
             priorityDrivers: $state['priority_drivers'],
-            recommendedAction: $recommendation['recommended_action'],
+            recommendedAction: $recommendedAction,
             executiveSummary: $executiveSummary,
             evidence: $evidence,
             confidenceLevel: $aiBundle->response->confidenceLevel,
@@ -160,7 +165,11 @@ class CaseIntelligenceEngine
             workbench: $workbench,
             advisorViewModel: $recommendation['advisor_view_model'],
             evidenceViewItems: $this->evidenceBuilder->toViewItems($evidence),
+            incidentCreatedAt: $facts->incident->created_at,
+            incidentUpdatedAt: $facts->incident->updated_at,
         );
+
+        $snapshot = $this->reasoningEngine->enrich($snapshot);
 
         return $this->snapshotCache[$cacheKey] = $this->languageEnhancer->enhance($snapshot);
     }
@@ -168,6 +177,23 @@ class CaseIntelligenceEngine
     public function executiveSummary(Incident $incident): ?IRAExecutiveSummaryDTO
     {
         return $this->build($incident)?->executiveSummary;
+    }
+
+    private function withCanonicalRecommendation(
+        IRAExecutiveSummaryDTO $executiveSummary,
+        CaseIntelligenceRecommendedAction $recommendedAction,
+    ): IRAExecutiveSummaryDTO {
+        $text = trim((string) ($recommendedAction->recommendationText ?? ''));
+        if ($text === '') {
+            $text = $recommendedAction->label;
+        }
+
+        return new IRAExecutiveSummaryDTO(
+            executiveSummary: $executiveSummary->executiveSummary,
+            opinion: $executiveSummary->opinion,
+            recommendation: $text,
+            serialInsight: $executiveSummary->serialInsight,
+        );
     }
 
     public function forget(?Incident $incident = null): void

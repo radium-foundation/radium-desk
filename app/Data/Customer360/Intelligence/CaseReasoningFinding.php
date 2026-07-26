@@ -4,20 +4,20 @@ namespace App\Data\Customer360\Intelligence;
 
 use App\Enums\AI\AIRiskLevel;
 
-readonly class CaseIntelligenceRisk
+readonly class CaseReasoningFinding
 {
     /**
+     * @param  array<string, mixed>  $signals
      * @param  list<string>  $evidenceRefs
      */
     public function __construct(
         public string $key,
-        public string $label,
+        public string $title,
         public string $category,
         public AIRiskLevel $severity,
-        public ?int $confidenceScore = null,
+        public string $explanation,
+        public array $signals = [],
         public array $evidenceRefs = [],
-        public string $source = 'deterministic',
-        public ?string $explanation = null,
     ) {}
 
     /**
@@ -27,13 +27,12 @@ readonly class CaseIntelligenceRisk
     {
         return [
             'key' => $this->key,
-            'label' => $this->label,
+            'title' => $this->title,
             'category' => $this->category,
             'severity' => $this->severity->value,
-            'confidence_score' => $this->confidenceScore,
-            'evidence_refs' => $this->evidenceRefs,
-            'source' => $this->source,
             'explanation' => $this->explanation,
+            'signals' => $this->signals,
+            'evidence_refs' => $this->evidenceRefs,
         ];
     }
 }

@@ -17,6 +17,7 @@ readonly class CaseIntelligenceBlocker
         public ?Carbon $since = null,
         public array $evidenceRefs = [],
         public ?string $clearsWhen = null,
+        public ?string $explanation = null,
     ) {}
 
     /**
@@ -32,6 +33,7 @@ readonly class CaseIntelligenceBlocker
             'since' => $this->since?->toIso8601String(),
             'evidence_refs' => $this->evidenceRefs,
             'clears_when' => $this->clearsWhen,
+            'explanation' => $this->explanation,
         ];
     }
 }

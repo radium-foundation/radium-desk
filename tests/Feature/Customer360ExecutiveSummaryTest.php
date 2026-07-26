@@ -46,13 +46,21 @@ class Customer360ExecutiveSummaryTest extends TestCase
             ->json('html');
 
         $this->assertStringContainsString('data-customer-360-section="executive-summary"', $summaryHtml);
-        $this->assertStringContainsString('IRA command center', $summaryHtml);
-        $this->assertStringContainsString('AI · Read only', $summaryHtml);
-        $this->assertStringContainsString('Explain', $summaryHtml);
-        $this->assertStringContainsString('Recommendation', $summaryHtml);
-        $this->assertStringContainsString('Why this recommendation', $summaryHtml);
+        $this->assertStringContainsString('data-ira-panel', $summaryHtml);
+        $this->assertStringContainsString('Case intelligence', $summaryHtml);
+        $this->assertStringContainsString('Executive Summary', $summaryHtml);
+        $this->assertStringContainsString('Current Status', $summaryHtml);
+        $this->assertStringContainsString('Who are we waiting for?', $summaryHtml);
+        $this->assertStringContainsString('Current Blockers', $summaryHtml);
+        $this->assertStringContainsString('Risk Indicators', $summaryHtml);
+        $this->assertStringContainsString('Recommended Next Action', $summaryHtml);
+        $this->assertStringContainsString('Why IRA thinks this', $summaryHtml);
+        $this->assertStringContainsString('Timeline', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-lang-toggle', $summaryHtml);
         $this->assertStringContainsString('data-ira-translate-url', $summaryHtml);
+        $this->assertStringContainsString('data-ira-summary-block="executive"', $summaryHtml);
+        $this->assertStringContainsString('data-ira-summary-block="recommendation"', $summaryHtml);
+        $this->assertStringContainsString('data-ira-summary-block="opinion"', $summaryHtml);
 
         $html = $response->getContent();
         $healthPos = strpos($html, 'data-customer-360-section="health-card"');

@@ -78,6 +78,7 @@ class CaseAdvisorDecisionBuilder
             $this->evaluateSerialMissing($context),
             $this->evaluateSerialVerification($context),
             $this->evaluateSlaOverdue($context),
+            $this->evaluateAppointmentOverdue($context),
             $this->evaluateCancelledAppointment($context),
             $this->evaluateRepeatIssue($context),
             $this->evaluateEscalationRisk($context),
@@ -277,6 +278,42 @@ class CaseAdvisorDecisionBuilder
      * @param  array<string, mixed>  $context
      * @return array<string, mixed>|null
      */
+    private function evaluateAppointmentOverdue(array $context): ?array
+    {
+        $appointment = $context['supportAppointment'] ?? null;
+
+        if (! $this->isAppointmentOverdue(is_array($appointment) ? $appointment : null)) {
+            return null;
+        }
+
+        $dateLabel = null;
+        if (filled($appointment['preferred_date'] ?? null)) {
+            $dateLabel = $appointment['preferred_date'] instanceof \Illuminate\Support\Carbon
+                ? $appointment['preferred_date']->format('M j, Y')
+                : (string) $appointment['preferred_date'];
+        }
+
+        return $this->candidate(
+            actionKey: 'contact_customer',
+            confidence: 'high',
+            priority: 75,
+            reasons: array_values(array_filter([
+                'Support appointment is overdue and still active.',
+                $dateLabel !== null ? 'Preferred date was '.$dateLabel.'.' : null,
+                'Contact the customer and resolve or reschedule the overdue visit immediately.',
+            ])),
+            ruleId: 'appointment_overdue',
+            signals: [
+                'appointment_overdue' => true,
+                'preferred_date' => $dateLabel,
+            ],
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>|null
+     */
     private function evaluateCancelledAppointment(array $context): ?array
     {
         $journey = $context['customerJourney'];
@@ -439,6 +476,11 @@ class CaseAdvisorDecisionBuilder
             return null;
         }
 
+        // Overdue active appointments are handled by evaluateAppointmentOverdue (Q6).
+        if ($this->isAppointmentOverdue($appointment)) {
+            return null;
+        }
+
         $reasons = ['Support appointment is scheduled and awaiting execution.'];
         $signals = ['appointment_active' => true];
 
@@ -593,6 +635,31 @@ class CaseAdvisorDecisionBuilder
         }
 
         return null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $appointment
+     */
+    private function isAppointmentOverdue(?array $appointment): bool
+    {
+        if (! is_array($appointment)) {
+            return false;
+        }
+
+        if (! (bool) ($appointment['is_active'] ?? false) || (bool) ($appointment['is_completed'] ?? false)) {
+            return false;
+        }
+
+        $preferredDate = $appointment['preferred_date'] ?? null;
+        if ($preferredDate instanceof \Illuminate\Support\Carbon) {
+            return $preferredDate->copy()->startOfDay()->lt(now()->startOfDay());
+        }
+
+        if (is_string($preferredDate) && $preferredDate !== '') {
+            return \Illuminate\Support\Carbon::parse($preferredDate)->startOfDay()->lt(now()->startOfDay());
+        }
+
+        return false;
     }
 
     /**

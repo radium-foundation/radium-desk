@@ -19,6 +19,31 @@ return [
         'enabled' => (bool) env('IRA_CASE_INTELLIGENCE_ENGINE', true),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Case Reasoning Engine (deterministic enrichment)
+    |--------------------------------------------------------------------------
+    |
+    | Thresholds used by CaseReasoningEngine when enriching a
+    | CaseIntelligenceSnapshot. No AI / LLM involvement.
+    |
+    */
+    'case_reasoning' => [
+        'waiting_too_long_days' => (int) env('IRA_REASONING_WAITING_TOO_LONG_DAYS', 3),
+        'serial_pending_too_long_days' => (int) env('IRA_REASONING_SERIAL_PENDING_DAYS', 2),
+        'long_inactivity_days' => (int) env('IRA_REASONING_LONG_INACTIVITY_DAYS', 5),
+        'case_idle_days' => (int) env('IRA_REASONING_CASE_IDLE_DAYS', 3),
+        'customer_silent_days' => (int) env('IRA_REASONING_CUSTOMER_SILENT_DAYS', 2),
+        'repeated_reminders_threshold' => (int) env('IRA_REASONING_REPEATED_REMINDERS', 2),
+        'repeated_reschedules_threshold' => (int) env('IRA_REASONING_REPEATED_RESCHEDULES', 2),
+        'repeated_cancellations_threshold' => (int) env('IRA_REASONING_REPEATED_CANCELLATIONS', 2),
+        'multiple_assignments_threshold' => (int) env('IRA_REASONING_MULTIPLE_ASSIGNMENTS', 2),
+        'frequent_calls_threshold' => (int) env('IRA_REASONING_FREQUENT_CALLS', 3),
+        'contact_without_progress_threshold' => (int) env('IRA_REASONING_CONTACT_WITHOUT_PROGRESS', 3),
+        'automation_failure_threshold' => (int) env('IRA_REASONING_AUTOMATION_FAILURES', 2),
+        'repeated_repairs_threshold' => (int) env('IRA_REASONING_REPEATED_REPAIRS', 2),
+    ],
+
     'memory' => [
         'retention_days' => 90,
     ],

@@ -17,10 +17,11 @@ use Illuminate\Support\Carbon;
  *
  * Business facts on this snapshot are authoritative.
  * Future LLM enhancers may improve language fields only — never facts.
+ * Future AI providers should consume caseStory, not raw timeline/events.
  */
 readonly class CaseIntelligenceSnapshot
 {
-    public const SCHEMA_VERSION = '1.1';
+    public const SCHEMA_VERSION = '1.2';
 
     /**
      * @param  array<string, int>  $customerSummary
@@ -80,7 +81,125 @@ readonly class CaseIntelligenceSnapshot
         public AIWorkbenchDTO $workbench,
         public ?array $advisorViewModel = null,
         public array $evidenceViewItems = [],
+        public ?CaseReasoningResult $reasoning = null,
+        public ?CaseStory $caseStory = null,
+        public ?Carbon $incidentCreatedAt = null,
+        public ?Carbon $incidentUpdatedAt = null,
     ) {}
+
+    /**
+     * Clone with deterministic reasoning enrichment applied.
+     * Does not invent or alter the canonical recommendedAction (Q2).
+     */
+    public function withReasoning(CaseReasoningResult $reasoning, CaseStory $caseStory): self
+    {
+        $executiveFacts = array_values(array_unique([
+            ...$this->executiveSummary->executiveSummary,
+            ...$reasoning->executiveSummaryFacts,
+        ]));
+
+        $canonicalRecommendation = (string) (
+            $this->recommendedAction->recommendationText
+            ?? $this->recommendedAction->label
+        );
+
+        $blockers = array_map(
+            function (CaseIntelligenceBlocker $blocker) use ($reasoning): CaseIntelligenceBlocker {
+                $explanation = $reasoning->blockerExplanations[$blocker->key] ?? null;
+
+                if ($explanation === null || $blocker->explanation === $explanation) {
+                    return $blocker;
+                }
+
+                return new CaseIntelligenceBlocker(
+                    key: $blocker->key,
+                    label: $blocker->label,
+                    party: $blocker->party,
+                    severity: $blocker->severity,
+                    since: $blocker->since,
+                    evidenceRefs: $blocker->evidenceRefs,
+                    clearsWhen: $blocker->clearsWhen,
+                    explanation: $explanation,
+                );
+            },
+            $this->blockers,
+        );
+
+        $risks = array_map(
+            function (CaseIntelligenceRisk $risk) use ($reasoning): CaseIntelligenceRisk {
+                $explanation = $reasoning->riskExplanations[$risk->key] ?? null;
+
+                if ($explanation === null || $risk->explanation === $explanation) {
+                    return $risk;
+                }
+
+                return new CaseIntelligenceRisk(
+                    key: $risk->key,
+                    label: $risk->label,
+                    category: $risk->category,
+                    severity: $risk->severity,
+                    confidenceScore: $risk->confidenceScore,
+                    evidenceRefs: $risk->evidenceRefs,
+                    source: $risk->source,
+                    explanation: $explanation,
+                );
+            },
+            $this->risks,
+        );
+
+        return new self(
+            incidentId: $this->incidentId,
+            orderId: $this->orderId,
+            generatedAt: $this->generatedAt,
+            schemaVersion: self::SCHEMA_VERSION,
+            currentStatusCode: $this->currentStatusCode,
+            currentStatusLabel: $this->currentStatusLabel,
+            slaStatus: $this->slaStatus,
+            isWaiting: $this->isWaiting,
+            waitingParty: $this->waitingParty,
+            waitingReasonCode: $this->waitingReasonCode,
+            waitingReasonLabel: $this->waitingReasonLabel,
+            waitingSince: $this->waitingSince,
+            blockers: $blockers,
+            journey: $this->journey,
+            supportAppointment: $this->supportAppointment,
+            engineerUserId: $this->engineerUserId,
+            engineerName: $this->engineerName,
+            lastPayment: $this->lastPayment,
+            serialMissing: $this->serialMissing,
+            customerSummary: $this->customerSummary,
+            activeServices: $this->activeServices,
+            enrichmentMetadata: $this->enrichmentMetadata,
+            waitingStateCard: $this->waitingStateCard,
+            timeline: $this->timeline,
+            risks: $risks,
+            priorityLevel: $this->priorityLevel,
+            priorityDrivers: $this->priorityDrivers,
+            recommendedAction: $this->recommendedAction,
+            executiveSummary: new IRAExecutiveSummaryDTO(
+                executiveSummary: $executiveFacts,
+                opinion: $this->executiveSummary->opinion,
+                recommendation: $canonicalRecommendation,
+                serialInsight: $this->executiveSummary->serialInsight,
+            ),
+            evidence: $this->evidence,
+            confidenceLevel: $this->confidenceLevel,
+            confidenceScore: $this->confidenceScore,
+            openQuestions: $this->openQuestions,
+            supervisorInsights: $this->supervisorInsights,
+            customerMoodLevel: $this->customerMoodLevel,
+            aiBundle: $this->aiBundle,
+            context: $this->context,
+            operationsAdvisorInsights: $this->operationsAdvisorInsights,
+            workbench: $this->workbench,
+            advisorViewModel: $this->advisorViewModel,
+            evidenceViewItems: $this->evidenceViewItems,
+            reasoning: $reasoning,
+            caseStory: $caseStory,
+            incidentCreatedAt: $this->incidentCreatedAt,
+            incidentUpdatedAt: $this->incidentUpdatedAt,
+        );
+    }
 
     /**
      * @return list<array{title: string, source: string, tone: string}>
@@ -103,7 +222,7 @@ readonly class CaseIntelligenceSnapshot
 
     /**
      * Facts-only projection safe to send to a future language enhancer.
-     * Excludes raw timeline event collections.
+     * Prefers Case Story. Excludes raw timeline event collections.
      *
      * @return array<string, mixed>
      */
@@ -114,6 +233,22 @@ readonly class CaseIntelligenceSnapshot
             'incident_id' => $this->incidentId,
             'order_id' => $this->orderId,
             'generated_at' => $this->generatedAt->toIso8601String(),
+            'case_story' => $this->caseStory?->toArray(),
+            'reasoning' => $this->reasoning === null ? null : [
+                'matched_rule_keys' => $this->reasoning->matchedRuleKeys,
+                'executive_summary_facts' => $this->reasoning->executiveSummaryFacts,
+                'recommended_action_reasoning' => $this->reasoning->recommendedActionReasoning,
+                'findings' => array_map(
+                    fn (CaseReasoningFinding $finding): array => [
+                        'key' => $finding->key,
+                        'title' => $finding->title,
+                        'category' => $finding->category,
+                        'severity' => $finding->severity->value,
+                        'explanation' => $finding->explanation,
+                    ],
+                    $this->reasoning->findings,
+                ),
+            ],
             'current_status' => [
                 'code' => $this->currentStatusCode,
                 'label' => $this->currentStatusLabel,

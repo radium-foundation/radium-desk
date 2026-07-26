@@ -38,6 +38,7 @@ use App\Support\Customer360\Customer360CommunicationActionStatusPresenter;
 use App\Support\Customer360\Customer360HealthCardPresenter;
 use App\Support\Customer360\Customer360InsightsPresenter;
 use App\Support\Customer360\Customer360IraAdvisorPresenter;
+use App\Support\Customer360\Customer360IraPanelPresenter;
 use App\Support\Customer360\Customer360OverflowMenuPresenter;
 use App\Support\Customer360\Journey\CustomerJourneyBuilder;
 use App\Support\Customer360\RdServiceStatusResolver;
@@ -73,6 +74,7 @@ class Customer360Service
         private readonly Customer360HealthCardPresenter $healthCardPresenter,
         private readonly Customer360InsightsPresenter $insightsPresenter,
         private readonly Customer360IraAdvisorPresenter $iraAdvisorPresenter,
+        private readonly Customer360IraPanelPresenter $iraPanelPresenter,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly Customer360CommunicationActionStatusPresenter $communicationActionStatusPresenter,
         private readonly Customer360RecentCommunicationService $recentCommunicationService,
@@ -232,19 +234,39 @@ class Customer360Service
         }
 
         $snapshot = $this->caseIntelligenceSnapshot($incident);
-        $executiveSummary = $snapshot?->executiveSummary ?? $this->legacyExecutiveSummary($incident);
+        $canRequestCorrectSerial = $this->requestCorrectSerialEligibilityService->canShowAction($incident);
+        $correctSerialRequestState = $this->correctSerialRequestState($order);
+        $translateUrl = route('dashboard.service-cases.customer-360.executive-summary.translate', $incident);
 
-        if ($executiveSummary === null) {
-            return ['html' => ''];
+        if ($snapshot !== null) {
+            $iraPanel = $this->iraPanelPresenter->present(
+                snapshot: $snapshot,
+                incident: $incident,
+                canRequestCorrectSerial: $canRequestCorrectSerial,
+                correctSerialRequestState: $correctSerialRequestState,
+                translateUrl: $translateUrl,
+            );
+        } else {
+            $executiveSummary = $this->legacyExecutiveSummary($incident);
+
+            if ($executiveSummary === null) {
+                return ['html' => ''];
+            }
+
+            $iraPanel = $this->iraPanelPresenter->presentFromExecutiveSummary(
+                executiveSummary: $executiveSummary,
+                incident: $incident,
+                evidenceItems: null,
+                canRequestCorrectSerial: $canRequestCorrectSerial,
+                correctSerialRequestState: $correctSerialRequestState,
+                translateUrl: $translateUrl,
+            );
         }
 
         return [
             'html' => view('customer-360.partials.executive-summary', [
                 'incident' => $incident,
-                'executiveSummary' => $executiveSummary,
-                'evidenceItems' => $snapshot?->evidenceForView() ?? null,
-                'canRequestCorrectSerial' => $this->requestCorrectSerialEligibilityService->canShowAction($incident),
-                'correctSerialRequestState' => $this->correctSerialRequestState($order),
+                'iraPanel' => $iraPanel,
             ])->render(),
         ];
     }

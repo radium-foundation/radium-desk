@@ -9,6 +9,7 @@ use App\Data\SerialInsight;
 use App\Enums\SerialInsightStatus;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Services\SerialValidation\SerialInsightService;
+use Illuminate\Support\Carbon;
 
 /**
  * Builds structured evidence from domain facts (not UI string heuristics).
@@ -106,15 +107,24 @@ class CaseEvidenceBuilder
 
         $appointment = $facts->supportAppointment;
         if (is_array($appointment)) {
+            $isOverdue = $this->isAppointmentOverdue($appointment);
+            $isActive = (bool) ($appointment['is_active'] ?? false);
+
             $evidence[] = new CaseIntelligenceEvidence(
                 id: 'appointment',
-                title: ($appointment['is_active'] ?? false)
-                    ? 'Support appointment scheduled'
-                    : 'Support appointment on record',
+                title: match (true) {
+                    $isOverdue => 'Support appointment overdue',
+                    $isActive => 'Support appointment scheduled',
+                    default => 'Support appointment on record',
+                },
                 source: 'Appointments',
-                tone: ($appointment['is_active'] ?? false) ? 'positive' : 'neutral',
+                tone: match (true) {
+                    $isOverdue => 'negative',
+                    $isActive => 'positive',
+                    default => 'neutral',
+                },
                 occurredAt: $appointment['preferred_date'] ?? null,
-                supportsFields: ['appointment', 'current_status'],
+                supportsFields: ['appointment', 'current_status', 'blockers'],
             );
         }
 
@@ -153,6 +163,31 @@ class CaseEvidenceBuilder
             ],
             $evidence,
         );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $appointment
+     */
+    private function isAppointmentOverdue(?array $appointment): bool
+    {
+        if (! is_array($appointment)) {
+            return false;
+        }
+
+        if (! (bool) ($appointment['is_active'] ?? false) || (bool) ($appointment['is_completed'] ?? false)) {
+            return false;
+        }
+
+        $preferredDate = $appointment['preferred_date'] ?? null;
+        if ($preferredDate instanceof Carbon) {
+            return $preferredDate->copy()->startOfDay()->lt(now()->startOfDay());
+        }
+
+        if (is_string($preferredDate) && $preferredDate !== '') {
+            return Carbon::parse($preferredDate)->startOfDay()->lt(now()->startOfDay());
+        }
+
+        return false;
     }
 
     /**
