@@ -77,13 +77,15 @@ class Customer360ExecutiveSummaryTest extends TestCase
     {
         [$agent, $incident] = $this->createIncidentWithoutSerial();
 
+        $opinion = 'This appears to be a straightforward serial-number pending case. Obtaining the serial should unblock warranty validation and allow engineering to proceed.';
+        $recommendation = 'Request the serial immediately, verify warranty once received, and proactively update the customer regarding SLA.';
+
         $payload = [
             'executive_summary' => [
-                'Customer purchased an FM220 and currently has one active repair.',
-                'The device serial number is still missing, causing service delay.',
+                'This is a high-priority service case for FM220. Progress is blocked because the device serial number has not been provided. Current owner: Jayram. Serial number still needs verification.',
             ],
-            'opinion' => 'This appears to be a straightforward serial-number pending case. Obtaining the serial should unblock warranty validation and allow engineering to proceed.',
-            'recommendation' => 'Request the serial immediately, verify warranty once received, and proactively update the customer regarding SLA.',
+            'opinion' => $opinion,
+            'recommendation' => $recommendation,
         ];
 
         $response = $this->actingAs($agent)->postJson(
@@ -92,9 +94,11 @@ class Customer360ExecutiveSummaryTest extends TestCase
         );
 
         $response->assertOk()
-            ->assertJsonPath('executive_summary.0', fn ($line) => str_contains((string) $line, 'ग्राहक'))
-            ->assertJsonPath('opinion', fn ($line) => str_contains((string) $line, 'सीरियल'))
-            ->assertJsonPath('recommendation', fn ($line) => str_contains((string) $line, 'तुरंत'));
+            ->assertJsonPath('executive_summary.0', fn ($line) => str_contains((string) $line, 'हाई-प्रायोरिटी'))
+            ->assertJsonPath('executive_summary.0', fn ($line) => str_contains((string) $line, 'FM220'))
+            ->assertJsonPath('executive_summary.0', fn ($line) => str_contains((string) $line, 'Jayram'))
+            ->assertJsonPath('opinion', $opinion)
+            ->assertJsonPath('recommendation', $recommendation);
     }
 
     public function test_executive_summary_includes_serial_intelligence_for_invalid_serial(): void

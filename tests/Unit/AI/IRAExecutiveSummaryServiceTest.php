@@ -182,19 +182,25 @@ class IRAExecutiveSummaryServiceTest extends TestCase
 
     public function test_translation_service_translates_executive_summary_payload(): void
     {
+        $opinion = 'This appears to be a straightforward serial-number pending case. Obtaining the serial should unblock warranty validation and allow engineering to proceed.';
+        $recommendation = 'Request the serial immediately, verify warranty once received, and proactively update the customer regarding SLA.';
+
         $translated = app(\App\Services\AI\IRAExecutiveSummaryTranslationService::class)
             ->translatePayloadToHindi([
                 'executive_summary' => [
                     'Customer purchased an FM220 and currently has one active repair.',
                     'The device serial number is still missing, causing service delay.',
                 ],
-                'opinion' => 'This appears to be a straightforward serial-number pending case. Obtaining the serial should unblock warranty validation and allow engineering to proceed.',
-                'recommendation' => 'Request the serial immediately, verify warranty once received, and proactively update the customer regarding SLA.',
+                'opinion' => $opinion,
+                'recommendation' => $recommendation,
             ]);
 
-        $this->assertStringContainsString('ग्राहक ने खरीदा', $translated['executive_summary'][0]);
-        $this->assertStringContainsString('सीरियल-नंबर लंबित केस', $translated['opinion']);
-        $this->assertStringContainsString('तुरंत सीरियल माँगें', $translated['recommendation']);
+        $this->assertStringContainsString('ग्राहक ने', $translated['executive_summary'][0]);
+        $this->assertStringContainsString('FM220', $translated['executive_summary'][0]);
+        $this->assertStringContainsString('सीरियल नंबर', $translated['executive_summary'][1]);
+        // Narrative-only: companions stay English.
+        $this->assertSame($opinion, $translated['opinion']);
+        $this->assertSame($recommendation, $translated['recommendation']);
     }
 
     public function test_scheduled_appointment_appears_in_executive_summary(): void

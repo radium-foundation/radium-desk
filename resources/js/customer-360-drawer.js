@@ -967,33 +967,27 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         };
 
         const renderPayload = (payload) => {
+            // Hindi toggle translates Executive Narrative only — never Brief / Next Action /
+            // Communication / Contributors / opinion blocks.
             const executiveBlock = contentRoot.querySelector('[data-ira-summary-block="executive"]');
-            const opinionBlock = contentRoot.querySelector('[data-ira-summary-block="opinion"]');
-            const recommendationBlock = contentRoot.querySelector('[data-ira-summary-block="recommendation"]');
 
-            if (executiveBlock) {
-                const lines = (payload.executive_summary ?? []).filter((line) => {
-                    return !(typeof line === 'string' && line.startsWith('Customer journey:'));
+            if (!executiveBlock) {
+                return;
+            }
+
+            const lines = (payload.executive_summary ?? []).filter((line) => {
+                return !(typeof line === 'string' && line.startsWith('Customer journey:'));
+            });
+
+            if (executiveBlock.dataset.iraSummaryMode === 'narrative' || executiveBlock.tagName === 'P') {
+                executiveBlock.textContent = lines.join(' ');
+            } else {
+                executiveBlock.innerHTML = '';
+                lines.forEach((line) => {
+                    const item = document.createElement('li');
+                    item.textContent = line;
+                    executiveBlock.appendChild(item);
                 });
-
-                if (executiveBlock.dataset.iraSummaryMode === 'narrative' || executiveBlock.tagName === 'P') {
-                    executiveBlock.textContent = lines.join(' ');
-                } else {
-                    executiveBlock.innerHTML = '';
-                    lines.forEach((line) => {
-                        const item = document.createElement('li');
-                        item.textContent = line;
-                        executiveBlock.appendChild(item);
-                    });
-                }
-            }
-
-            if (opinionBlock) {
-                opinionBlock.textContent = payload.opinion ?? '';
-            }
-
-            if (recommendationBlock) {
-                recommendationBlock.textContent = payload.recommendation ?? '';
             }
         };
 
