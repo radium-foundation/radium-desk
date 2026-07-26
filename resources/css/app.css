@@ -2111,6 +2111,34 @@ a:focus-visible .stat-card {
     color: var(--dashboard-color-heading, #0f172a);
 }
 
+.team-activity-name-block {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+}
+
+.team-activity-badge {
+    flex-shrink: 0;
+    padding: 0.0625rem 0.375rem;
+    border-radius: var(--dashboard-radius-pill);
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--dashboard-color-muted, #6c757d);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.team-activity-row-summary--virtual {
+    cursor: default;
+}
+
+.team-activity-row.is-virtual .team-activity-chevron {
+    display: none;
+}
+
 .team-activity-status-block {
     display: flex;
     flex-direction: column;

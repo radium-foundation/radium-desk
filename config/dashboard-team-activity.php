@@ -19,6 +19,41 @@ return [
 
     'max_expanded_agents' => 20,
 
+    'ira_agent_id' => 0,
+
+    'ira_display_name' => 'IRA',
+
+    'ira_badge' => 'AI / Automation',
+
+    /*
+    |--------------------------------------------------------------------------
+    | IRA virtual member (Team Activity)
+    |--------------------------------------------------------------------------
+    */
+    'ira_event_allowlist' => [
+        'service_case.automation.payment_received',
+        'service_case.automation.waiting_radiumbox',
+        'service_case.automation.radiumbox_verified',
+        'service_case.automation.validation_passed',
+        'service_case.automation.validation_failed',
+        'service_case.automation.waiting_manual_correction',
+        'service_case.automation_pending',
+        'service_case.customer_waiting_auto_closed',
+        'serial.corrected_by_ira',
+    ],
+
+    'ira_event_count_allowlist' => [
+        'service_case.automation.payment_received',
+        'service_case.automation.waiting_radiumbox',
+        'service_case.automation.radiumbox_verified',
+        'service_case.automation.validation_passed',
+        'service_case.automation.validation_failed',
+        'service_case.automation.waiting_manual_correction',
+        'service_case.automation_pending',
+        'service_case.customer_waiting_auto_closed',
+        'serial.corrected_by_ira',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Business audit events counted / shown in Team Activity
@@ -51,6 +86,8 @@ return [
         'radiumbox.sync.manual',
         'legacy_order.imported',
         'missed_call_recovery.created',
+        'approval_numbers.submitted',
+        'approval_numbers.deleted',
         'user.availability_changed',
         'workforce.leave.approved',
         'service_case.automation.payment_received',
@@ -60,6 +97,45 @@ return [
         'service_case.automation.validation_failed',
         'service_case.automation.waiting_manual_correction',
         'service_case.customer_waiting_auto_closed',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Human operational KPI allowlist (Today · N activities only)
+    |--------------------------------------------------------------------------
+    |
+    | Counts meaningful completed business operations, not raw audit volume.
+    | Latest Activity and expanded history continue using event_allowlist above.
+    |
+    | The generic "created" / "deleted" events are morph-filtered in
+    | TeamActivityPanelService for remarks only. Approval numbers use
+    | approval_numbers.submitted / approval_numbers.deleted business events.
+    |
+    */
+    'event_count_allowlist' => [
+        'service_case.assigned',
+        'service_case.reassigned',
+        'service_case.status_changed',
+        'service_case.escalated',
+        'service_case.customer_waiting_started',
+        'service_reference.driver_guide_sent',
+        'whatsapp.template_sent',
+        'incoming_email.linked',
+        'incoming_email.promoted_to_service_case',
+        'created',
+        'deleted',
+        'serial.assigned',
+        'order.updated',
+        'order.identity.corrected',
+        'refund.approved',
+        'refund.rejected',
+        'refund.completed',
+        'radiumbox.sync.manual',
+        'legacy_order.imported',
+        'missed_call_recovery.created',
+        'workforce.leave.approved',
+        'approval_numbers.submitted',
+        'approval_numbers.deleted',
     ],
 
     /*
@@ -119,6 +195,8 @@ return [
         'radiumbox.sync.manual' => 'RadiumBox Synced',
         'legacy_order.imported' => 'Legacy Imported',
         'missed_call_recovery.created' => 'IVR Call',
+        'approval_numbers.submitted' => 'Approval Saved',
+        'approval_numbers.deleted' => 'Approval Deleted',
         'user.availability_changed' => 'Availability Changed',
         'workforce.leave.approved' => 'Leave Approved',
         'service_case.automation.payment_received' => 'IRA Payment Received',

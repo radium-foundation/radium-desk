@@ -3,6 +3,7 @@
 namespace App\Data;
 
 use App\Enums\TeamActivityStatus;
+use Illuminate\Support\Carbon;
 
 readonly class TeamActivityAgentRow
 {
@@ -21,6 +22,9 @@ readonly class TeamActivityAgentRow
         public ?TeamActivityEntry $latest,
         public array $history = [],
         public bool $expanded = false,
+        public bool $isVirtual = false,
+        public ?string $badge = null,
+        public ?Carbon $latestActivityAt = null,
     ) {}
 
     /**
@@ -43,6 +47,9 @@ readonly class TeamActivityAgentRow
                 $this->history,
             ),
             'expanded' => $this->expanded,
+            'is_virtual' => $this->isVirtual,
+            'badge' => $this->badge,
+            'latest_activity_at' => $this->latestActivityAt?->toIso8601String(),
         ];
     }
 }

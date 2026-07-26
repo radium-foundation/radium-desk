@@ -95,6 +95,13 @@ class ApprovalNumberTest extends TestCase
             'auditable_id' => $approval->id,
             'user_id' => $admin->id,
         ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => ApprovalNumberService::EVENT_SUBMITTED,
+            'auditable_type' => $approval->getMorphClass(),
+            'auditable_id' => $approval->id,
+            'user_id' => $admin->id,
+        ]);
     }
 
     public function test_approval_reference_numbers_increment_per_year(): void
@@ -238,6 +245,13 @@ class ApprovalNumberTest extends TestCase
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'deleted',
+            'auditable_type' => $approval->getMorphClass(),
+            'auditable_id' => $approval->id,
+            'user_id' => $superadmin->id,
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => ApprovalNumberService::EVENT_DELETED,
             'auditable_type' => $approval->getMorphClass(),
             'auditable_id' => $approval->id,
             'user_id' => $superadmin->id,

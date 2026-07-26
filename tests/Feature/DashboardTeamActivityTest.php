@@ -171,10 +171,11 @@ class DashboardTeamActivityTest extends TestCase
         $names = array_map(static fn ($agent) => $agent->name, $panel->agents);
 
         $this->assertFalse($panel->empty);
-        $this->assertCount(3, $panel->agents);
+        $this->assertCount(4, $panel->agents);
         $this->assertContains('On Duty Agent', $names);
         $this->assertContains('Off Duty Agent', $names);
         $this->assertContains('Leave Agent', $names);
+        $this->assertContains('IRA', $names);
         $this->assertNotContains('Super Admin', $names);
 
         Carbon::setTestNow();
@@ -201,7 +202,7 @@ class DashboardTeamActivityTest extends TestCase
             ->getJson(route('dashboard.team-activity'))
             ->assertOk()
             ->assertJsonPath('empty', false)
-            ->assertJsonPath('agent_count', 2)
+            ->assertJsonPath('agent_count', 3)
             ->json('html');
 
         $this->assertStringContainsString('Off Duty Agent', $html);
@@ -225,7 +226,7 @@ class DashboardTeamActivityTest extends TestCase
         $html = (string) $this->actingAs($viewer)
             ->getJson(route('dashboard.team-activity'))
             ->assertOk()
-            ->assertJsonPath('agent_count', 1)
+            ->assertJsonPath('agent_count', 2)
             ->json('html');
 
         $this->assertStringContainsString('Early Agent', $html);
