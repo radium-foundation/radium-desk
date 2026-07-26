@@ -17,6 +17,7 @@ use App\Services\Customer360\Intelligence\Builders\CaseRecommendationBuilder;
 use App\Services\Customer360\Intelligence\Builders\CaseRiskBuilder;
 use App\Services\Customer360\Intelligence\Builders\CaseStateBuilder;
 use App\Services\Customer360\Intelligence\Builders\CaseSummaryBuilder;
+use App\Services\Customer360\Intelligence\Builders\CommunicationSummaryBuilder;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\ServiceCaseEscalationService;
 use App\Support\Customer360\Customer360HealthCardPresenter;
@@ -40,6 +41,7 @@ class CaseIntelligenceEngine
         private readonly CaseStateBuilder $stateBuilder,
         private readonly CaseRiskBuilder $riskBuilder,
         private readonly CaseEvidenceBuilder $evidenceBuilder,
+        private readonly CommunicationSummaryBuilder $communicationSummaryBuilder,
         private readonly CaseRecommendationBuilder $recommendationBuilder,
         private readonly CaseSummaryBuilder $summaryBuilder,
         private readonly AIService $aiService,
@@ -103,10 +105,13 @@ class CaseIntelligenceEngine
         $state = $this->stateBuilder->build($facts, $aiBundle);
         $riskProjection = $this->riskBuilder->build($aiBundle, $operationsAdvisorInsights);
         $evidence = $this->evidenceBuilder->build($facts, $aiBundle);
+        $communicationSummary = $this->communicationSummaryBuilder->build($facts, $aiBundle);
         $executiveSummary = $this->summaryBuilder->build(
             $facts->incident,
             $aiBundle,
             $facts,
+            $state,
+            $communicationSummary,
             $operationsAdvisorInsights,
         );
         $recommendation = $this->recommendationBuilder->build(
@@ -119,7 +124,7 @@ class CaseIntelligenceEngine
             $canEscalate,
         );
         $recommendedAction = $recommendation['recommended_action'];
-        // Single canonical recommendation — executive summary must not diverge (Q2).
+        // Single canonical recommendation — executive summary next-action section must match (Q2).
         $executiveSummary = $this->withCanonicalRecommendation($executiveSummary, $recommendedAction);
         $workbench = $this->workbenchService->buildFromBundle($facts->incident, $aiBundle);
 
@@ -167,6 +172,7 @@ class CaseIntelligenceEngine
             evidenceViewItems: $this->evidenceBuilder->toViewItems($evidence),
             incidentCreatedAt: $facts->incident->created_at,
             incidentUpdatedAt: $facts->incident->updated_at,
+            communicationSummary: $communicationSummary,
         );
 
         $snapshot = $this->reasoningEngine->enrich($snapshot);
@@ -188,8 +194,14 @@ class CaseIntelligenceEngine
             $text = $recommendedAction->label;
         }
 
+        $sections = array_values(array_filter(
+            $executiveSummary->executiveSummary,
+            fn (string $line): bool => ! str_starts_with(strtolower(trim($line)), 'next action:'),
+        ));
+        $sections[] = 'Next action: '.$text;
+
         return new IRAExecutiveSummaryDTO(
-            executiveSummary: $executiveSummary->executiveSummary,
+            executiveSummary: $sections,
             opinion: $executiveSummary->opinion,
             recommendation: $text,
             serialInsight: $executiveSummary->serialInsight,

@@ -131,6 +131,7 @@ class CaseIntelligenceSnapshotFactory
             'caseStory' => null,
             'incidentCreatedAt' => null,
             'incidentUpdatedAt' => null,
+            'communicationSummary' => null,
         ];
 
         $data = array_merge($defaults, $overrides);
@@ -182,6 +183,7 @@ class CaseIntelligenceSnapshotFactory
             caseStory: $data['caseStory'],
             incidentCreatedAt: $data['incidentCreatedAt'],
             incidentUpdatedAt: $data['incidentUpdatedAt'],
+            communicationSummary: $data['communicationSummary'],
         );
     }
 

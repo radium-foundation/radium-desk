@@ -21,7 +21,7 @@ use Illuminate\Support\Carbon;
  */
 readonly class CaseIntelligenceSnapshot
 {
-    public const SCHEMA_VERSION = '1.2';
+    public const SCHEMA_VERSION = '1.3';
 
     /**
      * @param  array<string, int>  $customerSummary
@@ -85,19 +85,16 @@ readonly class CaseIntelligenceSnapshot
         public ?CaseStory $caseStory = null,
         public ?Carbon $incidentCreatedAt = null,
         public ?Carbon $incidentUpdatedAt = null,
+        public ?CommunicationSummary $communicationSummary = null,
     ) {}
 
     /**
      * Clone with deterministic reasoning enrichment applied.
      * Does not invent or alter the canonical recommendedAction (Q2).
+     * Does not dump reasoning findings into the executive briefing narrative.
      */
     public function withReasoning(CaseReasoningResult $reasoning, CaseStory $caseStory): self
     {
-        $executiveFacts = array_values(array_unique([
-            ...$this->executiveSummary->executiveSummary,
-            ...$reasoning->executiveSummaryFacts,
-        ]));
-
         $canonicalRecommendation = (string) (
             $this->recommendedAction->recommendationText
             ?? $this->recommendedAction->label
@@ -177,7 +174,7 @@ readonly class CaseIntelligenceSnapshot
             priorityDrivers: $this->priorityDrivers,
             recommendedAction: $this->recommendedAction,
             executiveSummary: new IRAExecutiveSummaryDTO(
-                executiveSummary: $executiveFacts,
+                executiveSummary: $this->executiveSummary->executiveSummary,
                 opinion: $this->executiveSummary->opinion,
                 recommendation: $canonicalRecommendation,
                 serialInsight: $this->executiveSummary->serialInsight,
@@ -198,6 +195,7 @@ readonly class CaseIntelligenceSnapshot
             caseStory: $caseStory,
             incidentCreatedAt: $this->incidentCreatedAt,
             incidentUpdatedAt: $this->incidentUpdatedAt,
+            communicationSummary: $this->communicationSummary,
         );
     }
 
@@ -234,6 +232,13 @@ readonly class CaseIntelligenceSnapshot
             'order_id' => $this->orderId,
             'generated_at' => $this->generatedAt->toIso8601String(),
             'case_story' => $this->caseStory?->toArray(),
+            'communication_summary' => $this->communicationSummary?->toArray(),
+            'recommended_action' => $this->recommendedAction->toArray(),
+            'evidence' => array_map(
+                fn (CaseIntelligenceEvidence $item): array => $item->toArray(),
+                $this->evidence,
+            ),
+            'executive_summary' => $this->executiveSummary->toArray(),
             'reasoning' => $this->reasoning === null ? null : [
                 'matched_rule_keys' => $this->reasoning->matchedRuleKeys,
                 'executive_summary_facts' => $this->reasoning->executiveSummaryFacts,
@@ -299,12 +304,6 @@ readonly class CaseIntelligenceSnapshot
                 'level' => $this->priorityLevel,
                 'drivers' => $this->priorityDrivers,
             ],
-            'recommended_action' => $this->recommendedAction->toArray(),
-            'executive_summary' => $this->executiveSummary->toArray(),
-            'evidence' => array_map(
-                fn (CaseIntelligenceEvidence $item): array => $item->toArray(),
-                $this->evidence,
-            ),
             'confidence' => [
                 'level' => $this->confidenceLevel->value,
                 'score' => $this->confidenceScore,
