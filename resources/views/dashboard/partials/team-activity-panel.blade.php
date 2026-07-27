@@ -33,11 +33,20 @@
                 <div class="team-activity-grid-header" role="row">
                     <span class="team-activity-grid-header__cell team-activity-col--member" role="columnheader">Team Member</span>
                     <span class="team-activity-grid-header__cell team-activity-col--status" role="columnheader">Status</span>
-                    <span class="team-activity-grid-header__cell team-activity-col--presence" role="columnheader">Presence</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--presence" role="columnheader">
+                        <span class="team-activity-grid-header__title">Presence</span>
+                        <span class="team-activity-grid-header__sub team-activity-presence-head" aria-hidden="true">
+                            <span>Today</span>
+                            <span>Current</span>
+                            <span>Sessions</span>
+                        </span>
+                        <span class="visually-hidden">Today, Current, Sessions</span>
+                    </span>
                     <span class="team-activity-grid-header__cell team-activity-col--kpi"
                           role="columnheader"
-                          title="Outcome + Effort KPIs vary by role. Support: Cases Worked + Customer Touches. Activation: Orders Activated + Activation Sessions.">
-                        Today's Activity
+                          title="Support: Cases Worked with Customer Touches as superscript. Activation: Orders Activated with Activation Sessions as superscript.">
+                        <span class="team-activity-grid-header__title">Today's Activity</span>
+                        <span class="team-activity-grid-header__sub">Outcome</span>
                         <span class="visually-hidden">Outcome · Effort</span>
                     </span>
                     <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>

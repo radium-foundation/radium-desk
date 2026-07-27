@@ -10,16 +10,18 @@
     $effortLabel = $agent->effortLabel ?? 'Customer Touches';
     $outcomeCount = $agent->outcomeCount ?? $agent->todayCount;
     $effortCount = $agent->effortCount ?? 0;
-    $isActivationProfile = $agent->kpiProfile?->value === 'activation';
-    $kpiTitle = $isActivationProfile
-        ? 'Outcome: orders activated today. Effort: activation sessions (one successful submit = one session).'
-        : 'Outcome: unique customer cases (Reference Nos.) worked today. Effort: customer touches (calls, WhatsApp, emails, remarks, status updates).';
-    $outcomeAriaLabel = $outcomeCount === 1
-        ? "1 {$outcomeLabel}"
-        : number_format($outcomeCount).' '.$outcomeLabel;
-    $effortAriaLabel = $effortCount === 1
-        ? "1 {$effortLabel}"
-        : number_format($effortCount).' '.$effortLabel;
+
+    // Primary = business outcome, superscript = supporting effort (both roles).
+    $primaryCount = $outcomeCount;
+    $superscriptCount = $effortCount;
+    $primaryLabel = $outcomeLabel;
+    $superscriptLabel = $effortLabel;
+    $kpiTitle = number_format($primaryCount).' '.$primaryLabel."\n".number_format($superscriptCount).' '.$superscriptLabel;
+
+    $kpiAriaLabel = ($outcomeCount === 1 ? "1 {$outcomeLabel}" : number_format($outcomeCount).' '.$outcomeLabel)
+        .'; '
+        .($effortCount === 1 ? "1 {$effortLabel}" : number_format($effortCount).' '.$effortLabel);
+
     $hasPresenceMetrics = ! $agent->isVirtual && (
         filled($agent->todayDurationLabel)
         || filled($agent->currentDurationLabel)
@@ -66,25 +68,10 @@
 
         <span class="team-activity-col team-activity-col--presence" role="cell">
             @if($hasPresenceMetrics)
-                <span class="team-activity-presence">
-                    @if(filled($agent->todayDurationLabel))
-                        <span class="team-activity-metric">
-                            <span class="team-activity-metric-label">Today</span>
-                            <span class="team-activity-metric-value">{{ $agent->todayDurationLabel }}</span>
-                        </span>
-                    @endif
-                    @if(filled($agent->currentDurationLabel))
-                        <span class="team-activity-metric">
-                            <span class="team-activity-metric-label">Current</span>
-                            <span class="team-activity-metric-value">{{ $agent->currentDurationLabel }}</span>
-                        </span>
-                    @endif
-                    @if(filled($agent->sessionsToday))
-                        <span class="team-activity-metric">
-                            <span class="team-activity-metric-label">Sessions</span>
-                            <span class="team-activity-metric-value">{{ number_format($agent->sessionsToday) }}</span>
-                        </span>
-                    @endif
+                <span class="team-activity-presence" aria-label="Today {{ $agent->todayDurationLabel ?: '—' }}, Current {{ $agent->currentDurationLabel ?: '—' }}, Sessions {{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}">
+                    <span class="team-activity-metric-value">{{ $agent->todayDurationLabel ?: '—' }}</span>
+                    <span class="team-activity-metric-value">{{ $agent->currentDurationLabel ?: '—' }}</span>
+                    <span class="team-activity-metric-value">{{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}</span>
                 </span>
             @else
                 <span class="team-activity-presence team-activity-presence--empty" aria-hidden="true">—</span>
@@ -93,29 +80,36 @@
 
         <span class="team-activity-col team-activity-col--kpi" role="cell">
             @if($agent->isVirtual)
-                <span class="team-activity-kpi team-activity-kpi--ira team-activity-today-activity"
-                      title="Unique customer cases (Reference Nos.) you worked on today. Multiple actions on the same case count once."
-                      aria-label="{{ $outcomeAriaLabel }}@if(filled($agent->supplementaryKpiCount)) +{{ number_format($agent->supplementaryKpiCount) }} {{ $agent->supplementaryKpiLabel }}@endif">
-                    <span class="team-activity-today-activity__metric">
+                @php
+                    $iraTitle = 'Unique customer cases (Reference Nos.) you worked on today. Multiple actions on the same case count once.';
+                    $iraAria = $agent->todayCount === 1
+                        ? '1 Cases Worked'
+                        : number_format($agent->todayCount).' Cases Worked';
+                    if ($agent->supplementaryKpiCount !== null) {
+                        $iraAria .= ' +'.number_format($agent->supplementaryKpiCount).' '.($agent->supplementaryKpiLabel ?: 'automation');
+                    }
+                @endphp
+                <span class="team-activity-kpi team-activity-kpi--ira team-activity-today-activity team-activity-kpi-compact"
+                      title="{{ $iraTitle }}"
+                      aria-label="{{ $iraAria }}">
+                    <span class="team-activity-kpi-compact__figure">
                         <span class="team-activity-kpi-count">{{ number_format($agent->todayCount) }}</span>
-                        <span class="team-activity-kpi-label team-activity-today-activity__label">Cases Worked</span>
+                        @if($agent->supplementaryKpiCount !== null)
+                            <sup class="team-activity-kpi-compact__sup team-activity-kpi-supplementary">{{ number_format($agent->supplementaryKpiCount) }}</sup>
+                        @endif
                     </span>
-                    @if($agent->supplementaryKpiCount !== null)
-                        <span class="team-activity-kpi-supplementary team-activity-today-activity__supplementary">+{{ number_format($agent->supplementaryKpiCount) }}</span>
-                    @endif
+                    <span class="visually-hidden team-activity-kpi-label">Cases Worked</span>
                 </span>
             @else
-                <span class="team-activity-kpi team-activity-kpi--dual team-activity-today-activity"
+                <span class="team-activity-kpi team-activity-kpi--dual team-activity-today-activity team-activity-kpi-compact"
                       title="{{ $kpiTitle }}"
-                      aria-label="{{ $outcomeAriaLabel }}; {{ $effortAriaLabel }}">
-                    <span class="team-activity-today-activity__metric team-activity-kpi-primary">
-                        <span class="team-activity-kpi-count">{{ number_format($outcomeCount) }}</span>
-                        <span class="team-activity-kpi-label team-activity-today-activity__label">{{ $outcomeLabel }}</span>
+                      aria-label="{{ $kpiAriaLabel }}">
+                    <span class="team-activity-kpi-compact__figure">
+                        <span class="team-activity-kpi-count">{{ number_format($primaryCount) }}</span>
+                        <sup class="team-activity-kpi-compact__sup">{{ number_format($superscriptCount) }}</sup>
                     </span>
-                    <span class="team-activity-today-activity__metric team-activity-kpi-secondary">
-                        <span class="team-activity-kpi-count">{{ number_format($effortCount) }}</span>
-                        <span class="team-activity-kpi-label team-activity-today-activity__label">{{ $effortLabel }}</span>
-                    </span>
+                    <span class="visually-hidden team-activity-kpi-label">{{ $primaryLabel }}</span>
+                    <span class="visually-hidden team-activity-kpi-label">{{ $superscriptLabel }}</span>
                 </span>
             @endif
         </span>
