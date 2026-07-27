@@ -123,22 +123,19 @@ class CustomerTimelineTest extends TestCase
         foreach (range(1, 10) as $index) {
             AuditLog::query()->create([
                 'user_id' => $agent->id,
-                'event' => 'order.updated',
-                'auditable_type' => $order->getMorphClass(),
-                'auditable_id' => $order->id,
-                'old_values' => ['customer_name' => "Old {$index}"],
-                'new_values' => [
-                    'customer_name' => "New {$index}",
-                    'correction_reason' => 'Test correction',
-                ],
+                'event' => ServiceCaseAutomationMonitorService::EVENT_PAYMENT_RECEIVED,
+                'auditable_type' => $incident->getMorphClass(),
+                'auditable_id' => $incident->id,
+                'old_values' => [],
+                'new_values' => ['amount' => $index],
                 'created_at' => now()->subMinutes($index),
                 'updated_at' => now()->subMinutes($index),
             ]);
         }
 
-        $viewModel = app(Customer360TimelineService::class)->forIncident($incident, offset: 8);
+        $viewModel = app(Customer360TimelineService::class)->businessForIncident($incident, offset: 8);
 
-        $this->assertGreaterThan(0, $viewModel->events()->count());
+        $this->assertGreaterThan(0, $viewModel->items()->count());
         $this->assertFalse($viewModel->hasMore);
 
         $response = $this->actingAs($agent)->get(route('dashboard.service-cases.customer-360.timeline', [
@@ -147,7 +144,8 @@ class CustomerTimelineTest extends TestCase
         ]));
 
         $response->assertOk();
-        $response->assertSee('data-timeline-event', false);
+        $response->assertSee('data-timeline-milestone', false);
+        $response->assertDontSee('Load older milestones', false);
         $response->assertDontSee('Load older events', false);
     }
 
@@ -190,8 +188,10 @@ class CustomerTimelineTest extends TestCase
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('Activity', $timelineHtml);
+        $this->assertStringContainsString('Timeline', $timelineHtml);
         $this->assertStringContainsString('data-unified-timeline', $timelineHtml);
+        $this->assertStringContainsString('data-business-timeline', $timelineHtml);
         $this->assertStringContainsString('Payment received', $timelineHtml);
+        $this->assertStringContainsString('Show Raw Events', $timelineHtml);
     }
 }

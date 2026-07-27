@@ -1,5 +1,6 @@
 @props([
     'event',
+    'nestedRaw' => false,
 ])
 
 @php
@@ -7,6 +8,7 @@
     use App\Services\RemarkMentionFormatter;
     use App\Support\Timeline\TimelineActorPresenter;
 
+    $isNestedRaw = (bool) $nestedRaw;
     $isInternalNote = $event->type === TimelineEventType::InternalNote;
     $isIncomingEmail = str_starts_with($event->dedupeKey, 'incoming_email:');
     $incomingEmailId = $isIncomingEmail
@@ -23,11 +25,16 @@
         'c360-activity-item',
         'c360-activity-item--' . $event->type->value,
         'c360-activity-item--indicator-' . $indicatorVariant,
+        'c360-business-timeline-raw-event' => $isNestedRaw,
     ])
          role="listitem"
-         data-timeline-event
-         @if($event->storyKey) data-timeline-story-key="{{ $event->storyKey }}" @endif
-         data-timeline-filter="{{ implode(',', $event->allFilterTags()) }}">
+         @if($isNestedRaw)
+             data-timeline-raw-event
+         @else
+             data-timeline-event
+             @if($event->storyKey) data-timeline-story-key="{{ $event->storyKey }}" @endif
+             data-timeline-filter="{{ implode(',', $event->allFilterTags()) }}"
+         @endif>
     <div class="c360-activity-item-indicator" aria-hidden="true"></div>
 
     <div class="c360-activity-item-body">

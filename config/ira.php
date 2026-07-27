@@ -21,6 +21,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Customer 360 Business Timeline (Timeline tab presentation)
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, the Timeline tab composes operator-visible events into
+    | business milestones with collapsed repeats. Disable to instantly roll
+    | back to the flat activity feed. Does not affect Case Intelligence.
+    |
+    */
+    'business_timeline' => [
+        'enabled' => (bool) env('IRA_BUSINESS_TIMELINE', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Case Reasoning Engine (deterministic enrichment)
     |--------------------------------------------------------------------------
     |

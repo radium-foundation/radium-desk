@@ -6,10 +6,19 @@
     'loadMoreUrl' => null,
     'showLoadMore' => true,
     'showFilters' => true,
+    'businessTimeline' => false,
+    'timelineQuery' => null,
 ])
 
 @php
-    /** @var \App\Data\TimelineViewModel $viewModel */
+    $isBusiness = (bool) $businessTimeline;
+    $activeQuery = filled($timelineQuery) ? (string) $timelineQuery : null;
+    if ($activeQuery === null && $isBusiness && isset($viewModel->query)) {
+        $activeQuery = $viewModel->query;
+    }
+    $searchEmptyDescription = filled($activeQuery)
+        ? 'No timeline matches for “'.$activeQuery.'”.'
+        : null;
     $filterEmptyMessages = [
         'all' => $emptyMessage,
         'system' => 'No system events',
@@ -22,13 +31,31 @@
     ];
 @endphp
 
-<div {{ $attributes->merge(['class' => 'c360-activity-panel']) }}
+<div {{ $attributes->merge(['class' => 'c360-activity-panel'.($isBusiness ? ' c360-activity-panel--business' : '')]) }}
      data-c360-activity-panel
-     data-unified-timeline>
+     data-unified-timeline
+     @if($isBusiness) data-business-timeline @endif
+     @if($loadMoreUrl) data-timeline-base-url="{{ $loadMoreUrl }}" @endif>
+
     @if($showHeading)
         <div class="c360-activity-panel-header">
             <h3 class="c360-activity-panel-heading">{{ $heading }}</h3>
-            <p class="c360-activity-panel-subtitle mb-0">Complete operational history in one chronological feed.</p>
+            <p class="c360-activity-panel-subtitle mb-0">
+                {{ $isBusiness ? 'Business milestones in chronological order. Expand any row for raw events.' : 'Complete operational history in one chronological feed.' }}
+            </p>
+        </div>
+    @endif
+
+    @if($isBusiness)
+        <div class="c360-activity-panel-search">
+            <label class="visually-hidden" for="c360-timeline-search">Search timeline</label>
+            <input type="search"
+                   id="c360-timeline-search"
+                   class="form-control form-control-sm c360-timeline-search-input"
+                   placeholder="Search timeline…"
+                   value="{{ $activeQuery }}"
+                   data-timeline-search
+                   autocomplete="off">
         </div>
     @endif
 
@@ -71,15 +98,25 @@
     @endif
 
     @if($viewModel->isEmpty())
-        <x-c360.empty-state
-            icon="bi-clock-history"
-            title="No activity yet"
-            description="Customer interactions, system events, and support actions will appear here as they happen."
-            action-label="View all filters"
-            data-c360-empty-focus-timeline-filters
-            class="c360-activity-panel-empty unified-timeline-empty"
-            data-timeline-global-empty
-        />
+        @if(filled($activeQuery))
+            <x-c360.empty-state
+                icon="bi-search"
+                title="No timeline matches"
+                :description="$searchEmptyDescription"
+                class="c360-activity-panel-empty unified-timeline-empty"
+                data-timeline-global-empty
+            />
+        @else
+            <x-c360.empty-state
+                icon="bi-clock-history"
+                title="No activity yet"
+                description="Customer interactions, system events, and support actions will appear here as they happen."
+                action-label="View all filters"
+                data-c360-empty-focus-timeline-filters
+                class="c360-activity-panel-empty unified-timeline-empty"
+                data-timeline-global-empty
+            />
+        @endif
     @else
         <div class="c360-activity-panel-feed unified-timeline" role="list" data-timeline-list>
             @foreach($viewModel->groups as $group)
@@ -89,9 +126,15 @@
                         {{ $group->label() }}
                     </h4>
                     <div class="c360-activity-panel-group-items unified-timeline-group-items" role="list">
-                        @foreach($group->events as $event)
-                            <x-c360.activity-item :event="$event" />
-                        @endforeach
+                        @if($isBusiness)
+                            @foreach($group->items as $item)
+                                <x-c360.business-timeline-item :item="$item" />
+                            @endforeach
+                        @else
+                            @foreach($group->events as $event)
+                                <x-c360.activity-item :event="$event" />
+                            @endforeach
+                        @endif
                     </div>
                 </section>
             @endforeach
@@ -105,8 +148,9 @@
                         data-timeline-load-more
                         data-timeline-load-more-url="{{ $loadMoreUrl }}"
                         data-timeline-offset="{{ $viewModel->loadedCount }}"
-                        data-timeline-total="{{ $viewModel->totalCount }}">
-                    Load older events
+                        data-timeline-total="{{ $viewModel->totalCount }}"
+                        @if(filled($activeQuery)) data-timeline-query="{{ $activeQuery }}" @endif>
+                    {{ $isBusiness ? 'Load older milestones' : 'Load older events' }}
                 </button>
             </div>
         @endif

@@ -250,11 +250,12 @@ class Customer360Controller extends Controller
         $this->authorize('view', $incident);
 
         $offset = max(0, (int) $request->query('offset', 0));
+        $query = filled($request->query('q')) ? trim((string) $request->query('q')) : null;
         $loadTab = $request->query('tab') === '1' && $offset === 0;
 
         if ($loadTab && $request->wantsJson()) {
             $startedAt = microtime(true);
-            $payload = $this->customer360Service->timelineTabPayload($incident, $offset);
+            $payload = $this->customer360Service->timelineTabPayload($incident, $offset, $query);
 
             Log::info('customer360.drawer.timeline_tab', [
                 'incident_id' => $incident->id,
@@ -268,7 +269,7 @@ class Customer360Controller extends Controller
             ]);
         }
 
-        $payload = $this->customer360Service->timelinePayload($incident, $offset);
+        $payload = $this->customer360Service->timelinePayload($incident, $offset, $query);
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -280,7 +281,9 @@ class Customer360Controller extends Controller
 
         $html = view('customer-360.partials.timeline-page', [
             'viewModel' => $payload['timeline'],
+            'businessTimeline' => $payload['business'] ?? false,
             'loadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
+            'timelineQuery' => $query,
         ])->render();
 
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);

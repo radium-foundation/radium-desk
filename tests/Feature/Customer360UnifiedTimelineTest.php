@@ -133,7 +133,7 @@ class Customer360UnifiedTimelineTest extends TestCase
         $response->assertOk();
         $response->assertJsonStructure(['html', 'has_more', 'loaded_count']);
         $html = (string) $response->json('html');
-        $this->assertStringContainsString('Activity', $html);
+        $this->assertStringContainsString('Timeline', $html);
         $this->assertStringNotContainsString('Operations Health', $html);
         $this->assertStringNotContainsString('SLA Metrics', $html);
         $this->assertStringContainsString('data-customer-360-activity-panel', $html);

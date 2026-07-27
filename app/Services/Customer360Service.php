@@ -7,6 +7,7 @@ use App\Data\AI\CustomerJourneyBuildContext;
 use App\Data\AI\AIWorkbenchDTO;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
+use App\Data\Timeline\BusinessTimelineViewModel;
 use App\Data\TimelineViewModel;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\SupportAppointmentStatus;
@@ -319,20 +320,90 @@ class Customer360Service
 
 
     /**
-     * @return array{timeline: TimelineViewModel, html: string, customerHealthCard: array<string, mixed>|null, customerInsights: list<array{key: string, label: string, description: string, icon: string}>, iraAdvisor: array<string, mixed>|null}
+     * @return array{timeline: TimelineViewModel|BusinessTimelineViewModel, html: string, business: bool}
      */
-    public function timelineTabPayload(Incident $incident, int $offset = 0): array
+    public function timelineTabPayload(Incident $incident, int $offset = 0, ?string $query = null): array
     {
         $incident->loadMissing('order');
-        $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
         $timelineUrl = route('dashboard.service-cases.customer-360.timeline', $incident);
+        $businessEnabled = (bool) config('ira.business_timeline.enabled', true);
+
+        if ($businessEnabled) {
+            $viewModel = $this->customer360TimelineService->businessForIncident(
+                $incident,
+                $offset,
+                null,
+                $query,
+            );
+
+            return [
+                'timeline' => $viewModel,
+                'business' => true,
+                'html' => view('customer-360.partials.timeline-tab', [
+                    'timeline' => $viewModel,
+                    'businessTimeline' => true,
+                    'timelineLoadMoreUrl' => $timelineUrl,
+                    'timelineRefreshUrl' => $timelineUrl,
+                    'timelineQuery' => $query,
+                ])->render(),
+            ];
+        }
+
+        $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
 
         return [
             'timeline' => $viewModel,
+            'business' => false,
             'html' => view('customer-360.partials.timeline-tab', [
                 'timeline' => $viewModel,
+                'businessTimeline' => false,
                 'timelineLoadMoreUrl' => $timelineUrl,
                 'timelineRefreshUrl' => $timelineUrl,
+                'timelineQuery' => null,
+            ])->render(),
+        ];
+    }
+
+    /**
+     * @return array{timeline: TimelineViewModel|BusinessTimelineViewModel, html: string, business: bool}
+     */
+    public function timelinePayload(Incident $incident, int $offset = 0, ?string $query = null): array
+    {
+        $businessEnabled = (bool) config('ira.business_timeline.enabled', true);
+        $timelineUrl = route('dashboard.service-cases.customer-360.timeline', $incident);
+
+        if ($businessEnabled) {
+            $viewModel = $this->customer360TimelineService->businessForIncident(
+                $incident,
+                $offset,
+                null,
+                $query,
+            );
+
+            return [
+                'timeline' => $viewModel,
+                'business' => true,
+                'html' => view('customer-360.partials.timeline-section', [
+                    'viewModel' => $viewModel,
+                    'businessTimeline' => true,
+                    'loadMoreUrl' => $timelineUrl,
+                    'timelineRefreshUrl' => $timelineUrl,
+                    'timelineQuery' => $query,
+                ])->render(),
+            ];
+        }
+
+        $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
+
+        return [
+            'timeline' => $viewModel,
+            'business' => false,
+            'html' => view('customer-360.partials.timeline-section', [
+                'viewModel' => $viewModel,
+                'businessTimeline' => false,
+                'loadMoreUrl' => $timelineUrl,
+                'timelineRefreshUrl' => $timelineUrl,
+                'timelineQuery' => null,
             ])->render(),
         ];
     }
@@ -449,23 +520,6 @@ class Customer360Service
                 'aiWorkbench' => $workbench,
             ])->render(),
             'workbench' => $workbench,
-        ];
-    }
-
-    /**
-     * @return array{timeline: \App\Data\TimelineViewModel, html: string}
-     */
-    public function timelinePayload(Incident $incident, int $offset = 0): array
-    {
-        $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
-
-        return [
-            'timeline' => $viewModel,
-            'html' => view('customer-360.partials.timeline-section', [
-                'viewModel' => $viewModel,
-                'loadMoreUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
-                'timelineRefreshUrl' => route('dashboard.service-cases.customer-360.timeline', $incident),
-            ])->render(),
         ];
     }
 

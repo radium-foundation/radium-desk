@@ -148,16 +148,18 @@ const openIncomingEmailModal = async (messageId) => {
 };
 
 export const initIncomingEmailModal = (root = document) => {
-    if (root.dataset.incomingEmailModalBound === 'true') {
+    const bindTarget = root?.dataset ? root : document.body;
+
+    if (bindTarget.dataset.incomingEmailModalBound === 'true') {
         return;
     }
 
-    root.dataset.incomingEmailModalBound = 'true';
+    bindTarget.dataset.incomingEmailModalBound = 'true';
 
-    root.addEventListener('click', (event) => {
+    bindTarget.addEventListener('click', (event) => {
         const button = event.target.closest('[data-incoming-email-read-full]');
 
-        if (! button || ! root.contains(button)) {
+        if (! button || ! bindTarget.contains(button)) {
             return;
         }
 

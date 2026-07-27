@@ -199,8 +199,10 @@ class Customer360ServiceTest extends TestCase
 
         $payload = app(Customer360Service::class)->timelineTabPayload($incident);
 
-        $this->assertInstanceOf(\App\Data\TimelineViewModel::class, $payload['timeline']);
-        $this->assertStringContainsString('Activity', $payload['html']);
+        $this->assertInstanceOf(\App\Data\Timeline\BusinessTimelineViewModel::class, $payload['timeline']);
+        $this->assertTrue($payload['business']);
+        $this->assertStringContainsString('Timeline', $payload['html']);
+        $this->assertStringContainsString('data-business-timeline', $payload['html']);
         $this->assertStringNotContainsString('Operations Health', $payload['html']);
         $this->assertStringNotContainsString('SLA Metrics', $payload['html']);
         $this->assertStringNotContainsString('Customer health', $payload['html']);

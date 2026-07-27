@@ -2,9 +2,12 @@
 
 namespace App\Services\Timeline;
 
+use App\Data\Timeline\BusinessTimelineViewModel;
+use App\Data\TimelineEvent;
 use App\Data\TimelineViewModel;
 use App\Models\Incident;
 use App\Models\Order;
+use Illuminate\Support\Collection;
 
 class Customer360TimelineService
 {
@@ -13,6 +16,7 @@ class Customer360TimelineService
         private readonly Customer360TimelineRequestCache $timelineRequestCache,
         private readonly Customer360TimelineSourceRegistry $sourceRegistry,
         private readonly Customer360OperatorTimelinePresentation $operatorPresentation,
+        private readonly BusinessTimelineComposer $businessTimelineComposer,
     ) {}
 
     public function forIncident(Incident $incident, int $offset = 0, ?int $limit = null): TimelineViewModel
@@ -31,20 +35,15 @@ class Customer360TimelineService
             );
         }
 
-        $sources = $this->sourceRegistry->sourcesForOrder($order);
+        $sources = $this->sourcesForIncident($incident);
 
-        $originOrder = $incident->inquiryOriginOrder;
-
-        if ($originOrder !== null) {
-            foreach ($this->sourceRegistry->sourcesForOrder($originOrder) as $source) {
-                $sources[] = new PrefixedTimelineEventSource(
-                    source: $source,
-                    prefix: "inquiry-origin:{$originOrder->id}:",
-                );
-            }
-        }
-
-        return $this->buildOperatorView($sources, $order, $offset, $limit, $originOrder === null ? $order->id : null);
+        return $this->buildOperatorView(
+            sources: $sources,
+            order: $order,
+            offset: $offset,
+            limit: $limit,
+            cacheKey: $incident->inquiryOriginOrder === null ? $order->id : null,
+        );
     }
 
     public function forOrder(Order $order, int $offset = 0, ?int $limit = null): TimelineViewModel
@@ -56,6 +55,75 @@ class Customer360TimelineService
             limit: $limit,
             cacheKey: $order->id,
         );
+    }
+
+    /**
+     * Timeline-tab Business Timeline presentation. Does not affect forOrder()/Intelligence.
+     */
+    public function businessForIncident(
+        Incident $incident,
+        int $offset = 0,
+        ?int $limit = null,
+        ?string $query = null,
+    ): BusinessTimelineViewModel {
+        $pageSize = $limit ?? TimelineService::DEFAULT_PAGE_SIZE;
+        $events = $this->operatorVisibleEventsForIncident($incident);
+
+        return $this->businessTimelineComposer->compose($events, $offset, $pageSize, $query);
+    }
+
+    /**
+     * @return Collection<int, TimelineEvent>
+     */
+    public function operatorVisibleEventsForIncident(Incident $incident): Collection
+    {
+        $incident->loadMissing(['order', 'inquiryOriginOrder']);
+        $order = $incident->order;
+
+        if ($order === null) {
+            return collect();
+        }
+
+        $sources = $this->sourcesForIncident($incident);
+        $cacheKey = $incident->inquiryOriginOrder === null ? $order->id : null;
+        $rawEvents = $cacheKey !== null
+            ? $this->timelineRequestCache->get($cacheKey)
+            : null;
+
+        if ($rawEvents === null) {
+            $rawEvents = $this->timelineService->mergeSources($sources);
+
+            if ($cacheKey !== null) {
+                $this->timelineRequestCache->put($cacheKey, $rawEvents);
+            }
+        }
+
+        return $this->operatorPresentation->apply($rawEvents, $order);
+    }
+
+    /**
+     * @return list<\App\Contracts\Timeline\TimelineEventSource>
+     */
+    private function sourcesForIncident(Incident $incident): array
+    {
+        $order = $incident->order;
+        if ($order === null) {
+            return [];
+        }
+
+        $sources = $this->sourceRegistry->sourcesForOrder($order);
+        $originOrder = $incident->inquiryOriginOrder;
+
+        if ($originOrder !== null) {
+            foreach ($this->sourceRegistry->sourcesForOrder($originOrder) as $source) {
+                $sources[] = new PrefixedTimelineEventSource(
+                    source: $source,
+                    prefix: "inquiry-origin:{$originOrder->id}:",
+                );
+            }
+        }
+
+        return $sources;
     }
 
     /**
@@ -86,4 +154,3 @@ class Customer360TimelineService
         return $this->timelineService->paginate($operatorEvents, $offset, $pageSize);
     }
 }
-

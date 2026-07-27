@@ -1,5 +1,6 @@
 @php
-    /** @var \App\Data\TimelineViewModel $viewModel */
+    $businessTimeline = $businessTimeline ?? false;
+    $timelineQuery = $timelineQuery ?? null;
 @endphp
 
 @foreach($viewModel->groups as $group)
@@ -9,9 +10,15 @@
             {{ $group->label() }}
         </h4>
         <div class="c360-activity-panel-group-items unified-timeline-group-items" role="list">
-            @foreach($group->events as $event)
-                <x-c360.activity-item :event="$event" />
-            @endforeach
+            @if($businessTimeline)
+                @foreach($group->items as $item)
+                    <x-c360.business-timeline-item :item="$item" />
+                @endforeach
+            @else
+                @foreach($group->events as $event)
+                    <x-c360.activity-item :event="$event" />
+                @endforeach
+            @endif
         </div>
     </section>
 @endforeach
@@ -23,8 +30,9 @@
                 data-timeline-load-more
                 data-timeline-load-more-url="{{ $loadMoreUrl }}"
                 data-timeline-offset="{{ $viewModel->loadedCount }}"
-                data-timeline-total="{{ $viewModel->totalCount }}">
-            Load older events
+                data-timeline-total="{{ $viewModel->totalCount }}"
+                @if(filled($timelineQuery)) data-timeline-query="{{ $timelineQuery }}" @endif>
+            {{ $businessTimeline ? 'Load older milestones' : 'Load older events' }}
         </button>
     </div>
 @else
