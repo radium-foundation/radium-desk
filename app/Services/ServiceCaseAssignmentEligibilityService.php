@@ -32,6 +32,7 @@ class ServiceCaseAssignmentEligibilityService
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
+        private readonly ServiceCaseStatusService $statusService,
     ) {}
 
     public function evaluateAssignmentEligibility(Order $order, User $actor): void
@@ -211,6 +212,11 @@ class ServiceCaseAssignmentEligibilityService
                 return;
             }
 
+            // Cashfree (and similar) cases start as AwaitingProductDetails. Once identity
+            // validation succeeds they are Ready-eligible and must become Open before
+            // assignment so OperationsQueueClassifier / Ready Queue can include them.
+            $incident = $this->promoteAwaitingProductDetailsToOpen($incident, $actor);
+
             $this->readyQueueStrategy->assign(
                 AssignmentRequest::make(
                     incident: $incident,
@@ -219,6 +225,21 @@ class ServiceCaseAssignmentEligibilityService
                 ),
             );
         });
+    }
+
+    private function promoteAwaitingProductDetailsToOpen(Incident $incident, User $actor): Incident
+    {
+        if ($incident->status !== IncidentStatus::AwaitingProductDetails) {
+            return $incident;
+        }
+
+        $updated = $this->statusService->updateStatus(
+            incident: $incident,
+            status: IncidentStatus::Open,
+            actor: $actor,
+        );
+
+        return $updated->fresh(['order', 'assignee', 'supportAppointments']) ?? $updated;
     }
 
     private function hasModelIdentity(Order $order): bool
