@@ -311,9 +311,10 @@ class PresenceEngineTest extends TestCase
         app(PresenceEngineService::class)->startSession($agent);
 
         $session = WorkSession::query()->where('user_id', $agent->id)->first();
+        $staleAt = now()->subMinutes(10);
         $session?->update([
-            'last_activity_at' => now()->subMinutes(10),
-            'last_tick_at' => now()->subMinutes(10),
+            'last_activity_at' => $staleAt,
+            'last_tick_at' => $staleAt,
         ]);
 
         app(TeamMemberActivityService::class)->recordCustomerCommunication($agent);
@@ -321,8 +322,13 @@ class PresenceEngineTest extends TestCase
         $agent->refresh();
         $session->refresh();
 
-        $this->assertSame(PresenceStatus::Active, app(PresenceEngineService::class)->presenceStatus($agent));
+        // Business productivity may attach to an open session, but must not extend presence.
+        $this->assertSame(PresenceStatus::Idle, app(PresenceEngineService::class)->presenceStatus($agent));
         $this->assertSame(1, $session->communication_events_count);
+        $this->assertSame(
+            $staleAt->format('Y-m-d H:i:s'),
+            $session->last_activity_at?->format('Y-m-d H:i:s'),
+        );
     }
 
     public function test_heartbeat_records_presence_activity(): void

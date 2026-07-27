@@ -33,7 +33,11 @@ class PresenceHeartbeatController extends Controller
             ], 401);
         }
 
-        $this->presenceEngine->recordActivity($user, PresenceActivityType::Heartbeat);
+        $this->presenceEngine->recordActivity(
+            $user,
+            PresenceActivityType::Heartbeat,
+            createIfMissing: true,
+        );
 
         $snapshot = $this->presenceEngine->snapshotFor($user);
 

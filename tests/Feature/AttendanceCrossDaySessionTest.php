@@ -60,7 +60,7 @@ class AttendanceCrossDaySessionTest extends TestCase
         ]);
 
         Carbon::setTestNow(Carbon::parse('2026-07-07 11:30:00', 'Asia/Kolkata'));
-        $presence->recordActivity($agent);
+        $presence->recordActivity($agent, createIfMissing: true);
 
         $resolved = app(AttendanceRegisterService::class)->resolveDay(
             user: $agent,
@@ -128,7 +128,7 @@ class AttendanceCrossDaySessionTest extends TestCase
         $presence->startSession($agent);
 
         Carbon::setTestNow(Carbon::parse('2026-07-07 09:05:00', 'Asia/Kolkata'));
-        $presence->recordActivity($agent);
+        $presence->recordActivity($agent, createIfMissing: true);
 
         $sessions = WorkSession::query()
             ->where('user_id', $agent->id)

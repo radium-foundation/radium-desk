@@ -90,17 +90,39 @@ class PresenceEngineService
         return $session->fresh();
     }
 
+    /**
+     * Record presence-related activity against a work session.
+     *
+     * Session creation is gated by $createIfMissing:
+     * - true  → authenticated browser paths (login already uses startSession;
+     *           heartbeat / middleware pass true)
+     * - false → business / assignment / automation / queue / webhook callers
+     *           may attach productivity to an existing open session only
+     *
+     * When $createIfMissing is false, presence is not extended
+     * (last_activity_at is left unchanged).
+     */
     public function recordActivity(
         User $user,
         PresenceActivityType $type = PresenceActivityType::System,
         ?Carbon $at = null,
+        bool $createIfMissing = false,
     ): ?WorkSession {
         if (! $this->tracksPresence($user)) {
             return null;
         }
 
         $at ??= now();
-        $session = $this->openSessionFor($user) ?? $this->startSession($user, $at);
+        $extendsPresence = $createIfMissing;
+        $session = $this->openSessionFor($user);
+
+        if ($session === null) {
+            if (! $createIfMissing) {
+                return null;
+            }
+
+            $session = $this->startSession($user, $at);
+        }
 
         if ($session === null) {
             return null;
@@ -112,6 +134,11 @@ class PresenceEngineService
                 WorkSessionEndReason::SessionReplaced,
                 $session->work_date->copy()->endOfDay(),
             );
+
+            if (! $createIfMissing) {
+                return null;
+            }
+
             $session = $this->startSession($user, $at);
 
             if ($session === null) {
@@ -119,7 +146,7 @@ class PresenceEngineService
             }
         }
 
-        $this->tickSession($session, $at, hasActivity: true);
+        $this->tickSession($session, $at, hasActivity: $extendsPresence);
         $this->incrementAppraisalCounters($session, $type);
         $session->refresh();
 

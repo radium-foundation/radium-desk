@@ -41,7 +41,12 @@ class TeamMemberActivityService
                 return;
             }
 
-            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::System);
+            // Business/system productivity path: never create or extend a desk session.
+            $this->presenceEngine->recordActivity(
+                $freshUser,
+                PresenceActivityType::System,
+                createIfMissing: false,
+            );
         });
     }
 
@@ -57,7 +62,12 @@ class TeamMemberActivityService
             $this->touchMany($freshUser, $this->activityColumnsIncludingLastActiveIfDue($freshUser, [
                 'last_case_action_at',
             ]));
-            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::CaseAction);
+            // Productivity only — PresenceEngine refuses to create/extend WorkSession here.
+            $this->presenceEngine->recordActivity(
+                $freshUser,
+                PresenceActivityType::CaseAction,
+                createIfMissing: false,
+            );
             $this->workforceActivityContextService->touchBusinessAction($freshUser, 'case.action');
         });
     }
@@ -74,7 +84,11 @@ class TeamMemberActivityService
             $this->touchMany($freshUser, $this->activityColumnsIncludingLastActiveIfDue($freshUser, [
                 'last_customer_communication_at',
             ]));
-            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::CustomerCommunication);
+            $this->presenceEngine->recordActivity(
+                $freshUser,
+                PresenceActivityType::CustomerCommunication,
+                createIfMissing: false,
+            );
             $this->workforceActivityContextService->touchBusinessAction($freshUser, 'communication.sent');
         });
     }
@@ -92,9 +106,17 @@ class TeamMemberActivityService
                 'last_status_change_at',
                 'last_case_action_at',
             ]));
-            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::CaseAction);
+            $this->presenceEngine->recordActivity(
+                $freshUser,
+                PresenceActivityType::CaseAction,
+                createIfMissing: false,
+            );
             $this->workforceActivityContextService->touchBusinessAction($freshUser, 'case.action');
-            $this->presenceEngine->recordActivity($freshUser, PresenceActivityType::StatusChange);
+            $this->presenceEngine->recordActivity(
+                $freshUser,
+                PresenceActivityType::StatusChange,
+                createIfMissing: false,
+            );
             $this->workforceActivityContextService->touchBusinessAction($freshUser, 'service_case.status_changed');
         });
     }

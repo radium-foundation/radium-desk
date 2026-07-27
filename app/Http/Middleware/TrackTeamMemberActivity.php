@@ -48,7 +48,11 @@ class TrackTeamMemberActivity
 
         if ($user !== null && $request->isMethodSafe()) {
             $this->activityService->recordSystemActivity($user);
-            $this->presenceEngine->recordActivity($user, PresenceActivityType::System);
+            $this->presenceEngine->recordActivity(
+                $user,
+                PresenceActivityType::System,
+                createIfMissing: true,
+            );
 
             if ($this->roleService->isTeamMember($user)) {
                 $this->iraAssignmentTelegramBatchService->flushForUserIfPending($user);
