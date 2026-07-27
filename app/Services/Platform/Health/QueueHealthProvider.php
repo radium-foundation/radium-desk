@@ -5,7 +5,10 @@ namespace App\Services\Platform\Health;
 use App\Contracts\Platform\PlatformHealthProvider;
 use App\Data\Platform\PlatformHealthComponent;
 use App\Enums\PlatformHealthStatus;
+use App\Enums\QueueWorkerMode;
 use App\Infrastructure\Queue\QueueMetricsService;
+use App\Infrastructure\Queue\QueueMetricsSnapshot;
+use Illuminate\Support\Carbon;
 
 class QueueHealthProvider implements PlatformHealthProvider
 {
@@ -31,39 +34,23 @@ class QueueHealthProvider implements PlatformHealthProvider
     public function probe(): PlatformHealthComponent
     {
         $checkedAt = now();
-        $cronWorkerEnabled = (bool) config('infrastructure.queue_cron_worker_enabled');
+        $workerMode = QueueWorkerMode::fromConfig();
 
-        if (! $cronWorkerEnabled) {
+        if (! $workerMode->isActive()) {
             return new PlatformHealthComponent(
                 key: $this->key(),
                 label: $this->label(),
                 status: PlatformHealthStatus::Disabled,
-                detail: 'Cron queue worker is disabled.',
+                detail: 'Queue worker is disabled.',
                 checkedAt: $checkedAt,
                 metrics: [
-                    'cron_worker_enabled' => false,
+                    'queue_worker_mode' => $workerMode->value,
                 ],
             );
         }
 
         $snapshot = $this->queueMetrics->latest() ?? $this->queueMetrics->capture();
-
-        if ($snapshot->failedJobs > 0) {
-            $status = PlatformHealthStatus::Critical;
-            $detail = "{$snapshot->failedJobs} failed job(s) in the dead-letter queue.";
-        } elseif ($snapshot->pendingJobs > 50) {
-            $status = PlatformHealthStatus::Warning;
-            $detail = "{$snapshot->pendingJobs} pending job(s) waiting.";
-        } elseif (
-            $snapshot->oldestPendingJobAt !== null
-            && $snapshot->oldestPendingJobAt->lt($checkedAt->copy()->subMinutes(30))
-        ) {
-            $status = PlatformHealthStatus::Warning;
-            $detail = 'Oldest pending job is over 30 minutes old.';
-        } else {
-            $status = PlatformHealthStatus::Healthy;
-            $detail = 'Queue worker is processing normally.';
-        }
+        [$status, $detail] = $this->assessSnapshot($workerMode, $snapshot, $checkedAt);
 
         return new PlatformHealthComponent(
             key: $this->key(),
@@ -72,11 +59,51 @@ class QueueHealthProvider implements PlatformHealthProvider
             detail: $detail,
             checkedAt: $checkedAt,
             metrics: [
-                'cron_worker_enabled' => true,
+                'queue_worker_mode' => $workerMode->value,
                 'pending_jobs' => $snapshot->pendingJobs,
                 'failed_jobs' => $snapshot->failedJobs,
                 'oldest_pending_job_at' => $snapshot->oldestPendingJobAt?->toIso8601String(),
             ],
         );
+    }
+
+    /**
+     * @return array{0: PlatformHealthStatus, 1: string}
+     */
+    private function assessSnapshot(
+        QueueWorkerMode $workerMode,
+        QueueMetricsSnapshot $snapshot,
+        Carbon $checkedAt,
+    ): array {
+        $prefix = "Queue worker ({$workerMode->value})";
+
+        if ($snapshot->failedJobs > 0) {
+            return [
+                PlatformHealthStatus::Critical,
+                "{$prefix}: {$snapshot->failedJobs} failed job(s) in the dead-letter queue.",
+            ];
+        }
+
+        if ($snapshot->pendingJobs > 50) {
+            return [
+                PlatformHealthStatus::Warning,
+                "{$prefix}: {$snapshot->pendingJobs} pending job(s) waiting.",
+            ];
+        }
+
+        if (
+            $snapshot->oldestPendingJobAt !== null
+            && $snapshot->oldestPendingJobAt->lt($checkedAt->copy()->subMinutes(30))
+        ) {
+            return [
+                PlatformHealthStatus::Warning,
+                "{$prefix}: oldest pending job is over 30 minutes old.",
+            ];
+        }
+
+        return [
+            PlatformHealthStatus::Healthy,
+            "{$prefix} is healthy.",
+        ];
     }
 }

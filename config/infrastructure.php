@@ -1,21 +1,46 @@
 <?php
 
+use App\Enums\QueueWorkerMode;
+
+$legacyCronWorkerEnabled = filter_var(
+    env('QUEUE_CRON_WORKER_ENABLED', false),
+    FILTER_VALIDATE_BOOLEAN,
+);
+
+$queueWorkerMode = QueueWorkerMode::resolve(
+    env('QUEUE_WORKER_MODE'),
+    $legacyCronWorkerEnabled,
+);
+
 return [
 
     /*
     |--------------------------------------------------------------------------
-    | Cron Queue Worker
+    | Queue Worker Mode
     |--------------------------------------------------------------------------
     |
-    | When enabled, the scheduler runs a short-lived queue worker every minute.
-    | Intended for shared hosting (e.g. Hostinger) without a persistent worker.
+    | How background jobs are drained in this environment:
+    | disabled, scheduler, dedicated_cron, supervisor, horizon
+    |
+    | When QUEUE_WORKER_MODE is unset, QUEUE_CRON_WORKER_ENABLED=true maps to
+    | scheduler; false maps to disabled.
     |
     */
 
-    'queue_cron_worker_enabled' => filter_var(
-        env('QUEUE_CRON_WORKER_ENABLED', false),
-        FILTER_VALIDATE_BOOLEAN,
-    ),
+    'queue_worker_mode' => $queueWorkerMode->value,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cron Queue Worker (legacy)
+    |--------------------------------------------------------------------------
+    |
+    | Derived from queue_worker_mode for backward compatibility. True only when
+    | mode is scheduler (in-schedule queue:work). Health probes still read this
+    | until migrated to queue_worker_mode.
+    |
+    */
+
+    'queue_cron_worker_enabled' => $queueWorkerMode === QueueWorkerMode::Scheduler,
 
     /*
     |--------------------------------------------------------------------------

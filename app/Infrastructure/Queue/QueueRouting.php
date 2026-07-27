@@ -45,4 +45,15 @@ final class QueueRouting
 
         return implode(',', $names);
     }
+
+    /**
+     * Short-lived database worker for Hostinger cron (scheduler or dedicated Cron #2).
+     */
+    public static function scheduledWorkerCommand(): string
+    {
+        return sprintf(
+            'queue:work database --queue=%s --stop-when-empty --max-time=55 --tries=3 --sleep=1',
+            self::workerOrder(),
+        );
+    }
 }

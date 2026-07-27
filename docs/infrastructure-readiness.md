@@ -112,7 +112,7 @@ Local development uses `composer dev` which runs `queue:listen` — acceptable f
 
 | Risk | Severity | Status | Mitigation |
 |------|----------|--------|------------|
-| No cron queue worker on Hostinger | **High** | Configurable | Set `QUEUE_CRON_WORKER_ENABLED=true` + Hostinger cron |
+| No cron queue worker on Hostinger | **High** | Configurable | Set `QUEUE_WORKER_MODE=dedicated_cron` + Cron #2; or legacy `scheduler` + Cron #1 only |
 | RadiumBox enrichment delayed up to 1 min on shared hosting | Medium | Accepted | Cron every minute; acceptable for background enrichment |
 | Order workspace page calls RadiumBox synchronously | Medium | Documented | `OrderController::show()` → `enrichOrderForWorkspace()`; 5s timeout; cached via `RadiumBoxRequestCache` |
 | Duplicate Cashfree webhook processing | Low | Mitigated | Idempotency via `cashfree_payment_id` + processed webhook log lookup |
@@ -139,7 +139,7 @@ DB_CONNECTION=mysql
 # ... Hostinger MySQL credentials ...
 
 QUEUE_CONNECTION=database
-QUEUE_CRON_WORKER_ENABLED=true
+QUEUE_WORKER_MODE=dedicated_cron
 INFRASTRUCTURE_METRICS_ENABLED=true
 
 CACHE_STORE=database
@@ -154,34 +154,78 @@ BROADCAST_CONNECTION=log
 DASHBOARD_LIVE_MODE=poll
 ```
 
-### Cron (required)
+`QUEUE_WORKER_MODE` supported values:
+
+| Value | Worker source | Use when |
+|-------|---------------|----------|
+| `disabled` | None | Local dev (`composer dev` runs `queue:listen`) |
+| `scheduler` | `schedule:run` → in-schedule `queue:work` | Legacy single-cron Hostinger |
+| `dedicated_cron` | **Hostinger Cron #2** (recommended) | Production shared hosting |
+| `supervisor` | Long-running `queue:work` under Supervisor | VPS |
+| `horizon` | `php artisan horizon` | VPS with Horizon |
+
+Legacy: when `QUEUE_WORKER_MODE` is unset, `QUEUE_CRON_WORKER_ENABLED=true` maps to `scheduler`; `false` maps to `disabled`.
+
+**Do not** run `scheduler` mode and Cron #2 at the same time — that starts two workers.
+
+### Cron jobs (required)
+
+Hostinger production uses **two** cron entries with **separate** flock locks.
+
+#### Cron #1 — Laravel scheduler
 
 Add in Hostinger hPanel → Cron Jobs:
 
 ```cron
-* * * * * cd /home/USER/domains/DOMAIN/public_html && /usr/bin/php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /home/USER/laravel/radium-desk && /opt/alt/php84/usr/bin/php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Adjust paths to match your Hostinger document root (often `public_html` or a subdirectory if the app root is above `public/`).
+Adjust `USER`, PHP binary, and app path to match your account (see `tools/config.sh` on this project).
 
-The scheduler runs (when flags are enabled):
+Runs: heartbeat, outbox, Gmail sync (background), automation snapshot, metrics, IRA/Telegram, etc.  
+Does **not** run `queue:work` when `QUEUE_WORKER_MODE=dedicated_cron`.
 
-1. `queue:work --stop-when-empty --max-time=55` every minute
-2. `infrastructure:metrics:collect` every five minutes
+#### Cron #2 — dedicated queue worker (recommended)
 
-### Queue worker strategy (preferred)
+Add a **second** cron job in hPanel:
+
+```cron
+* * * * * cd /home/USER/laravel/radium-desk && /opt/alt/php84/usr/bin/php artisan queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1 >> storage/logs/queue-worker.log 2>&1
+```
+
+**Exact command for this repository’s production paths** (`tools/config.sh`):
+
+```cron
+* * * * * cd /home/u215544208/laravel/radium-desk && /opt/alt/php84/usr/bin/php artisan queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1 >> /home/u215544208/laravel/radium-desk/storage/logs/queue-worker.log 2>&1
+```
+
+Hostinger may wrap cron commands with `flock` and `timeout` automatically. Cron #1 and Cron #2 use **different** lock files, so queue draining is isolated from `schedule:run` starvation.
+
+### Queue worker strategy
+
+**Recommended (dedicated_cron):**
 
 ```
-Cron every minute
+Cron #1 every minute          Cron #2 every minute
+        ↓                              ↓
+php artisan schedule:run      php artisan queue:work database
+(outbox, gmail, metrics…)     --queue=critical,notifications,default,maintenance
+                               --stop-when-empty --max-time=55
+```
+
+**Legacy (scheduler mode — single cron only):**
+
+```
+Cron #1 every minute
         ↓
 php artisan schedule:run
         ↓
-queue:work --stop-when-empty --max-time=55
+queue:work --stop-when-empty --max-time=55   (inside schedule, when QUEUE_WORKER_MODE=scheduler)
 ```
 
 **Do not** run long-running `queue:work` or `queue:listen` on shared hosting.
 
-Worker output appends to `storage/logs/queue-worker.log`.
+Worker output appends to `storage/logs/queue-worker.log` (Cron #2 or in-schedule worker).
 
 ### Shared hosting limitations
 
@@ -292,8 +336,8 @@ Future integrations add a probe class and register it — no changes to business
 
 | Task | Command |
 |------|---------|
-| Run scheduler (cron) | `php artisan schedule:run` |
-| Process pending jobs once | `php artisan queue:work --stop-when-empty --max-time=55` |
+| Run scheduler (Cron #1) | `php artisan schedule:run` |
+| Process pending jobs once (Cron #2 or manual) | `php artisan queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1` |
 | List failed jobs | `php artisan queue:failed` |
 | Retry one failed job | `php artisan queue:retry <uuid>` |
 | Retry all failed jobs | `php artisan queue:retry all` |
@@ -303,10 +347,10 @@ Future integrations add a probe class and register it — no changes to business
 | Collect metrics | `php artisan infrastructure:metrics:collect` |
 | View queue worker log | `tail -f storage/logs/queue-worker.log` |
 
-**Restart queue on Hostinger:** There is no daemon to restart. The next cron minute starts a fresh worker. To force immediate processing:
+**Restart queue on Hostinger:** There is no daemon to restart. Cron #2 starts a fresh worker each minute. To force immediate processing:
 
 ```bash
-php artisan queue:work --stop-when-empty --max-time=55
+php artisan queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1
 ```
 
 ### Future VPS (without Horizon)
@@ -402,7 +446,8 @@ Before VPS migration:
 | `QUEUE_CONNECTION` | `database` | Queue driver |
 | `QUEUE_FAILED_DRIVER` | `database-uuids` | Failed job storage |
 | `DB_QUEUE_RETRY_AFTER` | `90` | Reserved job release timeout |
-| `QUEUE_CRON_WORKER_ENABLED` | `false` | Enable cron queue worker via scheduler |
+| `QUEUE_WORKER_MODE` | `disabled` (or derived from legacy flag) | `disabled`, `scheduler`, `dedicated_cron`, `supervisor`, `horizon` |
+| `QUEUE_CRON_WORKER_ENABLED` | `false` | Legacy; maps to `scheduler` when `QUEUE_WORKER_MODE` unset |
 | `INFRASTRUCTURE_METRICS_ENABLED` | `false` | Enable scheduled metrics collection |
 | `CACHE_STORE` | `database` | Cache driver |
 | `SESSION_DRIVER` | `database` | Session driver |
@@ -420,8 +465,9 @@ Before VPS migration:
 - [ ] Install PHP 8.3+, Nginx/Apache, MySQL 8, Composer
 - [ ] Clone/deploy application; copy `.env`
 - [ ] Import MySQL backup
-- [ ] Set `QUEUE_CRON_WORKER_ENABLED=true` (same as Hostinger initially)
-- [ ] Configure system cron: `* * * * * php artisan schedule:run`
+- [ ] Set `QUEUE_WORKER_MODE=dedicated_cron` (or `scheduler` for single-cron legacy)
+- [ ] Configure Cron #1: `* * * * * php artisan schedule:run`
+- [ ] Configure Cron #2 when using `dedicated_cron` (see §4)
 - [ ] Point DNS; enable SSL
 - [ ] Verify `/up`, webhook endpoint, queue processing
 - [ ] Run `php artisan infrastructure:metrics:collect`
@@ -434,8 +480,8 @@ Before VPS migration:
 - [ ] Set `CACHE_STORE=redis`
 - [ ] Optionally `SESSION_DRIVER=redis`
 - [ ] `php artisan optimize:clear && php artisan config:cache`
+- [ ] Set `QUEUE_WORKER_MODE=supervisor`
 - [ ] Switch worker to `queue:work redis` under Supervisor
-- [ ] Disable `QUEUE_CRON_WORKER_ENABLED` when Supervisor worker is stable
 
 ### Phase 3 — Horizon
 
@@ -481,7 +527,7 @@ stopwaitsecs=3600
 Hostinger Shared Hosting
         │
         │  Same codebase, same MySQL schema
-        │  Cron: schedule:run → queue:work --stop-when-empty
+        │  Cron #1: schedule:run | Cron #2: queue:work (dedicated_cron)
         ▼
 Cloud VPS
         │
@@ -546,7 +592,9 @@ Instrumentation hooks only write monitoring aggregates to cache and log existing
 
 ## Quick reference — enable production queue on Hostinger
 
-1. Set `QUEUE_CRON_WORKER_ENABLED=true` in production `.env`
-2. Add cron: `* * * * * cd /path/to/app && php artisan schedule:run`
-3. Confirm jobs drain: `php artisan queue:work --stop-when-empty --max-time=55`
-4. Monitor: `php artisan infrastructure:metrics:collect`
+1. Set `QUEUE_WORKER_MODE=dedicated_cron` in production `.env`
+2. Add Cron #1: `* * * * * cd /path/to/app && php artisan schedule:run`
+3. Add Cron #2: `* * * * * cd /path/to/app && php artisan queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1 >> storage/logs/queue-worker.log 2>&1`
+4. Run `php artisan optimize:clear` (or `config:cache` after deploy)
+5. Confirm `jobs` drains each minute; monitor `storage/logs/queue-worker.log`
+6. Optional: `php artisan infrastructure:metrics:collect`

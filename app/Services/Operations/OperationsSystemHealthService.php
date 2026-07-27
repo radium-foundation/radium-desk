@@ -4,6 +4,7 @@ namespace App\Services\Operations;
 
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
+use App\Enums\QueueWorkerMode;
 use App\Models\AutomationExecution;
 use App\Models\InteraktMessage;
 use App\Services\SystemSettingsService;
@@ -105,8 +106,10 @@ class OperationsSystemHealthService
      */
     private function queueWorker(?OperationsDashboardSnapshot $snapshot): array
     {
-        if (! (bool) config('infrastructure.queue_cron_worker_enabled')) {
-            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Disabled, 'Cron queue worker is disabled.');
+        $workerMode = QueueWorkerMode::fromConfig();
+
+        if (! $workerMode->isActive()) {
+            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Disabled, 'Queue worker is disabled.');
         }
 
         if ($snapshot !== null) {
@@ -116,19 +119,21 @@ class OperationsSystemHealthService
             $queueSnapshot = $queueMetricsService->latest() ?? $queueMetricsService->capture();
         }
 
+        $prefix = "Queue worker ({$workerMode->value})";
+
         if ($queueSnapshot->failedJobs > 0) {
-            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Failed, "{$queueSnapshot->failedJobs} failed job(s) in dead-letter queue.");
+            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Failed, "{$prefix}: {$queueSnapshot->failedJobs} failed job(s) in dead-letter queue.");
         }
 
         if ($queueSnapshot->pendingJobs > 50) {
-            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Warning, "{$queueSnapshot->pendingJobs} pending job(s) waiting.");
+            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Warning, "{$prefix}: {$queueSnapshot->pendingJobs} pending job(s) waiting.");
         }
 
         if ($queueSnapshot->oldestPendingJobAt !== null && $queueSnapshot->oldestPendingJobAt->lt(now()->subMinutes(30))) {
-            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Warning, 'Oldest pending job is over 30 minutes old.');
+            return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Warning, "{$prefix}: oldest pending job is over 30 minutes old.");
         }
 
-        return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Healthy, 'Queue worker is processing normally.');
+        return $this->component('queue_worker', 'Queue Worker', OperationsHealthStatus::Healthy, "{$prefix} is healthy.");
     }
 
     /**

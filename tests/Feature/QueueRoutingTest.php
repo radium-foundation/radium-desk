@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\QueueWorkerMode;
 use App\Infrastructure\Queue\QueueRouting;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
@@ -95,6 +96,23 @@ class QueueRoutingTest extends TestCase
         ])->assertSuccessful();
 
         Queue::assertPushedOn(QueueRouting::maintenance(), RadiumBoxOrderEnrichmentJob::class);
+    }
+
+    public function test_scheduled_worker_command_matches_routing_order(): void
+    {
+        $this->assertSame(
+            'queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1',
+            QueueRouting::scheduledWorkerCommand(),
+        );
+    }
+
+    public function test_dedicated_cron_mode_does_not_use_scheduler_worker(): void
+    {
+        config(['infrastructure.queue_worker_mode' => QueueWorkerMode::DedicatedCron->value]);
+        $this->assertFalse(QueueWorkerMode::fromConfig()->runsViaScheduler());
+
+        config(['infrastructure.queue_worker_mode' => QueueWorkerMode::Scheduler->value]);
+        $this->assertTrue(QueueWorkerMode::fromConfig()->runsViaScheduler());
     }
 
     public function test_production_recover_queues_dry_run_shows_ordered_drain(): void

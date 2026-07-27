@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\QueueWorkerMode;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\TrackTeamMemberActivity;
 use App\Infrastructure\Queue\QueueRouting;
@@ -41,14 +42,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->withoutOverlapping();
 
-        // Drain critical first (onboarding/enrichment), then lower-priority queues.
-        // Hostinger-safe: short-lived, stop-when-empty, single worker with ordered queues.
-        $schedule->command(sprintf(
-            'queue:work database --queue=%s --stop-when-empty --max-time=55 --tries=3 --sleep=1',
-            QueueRouting::workerOrder(),
-        ))
+        // Queue drain: only when QUEUE_WORKER_MODE=scheduler (legacy in-schedule worker).
+        // dedicated_cron uses Hostinger Cron #2 — see docs/infrastructure-readiness.md.
+        $schedule->command(QueueRouting::scheduledWorkerCommand())
             ->everyMinute()
-            ->when(fn (): bool => (bool) config('infrastructure.queue_cron_worker_enabled'))
+            ->when(fn (): bool => QueueWorkerMode::fromConfig()->runsViaScheduler())
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/queue-worker.log'));
 
