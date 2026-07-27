@@ -59,7 +59,7 @@ class DashboardTeamActivityRemarkCountTest extends TestCase
 
     public function test_system_assignment_remark_does_not_count_toward_kpi(): void
     {
-        $actor = $this->createTrackedAdmin();
+        $actor = $this->createTrackedAgent('Assignment Actor');
         $assignee = $this->createTrackedAgent('Assignee Agent');
         [$incident] = $this->createIncident($actor);
 
@@ -83,7 +83,7 @@ class DashboardTeamActivityRemarkCountTest extends TestCase
 
     public function test_system_close_remark_does_not_count_toward_kpi(): void
     {
-        $actor = $this->createTrackedAdmin();
+        $actor = $this->createTrackedAgent('Close Actor');
         [$incident] = $this->createIncident($actor);
 
         app(RemarkService::class)->createSystemRemarkForRemarkable(
@@ -161,7 +161,7 @@ class DashboardTeamActivityRemarkCountTest extends TestCase
 
     public function test_status_change_service_marks_companion_remark_as_system(): void
     {
-        $actor = $this->createTrackedAdmin();
+        $actor = $this->createTrackedAgent('Status Change Actor');
         [$incident] = $this->createIncident($actor);
 
         app(ServiceCaseActionRemarkService::class)->execute(

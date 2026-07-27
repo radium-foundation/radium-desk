@@ -102,10 +102,10 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Human operational KPI allowlist (Today · N activities only)
+    | Human operational KPI allowlist (Cases Worked Today only)
     |--------------------------------------------------------------------------
     |
-    | One intentional business decision = one Today · N count.
+    | One unique Reference No. (service case) touched by a human = one count.
     | Latest Activity and expanded history continue using event_allowlist above.
     |
     | Special filters in TeamActivityPanelService:

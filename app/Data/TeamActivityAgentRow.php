@@ -2,6 +2,7 @@
 
 namespace App\Data;
 
+use App\Enums\OperationsKpiProfile;
 use App\Enums\TeamActivityStatus;
 use Illuminate\Support\Carbon;
 
@@ -31,6 +32,13 @@ readonly class TeamActivityAgentRow
         public ?int $sessionsToday = null,
         public ?int $supplementaryKpiCount = null,
         public ?string $supplementaryKpiLabel = null,
+        public ?OperationsKpiProfile $kpiProfile = null,
+        public ?string $outcomeLabel = null,
+        public ?int $outcomeCount = null,
+        public ?string $effortLabel = null,
+        public ?int $effortCount = null,
+        /** @var array<string, int|float|null>|null */
+        public ?array $kpiBreakdown = null,
     ) {}
 
     /**
@@ -62,6 +70,12 @@ readonly class TeamActivityAgentRow
             'sessions_today' => $this->sessionsToday,
             'supplementary_kpi_count' => $this->supplementaryKpiCount,
             'supplementary_kpi_label' => $this->supplementaryKpiLabel,
+            'kpi_profile' => $this->kpiProfile?->value,
+            'outcome_label' => $this->outcomeLabel,
+            'outcome_count' => $this->outcomeCount,
+            'effort_label' => $this->effortLabel,
+            'effort_count' => $this->effortCount,
+            'kpi_breakdown' => $this->kpiBreakdown,
         ];
     }
 }

@@ -18,7 +18,6 @@ use App\Services\AutomationIdentityService;
 use App\Support\AppDateFormatter;
 use App\Support\Timeline\TimelineActorPresenter;
 use Database\Seeders\RolePermissionSeeder;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -30,6 +29,7 @@ class RecentActivityPresenter
 
     public function __construct(
         private readonly AutomationIdentityService $automationIdentity,
+        private readonly TeamActivityIncidentResolver $incidentResolver,
     ) {
         $this->groupEventIndex = $this->buildGroupEventIndex();
     }
@@ -99,26 +99,7 @@ class RecentActivityPresenter
      */
     public static function eagerLoadRelations(): array
     {
-        $orderColumns = 'id,order_id,customer_name';
-        $incidentColumns = 'id,order_id,reference_no,updated_at';
-
-        return [
-            'user',
-            'auditable' => fn (MorphTo $morphTo) => $morphTo->morphWith([
-                Incident::class => ['order:'.$orderColumns],
-                Order::class => [
-                    'incidents:'.$incidentColumns,
-                ],
-                Remark::class => [
-                    'remarkable' => fn (MorphTo $remarkable) => $remarkable->morphWith([
-                        Incident::class => ['order:'.$orderColumns],
-                        Order::class => [
-                            'incidents:'.$incidentColumns,
-                        ],
-                    ]),
-                ],
-            ]),
-        ];
+        return TeamActivityIncidentResolver::eagerLoadRelations();
     }
 
     private function mapAuditLog(AuditLog $auditLog): ?MappedRecentActivity
@@ -413,7 +394,7 @@ class RecentActivityPresenter
      */
     private function resolveEntity(AuditLog $auditLog): array
     {
-        $incident = $this->resolveIncident($auditLog);
+        $incident = $this->incidentResolver->resolveIncident($auditLog);
         $incidentId = $incident?->id;
 
         if ($incidentId === null
@@ -428,42 +409,6 @@ class RecentActivityPresenter
             'order_reference' => $this->resolveOrderReference($incident, $auditLog),
             'customer_name' => $this->resolveCustomerName($incident, $auditLog),
         ];
-    }
-
-    private function resolveIncident(AuditLog $auditLog): ?Incident
-    {
-        $auditable = $auditLog->auditable;
-
-        if ($auditable instanceof Incident) {
-            return $auditable;
-        }
-
-        if ($auditable instanceof Order) {
-            return $this->latestIncidentForOrder($auditable);
-        }
-
-        if ($auditable instanceof Remark) {
-            if ($auditable->remarkable instanceof Incident) {
-                return $auditable->remarkable;
-            }
-
-            if ($auditable->remarkable instanceof Order) {
-                return $this->latestIncidentForOrder($auditable->remarkable);
-            }
-        }
-
-        return null;
-    }
-
-    private function latestIncidentForOrder(Order $order): ?Incident
-    {
-        if (! $order->relationLoaded('incidents')) {
-            return null;
-        }
-
-        return $order->incidents
-            ->sortByDesc(fn (Incident $incident): int => $incident->updated_at?->getTimestamp() ?? 0)
-            ->first();
     }
 
     private function formatIncidentReference(?Incident $incident, AuditLog $auditLog): ?string

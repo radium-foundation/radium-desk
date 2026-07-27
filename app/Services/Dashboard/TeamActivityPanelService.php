@@ -7,6 +7,7 @@ use App\Data\TeamActivityAgentRow;
 use App\Data\TeamActivityPanel;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\Operations\RoleAwareKpiMetricsService;
 use App\Services\Operations\TeamAvailabilityOverviewService;
 use App\Support\Dashboard\RecentActivityPresenter;
 use App\Support\Dashboard\TeamActivityEntryPresenter;
@@ -26,6 +27,7 @@ class TeamActivityPanelService
         private readonly TeamActivityIraMemberBuilder $iraMemberBuilder,
         private readonly TeamActivityRowSorter $rowSorter,
         private readonly TeamActivityPresenceMetricsService $presenceMetricsService,
+        private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
     ) {}
 
     /**
@@ -49,7 +51,7 @@ class TeamActivityPanelService
         $expandedIds = $this->normalizeExpandedIds($expandedAgentIds, $userIds, $iraAgentId);
         $allowlist = $this->eventAllowlist();
 
-        $todayCounts = $this->kpiAuditQuery->todayCountsForUsers($userIds);
+        $kpiMetricsByUser = $this->roleAwareKpiMetricsService->metricsForUsers($userIds);
         $latestByUser = $this->latestAuditsFor($userIds, $allowlist);
         $countedAuditsByUser = $expandedIds === []
             ? []
@@ -100,6 +102,10 @@ class TeamActivityPanelService
                 }
             }
 
+            $kpiMetrics = $kpiMetricsByUser[$userId] ?? null;
+            $outcomeCount = $kpiMetrics?->outcome ?? 0;
+            $effortCount = $kpiMetrics?->effort ?? 0;
+
             $agents[] = new TeamActivityAgentRow(
                 id: $userId,
                 name: (string) ($member['name'] ?? 'Agent'),
@@ -108,7 +114,7 @@ class TeamActivityPanelService
                 statusTone: $status->tone(),
                 workingLabel: $this->statusResolver->workingLabel($member, $status),
                 overtimeLabel: null,
-                todayCount: (int) ($todayCounts[$userId] ?? 0),
+                todayCount: $outcomeCount,
                 latest: $latestEntry,
                 history: $history,
                 expanded: $expanded,
@@ -119,6 +125,12 @@ class TeamActivityPanelService
                 sessionsToday: ($presenceMetrics?->sessionsToday ?? 0) > 0
                     ? $presenceMetrics->sessionsToday
                     : null,
+                kpiProfile: $kpiMetrics?->profile,
+                outcomeLabel: $kpiMetrics?->outcomeLabel(),
+                outcomeCount: $outcomeCount,
+                effortLabel: $kpiMetrics?->effortLabel(),
+                effortCount: $effortCount,
+                kpiBreakdown: $kpiMetrics?->breakdown,
             );
         }
 

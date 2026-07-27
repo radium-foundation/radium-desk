@@ -63,8 +63,8 @@ class DashboardTeamActivityUiTest extends TestCase
         $html = $this->panelHtml($viewer);
 
         $this->assertStringContainsString('team-activity-kpi-count">0<', $html);
-        $this->assertStringNotContainsString('Activities Today', $html);
-        $this->assertStringContainsString('aria-label="0 activities today"', $html);
+        $this->assertStringContainsString('Outcome · Effort', $html);
+        $this->assertStringContainsString('aria-label="0 Cases Worked; 0 Customer Touches"', $html);
     }
 
     public function test_high_activity_count_and_latest_event_formatting(): void
@@ -93,7 +93,7 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $html = $this->panelHtml($viewer);
 
-        $this->assertStringContainsString('team-activity-kpi-count">12<', $html);
+        $this->assertStringContainsString('team-activity-kpi-count">1<', $html);
         $this->assertStringContainsString('team-activity-latest-event__title', $html);
         $this->assertStringContainsString('bi-file-earmark-text', $html);
         $this->assertStringContainsString('Driver Guide Sent', $html);

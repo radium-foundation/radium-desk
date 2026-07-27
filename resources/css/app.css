@@ -2063,10 +2063,10 @@ a:focus-visible .stat-card {
 
 .team-activity-grid {
     --team-activity-cols:
-        minmax(9rem, 12.5rem)
-        minmax(7.5rem, 10.5rem)
+        minmax(9.5rem, 13rem)
+        minmax(5.5rem, 7.5rem)
         minmax(9.5rem, 11.5rem)
-        minmax(5.75rem, 7.5rem)
+        minmax(6.75rem, 8.75rem)
         minmax(0, 1fr)
         1.125rem;
 }
@@ -2107,9 +2107,9 @@ a:focus-visible .stat-card {
     align-items: center;
     column-gap: 0.625rem;
     width: 100%;
-    min-height: 3rem;
+    min-height: 2.75rem;
     margin: 0;
-    padding: 0.4375rem 0.375rem;
+    padding: 0.375rem 0.375rem;
     border: 0;
     background: transparent;
     text-align: left;
@@ -2129,9 +2129,21 @@ a:focus-visible .stat-card {
 
 .team-activity-member {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
     min-width: 0;
+}
+
+.team-activity-member-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    min-width: 0;
+}
+
+.team-activity-member-calendar {
+    max-width: 100%;
 }
 
 .team-activity-avatar {
@@ -2198,31 +2210,59 @@ a:focus-visible .stat-card {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--dashboard-color-heading, #0f172a);
     line-height: 1.2;
+    max-width: 100%;
 }
 
 .team-activity-status-stack {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.25rem;
+    gap: 0.1875rem;
     min-width: 0;
+}
+
+.team-activity-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.team-activity-status__dot {
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: currentColor;
+}
+
+.team-activity-status__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
 }
 
 .team-activity-status-pill {
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    padding: 0.09375rem 0.4375rem;
-    border-radius: var(--dashboard-radius-pill);
-    font-size: 0.5625rem;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    line-height: 1.25;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    text-transform: none;
+    line-height: inherit;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2231,7 +2271,6 @@ a:focus-visible .stat-card {
 .team-activity-status-pill--working,
 .team-activity-status-pill--idle,
 .team-activity-status-pill--login {
-    background: rgba(34, 197, 94, 0.08);
     color: #3f6f51;
 }
 
@@ -2239,12 +2278,10 @@ a:focus-visible .stat-card {
 .team-activity-status-pill--on_ivr,
 .team-activity-status-pill--email,
 .team-activity-status-pill--whatsapp {
-    background: rgba(139, 92, 246, 0.08);
     color: #5b4f7a;
 }
 
 .team-activity-status-pill--auto_logout {
-    background: rgba(251, 146, 60, 0.1);
     color: #8a5a36;
 }
 
@@ -2253,22 +2290,18 @@ a:focus-visible .stat-card {
 .team-activity-status-pill--logout,
 .team-activity-status-pill--not_started_shift,
 .team-activity-status-pill--unknown {
-    background: rgba(100, 116, 139, 0.08);
     color: #5f6b7a;
 }
 
 .team-activity-status-pill--ira {
-    background: rgba(139, 92, 246, 0.08);
     color: #5b4f7a;
 }
 
 .team-activity-status-pill--break {
-    background: rgba(245, 158, 11, 0.08);
     color: #7a6132;
 }
 
 .team-activity-status-pill--leave {
-    background: rgba(59, 130, 246, 0.08);
     color: #3f5f8a;
 }
 
@@ -2276,15 +2309,18 @@ a:focus-visible .stat-card {
     display: inline-flex;
     align-items: center;
     max-width: 100%;
-    padding: 0.0625rem 0.375rem;
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    border-radius: var(--dashboard-radius-pill);
+    padding: 0;
+    border: 0;
+    border-radius: 0;
     background: transparent;
     color: #94a3b8;
     font-size: 0.5625rem;
     font-weight: 500;
     letter-spacing: 0.02em;
+    line-height: 1.15;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .team-activity-status-note {
@@ -2327,33 +2363,102 @@ a:focus-visible .stat-card {
 .team-activity-metric-value {
     font-size: 0.6875rem;
     font-weight: 600;
-    color: #334155;
+    color: #1e293b;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
     white-space: nowrap;
+}
+
+.team-activity-today-activity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.team-activity-today-activity__metric {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.0625rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.team-activity-today-activity .team-activity-kpi-count {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+.team-activity-today-activity__label {
+    font-size: 0.5625rem;
+    font-weight: 500;
+    color: #94a3b8;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .team-activity-kpi {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     min-width: 0;
 }
 
 .team-activity-kpi-count {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: #334155;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
     font-variant-numeric: tabular-nums;
-    line-height: 1.15;
+    line-height: 1;
+    letter-spacing: -0.02em;
     white-space: nowrap;
 }
 
 .team-activity-kpi--ira {
+    gap: 0.125rem;
+}
+
+.team-activity-kpi--dual {
+    flex-direction: column;
+    align-items: flex-start;
     gap: 0.25rem;
 }
 
+.team-activity-kpi-primary,
+.team-activity-kpi-secondary {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.0625rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.team-activity-kpi-label {
+    font-size: 0.5625rem;
+    font-weight: 500;
+    color: #94a3b8;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.team-activity-today-activity__supplementary,
 .team-activity-kpi-supplementary {
-    font-size: 0.625rem;
+    font-size: 0.5625rem;
     font-weight: 600;
     color: #64748b;
     font-variant-numeric: tabular-nums;
@@ -2496,12 +2601,16 @@ a:focus-visible .stat-card {
 @media (max-width: 1199.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(8rem, 11rem)
-            minmax(6.5rem, 9rem)
+            minmax(8.5rem, 11rem)
+            minmax(5rem, 6.75rem)
             minmax(8.5rem, 10rem)
-            minmax(5rem, 6.5rem)
+            minmax(6rem, 7.5rem)
             minmax(0, 1fr)
             1rem;
+    }
+
+    .team-activity-today-activity .team-activity-kpi-count {
+        font-size: 0.9375rem;
     }
 
     .team-activity-grid-header,
@@ -2513,10 +2622,10 @@ a:focus-visible .stat-card {
 @media (max-width: 767.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(7rem, 9.5rem)
-            minmax(5.5rem, 7.5rem)
-            minmax(7.5rem, 9rem)
+            minmax(7.25rem, 9.5rem)
             minmax(4.5rem, 6rem)
+            minmax(7.25rem, 8.75rem)
+            minmax(5.25rem, 6.5rem)
             minmax(0, 1fr)
             0.875rem;
     }
@@ -2525,6 +2634,14 @@ a:focus-visible .stat-card {
         font-size: 0.75rem;
     }
 
+    .team-activity-today-activity .team-activity-kpi-count {
+        font-size: 0.875rem;
+    }
+
+    .team-activity-today-activity__label,
+    .team-activity-kpi-label {
+        font-size: 0.5rem;
+    }
 }
 
 .dashboard-admin-metrics {

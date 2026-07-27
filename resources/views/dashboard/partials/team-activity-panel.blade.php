@@ -34,7 +34,12 @@
                     <span class="team-activity-grid-header__cell team-activity-col--member" role="columnheader">Team Member</span>
                     <span class="team-activity-grid-header__cell team-activity-col--status" role="columnheader">Status</span>
                     <span class="team-activity-grid-header__cell team-activity-col--presence" role="columnheader">Presence</span>
-                    <span class="team-activity-grid-header__cell team-activity-col--kpi" role="columnheader">Today's Activity</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--kpi"
+                          role="columnheader"
+                          title="Outcome + Effort KPIs vary by role. Support: Cases Worked + Customer Touches. Activation: Orders Activated + Activation Sessions.">
+                        Today's Activity
+                        <span class="visually-hidden">Outcome · Effort</span>
+                    </span>
                     <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>
                     <span class="team-activity-grid-header__cell team-activity-col--chevron" aria-hidden="true"></span>
                 </div>

@@ -18,6 +18,9 @@ class IraPerformanceInsightsService
         private readonly SmartAssignmentFeedbackMetricsService $feedbackMetricsService,
         private readonly WorkCalendarService $workCalendarService,
         private readonly WorkforceAuthorityService $workforceAuthority,
+        private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
+        private readonly OperationsKpiProfileResolver $profileResolver,
+        private readonly AdminActivationMetricsService $activationMetricsService,
     ) {}
 
     /**
@@ -144,6 +147,16 @@ class IraPerformanceInsightsService
             return [];
         }
 
+        $user = User::query()->with('roles')->find($metrics->userId);
+
+        if ($user === null) {
+            return [];
+        }
+
+        if ($this->profileResolver->resolve($user) === \App\Enums\OperationsKpiProfile::Activation) {
+            return $this->activationRecognitionInsights($user, $metrics, $range);
+        }
+
         $communications = (int) ($metrics->customerWork['customer_communications'] ?? 0);
         $threshold = max(1, (int) config('performance.high_communication_weekly', 50));
 
@@ -159,11 +172,47 @@ class IraPerformanceInsightsService
 
         return [
             new PerformanceInsight(
-                message: "{$metrics->name} handled {$communications} customer follow-ups {$periodLabel}.",
+                message: "{$metrics->name} logged {$communications} customer touches {$periodLabel}.",
                 tone: PerformanceInsightTone::Good,
                 context: [
                     'user_id' => $metrics->userId,
-                    'customer_communications' => $communications,
+                    'customer_touches' => $communications,
+                ],
+            ),
+        ];
+    }
+
+    /**
+     * @return list<PerformanceInsight>
+     */
+    private function activationRecognitionInsights(
+        User $user,
+        TeamMemberPerformanceMetrics $metrics,
+        PerformancePeriodRange $range,
+    ): array {
+        $kpiMetrics = $this->activationMetricsService->metricsFor($user, $range->start, $range->end);
+        $orders = $kpiMetrics->outcome;
+        $sessions = $kpiMetrics->effort;
+        $threshold = max(1, (int) config('performance.high_activation_orders_weekly', 25));
+
+        if ($range->period === PerformancePeriod::ThisMonth) {
+            $threshold *= 4;
+        }
+
+        if ($orders < $threshold) {
+            return [];
+        }
+
+        $periodLabel = $range->period === PerformancePeriod::ThisWeek ? 'this week' : 'this month';
+
+        return [
+            new PerformanceInsight(
+                message: "{$metrics->name} activated {$orders} orders across {$sessions} session(s) {$periodLabel}.",
+                tone: PerformanceInsightTone::Good,
+                context: [
+                    'user_id' => $metrics->userId,
+                    'orders_activated' => $orders,
+                    'activation_sessions' => $sessions,
                 ],
             ),
         ];

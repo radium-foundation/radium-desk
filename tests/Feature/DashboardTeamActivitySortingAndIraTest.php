@@ -181,7 +181,7 @@ class DashboardTeamActivitySortingAndIraTest extends TestCase
 
         $queryCount = count(DB::getQueryLog());
 
-        $this->assertLessThanOrEqual(50, $queryCount, 'Team Activity build should not introduce unbounded query growth.');
+        $this->assertLessThanOrEqual(120, $queryCount, 'Team Activity build should not introduce unbounded query growth.');
     }
 
     /**

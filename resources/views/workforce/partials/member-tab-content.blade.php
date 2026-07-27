@@ -12,6 +12,11 @@
     $performance = $overview['performance'] ?? [];
     $leave = $overview['leave'] ?? [];
     $weekdayLabels = config('workforce_calendar.weekday_labels', []);
+    $isActivationProfile = ($performance['kpi_profile'] ?? null) === 'activation';
+    $outcomeLabel = $performance['outcome_label'] ?? ($isActivationProfile ? 'Orders Activated' : 'Cases Worked');
+    $effortLabel = $performance['effort_label'] ?? ($isActivationProfile ? 'Activation Sessions' : 'Customer Touches');
+    $outcomeCount = (int) ($performance['outcome_count'] ?? ($isActivationProfile ? ($performance['orders_activated'] ?? 0) : ($performance['cases_completed'] ?? 0)));
+    $effortCount = (int) ($performance['effort_count'] ?? ($isActivationProfile ? ($performance['activation_sessions'] ?? 0) : ($performance['customer_communications'] ?? 0)));
 @endphp
 
 @if($activeTab === 'overview')
@@ -183,8 +188,10 @@
                         <dd class="col-7">{{ $performance['attendance_label'] ?? '—' }}</dd>
                         <dt class="col-5 text-muted">Active desk</dt>
                         <dd class="col-7">{{ $performance['active_desk_label'] ?? '—' }}</dd>
-                        <dt class="col-5 text-muted">Cases completed</dt>
-                        <dd class="col-7">{{ number_format((int) ($performance['cases_completed'] ?? 0)) }}</dd>
+                        <dt class="col-5 text-muted">{{ $outcomeLabel }}</dt>
+                        <dd class="col-7">{{ number_format($outcomeCount) }}</dd>
+                        <dt class="col-5 text-muted">{{ $effortLabel }}</dt>
+                        <dd class="col-7">{{ number_format($effortCount) }}</dd>
                         <dt class="col-5 text-muted">SLA</dt>
                         <dd class="col-7">{{ $performance['sla_label'] ?? '—' }}</dd>
                     </dl>
@@ -249,16 +256,16 @@
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Cases completed today</div>
-                    <div class="h3 mb-0">{{ number_format((int) ($performance['cases_completed'] ?? 0)) }}</div>
+                    <div class="text-muted small">{{ $outcomeLabel }}</div>
+                    <div class="h3 mb-0">{{ number_format($outcomeCount) }}</div>
                 </div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Customer replies today</div>
-                    <div class="h3 mb-0">{{ number_format((int) ($performance['customer_communications'] ?? 0)) }}</div>
+                    <div class="text-muted small">{{ $effortLabel }}</div>
+                    <div class="h3 mb-0">{{ number_format($effortCount) }}</div>
                 </div>
             </div>
         </div>

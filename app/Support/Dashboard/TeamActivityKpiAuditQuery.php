@@ -11,6 +11,10 @@ use Illuminate\Support\Collection;
 
 class TeamActivityKpiAuditQuery
 {
+    public function __construct(
+        private readonly TeamActivityIncidentResolver $incidentResolver,
+    ) {}
+
     /**
      * @param  list<int>  $userIds
      * @return array<int, int>
@@ -22,9 +26,10 @@ class TeamActivityKpiAuditQuery
         }
 
         $allowlist = $this->humanCountAllowlist();
+        $counts = array_fill_keys($userIds, 0);
 
         if ($allowlist === []) {
-            return [];
+            return $counts;
         }
 
         $dayStart ??= $this->dayStart();
@@ -34,32 +39,17 @@ class TeamActivityKpiAuditQuery
             static fn (string $event): bool => ! in_array($event, $filteredEvents, true),
         ));
 
-        $counts = array_fill_keys($userIds, 0);
-
-        if ($directEvents !== []) {
-            foreach (
-                AuditLog::query()
-                    ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                    ->whereIn('user_id', $userIds)
-                    ->whereIn('event', $directEvents)
-                    ->where('created_at', '>=', $dayStart)
-                    ->groupBy('user_id')
-                    ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-            ) {
-                $counts[(int) $userId] += (int) $aggregate;
-            }
-        }
-
-        if (in_array('whatsapp.template_sent', $allowlist, true)) {
-            $this->mergeCounts($counts, $this->manualWhatsAppCounts($userIds, $dayStart));
-        }
-
-        if (in_array('created', $allowlist, true)) {
-            $this->mergeCounts($counts, $this->manualRemarkCreatedCounts($userIds, $dayStart));
-        }
-
-        if (in_array('deleted', $allowlist, true)) {
-            $this->mergeCounts($counts, $this->manualRemarkDeletedCounts($userIds, $dayStart));
+        foreach (
+            $this->incidentResolver->distinctCaseCountsForUsers(
+                userIds: $userIds,
+                dayStart: $dayStart,
+                directEvents: $directEvents,
+                includeManualWhatsApp: in_array('whatsapp.template_sent', $allowlist, true),
+                includeManualRemarkCreated: in_array('created', $allowlist, true),
+                includeManualRemarkDeleted: in_array('deleted', $allowlist, true),
+            ) as $userId => $aggregate
+        ) {
+            $counts[$userId] = $aggregate;
         }
 
         return $counts;
@@ -210,30 +200,6 @@ class TeamActivityKpiAuditQuery
 
     /**
      * @param  list<int>  $userIds
-     * @return array<int, int>
-     */
-    private function manualWhatsAppCounts(array $userIds, Carbon $dayStart): array
-    {
-        $counts = array_fill_keys($userIds, 0);
-
-        foreach (
-            AuditLog::query()
-                ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                ->whereIn('user_id', $userIds)
-                ->where('event', 'whatsapp.template_sent')
-                ->where('new_values->trigger_source', WhatsAppTemplateTriggerSource::Manual->value)
-                ->where('created_at', '>=', $dayStart)
-                ->groupBy('user_id')
-                ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-        ) {
-            $counts[(int) $userId] += (int) $aggregate;
-        }
-
-        return $counts;
-    }
-
-    /**
-     * @param  list<int>  $userIds
      * @return Collection<int, AuditLog>
      */
     private function manualWhatsAppAudits(array $userIds, Carbon $dayStart): Collection
@@ -244,32 +210,6 @@ class TeamActivityKpiAuditQuery
             ->where('new_values->trigger_source', WhatsAppTemplateTriggerSource::Manual->value)
             ->where('created_at', '>=', $dayStart)
             ->get();
-    }
-
-    /**
-     * @param  list<int>  $userIds
-     * @return array<int, int>
-     */
-    private function manualRemarkCreatedCounts(array $userIds, Carbon $dayStart): array
-    {
-        $remarkMorph = (new Remark)->getMorphClass();
-        $counts = array_fill_keys($userIds, 0);
-
-        foreach (
-            AuditLog::query()
-                ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                ->whereIn('user_id', $userIds)
-                ->where('event', 'created')
-                ->where('auditable_type', $remarkMorph)
-                ->where('created_at', '>=', $dayStart)
-                ->where('new_values->origin', RemarkOrigin::Manual->value)
-                ->groupBy('user_id')
-                ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-        ) {
-            $counts[(int) $userId] += (int) $aggregate;
-        }
-
-        return $counts;
     }
 
     /**
@@ -291,32 +231,6 @@ class TeamActivityKpiAuditQuery
 
     /**
      * @param  list<int>  $userIds
-     * @return array<int, int>
-     */
-    private function manualRemarkDeletedCounts(array $userIds, Carbon $dayStart): array
-    {
-        $remarkMorph = (new Remark)->getMorphClass();
-        $counts = array_fill_keys($userIds, 0);
-
-        foreach (
-            AuditLog::query()
-                ->selectRaw('user_id, COUNT(*) as aggregate_count')
-                ->whereIn('user_id', $userIds)
-                ->where('event', 'deleted')
-                ->where('auditable_type', $remarkMorph)
-                ->where('created_at', '>=', $dayStart)
-                ->where('old_values->origin', RemarkOrigin::Manual->value)
-                ->groupBy('user_id')
-                ->pluck('aggregate_count', 'user_id') as $userId => $aggregate
-        ) {
-            $counts[(int) $userId] += (int) $aggregate;
-        }
-
-        return $counts;
-    }
-
-    /**
-     * @param  list<int>  $userIds
      * @return Collection<int, AuditLog>
      */
     private function manualRemarkDeletedAudits(array $userIds, Carbon $dayStart): Collection
@@ -330,17 +244,6 @@ class TeamActivityKpiAuditQuery
             ->where('created_at', '>=', $dayStart)
             ->where('old_values->origin', RemarkOrigin::Manual->value)
             ->get();
-    }
-
-    /**
-     * @param  array<int, int>  $target
-     * @param  array<int, int>  $additions
-     */
-    private function mergeCounts(array &$target, array $additions): void
-    {
-        foreach ($additions as $userId => $count) {
-            $target[$userId] = ($target[$userId] ?? 0) + $count;
-        }
     }
 
     private function dayStart(): Carbon

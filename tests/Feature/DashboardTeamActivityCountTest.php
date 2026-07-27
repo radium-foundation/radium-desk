@@ -98,54 +98,81 @@ class DashboardTeamActivityCountTest extends TestCase
         $this->assertSame(1, $this->todayCountFor($agent));
     }
 
-    public function test_approval_number_submission_with_multiple_numbers_counts_as_one_activity(): void
+    public function test_approval_number_submission_with_linked_incident_counts_as_one_case_worked(): void
     {
         $agent = $this->createTrackedAgent();
-        $items = array_map(
-            static fn (int $index): array => ['description' => 'Batch save '.$index],
-            range(1, 10),
-        );
+        [$incident] = $this->createIncident($agent);
 
-        app(ApprovalNumberService::class)->submit($agent, $items, request());
+        $approval = ApprovalNumber::query()->create([
+            'approval_number' => 'APR-0001',
+            'description' => 'Batch save',
+            'created_by' => $agent->id,
+        ]);
+        $approval->incidents()->attach([
+            $incident->id => ['linked_by' => $agent->id],
+        ]);
+
+        AuditLog::query()->create([
+            'user_id' => $agent->id,
+            'event' => ApprovalNumberService::EVENT_SUBMITTED,
+            'auditable_type' => $approval->getMorphClass(),
+            'auditable_id' => $approval->id,
+            'new_values' => ['count' => 10],
+            'created_at' => now(),
+        ]);
 
         $this->assertSame(1, $this->todayCountFor($agent));
     }
 
-    public function test_two_approval_submissions_within_one_second_count_as_two_activities(): void
+    public function test_two_approval_submissions_on_two_incidents_count_as_two_cases_worked(): void
     {
         $agent = $this->createTrackedAgent();
-        $service = app(ApprovalNumberService::class);
+        [$incidentA] = $this->createIncident($agent);
+        [$incidentB] = $this->createIncident($agent);
         $submittedAt = now();
 
-        $service->submit($agent, [['description' => 'First batch']], request());
-        $service->submit($agent, [['description' => 'Second batch']], request());
+        foreach ([[$incidentA, 'APR-A'], [$incidentB, 'APR-B']] as [$incident, $number]) {
+            $approval = ApprovalNumber::query()->create([
+                'approval_number' => $number,
+                'created_by' => $agent->id,
+            ]);
+            $approval->incidents()->attach([
+                $incident->id => ['linked_by' => $agent->id],
+            ]);
 
-        AuditLog::query()
-            ->where('event', ApprovalNumberService::EVENT_SUBMITTED)
-            ->where('user_id', $agent->id)
-            ->update(['created_at' => $submittedAt]);
+            AuditLog::query()->create([
+                'user_id' => $agent->id,
+                'event' => ApprovalNumberService::EVENT_SUBMITTED,
+                'auditable_type' => $approval->getMorphClass(),
+                'auditable_id' => $approval->id,
+                'created_at' => $submittedAt,
+            ]);
+        }
 
         $this->assertSame(2, $this->todayCountFor($agent));
     }
 
-    public function test_slow_approval_submission_spanning_multiple_seconds_counts_as_one_activity(): void
+    public function test_slow_approval_submission_spanning_multiple_seconds_counts_linked_incident_once(): void
     {
         $agent = $this->createTrackedAgent();
+        [$incident] = $this->createIncident($agent);
         $approvalMorph = (new ApprovalNumber)->getMorphClass();
         $submittedAt = now();
+
+        $approval = ApprovalNumber::query()->create([
+            'approval_number' => 'APR-0001',
+            'created_by' => $agent->id,
+        ]);
+        $approval->incidents()->attach([$incident->id => ['linked_by' => $agent->id]]);
 
         AuditLog::query()->create([
             'user_id' => $agent->id,
             'event' => ApprovalNumberService::EVENT_SUBMITTED,
             'auditable_type' => $approvalMorph,
-            'auditable_id' => 1,
+            'auditable_id' => $approval->id,
             'new_values' => [
                 'count' => 10,
                 'approval_ids' => range(1, 10),
-                'approval_numbers' => array_map(
-                    static fn (int $index): string => 'APR-'.str_pad((string) $index, 4, '0', STR_PAD_LEFT),
-                    range(1, 10),
-                ),
             ],
             'created_at' => $submittedAt,
         ]);
@@ -253,23 +280,34 @@ class DashboardTeamActivityCountTest extends TestCase
         $this->assertSame(1, $this->todayCountFor($agent));
     }
 
-    public function test_refund_request_created_event_is_not_counted(): void
+    public function test_refund_approval_maps_to_incident_for_cases_worked(): void
     {
         $agent = $this->createTrackedAgent();
+        [$incident, $order] = $this->createIncident($agent);
+
+        $refund = \App\Models\RefundRequest::query()->create([
+            'order_id' => $order->id,
+            'incident_id' => $incident->id,
+            'reference_no' => 'RF-1001',
+            'amount' => 100,
+            'reason' => 'Test refund',
+            'status' => 'pending',
+            'requested_by' => $agent->id,
+        ]);
 
         AuditLog::query()->create([
             'user_id' => $agent->id,
             'event' => 'created',
-            'auditable_type' => (new \App\Models\RefundRequest)->getMorphClass(),
-            'auditable_id' => 1,
+            'auditable_type' => $refund->getMorphClass(),
+            'auditable_id' => $refund->id,
             'created_at' => now(),
         ]);
 
         AuditLog::query()->create([
             'user_id' => $agent->id,
             'event' => 'refund.approved',
-            'auditable_type' => (new \App\Models\RefundRequest)->getMorphClass(),
-            'auditable_id' => 1,
+            'auditable_type' => $refund->getMorphClass(),
+            'auditable_id' => $refund->id,
             'created_at' => now(),
         ]);
 

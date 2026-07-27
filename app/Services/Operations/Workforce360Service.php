@@ -34,6 +34,7 @@ class Workforce360Service
         private readonly OperationsRoleService $roleService,
         private readonly Workforce360Policy $workforce360Policy,
         private readonly CaseQueueReadModel $caseQueue,
+        private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
     ) {}
 
     public function team(User $viewer, ?Carbon $at = null): Workforce360TeamData
@@ -709,13 +710,38 @@ class Workforce360Service
      */
     private function performanceSnapshot(TeamMemberPerformanceMetrics $metrics): array
     {
-        return [
+        $user = User::query()->with('roles')->find($metrics->userId);
+        $kpiMetrics = $user !== null
+            ? $this->roleAwareKpiMetricsService->metricsFor($user)
+            : null;
+
+        $snapshot = [
             'attendance_label' => $metrics->attendance['attendance_label'] ?? '—',
             'active_desk_label' => $metrics->presence['active_desk_label'] ?? '—',
             'cases_completed' => $metrics->customerWork['cases_completed'] ?? 0,
             'customer_communications' => $metrics->customerWork['customer_communications'] ?? 0,
             'sla_label' => $metrics->quality['sla_label'] ?? '—',
         ];
+
+        if ($kpiMetrics !== null) {
+            $snapshot['kpi_profile'] = $kpiMetrics->profile->value;
+            $snapshot['outcome_label'] = $kpiMetrics->outcomeLabel();
+            $snapshot['outcome_count'] = $kpiMetrics->outcome;
+            $snapshot['effort_label'] = $kpiMetrics->effortLabel();
+            $snapshot['effort_count'] = $kpiMetrics->effort;
+            $snapshot['kpi_breakdown'] = $kpiMetrics->breakdown;
+
+            if ($kpiMetrics->profile === \App\Enums\OperationsKpiProfile::Support) {
+                $snapshot['cases_completed'] = $kpiMetrics->outcome;
+                $snapshot['customer_communications'] = $kpiMetrics->effort;
+            } else {
+                $snapshot['orders_activated'] = $kpiMetrics->outcome;
+                $snapshot['activation_sessions'] = $kpiMetrics->effort;
+                $snapshot['average_orders_per_session'] = $kpiMetrics->averageOrdersPerSession();
+            }
+        }
+
+        return $snapshot;
     }
 
     /**

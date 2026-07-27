@@ -127,7 +127,7 @@ class DashboardTeamActivityExpandTest extends TestCase
         $row = collect($panel->agents)->firstWhere('id', $agent->id);
 
         $this->assertNotNull($row);
-        $this->assertSame(3, $row->todayCount);
+        $this->assertSame(1, $row->todayCount);
         $this->assertCount(3, $row->history);
 
         $html = $this->panelHtml(expanded: [$agent->id]);

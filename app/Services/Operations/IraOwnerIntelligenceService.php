@@ -9,6 +9,7 @@ use App\Enums\AI\AIRiskLevel;
 use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\OperationQueue;
+use App\Enums\OperationsKpiProfile;
 use App\Enums\PerformancePeriod;
 use App\Models\AuditLog;
 use App\Models\Incident;
@@ -32,6 +33,7 @@ class IraOwnerIntelligenceService
         private readonly ProductionEveningHealthService $eveningHealthService,
         private readonly AttendanceRegisterService $attendanceRegisterService,
         private readonly CaseQueueReadModel $caseQueueReadModel,
+        private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
     ) {}
 
     public function buildMorningReport(?Carbon $at = null): IraOwnerReportData
@@ -330,22 +332,55 @@ class IraOwnerIntelligenceService
         array &$highlights,
         array &$bottlenecks,
     ): void {
-        $completed = (int) ($metrics->customerWork['cases_completed'] ?? 0);
-        $communications = (int) ($metrics->customerWork['customer_communications'] ?? 0);
+        $user = User::query()->with('roles')->find($metrics->userId);
+
+        if ($user === null) {
+            return;
+        }
+
+        $kpiMetrics = $this->roleAwareKpiMetricsService->metricsFor($user);
         $openOverdue = (int) ($metrics->quality['overdue_cases'] ?? 0);
         $openWork = (int) ($metrics->customerWork['cases_handled'] ?? 0);
 
-        if ($completed >= 3) {
+        if ($kpiMetrics->profile === OperationsKpiProfile::Activation) {
+            if ($kpiMetrics->outcome >= 5) {
+                $highlights[] = [
+                    'name' => $metrics->name,
+                    'metric' => 'orders activated',
+                    'value' => $kpiMetrics->outcome,
+                ];
+            } elseif ($kpiMetrics->effort >= 3) {
+                $highlights[] = [
+                    'name' => $metrics->name,
+                    'metric' => 'activation sessions',
+                    'value' => $kpiMetrics->effort,
+                ];
+            }
+
+            $failed = (int) ($kpiMetrics->breakdown['failed_activations'] ?? 0);
+
+            if ($failed >= 2) {
+                $bottlenecks[] = [
+                    'name' => $metrics->name,
+                    'metric' => 'failed activations',
+                    'value' => $failed,
+                ];
+            }
+
+            return;
+        }
+
+        if ($kpiMetrics->outcome >= 3) {
             $highlights[] = [
                 'name' => $metrics->name,
-                'metric' => 'cases closed',
-                'value' => $completed,
+                'metric' => 'cases worked',
+                'value' => $kpiMetrics->outcome,
             ];
-        } elseif ($communications >= 10) {
+        } elseif ($kpiMetrics->effort >= 10) {
             $highlights[] = [
                 'name' => $metrics->name,
-                'metric' => 'customer follow-ups',
-                'value' => $communications,
+                'metric' => 'customer touches',
+                'value' => $kpiMetrics->effort,
             ];
         }
 

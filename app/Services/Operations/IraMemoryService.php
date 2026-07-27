@@ -29,6 +29,7 @@ class IraMemoryService
         private readonly OperationsSupportIntelligenceService $supportIntelligenceService,
         private readonly CaseQueueReadModel $caseQueueReadModel,
         private readonly WorkingHoursTodayService $workingHoursToday,
+        private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
     ) {}
 
     public function capture(?Carbon $at = null): IraOperationalMemorySnapshot
@@ -237,15 +238,11 @@ class IraMemoryService
      */
     private function teamPerformanceTotals(Carbon $at): array
     {
-        $completedCases = 0;
+        $totals = $this->roleAwareKpiMetricsService->teamTotals($at);
         $slaSuccessTotal = 0.0;
         $slaEvaluated = 0;
-        $communications = 0;
 
         foreach ($this->performanceMetricsService->teamMetrics(PerformancePeriod::Today, null, null, $at) as $metrics) {
-            $completedCases += (int) ($metrics->customerWork['completed_cases'] ?? 0);
-            $communications += (int) ($metrics->customerWork['customer_communications'] ?? 0);
-
             $slaPercentage = $metrics->quality['sla_success_percentage'] ?? null;
 
             if ($slaPercentage !== null) {
@@ -255,9 +252,8 @@ class IraMemoryService
         }
 
         return [
-            'completed_cases' => $completedCases,
+            ...$totals,
             'sla_percentage' => $slaEvaluated > 0 ? round($slaSuccessTotal / $slaEvaluated, 1) : 100.0,
-            'customer_communications' => $communications,
         ];
     }
 
