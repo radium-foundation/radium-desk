@@ -188,7 +188,7 @@ class BackfillRadiumBoxSyncCommand extends Command
     private function executeAction(Order $order, string $action): void
     {
         if ($action === 'dispatch_enrichment') {
-            $this->enrichmentService->dispatch($order);
+            $this->enrichmentService->dispatchToMaintenance($order);
 
             return;
         }

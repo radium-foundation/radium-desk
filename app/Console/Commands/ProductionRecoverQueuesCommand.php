@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Infrastructure\Queue\QueueRouting;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -119,10 +120,13 @@ class ProductionRecoverQueuesCommand extends Command
         $maxTime = max(5, (int) $this->option('max-time'));
         $passes ??= max(1, (int) $this->option('drain-passes'));
 
+        $queueOrder = QueueRouting::workerOrder();
+
         if ($dryRun) {
             $this->line(sprintf(
-                'Would run up to %d×: php artisan queue:work --stop-when-empty --max-time=%d',
+                'Would run up to %d×: php artisan queue:work database --queue=%s --stop-when-empty --max-time=%d --tries=3 --sleep=1',
                 $passes,
+                $queueOrder,
                 $maxTime,
             ));
             $this->reportQueueDepth();
@@ -140,15 +144,20 @@ class ProductionRecoverQueuesCommand extends Command
             }
 
             $this->line(sprintf(
-                'Drain pass %d/%d — pending jobs: %d',
+                'Drain pass %d/%d — queue=%s — pending jobs: %d',
                 $pass,
                 $passes,
+                $queueOrder,
                 $pendingBefore,
             ));
 
             $this->call('queue:work', [
+                'connection' => 'database',
+                '--queue' => $queueOrder,
                 '--stop-when-empty' => true,
                 '--max-time' => $maxTime,
+                '--tries' => 3,
+                '--sleep' => 1,
             ]);
 
             $pendingAfter = $this->pendingJobsCount();

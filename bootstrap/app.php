@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\TrackTeamMemberActivity;
+use App\Infrastructure\Queue\QueueRouting;
 use App\Services\Platform\PlatformHealthCache;
 use App\Services\SystemSettingsService;
 use Illuminate\Console\Scheduling\Schedule;
@@ -40,22 +41,29 @@ return Application::configure(basePath: dirname(__DIR__))
             ->everyMinute()
             ->withoutOverlapping();
 
-        $schedule->command('queue:work --stop-when-empty --max-time=55')
+        // Drain critical first (onboarding/enrichment), then lower-priority queues.
+        // Hostinger-safe: short-lived, stop-when-empty, single worker with ordered queues.
+        $schedule->command(sprintf(
+            'queue:work database --queue=%s --stop-when-empty --max-time=55 --tries=3 --sleep=1',
+            QueueRouting::workerOrder(),
+        ))
             ->everyMinute()
             ->when(fn (): bool => (bool) config('infrastructure.queue_cron_worker_enabled'))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/queue-worker.log'));
 
-        $schedule->command('infrastructure:metrics:collect')
-            ->everyFiveMinutes()
-            ->when(fn (): bool => (bool) config('infrastructure.metrics_enabled'))
-            ->withoutOverlapping();
-
+        // Ready Queue promotion: run immediately after the worker had a chance to
+        // drain critical enrichment jobs in this schedule:run pass.
         $schedule->command('service-cases:process-automation-pending')
             ->everyMinute()
             ->when(fn (): bool => (bool) config('service_case_assignment.automation_grace_period_enabled', true))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/automation-pending-assignments.log'));
+
+        $schedule->command('infrastructure:metrics:collect')
+            ->everyFiveMinutes()
+            ->when(fn (): bool => (bool) config('infrastructure.metrics_enabled'))
+            ->withoutOverlapping();
 
         $schedule->command('service-cases:process-deferred-smart-assignment')
             ->cron(sprintf(

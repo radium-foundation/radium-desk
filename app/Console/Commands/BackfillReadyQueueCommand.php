@@ -195,7 +195,7 @@ class BackfillReadyQueueCommand extends Command
     private function executeAction(Incident $incident, Order $order, string $action): void
     {
         if ($action === 'dispatch_enrichment') {
-            $this->enrichmentService->dispatch($order);
+            $this->enrichmentService->dispatchToMaintenance($order);
 
             return;
         }

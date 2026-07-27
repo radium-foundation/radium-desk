@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Infrastructure\Queue\QueueRouting;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\CommunicationActions\ReferenceNumberCommunicationService;
@@ -23,7 +24,9 @@ class SendServiceReferenceDriverGuideJob implements ShouldQueue
         public readonly int $orderId,
         public readonly string $serviceReference,
         public readonly int $actorId,
-    ) {}
+    ) {
+        $this->onQueue(QueueRouting::notifications());
+    }
 
     public function handle(ReferenceNumberCommunicationService $referenceNumberCommunicationService): void
     {

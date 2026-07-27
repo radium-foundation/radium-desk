@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Infrastructure\Queue\QueueMetricsService;
+use App\Infrastructure\Queue\QueueRouting;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -20,7 +21,9 @@ class RadiumBoxOrderEnrichmentJob implements ShouldQueue
 
     public function __construct(
         public readonly int $orderId,
-    ) {}
+    ) {
+        $this->onQueue(QueueRouting::critical());
+    }
 
     public function handle(
         RadiumBoxOrderEnrichmentService $enrichmentService,

@@ -139,7 +139,7 @@ class BackfillRadiumBoxOrdersCommand extends Command
         }
 
         try {
-            $this->enrichmentService->dispatch($order);
+            $this->enrichmentService->dispatchToMaintenance($order);
             $this->ordersQueued++;
             $this->logRetryStarted($order, dryRun: false, manualOverride: $manualOverride);
         } catch (Throwable $exception) {

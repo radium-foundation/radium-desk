@@ -7,6 +7,7 @@ use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\RadiumBoxSyncSource;
 use App\Enums\WaitingReason;
 use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
+use App\Infrastructure\Queue\QueueRouting;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Incident;
 use App\Models\Order;
@@ -29,17 +30,30 @@ class RadiumBoxOrderEnrichmentService
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
     ) {}
 
-    public function dispatch(Order $order): void
+    /**
+     * Enqueue live enrichment (Cashfree / auto-sync / Customer360 / missed-call).
+     * Defaults to the critical queue so onboarding is never starved.
+     */
+    public function dispatch(Order $order, ?string $queue = null): void
     {
         $this->syncStore->markPending($order->id);
 
-        RadiumBoxOrderEnrichmentJob::dispatch($order->id);
+        RadiumBoxOrderEnrichmentJob::dispatch($order->id)
+            ->onQueue($queue ?? QueueRouting::critical());
+    }
+
+    /**
+     * Enqueue recovery/backfill enrichment on the maintenance queue.
+     */
+    public function dispatchToMaintenance(Order $order): void
+    {
+        $this->dispatch($order, QueueRouting::maintenance());
     }
 
     public function retryOrderEnrichment(Order $order): void
     {
         $this->syncStore->forget($order->id);
-        $this->dispatch($order->fresh());
+        $this->dispatchToMaintenance($order->fresh());
     }
 
     public function manualSync(Order $order, User $actor): RadiumBoxManualSyncResult
