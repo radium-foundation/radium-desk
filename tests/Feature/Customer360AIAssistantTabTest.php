@@ -68,27 +68,31 @@ class Customer360AIAssistantTabTest extends TestCase
             ->json('html');
 
         $this->assertStringContainsString('data-customer-360-section="ai-assistant"', $aiTabHtml);
+        $this->assertStringContainsString('Advanced intelligence', $aiTabHtml);
         $this->assertStringContainsString('Read only', $aiTabHtml);
         $this->assertStringContainsString('Customer Summary', $aiTabHtml);
         $this->assertStringContainsString('Incident Summary', $aiTabHtml);
-        $this->assertStringContainsString('Suggested Next Actions', $aiTabHtml);
-        $this->assertStringContainsString('Suggested Customer Reply', $aiTabHtml);
-        $this->assertStringContainsString('IRA Advisor', $aiTabHtml);
-        $this->assertStringContainsString('Recommendations only', $aiTabHtml);
-        $this->assertStringContainsString('IRA Workspace', $aiTabHtml);
-        $this->assertStringContainsString('Suggested Checklist', $aiTabHtml);
         $this->assertStringContainsString('Customer Intelligence', $aiTabHtml);
         $this->assertStringContainsString('Device Intelligence', $aiTabHtml);
         $this->assertStringContainsString('Operational Intelligence', $aiTabHtml);
         $this->assertStringContainsString('Business Intelligence', $aiTabHtml);
-        $this->assertStringContainsString('IRA Confidence', $aiTabHtml);
-        $this->assertStringContainsString('IRA Knowledge', $aiTabHtml);
-        $this->assertStringContainsString('Similar Repairs', $aiTabHtml);
-        $this->assertStringContainsString('Common Resolution', $aiTabHtml);
-        $this->assertStringContainsString('Historical Success Rate', $aiTabHtml);
-        $this->assertStringContainsString('Top Recommended Fixes', $aiTabHtml);
         $this->assertStringContainsString('AI Tab Customer', $aiTabHtml);
-        $this->assertStringContainsString('Request serial number', $aiTabHtml);
-        $this->assertStringContainsString('Powered by <strong>null</strong> provider', $aiTabHtml);
+        $this->assertStringNotContainsString('Suggested Next Actions', $aiTabHtml);
+        $this->assertStringNotContainsString('Suggested Customer Reply', $aiTabHtml);
+        $this->assertStringNotContainsString('IRA Advisor', $aiTabHtml);
+        $this->assertStringNotContainsString('IRA Workspace', $aiTabHtml);
+        $this->assertStringNotContainsString('Suggested Checklist', $aiTabHtml);
+        $this->assertStringNotContainsString('IRA Confidence', $aiTabHtml);
+        $this->assertStringNotContainsString('IRA Knowledge', $aiTabHtml);
+        $this->assertStringNotContainsString('Top Recommended Fixes', $aiTabHtml);
+        $this->assertStringNotContainsString('Powered by <strong>null</strong> provider', $aiTabHtml);
+
+        $overviewHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.executive-summary', $incident))
+            ->assertOk()
+            ->json('html');
+
+        $this->assertStringContainsString('Action Center', $overviewHtml);
+        $this->assertStringContainsString('serial number', strtolower($overviewHtml));
     }
 }

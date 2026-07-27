@@ -98,14 +98,19 @@ class RequestSerialDialogTest extends TestCase
             'interakt.templates.request_serial_number.language_code_is_default' => false,
         ]);
 
+        $health = app(\App\Services\Customer360\Customer360OperationsHealthService::class)->forIncident($incident);
+        $html = view('customer-360.partials.operations-health', ['health' => $health])->render();
+
+        $this->assertStringContainsString('Request Serial Template', $html);
+        $this->assertStringContainsString('order_confirm_manual_schedule', $html);
+        $this->assertStringContainsString('en_US', $html);
+
         $timelineHtml = (string) $this->actingAs($agent)
             ->getJson(route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0')
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('Request Serial Template', $timelineHtml);
-        $this->assertStringContainsString('order_confirm_manual_schedule', $timelineHtml);
-        $this->assertStringContainsString('en_US', $timelineHtml);
+        $this->assertStringNotContainsString('Request Serial Template', $timelineHtml);
     }
 
     public function test_request_serial_dialog_shows_whatsapp_unavailable_reason(): void

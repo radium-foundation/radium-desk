@@ -29,47 +29,33 @@ class Customer360AIWorkbenchTest extends TestCase
     {
         [$agent, $incident] = $this->createFixture();
 
-        $drawerHtml = $this->actingAs($agent)
+        $this->actingAs($agent)
             ->get(route('dashboard.service-cases.customer-360', $incident))
             ->assertOk()
             ->assertSee('data-customer-360-ai-tab', false)
-            ->assertDontSee('IRA Workspace', false)
-            ->getContent();
+            ->assertDontSee('IRA Workspace', false);
 
-        $response = $this->actingAs($agent)
-            ->getJson(route('dashboard.service-cases.customer-360.ai-workbench', $incident));
+        $aiHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.ai-workbench', $incident))
+            ->assertOk()
+            ->json('html');
 
-        $response->assertOk();
-        $html = (string) $response->json('html');
-        $this->assertStringContainsString('IRA Workspace', $html);
-        $this->assertStringContainsString('Suggested Customer Reply', $html);
-        $this->assertStringContainsString('Suggested Internal Note', $html);
-        $this->assertStringContainsString('Suggested Checklist', $html);
-        $this->assertStringContainsString('Suggested Next Workflow', $html);
-        $this->assertStringContainsString('Operator approved', $html);
-        $this->assertStringContainsString('data-ai-workbench-copy', $html);
-        $this->assertStringContainsString('data-ai-workbench-insert', $html);
-        $this->assertStringContainsString('Insert into editor', $html);
+        $this->assertStringContainsString('Advanced intelligence', $aiHtml);
+        $this->assertStringContainsString('data-customer-360-section="ai-assistant"', $aiHtml);
+        $this->assertStringNotContainsString('IRA Workspace', $aiHtml);
+        $this->assertStringNotContainsString('Suggested Next Workflow', $aiHtml);
+        $this->assertStringNotContainsString('IRA Advisor', $aiHtml);
 
-        $document = new \DOMDocument();
-        libxml_use_internal_errors(true);
-        $document->loadHTML($drawerHtml);
-        libxml_clear_errors();
+        $overviewHtml = (string) $this->actingAs($agent)
+            ->getJson(route('dashboard.service-cases.customer-360.executive-summary', $incident))
+            ->assertOk()
+            ->json('html');
 
-        $xpath = new \DOMXPath($document);
-        $aiTab = $xpath->query('//*[@id="customer-360-tab-ai-assistant"]')->item(0);
-
-        $this->assertNotNull($aiTab, 'IRA AI tab pane should exist.');
-
-        $lazyDocument = new \DOMDocument();
-        libxml_use_internal_errors(true);
-        $lazyDocument->loadHTML($html);
-        libxml_clear_errors();
-
-        $lazyXpath = new \DOMXPath($lazyDocument);
-        $workbench = $lazyXpath->query('//*[@id="customer-360-ai-workbench"]')->item(0);
-
-        $this->assertNotNull($workbench, 'IRA workbench should exist in lazy AI tab payload.');
+        $this->assertStringContainsString('Action Center', $overviewHtml);
+        $this->assertStringContainsString('Customer Journey', $overviewHtml);
+        $this->assertStringContainsString('data-ai-workbench-copy', $overviewHtml);
+        $this->assertStringContainsString('Copy WhatsApp', $overviewHtml);
+        $this->assertStringContainsString('Copy Internal Note', $overviewHtml);
     }
 
     public function test_ai_workbench_refresh_endpoint_returns_html_payload(): void

@@ -138,36 +138,51 @@ class AIWorkbenchService
         int $confidenceScore,
     ): array {
         $lines = [];
-
-        if ($context->customerIntelligence->repeatIssueDetected) {
-            $lines[] = 'Customer has previous repair history.';
-            $lines[] = 'Recommend inspecting previous technician notes before proceeding.';
-        }
+        $name = $context->customerName ?? 'Customer';
 
         if ($context->serialMissing) {
-            $lines[] = 'Serial number is missing or pending verification.';
+            $lines[] = 'Serial pending';
         }
 
-        if ($context->isWarrantyExpired()) {
-            $lines[] = 'Warranty appears expired; confirm chargeable repair expectations.';
+        if ($context->hasSupportAppointment() && ! $context->hasCompletedSupportAppointment()) {
+            $lines[] = 'Appointment overdue';
+        }
+
+        if ($this->hasActiveWaitingState($context->waitingState)) {
+            $lines[] = 'Waiting on customer for '.$this->activeWaitingReasonLabel($context->waitingState);
         }
 
         if ($context->operationalIntelligence->slaState !== 'Within SLA') {
-            $lines[] = 'SLA state: '.$context->operationalIntelligence->slaState.'. Prioritize follow-up.';
+            $lines[] = 'SLA: '.$context->operationalIntelligence->slaState;
         }
 
-        if ($context->deviceIntelligence->previousRepairsOnSerial > 0) {
-            $lines[] = 'Serial has '.$context->deviceIntelligence->previousRepairsOnSerial.' prior repair(s).';
+        if ($context->lastPayment !== null) {
+            $lines[] = 'Payment received';
         }
+
+        if ($context->customerIntelligence->repeatIssueDetected) {
+            $lines[] = 'Repeat repair history — review prior notes';
+        }
+
+        $lines = array_values(array_unique(array_filter($lines)));
 
         if ($lines === []) {
-            $lines[] = 'Review incident details and confirm next operational step with the customer.';
+            $lines[] = 'Review case and confirm next step with '.$name;
         }
 
-        $primaryAction = ($response->suggestedNextActions[0] ?? null)?->title ?? 'Review incident details';
+        $primaryAction = ($response->suggestedNextActions[0] ?? null)?->title
+            ?? 'Call customer today';
+        $lines[] = $primaryAction;
+
+        if ($context->serialMissing || $this->hasActiveWaitingState($context->waitingState)) {
+            $lines[] = 'If unreachable after final reminder, follow closure policy';
+        }
 
         return [
-            'content' => implode("\n", $lines),
+            'content' => implode('. ', array_map(
+                static fn (string $line): string => rtrim($line, '.'),
+                array_values(array_unique($lines)),
+            )).'.',
             'confidence' => $confidenceLevel->value,
             'confidence_score' => $confidenceScore,
             'explanation' => $this->provider->explainRecommendation($context, $primaryAction),
@@ -175,53 +190,116 @@ class AIWorkbenchService
     }
 
     /**
-     * @return list<array{key: string, label: string, explanation: string}>
+     * @return list<array{key: string, label: string, explanation: string, done: bool}>
      */
     private function checklist(AIResponseDTO $response, AIContextDTO $context): array
     {
         $items = [];
+
+        if ($context->lastPayment !== null) {
+            $items[] = [
+                'key' => 'payment_received',
+                'label' => 'Payment received',
+                'explanation' => 'Payment is already on record for this case.',
+                'done' => true,
+            ];
+        } elseif ($this->waitingReasonFromContext($context) === WaitingReason::Payment->value
+            || str_contains(strtolower((string) ($context->waitingState['waiting_reason'] ?? '')), 'payment')
+            || str_contains(strtolower((string) ($context->waitingState['reason_label'] ?? '')), 'payment')) {
+            $items[] = [
+                'key' => 'collect_payment',
+                'label' => 'Collect payment',
+                'explanation' => 'Payment is still outstanding.',
+                'done' => false,
+            ];
+        }
 
         if ($context->serialMissing) {
             $items[] = [
                 'key' => 'verify_serial',
                 'label' => 'Verify serial number',
                 'explanation' => 'Serial validation is required before warranty or repair decisions.',
+                'done' => false,
             ];
         }
 
-        $items[] = [
-            'key' => 'verify_warranty',
-            'label' => 'Verify warranty',
-            'explanation' => 'Confirm current warranty status against order enrichment.',
-        ];
+        $needsCustomerContact = $context->serialMissing
+            || $this->hasActiveWaitingState($context->waitingState)
+            || ($context->hasSupportAppointment() && ! $context->hasCompletedSupportAppointment())
+            || $context->operationalIntelligence->slaState !== 'Within SLA';
 
-        if ($context->customerIntelligence->repeatIssueDetected || $context->deviceIntelligence->previousRepairsOnSerial > 0) {
+        if ($needsCustomerContact) {
+            $items[] = [
+                'key' => 'contact_customer',
+                'label' => 'Contact customer',
+                'explanation' => 'Customer outreach is required to unblock this case.',
+                'done' => false,
+            ];
+        }
+
+        if ($context->hasSupportAppointment() && ! $context->hasCompletedSupportAppointment()) {
+            $items[] = [
+                'key' => 'confirm_appointment',
+                'label' => 'Confirm appointment',
+                'explanation' => 'Support appointment still needs confirmation or completion.',
+                'done' => false,
+            ];
+        }
+
+        if ($context->isWarrantyExpired()) {
+            $items[] = [
+                'key' => 'verify_warranty',
+                'label' => 'Confirm chargeable repair',
+                'explanation' => 'Warranty appears expired; confirm paid-repair expectations.',
+                'done' => false,
+            ];
+        }
+
+        if ($context->customerIntelligence->repeatIssueDetected
+            || $context->deviceIntelligence->previousRepairsOnSerial > 0) {
             $items[] = [
                 'key' => 'check_previous_repairs',
                 'label' => 'Check previous repairs',
                 'explanation' => 'Prior repair history may indicate recurring failure patterns.',
+                'done' => false,
             ];
         }
 
-        $items[] = [
-            'key' => 'confirm_accessories',
-            'label' => 'Confirm accessories received',
-            'explanation' => 'Missing accessories can delay diagnosis and repair.',
-        ];
+        if ($needsCustomerContact || $context->serialMissing) {
+            $items[] = [
+                'key' => 'close_after_follow_up',
+                'label' => 'Close after final follow-up if unreachable',
+                'explanation' => 'Follow closure policy after required reminders with no response.',
+                'done' => false,
+            ];
+        }
 
-        $items[] = [
-            'key' => 'run_diagnostics',
-            'label' => 'Run diagnostics',
-            'explanation' => 'Baseline diagnostics support accurate repair planning.',
-        ];
-
-        $items[] = [
-            'key' => 'update_customer',
-            'label' => 'Update customer',
-            'explanation' => 'Proactive communication reduces escalation risk.',
-        ];
+        if ($items === []) {
+            $primary = ($response->suggestedNextActions[0] ?? null)?->title;
+            $items[] = [
+                'key' => 'complete_next_step',
+                'label' => $primary ?? 'Complete next operational step',
+                'explanation' => 'No open blockers detected — progress the recommended action.',
+                'done' => false,
+            ];
+        }
 
         return $items;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $waitingState
+     */
+    private function waitingReasonFromContext(AIContextDTO $context): ?string
+    {
+        $waitingState = $context->waitingState;
+        if (! is_array($waitingState)) {
+            return null;
+        }
+
+        $reason = $waitingState['waiting_reason'] ?? null;
+
+        return filled($reason) ? (string) $reason : null;
     }
 
     /**
@@ -323,22 +401,51 @@ class AIWorkbenchService
         AIContextDTO $context,
         string $baseReply,
     ): string {
+        $firstName = Str::of($name)->trim()->explode(' ')->first() ?: $name;
+
         $message = match ($scenario) {
-            'waiting_for_serial' => 'Hello '.$name.', we are waiting for your device serial number to continue service case '.$reference.'. Please share the serial number when available.',
-            'warranty_expired' => 'Hello '.$name.', regarding case '.$reference.', our records indicate the device warranty has expired. Our team will share repair options and estimate details shortly.',
-            'device_received' => 'Hello '.$name.', we have received your device for case '.$reference.'. Diagnostics are in progress and we will update you on the next step.',
-            'repair_completed' => 'Hello '.$name.', repair work for case '.$reference.' is complete. Please let us know if you need any additional assistance.',
-            'payment_reminder' => 'Hello '.$name.', this is a reminder that payment is pending for service case '.$reference.'. Please complete payment so we can continue processing.',
-            'pickup_scheduled' => 'Hello '.$name.', pickup has been scheduled for service case '.$reference.'. Our team will confirm the pickup slot with you shortly.',
-            'ready_for_dispatch' => 'Hello '.$name.', your device for case '.$reference.' is ready for dispatch. We will share dispatch details shortly.',
-            default => $baseReply,
+            'waiting_for_serial' => 'Hi '.$firstName.",\nYour support appointment is pending because we still need to verify your device serial number. Please reply with the serial number or contact us today so we can complete your service request (".$reference.').',
+            'warranty_expired' => 'Hi '.$firstName.",\nRegarding case ".$reference.', our records show the device warranty has expired. Reply today if you would like a paid repair estimate so we can continue.',
+            'device_received' => 'Hi '.$firstName.",\nWe have received your device for case ".$reference.'. Diagnostics are in progress and we will update you on the next step.',
+            'repair_completed' => 'Hi '.$firstName.",\nRepair work for case ".$reference.' is complete. Please let us know if you need any additional assistance.',
+            'payment_reminder' => 'Hi '.$firstName.",\nPayment is still pending for service case ".$reference.'. Please complete payment today so we can continue processing your request.',
+            'pickup_scheduled' => 'Hi '.$firstName.",\nPickup has been scheduled for service case ".$reference.'. Our team will confirm the pickup slot with you shortly.',
+            'ready_for_dispatch' => 'Hi '.$firstName.",\nYour device for case ".$reference.' is ready for dispatch. We will share dispatch details shortly.',
+            'waiting_for_customer' => 'Hi '.$firstName.",\nWe are waiting on your response for service case ".$reference.' ('.$this->waitingSummary($context).'). Please reply today so we can move your request forward.',
+            default => filled(trim($baseReply))
+                ? $baseReply
+                : 'Hi '.$firstName.",\nWe need a quick update from you on service case ".$reference.'. Please reply today so we can complete your request.',
         };
 
         return match ($channel) {
             'email' => "Subject: Update on service case {$reference}\n\n{$message}\n\nRegards,\nRadium Service Team",
-            'internal_note' => "Internal note for {$reference}:\n- Scenario: ".Str::headline(str_replace('_', ' ', $scenario))."\n- Customer: {$name}\n- Next step: ".$this->waitingSummary($context),
+            'internal_note' => $this->compactInternalReplyNote($context, $reference, $name, $scenario),
             default => $message,
         };
+    }
+
+    private function compactInternalReplyNote(
+        AIContextDTO $context,
+        string $reference,
+        string $name,
+        string $scenario,
+    ): string {
+        $bits = ["Case {$reference} ({$name})"];
+
+        if ($context->serialMissing) {
+            $bits[] = 'Serial pending';
+        }
+        if ($context->hasSupportAppointment() && ! $context->hasCompletedSupportAppointment()) {
+            $bits[] = 'Appointment overdue';
+        }
+        if ($context->operationalIntelligence->slaState !== 'Within SLA') {
+            $bits[] = 'SLA '.$context->operationalIntelligence->slaState;
+        }
+
+        $bits[] = 'Next: '.Str::headline(str_replace('_', ' ', $scenario));
+        $bits[] = 'Call customer today. If unreachable after final reminder, follow closure policy';
+
+        return implode('. ', $bits).'.';
     }
 
     /**

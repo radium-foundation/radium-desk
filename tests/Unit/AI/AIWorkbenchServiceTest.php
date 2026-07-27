@@ -46,7 +46,7 @@ class AIWorkbenchServiceTest extends TestCase
         $this->assertSame('WhatsApp', $workbench->customerReplies[0]['channel_label']);
         $this->assertStringContainsString('serial number', $workbench->customerReplies[0]['content']);
         $this->assertStringContainsString('Subject:', $workbench->customerReplies[1]['content']);
-        $this->assertStringContainsString('Internal note', $workbench->customerReplies[2]['content']);
+        $this->assertStringContainsString('Serial pending', $workbench->customerReplies[2]['content']);
     }
 
     public function test_generates_internal_note_with_repeat_history_guidance(): void
@@ -55,8 +55,8 @@ class AIWorkbenchServiceTest extends TestCase
 
         $workbench = app(AIWorkbenchService::class)->buildFromBundle($incident, $bundle);
 
-        $this->assertStringContainsString('previous repair history', $workbench->internalNote['content']);
-        $this->assertStringContainsString('technician notes', $workbench->internalNote['content']);
+        $this->assertStringContainsString('Repeat repair history', $workbench->internalNote['content']);
+        $this->assertStringContainsString('prior notes', $workbench->internalNote['content']);
         $this->assertNotSame('', $workbench->internalNote['explanation']);
     }
 
@@ -68,9 +68,46 @@ class AIWorkbenchServiceTest extends TestCase
         $labels = array_column($workbench->checklist, 'label');
 
         $this->assertContains('Verify serial number', $labels);
-        $this->assertContains('Verify warranty', $labels);
-        $this->assertContains('Run diagnostics', $labels);
-        $this->assertContains('Update customer', $labels);
+        $this->assertContains('Contact customer', $labels);
+        $this->assertContains('Close after final follow-up if unreachable', $labels);
+        $this->assertNotContains('Verify warranty', $labels);
+        $this->assertNotContains('Run diagnostics', $labels);
+        $this->assertNotContains('Confirm accessories received', $labels);
+        $this->assertNotContains('Update customer', $labels);
+    }
+
+    public function test_checklist_marks_payment_received_when_present(): void
+    {
+        [$incident, $bundle] = $this->createIncidentBundle(serialMissing: true);
+
+        $context = AIContextFactory::make([
+            'incidentId' => $bundle->context->incidentId,
+            'incidentReference' => $bundle->context->incidentReference,
+            'serialMissing' => true,
+            'customerName' => $bundle->context->customerName,
+            'lastPayment' => ['label' => 'Payment received', 'occurred_at' => now()],
+            'customerIntelligence' => $bundle->context->customerIntelligence,
+            'deviceIntelligence' => $bundle->context->deviceIntelligence,
+            'operationalIntelligence' => $bundle->context->operationalIntelligence,
+            'businessIntelligence' => $bundle->context->businessIntelligence,
+            'knowledge' => $bundle->knowledge,
+        ]);
+
+        $workbench = app(AIWorkbenchService::class)->buildFromBundle(
+            $incident,
+            new AIIncidentBundle(
+                response: $bundle->response,
+                context: $context,
+                knowledge: $bundle->knowledge,
+                scopeCache: $bundle->scopeCache,
+            ),
+        );
+
+        $payment = collect($workbench->checklist)->firstWhere('key', 'payment_received');
+
+        $this->assertNotNull($payment);
+        $this->assertTrue($payment['done']);
+        $this->assertSame('Payment received', $payment['label']);
     }
 
     public function test_generates_workflow_suggestions_without_execution(): void
@@ -263,7 +300,8 @@ class AIWorkbenchServiceTest extends TestCase
         $payload = app(Customer360Service::class)->executiveSummaryPayload($incident);
         $this->assertNotSame('', $payload['html']);
         $this->assertStringContainsString('data-ira-panel', $payload['html']);
-        $this->assertStringContainsString('Executive Summary', $payload['html']);
+        $this->assertStringContainsString('Action Center', $payload['html']);
+        $this->assertStringContainsString('Executive Narrative', $payload['html']);
         $this->assertStringContainsString('IRA', $payload['html']);
     }
 

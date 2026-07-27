@@ -245,6 +245,7 @@ class Customer360Service
                 canRequestCorrectSerial: $canRequestCorrectSerial,
                 correctSerialRequestState: $correctSerialRequestState,
                 translateUrl: $translateUrl,
+                workbench: $this->aiWorkbenchService->fromSnapshot($snapshot),
             );
         } else {
             $executiveSummary = $this->legacyExecutiveSummary($incident);
@@ -323,29 +324,15 @@ class Customer360Service
     public function timelineTabPayload(Incident $incident, int $offset = 0): array
     {
         $incident->loadMissing('order');
-        $order = $incident->order;
         $viewModel = $this->customer360TimelineService->forIncident($incident, $offset);
         $timelineUrl = route('dashboard.service-cases.customer-360.timeline', $incident);
-        $customerHealthCard = $this->customerHealthCardViewData($incident, $order);
-        $customerInsights = $this->customerInsightsViewData($incident, $order, $customerHealthCard);
-
-        $intelligence = $this->caseIntelligenceSnapshot($incident);
-        $iraAdvisor = $intelligence !== null
-            ? $this->iraAdvisorPresenter->presentFromSnapshot($intelligence)
-            : $this->iraAdvisorViewData($incident, $order, $customerHealthCard);
 
         return [
             'timeline' => $viewModel,
-            'customerHealthCard' => $customerHealthCard,
-            'customerInsights' => $customerInsights,
-            'iraAdvisor' => $iraAdvisor,
             'html' => view('customer-360.partials.timeline-tab', [
                 'timeline' => $viewModel,
                 'timelineLoadMoreUrl' => $timelineUrl,
                 'timelineRefreshUrl' => $timelineUrl,
-                'customerHealthCard' => $customerHealthCard,
-                'customerInsights' => $customerInsights,
-                'iraAdvisor' => $iraAdvisor,
             ])->render(),
         ];
     }

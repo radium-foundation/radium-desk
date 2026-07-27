@@ -10,7 +10,7 @@ readonly class AIWorkbenchDTO
     /**
      * @param  list<array{key: string, channel: string, channel_label: string, content: string, confidence: string, confidence_score: int, explanation: string}>  $customerReplies
      * @param  array{content: string, confidence: string, confidence_score: int, explanation: string}  $internalNote
-     * @param  list<array{key: string, label: string, explanation: string}>  $checklist
+     * @param  list<array{key: string, label: string, explanation: string, done?: bool}>  $checklist
      * @param  list<array{key: string, label: string, description: string, confidence: string, confidence_score: int, explanation: string}>  $workflowSuggestions
      */
     public function __construct(

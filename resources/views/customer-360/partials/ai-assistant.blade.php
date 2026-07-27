@@ -7,7 +7,6 @@
     $deviceIntel = $aiAssistant->deviceIntelligence;
     $operationalIntel = $aiAssistant->operationalIntelligence;
     $businessIntel = $aiAssistant->businessIntelligence;
-    $knowledge = $aiAssistant->knowledge;
 @endphp
 
 <section class="customer-360-section customer-360-ai-assistant"
@@ -21,9 +20,15 @@
         <span class="customer-360-ai-badge">Read only</span>
     </div>
 
-    <p class="customer-360-ai-provider-note">
-        Powered by <strong>{{ $aiAssistant->providerName }}</strong> provider (foundation mode).
-    </p>
+    @php
+        $providerName = strtolower(trim((string) $aiAssistant->providerName));
+        $showProvider = $providerName !== '' && $providerName !== 'null';
+    @endphp
+    @if($showProvider)
+        <p class="customer-360-ai-provider-note">
+            Powered by <strong>{{ $aiAssistant->providerName }}</strong> provider.
+        </p>
+    @endif
 
     <div class="customer-360-ai-grid">
         <article class="customer-360-ai-card customer-360-ai-card--wide">
@@ -119,28 +124,6 @@
             </dl>
         </article>
 
-        <article class="customer-360-ai-card customer-360-ai-card--wide customer-360-ai-card--section">
-            <h3 class="customer-360-ai-card-title">IRA Knowledge</h3>
-            <p class="customer-360-ai-text">{{ $knowledge->knowledgeSummary }}</p>
-            <dl class="customer-360-ai-dl customer-360-ai-dl--knowledge">
-                <div><dt>Similar Repairs</dt><dd>{{ $knowledge->similarRepairsCount() }}</dd></div>
-                <div><dt>Common Resolution</dt><dd>{{ $displayValue($knowledge->commonResolution()) }}</dd></div>
-                <div><dt>Previous Engineer</dt><dd>{{ $displayValue($knowledge->previousEngineer()) }}</dd></div>
-                <div><dt>Average Resolution Time</dt><dd>{{ $knowledge->averageResolutionTimeDays() !== null ? $knowledge->averageResolutionTimeDays().' days' : 'Not Available' }}</dd></div>
-                <div><dt>Historical Success Rate</dt><dd>{{ number_format($knowledge->historicalSuccessRate(), 1) }}%</dd></div>
-                <div><dt>Repeat Failure %</dt><dd>{{ number_format($knowledge->repeatFailurePercent(), 1) }}%</dd></div>
-                <div class="customer-360-ai-dl-full"><dt>Top Recommended Fixes</dt>
-                    <dd>
-                        @if($knowledge->topRecommendedFixes() !== [])
-                            {{ implode(', ', $knowledge->topRecommendedFixes()) }}
-                        @else
-                            Not Available
-                        @endif
-                    </dd>
-                </div>
-            </dl>
-        </article>
-
         <article class="customer-360-ai-card customer-360-ai-card--wide">
             <h3 class="customer-360-ai-card-title">Risk Indicators</h3>
             @if($aiAssistant->riskIndicators !== [])
@@ -155,16 +138,6 @@
             @else
                 <p class="customer-360-ai-text customer-360-ai-text--muted">No risk indicators identified.</p>
             @endif
-        </article>
-
-        <article class="customer-360-ai-card customer-360-ai-card--wide customer-360-ai-card--section"
-                 aria-labelledby="customer-360-ira-confidence-heading">
-            <h3 class="customer-360-ai-card-title" id="customer-360-ira-confidence-heading">IRA Confidence</h3>
-            <div class="customer-360-ai-confidence-banner customer-360-ai-confidence-banner--{{ $aiAssistant->confidenceLevel->value }}">
-                <span class="customer-360-ai-confidence-banner-label">IRA Confidence</span>
-                <strong>{{ $aiAssistant->confidenceLevel->label() }}</strong>
-                <span class="customer-360-ai-confidence-banner-score">{{ $aiAssistant->confidenceScore }}%</span>
-            </div>
         </article>
 
         <article class="customer-360-ai-card">
@@ -187,29 +160,6 @@
             @endif
         </article>
 
-        <article class="customer-360-ai-card customer-360-ai-card--wide">
-            <h3 class="customer-360-ai-card-title">Suggested Next Actions</h3>
-            @if($aiAssistant->suggestedNextActions !== [])
-                <ul class="customer-360-ai-action-list">
-                    @foreach($aiAssistant->suggestedNextActions as $action)
-                        <li>
-                            <span class="customer-360-ai-action-title">{{ $action->title }}</span>
-                            @if(filled($action->description))
-                                <span class="customer-360-ai-action-description">{{ $action->description }}</span>
-                            @endif
-                        </li>
-                    @endforeach
-                </ul>
-            @else
-                <p class="customer-360-ai-text customer-360-ai-text--muted">No actions suggested.</p>
-            @endif
-        </article>
-
-        <article class="customer-360-ai-card customer-360-ai-card--wide">
-            <h3 class="customer-360-ai-card-title">Suggested Customer Reply</h3>
-            <blockquote class="customer-360-ai-reply">{{ $aiAssistant->suggestedCustomerReply }}</blockquote>
-        </article>
-
         <article class="customer-360-ai-card">
             <h3 class="customer-360-ai-card-title">Classification</h3>
             <p class="customer-360-ai-text">{{ $aiAssistant->classification }}</p>
@@ -220,11 +170,4 @@
             <p class="customer-360-ai-text">{{ $aiAssistant->estimatedResolution }}</p>
         </article>
     </div>
-
-    @if(filled($aiAssistant->recommendationExplanation))
-        <details class="customer-360-ai-explanation">
-            <summary>Why this recommendation?</summary>
-            <p>{{ $aiAssistant->recommendationExplanation }}</p>
-        </details>
-    @endif
 </section>

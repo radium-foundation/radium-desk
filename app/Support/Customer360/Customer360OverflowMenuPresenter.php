@@ -97,10 +97,10 @@ final class Customer360OverflowMenuPresenter
 
         if ($requestCorrectSerialMenu['visible']
             && $requestCorrectSerialMenu['type'] === 'trigger'
-            && $requestCorrectSerialMenu['status'] === 're-request') {
+            && in_array($requestCorrectSerialMenu['status'], ['available', 're-request'], true)) {
             $items[] = $this->triggerItem(
                 id: 'request-correct-serial',
-                label: 'Re-request Serial',
+                label: $requestCorrectSerialMenu['label'],
                 icon: 'camera',
                 trigger: 'request-correct-serial',
                 keywords: ['serial', 'request', 're-request', 'communication'],

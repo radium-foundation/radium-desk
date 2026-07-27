@@ -708,6 +708,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
                 placeholder.outerHTML = payload.html;
                 bindExecutiveSummaryTranslation();
                 bindIraDisclosures(contentHost);
+                bindWorkbenchActions();
                 initTooltips?.(contentHost);
             }
         } catch (error) {

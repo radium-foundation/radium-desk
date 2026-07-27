@@ -17,7 +17,6 @@ use App\Models\Order;
 use App\Services\SerialValidation\SerialInsightService;
 use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 
 /**
  * Builds the Customer 360 executive briefing as a natural operations narrative.
@@ -65,11 +64,14 @@ class CaseSummaryBuilder
 
         // Communication briefing is injected by the IRA panel presenter from
         // CommunicationSummary::briefingLines (chronological human bullets).
+        $ownerName = trim((string) ($facts->incident->assignee?->name ?? ''));
         $sections = array_values(array_filter([
             $this->caseIntroduction($incident, $model, $state),
-            $this->currentSituation($facts, $state, $serialInsight, $serialMissing),
-            $this->internalProgress($facts, $state, $serialInsight, $serialMissing, $context->lastPayment),
+            $this->currentSituation($facts, $state, $serialInsight, $serialMissing, $ownerName),
+            $this->internalProgress($facts, $state, $serialInsight, $serialMissing, $context->lastPayment, $ownerName),
+            $this->communicationGap($communication),
             $this->businessImpact($incident, $state, $serialInsight),
+            $this->nextExpectedAction($state, $serialInsight, $serialMissing, $communication),
         ]));
 
         if ($sections === []) {
@@ -110,14 +112,12 @@ class CaseSummaryBuilder
     /**
      * @param  array<string, mixed>  $state
      */
-    /**
-     * @param  array<string, mixed>  $state
-     */
     private function currentSituation(
         CaseIntelligenceFacts $facts,
         array $state,
         ?SerialInsight $serialInsight,
         bool $serialMissing,
+        string $ownerName = '',
     ): string {
         $parts = [];
 
@@ -130,7 +130,9 @@ class CaseSummaryBuilder
                 $parts[] = "The case is currently waiting on the customer for {$reason}";
             }
         } elseif (($state['current_status_code'] ?? '') === 'appointment_overdue') {
-            $parts[] = 'The scheduled support appointment is overdue and the visit has not been completed';
+            $parts[] = $ownerName !== ''
+                ? "The scheduled support appointment is overdue and has not yet been completed by {$ownerName}"
+                : 'The scheduled support appointment is overdue and has not yet been completed';
         } elseif (($state['current_status_code'] ?? '') === 'scheduled') {
             $appointment = $facts->supportAppointment;
             $when = null;
@@ -147,11 +149,11 @@ class CaseSummaryBuilder
         } elseif ($serialInsight?->status === SerialInsightStatus::Suspicious
             || $serialInsight?->status === SerialInsightStatus::Warning) {
             $parts[] = 'The case is waiting on serial-number verification before repair work can continue safely';
-        } else {
-            $parts[] = 'The case is '.$this->lowerStatus((string) ($state['current_status_label'] ?? 'in progress'));
         }
 
-        return rtrim(implode('. ', $parts), '.').'.';
+        return $parts === []
+            ? ''
+            : rtrim(implode('. ', $parts), '.').'.';
     }
 
     /**
@@ -164,32 +166,33 @@ class CaseSummaryBuilder
         ?SerialInsight $serialInsight,
         bool $serialMissing,
         ?array $lastPayment,
+        string $ownerName = '',
     ): ?string {
         $parts = [];
+        $statusCode = (string) ($state['current_status_code'] ?? '');
 
         $ownership = $this->ownershipChangeSentence($facts);
         if ($ownership !== null) {
             $parts[] = $ownership;
-        } elseif (filled($facts->incident->assignee?->name)) {
-            $parts[] = 'Current owner: '.$facts->incident->assignee->name;
+        } elseif ($ownerName !== '' && $statusCode !== 'appointment_overdue') {
+            // Owner is already woven into the overdue-appointment sentence when applicable.
+            $parts[] = "The case is currently owned by {$ownerName}";
         }
 
         $appointment = $facts->supportAppointment;
-        if (is_array($appointment)) {
-            if (($state['current_status_code'] ?? '') === 'appointment_overdue') {
-                $parts[] = 'The active support appointment is overdue';
-            } elseif ($appointment['is_completed'] ?? false) {
+        if (is_array($appointment) && $statusCode !== 'appointment_overdue') {
+            if ($appointment['is_completed'] ?? false) {
                 $parts[] = 'A support appointment has already been completed';
             } elseif ($appointment['is_active'] ?? false) {
                 $assignee = $appointment['assignee_name'] ?? null;
                 $parts[] = filled($assignee)
-                    ? 'Engineer: '.$assignee
+                    ? "Engineer {$assignee} is assigned to the support appointment"
                     : 'A support appointment is on the calendar';
             }
         }
 
         if ($serialMissing) {
-            $parts[] = 'Device serial number is still missing';
+            $parts[] = 'The serial number is still pending verification';
         } elseif ($serialInsight?->status === SerialInsightStatus::Suspicious
             || $serialInsight?->status === SerialInsightStatus::Warning) {
             $parts[] = 'Serial number still needs verification';
@@ -213,6 +216,52 @@ class CaseSummaryBuilder
         return rtrim(implode('. ', $parts), '.').'.';
     }
 
+    private function communicationGap(CommunicationSummary $communication): ?string
+    {
+        if (filled($communication->sinceLastCustomerReplyLabel)
+            && str_contains(strtolower((string) $communication->sinceLastCustomerReplyLabel), 'not replied')) {
+            return 'The customer has not replied after the last outreach.';
+        }
+
+        $ourLast = $communication->ourLastContact;
+        $customerLast = $communication->customerLastReply;
+        if ($ourLast !== null
+            && $ourLast->direction === 'outbound'
+            && ($customerLast === null || $customerLast->occurredAt->lt($ourLast->occurredAt))) {
+            return 'Customer communication is outstanding after the last follow-up.';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $state
+     */
+    private function nextExpectedAction(
+        array $state,
+        ?SerialInsight $serialInsight,
+        bool $serialMissing,
+        CommunicationSummary $communication,
+    ): string {
+        if ($serialMissing
+            || $serialInsight?->status === SerialInsightStatus::Missing
+            || (($state['is_waiting'] ?? false) && ($state['waiting_reason_code'] ?? null) === 'serial_number')) {
+            return 'Contact the customer immediately and either complete verification or follow the closure policy if there is no response after the required follow-ups.';
+        }
+
+        if (($state['current_status_code'] ?? '') === 'appointment_overdue') {
+            return 'Contact the customer immediately to recover the overdue appointment or reschedule before escalating.';
+        }
+
+        if ($communication->customerLastReply === null
+            && ($state['is_waiting'] ?? false)
+            && $this->waitingDays($state['waiting_since'] ?? null) >= 2) {
+            return 'Send a clear follow-up today and close after the final reminder if the customer remains unreachable.';
+        }
+
+        return 'Complete the next operational step promptly and update the customer once it is done.';
+    }
+
     /**
      * @param  array<string, mixed>  $state
      */
@@ -225,7 +274,7 @@ class CaseSummaryBuilder
         $sla = (string) ($state['sla_status'] ?? '');
 
         if ($sla === ServiceCaseSlaStatus::Overdue->value || $sla === 'overdue') {
-            $parts[] = 'SLA is already overdue, so further delay increases customer escalation risk';
+            $parts[] = 'SLA has already been breached, increasing escalation risk';
         } elseif ($sla === ServiceCaseSlaStatus::Warning->value || $sla === 'warning') {
             $parts[] = 'SLA is approaching breach and needs prompt movement';
         } elseif ($sla === 'paused') {
@@ -239,18 +288,13 @@ class CaseSummaryBuilder
             }
         }
 
-        $priority = (string) ($state['priority_level'] ?? 'normal');
-        if (in_array($priority, ['high', 'critical'], true) || $incident->high_priority) {
-            $parts[] = 'Priority handling is required because this case is marked high impact';
-        }
-
         if ($serialInsight?->status === SerialInsightStatus::Missing
             || $serialInsight?->status === SerialInsightStatus::Suspicious) {
             $parts[] = 'Missing or unverified serial data blocks warranty and repair decisions';
         }
 
         if ($parts === []) {
-            $parts[] = 'The case remains within normal operating risk if the next action is completed promptly';
+            return '';
         }
 
         return rtrim(implode('. ', array_unique($parts)), '.').'.';
@@ -340,12 +384,5 @@ class CaseSummaryBuilder
         }
 
         return (int) $waitingSince->copy()->startOfDay()->diffInDays(now()->startOfDay());
-    }
-
-    private function lowerStatus(string $label): string
-    {
-        $label = trim($label);
-
-        return $label === '' ? 'in progress' : Str::lower($label);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\User;
+use App\Services\Customer360\Customer360OperationsHealthService;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,13 +30,18 @@ class Customer360WhatsAppFlowStatusTest extends TestCase
     {
         [$agent, $incident] = $this->createFixture();
 
+        $health = app(Customer360OperationsHealthService::class)->forIncident($incident);
+        $html = view('customer-360.partials.operations-health', ['health' => $health])->render();
+
+        $this->assertStringContainsString('WhatsApp Flow', $html);
+        $this->assertStringContainsString('Not Configured', $html);
+
         $timelineHtml = (string) $this->actingAs($agent)
             ->getJson(route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0')
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('WhatsApp Flow', $timelineHtml);
-        $this->assertStringContainsString('Not Configured', $timelineHtml);
+        $this->assertStringNotContainsString('WhatsApp Flow', $timelineHtml);
     }
 
     public function test_customer_360_shows_whatsapp_flow_ready_when_appointment_exists(): void
@@ -49,13 +55,11 @@ class Customer360WhatsAppFlowStatusTest extends TestCase
             'phone_number' => $order->customer_phone,
         ]);
 
-        $timelineHtml = (string) $this->actingAs($agent)
-            ->getJson(route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1&offset=0')
-            ->assertOk()
-            ->json('html');
+        $health = app(Customer360OperationsHealthService::class)->forIncident($incident->fresh());
+        $html = view('customer-360.partials.operations-health', ['health' => $health])->render();
 
-        $this->assertStringContainsString('WhatsApp Flow', $timelineHtml);
-        $this->assertStringContainsString('Ready', $timelineHtml);
+        $this->assertStringContainsString('WhatsApp Flow', $html);
+        $this->assertStringContainsString('Ready', $html);
     }
 
     /**

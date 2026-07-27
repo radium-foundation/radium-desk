@@ -50,8 +50,8 @@ class Customer360ExecutiveSummaryTest extends TestCase
         $this->assertStringContainsString('Operations briefing', $summaryHtml);
         $this->assertStringContainsString('Executive Brief', $summaryHtml);
         $this->assertStringContainsString('Executive Narrative', $summaryHtml);
-        $this->assertStringContainsString('Next Action', $summaryHtml);
-        $this->assertStringContainsString('Communication', $summaryHtml);
+        $this->assertStringContainsString('Action Center', $summaryHtml);
+        $this->assertStringContainsString('Customer Journey', $summaryHtml);
         $this->assertStringContainsString('Case Contributors', $summaryHtml);
         $this->assertStringContainsString('Current Status', $summaryHtml);
         $this->assertStringContainsString('Why IRA thinks this', $summaryHtml);
@@ -62,7 +62,9 @@ class Customer360ExecutiveSummaryTest extends TestCase
         $this->assertStringContainsString('data-ira-summary-block="recommendation"', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-block="opinion"', $summaryHtml);
         $this->assertStringContainsString('c360-ira-brief-grid', $summaryHtml);
-        $this->assertStringContainsString('c360-ira-next-action', $summaryHtml);
+        $this->assertStringContainsString('c360-action-center', $summaryHtml);
+        $this->assertStringNotContainsString('Next Action', $summaryHtml);
+        $this->assertStringNotContainsString('>Communication</h3>', $summaryHtml);
 
         $html = $response->getContent();
         $healthPos = strpos($html, 'data-customer-360-section="health-card"');

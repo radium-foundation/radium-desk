@@ -108,9 +108,10 @@ class RequestCorrectSerialTest extends TestCase
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('Request the correct serial number from the customer before closing this case.', $summaryHtml);
+        $this->assertStringContainsString('Customer identity or serial details need verification before closing.', $summaryHtml);
         $this->assertStringContainsString('Send request', $summaryHtml);
         $this->assertStringContainsString('data-workspace-trigger="request-correct-serial"', $summaryHtml);
+        $this->assertStringContainsString('Action Center', $summaryHtml);
     }
 
     public function test_manual_request_correct_serial_persists_audit_and_timeline_entries(): void

@@ -89,6 +89,11 @@ class Customer360IraPanelPresenterTest extends TestCase
         $this->assertNotEmpty($panel['executive_brief']);
         $this->assertNotSame('', $panel['executive_narrative_plain']);
         $this->assertArrayHasKey('communication_items', $panel);
+        $this->assertArrayHasKey('customer_journey_items', $panel);
+        $this->assertArrayHasKey('action_center', $panel);
+        $this->assertArrayHasKey('primary_label', $panel['action_center']);
+        $this->assertArrayHasKey('checklist', $panel['action_center']);
+        $this->assertArrayHasKey('quick_actions', $panel['action_center']);
         $this->assertArrayHasKey('case_contributors', $panel);
         $this->assertArrayHasKey('label', $panel['current_status']);
         $this->assertContains($panel['waiting']['party'], ['Customer', 'Engineer', 'Internal Team', 'Nobody']);

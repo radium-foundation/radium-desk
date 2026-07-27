@@ -11636,6 +11636,197 @@ body.customer-360-drawer-open {
     border-color: rgba(74, 222, 128, 0.28);
 }
 
+.c360-ira-journey-feed {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.c360-ira-journey-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.4rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: #334155;
+}
+
+.c360-ira-journey-time {
+    font-weight: 650;
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.c360-ira-journey-sep {
+    color: #94a3b8;
+}
+
+.c360-ira-journey-text {
+    flex: 1 1 12rem;
+}
+
+.c360-ira-journey-item--gap {
+    color: #9a3412;
+    font-weight: 600;
+}
+
+.c360-action-center {
+    border-radius: 0.55rem;
+    padding: 0.75rem 0.85rem;
+    margin: 0.35rem 0;
+    background: linear-gradient(180deg, rgba(239, 246, 255, 0.95), rgba(219, 234, 254, 0.55));
+    border: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+.c360-action-center-header {
+    margin-bottom: 0.45rem;
+}
+
+.c360-action-center .c360-ira-panel-section-title {
+    color: #1d4ed8;
+    margin: 0;
+}
+
+.c360-action-center-primary-label {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.c360-action-center-primary-text {
+    margin: 0.2rem 0 0.55rem;
+    font-size: 0.9375rem;
+    font-weight: 650;
+    color: #0f172a;
+}
+
+.c360-action-center-why {
+    margin: 0 0 0.65rem;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: #475569;
+}
+
+.c360-action-center-why-label {
+    display: block;
+    margin-bottom: 0.15rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.c360-action-center-reply {
+    margin: 0 0 0.65rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 0.4rem;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.c360-action-center-reply-label {
+    margin: 0 0 0.2rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.c360-action-center-reply-text {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: #0f172a;
+    white-space: pre-wrap;
+}
+
+.c360-action-center-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 0.65rem;
+}
+
+.c360-action-center-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    background: #fff;
+    color: #1d4ed8;
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.c360-action-center-copy-btn:hover {
+    background: rgba(239, 246, 255, 0.95);
+}
+
+.c360-action-center-checklist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.c360-action-center-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    font-size: 0.8125rem;
+    color: #334155;
+}
+
+.c360-action-center-check--done {
+    color: #166534;
+}
+
+.c360-action-center-check-mark {
+    line-height: 1.3;
+}
+
+.customer-360-ai-advanced {
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 0.55rem;
+    padding: 0.65rem 0.8rem;
+    background: #fff;
+}
+
+.customer-360-ai-advanced > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-weight: 650;
+    color: #0f172a;
+    list-style: none;
+}
+
+.customer-360-ai-advanced > summary::-webkit-details-marker {
+    display: none;
+}
+
+.customer-360-ai-advanced[open] > summary {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+}
+
 .c360-ira-contributor-list {
     list-style: none;
     margin: 0;

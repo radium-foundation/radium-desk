@@ -2,11 +2,13 @@
 
 namespace App\Support\Customer360;
 
+use App\Data\AI\AIWorkbenchDTO;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceBlocker;
 use App\Data\Customer360\Intelligence\CaseIntelligenceEvidence;
 use App\Data\Customer360\Intelligence\CaseIntelligenceRisk;
 use App\Data\Customer360\Intelligence\CaseIntelligenceSnapshot;
+use App\Data\Customer360\Intelligence\CommunicationJourneyEntry;
 use App\Data\Customer360\Intelligence\CommunicationSummary;
 use App\Data\Customer360\Intelligence\CommunicationTouchpoint;
 use App\Data\TimelineEvent;
@@ -28,6 +30,8 @@ class Customer360IraPanelPresenter
 
     private const COMMUNICATION_ITEM_LIMIT = 8;
 
+    private const JOURNEY_ITEM_LIMIT = 8;
+
     public function __construct(
         private readonly ExecutiveSummaryPersonEmphasis $personEmphasis,
     ) {}
@@ -42,6 +46,7 @@ class Customer360IraPanelPresenter
         bool $canRequestCorrectSerial = false,
         array $correctSerialRequestState = ['requested' => false],
         ?string $translateUrl = null,
+        ?AIWorkbenchDTO $workbench = null,
     ): array {
         $incident->loadMissing(['order', 'assignee']);
         $executiveSummary = $snapshot->executiveSummary;
@@ -49,12 +54,14 @@ class Customer360IraPanelPresenter
         $narrativePlain = $this->narrativePlain($executiveSummary->executiveSummary);
         $narrativeHtml = $this->personEmphasis->emphasize($narrativePlain, $personNames);
         $communicationItems = $this->communicationItems($snapshot->communicationSummary, $personNames);
+        $journeyItems = $this->customerJourneyItems($snapshot->communicationSummary);
         $contributors = $this->caseContributors($snapshot, $incident);
         $serialInsight = $executiveSummary->serialInsight;
         $requestCorrectSerialMenu = RequestCorrectSerialMenuPresenter::resolve(
             $canRequestCorrectSerial,
             $correctSerialRequestState,
         );
+        $workbench ??= $snapshot->workbench;
 
         $hasSerialAction = $serialInsight?->isActionable()
             && in_array($serialInsight->status, [
@@ -67,6 +74,18 @@ class Customer360IraPanelPresenter
             (string) ($snapshot->recommendedAction->recommendationText
                 ?? $snapshot->recommendedAction->label),
             " \t\n\r\0\x0B\"'",
+        );
+
+        $actionCenter = $this->actionCenter(
+            snapshot: $snapshot,
+            incident: $incident,
+            actionText: $actionText,
+            workbench: $workbench,
+            hasSerialAction: $hasSerialAction,
+            serialActionLabel: $requestCorrectSerialMenu['status'] === 're-request'
+                ? 'Re-request serial'
+                : 'Send request',
+            serialRequestPending: $requestCorrectSerialMenu['status'] === 'pending',
         );
 
         return [
@@ -88,6 +107,8 @@ class Customer360IraPanelPresenter
             'executive_paragraph' => $narrativePlain,
             'communication_items' => $communicationItems,
             'has_communication' => $communicationItems !== [],
+            'customer_journey_items' => $journeyItems,
+            'has_customer_journey' => $journeyItems !== [],
             'case_contributors' => $contributors,
             'has_contributors' => $contributors !== [],
             'current_status' => [
@@ -121,6 +142,7 @@ class Customer360IraPanelPresenter
                     : 'Send request',
                 'serial_request_pending' => $requestCorrectSerialMenu['status'] === 'pending',
             ],
+            'action_center' => $actionCenter,
             'evidence' => $this->evidence($snapshot),
             'opinion' => trim($executiveSummary->opinion, " \t\n\r\0\x0B\"'"),
             'serial_insight' => $serialInsight,
@@ -200,9 +222,12 @@ class Customer360IraPanelPresenter
             'executive_paragraph' => $narrativePlain,
             'communication_items' => [],
             'has_communication' => false,
+            'customer_journey_items' => [],
+            'has_customer_journey' => false,
             'case_contributors' => filled($owner) ? [[
                 'role' => 'Current Owner',
                 'name' => $owner,
+                'name_html' => '<strong class="c360-ira-person">'.e($owner).'</strong>',
                 'icon' => 'bi-person-fill',
                 'kind' => 'owner',
             ]] : [],
@@ -235,6 +260,26 @@ class Customer360IraPanelPresenter
                     ? 'Re-request serial'
                     : 'Send request',
                 'serial_request_pending' => $requestCorrectSerialMenu['status'] === 'pending',
+            ],
+            'action_center' => [
+                'primary_label' => 'Next action',
+                'primary_text' => trim($executiveSummary->recommendation, " \t\n\r\0\x0B\"'"),
+                'why' => trim($executiveSummary->opinion, " \t\n\r\0\x0B\"'"),
+                'quick_actions' => [
+                    'whatsapp' => null,
+                    'email' => null,
+                    'internal_note' => null,
+                ],
+                'suggested_reply' => null,
+                'internal_note' => null,
+                'checklist' => [],
+                'has_serial_action' => $hasSerialAction,
+                'serial_action_label' => $requestCorrectSerialMenu['status'] === 're-request'
+                    ? 'Re-request serial'
+                    : 'Send request',
+                'serial_request_pending' => $requestCorrectSerialMenu['status'] === 'pending',
+                'audit_url' => null,
+                'provider_label' => null,
             ],
             'evidence' => array_map(
                 fn (array $item): array => [
@@ -433,6 +478,201 @@ class Customer360IraPanelPresenter
         }
 
         return $items;
+    }
+
+    /**
+     * Chronological operator journey — enough to skip Timeline for routine work.
+     *
+     * @return list<array{at_label: string, text: string, channel: ?string, kind: string}>
+     */
+    private function customerJourneyItems(?CommunicationSummary $communication): array
+    {
+        if ($communication === null || $communication->isEmpty()) {
+            return [];
+        }
+
+        $items = [];
+
+        if ($communication->communicationJourney !== []) {
+            $entries = array_slice(
+                $communication->communicationJourney,
+                -self::JOURNEY_ITEM_LIMIT,
+            );
+
+            foreach ($entries as $entry) {
+                if (! $entry instanceof CommunicationJourneyEntry) {
+                    continue;
+                }
+
+                $items[] = [
+                    'at_label' => AppDateFormatter::format($entry->occurredAt, 'd M, h:i A')
+                        ?? $entry->dateLabel,
+                    'text' => rtrim($entry->narrative, '.'),
+                    'channel' => $entry->channel !== 'other' ? $entry->channel : null,
+                    'kind' => $entry->channel === 'other' ? 'system' : 'event',
+                ];
+            }
+        } else {
+            $touchpoints = array_slice($communication->touchpoints, -self::JOURNEY_ITEM_LIMIT);
+
+            foreach ($touchpoints as $touchpoint) {
+                $items[] = [
+                    'at_label' => AppDateFormatter::format($touchpoint->occurredAt, 'd M, h:i A')
+                        ?? $touchpoint->occurredAt->format('d M, h:i A'),
+                    'text' => $this->journeyTextFromTouchpoint($touchpoint),
+                    'channel' => $touchpoint->channel,
+                    'kind' => $touchpoint->direction === 'inbound' ? 'customer' : 'outbound',
+                ];
+            }
+        }
+
+        $ourLast = $communication->ourLastContact;
+        $customerLast = $communication->customerLastReply;
+        if ($ourLast !== null
+            && $ourLast->direction === 'outbound'
+            && ($customerLast === null || $customerLast->occurredAt->lt($ourLast->occurredAt))) {
+            $channel = match ($ourLast->channel) {
+                'whatsapp' => 'WhatsApp',
+                'email' => 'email',
+                'phone' => 'call',
+                default => 'message',
+            };
+            $items[] = [
+                'at_label' => '',
+                'text' => 'No customer reply after the last '.$channel.'.',
+                'channel' => null,
+                'kind' => 'gap',
+            ];
+        } elseif (filled($communication->sinceLastCustomerReplyLabel)) {
+            $items[] = [
+                'at_label' => '',
+                'text' => rtrim((string) $communication->sinceLastCustomerReplyLabel, '.'),
+                'channel' => null,
+                'kind' => 'gap',
+            ];
+        }
+
+        return $items;
+    }
+
+    private function journeyTextFromTouchpoint(CommunicationTouchpoint $touchpoint): string
+    {
+        $actor = $touchpoint->direction === 'inbound'
+            ? 'Customer'
+            : (string) ($touchpoint->actorName ?? 'Support');
+
+        $detail = match (true) {
+            $touchpoint->channel === 'whatsapp' && filled($touchpoint->templateName) => trim(
+                'sent WhatsApp template "'.$touchpoint->templateName.'"'
+                .(filled($touchpoint->language) ? ' ('.$touchpoint->language.')' : ''),
+            ),
+            $touchpoint->channel === 'whatsapp' && $touchpoint->direction === 'inbound'
+                && filled($touchpoint->preview) => 'replied on WhatsApp: "'.$touchpoint->preview.'"',
+            $touchpoint->channel === 'email' && $touchpoint->direction === 'outbound'
+                && filled($touchpoint->subject) => 'sent support email "'.$touchpoint->subject.'"',
+            $touchpoint->channel === 'email' && $touchpoint->direction === 'inbound'
+                && filled($touchpoint->subject) => 'emailed: "'.$touchpoint->subject.'"',
+            $touchpoint->channel === 'phone' => filled($touchpoint->outcome)
+                ? 'spoke with '.$actor.' — '.$touchpoint->outcome
+                : 'spoke with '.$actor,
+            default => rtrim($touchpoint->summary, '.'),
+        };
+
+        if ($touchpoint->channel === 'phone' && str_starts_with($detail, 'spoke with')) {
+            return $detail;
+        }
+
+        if ($touchpoint->direction === 'inbound' && $touchpoint->channel !== 'whatsapp') {
+            return $detail;
+        }
+
+        if (str_starts_with(strtolower($detail), strtolower($actor))) {
+            return $detail;
+        }
+
+        return $actor.' '.$detail;
+    }
+
+    /**
+     * @return array{
+     *     primary_label: string,
+     *     primary_text: string,
+     *     why: string,
+     *     quick_actions: array{whatsapp: ?string, email: ?string, internal_note: ?string},
+     *     suggested_reply: ?string,
+     *     internal_note: ?string,
+     *     checklist: list<array{key: string, label: string, done: bool, explanation: string}>,
+     *     has_serial_action: bool,
+     *     serial_action_label: string,
+     *     serial_request_pending: bool,
+     *     audit_url: ?string,
+     *     provider_label: ?string
+     * }
+     */
+    private function actionCenter(
+        CaseIntelligenceSnapshot $snapshot,
+        Incident $incident,
+        string $actionText,
+        AIWorkbenchDTO $workbench,
+        bool $hasSerialAction,
+        string $serialActionLabel,
+        bool $serialRequestPending,
+    ): array {
+        $repliesByChannel = [];
+        foreach ($workbench->customerReplies as $reply) {
+            $repliesByChannel[$reply['channel']] = (string) ($reply['content'] ?? '');
+        }
+
+        $whatsapp = $repliesByChannel['whatsapp'] ?? null;
+        $email = $repliesByChannel['email'] ?? null;
+        $internalFromReplies = $repliesByChannel['internal_note'] ?? null;
+        $internalNote = trim((string) ($workbench->internalNote['content'] ?? '')) !== ''
+            ? (string) $workbench->internalNote['content']
+            : $internalFromReplies;
+
+        $why = trim((string) ($snapshot->recommendedAction->rationale[0] ?? ''));
+        if ($why === '') {
+            $why = trim($snapshot->executiveSummary->opinion, " \t\n\r\0\x0B\"'");
+        }
+        if ($why === '') {
+            $why = $actionText;
+        }
+
+        $checklist = array_map(
+            static function (array $item): array {
+                return [
+                    'key' => (string) ($item['key'] ?? ''),
+                    'label' => (string) ($item['label'] ?? ''),
+                    'done' => (bool) ($item['done'] ?? false),
+                    'explanation' => (string) ($item['explanation'] ?? ''),
+                ];
+            },
+            $workbench->checklist,
+        );
+
+        $provider = strtolower(trim($workbench->providerName));
+        $providerLabel = ($provider === '' || $provider === 'null') ? null : $workbench->providerName;
+
+        return [
+            'primary_label' => filled($snapshot->recommendedAction->label)
+                ? $snapshot->recommendedAction->label
+                : 'Primary action',
+            'primary_text' => $actionText,
+            'why' => $why,
+            'quick_actions' => [
+                'whatsapp' => filled($whatsapp) ? $whatsapp : null,
+                'email' => filled($email) ? $email : null,
+                'internal_note' => filled($internalNote) ? $internalNote : null,
+            ],
+            'suggested_reply' => filled($whatsapp) ? $whatsapp : (filled($email) ? $email : null),
+            'internal_note' => filled($internalNote) ? $internalNote : null,
+            'checklist' => $checklist,
+            'has_serial_action' => $hasSerialAction,
+            'serial_action_label' => $serialActionLabel,
+            'serial_request_pending' => $serialRequestPending,
+            'audit_url' => route('dashboard.service-cases.customer-360.ai-workbench.audit', $incident),
+            'provider_label' => $providerLabel,
+        ];
     }
 
     /**
