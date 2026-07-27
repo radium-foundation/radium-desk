@@ -96,6 +96,7 @@ return Application::configure(basePath: dirname(__DIR__))
             ->when(fn (): bool => (bool) config('inbound_email.enabled')
                 && (bool) config('inbound_email.gmail.enabled'))
             ->withoutOverlapping(10)
+            ->runInBackground()
             ->appendOutputTo(storage_path('logs/inbound-email-gmail-sync.log'));
 
         $schedule->command('presence:process-timeouts')

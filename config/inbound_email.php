@@ -153,6 +153,12 @@ return [
         'schedule_interval_minutes' => (int) env('INBOUND_EMAIL_GMAIL_SYNC_INTERVAL_MINUTES', 1),
 
         /*
+         * Hard ceiling for a single artisan sync invocation (CLI set_time_limit).
+         * Keep below the schedule withoutOverlapping(10) mutex window (10 minutes).
+         */
+        'sync_timeout_seconds' => (int) env('INBOUND_EMAIL_GMAIL_SYNC_TIMEOUT_SECONDS', 540),
+
+        /*
          * Mailboxes to sync. Defaults to keys of inbound_email.mailboxes when empty.
          * Comma-separated env override: support@radiumbox.com,service@radiumbox.com
          */

@@ -27,6 +27,8 @@ class SyncGmailInboundEmailCommand extends Command
             return self::SUCCESS;
         }
 
+        $this->applySyncTimeout();
+
         try {
             $result = $this->syncService->sync();
         } catch (Throwable $exception) {
@@ -57,5 +59,20 @@ class SyncGmailInboundEmailCommand extends Command
         ));
 
         return $result['failed_mailboxes'] > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Cap CLI runtime so a backlog pull cannot run unbounded.
+     * Mirrors queue:work --max-time style process lifetime limits.
+     */
+    private function applySyncTimeout(): void
+    {
+        $timeoutSeconds = max(0, (int) config('inbound_email.gmail.sync_timeout_seconds', 540));
+
+        if ($timeoutSeconds === 0) {
+            return;
+        }
+
+        set_time_limit($timeoutSeconds);
     }
 }
