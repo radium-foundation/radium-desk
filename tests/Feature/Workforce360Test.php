@@ -105,8 +105,21 @@ class Workforce360Test extends TestCase
 
         $admin = $this->createAdmin();
         $agent = $this->createScheduledAgent('Shift Agent');
-        $session = app(PresenceEngineService::class)->startSession($agent->fresh(['workSchedule', 'roles']));
-        $session?->update(['active_duration_seconds' => 2460]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subMinutes(50),
+            'logout_at' => now()->subMinutes(9),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
+            'origin' => \App\Enums\WorkSessionOrigin::Login,
+            'is_attributable' => true,
+            'session_duration_seconds' => 2460,
+            'active_duration_seconds' => 2460,
+        ]);
+
+        app(\App\Services\Operations\AttendanceRegisterService::class)
+            ->refreshDay($agent, now()->startOfDay(), now());
 
         Carbon::setTestNow(Carbon::parse('2026-07-10 10:00:00', 'Asia/Kolkata'));
 

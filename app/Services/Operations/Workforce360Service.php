@@ -696,6 +696,9 @@ class Workforce360Service
             'first_login_at' => $attendanceDay->first_login_at?->format('H:i'),
             'last_logout_at' => $attendanceDay->last_logout_at?->format('H:i'),
             'active_duration_seconds' => $attendanceDay->active_duration_seconds,
+            'active_duration_label' => $this->presenceEngineService->formatDuration(
+                (int) $attendanceDay->active_duration_seconds,
+            ),
             'overtime_seconds' => $attendanceDay->overtime_seconds,
             'session_count' => $attendanceDay->session_count,
         ];

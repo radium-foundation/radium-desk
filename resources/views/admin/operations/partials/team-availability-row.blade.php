@@ -10,11 +10,8 @@
     $presence = $member['presence'] ?? [];
     $sessionSummary = $member['session_summary'] ?? [];
     $collapseId = $rowPrefix.'-team-member-details-'.$member['id'];
-    // Working time = actual active desk time (not scheduled shift hours).
-    // Shift schedule remains available in the Details collapse.
-    $workingTime = filled($presence['login_at'] ?? null)
-        ? ($presence['active_duration'] ?? '0m')
-        : null;
+    // Working time = canonical Working Hours Today (attendance active desk time).
+    $workingTime = $member['working_hours_today']['label'] ?? null;
     $shiftHours = $workCalendar['work_hours'] ?? null;
     $lastActivity = $presence['last_work_activity_label'] ?? $member['work_activity_label'] ?? null;
     $lastActivityAt = $presence['last_work_activity_at'] ?? $member['work_activity_relative'] ?? null;

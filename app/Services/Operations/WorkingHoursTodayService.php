@@ -1,0 +1,154 @@
+<?php
+
+namespace App\Services\Operations;
+
+use App\Data\Operations\WorkingHoursToday;
+use App\Models\User;
+use App\Models\WorkSession;
+use App\Models\WorkforceAttendanceDay;
+use Illuminate\Support\Carbon;
+
+/**
+ * Canonical Working Hours Today reader.
+ *
+ * Single source of truth: workforce_attendance_days.active_duration_seconds
+ * (via AttendanceRegisterService). All supervisor/agent hour UIs must use this.
+ */
+class WorkingHoursTodayService
+{
+    public function __construct(
+        private readonly AttendanceRegisterService $attendanceRegister,
+        private readonly PresenceEngineService $presenceEngine,
+    ) {}
+
+    /**
+     * @param  list<int>  $userIds
+     * @return array<int, WorkingHoursToday>
+     */
+    public function forUsers(array $userIds, ?Carbon $at = null): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        $at ??= now();
+        $workDate = $at->copy()->startOfDay();
+
+        $users = User::query()
+            ->whereIn('id', $userIds)
+            ->get()
+            ->keyBy('id');
+
+        $openUserIds = WorkSession::query()
+            ->whereIn('user_id', $userIds)
+            ->whereNull('logout_at')
+            ->pluck('user_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->all();
+        $openUserIdSet = array_fill_keys($openUserIds, true);
+
+        $existingDays = WorkforceAttendanceDay::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('work_date', $workDate->toDateString())
+            ->get()
+            ->keyBy('user_id');
+
+        $hours = [];
+
+        foreach ($userIds as $userId) {
+            $user = $users->get($userId);
+
+            if ($user === null) {
+                $hours[$userId] = WorkingHoursToday::empty();
+
+                continue;
+            }
+
+            $hours[$userId] = $this->buildForUser(
+                user: $user,
+                at: $at,
+                workDate: $workDate,
+                existing: $existingDays->get($userId),
+                hasOpenSession: isset($openUserIdSet[$userId]),
+            );
+        }
+
+        return $hours;
+    }
+
+    public function forUser(User $user, ?Carbon $at = null, ?Carbon $workDate = null): WorkingHoursToday
+    {
+        $at ??= now();
+        $workDate ??= $at->copy()->startOfDay();
+
+        $existing = $this->attendanceRegister->findDay($user, $workDate);
+        $hasOpenSession = WorkSession::query()
+            ->where('user_id', $user->id)
+            ->whereNull('logout_at')
+            ->exists();
+
+        return $this->buildForUser(
+            user: $user,
+            at: $at,
+            workDate: $workDate,
+            existing: $existing,
+            hasOpenSession: $hasOpenSession,
+        );
+    }
+
+    private function buildForUser(
+        User $user,
+        Carbon $at,
+        Carbon $workDate,
+        ?WorkforceAttendanceDay $existing,
+        bool $hasOpenSession,
+    ): WorkingHoursToday {
+        $day = $this->resolveAttendanceDay(
+            user: $user,
+            at: $at,
+            workDate: $workDate,
+            existing: $existing,
+            hasOpenSession: $hasOpenSession,
+        );
+
+        if ($day === null) {
+            return WorkingHoursToday::empty();
+        }
+
+        $seconds = (int) $day->active_duration_seconds;
+
+        return new WorkingHoursToday(
+            activeDurationSeconds: $seconds,
+            label: $this->presenceEngine->formatDuration($seconds),
+            sessionCount: (int) $day->session_count,
+        );
+    }
+
+    /**
+     * Prefer the attendance register row. Refresh when missing, or when today has an
+     * open WorkSession that still needs live ticks reflected in the rollup.
+     * Avoid rewriting finalized or already-computed closed-day rows without open sessions.
+     */
+    private function resolveAttendanceDay(
+        User $user,
+        Carbon $at,
+        Carbon $workDate,
+        ?WorkforceAttendanceDay $existing,
+        bool $hasOpenSession,
+    ): ?WorkforceAttendanceDay {
+        if ($existing !== null && $existing->finalized_at !== null) {
+            return $existing;
+        }
+
+        if ($existing !== null && ! $hasOpenSession) {
+            return $existing;
+        }
+
+        return $this->attendanceRegister->resolveDay(
+            user: $user,
+            workDate: $workDate,
+            referenceAt: $at,
+        );
+    }
+}

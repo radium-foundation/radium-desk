@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\WorkSessionEndReason;
+use App\Enums\WorkSessionOrigin;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,6 +15,8 @@ class WorkSession extends Model
         'login_at',
         'logout_at',
         'ended_reason',
+        'origin',
+        'is_attributable',
         'session_duration_seconds',
         'active_duration_seconds',
         'idle_duration_seconds',
@@ -44,6 +47,8 @@ class WorkSession extends Model
             'login_at' => 'datetime',
             'logout_at' => 'datetime',
             'ended_reason' => WorkSessionEndReason::class,
+            'origin' => WorkSessionOrigin::class,
+            'is_attributable' => 'boolean',
             'session_duration_seconds' => 'integer',
             'active_duration_seconds' => 'integer',
             'idle_duration_seconds' => 'integer',

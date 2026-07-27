@@ -30,6 +30,7 @@ class TeamAvailabilityOverviewService
         private readonly OperationsRoleService $roleService,
         private readonly WorkforceAuthorityService $workforceAuthority,
         private readonly CaseQueueReadModel $caseQueue,
+        private readonly WorkingHoursTodayService $workingHoursToday,
     ) {}
 
     /**
@@ -76,12 +77,17 @@ class TeamAvailabilityOverviewService
         $openCounts = $this->caseQueue->forTeamMembers($teamMembers);
         $sessionSummaries = $this->todaySessionSummariesFor($userIds);
         $leaveReasons = $this->approvedLeaveReasonsFor($userIds);
+        $hoursByUser = $this->workingHoursToday->forUsers($userIds);
 
         $rows = [];
 
         foreach ($teamMembers as $user) {
             $sessionSummary = $sessionSummaries[$user->id] ?? $this->emptySessionSummary();
-            $row = $this->memberRow($user, $openCounts[$user->id] ?? 0);
+            $row = $this->memberRow(
+                $user,
+                $openCounts[$user->id] ?? 0,
+                $hoursByUser[$user->id] ?? null,
+            );
 
             $rows[] = [
                 ...$row,
@@ -192,16 +198,16 @@ class TeamAvailabilityOverviewService
         $teamMembers = $this->teamMembers();
         // H4-6D: one CaseQueueReadModel pass for the whole team (DashboardSnapshot owner).
         $openCounts = $this->caseQueue->forTeamMembers($teamMembers);
-        $sessionSummaries = $this->todaySessionSummariesFor(
-            $teamMembers->map(fn (User $user): int => $user->id)->all()
-        );
+        $userIds = $teamMembers->map(fn (User $user): int => $user->id)->all();
+        $sessionSummaries = $this->todaySessionSummariesFor($userIds);
+        $hoursByUser = $this->workingHoursToday->forUsers($userIds);
 
         $onDuty = [];
         $unavailable = [];
 
         foreach ($teamMembers as $user) {
             $openCount = $openCounts[$user->id] ?? 0;
-            $row = $this->memberRow($user, $openCount);
+            $row = $this->memberRow($user, $openCount, $hoursByUser[$user->id] ?? null);
 
             if ($row['on_duty'] === true) {
                 $onDuty[] = $row;
@@ -246,7 +252,7 @@ class TeamAvailabilityOverviewService
     /**
      * @return array<string, mixed>
      */
-    private function memberRow(User $user, int $openWorkCount): array
+    private function memberRow(User $user, int $openWorkCount, ?\App\Data\Operations\WorkingHoursToday $hours = null): array
     {
         $authority = $this->workforceAuthority->snapshotFor($user);
         $storedAvailability = $authority['availability'] ?? $this->availabilityService->snapshotFor($user);
@@ -255,6 +261,7 @@ class TeamAvailabilityOverviewService
         $presence = $authority['presence'] ?? $this->presenceEngine->snapshotFor($user);
         $activity = $this->activityService->snapshotFor($user);
         $workActivity = $this->activityService->primaryWorkActivity($user);
+        $workingHours = $hours ?? $this->workingHoursToday->forUser($user);
 
         return [
             'id' => $user->id,
@@ -273,6 +280,7 @@ class TeamAvailabilityOverviewService
             'authority' => $authority,
             'work_calendar' => $workCalendar,
             'presence' => $presence,
+            'working_hours_today' => $workingHours->toArray(),
             'last_active_at' => $user->last_active_at,
             'last_active_relative' => $user->last_active_at !== null
                 ? display_app_timeline_relative($user->last_active_at)

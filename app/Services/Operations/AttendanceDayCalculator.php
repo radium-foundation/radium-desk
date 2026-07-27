@@ -49,8 +49,10 @@ class AttendanceDayCalculator
             ? $this->workCalendarService->expectedWorkingMinutes($schedule)
             : null;
         $sessionMetrics = $this->aggregateSessions($user, $sessions, $workDate);
-        $hasSessions = $sessions->isNotEmpty();
-        $openSession = $sessions->first(fn (WorkSession $session): bool => $session->isOpen());
+        $openSession = $sessions->first(
+            fn (WorkSession $session): bool => $session->isOpen() && $session->is_attributable !== false,
+        );
+        $hasSessions = $sessionMetrics['session_count'] > 0 || $openSession !== null;
 
         if (! $hasSessions) {
             if ($allowPreShiftSkip
@@ -220,7 +222,8 @@ class AttendanceDayCalculator
     private function aggregateSessions(User $user, Collection $sessions, Carbon $workDate): array
     {
         $attributableSessions = $sessions->filter(
-            fn (WorkSession $session): bool => $session->work_date->isSameDay($workDate),
+            fn (WorkSession $session): bool => $session->work_date->isSameDay($workDate)
+                && $session->is_attributable !== false,
         );
 
         $firstSession = $attributableSessions->first() ?? $sessions->first();

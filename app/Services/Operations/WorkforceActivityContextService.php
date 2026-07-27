@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\WorkSessionOrigin;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -178,7 +179,7 @@ class WorkforceActivityContextService
         }
 
         return $this->presenceEngine->openSessionFor($user)
-            ?? $this->presenceEngine->startSession($user);
+            ?? $this->presenceEngine->startSession($user, origin: WorkSessionOrigin::Browser);
     }
 
     /**

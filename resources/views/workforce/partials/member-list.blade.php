@@ -41,9 +41,7 @@
                         };
                         $statusReason = $member['status_reason'] ?? null;
                         $shift = $workCalendar['work_hours'] ?? null;
-                        $activeTime = filled($presence['login_at'] ?? null)
-                            ? ($presence['active_duration'] ?? '0m')
-                            : null;
+                        $activeTime = $member['working_hours_today']['label'] ?? null;
                         $lastActivity = $presence['last_work_activity_label'] ?? $member['work_activity_label'] ?? null;
                         $lastActivityAt = $presence['last_work_activity_at'] ?? $member['work_activity_relative'] ?? null;
                         $currentCase = $member['current_case'] ?? null;

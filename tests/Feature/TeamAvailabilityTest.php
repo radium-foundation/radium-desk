@@ -9,6 +9,7 @@ use App\Enums\NotificationType;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkSessionEndReason;
+use App\Enums\WorkSessionOrigin;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\LeaveRequest;
@@ -21,6 +22,7 @@ use App\Services\IncidentReferenceService;
 use App\Services\Interakt\InteraktOutboundOutboxWriter;
 use App\Services\Interakt\WhatsAppTemplateDispatcher;
 use App\Services\Notifications\Channels\EmailChannel;
+use App\Services\Operations\AttendanceRegisterService;
 use App\Services\Operations\PresenceEngineService;
 use App\Services\Operations\TeamAvailabilityOverviewService;
 use App\Services\Operations\TeamAvailabilityService;
@@ -136,7 +138,7 @@ class TeamAvailabilityTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_operations_team_presence_working_time_uses_active_duration_not_shift_hours(): void
+    public function test_operations_team_presence_working_time_uses_attendance_active_duration(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 09:00:00', 'Asia/Kolkata'));
 
@@ -144,8 +146,21 @@ class TeamAvailabilityTest extends TestCase
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $agent = $this->createScheduledAgent(TeamAvailabilityStatus::Available, 'Working Time Agent');
-        $session = app(PresenceEngineService::class)->startSession($agent->fresh(['workSchedule']));
-        $session?->update(['active_duration_seconds' => 2460]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subMinutes(50),
+            'logout_at' => now()->subMinutes(9),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
+            'origin' => WorkSessionOrigin::Login,
+            'is_attributable' => true,
+            'session_duration_seconds' => 2460,
+            'active_duration_seconds' => 2460,
+        ]);
+
+        app(AttendanceRegisterService::class)
+            ->refreshDay($agent, now()->startOfDay(), now());
 
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
 

@@ -103,10 +103,19 @@ class DashboardTeamActivityPresenceV2Test extends TestCase
             'login_at' => now()->startOfDay()->addHours(9),
             'logout_at' => now()->startOfDay()->addHours(10),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
+            'origin' => \App\Enums\WorkSessionOrigin::Login,
+            'is_attributable' => true,
             'session_duration_seconds' => 3600,
+            'active_duration_seconds' => 3600,
         ]);
 
-        app(PresenceEngineService::class)->startSession($agent->fresh(['workSchedule', 'roles']), now()->subMinutes(20));
+        app(PresenceEngineService::class)->startSession(
+            $agent->fresh(['workSchedule', 'roles']),
+            now()->subMinutes(20),
+        );
+
+        app(\App\Services\Operations\AttendanceRegisterService::class)
+            ->refreshDay($agent, now()->startOfDay(), now());
 
         $row = $this->agentRow($agent);
 

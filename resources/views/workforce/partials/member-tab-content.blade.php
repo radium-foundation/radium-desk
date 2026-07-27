@@ -62,7 +62,9 @@
                         <dd class="col-7">{{ ($presence['indicator'] ?? '') }} {{ $presence['label'] ?? '—' }}</dd>
                         <dt class="col-5 text-muted">Login</dt>
                         <dd class="col-7">{{ $presence['login_at'] ?? '—' }}</dd>
-                        <dt class="col-5 text-muted">Active desk</dt>
+                        <dt class="col-5 text-muted">Working hours today</dt>
+                        <dd class="col-7">{{ $attendance['active_duration_label'] ?? '—' }}</dd>
+                        <dt class="col-5 text-muted">Current session</dt>
                         <dd class="col-7">{{ $presence['active_duration'] ?? '—' }}</dd>
                         <dt class="col-5 text-muted">Open cases</dt>
                         <dd class="col-7">{{ number_format((int) ($overview['open_work_count'] ?? 0)) }}</dd>
@@ -146,6 +148,8 @@
                         <p class="text-muted mb-0">No attendance register row for today yet.</p>
                     @else
                         <dl class="row mb-0 small">
+                            <dt class="col-5 text-muted">Working hours</dt>
+                            <dd class="col-7">{{ $attendance['active_duration_label'] ?? '—' }}</dd>
                             <dt class="col-5 text-muted">Status</dt>
                             <dd class="col-7">{{ $attendance['status_label'] ?? '—' }}</dd>
                             <dt class="col-5 text-muted">First login</dt>

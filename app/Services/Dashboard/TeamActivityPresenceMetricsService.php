@@ -3,8 +3,10 @@
 namespace App\Services\Dashboard;
 
 use App\Data\TeamActivityPresenceMetrics;
+use App\Data\Operations\WorkingHoursToday;
 use App\Models\WorkSession;
 use App\Services\Operations\PresenceEngineService;
+use App\Services\Operations\WorkingHoursTodayService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -12,6 +14,7 @@ class TeamActivityPresenceMetricsService
 {
     public function __construct(
         private readonly PresenceEngineService $presenceEngine,
+        private readonly WorkingHoursTodayService $workingHoursToday,
     ) {}
 
     /**
@@ -27,6 +30,8 @@ class TeamActivityPresenceMetricsService
         $at ??= now();
         $workDate = $at->toDateString();
 
+        $hoursByUser = $this->workingHoursToday->forUsers($userIds, $at);
+
         $sessions = WorkSession::query()
             ->whereIn('user_id', $userIds)
             ->whereDate('work_date', $workDate)
@@ -39,8 +44,9 @@ class TeamActivityPresenceMetricsService
         foreach ($userIds as $userId) {
             /** @var Collection<int, WorkSession> $userSessions */
             $userSessions = $sessions->get($userId, collect());
+            $hours = $hoursByUser[$userId] ?? WorkingHoursToday::empty();
 
-            $metrics[$userId] = $this->buildFromSessions($userSessions, $at);
+            $metrics[$userId] = $this->buildFromSessionsAndHours($userSessions, $hours, $at);
         }
 
         return $metrics;
@@ -49,21 +55,15 @@ class TeamActivityPresenceMetricsService
     /**
      * @param  Collection<int, WorkSession>  $sessions
      */
-    private function buildFromSessions(Collection $sessions, Carbon $at): TeamActivityPresenceMetrics
-    {
-        $sessionsToday = $sessions->count();
-        $closedSeconds = 0;
-        $openSession = null;
-
-        foreach ($sessions as $session) {
-            if ($session->isOpen()) {
-                $openSession = $session;
-
-                continue;
-            }
-
-            $closedSeconds += $this->closedSessionDurationSeconds($session);
-        }
+    private function buildFromSessionsAndHours(
+        Collection $sessions,
+        WorkingHoursToday $hours,
+        Carbon $at,
+    ): TeamActivityPresenceMetrics {
+        $openSession = $sessions
+            ->filter(fn (WorkSession $session): bool => $session->isOpen())
+            ->sortByDesc(fn (WorkSession $session): int => $session->login_at?->getTimestamp() ?? 0)
+            ->first();
 
         $openElapsed = 0;
 
@@ -71,7 +71,9 @@ class TeamActivityPresenceMetricsService
             $openElapsed = max(0, (int) $openSession->login_at->diffInSeconds($at));
         }
 
-        $todaySeconds = $closedSeconds + $openElapsed;
+        $todaySeconds = $hours->activeDurationSeconds;
+        $sessionsToday = $hours->sessionCount;
+        $shouldShowToday = $hours->shouldDisplay() || $openSession !== null;
         $currentSeconds = $openSession !== null ? $openElapsed : null;
 
         return new TeamActivityPresenceMetrics(
@@ -79,27 +81,12 @@ class TeamActivityPresenceMetricsService
             todayDurationSeconds: $todaySeconds,
             currentDurationSeconds: $currentSeconds,
             hasOpenSession: $openSession !== null,
-            todayDurationLabel: $sessionsToday > 0
+            todayDurationLabel: $shouldShowToday
                 ? $this->presenceEngine->formatDuration($todaySeconds)
                 : null,
             currentDurationLabel: $currentSeconds !== null
                 ? $this->presenceEngine->formatDuration($currentSeconds)
                 : null,
         );
-    }
-
-    private function closedSessionDurationSeconds(WorkSession $session): int
-    {
-        $duration = (int) ($session->session_duration_seconds ?? 0);
-
-        if ($duration > 0) {
-            return $duration;
-        }
-
-        if ($session->login_at === null || $session->logout_at === null) {
-            return 0;
-        }
-
-        return max(0, (int) $session->login_at->diffInSeconds($session->logout_at));
     }
 }

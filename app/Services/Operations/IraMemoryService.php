@@ -10,7 +10,6 @@ use App\Enums\ServiceCaseSlaStatus;
 use App\Models\IraOperationalMemorySnapshot;
 use App\Models\Incident;
 use App\Models\User;
-use App\Models\WorkSession;
 use App\ReadModels\Cases\CaseQueueReadModel;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
@@ -29,6 +28,7 @@ class IraMemoryService
         private readonly WorkforceAuthorityService $workforceAuthority,
         private readonly OperationsSupportIntelligenceService $supportIntelligenceService,
         private readonly CaseQueueReadModel $caseQueueReadModel,
+        private readonly WorkingHoursTodayService $workingHoursToday,
     ) {}
 
     public function capture(?Carbon $at = null): IraOperationalMemorySnapshot
@@ -153,14 +153,16 @@ class IraMemoryService
             }
         }
 
-        $activeSessions = WorkSession::query()
-            ->whereDate('work_date', $at->toDateString())
-            ->whereIn('user_id', $teamMembers->pluck('id'))
-            ->get();
+        $memberIds = $teamMembers->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+        $hoursByUser = $this->workingHoursToday->forUsers($memberIds, $at);
+        $hoursWithSessions = collect($hoursByUser)
+            ->filter(fn ($hours): bool => $hours->shouldDisplay());
 
-        $averageActiveSeconds = $activeSessions->isEmpty()
+        $averageActiveSeconds = $hoursWithSessions->isEmpty()
             ? 0
-            : (int) round($activeSessions->avg('active_duration_seconds'));
+            : (int) round($hoursWithSessions->avg(
+                fn ($hours): int => $hours->activeDurationSeconds,
+            ));
 
         $team = [
             'available' => $availableCount,

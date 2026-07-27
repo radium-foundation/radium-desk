@@ -280,6 +280,51 @@ class AttendanceDayCalculatorTest extends TestCase
         $this->assertTrue($result->isCompanyHoliday);
     }
 
+    public function test_non_attributable_sessions_are_excluded_from_active_duration(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-07 16:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent();
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 01:00:00', 'Asia/Kolkata'),
+            'logout_at' => Carbon::parse('2026-07-07 10:00:00', 'Asia/Kolkata'),
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'origin' => \App\Enums\WorkSessionOrigin::Assignment,
+            'is_attributable' => false,
+            'session_duration_seconds' => 32400,
+            'active_duration_seconds' => 32400,
+            'on_time_login' => true,
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 11:00:00', 'Asia/Kolkata'),
+            'logout_at' => Carbon::parse('2026-07-07 12:00:00', 'Asia/Kolkata'),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
+            'origin' => \App\Enums\WorkSessionOrigin::Login,
+            'is_attributable' => true,
+            'session_duration_seconds' => 3600,
+            'active_duration_seconds' => 1800,
+            'on_time_login' => true,
+        ]);
+
+        $result = $this->calculator->compute(
+            user: $agent,
+            workDate: Carbon::parse('2026-07-07'),
+            referenceAt: now(),
+            allowPreShiftSkip: false,
+        );
+
+        $this->assertNotNull($result);
+        $this->assertSame(1, $result->sessionCount);
+        $this->assertSame(1800, $result->activeDurationSeconds);
+        $this->assertSame(3600, $result->sessionDurationSeconds);
+    }
+
     public function test_non_attendance_tracked_user_returns_null(): void
     {
         $owner = User::factory()->create(['is_active' => true]);

@@ -6,6 +6,7 @@ use App\Enums\PresenceActivityType;
 use App\Enums\PresenceStatus;
 use App\Enums\TeamAvailabilityChangeSource;
 use App\Enums\WorkSessionEndReason;
+use App\Enums\WorkSessionOrigin;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Models\WorkSession;
@@ -22,8 +23,11 @@ class PresenceEngineService
         private readonly TeamAvailabilityService $availabilityService,
     ) {}
 
-    public function startSession(User $user, ?Carbon $at = null): ?WorkSession
-    {
+    public function startSession(
+        User $user,
+        ?Carbon $at = null,
+        WorkSessionOrigin $origin = WorkSessionOrigin::Login,
+    ): ?WorkSession {
         if (! $this->tracksPresence($user)) {
             return null;
         }
@@ -45,6 +49,8 @@ class PresenceEngineService
             'login_at' => $at,
             'last_activity_at' => $at,
             'last_tick_at' => $at,
+            'origin' => $origin,
+            'is_attributable' => $origin->isAttributableByDefault(),
             'break_allowance_seconds' => $breakAllowanceSeconds,
             'expected_working_minutes' => $schedule !== null
                 ? $this->workCalendarService->expectedWorkingMinutes($schedule)
@@ -121,7 +127,7 @@ class PresenceEngineService
                 return null;
             }
 
-            $session = $this->startSession($user, $at);
+            $session = $this->startSession($user, $at, WorkSessionOrigin::Browser);
         }
 
         if ($session === null) {
@@ -139,7 +145,7 @@ class PresenceEngineService
                 return null;
             }
 
-            $session = $this->startSession($user, $at);
+            $session = $this->startSession($user, $at, WorkSessionOrigin::Browser);
 
             if ($session === null) {
                 return null;
