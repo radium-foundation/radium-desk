@@ -34,6 +34,7 @@ class PlatformIdentityTest extends TestCase
         $response->assertOk();
         $response->assertSee(app(VersionService::class)->applicationLabel(), false);
         $response->assertSee('data-bs-target="#whatsNewModal"', false);
+        $response->assertSee('data-short-version="'.app(VersionService::class)->shortVersionLabel().'"', false);
     }
 
     public function test_layout_includes_favicon_link(): void
@@ -102,7 +103,9 @@ class PlatformIdentityTest extends TestCase
         $response->assertSee(app(VersionService::class)->applicationLabel(), false);
         $response->assertSee('P09 Workforce Platform Update', false);
         $response->assertSee('Version:', false);
+        $response->assertSee('4.0.0', false);
         $response->assertSee('Release date:', false);
+        $response->assertSee('2026-07-26', false);
         $response->assertSee('Environment:', false);
         $response->assertSee('Git commit:', false);
         $response->assertSee('Workforce availability intelligence', false);

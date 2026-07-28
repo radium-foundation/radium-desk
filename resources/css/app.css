@@ -110,7 +110,7 @@ html:not(.sidebar-expanded) .app-version-footer__label {
 }
 
 html:not(.sidebar-expanded) .app-version-footer__button::before {
-    content: 'v';
+    content: attr(data-short-version);
     font-size: 0.65rem;
     font-weight: 600;
 }
@@ -1424,11 +1424,6 @@ a:focus-visible .stat-card {
     align-items: center;
 }
 
-.dashboard-status-sla-compact .sla-status--compact .sla-status-indicator {
-    font-size: 0.625rem;
-    line-height: 1;
-}
-
 .dashboard-status-sla-compact__icon {
     font-size: 0.625rem;
     line-height: 1;
@@ -1460,10 +1455,6 @@ a:focus-visible .stat-card {
 
 .sla-status--compact.sla-status--within .dashboard-status-sla-compact__duration {
     color: #5c636a;
-}
-
-.dashboard-status-sla-compact .sla-status--compact[data-dashboard-tooltip] {
-    cursor: help;
 }
 
 .dashboard-status-sla-compact .sla-status--compact[data-dashboard-tooltip]:focus-visible {

@@ -38,7 +38,6 @@
                   data-bs-placement="top"
                   data-bs-custom-class="dashboard-premium-tooltip-wrapper"
                   tabindex="0">
-                <span class="sla-status-indicator" aria-hidden="true">{{ $slaStatus->indicator() }}</span>
                 @if($durationLabel)
                     <span class="dashboard-status-sla-compact__timer" aria-hidden="true">⏱</span>
                     <span class="dashboard-status-sla-compact__duration">{{ $durationLabel }}</span>

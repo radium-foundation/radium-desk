@@ -249,7 +249,12 @@ class AppServiceProvider extends ServiceProvider
             'layouts.partials.version-footer',
             'layouts.partials.whats-new-modal',
         ], function ($view): void {
-            $view->with('applicationLabel', app(VersionService::class)->applicationLabel());
+            $versionService = app(VersionService::class);
+
+            $view->with([
+                'applicationLabel' => $versionService->applicationLabel(),
+                'shortVersionLabel' => $versionService->shortVersionLabel(),
+            ]);
         });
 
         View::composer('layouts.partials.whats-new-modal', function ($view): void {

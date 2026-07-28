@@ -4,7 +4,8 @@
         class="app-version-footer__button btn btn-link p-0 text-decoration-none"
         data-bs-toggle="modal"
         data-bs-target="#whatsNewModal"
-        title="What's New"
+        data-short-version="{{ $shortVersionLabel }}"
+        title="{{ $applicationLabel }}"
     >
         <span class="app-version-footer__label">{{ $applicationLabel }}</span>
     </button>

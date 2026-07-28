@@ -17,9 +17,9 @@ class VersionServiceTest extends TestCase
         $this->assertSame('9.8.7', $service->currentVersion());
     }
 
-    public function test_current_version_falls_back_when_config_missing(): void
+    public function test_current_version_falls_back_to_changelog_when_config_empty(): void
     {
-        config(['app.version' => '4.0.0']);
+        config(['app.version' => '']);
 
         $service = new VersionService;
 
@@ -44,13 +44,13 @@ class VersionServiceTest extends TestCase
         $this->assertSame('2026-07-26', $service->releaseDate());
     }
 
-    public function test_release_date_returns_null_when_not_configured(): void
+    public function test_release_date_falls_back_to_changelog_when_not_configured(): void
     {
         config(['app.release_date' => null]);
 
         $service = new VersionService;
 
-        $this->assertNull($service->releaseDate());
+        $this->assertSame('2026-07-26', $service->releaseDate());
     }
 
     public function test_git_commit_short_returns_null_when_git_directory_missing(): void
@@ -79,6 +79,23 @@ class VersionServiceTest extends TestCase
         $this->assertSame('abc1234', $service->gitCommitShort());
     }
 
+    public function test_git_commit_short_falls_back_to_filesystem_when_process_fails(): void
+    {
+        if (! is_dir(base_path('.git'))) {
+            $this->markTestSkipped('Requires a git repository.');
+        }
+
+        Process::fake([
+            '*' => Process::result(output: '', exitCode: 1),
+        ]);
+
+        $service = new VersionService;
+        $commit = $service->gitCommitShort();
+
+        $this->assertNotNull($commit);
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{7}$/i', $commit);
+    }
+
     public function test_application_label_includes_name_and_version(): void
     {
         config([
@@ -89,6 +106,7 @@ class VersionServiceTest extends TestCase
         $service = new VersionService;
 
         $this->assertSame('Radium Desk v4.0.0', $service->applicationLabel());
+        $this->assertSame('v4.0.0', $service->shortVersionLabel());
     }
 
     public function test_release_metadata_returns_expected_keys(): void
