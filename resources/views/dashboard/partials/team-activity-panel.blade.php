@@ -32,8 +32,6 @@
             <div class="team-activity-grid" role="table" aria-label="Team activity roster">
                 <div class="team-activity-grid-header" role="row">
                     <span class="team-activity-grid-header__cell team-activity-col--member" role="columnheader">Team Member</span>
-                    <span class="team-activity-grid-header__cell team-activity-col--status" role="columnheader">Status</span>
-                    <span class="team-activity-grid-header__cell team-activity-col--calls" role="columnheader">Calls</span>
                     <span class="team-activity-grid-header__cell team-activity-col--presence team-activity-grid-header__cell--presence" role="columnheader">
                         <span class="team-activity-grid-header__title">Presence</span>
                         <span class="team-activity-grid-header__sub team-activity-presence-head" aria-hidden="true">
@@ -41,9 +39,12 @@
                             <span>Current</span>
                             <span>Sessions</span>
                             <span>Latest</span>
+                            <span>Previous</span>
                         </span>
-                        <span class="visually-hidden">Today, Current, Sessions, Latest</span>
+                        <span class="visually-hidden">Today, Current, Sessions, Latest, Previous</span>
                     </span>
+                    <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--calls" role="columnheader">Calls</span>
                     <span class="team-activity-grid-header__cell team-activity-col--kpi"
                           role="columnheader"
                           title="Support: Cases Worked with Customer Touches as superscript. Activation: Activation Sessions with Orders Activated as superscript.">
@@ -51,7 +52,7 @@
                         <span class="team-activity-grid-header__sub">Outcome</span>
                         <span class="visually-hidden">Outcome · Effort</span>
                     </span>
-                    <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--status" role="columnheader">Status</span>
                     <span class="team-activity-grid-header__cell team-activity-col--chevron" aria-hidden="true"></span>
                 </div>
 

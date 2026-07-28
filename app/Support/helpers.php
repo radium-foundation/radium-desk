@@ -54,6 +54,11 @@ function display_app_timeline_relative(?CarbonInterface $date, string $fallback 
     return AppDateFormatter::timelineRelative($date) ?? $fallback;
 }
 
+function display_team_activity_elapsed(?CarbonInterface $date, string $fallback = '—'): string
+{
+    return AppDateFormatter::teamActivityElapsed($date) ?? $fallback;
+}
+
 function display_app_grid_datetime(?CarbonInterface $date, string $fallback = '—'): string
 {
     return AppDateFormatter::gridCompactDatetime($date) ?? $fallback;

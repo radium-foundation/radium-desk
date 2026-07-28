@@ -54,6 +54,7 @@ class TeamActivityPanelService
 
         $kpiMetricsByUser = $this->roleAwareKpiMetricsService->metricsForUsers($userIds);
         $latestByUser = $this->latestAuditsFor($userIds, $allowlist);
+        $previousActivityAtByUser = $this->previousActivityAtByUser($latestByUser, $allowlist);
         $countedAuditsByUser = $expandedIds === []
             ? []
             : $this->kpiAuditQuery->todayCountedAuditsForUsers(
@@ -137,6 +138,7 @@ class TeamActivityPanelService
                 callsAnsweredToday: $callMetrics?->answeredCount,
                 callsTotalToday: $callMetrics?->totalCount,
                 callsTalkDurationLabel: $callMetrics?->talkDurationLabel,
+                previousActivityAt: $previousActivityAtByUser[$userId] ?? null,
             );
         }
 
@@ -265,6 +267,36 @@ class TeamActivityPanelService
             ->get()
             ->keyBy(fn (AuditLog $log): int => (int) $log->user_id)
             ->all();
+    }
+
+    /**
+     * @param  array<int, AuditLog>  $latestByUser
+     * @param  list<string>  $allowlist
+     * @return array<int, \Illuminate\Support\Carbon>
+     */
+    private function previousActivityAtByUser(array $latestByUser, array $allowlist): array
+    {
+        if ($latestByUser === [] || $allowlist === []) {
+            return [];
+        }
+
+        $todayStart = today();
+        $previousByUser = [];
+
+        foreach ($latestByUser as $userId => $latestAudit) {
+            $previousAudit = AuditLog::query()
+                ->where('user_id', $userId)
+                ->whereIn('event', $allowlist)
+                ->where('id', '<', $latestAudit->id)
+                ->orderByDesc('id')
+                ->first(['created_at']);
+
+            if ($previousAudit?->created_at !== null && $previousAudit->created_at >= $todayStart) {
+                $previousByUser[$userId] = $previousAudit->created_at;
+            }
+        }
+
+        return $previousByUser;
     }
 
     /**

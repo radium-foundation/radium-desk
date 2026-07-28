@@ -117,6 +117,27 @@ class AppDateFormatter
         return "{$dateLabel} • {$time}";
     }
 
+    public static function teamActivityElapsed(?CarbonInterface $date): ?string
+    {
+        $localized = self::inAppTimezone($date);
+
+        if ($localized === null) {
+            return null;
+        }
+
+        $elapsedSeconds = max(0, (int) $localized->diffInSeconds(now(self::timezone()), false));
+
+        if ($elapsedSeconds < 60) {
+            return $elapsedSeconds.' sec';
+        }
+
+        if ($elapsedSeconds < 3600) {
+            return max(1, (int) floor($elapsedSeconds / 60)).' min';
+        }
+
+        return max(1, (int) floor($elapsedSeconds / 3600)).' hr';
+    }
+
     public static function activityFeedCompact(?CarbonInterface $date): ?string
     {
         $localized = self::inAppTimezone($date);

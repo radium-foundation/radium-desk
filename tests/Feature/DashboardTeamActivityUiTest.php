@@ -13,6 +13,7 @@ use App\Models\Order;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Models\WorkSession;
+use App\Services\Dashboard\TeamActivityPanelService;
 use App\Services\IncidentReferenceService;
 use App\Services\Operations\PresenceEngineService;
 use Database\Seeders\RolePermissionSeeder;
@@ -102,6 +103,55 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString($incident->reference_no, $html);
         $this->assertStringNotContainsString('RD3462168', $html);
         $this->assertStringNotContainsString('team-activity-latest-event__time', $html);
+    }
+
+    public function test_presence_shows_compact_latest_and_previous_elapsed_times(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-28 10:30:00', 'Asia/Kolkata'));
+
+        $viewer = $this->supervisor();
+        $agent = $this->createAgent('Presence Agent');
+        [$incident] = $this->createIncident($agent);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subHours(2),
+            'session_duration_seconds' => 7200,
+        ]);
+
+        $older = AuditLog::query()->create([
+            'user_id' => $agent->id,
+            'event' => 'service_case.status_changed',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+        ]);
+        $older->created_at = now()->subMinutes(25);
+        $older->saveQuietly();
+
+        $latest = AuditLog::query()->create([
+            'user_id' => $agent->id,
+            'event' => 'service_case.assigned',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+        ]);
+        $latest->created_at = now()->subMinutes(5);
+        $latest->saveQuietly();
+
+        $row = collect(app(TeamActivityPanelService::class)->build()->agents)
+            ->firstWhere('id', $agent->id);
+
+        $this->assertNotNull($row);
+        $this->assertNotNull($row->previousActivityAt);
+        $this->assertSame('5 min', display_team_activity_elapsed($row->latestActivityAt));
+        $this->assertSame('25 min', display_team_activity_elapsed($row->previousActivityAt));
+
+        $html = $this->panelHtml($viewer);
+
+        $this->assertStringContainsString('Previous', $html);
+        $this->assertStringContainsString('5 min', $html);
+        $this->assertStringContainsString('25 min', $html);
+        $this->assertStringNotContainsString(' ago', $html);
     }
 
     public function test_weekly_off_renders_outlined_calendar_badge(): void

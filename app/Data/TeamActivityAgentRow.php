@@ -42,6 +42,7 @@ readonly class TeamActivityAgentRow
         public ?int $callsAnsweredToday = null,
         public ?int $callsTotalToday = null,
         public ?string $callsTalkDurationLabel = null,
+        public ?Carbon $previousActivityAt = null,
     ) {}
 
     /**
@@ -82,6 +83,7 @@ readonly class TeamActivityAgentRow
             'calls_answered_today' => $this->callsAnsweredToday,
             'calls_total_today' => $this->callsTotalToday,
             'calls_talk_duration_label' => $this->callsTalkDurationLabel,
+            'previous_activity_at' => $this->previousActivityAt?->toIso8601String(),
         ];
     }
 }
