@@ -44,7 +44,7 @@
                     </span>
                     <span class="team-activity-grid-header__cell team-activity-col--kpi"
                           role="columnheader"
-                          title="Support: Cases Worked with Customer Touches as superscript. Activation: Orders Activated with Activation Sessions as superscript.">
+                          title="Support: Cases Worked with Customer Touches as superscript. Activation: Activation Sessions with Orders Activated as superscript.">
                         <span class="team-activity-grid-header__title">Today's Activity</span>
                         <span class="team-activity-grid-header__sub">Outcome</span>
                         <span class="visually-hidden">Outcome · Effort</span>

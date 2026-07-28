@@ -10,17 +10,27 @@
     $effortLabel = $agent->effortLabel ?? 'Customer Touches';
     $outcomeCount = $agent->outcomeCount ?? $agent->todayCount;
     $effortCount = $agent->effortCount ?? 0;
+    $isActivationProfile = $agent->kpiProfile?->value === 'activation';
 
-    // Primary = business outcome, superscript = supporting effort (both roles).
-    $primaryCount = $outcomeCount;
-    $superscriptCount = $effortCount;
-    $primaryLabel = $outcomeLabel;
-    $superscriptLabel = $effortLabel;
-    $kpiTitle = number_format($primaryCount).' '.$primaryLabel."\n".number_format($superscriptCount).' '.$superscriptLabel;
-
-    $kpiAriaLabel = ($outcomeCount === 1 ? "1 {$outcomeLabel}" : number_format($outcomeCount).' '.$outcomeLabel)
-        .'; '
-        .($effortCount === 1 ? "1 {$effortLabel}" : number_format($effortCount).' '.$effortLabel);
+    if ($isActivationProfile) {
+        $primaryCount = $effortCount;
+        $superscriptCount = $outcomeCount;
+        $primaryLabel = $effortLabel;
+        $superscriptLabel = $outcomeLabel;
+        $kpiTitle = number_format($primaryCount).' '.$primaryLabel."\n".number_format($superscriptCount).' '.$superscriptLabel;
+        $kpiAriaLabel = ($effortCount === 1 ? "1 {$effortLabel}" : number_format($effortCount).' '.$effortLabel)
+            .'; '
+            .($outcomeCount === 1 ? "1 {$outcomeLabel}" : number_format($outcomeCount).' '.$outcomeLabel);
+    } else {
+        $primaryCount = $outcomeCount;
+        $superscriptCount = $effortCount;
+        $primaryLabel = $outcomeLabel;
+        $superscriptLabel = $effortLabel;
+        $kpiTitle = number_format($primaryCount).' '.$primaryLabel."\n".number_format($superscriptCount).' '.$superscriptLabel;
+        $kpiAriaLabel = ($outcomeCount === 1 ? "1 {$outcomeLabel}" : number_format($outcomeCount).' '.$outcomeLabel)
+            .'; '
+            .($effortCount === 1 ? "1 {$effortLabel}" : number_format($effortCount).' '.$effortLabel);
+    }
 
     $hasPresenceMetrics = ! $agent->isVirtual && (
         filled($agent->todayDurationLabel)
