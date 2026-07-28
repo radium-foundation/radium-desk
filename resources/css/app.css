@@ -105,6 +105,18 @@ body {
     color: rgba(255, 255, 255, 0.85);
 }
 
+.app-version-footer__label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+}
+
+.app-version-footer__build {
+    font-size: 0.62rem;
+    opacity: 0.85;
+}
+
 html:not(.sidebar-expanded) .app-version-footer__label {
     display: none;
 }

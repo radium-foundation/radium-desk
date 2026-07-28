@@ -4,15 +4,19 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\ChangelogService;
+use App\Services\Release\ReleaseManifestStore;
 use App\Services\VersionService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Process;
 use Tests\TestCase;
 
 class PlatformIdentityTest extends TestCase
 {
     use RefreshDatabase;
+
+    private string $manifestPath;
 
     protected function setUp(): void
     {
@@ -20,6 +24,37 @@ class PlatformIdentityTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         $this->seed(SettingsSeeder::class);
+
+        $this->manifestPath = storage_path('framework/testing/platform-release-'.uniqid('', true).'.json');
+        config([
+            'app.release_manifest' => $this->manifestPath,
+            'app.version' => null,
+            'app.release_date' => null,
+            'app.name' => 'Radium Desk',
+        ]);
+
+        (new ReleaseManifestStore)->write([
+            'version' => '4.0.0',
+            'tag' => 'v4.0.0',
+            'build' => 'abc1234',
+            'deployed_at' => '2026-07-26T00:00:00+00:00',
+            'release_date' => '2026-07-26',
+        ]);
+
+        Process::fake([
+            '*' => Process::result(output: "abc1234\n"),
+        ]);
+
+        $this->app->forgetInstance(VersionService::class);
+    }
+
+    protected function tearDown(): void
+    {
+        if (is_file($this->manifestPath)) {
+            unlink($this->manifestPath);
+        }
+
+        parent::tearDown();
     }
 
     public function test_authenticated_layout_renders_version_footer(): void
@@ -33,6 +68,7 @@ class PlatformIdentityTest extends TestCase
 
         $response->assertOk();
         $response->assertSee(app(VersionService::class)->applicationLabel(), false);
+        $response->assertSee('Build abc1234', false);
         $response->assertSee('data-bs-target="#whatsNewModal"', false);
         $response->assertSee('data-short-version="'.app(VersionService::class)->shortVersionLabel().'"', false);
     }
@@ -101,6 +137,7 @@ class PlatformIdentityTest extends TestCase
 
         $response->assertOk();
         $response->assertSee(app(VersionService::class)->applicationLabel(), false);
+        $response->assertSee('Build abc1234', false);
         $response->assertSee('P09 Workforce Platform Update', false);
         $response->assertSee('Version:', false);
         $response->assertSee('4.0.0', false);
@@ -118,7 +155,7 @@ class PlatformIdentityTest extends TestCase
 
         $this->assertNotEmpty($entries);
         $this->assertSame('P09 Workforce Platform Update', $entries[0]['title']);
-        $this->assertSame(config('app.version'), $entries[0]['version']);
+        $this->assertSame(app(VersionService::class)->version(), $entries[0]['version']);
         $this->assertContains('Better assignment accuracy', $entries[0]['items']);
         $this->assertTrue($entries[0]['is_current']);
     }

@@ -7,7 +7,12 @@
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <h1 class="h5 mb-0">What's New</h1>
-                <p class="text-muted small mb-0">{{ $applicationLabel }}</p>
+                <p class="text-muted small mb-0">
+                    {{ $applicationLabel }}
+                    @if(filled($buildLabel ?? null))
+                        <span class="d-block">{{ $buildLabel }}</span>
+                    @endif
+                </p>
             </div>
             <div class="card-body">
                 @forelse($entries as $entry)

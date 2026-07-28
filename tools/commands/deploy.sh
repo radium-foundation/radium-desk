@@ -9,7 +9,7 @@
 #
 # Steps:
 #   1. Build frontend assets locally
-#   2. Pull latest code, install dependencies, migrate
+#   2. Pull latest code, write release snapshot, install dependencies, migrate
 #   3. Sync Vite build to public_html and Laravel public/build, then other public assets
 #   4. Clear and rebuild Laravel caches (after manifest is in place)
 #   5. Generate shared-hosting index.php and validate bootstrap paths
@@ -53,6 +53,10 @@ print_success "Frontend build completed"
 print_warning "Pulling latest code on remote..."
 ssh_exec "cd '$REMOTE_PROJECT' && git pull origin '$DEFAULT_BRANCH'"
 print_success "Remote git pull completed"
+
+print_warning "Writing release snapshot (version, build, deployed_at)..."
+php_exec release:snapshot
+print_success "Release snapshot written"
 
 print_warning "Installing Composer dependencies (production)..."
 composer_exec install --no-dev --optimize-autoloader

@@ -13,6 +13,7 @@ class ChangelogController extends Controller
         return view('changelog.index', [
             'entries' => $changelogService->entries(),
             'applicationLabel' => $versionService->applicationLabel(),
+            'buildLabel' => $versionService->buildLabel(),
         ]);
     }
 }

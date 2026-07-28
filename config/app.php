@@ -17,14 +17,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Application Version
+    | Application Version (optional fallback)
     |--------------------------------------------------------------------------
     |
-    | Displayed in the sidebar/footer and used for release visibility.
+    | Prefer Git tags (and the deploy-time release manifest). APP_VERSION is
+    | only used when Git metadata and CHANGELOG.md cannot provide a version.
     |
     */
 
-    'version' => env('APP_VERSION', '4.0.0'),
+    'version' => env('APP_VERSION'),
 
     /*
     |--------------------------------------------------------------------------
@@ -37,6 +38,18 @@ return [
     */
 
     'release_date' => env('APP_RELEASE_DATE'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Release Manifest Path
+    |--------------------------------------------------------------------------
+    |
+    | Written by `php artisan release:snapshot` during deploy. Contains version,
+    | build SHA, and deployed_at for environments where live Git is restricted.
+    |
+    */
+
+    'release_manifest' => env('APP_RELEASE_MANIFEST', storage_path('app/private/release.json')),
 
     /*
     |--------------------------------------------------------------------------

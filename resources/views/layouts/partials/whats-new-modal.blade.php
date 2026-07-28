@@ -12,6 +12,9 @@
             <div class="modal-body py-3">
                 <p class="text-muted small mb-3">
                     {{ $applicationLabel }}
+                    @if(filled($buildLabel ?? null))
+                        <span class="d-block">{{ $buildLabel }}</span>
+                    @endif
                 </p>
 
                 @forelse($changelogEntries as $entry)

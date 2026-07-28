@@ -2,46 +2,112 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Process;
+use App\Services\Release\GitReleaseInspector;
+use App\Services\Release\ReleaseManifestStore;
 
 class VersionService
 {
-    public function currentVersion(): string
-    {
-        $configured = config('app.version');
+    public const UNKNOWN_VERSION = 'Unknown';
 
-        if (is_string($configured) && trim($configured) !== '') {
-            return trim($configured);
+    /** @var array{version: string|null, tag: string|null, build: string|null, deployed_at: string|null, release_date: string|null}|null */
+    private ?array $manifest = null;
+
+    private bool $manifestLoaded = false;
+
+    private ?string $resolvedVersion = null;
+
+    private bool $versionResolved = false;
+
+    public function __construct(
+        private readonly GitReleaseInspector $git,
+        private readonly ReleaseManifestStore $manifestStore,
+    ) {}
+
+    /**
+     * Semantic version without a leading "v" (e.g. "4.0.1"), or "Unknown".
+     */
+    public function version(): string
+    {
+        if ($this->versionResolved) {
+            return $this->resolvedVersion ?? self::UNKNOWN_VERSION;
         }
 
-        return $this->versionFromChangelog() ?? '0.0.0';
+        $this->versionResolved = true;
+
+        $fromManifest = $this->manifest()['version'] ?? null;
+        if ($this->isPresent($fromManifest)) {
+            return $this->resolvedVersion = $this->normalizeVersion((string) $fromManifest);
+        }
+
+        $fromGit = $this->git->latestSemverVersion();
+        if ($this->isPresent($fromGit)) {
+            return $this->resolvedVersion = $this->normalizeVersion($fromGit);
+        }
+
+        $fromChangelog = $this->versionFromChangelog();
+        if ($this->isPresent($fromChangelog)) {
+            return $this->resolvedVersion = $this->normalizeVersion($fromChangelog);
+        }
+
+        $fromConfig = config('app.version');
+        if (is_string($fromConfig) && trim($fromConfig) !== '') {
+            return $this->resolvedVersion = $this->normalizeVersion(trim($fromConfig));
+        }
+
+        return $this->resolvedVersion = self::UNKNOWN_VERSION;
+    }
+
+    /**
+     * @deprecated Use version()
+     */
+    public function currentVersion(): string
+    {
+        return $this->version();
+    }
+
+    public function build(): ?string
+    {
+        $fromManifest = $this->manifest()['build'] ?? null;
+        if ($this->isPresent($fromManifest)) {
+            return (string) $fromManifest;
+        }
+
+        return $this->git->shortCommit();
+    }
+
+    /**
+     * @deprecated Use build()
+     */
+    public function gitCommitShort(): ?string
+    {
+        return $this->build();
+    }
+
+    public function deployedAt(): ?string
+    {
+        $deployedAt = $this->manifest()['deployed_at'] ?? null;
+
+        return $this->isPresent($deployedAt) ? (string) $deployedAt : null;
+    }
+
+    public function releaseDate(): ?string
+    {
+        $fromManifest = $this->manifest()['release_date'] ?? null;
+        if ($this->isPresent($fromManifest)) {
+            return (string) $fromManifest;
+        }
+
+        $fromConfig = config('app.release_date');
+        if (is_string($fromConfig) && trim($fromConfig) !== '') {
+            return trim($fromConfig);
+        }
+
+        return $this->releaseDateFromChangelog();
     }
 
     public function environment(): string
     {
         return (string) config('app.env', 'production');
-    }
-
-    public function releaseDate(): ?string
-    {
-        $releaseDate = config('app.release_date');
-
-        if (! is_string($releaseDate) || trim($releaseDate) === '') {
-            return $this->releaseDateFromChangelog();
-        }
-
-        return trim($releaseDate);
-    }
-
-    public function gitCommitShort(): ?string
-    {
-        $fromProcess = $this->gitCommitFromProcess();
-
-        if ($fromProcess !== null) {
-            return $fromProcess;
-        }
-
-        return $this->gitCommitFromFilesystem();
     }
 
     public function applicationName(): string
@@ -57,17 +123,49 @@ class VersionService
 
     public function applicationLabel(): string
     {
-        return sprintf('%s v%s', $this->applicationName(), $this->currentVersion());
+        $version = $this->version();
+
+        if ($version === self::UNKNOWN_VERSION) {
+            return sprintf('%s %s', $this->applicationName(), $version);
+        }
+
+        return sprintf('%s v%s', $this->applicationName(), $version);
+    }
+
+    public function buildLabel(): ?string
+    {
+        $build = $this->build();
+
+        return $this->isPresent($build) ? 'Build '.$build : null;
     }
 
     public function shortVersionLabel(): string
     {
-        return 'v'.$this->currentVersion();
+        $version = $this->version();
+
+        return $version === self::UNKNOWN_VERSION ? $version : 'v'.$version;
+    }
+
+    public function footerTitle(): string
+    {
+        $parts = [$this->applicationLabel()];
+
+        if ($this->buildLabel() !== null) {
+            $parts[] = $this->buildLabel();
+        }
+
+        if ($this->deployedAt() !== null) {
+            $parts[] = 'Deployed '.$this->deployedAt();
+        }
+
+        return implode(' · ', $parts);
     }
 
     /**
      * @return array{
      *     version: string,
+     *     build: string|null,
+     *     deployed_at: string|null,
      *     release_date: string|null,
      *     environment: string,
      *     git_commit: string|null,
@@ -75,73 +173,57 @@ class VersionService
      */
     public function releaseMetadata(): array
     {
+        $build = $this->build();
+
         return [
-            'version' => $this->currentVersion(),
+            'version' => $this->version(),
+            'build' => $build,
+            'deployed_at' => $this->deployedAt(),
             'release_date' => $this->releaseDate(),
             'environment' => $this->environment(),
-            'git_commit' => $this->gitCommitShort(),
+            'git_commit' => $build,
         ];
     }
 
-    private function gitCommitFromProcess(): ?string
+    /**
+     * @return array{version: string|null, tag: string|null, build: string|null, deployed_at: string|null, release_date: string|null}
+     */
+    private function manifest(): array
     {
-        if (! is_dir(base_path('.git'))) {
-            return null;
+        if (! $this->manifestLoaded) {
+            $this->manifestLoaded = true;
+            $this->manifest = $this->manifestStore->read() ?? [
+                'version' => null,
+                'tag' => null,
+                'build' => null,
+                'deployed_at' => null,
+                'release_date' => null,
+            ];
         }
 
-        try {
-            $result = Process::path(base_path())
-                ->timeout(3)
-                ->run(['git', 'rev-parse', '--short', 'HEAD']);
-        } catch (\Throwable) {
-            return null;
-        }
-
-        if (! $result->successful()) {
-            return null;
-        }
-
-        $commit = trim($result->output());
-
-        return $commit !== '' ? $commit : null;
+        return $this->manifest ?? [
+            'version' => null,
+            'tag' => null,
+            'build' => null,
+            'deployed_at' => null,
+            'release_date' => null,
+        ];
     }
 
-    private function gitCommitFromFilesystem(): ?string
+    private function normalizeVersion(string $version): string
     {
-        $gitDir = base_path('.git');
+        $version = trim($version);
 
-        if (! is_dir($gitDir)) {
-            return null;
+        if (str_starts_with(strtolower($version), 'v') && preg_match('/^v(\d+\.\d+\.\d+)$/i', $version, $matches) === 1) {
+            return $matches[1];
         }
 
-        $headPath = $gitDir.DIRECTORY_SEPARATOR.'HEAD';
+        return $version;
+    }
 
-        if (! is_file($headPath)) {
-            return null;
-        }
-
-        $head = trim((string) file_get_contents($headPath));
-
-        if ($head === '') {
-            return null;
-        }
-
-        if (str_starts_with($head, 'ref:')) {
-            $ref = trim(substr($head, 4));
-            $refPath = $gitDir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $ref);
-
-            if (! is_file($refPath)) {
-                return null;
-            }
-
-            $head = trim((string) file_get_contents($refPath));
-        }
-
-        if (! preg_match('/^[0-9a-f]{7,40}$/i', $head)) {
-            return null;
-        }
-
-        return substr($head, 0, 7);
+    private function isPresent(?string $value): bool
+    {
+        return is_string($value) && trim($value) !== '';
     }
 
     private function versionFromChangelog(): ?string

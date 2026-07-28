@@ -21,6 +21,7 @@
         <ini name="memory_limit" value="512M"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_NAME" value="Radium Desk"/>
+        <!-- Optional fallback only; prefer Git tags / release snapshot / CHANGELOG -->
         <env name="APP_VERSION" value="4.0.0"/>
         <env name="APP_TIMEZONE" value="Asia/Kolkata"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>

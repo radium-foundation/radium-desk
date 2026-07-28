@@ -5,8 +5,13 @@
         data-bs-toggle="modal"
         data-bs-target="#whatsNewModal"
         data-short-version="{{ $shortVersionLabel }}"
-        title="{{ $applicationLabel }}"
+        title="{{ $footerTitle }}"
     >
-        <span class="app-version-footer__label">{{ $applicationLabel }}</span>
+        <span class="app-version-footer__label">
+            <span class="app-version-footer__name">{{ $applicationLabel }}</span>
+            @if(filled($buildLabel ?? null))
+                <span class="app-version-footer__build">{{ $buildLabel }}</span>
+            @endif
+        </span>
     </button>
 </div>

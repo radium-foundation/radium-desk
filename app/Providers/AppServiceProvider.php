@@ -254,6 +254,8 @@ class AppServiceProvider extends ServiceProvider
             $view->with([
                 'applicationLabel' => $versionService->applicationLabel(),
                 'shortVersionLabel' => $versionService->shortVersionLabel(),
+                'buildLabel' => $versionService->buildLabel(),
+                'footerTitle' => $versionService->footerTitle(),
             ]);
         });
 
