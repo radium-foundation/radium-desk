@@ -81,6 +81,7 @@ class TeamActivityPanelService
         $itemsByAuditId = $this->presentItemsById($allAudits)->all();
         $presenceMetricsByUser = $this->presenceMetricsService->forUsers($userIds);
         $callMetricsByUser = $this->callMetricsService->forUsers($userIds);
+        $ivrCallsTotalToday = $this->callMetricsService->teamIvrCallsTotalToday();
         $pendingMetricsByUser = $this->pendingMetricsService->forUsers($userIds);
 
         $agents = [];
@@ -153,7 +154,7 @@ class TeamActivityPanelService
             $this->iraMemberBuilder->build(expanded: $iraExpanded, itemsByAuditId: $itemsByAuditId),
         );
 
-        return new TeamActivityPanel($agents, false);
+        return new TeamActivityPanel($agents, false, $ivrCallsTotalToday);
     }
 
     public function render(TeamActivityPanel $panel): string

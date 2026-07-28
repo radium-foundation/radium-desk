@@ -10,6 +10,7 @@ readonly class TeamActivityPanel
     public function __construct(
         public array $agents,
         public bool $empty,
+        public int $ivrCallsTotalToday = 0,
     ) {}
 
     public function agentCount(): int

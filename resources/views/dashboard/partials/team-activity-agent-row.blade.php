@@ -1,5 +1,6 @@
 @props([
     'agent',
+    'ivrCallsTotalToday' => 0,
 ])
 
 @php
@@ -52,21 +53,20 @@
 
     $hasCallMetrics = ! $agent->isVirtual
         && $agent->callsAnsweredToday !== null
-        && $agent->callsTotalToday !== null
         && filled($agent->callsTalkDurationLabel)
         && (
             $agent->callsAnsweredToday > 0
-            || $agent->callsTotalToday > 0
+            || $ivrCallsTotalToday > 0
             || $agent->callsTalkDurationLabel !== '0m'
         );
 
     if ($hasCallMetrics) {
         $callsTitle = number_format($agent->callsAnsweredToday).' calls answered'
-            ."\n".number_format($agent->callsTotalToday).' total IVR calls'
+            ."\n".number_format($ivrCallsTotalToday).' total IVR calls received today (team-wide)'
             ."\n".$agent->callsTalkDurationLabel.' talk time today';
         $callsAriaLabel = ($agent->callsAnsweredToday === 1 ? '1 call answered' : number_format($agent->callsAnsweredToday).' calls answered')
             .'; '
-            .($agent->callsTotalToday === 1 ? '1 total IVR call' : number_format($agent->callsTotalToday).' total IVR calls')
+            .($ivrCallsTotalToday === 1 ? '1 total IVR call received today team-wide' : number_format($ivrCallsTotalToday).' total IVR calls received today team-wide')
             .'; '
             .$agent->callsTalkDurationLabel.' talk time today';
     }
@@ -147,7 +147,8 @@
                       aria-label="{{ $callsAriaLabel }}">
                     <span class="team-activity-calls-compact__figure">
                         <span class="team-activity-calls-compact__count">{{ number_format($agent->callsAnsweredToday) }}</span>
-                        <sup class="team-activity-calls-compact__sup">{{ number_format($agent->callsTotalToday) }}</sup>
+                        <sup class="team-activity-calls-compact__sup"
+                              title="Total IVR calls received today (team-wide)">{{ number_format($ivrCallsTotalToday) }}</sup>
                     </span>
                     <span class="team-activity-calls-compact__separator" aria-hidden="true">·</span>
                     <span class="team-activity-calls-compact__duration"><x-team-activity.duration :value="$agent->callsTalkDurationLabel" /></span>

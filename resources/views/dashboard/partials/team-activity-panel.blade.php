@@ -58,7 +58,10 @@
 
                 <ul class="team-activity-list list-unstyled mb-0" data-team-activity-list role="rowgroup">
                     @foreach($panel->agents as $agent)
-                        @include('dashboard.partials.team-activity-agent-row', ['agent' => $agent])
+                        @include('dashboard.partials.team-activity-agent-row', [
+                            'agent' => $agent,
+                            'ivrCallsTotalToday' => $panel->ivrCallsTotalToday,
+                        ])
                     @endforeach
                 </ul>
             </div>

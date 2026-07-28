@@ -21,6 +21,22 @@ class TeamActivityCallMetricsService
     ) {}
 
     /**
+     * Total inbound IVR calls received today across the team.
+     */
+    public function teamIvrCallsTotalToday(?Carbon $at = null): int
+    {
+        $at ??= now();
+        $todayStart = $at->copy()->startOfDay();
+
+        return (int) DB::table('bonvoice_call_events')
+            ->where('started_at', '>=', $todayStart)
+            ->where(function ($query): void {
+                $this->applyInboundDirectionFilter($query);
+            })
+            ->count();
+    }
+
+    /**
      * @param  list<int>  $userIds
      * @return array<int, TeamActivityCallMetrics>
      */
@@ -46,7 +62,7 @@ class TeamActivityCallMetricsService
             ->where('started_at', '>=', $todayStart)
             ->whereNotNull('destination_number')
             ->where(function ($query): void {
-                $query->whereRaw('LOWER(direction) IN (?, ?, ?)', ['inbound', 'in', 'incoming']);
+                $this->applyInboundDirectionFilter($query);
             })
             ->selectRaw('
                 destination_number,
@@ -98,6 +114,11 @@ class TeamActivityCallMetricsService
         }
 
         return $metrics;
+    }
+
+    private function applyInboundDirectionFilter($query): void
+    {
+        $query->whereRaw('LOWER(direction) IN (?, ?, ?)', ['inbound', 'in', 'incoming']);
     }
 
     private function talkDurationSumExpression(): string
