@@ -2021,7 +2021,12 @@ a:focus-visible .stat-card {
 .team-activity-panel {
     margin-top: 0.375rem;
     padding-top: 0.25rem;
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    border-top: 1px solid rgba(0, 0, 0, 0.035);
+}
+
+.team-activity-panel-header .dashboard-section-title {
+    color: #94a3b8;
+    font-weight: 600;
 }
 
 .team-activity-panel-header {
@@ -2041,7 +2046,7 @@ a:focus-visible .stat-card {
     padding: 0;
     border: 0;
     background: transparent;
-    color: var(--dashboard-color-heading, #0f172a);
+    color: #adb5bd;
     cursor: pointer;
 }
 
@@ -2050,15 +2055,24 @@ a:focus-visible .stat-card {
     height: 0.375rem;
     border-right: 1.5px solid currentColor;
     border-bottom: 1.5px solid currentColor;
-    transform: rotate(45deg);
+    transform: rotate(-45deg);
+    transition: transform 160ms ease;
+}
+
+.team-activity-panel.is-collapsed [data-team-activity-panel-body] {
+    display: none;
+}
+
+.team-activity-panel [data-team-activity-panel-body] {
+    transition: opacity 160ms ease;
 }
 
 .team-activity-panel.is-collapsed .team-activity-panel-chevron {
     transform: rotate(-45deg);
 }
 
-.team-activity-panel.is-collapsed [data-team-activity-panel-body] {
-    display: none;
+.team-activity-panel:not(.is-collapsed) .team-activity-panel-chevron {
+    transform: rotate(45deg);
 }
 
 .team-activity-grid {
@@ -2070,13 +2084,16 @@ a:focus-visible .stat-card {
         minmax(3.75rem, 5rem)
         minmax(4rem, 5.5rem)
         1.125rem;
-    --team-activity-metric-size: 0.75rem;
-    --team-activity-metric-weight: 700;
-    --team-activity-metric-color: #0f172a;
+    --team-activity-metric-size: 0.6875rem;
+    --team-activity-metric-weight: 600;
+    --team-activity-metric-color: #6c757d;
     --team-activity-metric-line-height: 1;
     --team-activity-metric-small-size: 0.5625rem;
-    --team-activity-metric-small-weight: 600;
-    --team-activity-metric-small-color: #64748b;
+    --team-activity-metric-small-weight: 500;
+    --team-activity-metric-small-color: #adb5bd;
+    --team-activity-duration-unit-size: 0.5625rem;
+    --team-activity-duration-unit-weight: 500;
+    --team-activity-duration-unit-color: #adb5bd;
 }
 
 .team-activity-grid-header {
@@ -2097,7 +2114,7 @@ a:focus-visible .stat-card {
     font-weight: 500;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: #c1c9d2;
+    color: #d1d8e0;
     white-space: nowrap;
     min-width: 0;
 }
@@ -2111,7 +2128,7 @@ a:focus-visible .stat-card {
     font-weight: 500;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #d4dae2;
+    color: #dde3ea;
     line-height: 1.1;
 }
 
@@ -2128,7 +2145,7 @@ a:focus-visible .stat-card {
 }
 
 .team-activity-list > .team-activity-row:nth-child(even) .team-activity-row-summary {
-    background: rgba(15, 23, 42, 0.01);
+    background: rgba(15, 23, 42, 0.005);
 }
 
 .team-activity-row {
@@ -2256,9 +2273,9 @@ a:focus-visible .stat-card {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--dashboard-color-heading, #0f172a);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: #6c757d;
     line-height: 1.25;
     max-width: 100%;
 }
@@ -2511,6 +2528,33 @@ a:focus-visible .stat-card {
     min-width: 0;
 }
 
+.team-activity-duration {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: nowrap;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.team-activity-duration__segment {
+    display: inline-flex;
+    align-items: baseline;
+}
+
+.team-activity-duration__value {
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+}
+
+.team-activity-duration__unit {
+    font-size: var(--team-activity-duration-unit-size);
+    font-weight: var(--team-activity-duration-unit-weight);
+    color: var(--team-activity-duration-unit-color);
+    line-height: 1;
+}
+
 .team-activity-kpi-count {
     letter-spacing: -0.02em;
     white-space: nowrap;
@@ -2601,8 +2645,8 @@ a:focus-visible .stat-card {
 
 .team-activity-latest-event__label {
     font-size: 0.6875rem;
-    font-weight: 600;
-    color: #334155;
+    font-weight: 500;
+    color: #6c757d;
     line-height: 1.25;
     word-break: break-word;
 }
@@ -2624,7 +2668,7 @@ a:focus-visible .stat-card {
     white-space: nowrap;
     font-size: 0.5625rem;
     font-weight: 500;
-    color: #94a3b8;
+    color: #adb5bd;
     padding-left: 1rem;
     line-height: 1.2;
 }
@@ -2672,11 +2716,17 @@ a:focus-visible .stat-card {
 }
 
 .team-activity-calls-compact__separator {
-    color: #94a3b8;
+    color: #adb5bd;
 }
 
 .team-activity-calls-compact__duration {
-    color: #64748b;
+    color: #6c757d;
+}
+
+.team-activity-calls-compact__duration .team-activity-duration__value {
+    color: #6c757d;
+    font-size: var(--team-activity-metric-small-size);
+    font-weight: var(--team-activity-metric-weight);
 }
 
 .team-activity-pending-compact {

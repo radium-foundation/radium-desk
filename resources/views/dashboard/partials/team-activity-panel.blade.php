@@ -6,21 +6,21 @@
     /** @var \App\Data\TeamActivityPanel $panel */
 @endphp
 
-<div class="team-activity-panel"
+<div class="team-activity-panel is-collapsed"
      data-team-activity-panel
      data-operations-widget="team-activity"
      data-team-activity-refresh-url="{{ route('dashboard.team-activity') }}"
      data-team-activity-poll-interval-ms="{{ (int) config('dashboard-team-activity.poll_interval_ms', 30000) }}"
      data-team-activity-user-idle-ms="{{ (int) config('dashboard-team-activity.user_idle_ms', 300000) }}"
-     data-team-activity-collapsed="0"
+     data-team-activity-collapsed="1"
      aria-label="Team Activity">
     <div class="team-activity-panel-header">
         <h2 class="dashboard-section-title dashboard-section-title--secondary mb-0">Team Activity</h2>
         <button type="button"
                 class="team-activity-panel-toggle"
                 data-team-activity-panel-toggle
-                aria-expanded="true"
-                aria-label="Collapse Team Activity">
+                aria-expanded="false"
+                aria-label="Expand Team Activity">
             <span class="team-activity-panel-chevron" aria-hidden="true"></span>
         </button>
     </div>

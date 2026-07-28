@@ -145,14 +145,15 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $this->assertNotNull($row);
         $this->assertNotNull($row->previousActivityAt);
-        $this->assertSame('5 min', display_team_activity_elapsed($row->latestActivityAt));
-        $this->assertSame('25 min', display_team_activity_elapsed($row->previousActivityAt));
+        $this->assertSame('5m', display_team_activity_elapsed($row->latestActivityAt));
+        $this->assertSame('25m', display_team_activity_elapsed($row->previousActivityAt));
 
         $html = $this->panelHtml($viewer);
 
         $this->assertStringContainsString('Previous', $html);
-        $this->assertStringContainsString('5 min', $html);
-        $this->assertStringContainsString('25 min', $html);
+        $this->assertStringContainsString('team-activity-duration__value">5<', $html);
+        $this->assertStringContainsString('team-activity-duration__unit">m<', $html);
+        $this->assertStringContainsString('team-activity-duration__value">25<', $html);
         $this->assertStringNotContainsString(' ago', $html);
     }
 

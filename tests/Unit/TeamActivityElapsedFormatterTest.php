@@ -19,10 +19,10 @@ class TeamActivityElapsedFormatterTest extends TestCase
     {
         Carbon::setTestNow(Carbon::parse('2026-07-28 12:00:00', 'Asia/Kolkata'));
 
-        $this->assertSame('45 sec', AppDateFormatter::teamActivityElapsed(now()->subSeconds(45)));
-        $this->assertSame('2 min', AppDateFormatter::teamActivityElapsed(now()->subMinutes(2)));
-        $this->assertSame('18 min', AppDateFormatter::teamActivityElapsed(now()->subMinutes(18)));
-        $this->assertSame('1 hr', AppDateFormatter::teamActivityElapsed(now()->subMinutes(75)));
+        $this->assertSame('45s', AppDateFormatter::teamActivityElapsed(now()->subSeconds(45)));
+        $this->assertSame('2m', AppDateFormatter::teamActivityElapsed(now()->subMinutes(2)));
+        $this->assertSame('18m', AppDateFormatter::teamActivityElapsed(now()->subMinutes(18)));
+        $this->assertSame('1h', AppDateFormatter::teamActivityElapsed(now()->subMinutes(75)));
         $this->assertStringNotContainsString('ago', AppDateFormatter::teamActivityElapsed(now()->subMinutes(5)) ?? '');
     }
 }

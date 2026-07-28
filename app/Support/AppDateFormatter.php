@@ -128,14 +128,14 @@ class AppDateFormatter
         $elapsedSeconds = max(0, (int) $localized->diffInSeconds(now(self::timezone()), false));
 
         if ($elapsedSeconds < 60) {
-            return $elapsedSeconds.' sec';
+            return $elapsedSeconds.'s';
         }
 
         if ($elapsedSeconds < 3600) {
-            return max(1, (int) floor($elapsedSeconds / 60)).' min';
+            return max(1, (int) floor($elapsedSeconds / 60)).'m';
         }
 
-        return max(1, (int) floor($elapsedSeconds / 3600)).' hr';
+        return max(1, (int) floor($elapsedSeconds / 3600)).'h';
     }
 
     public static function activityFeedCompact(?CarbonInterface $date): ?string

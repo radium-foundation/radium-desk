@@ -15,7 +15,9 @@
         <span class="team-activity-member-status__label">{{ $label }}</span>
         @if(filled($context))
             <span class="team-activity-member-status__sep" aria-hidden="true">·</span>
-            <span class="team-activity-member-status__context">{{ $context }}</span>
+            <span class="team-activity-member-status__context">
+                <x-team-activity.duration :value="$context" />
+            </span>
         @endif
     </span>
 </span>

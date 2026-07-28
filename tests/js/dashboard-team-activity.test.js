@@ -42,6 +42,19 @@ describe('dashboard team activity', () => {
         </div>
     `;
 
+    it('starts collapsed by default', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+
+        const panel = pageRoot.querySelector('[data-team-activity-panel]');
+        const toggle = pageRoot.querySelector('[data-team-activity-panel-toggle]');
+
+        expect(panel.classList.contains('is-collapsed')).toBe(true);
+        expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    });
+
     it('polls the team activity endpoint when the panel is open', async () => {
         document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
 
@@ -57,6 +70,7 @@ describe('dashboard team activity', () => {
 
         const pageRoot = document.getElementById('dashboard-page');
         initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
 
         await vi.advanceTimersByTimeAsync(30000);
 
@@ -75,11 +89,30 @@ describe('dashboard team activity', () => {
         const pageRoot = document.getElementById('dashboard-page');
         initDashboardTeamActivity(pageRoot);
 
-        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
-
         await vi.advanceTimersByTimeAsync(60000);
 
         expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('collapses when clicking outside the panel', () => {
+        document.body.innerHTML = `
+            <div id="dashboard-page">
+                <button type="button" id="outside-action">Outside</button>
+                ${panelHtml('v1')}
+            </div>
+        `;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+
+        const panel = pageRoot.querySelector('[data-team-activity-panel]');
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        expect(panel.classList.contains('is-collapsed')).toBe(false);
+
+        pageRoot.querySelector('#outside-action').click();
+
+        expect(panel.classList.contains('is-collapsed')).toBe(true);
     });
 
     it('does not poll when the document is hidden', async () => {

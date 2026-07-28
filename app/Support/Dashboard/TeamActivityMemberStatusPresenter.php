@@ -7,6 +7,10 @@ use App\Enums\TeamActivityStatus;
 
 class TeamActivityMemberStatusPresenter
 {
+    public function __construct(
+        private readonly TeamActivityDurationPresenter $durationPresenter,
+    ) {}
+
     public function contextLabel(TeamActivityAgentRow $agent, ?string $latestElapsed): ?string
     {
         if ($agent->isVirtual) {
@@ -49,24 +53,8 @@ class TeamActivityMemberStatusPresenter
             return null;
         }
 
-        if (preg_match('/^\d+ (sec|min|hr)$/', $value) === 1) {
-            return $value;
-        }
+        $compact = $this->durationPresenter->compact($value);
 
-        if (preg_match('/^(\d+)m$/', $value, $matches) === 1) {
-            return $matches[1].' min';
-        }
-
-        if (preg_match('/^(\d+)h (\d+)m$/', $value, $matches) === 1) {
-            return $matches[2] === '0'
-                ? $matches[1].' hr'
-                : $matches[1].' hr '.$matches[2].' min';
-        }
-
-        if (preg_match('/^(\d+)h$/', $value, $matches) === 1) {
-            return $matches[1].' hr';
-        }
-
-        return $value;
+        return $this->durationPresenter->isDuration($compact) ? $compact : $value;
     }
 }

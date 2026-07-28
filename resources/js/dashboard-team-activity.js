@@ -12,9 +12,15 @@ const USER_ACTIVITY_EVENTS = ['mousedown', 'keydown', 'touchstart', 'scroll'];
 
 const readCollapsed = () => {
     try {
-        return sessionStorage.getItem(PANEL_COLLAPSED_KEY) === '1';
+        const stored = sessionStorage.getItem(PANEL_COLLAPSED_KEY);
+
+        if (stored === null) {
+            return true;
+        }
+
+        return stored === '1';
     } catch {
-        return false;
+        return true;
     }
 };
 
@@ -322,6 +328,35 @@ export const initDashboardTeamActivity = (pageRoot) => {
     };
 
     document.addEventListener('visibilitychange', visibilityHandler, { signal: controller.signal });
+
+    const collapseOnOutsideInteraction = (event) => {
+        const activePanel = pageRoot.querySelector('[data-team-activity-panel]');
+
+        if (!activePanel || isPanelCollapsed(activePanel)) {
+            return;
+        }
+
+        if (event.target.closest('[data-team-activity-panel]')) {
+            return;
+        }
+
+        setPanelCollapsed(activePanel, true);
+        clearPollTimeout();
+    };
+
+    pageRoot.addEventListener('click', collapseOnOutsideInteraction, { signal: controller.signal });
+    pageRoot.addEventListener('input', (event) => {
+        const activePanel = pageRoot.querySelector('[data-team-activity-panel]');
+
+        if (!activePanel || isPanelCollapsed(activePanel)) {
+            return;
+        }
+
+        if (event.target.closest('input[type="search"]')) {
+            setPanelCollapsed(activePanel, true);
+            clearPollTimeout();
+        }
+    }, { signal: controller.signal });
 
     const refreshController = {
         destroy: () => {

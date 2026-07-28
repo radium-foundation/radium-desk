@@ -121,11 +121,11 @@
         <span class="team-activity-col team-activity-col--presence" role="cell">
             @if($hasPresenceMetrics)
                 <span class="team-activity-presence" aria-label="Today {{ $agent->todayDurationLabel ?: '—' }}, Current {{ $agent->currentDurationLabel ?: '—' }}, Sessions {{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}, Latest {{ $latestElapsed ?: '—' }}, Previous {{ $previousElapsed ?: '—' }}">
-                    <span class="team-activity-metric-value">{{ $agent->todayDurationLabel ?: '—' }}</span>
-                    <span class="team-activity-metric-value">{{ $agent->currentDurationLabel ?: '—' }}</span>
+                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$agent->todayDurationLabel ?: '—'" /></span>
+                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$agent->currentDurationLabel ?: '—'" /></span>
                     <span class="team-activity-metric-value">{{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}</span>
-                    <span class="team-activity-metric-value">{{ $latestElapsed ?: '—' }}</span>
-                    <span class="team-activity-metric-value">{{ $previousElapsed ?: '—' }}</span>
+                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$latestElapsed ?: '—'" /></span>
+                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$previousElapsed ?: '—'" /></span>
                 </span>
             @else
                 <span class="team-activity-presence team-activity-presence--empty" aria-hidden="true">—</span>
@@ -150,7 +150,7 @@
                         <sup class="team-activity-calls-compact__sup">{{ number_format($agent->callsTotalToday) }}</sup>
                     </span>
                     <span class="team-activity-calls-compact__separator" aria-hidden="true">·</span>
-                    <span class="team-activity-calls-compact__duration">{{ $agent->callsTalkDurationLabel }}</span>
+                    <span class="team-activity-calls-compact__duration"><x-team-activity.duration :value="$agent->callsTalkDurationLabel" /></span>
                     <span class="visually-hidden">Calls answered, total IVR calls, talk duration</span>
                 </span>
             @else

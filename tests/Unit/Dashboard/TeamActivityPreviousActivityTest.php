@@ -104,7 +104,7 @@ class TeamActivityPreviousActivityTest extends TestCase
         $this->assertNotNull($row);
         $this->assertTrue($latestAt->equalTo($row->latestActivityAt));
         $this->assertTrue($olderAt->equalTo($row->previousActivityAt));
-        $this->assertSame('2 min', display_team_activity_elapsed($row->latestActivityAt));
-        $this->assertSame('18 min', display_team_activity_elapsed($row->previousActivityAt));
+        $this->assertSame('2m', display_team_activity_elapsed($row->latestActivityAt));
+        $this->assertSame('18m', display_team_activity_elapsed($row->previousActivityAt));
     }
 }
