@@ -48,21 +48,26 @@ class ReleaseSnapshotCommandTest extends TestCase
         $this->assertNotNull($manifest['deployed_at']);
     }
 
-    public function test_snapshot_command_fails_when_changelog_section_missing(): void
+    public function test_snapshot_command_warns_but_writes_manifest_when_changelog_section_missing(): void
     {
         $git = Mockery::mock(GitReleaseInspector::class);
         $git->shouldReceive('latestSemverVersion')->once()->andReturn('4.0.2');
-        $git->shouldReceive('shortCommit')->never();
+        $git->shouldReceive('shortCommit')->once()->andReturn('abc1234');
         $this->app->instance(GitReleaseInspector::class, $git);
 
         $exit = Artisan::call('release:snapshot');
 
-        $this->assertSame(1, $exit);
+        $this->assertSame(0, $exit);
         $this->assertStringContainsString(
             'Release notes for v4.0.2 are missing from CHANGELOG.md.',
             Artisan::output(),
         );
-        $this->assertNull((new ReleaseManifestStore)->read());
-        $this->assertFileDoesNotExist($this->manifestPath);
+
+        $manifest = (new ReleaseManifestStore)->read();
+
+        $this->assertSame('4.0.2', $manifest['version']);
+        $this->assertSame('v4.0.2', $manifest['tag']);
+        $this->assertSame('abc1234', $manifest['build']);
+        $this->assertNotNull($manifest['deployed_at']);
     }
 }

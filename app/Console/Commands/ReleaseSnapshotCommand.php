@@ -28,9 +28,7 @@ class ReleaseSnapshotCommand extends Command
         }
 
         if (! $changelogService->hasEntryForVersion($version)) {
-            $this->error("Release notes for v{$version} are missing from CHANGELOG.md.");
-
-            return SymfonyCommand::FAILURE;
+            $this->warn("Release notes for v{$version} are missing from CHANGELOG.md. Continuing without changelog entry.");
         }
 
         $build = $git->shortCommit();
