@@ -50,7 +50,7 @@ class CommunicationSummaryBuilderTest extends TestCase
             $this->whatsapp('Shubhanshi', 'Support Reminder Sent', now()->subDays(3)),
             $this->emailOutbound('Shubhanshi', 'Serial Number Required for Service', 'Please share the device serial number for service.', now()->subDays(2)),
             $this->whatsapp('Avinash', 'Support Reminder Sent', now()->subDays(1)),
-            $this->callInbound('Sumit', now(), 'Customer promised to share the serial number today.'),
+            $this->callInbound('Sumit', now(), 'Customer promised to share the serial number today.', 'ANSWERED'),
         ]);
 
         $this->assertCount(5, $summary->communicationJourney);
@@ -60,6 +60,7 @@ class CommunicationSummaryBuilderTest extends TestCase
         $this->assertStringContainsString('Shubhanshi sent:', $summary->communicationJourney[2]->narrative);
         $this->assertStringContainsString('Avinash sent', $summary->communicationJourney[3]->narrative);
         $this->assertStringContainsString('Customer spoke with Sumit', $summary->communicationJourney[4]->narrative);
+        $this->assertStringContainsString('Call was answered', $summary->communicationJourney[4]->narrative);
     }
 
     public function test_tracks_multiple_agents_in_briefing(): void
@@ -136,14 +137,48 @@ class CommunicationSummaryBuilderTest extends TestCase
     public function test_phone_summary_includes_agent_and_outcome(): void
     {
         $summary = $this->buildFromEvents([
-            $this->callInbound('Sumit', now()->subHour(), 'Customer promised to share the serial number today.'),
+            $this->callInbound('Sumit', now()->subHour(), 'Customer promised to share the serial number today.', 'ANSWERED'),
         ]);
 
         $this->assertSame('phone', $summary->latestCall?->channel);
         $this->assertSame('Sumit', $summary->latestCall?->actorName);
         $this->assertStringContainsString('Customer spoke with Sumit', (string) $summary->latestCall?->summary);
+        $this->assertStringContainsString('Call was answered', (string) $summary->latestCall?->summary);
         $this->assertStringContainsString('Outcome:', (string) $summary->latestCall?->summary);
         $this->assertContains('phone', $summary->channelsUsed);
+    }
+
+    public function test_ira_summaries_are_outcome_aware_for_inbound_call_statuses(): void
+    {
+        $cases = [
+            'ANSWERED' => 'Call was answered',
+            'NOANSWER' => 'Call was not answered',
+            'NOINPUT' => 'no input was received',
+            'FAILED' => 'Customer call failed',
+            'BUSY' => 'the line was busy',
+        ];
+
+        foreach ($cases as $status => $expectedPhrase) {
+            $summary = $this->buildFromEvents([
+                $this->callInboundStatus($status, now()),
+            ]);
+
+            $this->assertNotNull($summary->latestCall, "Expected phone touchpoint for {$status}");
+            $this->assertStringContainsString(
+                $expectedPhrase,
+                (string) $summary->latestCall->summary,
+                "Unexpected IRA summary for {$status}: {$summary->latestCall->summary}",
+            );
+
+            if ($status === 'ANSWERED') {
+                $this->assertStringContainsString('Customer called support', (string) $summary->latestCall->summary);
+            }
+
+            if ($status === 'NOANSWER') {
+                $this->assertStringContainsString('Customer called support', (string) $summary->latestCall->summary);
+                $this->assertStringNotContainsString('Call was answered', (string) $summary->latestCall->summary);
+            }
+        }
     }
 
     public function test_duplicate_touchpoints_are_suppressed(): void
@@ -367,11 +402,18 @@ class CommunicationSummaryBuilderTest extends TestCase
         );
     }
 
-    private function callInbound(string $agent, Carbon $at, ?string $outcome = null): TimelineEvent
-    {
+    private function callInbound(
+        string $agent,
+        Carbon $at,
+        ?string $outcome = null,
+        ?string $status = null,
+    ): TimelineEvent {
         $fields = [
             ['label' => 'Agent', 'value' => $agent],
         ];
+        if ($status !== null) {
+            $fields[] = ['label' => 'Status', 'value' => $status];
+        }
         if ($outcome !== null) {
             $fields[] = ['label' => 'Outcome', 'value' => $outcome];
         }
@@ -383,6 +425,21 @@ class CommunicationSummaryBuilderTest extends TestCase
             actor: new TimelineActor('Customer → '.$agent, kind: TimelineActorKind::Customer),
             dedupeKey: 'call:'.uniqid(),
             summaryFields: $fields,
+        );
+    }
+
+    private function callInboundStatus(string $status, Carbon $at): TimelineEvent
+    {
+        return new TimelineEvent(
+            type: TimelineEventType::IvrCall,
+            occurredAt: $at,
+            title: 'Inbound Call',
+            actor: new TimelineActor('Customer', kind: TimelineActorKind::Customer),
+            dedupeKey: 'call:'.uniqid(),
+            statusLabel: $status,
+            summaryFields: [
+                ['label' => 'Status', 'value' => $status],
+            ],
         );
     }
 }

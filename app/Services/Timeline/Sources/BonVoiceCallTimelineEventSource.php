@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Services\Bonvoice\BonvoiceAgentResolver;
 use App\Services\Bonvoice\BonvoiceCustomerCallService;
 use App\Support\AppDateFormatter;
+use App\Support\BonvoiceCallStatuses;
 use Illuminate\Support\Collection;
 
 class BonVoiceCallTimelineEventSource implements TimelineEventSource
@@ -140,20 +141,17 @@ class BonVoiceCallTimelineEventSource implements TimelineEventSource
 
     private function statusVariant(?string $status): string
     {
-        $normalized = strtolower((string) $status);
+        $normalized = BonvoiceCallStatuses::normalize($status);
 
-        return match (true) {
-            str_contains($normalized, 'answer'),
-            str_contains($normalized, 'complete'),
-            str_contains($normalized, 'connected') => 'success',
-            str_contains($normalized, 'miss'),
-            str_contains($normalized, 'fail'),
-            str_contains($normalized, 'busy'),
-            str_contains($normalized, 'reject') => 'danger',
-            str_contains($normalized, 'ring'),
-            str_contains($normalized, 'queue'),
-            str_contains($normalized, 'hold') => 'pending',
-            default => 'warning',
+        if ($normalized === null) {
+            return 'neutral';
+        }
+
+        return match ($normalized) {
+            'ANSWERED', 'COMPLETED' => 'success',
+            'NOANSWER', 'NOINPUT', 'FAILED', 'BUSY', 'CANCELLED', 'CANCELED' => 'danger',
+            'RINGING', 'RING' => 'warning',
+            default => 'neutral',
         };
     }
 }

@@ -11,6 +11,7 @@ use App\Data\TimelineEvent;
 use App\Enums\TimelineActorKind;
 use App\Enums\TimelineEventType;
 use App\Support\AppDateFormatter;
+use App\Support\BonvoiceCallStatuses;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -370,6 +371,18 @@ class CommunicationSummaryBuilder
         }
 
         if ($channel === 'phone') {
+            if ($event->type === TimelineEventType::IvrCall) {
+                $ivrSummary = $this->ivrCallSummary($event, $direction, $actorName, $when);
+
+                if ($ivrSummary !== null) {
+                    if (filled($outcome)) {
+                        return $ivrSummary.' Outcome: '.$outcome;
+                    }
+
+                    return $ivrSummary;
+                }
+            }
+
             if ($direction === 'inbound') {
                 $base = filled($actorName)
                     ? "Customer spoke with {$actorName}{$when}."
@@ -388,6 +401,55 @@ class CommunicationSummaryBuilder
         }
 
         return "{$who} contacted the customer{$when}.";
+    }
+
+    private function ivrCallSummary(
+        TimelineEvent $event,
+        string $direction,
+        ?string $actorName,
+        string $when,
+    ): ?string {
+        $status = BonvoiceCallStatuses::normalize($this->fieldValue($event, 'Status'));
+
+        if ($status === null) {
+            return null;
+        }
+
+        if ($direction === 'outbound') {
+            return match ($status) {
+                'ANSWERED', 'COMPLETED' => filled($actorName)
+                    ? "{$actorName} spoke with the customer{$when}. Call was answered."
+                    : "Support called the customer{$when}. Call was answered.",
+                'NOANSWER' => filled($actorName)
+                    ? "{$actorName} called the customer{$when}. Call was not answered."
+                    : "Support called the customer{$when}. Call was not answered.",
+                'NOINPUT' => filled($actorName)
+                    ? "{$actorName} called the customer{$when} but no input was received."
+                    : "Support called the customer{$when} but no input was received.",
+                'FAILED' => filled($actorName)
+                    ? "{$actorName}'s outbound call failed{$when}."
+                    : "Outbound call failed{$when}.",
+                'BUSY' => filled($actorName)
+                    ? "{$actorName} called the customer{$when} but the line was busy."
+                    : "Support called the customer{$when} but the line was busy.",
+                'CANCELLED', 'CANCELED' => filled($actorName)
+                    ? "{$actorName}'s outbound call was cancelled{$when}."
+                    : "Outbound call was cancelled{$when}.",
+                default => null,
+            };
+        }
+
+        return match ($status) {
+            'ANSWERED', 'COMPLETED' => filled($actorName)
+                ? "Customer spoke with {$actorName}{$when}. Call was answered."
+                : "Customer called support{$when}. Call was answered.",
+            'NOANSWER' => "Customer called support{$when}. Call was not answered.",
+            'NOINPUT' => "Customer called support{$when} but no input was received.",
+            'FAILED' => "Customer call failed{$when}.",
+            'BUSY' => "Customer called but the line was busy{$when}.",
+            'CANCELLED', 'CANCELED' => "Customer call was cancelled{$when}.",
+            default => null,
+        };
     }
 
     private function outboundPurpose(TimelineEvent $event): string
