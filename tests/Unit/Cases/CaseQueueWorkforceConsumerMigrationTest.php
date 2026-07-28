@@ -156,6 +156,26 @@ class CaseQueueWorkforceConsumerMigrationTest extends TestCase
         $show->assertSee((string) $expected, false);
     }
 
+    public function test_workload_for_team_members_matches_open_and_overdue_counts(): void
+    {
+        [$agent, $other] = $this->seedAgentsWithOpenWork();
+
+        $overdue = $this->createIncident('RD-H46D-OVER', $agent, $agent);
+        $overdue->created_at = Carbon::parse('2026-07-10 10:00:00', 'Asia/Kolkata');
+        $overdue->saveQuietly();
+
+        app(DashboardSnapshotStore::class)->forget();
+
+        $snapshot = DashboardSnapshot::load();
+        $readModel = app(CaseQueueReadModel::class);
+        $workload = $readModel->workloadForTeamMembers([$agent, $other], snapshot: $snapshot);
+
+        $this->assertSame($snapshot->openCount($agent), $workload[$agent->id]['pending']);
+        $this->assertSame($snapshot->openCount($other), $workload[$other->id]['pending']);
+        $this->assertGreaterThanOrEqual(1, $workload[$agent->id]['overdue']);
+        $this->assertSame(0, $workload[$other->id]['overdue']);
+    }
+
     public function test_scoped_path_does_not_add_sql_vs_snapshot_open_count(): void
     {
         [$agent] = $this->seedAgentsWithOpenWork();

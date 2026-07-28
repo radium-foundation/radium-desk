@@ -51,6 +51,7 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $this->assertStringContainsString('Team Member', $html);
         $this->assertStringContainsString('Latest Event', $html);
+        $this->assertStringContainsString('Pending', $html);
         $this->assertStringContainsString('team-activity-avatar__inner', $html);
         $this->assertStringContainsString('SP', $html);
         $this->assertStringContainsString('>Shipra<', $html);

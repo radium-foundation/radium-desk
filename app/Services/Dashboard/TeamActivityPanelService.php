@@ -28,6 +28,7 @@ class TeamActivityPanelService
         private readonly TeamActivityRowSorter $rowSorter,
         private readonly TeamActivityPresenceMetricsService $presenceMetricsService,
         private readonly TeamActivityCallMetricsService $callMetricsService,
+        private readonly TeamActivityPendingMetricsService $pendingMetricsService,
         private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
     ) {}
 
@@ -80,6 +81,7 @@ class TeamActivityPanelService
         $itemsByAuditId = $this->presentItemsById($allAudits)->all();
         $presenceMetricsByUser = $this->presenceMetricsService->forUsers($userIds);
         $callMetricsByUser = $this->callMetricsService->forUsers($userIds);
+        $pendingMetricsByUser = $this->pendingMetricsService->forUsers($userIds);
 
         $agents = [];
 
@@ -109,6 +111,7 @@ class TeamActivityPanelService
             $outcomeCount = $kpiMetrics?->outcome ?? 0;
             $effortCount = $kpiMetrics?->effort ?? 0;
             $callMetrics = $callMetricsByUser[$userId] ?? null;
+            $pendingMetrics = $pendingMetricsByUser[$userId] ?? null;
 
             $agents[] = new TeamActivityAgentRow(
                 id: $userId,
@@ -138,6 +141,8 @@ class TeamActivityPanelService
                 callsAnsweredToday: $callMetrics?->answeredCount,
                 callsTotalToday: $callMetrics?->totalCount,
                 callsTalkDurationLabel: $callMetrics?->talkDurationLabel,
+                pendingCasesCount: $pendingMetrics?->pendingCount,
+                overdueCasesCount: $pendingMetrics?->overdueCount,
                 previousActivityAt: $previousActivityAtByUser[$userId] ?? null,
             );
         }

@@ -45,6 +45,7 @@
                     </span>
                     <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>
                     <span class="team-activity-grid-header__cell team-activity-col--calls" role="columnheader">Calls</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--pending" role="columnheader">Pending</span>
                     <span class="team-activity-grid-header__cell team-activity-col--kpi"
                           role="columnheader"
                           title="Support: Cases Worked with Customer Touches as superscript. Activation: Activation Sessions with Orders Activated as superscript.">

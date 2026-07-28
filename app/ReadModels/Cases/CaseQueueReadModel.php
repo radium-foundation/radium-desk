@@ -4,6 +4,7 @@ namespace App\ReadModels\Cases;
 
 use App\Data\Cases\CaseQueueMetricsV1;
 use App\Enums\OperationQueue;
+use App\Enums\ServiceCaseSlaStatus;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\Dashboard\DashboardSnapshot;
@@ -64,6 +65,64 @@ class CaseQueueReadModel
         }
 
         return $counts;
+    }
+
+    /**
+     * Per-member pending open-work and overdue counts from the dashboard snapshot.
+     *
+     * pending: assigned cases still requiring action (openCount scope)
+     * overdue: pending-scope cases whose SLA has expired
+     *
+     * @param  iterable<int, User>  $users
+     * @return array<int, array{pending: int, overdue: int}>
+     */
+    public function workloadForTeamMembers(iterable $users, ?Carbon $now = null, ?DashboardSnapshot $snapshot = null): array
+    {
+        $snapshot = $this->resolve($snapshot);
+        $now ??= now();
+
+        $users = $users instanceof Collection ? $users : collect($users);
+
+        if ($users->isEmpty()) {
+            return [];
+        }
+
+        $pendingCounts = $this->forTeamMembers($users, $snapshot);
+        $overdueCounts = array_fill_keys($users->pluck('id')->all(), 0);
+        $lookup = array_fill_keys(array_keys($overdueCounts), true);
+
+        foreach ($snapshot->activeIncidents() as $incident) {
+            $userId = $incident->assigned_to_user_id;
+
+            if ($userId === null || ! isset($lookup[$userId])) {
+                continue;
+            }
+
+            $queue = $this->queueClassifier->classify($incident);
+
+            if (in_array($queue, [
+                OperationQueue::WaitingCustomer,
+                OperationQueue::Completed,
+                OperationQueue::Hardware,
+            ], true)) {
+                continue;
+            }
+
+            if ($incident->slaStatus($now) === ServiceCaseSlaStatus::Overdue) {
+                $overdueCounts[$userId]++;
+            }
+        }
+
+        $result = [];
+
+        foreach ($pendingCounts as $userId => $pending) {
+            $result[$userId] = [
+                'pending' => $pending,
+                'overdue' => $overdueCounts[$userId] ?? 0,
+            ];
+        }
+
+        return $result;
     }
 
     /**

@@ -71,6 +71,17 @@
             .$agent->callsTalkDurationLabel.' talk time today';
     }
 
+    $pendingCount = $agent->pendingCasesCount ?? 0;
+    $overdueCount = $agent->overdueCasesCount ?? 0;
+    $hasPendingMetrics = ! $agent->isVirtual && $agent->pendingCasesCount !== null;
+
+    if ($hasPendingMetrics) {
+        $pendingTitle = 'Pending Cases'."\n".'Overdue: '.number_format($overdueCount);
+        $pendingAriaLabel = ($pendingCount === 1 ? '1 pending case' : number_format($pendingCount).' pending cases')
+            .'; '
+            .($overdueCount === 1 ? '1 overdue case' : number_format($overdueCount).' overdue cases');
+    }
+
     $statusContext = $memberStatusPresenter->contextLabel($agent, $latestElapsed);
     $statusAriaLabel = $memberStatusPresenter->ariaLabel($agent, $latestElapsed);
 @endphp
@@ -141,6 +152,24 @@
                     <span class="team-activity-calls-compact__separator" aria-hidden="true">·</span>
                     <span class="team-activity-calls-compact__duration">{{ $agent->callsTalkDurationLabel }}</span>
                     <span class="visually-hidden">Calls answered, total IVR calls, talk duration</span>
+                </span>
+            @else
+                <span class="team-activity-calls team-activity-calls--empty" aria-hidden="true">—</span>
+            @endif
+        </span>
+
+        <span class="team-activity-col team-activity-col--pending" role="cell">
+            @if($hasPendingMetrics)
+                <span class="team-activity-calls team-activity-calls-compact team-activity-pending-compact"
+                      title="{{ $pendingTitle }}"
+                      aria-label="{{ $pendingAriaLabel }}">
+                    <span class="team-activity-calls-compact__figure">
+                        <span class="team-activity-calls-compact__count">{{ number_format($pendingCount) }}</span>
+                        @if($overdueCount > 0)
+                            <sup class="team-activity-calls-compact__sup">{{ number_format($overdueCount) }}</sup>
+                        @endif
+                    </span>
+                    <span class="visually-hidden">Pending cases, overdue cases</span>
                 </span>
             @else
                 <span class="team-activity-calls team-activity-calls--empty" aria-hidden="true">—</span>

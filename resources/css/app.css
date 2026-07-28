@@ -2067,6 +2067,7 @@ a:focus-visible .stat-card {
         minmax(13rem, 16rem)
         minmax(0, 1fr)
         minmax(5.5rem, 7rem)
+        minmax(3.75rem, 5rem)
         minmax(4rem, 5.5rem)
         1.125rem;
     --team-activity-metric-size: 0.75rem;
@@ -2678,6 +2679,10 @@ a:focus-visible .stat-card {
     color: #64748b;
 }
 
+.team-activity-pending-compact {
+    gap: 0;
+}
+
 .team-activity-latest-empty {
     font-size: 0.75rem;
 }
@@ -2759,6 +2764,7 @@ a:focus-visible .stat-card {
             minmax(11rem, 13.5rem)
             minmax(0, 1fr)
             minmax(5rem, 6.25rem)
+            minmax(3.25rem, 4.5rem)
             minmax(3.75rem, 5rem)
             1rem;
     }
@@ -2776,6 +2782,7 @@ a:focus-visible .stat-card {
             minmax(9.5rem, 11.5rem)
             minmax(0, 1fr)
             minmax(4.5rem, 5.75rem)
+            minmax(3rem, 4.25rem)
             minmax(3.25rem, 4.5rem)
             0.875rem;
         --team-activity-metric-size: 0.6875rem;
