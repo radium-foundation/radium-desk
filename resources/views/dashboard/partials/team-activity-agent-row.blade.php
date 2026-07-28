@@ -11,6 +11,10 @@
     $outcomeCount = $agent->outcomeCount ?? $agent->todayCount;
     $effortCount = $agent->effortCount ?? 0;
     $isActivationProfile = $agent->kpiProfile?->value === 'activation';
+    $displayName = \Illuminate\Support\Str::before(trim($agent->name), ' ') ?: $agent->name;
+    $latestRelative = $agent->latestActivityAt
+        ? display_app_timeline_relative($agent->latestActivityAt)
+        : null;
 
     if ($isActivationProfile) {
         $primaryCount = $effortCount;
@@ -36,7 +40,29 @@
         filled($agent->todayDurationLabel)
         || filled($agent->currentDurationLabel)
         || filled($agent->sessionsToday)
+        || filled($latestRelative)
     );
+
+    $hasCallMetrics = ! $agent->isVirtual
+        && $agent->callsAnsweredToday !== null
+        && $agent->callsTotalToday !== null
+        && filled($agent->callsTalkDurationLabel)
+        && (
+            $agent->callsAnsweredToday > 0
+            || $agent->callsTotalToday > 0
+            || $agent->callsTalkDurationLabel !== '0m'
+        );
+
+    if ($hasCallMetrics) {
+        $callsTitle = number_format($agent->callsAnsweredToday).' calls answered'
+            ."\n".number_format($agent->callsTotalToday).' total IVR calls'
+            ."\n".$agent->callsTalkDurationLabel.' talk time today';
+        $callsAriaLabel = ($agent->callsAnsweredToday === 1 ? '1 call answered' : number_format($agent->callsAnsweredToday).' calls answered')
+            .'; '
+            .($agent->callsTotalToday === 1 ? '1 total IVR call' : number_format($agent->callsTotalToday).' total IVR calls')
+            .'; '
+            .$agent->callsTalkDurationLabel.' talk time today';
+    }
 @endphp
 
 <li class="team-activity-row @if($agent->expanded) is-expanded @endif @if($agent->isVirtual) is-virtual @endif"
@@ -55,7 +81,7 @@
                     :status="$agent->status->value"
                     :is-virtual="$agent->isVirtual" />
                 <span class="team-activity-member-text">
-                    <span class="team-activity-name" title="{{ $agent->name }}">{{ $agent->name }}</span>
+                    <span class="team-activity-name" title="{{ $agent->name }}">{{ $displayName }}</span>
                     @if(filled($agent->calendarBadge))
                         <x-team-activity.calendar-badge
                             class="team-activity-member-calendar"
@@ -76,12 +102,31 @@
             </span>
         </span>
 
+        <span class="team-activity-col team-activity-col--calls" role="cell">
+            @if($hasCallMetrics)
+                <span class="team-activity-calls team-activity-calls-compact"
+                      title="{{ $callsTitle }}"
+                      aria-label="{{ $callsAriaLabel }}">
+                    <span class="team-activity-calls-compact__figure">
+                        <span class="team-activity-calls-compact__count">{{ number_format($agent->callsAnsweredToday) }}</span>
+                        <sup class="team-activity-calls-compact__sup">{{ number_format($agent->callsTotalToday) }}</sup>
+                    </span>
+                    <span class="team-activity-calls-compact__separator" aria-hidden="true">-</span>
+                    <span class="team-activity-calls-compact__duration">{{ $agent->callsTalkDurationLabel }}</span>
+                    <span class="visually-hidden">Calls answered, total IVR calls, talk duration</span>
+                </span>
+            @else
+                <span class="team-activity-calls team-activity-calls--empty" aria-hidden="true">—</span>
+            @endif
+        </span>
+
         <span class="team-activity-col team-activity-col--presence" role="cell">
             @if($hasPresenceMetrics)
-                <span class="team-activity-presence" aria-label="Today {{ $agent->todayDurationLabel ?: '—' }}, Current {{ $agent->currentDurationLabel ?: '—' }}, Sessions {{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}">
+                <span class="team-activity-presence" aria-label="Today {{ $agent->todayDurationLabel ?: '—' }}, Current {{ $agent->currentDurationLabel ?: '—' }}, Sessions {{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}, Latest {{ $latestRelative ?: '—' }}">
                     <span class="team-activity-metric-value">{{ $agent->todayDurationLabel ?: '—' }}</span>
                     <span class="team-activity-metric-value">{{ $agent->currentDurationLabel ?: '—' }}</span>
                     <span class="team-activity-metric-value">{{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}</span>
+                    <span class="team-activity-metric-value">{{ $latestRelative ?: '—' }}</span>
                 </span>
             @else
                 <span class="team-activity-presence team-activity-presence--empty" aria-hidden="true">—</span>

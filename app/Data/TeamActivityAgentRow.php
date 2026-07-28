@@ -39,6 +39,9 @@ readonly class TeamActivityAgentRow
         public ?int $effortCount = null,
         /** @var array<string, int|float|null>|null */
         public ?array $kpiBreakdown = null,
+        public ?int $callsAnsweredToday = null,
+        public ?int $callsTotalToday = null,
+        public ?string $callsTalkDurationLabel = null,
     ) {}
 
     /**
@@ -76,6 +79,9 @@ readonly class TeamActivityAgentRow
             'effort_label' => $this->effortLabel,
             'effort_count' => $this->effortCount,
             'kpi_breakdown' => $this->kpiBreakdown,
+            'calls_answered_today' => $this->callsAnsweredToday,
+            'calls_total_today' => $this->callsTotalToday,
+            'calls_talk_duration_label' => $this->callsTalkDurationLabel,
         ];
     }
 }

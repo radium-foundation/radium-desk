@@ -52,6 +52,8 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('Latest Event', $html);
         $this->assertStringContainsString('team-activity-avatar__inner', $html);
         $this->assertStringContainsString('SP', $html);
+        $this->assertStringContainsString('>Shipra<', $html);
+        $this->assertStringContainsString('title="Shipra Patel"', $html);
         $this->assertStringContainsString('team-activity-status-pill--working', $html);
     }
 
@@ -98,7 +100,8 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('bi-file-earmark-text', $html);
         $this->assertStringContainsString('Driver Guide Sent', $html);
         $this->assertStringContainsString($incident->reference_no, $html);
-        $this->assertStringContainsString('RD3462168', $html);
+        $this->assertStringNotContainsString('RD3462168', $html);
+        $this->assertStringNotContainsString('team-activity-latest-event__time', $html);
     }
 
     public function test_weekly_off_renders_outlined_calendar_badge(): void
@@ -174,6 +177,7 @@ class DashboardTeamActivityUiTest extends TestCase
         $html = $this->panelHtml($viewer);
 
         $this->assertStringContainsString('team-activity-status-pill--leave', $html);
+        $this->assertStringContainsString('On Leave', $html);
         $this->assertStringContainsString('team-activity-name', $html);
         $this->assertStringContainsString('Very Long Employee Name', $html);
         $this->assertStringContainsString('Annual Leave', $html);

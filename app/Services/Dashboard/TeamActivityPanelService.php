@@ -27,6 +27,7 @@ class TeamActivityPanelService
         private readonly TeamActivityIraMemberBuilder $iraMemberBuilder,
         private readonly TeamActivityRowSorter $rowSorter,
         private readonly TeamActivityPresenceMetricsService $presenceMetricsService,
+        private readonly TeamActivityCallMetricsService $callMetricsService,
         private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
     ) {}
 
@@ -77,6 +78,7 @@ class TeamActivityPanelService
 
         $itemsByAuditId = $this->presentItemsById($allAudits)->all();
         $presenceMetricsByUser = $this->presenceMetricsService->forUsers($userIds);
+        $callMetricsByUser = $this->callMetricsService->forUsers($userIds);
 
         $agents = [];
 
@@ -105,6 +107,7 @@ class TeamActivityPanelService
             $kpiMetrics = $kpiMetricsByUser[$userId] ?? null;
             $outcomeCount = $kpiMetrics?->outcome ?? 0;
             $effortCount = $kpiMetrics?->effort ?? 0;
+            $callMetrics = $callMetricsByUser[$userId] ?? null;
 
             $agents[] = new TeamActivityAgentRow(
                 id: $userId,
@@ -131,6 +134,9 @@ class TeamActivityPanelService
                 effortLabel: $kpiMetrics?->effortLabel(),
                 effortCount: $effortCount,
                 kpiBreakdown: $kpiMetrics?->breakdown,
+                callsAnsweredToday: $callMetrics?->answeredCount,
+                callsTotalToday: $callMetrics?->totalCount,
+                callsTalkDurationLabel: $callMetrics?->talkDurationLabel,
             );
         }
 

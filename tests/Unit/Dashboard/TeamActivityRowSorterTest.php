@@ -108,7 +108,7 @@ class TeamActivityRowSorterTest extends TestCase
             id: 0,
             name: 'IRA',
             status: TeamActivityStatus::Ira,
-            statusLabel: 'Processing',
+            statusLabel: 'Busy',
             statusTone: TeamActivityStatus::Ira->tone(),
             workingLabel: null,
             overtimeLabel: null,

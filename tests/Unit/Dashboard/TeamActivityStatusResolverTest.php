@@ -148,7 +148,7 @@ class TeamActivityStatusResolverTest extends TestCase
         $this->assertSame(TeamActivityStatus::Offline, $status);
     }
 
-    public function test_idle_presence_resolves_to_active_working_status(): void
+    public function test_idle_presence_resolves_to_idle_workforce_status(): void
     {
         $resolver = new TeamActivityStatusResolver;
 
@@ -163,8 +163,8 @@ class TeamActivityStatusResolverTest extends TestCase
             'work_calendar' => ['status' => WorkCalendarDayStatus::Working->value],
         ]);
 
-        $this->assertSame(TeamActivityStatus::Working, $status);
-        $this->assertSame('Active', $status->label());
+        $this->assertSame(TeamActivityStatus::Idle, $status);
+        $this->assertSame('Idle', $status->label());
     }
 
     public function test_busy_availability_resolves_to_break_when_on_duty(): void
@@ -186,6 +186,7 @@ class TeamActivityStatusResolverTest extends TestCase
         ]);
 
         $this->assertSame(TeamActivityStatus::Break, $status);
+        $this->assertSame('On Break', $status->label());
     }
 
     public function test_assignment_audit_never_becomes_current_status(): void
@@ -230,6 +231,7 @@ class TeamActivityStatusResolverTest extends TestCase
         ], $audit);
 
         $this->assertSame(TeamActivityStatus::WaitingCustomer, $status);
+        $this->assertSame('Pending', $status->label());
     }
 
     public function test_ira_automation_audit_can_overlay_status(): void

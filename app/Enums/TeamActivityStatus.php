@@ -2,6 +2,8 @@
 
 namespace App\Enums;
 
+use App\Support\Dashboard\TeamActivityWorkforceStatus;
+
 enum TeamActivityStatus: string
 {
     case Working = 'working';
@@ -30,34 +32,7 @@ enum TeamActivityStatus: string
 
     public function label(): string
     {
-        $configured = config('dashboard-team-activity.statuses.'.$this->value.'.label');
-
-        if (is_string($configured) && $configured !== '') {
-            return $configured;
-        }
-
-        return match ($this) {
-            self::Working, self::Idle, self::Login => 'Active',
-            self::WaitingCustomer => 'Waiting Customer',
-            self::OnIvr => 'On IVR',
-            self::Email => 'Email',
-            self::Whatsapp => 'WhatsApp',
-            self::Remark => 'Remark',
-            self::Assignment => 'Assignment',
-            self::StatusChanged => 'Status Changed',
-            self::SerialUpdated => 'Serial Updated',
-            self::ModelUpdated => 'Model Updated',
-            self::Refund => 'Refund',
-            self::Approval => 'Approval',
-            self::AutoLogout => 'Auto Logged Out',
-            self::Logout, self::OffDuty => 'Off Duty',
-            self::Offline => 'Offline',
-            self::Break => 'Break',
-            self::Leave => 'Leave',
-            self::NotStartedShift => 'Not Started Shift',
-            self::Ira => 'IRA',
-            self::Unknown => 'Unknown',
-        };
+        return TeamActivityWorkforceStatus::labelFor($this);
     }
 
     public function tone(): string

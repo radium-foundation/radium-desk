@@ -33,14 +33,16 @@
                 <div class="team-activity-grid-header" role="row">
                     <span class="team-activity-grid-header__cell team-activity-col--member" role="columnheader">Team Member</span>
                     <span class="team-activity-grid-header__cell team-activity-col--status" role="columnheader">Status</span>
-                    <span class="team-activity-grid-header__cell team-activity-col--presence" role="columnheader">
+                    <span class="team-activity-grid-header__cell team-activity-col--calls" role="columnheader">Calls</span>
+                    <span class="team-activity-grid-header__cell team-activity-col--presence team-activity-grid-header__cell--presence" role="columnheader">
                         <span class="team-activity-grid-header__title">Presence</span>
                         <span class="team-activity-grid-header__sub team-activity-presence-head" aria-hidden="true">
                             <span>Today</span>
                             <span>Current</span>
                             <span>Sessions</span>
+                            <span>Latest</span>
                         </span>
-                        <span class="visually-hidden">Today, Current, Sessions</span>
+                        <span class="visually-hidden">Today, Current, Sessions, Latest</span>
                     </span>
                     <span class="team-activity-grid-header__cell team-activity-col--kpi"
                           role="columnheader"

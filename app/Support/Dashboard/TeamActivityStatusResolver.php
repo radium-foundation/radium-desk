@@ -3,6 +3,7 @@
 namespace App\Support\Dashboard;
 
 use App\Data\TeamActivityPresenceMetrics;
+use App\Enums\PresenceStatus;
 use App\Enums\TeamActivityStatus;
 use App\Enums\TeamAvailabilityStatus;
 use App\Enums\WorkCalendarDayStatus;
@@ -99,6 +100,7 @@ class TeamActivityStatusResolver
             TeamActivityStatus::Logout => $this->offDutyWorkingLabel($member),
             TeamActivityStatus::NotStartedShift => $this->notStartedWorkingLabel($member),
             TeamActivityStatus::Working,
+            TeamActivityStatus::Idle,
             TeamActivityStatus::Break => null,
             default => $this->activeWorkingLabel($member),
         };
@@ -126,7 +128,21 @@ class TeamActivityStatusResolver
             return TeamActivityStatus::Break;
         }
 
+        if ($this->isIdlePresence($member)) {
+            return TeamActivityStatus::Idle;
+        }
+
         return TeamActivityStatus::Working;
+    }
+
+    /**
+     * @param  array<string, mixed>  $member
+     */
+    private function isIdlePresence(array $member): bool
+    {
+        $presence = $member['presence'] ?? [];
+
+        return ($presence['status'] ?? '') === PresenceStatus::Idle->value;
     }
 
     /**
@@ -162,7 +178,7 @@ class TeamActivityStatusResolver
     {
         $end = $this->shiftEndLabel($member);
 
-        return $end !== null ? 'Shift ended '.$end : 'Off Duty';
+        return $end !== null ? 'Shift ended '.$end : 'Shift Ended';
     }
 
     /**
@@ -172,7 +188,7 @@ class TeamActivityStatusResolver
     {
         $start = $this->shiftStartLabel($member);
 
-        return $start !== null ? 'Shift starts '.$start : 'Not Started';
+        return $start !== null ? 'Shift starts '.$start : 'Shift Not Started';
     }
 
     /**

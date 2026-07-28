@@ -211,8 +211,8 @@ class DashboardTeamActivityTest extends TestCase
 
         $this->assertStringContainsString('Off Duty Agent', $html);
         $this->assertStringContainsString('Leave Agent', $html);
-        $this->assertStringContainsString('Off Duty', $html);
-        $this->assertStringContainsString('Leave', $html);
+        $this->assertStringContainsString('On Leave', $html);
+        $this->assertStringContainsString('Offline', $html);
         $this->assertStringContainsString('Annual Leave', $html);
 
         Carbon::setTestNow();
@@ -234,7 +234,7 @@ class DashboardTeamActivityTest extends TestCase
             ->json('html');
 
         $this->assertStringContainsString('Early Agent', $html);
-        $this->assertStringContainsString('Not Started Shift', $html);
+        $this->assertStringContainsString('Shift Not Started', $html);
         $this->assertStringContainsString('Shift starts 9:00 AM', $html);
 
         Carbon::setTestNow();

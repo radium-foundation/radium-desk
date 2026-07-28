@@ -11,6 +11,7 @@ use App\Services\ServiceCaseAutomationHealthService;
 use App\Support\Dashboard\RecentActivityPresenter;
 use App\Support\Dashboard\TeamActivityEntryPresenter;
 use App\Support\Dashboard\TeamActivityKpiAuditQuery;
+use App\Support\Dashboard\TeamActivityWorkforceStatus;
 use Illuminate\Support\Collection;
 
 class TeamActivityIraMemberBuilder
@@ -113,18 +114,18 @@ class TeamActivityIraMemberBuilder
         $counts = $this->healthService->counts();
 
         if (($counts['validation_failed'] ?? 0) > 0 || ($counts['waiting_for_customer_serial'] ?? 0) > 0) {
-            return 'Waiting Manual Correction';
+            return TeamActivityWorkforceStatus::labelForIraAutomationState('Waiting Manual Correction');
         }
 
         if (($counts['radiumbox_pending'] ?? 0) > 0) {
-            return 'Waiting RadiumBox';
+            return TeamActivityWorkforceStatus::labelForIraAutomationState('Waiting RadiumBox');
         }
 
         if (($counts['automation_pending'] ?? 0) > 0 || ($counts['grace_expired'] ?? 0) > 0) {
-            return 'Processing';
+            return TeamActivityWorkforceStatus::labelForIraAutomationState('Processing');
         }
 
-        return 'Idle';
+        return TeamActivityWorkforceStatus::labelForIraAutomationState('Idle');
     }
 
     /**

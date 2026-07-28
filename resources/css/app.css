@@ -2063,10 +2063,11 @@ a:focus-visible .stat-card {
 
 .team-activity-grid {
     --team-activity-cols:
-        minmax(9.5rem, 13rem)
+        minmax(8.5rem, 11rem)
         minmax(5.5rem, 7.5rem)
-        minmax(9.5rem, 11.5rem)
-        minmax(4.5rem, 6rem)
+        minmax(5.5rem, 7rem)
+        minmax(11rem, 13.5rem)
+        minmax(4rem, 5.5rem)
         minmax(0, 1fr)
         1.125rem;
 }
@@ -2107,9 +2108,14 @@ a:focus-visible .stat-card {
     line-height: 1.1;
 }
 
+.team-activity-grid-header__cell--presence {
+    align-items: center;
+    text-align: center;
+}
+
 .team-activity-presence-head {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.125rem 0.375rem;
     width: 100%;
 }
@@ -2188,7 +2194,15 @@ a:focus-visible .stat-card {
     --team-activity-ring: #86efac;
 }
 
-.team-activity-avatar--waiting {
+.team-activity-avatar--idle {
+    --team-activity-ring: #fcd34d;
+}
+
+.team-activity-avatar--busy {
+    --team-activity-ring: #93c5fd;
+}
+
+.team-activity-avatar--pending {
     --team-activity-ring: #c4b5fd;
 }
 
@@ -2235,7 +2249,7 @@ a:focus-visible .stat-card {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--dashboard-color-heading, #0f172a);
     line-height: 1.2;
@@ -2294,15 +2308,29 @@ a:focus-visible .stat-card {
 }
 
 .team-activity-status-pill--working,
-.team-activity-status-pill--idle,
-.team-activity-status-pill--login {
+.team-activity-status-pill--login,
+.team-activity-status-pill--assignment,
+.team-activity-status-pill--remark,
+.team-activity-status-pill--status_changed,
+.team-activity-status-pill--serial_updated,
+.team-activity-status-pill--model_updated,
+.team-activity-status-pill--refund,
+.team-activity-status-pill--approval {
     color: #3f6f51;
 }
 
-.team-activity-status-pill--waiting_customer,
+.team-activity-status-pill--idle {
+    color: #7a6132;
+}
+
 .team-activity-status-pill--on_ivr,
 .team-activity-status-pill--email,
-.team-activity-status-pill--whatsapp {
+.team-activity-status-pill--whatsapp,
+.team-activity-status-pill--ira {
+    color: #3f5f8a;
+}
+
+.team-activity-status-pill--waiting_customer {
     color: #5b4f7a;
 }
 
@@ -2359,10 +2387,11 @@ a:focus-visible .stat-card {
 
 .team-activity-presence {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.125rem 0.375rem;
     width: 100%;
     align-items: center;
+    text-align: center;
 }
 
 .team-activity-presence--empty {
@@ -2397,7 +2426,7 @@ a:focus-visible .stat-card {
 }
 
 .team-activity-kpi-count {
-    font-size: 1.0625rem;
+    font-size: 0.9375rem;
     font-weight: 700;
     color: #0f172a;
     font-variant-numeric: tabular-nums;
@@ -2505,10 +2534,59 @@ a:focus-visible .stat-card {
     line-height: 1.2;
 }
 
-.team-activity-latest-event__time {
+.team-activity-calls {
+    display: inline-flex;
+    align-items: baseline;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+}
+
+.team-activity-calls--empty {
+    color: #cbd5e1;
+    font-size: 0.75rem;
+}
+
+.team-activity-calls-compact {
+    gap: 0.1875rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.team-activity-calls-compact__figure {
+    display: inline-flex;
+    align-items: flex-start;
+    white-space: nowrap;
+}
+
+.team-activity-calls-compact__count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1;
+}
+
+.team-activity-calls-compact__sup {
+    margin-left: 0.0625rem;
+    padding-top: 0.05rem;
     font-size: 0.5625rem;
+    font-weight: 600;
+    color: #64748b;
+    line-height: 1;
+    vertical-align: super;
+}
+
+.team-activity-calls-compact__separator {
+    font-size: 0.6875rem;
+    font-weight: 500;
     color: #94a3b8;
-    padding-left: 1rem;
+}
+
+.team-activity-calls-compact__duration {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #475569;
+    line-height: 1;
 }
 
 .team-activity-latest-empty {
@@ -2588,16 +2666,17 @@ a:focus-visible .stat-card {
 @media (max-width: 1199.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(8.5rem, 11rem)
-            minmax(5rem, 6.75rem)
-            minmax(8.5rem, 10rem)
-            minmax(4rem, 5.5rem)
+            minmax(7.5rem, 9.5rem)
+            minmax(4.75rem, 6.25rem)
+            minmax(5rem, 6.25rem)
+            minmax(9.5rem, 11.5rem)
+            minmax(3.75rem, 5rem)
             minmax(0, 1fr)
             1rem;
     }
 
     .team-activity-kpi-count {
-        font-size: 1rem;
+        font-size: 0.875rem;
     }
 
     .team-activity-grid-header,
@@ -2609,20 +2688,21 @@ a:focus-visible .stat-card {
 @media (max-width: 767.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(7.25rem, 9.5rem)
-            minmax(4.5rem, 6rem)
-            minmax(7.25rem, 8.75rem)
-            minmax(3.5rem, 4.75rem)
+            minmax(6.5rem, 8.25rem)
+            minmax(4.25rem, 5.5rem)
+            minmax(4.5rem, 5.75rem)
+            minmax(8rem, 9.75rem)
+            minmax(3.25rem, 4.5rem)
             minmax(0, 1fr)
             0.875rem;
     }
 
     .team-activity-name {
-        font-size: 0.75rem;
+        font-size: 0.6875rem;
     }
 
     .team-activity-kpi-count {
-        font-size: 0.9375rem;
+        font-size: 0.8125rem;
     }
 
     .team-activity-kpi-compact__sup {

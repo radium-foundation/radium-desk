@@ -5,15 +5,21 @@
 ])
 
 @php
-    $ringTone = match ($status) {
-        'working', 'idle', 'login', 'assignment', 'status_changed', 'serial_updated', 'model_updated', 'remark' => 'working',
-        'waiting_customer', 'on_ivr', 'email', 'whatsapp' => 'waiting',
+    if ($isVirtual) {
+        $ringTone = 'ira';
+    } else {
+        // Avatar ring follows workforce availability, not business-process overlays.
+        $ringTone = match ($status) {
+        'working', 'login', 'assignment', 'status_changed', 'serial_updated', 'model_updated', 'remark', 'refund', 'approval' => 'working',
+        'idle' => 'idle',
+        'on_ivr', 'email', 'whatsapp', 'ira' => 'busy',
+        'waiting_customer' => 'pending',
         'auto_logout' => 'auto-logout',
-        'ira' => 'ira',
         'break' => 'break',
         'leave' => 'leave',
         default => 'offline',
-    };
+        };
+    }
 
     if ($isVirtual) {
         $initials = 'IRA';

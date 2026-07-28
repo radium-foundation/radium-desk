@@ -22,21 +22,19 @@
         default => 'bi-activity',
     };
 
-    $references = collect([$entry->serviceCaseReference, $entry->orderReference])
-        ->filter(static fn (?string $value): bool => filled($value))
-        ->implode(' • ');
+    $serviceCaseReference = filled($entry->serviceCaseReference)
+        ? $entry->serviceCaseReference
+        : null;
 
-    if ($references === '' && filled($entry->reference)) {
-        $references = (string) $entry->reference;
+    if ($serviceCaseReference === null && filled($entry->reference) && str_starts_with((string) $entry->reference, 'SC')) {
+        $serviceCaseReference = (string) $entry->reference;
     }
 
     $actionTitle = null;
-    $embeddedReference = null;
 
     foreach (['Assigned', 'Reassigned', 'Escalated'] as $prefix) {
         if (str_starts_with($label, $prefix.' ')) {
             $actionTitle = $prefix;
-            $embeddedReference = substr($label, strlen($prefix) + 1);
             break;
         }
     }
@@ -48,14 +46,7 @@
         <span class="team-activity-latest-event__label">{{ $actionTitle ?? $label }}</span>
     </span>
 
-    @if(filled($embeddedReference))
-        <span class="team-activity-latest-event__embedded-ref">{{ $embeddedReference }}</span>
+    @if(filled($serviceCaseReference))
+        <span class="team-activity-latest-event__refs">{{ $serviceCaseReference }}</span>
     @endif
-
-    @if($references !== '')
-        <span class="team-activity-latest-event__refs">{{ $references }}</span>
-    @endif
-
-    <time class="team-activity-latest-event__time"
-          datetime="{{ $entry->at->toIso8601String() }}">{{ display_app_timeline_relative($entry->at) }}</time>
 </div>
