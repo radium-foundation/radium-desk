@@ -55,7 +55,7 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('SP', $html);
         $this->assertStringContainsString('>Shipra<', $html);
         $this->assertStringContainsString('title="Shipra Patel"', $html);
-        $this->assertStringContainsString('team-activity-status-pill--working', $html);
+        $this->assertStringContainsString('team-activity-member-status--working', $html);
     }
 
     public function test_zero_activity_count_renders_emphasized_kpi(): void
@@ -99,7 +99,8 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('team-activity-kpi-count">1<', $html);
         $this->assertStringContainsString('team-activity-latest-event__title', $html);
         $this->assertStringContainsString('bi-file-earmark-text', $html);
-        $this->assertStringContainsString('Driver Guide Sent', $html);
+        $this->assertStringContainsString('Guide Sent', $html);
+        $this->assertStringNotContainsString('Driver Guide Sent', $html);
         $this->assertStringContainsString($incident->reference_no, $html);
         $this->assertStringNotContainsString('RD3462168', $html);
         $this->assertStringNotContainsString('team-activity-latest-event__time', $html);
@@ -167,7 +168,7 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $this->assertStringContainsString('team-activity-calendar-pill', $html);
         $this->assertStringContainsString('Weekly Off', $html);
-        $this->assertStringContainsString('team-activity-status-pill--working', $html);
+        $this->assertStringContainsString('team-activity-member-status--working', $html);
     }
 
     public function test_ira_virtual_row_uses_ira_avatar_and_status_ring(): void
@@ -180,13 +181,13 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('is-virtual', $html);
         $this->assertStringContainsString('team-activity-avatar--ira', $html);
         $this->assertStringContainsString('team-activity-avatar--virtual', $html);
-        $this->assertStringContainsString('team-activity-status-pill--ira', $html);
+        $this->assertStringContainsString('team-activity-member-status--ira', $html);
         $this->assertStringContainsString('team-activity-kpi--ira', $html);
         $this->assertStringContainsString('team-activity-kpi-supplementary', $html);
         $this->assertStringNotContainsString('calendar-pill__icon', $html);
     }
 
-    public function test_auto_logged_out_and_offline_status_pills_render(): void
+    public function test_auto_logged_out_and_offline_member_status_render(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-26 08:00:00', 'Asia/Kolkata'));
 
@@ -205,9 +206,9 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $html = $this->panelHtml($viewer);
 
-        $this->assertStringContainsString('team-activity-status-pill--auto_logout', $html);
+        $this->assertStringContainsString('team-activity-member-status--auto_logout', $html);
         $this->assertStringContainsString('Auto Logged Out', $html);
-        $this->assertStringContainsString('team-activity-status-pill--offline', $html);
+        $this->assertStringContainsString('team-activity-member-status--offline', $html);
 
         Carbon::setTestNow(Carbon::parse('2026-07-26 11:00:00', 'Asia/Kolkata'));
     }
@@ -226,7 +227,7 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $html = $this->panelHtml($viewer);
 
-        $this->assertStringContainsString('team-activity-status-pill--leave', $html);
+        $this->assertStringContainsString('team-activity-member-status--leave', $html);
         $this->assertStringContainsString('On Leave', $html);
         $this->assertStringContainsString('team-activity-name', $html);
         $this->assertStringContainsString('Very Long Employee Name', $html);

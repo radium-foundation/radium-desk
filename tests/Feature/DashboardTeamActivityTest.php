@@ -78,8 +78,8 @@ class DashboardTeamActivityTest extends TestCase
         $this->assertStringContainsString('Active', $html);
         $this->assertStringContainsString('team-activity-grid-header', $html);
         $this->assertStringContainsString('team-activity-avatar', $html);
-        $this->assertStringContainsString('team-activity-status-pill', $html);
-        $this->assertStringNotContainsString('team-activity-status-dot', $html);
+        $this->assertStringContainsString('team-activity-member-status', $html);
+        $this->assertStringContainsString('team-activity-member-status__dot', $html);
     }
 
     public function test_team_activity_refresh_returns_empty_payload_without_permission(): void
@@ -273,7 +273,8 @@ class DashboardTeamActivityTest extends TestCase
             ->assertOk()
             ->json('html');
 
-        $this->assertStringContainsString('Status Changed', $html);
+        $this->assertStringContainsString('team-activity-latest-event__label">Status<', $html);
+        $this->assertStringNotContainsString('team-activity-latest-event__label">Status Changed<', $html);
         $this->assertStringContainsString('Active', $html);
 
         Carbon::setTestNow();

@@ -204,6 +204,26 @@ return [
         'service_case.customer_waiting_auto_closed' => 'IRA Auto Closed',
     ],
 
+    'compact_activity_labels' => [
+        'Availability Changed' => 'Available',
+        'Status Changed' => 'Status',
+        'Customer Waiting' => 'Waiting',
+        'Driver Guide Sent' => 'Guide Sent',
+        'Email Sent' => 'Email',
+        'Email Linked' => 'Email',
+        'Email Received' => 'Email',
+        'Email Promoted' => 'Email',
+        'WhatsApp Sent' => 'WhatsApp',
+        'Serial Updated' => 'Serial',
+        'IRA Payment Received' => 'Payment',
+        'Payment Received' => 'Payment',
+        'Remark Added' => 'Remark',
+        'Remark Deleted' => 'Remark',
+        'Model Updated' => 'Model',
+        'IVR Call' => 'Call',
+        'Leave Approved' => 'Leave',
+    ],
+
     'statuses' => [
         // Workforce availability labels (presentation). See TeamActivityWorkforceStatus.
         'working' => ['label' => 'Active', 'tone' => 'available'],

@@ -63,4 +63,16 @@ class TeamActivityLabelFormatterTest extends TestCase
             $formatter->labelFor(new AuditLog(['event' => 'service_case.automation.validation_passed'])),
         );
     }
+
+    public function test_compact_display_label_shortens_configured_and_long_labels(): void
+    {
+        $formatter = new TeamActivityLabelFormatter;
+
+        $this->assertSame('Available', $formatter->compactDisplayLabel('Availability Changed'));
+        $this->assertSame('Status', $formatter->compactDisplayLabel('Status Changed'));
+        $this->assertSame('Guide Sent', $formatter->compactDisplayLabel('Driver Guide Sent'));
+        $this->assertSame('WhatsApp', $formatter->compactDisplayLabel('WhatsApp Sent'));
+        $this->assertSame('Assigned RD3462318', $formatter->compactDisplayLabel('Assigned RD3462318'));
+        $this->assertSame('IRA Validation', $formatter->compactDisplayLabel('IRA Validation Passed'));
+    }
 }

@@ -38,6 +38,23 @@ class TeamActivityLabelFormatter
         return $label.' '.$reference;
     }
 
+    public function compactDisplayLabel(string $label): string
+    {
+        $configured = config('dashboard-team-activity.compact_activity_labels', []);
+
+        if (is_array($configured) && isset($configured[$label]) && is_string($configured[$label])) {
+            return $configured[$label];
+        }
+
+        $words = preg_split('/\s+/', trim($label)) ?: [];
+
+        if (count($words) <= 2) {
+            return $label;
+        }
+
+        return implode(' ', array_slice($words, 0, 2));
+    }
+
     private function shouldAttachReference(string $event): bool
     {
         return in_array($event, [

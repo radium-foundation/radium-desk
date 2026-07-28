@@ -2063,12 +2063,11 @@ a:focus-visible .stat-card {
 
 .team-activity-grid {
     --team-activity-cols:
-        minmax(8.5rem, 11rem)
+        minmax(9.5rem, 12rem)
         minmax(13rem, 16rem)
         minmax(0, 1fr)
         minmax(5.5rem, 7rem)
         minmax(4rem, 5.5rem)
-        minmax(5.5rem, 7.5rem)
         1.125rem;
 }
 
@@ -2252,8 +2251,96 @@ a:focus-visible .stat-card {
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--dashboard-color-heading, #0f172a);
-    line-height: 1.2;
+    line-height: 1.25;
     max-width: 100%;
+}
+
+.team-activity-member-status {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    line-height: 1.2;
+}
+
+.team-activity-member-status__line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.5625rem;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.team-activity-member-status__dot {
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: currentColor;
+}
+
+.team-activity-member-status__label,
+.team-activity-member-status__context {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.team-activity-member-status__sep {
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.team-activity-member-status--working,
+.team-activity-member-status--login,
+.team-activity-member-status--assignment,
+.team-activity-member-status--remark,
+.team-activity-member-status--status_changed,
+.team-activity-member-status--serial_updated,
+.team-activity-member-status--model_updated,
+.team-activity-member-status--refund,
+.team-activity-member-status--approval {
+    color: #3f6f51;
+}
+
+.team-activity-member-status--idle {
+    color: #7a6132;
+}
+
+.team-activity-member-status--on_ivr,
+.team-activity-member-status--email,
+.team-activity-member-status--whatsapp,
+.team-activity-member-status--ira {
+    color: #3f5f8a;
+}
+
+.team-activity-member-status--waiting_customer {
+    color: #5b4f7a;
+}
+
+.team-activity-member-status--break {
+    color: #7a6132;
+}
+
+.team-activity-member-status--leave {
+    color: #3f5f8a;
+}
+
+.team-activity-member-status--auto_logout {
+    color: #8a5a36;
+}
+
+.team-activity-member-status--offline,
+.team-activity-member-status--off_duty,
+.team-activity-member-status--logout,
+.team-activity-member-status--not_started_shift,
+.team-activity-member-status--unknown {
+    color: #5f6b7a;
 }
 
 .team-activity-status-stack {
@@ -2666,12 +2753,11 @@ a:focus-visible .stat-card {
 @media (max-width: 1199.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(7.5rem, 9.5rem)
+            minmax(8.5rem, 10.5rem)
             minmax(11rem, 13.5rem)
             minmax(0, 1fr)
             minmax(5rem, 6.25rem)
             minmax(3.75rem, 5rem)
-            minmax(4.75rem, 6.25rem)
             1rem;
     }
 
@@ -2688,12 +2774,11 @@ a:focus-visible .stat-card {
 @media (max-width: 767.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(6.5rem, 8.25rem)
+            minmax(7.25rem, 9rem)
             minmax(9.5rem, 11.5rem)
             minmax(0, 1fr)
             minmax(4.5rem, 5.75rem)
             minmax(3.25rem, 4.5rem)
-            minmax(4.25rem, 5.5rem)
             0.875rem;
     }
 

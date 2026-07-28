@@ -52,7 +52,6 @@
                         <span class="team-activity-grid-header__sub">Outcome</span>
                         <span class="visually-hidden">Outcome · Effort</span>
                     </span>
-                    <span class="team-activity-grid-header__cell team-activity-col--status" role="columnheader">Status</span>
                     <span class="team-activity-grid-header__cell team-activity-col--chevron" aria-hidden="true"></span>
                 </div>
 

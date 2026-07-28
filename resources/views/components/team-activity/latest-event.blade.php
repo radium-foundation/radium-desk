@@ -5,6 +5,7 @@
 @php
     /** @var \App\Data\TeamActivityEntry $entry */
     $label = $entry->label;
+    $displayLabel = app(\App\Support\Dashboard\TeamActivityLabelFormatter::class)->compactDisplayLabel($label);
     $icon = match (true) {
         str_contains($label, 'WhatsApp') => 'bi-whatsapp',
         str_contains($label, 'Email') => 'bi-envelope',
@@ -43,7 +44,7 @@
 <div {{ $attributes->class(['team-activity-latest-event']) }}>
     <span class="team-activity-latest-event__title">
         <i class="bi {{ $icon }} team-activity-latest-event__icon" aria-hidden="true"></i>
-        <span class="team-activity-latest-event__label">{{ $actionTitle ?? $label }}</span>
+        <span class="team-activity-latest-event__label">{{ $actionTitle ?? $displayLabel }}</span>
     </span>
 
     @if(filled($serviceCaseReference))

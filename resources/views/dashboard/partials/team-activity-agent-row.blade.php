@@ -4,7 +4,10 @@
 
 @php
     /** @var \App\Data\TeamActivityAgentRow $agent */
+    use App\Support\Dashboard\TeamActivityMemberStatusPresenter;
+
     $latest = $agent->latest;
+    $memberStatusPresenter = app(TeamActivityMemberStatusPresenter::class);
     $historyId = 'team-activity-history-'.$agent->id;
     $outcomeLabel = $agent->outcomeLabel ?? 'Cases Worked';
     $effortLabel = $agent->effortLabel ?? 'Customer Touches';
@@ -67,6 +70,9 @@
             .'; '
             .$agent->callsTalkDurationLabel.' talk time today';
     }
+
+    $statusContext = $memberStatusPresenter->contextLabel($agent, $latestElapsed);
+    $statusAriaLabel = $memberStatusPresenter->ariaLabel($agent, $latestElapsed);
 @endphp
 
 <li class="team-activity-row @if($agent->expanded) is-expanded @endif @if($agent->isVirtual) is-virtual @endif"
@@ -84,8 +90,14 @@
                     :name="$agent->name"
                     :status="$agent->status->value"
                     :is-virtual="$agent->isVirtual" />
-                <span class="team-activity-member-text">
+                <span class="team-activity-member-text"
+                      aria-label="{{ $displayName }}, {{ $statusAriaLabel }}">
                     <span class="team-activity-name" title="{{ $agent->name }}">{{ $displayName }}</span>
+                    <x-team-activity.member-status
+                        :status="$agent->status->value"
+                        :label="$agent->statusLabel"
+                        :context="$statusContext"
+                        aria-hidden="true" />
                     @if(filled($agent->calendarBadge))
                         <x-team-activity.calendar-badge
                             class="team-activity-member-calendar"
@@ -126,7 +138,7 @@
                         <span class="team-activity-calls-compact__count">{{ number_format($agent->callsAnsweredToday) }}</span>
                         <sup class="team-activity-calls-compact__sup">{{ number_format($agent->callsTotalToday) }}</sup>
                     </span>
-                    <span class="team-activity-calls-compact__separator" aria-hidden="true">-</span>
+                    <span class="team-activity-calls-compact__separator" aria-hidden="true">·</span>
                     <span class="team-activity-calls-compact__duration">{{ $agent->callsTalkDurationLabel }}</span>
                     <span class="visually-hidden">Calls answered, total IVR calls, talk duration</span>
                 </span>
@@ -169,17 +181,6 @@
                     <span class="visually-hidden team-activity-kpi-label">{{ $superscriptLabel }}</span>
                 </span>
             @endif
-        </span>
-
-        <span class="team-activity-col team-activity-col--status" role="cell">
-            <span class="team-activity-status-stack">
-                <x-team-activity.status-badge
-                    :status="$agent->status->value"
-                    :label="$agent->statusLabel" />
-                @if(! $hasPresenceMetrics && ! $agent->isVirtual && filled($agent->workingLabel))
-                    <span class="team-activity-status-note" title="{{ $agent->workingLabel }}">{{ $agent->workingLabel }}</span>
-                @endif
-            </span>
         </span>
 
         <span class="team-activity-chevron" aria-hidden="true"></span>
