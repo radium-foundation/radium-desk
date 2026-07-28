@@ -45,18 +45,19 @@ final class OutboundClickToCallLifecycleNormalizer
             return OutboundClickToCallLifecycleStatus::Completed;
         }
 
-        if ($statusNorm === 'ANSWERED' && $agentStatusNorm === 'AVAILABLE') {
-            return OutboundClickToCallLifecycleStatus::Completed;
-        }
-
-        if ($statusNorm === 'ANSWERED' || $agentStatusNorm === 'ON CALL') {
-            return OutboundClickToCallLifecycleStatus::Answered;
-        }
-
+        // Ringing must win over AgentStatus (e.g. ON CALL) — Connected requires Status=ANSWERED.
         if (in_array($statusNorm, BonvoiceCallStatuses::RINGING, true)) {
             return $legNorm === 'B'
                 ? OutboundClickToCallLifecycleStatus::Ringing
                 : OutboundClickToCallLifecycleStatus::Calling;
+        }
+
+        if ($statusNorm === 'ANSWERED' && $agentStatusNorm === 'AVAILABLE') {
+            return OutboundClickToCallLifecycleStatus::Completed;
+        }
+
+        if ($statusNorm === 'ANSWERED') {
+            return OutboundClickToCallLifecycleStatus::Answered;
         }
 
         if (in_array($statusNorm, ['DIALING', 'CALLING', 'PROGRESS', 'IDLE'], true)) {
