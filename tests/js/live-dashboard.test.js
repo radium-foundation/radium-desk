@@ -342,4 +342,138 @@ describe('live dashboard refresh session integration', () => {
         expect(document.querySelector('#service-case-row-10')).not.toBeNull();
         expect(document.querySelector('#service-case-row-99')).toBeNull();
     });
+
+    it('does not wipe grid rows when flushing a KPI-only pending refresh', async () => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        queueDashboardRefresh({
+            kpi_strip_html: 'stats-kpi-only',
+            service_case_filter_counts: {
+                all: 15,
+                pending_admin: 10,
+            },
+        });
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-kpi-only');
+        expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(10)');
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+    });
+
+    it('queues kpisOnly refresh without wiping visible rows after workspace idle flush', async () => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        fetch.mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                kpi_strip_html: 'stats-hybrid-reconcile',
+                service_case_filter_counts: {
+                    all: 15,
+                    pending_admin: 10,
+                },
+                rows: [{
+                    incident_id: 99,
+                    html: '<tr id="service-case-row-99"><td>SC00099</td></tr>',
+                }],
+            }),
+        });
+
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        await refreshDashboard(document.getElementById('dashboard-page'), 'hybrid-kpi-reconcile', {
+            kpisOnly: true,
+        });
+
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-hybrid-reconcile');
+        expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(10)');
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+        expect(document.querySelector('#service-case-row-99')).toBeNull();
+    });
+
+    it('preserves queued rows when a later KPI-only payload arrives during a workspace session', async () => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        queueDashboardRefresh({
+            kpi_strip_html: 'stats-full',
+            service_case_filter_counts: {
+                all: 2,
+                pending_admin: 2,
+            },
+            rows: [
+                {
+                    incident_id: 10,
+                    html: '<tr id="service-case-row-10"><td>SC00010</td></tr>',
+                },
+                {
+                    incident_id: 11,
+                    html: '<tr id="service-case-row-11"><td>SC00011</td></tr>',
+                },
+            ],
+            service_cases_empty: false,
+            service_cases_empty_html: '',
+        });
+
+        queueDashboardRefresh({
+            kpi_strip_html: 'stats-kpi-latest',
+            service_case_filter_counts: {
+                all: 2,
+                pending_admin: 2,
+            },
+        });
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-kpi-latest');
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+        expect(document.querySelector('#service-case-row-11')).not.toBeNull();
+    });
+
+    it('still clears the grid when an explicit empty rows payload is flushed', async () => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        await applyDashboardRefresh({
+            kpi_strip_html: 'stats-empty',
+            service_case_filter_counts: {
+                all: 0,
+                pending_admin: 0,
+            },
+            rows: [],
+            service_cases_empty: true,
+            service_cases_empty_html: '',
+        });
+
+        expect(document.querySelector('#service-case-row-10')).toBeNull();
+        expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(0)');
+    });
 });

@@ -213,8 +213,11 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             return;
         }
 
+        const hasRows = Array.isArray(data?.rows);
+
         logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_started', {
-            rowCount: Array.isArray(data?.rows) ? data.rows.length : 0,
+            rowCount: hasRows ? data.rows.length : null,
+            hasRows,
             hasKpiStrip: data?.kpi_strip_html !== undefined,
         });
 
@@ -222,26 +225,68 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
         document.dispatchEvent(new CustomEvent('dashboard:live-refresh', { detail: data }));
         applyFilterCounts(data.service_case_filter_counts);
 
-        applyRows(data.rows ?? [], {
-            serviceCasesEmpty: data.service_cases_empty,
-            serviceCasesEmptyHtml: data.service_cases_empty_html,
-        });
+        // KPI-only / partial queued payloads omit `rows`. Never coerce missing rows to [] —
+        // that would delete every unlocked DOM row while leaving the badge count correct.
+        if (hasRows) {
+            applyRows(data.rows, {
+                serviceCasesEmpty: data.service_cases_empty,
+                serviceCasesEmptyHtml: data.service_cases_empty_html,
+            });
+        }
 
-        setServiceCasePagination({
-            loaded: data.loaded_count ?? (data.rows?.length ?? 0),
-            total: data.total_count ?? data.service_case_filter_counts?.[
-                document.getElementById('dashboard-page')?.dataset.liveFilter
-                    ?? document.getElementById('dashboard-page')?.dataset.liveQueue
-                    ?? 'action_required'
-            ],
-        });
+        const activeFilter = document.getElementById('dashboard-page')?.dataset.liveFilter
+            ?? document.getElementById('dashboard-page')?.dataset.liveQueue
+            ?? 'action_required';
+        const paginationUpdate = {};
+
+        if (hasRows) {
+            paginationUpdate.loaded = data.loaded_count ?? data.rows.length;
+        } else if (data.loaded_count !== undefined) {
+            paginationUpdate.loaded = data.loaded_count;
+        }
+
+        if (data.total_count !== undefined) {
+            paginationUpdate.total = data.total_count;
+        } else if (data.service_case_filter_counts?.[activeFilter] !== undefined) {
+            paginationUpdate.total = data.service_case_filter_counts[activeFilter];
+        }
+
+        if (Object.keys(paginationUpdate).length > 0) {
+            setServiceCasePagination(paginationUpdate);
+        }
 
         logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_completed', {
-            rowCount: Array.isArray(data?.rows) ? data.rows.length : 0,
+            rowCount: hasRows ? data.rows.length : null,
+            hasRows,
         });
         resolve();
     });
 });
+
+const buildQueuedPartialRefreshPayload = (data) => {
+    const payload = {
+        kpi_strip_html: data.kpi_strip_html,
+        service_case_filter_counts: data.service_case_filter_counts,
+    };
+
+    // Only include an authoritative row set when the caller supplied one.
+    // Missing rows must stay missing so flush does not wipe the grid.
+    if (Array.isArray(data.rows)) {
+        payload.rows = data.rows;
+        payload.service_cases_empty = data.service_cases_empty;
+        payload.service_cases_empty_html = data.service_cases_empty_html;
+    }
+
+    if (data.loaded_count !== undefined) {
+        payload.loaded_count = data.loaded_count;
+    }
+
+    if (data.total_count !== undefined) {
+        payload.total_count = data.total_count;
+    }
+
+    return payload;
+};
 
 const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
     requestAnimationFrame(() => {
@@ -252,13 +297,7 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
         }
 
         if (getWorkspaceSession().isActive()) {
-            queueDashboardRefresh({
-                kpi_strip_html: data.kpi_strip_html,
-                service_case_filter_counts: data.service_case_filter_counts,
-                rows: data.rows ?? [],
-                service_cases_empty: data.service_cases_empty,
-                service_cases_empty_html: data.service_cases_empty_html,
-            });
+            queueDashboardRefresh(buildQueuedPartialRefreshPayload(data));
             resolve();
 
             return;
@@ -282,8 +321,21 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
     });
 });
 
+const mergePendingDashboardRefresh = (previous, next) => {
+    if (!previous) {
+        return next;
+    }
+
+    // Shallow merge keeps an earlier authoritative `rows` set when a later KPI-only
+    // payload omits rows (last-write-wins would otherwise discard the row list).
+    return {
+        ...previous,
+        ...next,
+    };
+};
+
 const queueDashboardRefresh = (data) => {
-    pendingDashboardRefresh = data;
+    pendingDashboardRefresh = mergePendingDashboardRefresh(pendingDashboardRefresh, data);
 
     const session = getWorkspaceSession();
 
