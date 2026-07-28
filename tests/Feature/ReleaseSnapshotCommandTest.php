@@ -29,10 +29,10 @@ class ReleaseSnapshotCommandTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_snapshot_command_writes_release_manifest(): void
+    public function test_snapshot_command_writes_release_manifest_when_changelog_matches(): void
     {
         $git = Mockery::mock(GitReleaseInspector::class);
-        $git->shouldReceive('latestSemverVersion')->once()->andReturn('4.0.1');
+        $git->shouldReceive('latestSemverVersion')->once()->andReturn('4.0.0');
         $git->shouldReceive('shortCommit')->once()->andReturn('f6e9302');
         $this->app->instance(GitReleaseInspector::class, $git);
 
@@ -42,9 +42,27 @@ class ReleaseSnapshotCommandTest extends TestCase
 
         $manifest = (new ReleaseManifestStore)->read();
 
-        $this->assertSame('4.0.1', $manifest['version']);
-        $this->assertSame('v4.0.1', $manifest['tag']);
+        $this->assertSame('4.0.0', $manifest['version']);
+        $this->assertSame('v4.0.0', $manifest['tag']);
         $this->assertSame('f6e9302', $manifest['build']);
         $this->assertNotNull($manifest['deployed_at']);
+    }
+
+    public function test_snapshot_command_fails_when_changelog_section_missing(): void
+    {
+        $git = Mockery::mock(GitReleaseInspector::class);
+        $git->shouldReceive('latestSemverVersion')->once()->andReturn('4.0.2');
+        $git->shouldReceive('shortCommit')->never();
+        $this->app->instance(GitReleaseInspector::class, $git);
+
+        $exit = Artisan::call('release:snapshot');
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString(
+            'Release notes for v4.0.2 are missing from CHANGELOG.md.',
+            Artisan::output(),
+        );
+        $this->assertNull((new ReleaseManifestStore)->read());
+        $this->assertFileDoesNotExist($this->manifestPath);
     }
 }

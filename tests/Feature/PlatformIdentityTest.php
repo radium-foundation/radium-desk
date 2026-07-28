@@ -151,13 +151,38 @@ class PlatformIdentityTest extends TestCase
 
     public function test_changelog_service_reads_source_file(): void
     {
-        $entries = app(ChangelogService::class)->entries();
+        $service = app(ChangelogService::class);
+        $entries = $service->currentReleaseEntries();
 
         $this->assertNotEmpty($entries);
         $this->assertSame('P09 Workforce Platform Update', $entries[0]['title']);
         $this->assertSame(app(VersionService::class)->version(), $entries[0]['version']);
         $this->assertContains('Better assignment accuracy', $entries[0]['items']);
         $this->assertTrue($entries[0]['is_current']);
+    }
+
+    public function test_changelog_page_shows_empty_state_when_release_notes_missing(): void
+    {
+        (new ReleaseManifestStore)->write([
+            'version' => '4.0.2',
+            'tag' => 'v4.0.2',
+            'build' => '6b1b3f7',
+            'deployed_at' => '2026-07-28T00:00:00+00:00',
+            'release_date' => '2026-07-26',
+        ]);
+
+        $this->app->forgetInstance(VersionService::class);
+
+        $user = User::factory()->create([
+            'is_active' => true,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $response = $this->actingAs($user)->get(route('changelog.index'));
+
+        $response->assertOk();
+        $response->assertSee('Release notes for v4.0.2 are not available.', false);
+        $response->assertDontSee('Workforce availability intelligence', false);
     }
 
     public function test_robots_txt_disallows_all_crawling(): void

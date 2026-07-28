@@ -260,7 +260,12 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer('layouts.partials.whats-new-modal', function ($view): void {
-            $view->with('changelogEntries', app(ChangelogService::class)->entries());
+            $changelogService = app(ChangelogService::class);
+
+            $view->with([
+                'changelogEntries' => $changelogService->currentReleaseEntries(),
+                'missingReleaseNotesMessage' => $changelogService->missingReleaseNotesMessage(),
+            ]);
         });
 
         View::composer('emails.layouts.master', function ($view): void {

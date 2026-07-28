@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ChangelogService;
 use App\Services\Release\GitReleaseInspector;
 use App\Services\Release\ReleaseManifestStore;
 use Illuminate\Console\Command;
+use Symfony\Component\Console\Command\Command as SymfonyCommand;
 
 class ReleaseSnapshotCommand extends Command
 {
@@ -12,15 +14,32 @@ class ReleaseSnapshotCommand extends Command
 
     protected $description = 'Write deploy-time release metadata (version, build, deployed_at) for VersionService';
 
-    public function handle(GitReleaseInspector $git, ReleaseManifestStore $manifestStore): int
-    {
+    public function handle(
+        GitReleaseInspector $git,
+        ReleaseManifestStore $manifestStore,
+        ChangelogService $changelogService,
+    ): int {
         $version = $git->latestSemverVersion();
+
+        if ($version === null) {
+            $this->error('No semver Git tag found for this release.');
+
+            return SymfonyCommand::FAILURE;
+        }
+
+        if (! $changelogService->hasEntryForVersion($version)) {
+            $this->error("Release notes for v{$version} are missing from CHANGELOG.md.");
+
+            return SymfonyCommand::FAILURE;
+        }
+
         $build = $git->shortCommit();
+
         $releaseDate = $this->configuredReleaseDate();
 
         $manifest = [
             'version' => $version,
-            'tag' => $version !== null ? 'v'.$version : null,
+            'tag' => 'v'.$version,
             'build' => $build,
             'deployed_at' => now()->toIso8601String(),
             'release_date' => $releaseDate,
@@ -35,7 +54,7 @@ class ReleaseSnapshotCommand extends Command
             $manifest['build'] ?? 'null',
         ));
 
-        return self::SUCCESS;
+        return SymfonyCommand::SUCCESS;
     }
 
     private function configuredReleaseDate(): ?string

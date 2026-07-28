@@ -268,6 +268,20 @@ class BonvoiceClickToCallTest extends TestCase
         $this->assertStringContainsString('tel:9123456782', $html);
     }
 
+    public function test_customer_360_disables_call_button_when_agent_click_to_call_mobile_missing(): void
+    {
+        [$agent, $incident] = $this->createAssignedIncident();
+        $agent->forceFill(['bonvoice_extension' => null])->save();
+
+        $html = $this->actingAs($agent)
+            ->get(route('dashboard.service-cases.customer-360', $incident))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-bonvoice-click-to-call', $html);
+        $this->assertStringContainsString('Configure your Click-to-Call Mobile in your profile.', $html);
+    }
+
     /**
      * @param  array<string, mixed>  $orderOverrides
      * @return array{0: User, 1: Incident}

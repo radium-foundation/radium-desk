@@ -29,7 +29,45 @@ class ChangelogService
      *     is_current: bool,
      * }>
      */
-    public function entries(): array
+    public function currentReleaseEntries(): array
+    {
+        return array_values(array_filter(
+            $this->entries(),
+            static fn (array $entry): bool => $entry['is_current'] === true,
+        ));
+    }
+
+    public function missingReleaseNotesMessage(): string
+    {
+        return sprintf(
+            'Release notes for v%s are not available.',
+            $this->versionService->version(),
+        );
+    }
+
+    public function hasEntryForVersion(string $version): bool
+    {
+        foreach ($this->parseEntriesFromFile() as $entry) {
+            if ($entry['version'] === $version) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array{
+     *     title: string,
+     *     items: list<string>,
+     *     version: string|null,
+     *     release_date: string|null,
+     *     environment: string|null,
+     *     git_commit: string|null,
+     *     is_current: bool,
+     * }>
+     */
+    private function parseEntriesFromFile(): array
     {
         if (! $this->exists()) {
             return [];
@@ -76,7 +114,12 @@ class ChangelogService
             ];
         }
 
-        return $this->enrichEntries($entries);
+        return $entries;
+    }
+
+    public function entries(): array
+    {
+        return $this->enrichEntries($this->parseEntriesFromFile());
     }
 
     /**
@@ -107,38 +150,19 @@ class ChangelogService
 
         $currentVersion = $this->versionService->currentVersion();
         $currentMetadata = $this->versionService->releaseMetadata();
-        $hasCurrentEntry = false;
 
         foreach ($entries as $index => $entry) {
-            if ($entry['version'] === $currentVersion) {
-                $entries[$index]['is_current'] = true;
-                $entries[$index]['environment'] = $currentMetadata['environment'];
-                $entries[$index]['git_commit'] = $currentMetadata['git_commit'];
-                $hasCurrentEntry = true;
-
-                if ($entries[$index]['release_date'] === null) {
-                    $entries[$index]['release_date'] = $currentMetadata['release_date'];
-                }
-
+            if ($entry['version'] !== $currentVersion) {
                 continue;
             }
 
-            if ($index === 0 && $entry['version'] === null) {
-                $entries[$index]['version'] = $currentVersion;
-                $entries[$index]['release_date'] = $entry['release_date'] ?? $currentMetadata['release_date'];
-                $entries[$index]['environment'] = $currentMetadata['environment'];
-                $entries[$index]['git_commit'] = $currentMetadata['git_commit'];
-                $entries[$index]['is_current'] = true;
-                $hasCurrentEntry = true;
-            }
-        }
+            $entries[$index]['is_current'] = true;
+            $entries[$index]['environment'] = $currentMetadata['environment'];
+            $entries[$index]['git_commit'] = $currentMetadata['git_commit'];
 
-        if (! $hasCurrentEntry) {
-            $entries[0]['version'] = $entries[0]['version'] ?? $currentVersion;
-            $entries[0]['release_date'] = $entries[0]['release_date'] ?? $currentMetadata['release_date'];
-            $entries[0]['environment'] = $currentMetadata['environment'];
-            $entries[0]['git_commit'] = $currentMetadata['git_commit'];
-            $entries[0]['is_current'] = true;
+            if ($entries[$index]['release_date'] === null) {
+                $entries[$index]['release_date'] = $currentMetadata['release_date'];
+            }
         }
 
         return $entries;

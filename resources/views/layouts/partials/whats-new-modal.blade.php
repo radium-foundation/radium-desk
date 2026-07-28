@@ -29,7 +29,7 @@
                         @endif
                     </section>
                 @empty
-                    <p class="text-muted small mb-0">Release notes are not available yet.</p>
+                    <p class="text-muted small mb-0">{{ $missingReleaseNotesMessage }}</p>
                 @endforelse
             </div>
             <div class="modal-footer py-2">

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
+use App\Rules\ClickToCallMobile;
 use App\Services\UserManagementService;
 use App\Support\UserAccessPermissionCatalog;
 use Illuminate\Foundation\Http\FormRequest;
@@ -35,7 +36,7 @@ class UpdateUserRequest extends FormRequest
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['required', 'string', Rule::in(app(UserManagementService::class)->assignableRoles($actor))],
             'is_active' => ['required', 'boolean'],
-            'bonvoice_extension' => ['nullable', 'string', 'max:50', Rule::unique('users', 'bonvoice_extension')->ignore($user->id)],
+            'bonvoice_extension' => ['nullable', 'string', 'max:50', new ClickToCallMobile, Rule::unique('users', 'bonvoice_extension')->ignore($user->id)],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', Rule::in(app(UserAccessPermissionCatalog::class)->assignablePermissionNames())],
         ];
@@ -50,7 +51,7 @@ class UpdateUserRequest extends FormRequest
             'first_name' => 'first name',
             'last_name' => 'last name',
             'is_active' => 'status',
-            'bonvoice_extension' => 'Mobile',
+            'bonvoice_extension' => 'Click-to-Call Mobile',
             'roles' => 'roles',
             'roles.*' => 'role',
         ];

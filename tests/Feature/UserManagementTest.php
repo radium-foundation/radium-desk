@@ -247,6 +247,69 @@ class UserManagementTest extends TestCase
         $this->assertSame('08448423017', $target->fresh()->bonvoice_extension);
     }
 
+    public function test_invalid_click_to_call_mobile_is_rejected_on_create_and_update(): void
+    {
+        $admin = $this->createAdmin();
+        $target = User::factory()->create([
+            'email' => 'invalid-extension@test.com',
+            'bonvoice_extension' => '9846098460',
+        ]);
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)->post(route('users.store'), [
+            'first_name' => 'Invalid',
+            'last_name' => 'Mobile',
+            'email' => 'invalid-mobile-create@test.com',
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
+            'password' => 'password',
+            'password_confirmation' => 'password',
+            'is_active' => '1',
+            'bonvoice_extension' => '12345',
+        ])->assertSessionHasErrors('bonvoice_extension');
+
+        $this->actingAs($admin)->put(route('users.update', $target), [
+            'first_name' => $target->first_name,
+            'last_name' => $target->last_name,
+            'email' => $target->email,
+            'roles' => [RolePermissionSeeder::ROLE_AGENT],
+            'is_active' => '1',
+            'bonvoice_extension' => '12345678901',
+        ])->assertSessionHasErrors('bonvoice_extension');
+    }
+
+    public function test_user_form_shows_click_to_call_mobile_label_and_help_text(): void
+    {
+        $admin = $this->createAdmin();
+        $target = User::factory()->create();
+        $target->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)
+            ->get(route('users.edit', $target))
+            ->assertOk()
+            ->assertSee('Click-to-Call Mobile', false)
+            ->assertSee('Do NOT enter the company DID.', false);
+    }
+
+    public function test_users_index_shows_missing_click_to_call_mobile_badge(): void
+    {
+        $admin = $this->createAdmin();
+        $missing = User::factory()->create([
+            'first_name' => 'No',
+            'last_name' => 'Mobile',
+            'email' => 'no-mobile@test.com',
+            'bonvoice_extension' => null,
+        ]);
+        $missing->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->actingAs($admin)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertSee('Click-to-Call Mobile', false)
+            ->assertSee('badge text-bg-warning', false)
+            ->assertSee('Missing', false)
+            ->assertSee('no-mobile@test.com', false);
+    }
+
     public function test_duplicate_bonvoice_extension_is_rejected(): void
     {
         $admin = $this->createAdmin();

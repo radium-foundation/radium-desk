@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
+use App\Rules\ClickToCallMobile;
 use App\Services\UserManagementService;
 use App\Support\UserAccessPermissionCatalog;
 use Illuminate\Foundation\Http\FormRequest;
@@ -32,7 +33,7 @@ class StoreUserRequest extends FormRequest
             'roles.*' => ['required', 'string', Rule::in(app(UserManagementService::class)->assignableRoles($actor))],
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
             'is_active' => ['sometimes', 'boolean'],
-            'bonvoice_extension' => ['nullable', 'string', 'max:50', Rule::unique('users', 'bonvoice_extension')],
+            'bonvoice_extension' => ['nullable', 'string', 'max:50', new ClickToCallMobile, Rule::unique('users', 'bonvoice_extension')],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', Rule::in(app(UserAccessPermissionCatalog::class)->assignablePermissionNames())],
         ];
@@ -47,7 +48,7 @@ class StoreUserRequest extends FormRequest
             'first_name' => 'first name',
             'last_name' => 'last name',
             'is_active' => 'status',
-            'bonvoice_extension' => 'Mobile',
+            'bonvoice_extension' => 'Click-to-Call Mobile',
             'roles' => 'roles',
             'roles.*' => 'role',
         ];

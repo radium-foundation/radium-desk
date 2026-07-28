@@ -73,7 +73,7 @@
                                 <th>First Name</th>
                                 <th>Last Name</th>
                                 <th>Email</th>
-                                <th>Mobile</th>
+                                <th>Click-to-Call Mobile</th>
                                 <th>Role</th>
                                 <th>Workforce</th>
                                 <th>Status</th>
@@ -94,7 +94,14 @@
                                     <td>{{ $user->firstName() }}</td>
                                     <td>{{ $user->lastName() ?: '—' }}</td>
                                     <td>{{ $user->email }}</td>
-                                    <td class="text-nowrap">{{ $user->bonvoice_extension ?: '—' }}</td>
+                                    <td class="text-nowrap">
+                                        @if(filled($user->bonvoice_extension))
+                                            {{ $user->bonvoice_extension }}
+                                        @else
+                                            <span class="text-muted">—</span>
+                                            <span class="badge text-bg-warning ms-1">Missing</span>
+                                        @endif
+                                    </td>
                                     <td>
                                         @foreach($user->roles as $role)
                                             <span class="badge text-bg-secondary">{{ app(\App\Services\Operations\OperationsRoleService::class)->displayLabel($role->name) }}</span>
