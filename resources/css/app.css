@@ -2069,6 +2069,13 @@ a:focus-visible .stat-card {
         minmax(5.5rem, 7rem)
         minmax(4rem, 5.5rem)
         1.125rem;
+    --team-activity-metric-size: 0.75rem;
+    --team-activity-metric-weight: 700;
+    --team-activity-metric-color: #0f172a;
+    --team-activity-metric-line-height: 1;
+    --team-activity-metric-small-size: 0.5625rem;
+    --team-activity-metric-small-weight: 600;
+    --team-activity-metric-small-color: #64748b;
 }
 
 .team-activity-grid-header {
@@ -2486,16 +2493,26 @@ a:focus-visible .stat-card {
     font-size: 0.75rem;
 }
 
-.team-activity-metric-value {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: #1e293b;
+.team-activity-metric-value,
+.team-activity-calls-compact__count,
+.team-activity-kpi-count {
+    font-size: var(--team-activity-metric-size);
+    font-weight: var(--team-activity-metric-weight);
+    color: var(--team-activity-metric-color);
+    line-height: var(--team-activity-metric-line-height);
     font-variant-numeric: tabular-nums;
-    line-height: 1.15;
+}
+
+.team-activity-metric-value {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+}
+
+.team-activity-kpi-count {
+    letter-spacing: -0.02em;
+    white-space: nowrap;
 }
 
 .team-activity-today-activity {
@@ -2512,16 +2529,6 @@ a:focus-visible .stat-card {
     min-width: 0;
 }
 
-.team-activity-kpi-count {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #0f172a;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    white-space: nowrap;
-}
-
 .team-activity-kpi-compact__figure {
     display: inline-flex;
     align-items: flex-start;
@@ -2532,9 +2539,9 @@ a:focus-visible .stat-card {
 .team-activity-kpi-compact__sup {
     margin-left: 0.0625rem;
     padding-top: 0.05rem;
-    font-size: 0.625rem;
-    font-weight: 600;
-    color: #64748b;
+    font-size: var(--team-activity-metric-small-size);
+    font-weight: var(--team-activity-metric-small-weight);
+    color: var(--team-activity-metric-small-color);
     font-variant-numeric: tabular-nums;
     line-height: 1;
     letter-spacing: -0.01em;
@@ -2646,34 +2653,29 @@ a:focus-visible .stat-card {
     white-space: nowrap;
 }
 
-.team-activity-calls-compact__count {
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1;
-}
-
 .team-activity-calls-compact__sup {
     margin-left: 0.0625rem;
     padding-top: 0.05rem;
-    font-size: 0.5625rem;
-    font-weight: 600;
-    color: #64748b;
+    font-size: var(--team-activity-metric-small-size);
+    font-weight: var(--team-activity-metric-small-weight);
+    color: var(--team-activity-metric-small-color);
     line-height: 1;
     vertical-align: super;
 }
 
-.team-activity-calls-compact__separator {
-    font-size: 0.6875rem;
+.team-activity-calls-compact__separator,
+.team-activity-calls-compact__duration {
+    font-size: var(--team-activity-metric-small-size);
     font-weight: 500;
+    line-height: 1;
+}
+
+.team-activity-calls-compact__separator {
     color: #94a3b8;
 }
 
 .team-activity-calls-compact__duration {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: #475569;
-    line-height: 1;
+    color: #64748b;
 }
 
 .team-activity-latest-empty {
@@ -2761,10 +2763,6 @@ a:focus-visible .stat-card {
             1rem;
     }
 
-    .team-activity-kpi-count {
-        font-size: 0.75rem;
-    }
-
     .team-activity-grid-header,
     .team-activity-row-summary {
         column-gap: 0.5rem;
@@ -2780,22 +2778,11 @@ a:focus-visible .stat-card {
             minmax(4.5rem, 5.75rem)
             minmax(3.25rem, 4.5rem)
             0.875rem;
+        --team-activity-metric-size: 0.6875rem;
     }
 
     .team-activity-name {
         font-size: 0.6875rem;
-    }
-
-    .team-activity-kpi-count {
-        font-size: 0.75rem;
-    }
-
-    .team-activity-kpi-compact__sup {
-        font-size: 0.5625rem;
-    }
-
-    .team-activity-metric-value {
-        font-size: 0.625rem;
     }
 }
 
