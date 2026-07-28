@@ -53,7 +53,7 @@ class AttendanceRegisterService
             if ($this->refreshDay(
                 user: $user,
                 workDate: $cursor->copy(),
-                referenceAt: $referenceAt ?? $cursor->copy()->endOfDay(),
+                referenceAt: $referenceAt ?? $this->defaultReferenceAtForDay($cursor),
                 allowPreShiftSkip: false,
             ) !== null) {
                 $refreshed++;
@@ -230,6 +230,21 @@ class AttendanceRegisterService
             'work_date' => $workDate,
             ...$attributes,
         ]);
+    }
+
+    /**
+     * Tick open sessions only through "now" for the current calendar day.
+     * Historical days still flush to endOfDay so closed-day metrics finalize.
+     */
+    private function defaultReferenceAtForDay(Carbon $workDate): Carbon
+    {
+        $endOfDay = $workDate->copy()->endOfDay();
+
+        if ($workDate->isSameDay(now())) {
+            return now()->min($endOfDay);
+        }
+
+        return $endOfDay;
     }
 
     /**

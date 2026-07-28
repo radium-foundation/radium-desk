@@ -329,6 +329,20 @@ class PresenceEngineService
         }
 
         if ($at->lte($session->last_tick_at)) {
+            if ($at->lt($session->last_tick_at)) {
+                // A prior tick advanced past a real reference time (e.g. premature endOfDay).
+                // Rewind the tick cursor and clamp active time so later real ticks can accumulate.
+                if ($hasActivity) {
+                    $session->last_activity_at = $at;
+                }
+
+                $session->last_tick_at = $at;
+                $this->enforceActiveDurationInvariant($session, $at);
+                $session->save();
+
+                return;
+            }
+
             if ($hasActivity) {
                 $session->last_activity_at = $at;
                 $session->save();
@@ -351,6 +365,7 @@ class PresenceEngineService
             $session->last_activity_at = $at;
         }
 
+        $this->enforceActiveDurationInvariant($session, $at);
         $session->save();
     }
 
@@ -463,8 +478,33 @@ class PresenceEngineService
         $session->logout_at = $at;
         $session->ended_reason = $reason;
         $session->session_duration_seconds = max(0, (int) $session->login_at->diffInSeconds($at));
+        $this->enforceActiveDurationInvariant($session, $at);
         $session->overtime_seconds = $this->calculateOvertimeSeconds($user, $session, $at);
         $session->save();
+    }
+
+    /**
+     * Active desk time can never exceed the wall-clock window through logout (or $through).
+     * Guards against inflated last_tick_at from premature endOfDay ticks.
+     */
+    private function enforceActiveDurationInvariant(WorkSession $session, ?Carbon $through = null): void
+    {
+        if ($session->login_at === null) {
+            return;
+        }
+
+        $end = $session->logout_at ?? $through ?? $session->last_tick_at;
+
+        if ($end === null) {
+            return;
+        }
+
+        $wallClockSeconds = max(0, (int) $session->login_at->diffInSeconds($end));
+
+        $session->active_duration_seconds = min(
+            max(0, (int) $session->active_duration_seconds),
+            $wallClockSeconds,
+        );
     }
 
     private function calculateOvertimeSeconds(?User $user, WorkSession $session, Carbon $logoutAt): int
