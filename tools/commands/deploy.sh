@@ -50,8 +50,8 @@ print_success "Frontend build completed"
 
 # --- Remote deployment ---
 
-print_warning "Pulling latest code on remote..."
-ssh_exec "cd '$REMOTE_PROJECT' && git pull origin '$DEFAULT_BRANCH'"
+print_warning "Fetching latest code and tags on remote..."
+ssh_exec "cd '$REMOTE_PROJECT' && git fetch origin --tags && git pull origin '$DEFAULT_BRANCH'"
 print_success "Remote git pull completed"
 
 print_warning "Writing release snapshot (version, build, deployed_at)..."
