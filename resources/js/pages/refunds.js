@@ -1,1 +1,5 @@
-// Refunds pages rely on global Bootstrap components and server-rendered forms only.
+import { initRefundRequestForm } from '../workspace/refund-request-form';
+
+document.addEventListener('DOMContentLoaded', () => {
+    initRefundRequestForm(document);
+});

@@ -125,7 +125,7 @@ class WorkspaceRefundRequestActionService
         return WorkspaceActionResponseBuilder::make('refund-request', $incident->id)
             ->forContext($requestContext->context)
             ->failure($message)
-            ->withToast($message, 'danger')
+            ->withToast($message, 'danger', false)
             ->withUi(closeWorkspaceHost: false)
             ->withErrors($exception->errors())
             ->withValidationFragment('refund-request', $fragmentHtml)

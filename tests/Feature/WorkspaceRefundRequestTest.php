@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Enums\RefundDifferenceReason;
 use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
@@ -68,6 +69,7 @@ class WorkspaceRefundRequestTest extends TestCase
             ->assertSee('id="refund-request-amount"', false)
             ->assertSee('value="2500.00"', false)
             ->assertSee('id="refund-request-remarks"', false)
+            ->assertSee('Refund Request Reason', false)
             ->assertSee('Remarks', false)
             ->assertSee('data-workspace-action-form="refund-request"', false)
             ->assertDontSee('Reference Number', false)
@@ -170,15 +172,151 @@ class WorkspaceRefundRequestTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('success', false)
-            ->assertJsonPath('ui.close_workspace_host', false);
+            ->assertJsonPath('ui.close_workspace_host', false)
+            ->assertJsonPath('toast.show', false);
 
         $fragment = $response->json('refresh.fragments.0.html');
 
         $this->assertIsString($fragment);
         $this->assertStringContainsString('data-workspace-action-form="refund-request"', $fragment);
         $this->assertStringContainsString('Refund Request', $fragment);
+        $this->assertStringContainsString('data-workspace-validation-summary', $fragment);
         $this->assertStringContainsString('short', $fragment);
         $this->assertDatabaseCount('refund_requests', 0);
+    }
+
+    public function test_workspace_full_refund_succeeds_without_partial_difference_reason(): void
+    {
+        [$agent, $incident, $order] = $this->createFixture(RolePermissionSeeder::ROLE_AGENT, paymentAmount: 2000);
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('incidents.workspace.refund-request', $incident), [
+                'amount' => 2000,
+                'reason' => 'Customer requested a full cancellation refund.',
+                'remarks' => 'Full refund after payment confirmation.',
+                'customer_preferred_method' => CustomerPreferredRefundMethod::Opm->value,
+                'workspace_context' => 'customer',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('toast.variant', 'success');
+
+        $refund = RefundRequest::query()->first();
+
+        $this->assertNotNull($refund);
+        $this->assertSame($order->id, $refund->order_id);
+        $this->assertSame(2000.0, (float) $refund->amount);
+        $this->assertNull($refund->partial_difference_reason);
+        $this->assertSame([], $refund->communication_channels);
+    }
+
+    public function test_workspace_partial_refund_requires_partial_difference_reason(): void
+    {
+        [$agent, $incident] = $this->createFixture(RolePermissionSeeder::ROLE_AGENT, paymentAmount: 2000);
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('incidents.workspace.refund-request', $incident), [
+                'amount' => 1500,
+                'reason' => 'Customer requested a reduced refund amount.',
+                'remarks' => 'Partial amount after inspection charges.',
+                'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+                'workspace_context' => 'customer',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('toast.show', false)
+            ->assertJsonPath('errors.partial_difference_reason.0', 'A reason for difference is required for partial refunds.');
+
+        $fragment = $response->json('refresh.fragments.0.html');
+
+        $this->assertIsString($fragment);
+        $this->assertStringContainsString('data-workspace-validation-summary', $fragment);
+        $this->assertStringContainsString('A reason for difference is required for partial refunds.', $fragment);
+        $this->assertStringContainsString('name="partial_difference_reason"', $fragment);
+        $this->assertStringContainsString('Reason for Partial Refund', $fragment);
+        $this->assertDatabaseCount('refund_requests', 0);
+    }
+
+    public function test_workspace_partial_refund_succeeds_with_partial_difference_reason(): void
+    {
+        [$agent, $incident, $order] = $this->createFixture(RolePermissionSeeder::ROLE_AGENT, paymentAmount: 2000);
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('incidents.workspace.refund-request', $incident), [
+                'amount' => 1500,
+                'reason' => 'Customer requested a reduced refund amount.',
+                'remarks' => 'Partial amount after inspection charges.',
+                'partial_difference_reason' => RefundDifferenceReason::PartialRefund->value,
+                'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+                'notify_email' => '1',
+                'workspace_context' => 'customer',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true);
+
+        $refund = RefundRequest::query()->first();
+
+        $this->assertNotNull($refund);
+        $this->assertSame($order->id, $refund->order_id);
+        $this->assertSame(1500.0, (float) $refund->amount);
+        $this->assertSame(RefundDifferenceReason::PartialRefund, $refund->partial_difference_reason);
+        $this->assertSame(['email'], $refund->communication_channels);
+    }
+
+    public function test_refund_request_fragment_defaults_notify_checkboxes_unchecked(): void
+    {
+        [$agent, $incident] = $this->createFixture(RolePermissionSeeder::ROLE_AGENT, paymentAmount: 1800);
+
+        $html = $this->actingAs($agent)
+            ->get(route('incidents.components.show', [
+                'incident' => $incident,
+                'component' => 'refund-request',
+                'context' => 'customer',
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="refund-request-notify-email"[^>]*\bchecked\b/',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="refund-request-notify-whatsapp"[^>]*\bchecked\b/',
+            $html,
+        );
+    }
+
+    public function test_notify_checkbox_state_is_preserved_after_validation_failure(): void
+    {
+        [$agent, $incident] = $this->createFixture(RolePermissionSeeder::ROLE_AGENT, paymentAmount: 1800);
+
+        $response = $this->actingAs($agent)
+            ->postJson(route('incidents.workspace.refund-request', $incident), [
+                'amount' => 1800,
+                'reason' => 'short',
+                'remarks' => 'Remarks present but reason too short.',
+                'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+                'notify_email' => '1',
+                'workspace_context' => 'customer',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('toast.show', false);
+
+        $fragment = $response->json('refresh.fragments.0.html');
+
+        $this->assertIsString($fragment);
+        $this->assertMatchesRegularExpression(
+            '/id="refund-request-notify-email"[^>]*\bchecked\b/',
+            $fragment,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="refund-request-notify-whatsapp"[^>]*\bchecked\b/',
+            $fragment,
+        );
     }
 
     public function test_user_without_refund_permission_cannot_load_component(): void

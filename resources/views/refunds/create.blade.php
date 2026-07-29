@@ -28,6 +28,7 @@
                     'calculation' => $calculation ?? null,
                     'preferredMethods' => $preferredMethods ?? \App\Enums\CustomerPreferredRefundMethod::cases(),
                     'profiles' => $profiles ?? [],
+                    'differenceReasons' => $differenceReasons ?? \App\Enums\RefundDifferenceReason::cases(),
                 ])
 
                 <div class="d-flex flex-wrap gap-2 mt-4">

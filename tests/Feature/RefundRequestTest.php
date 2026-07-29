@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\ApprovedRefundMethod;
 use App\Enums\CustomerPreferredRefundMethod;
+use App\Enums\RefundDifferenceReason;
 use App\Enums\RefundStatus;
 use App\Models\Incident;
 use App\Models\Order;
@@ -168,6 +169,69 @@ class RefundRequestTest extends TestCase
             ->assertSessionHasErrors('remarks');
 
         $this->assertDatabaseCount('refund_requests', 0);
+    }
+
+    public function test_partial_refund_requires_partial_difference_reason_on_create(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = $this->createOrder($agent, paymentAmount: 2000);
+
+        $this->actingAs($agent)
+            ->from(route('refunds.create', ['order' => $order->id]))
+            ->post(route('refunds.store'), [
+                'order_id' => $order->id,
+                'amount' => 1200,
+                'reason' => 'Customer requested a reduced refund amount.',
+                'remarks' => 'Partial amount after inspection charges.',
+                'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+            ])
+            ->assertRedirect(route('refunds.create', ['order' => $order->id]))
+            ->assertSessionHasErrors('partial_difference_reason');
+
+        $this->assertDatabaseCount('refund_requests', 0);
+    }
+
+    public function test_partial_refund_create_succeeds_with_partial_difference_reason(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = $this->createOrder($agent, paymentAmount: 2000);
+
+        $response = $this->actingAs($agent)->post(route('refunds.store'), [
+            'order_id' => $order->id,
+            'amount' => 1200,
+            'reason' => 'Customer requested a reduced refund amount.',
+            'remarks' => 'Partial amount after inspection charges.',
+            'partial_difference_reason' => RefundDifferenceReason::PartialRefund->value,
+            'customer_preferred_method' => CustomerPreferredRefundMethod::Wallet->value,
+            'notify_whatsapp' => '1',
+        ]);
+
+        $refund = RefundRequest::query()->first();
+
+        $this->assertNotNull($refund);
+        $this->assertSame(1200.0, (float) $refund->amount);
+        $this->assertSame(RefundDifferenceReason::PartialRefund, $refund->partial_difference_reason);
+        $this->assertSame(['whatsapp'], $refund->communication_channels);
+        $response->assertRedirect(route('refunds.show', $refund));
+    }
+
+    public function test_create_form_defaults_notify_checkboxes_unchecked(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $html = $this->actingAs($agent)
+            ->get(route('refunds.create'))
+            ->assertOk()
+            ->assertSee('Refund Request Reason', false)
+            ->getContent();
+
+        $this->assertDoesNotMatchRegularExpression('/id="notify_email"[^>]*\bchecked\b/', $html);
+        $this->assertDoesNotMatchRegularExpression('/id="notify_whatsapp"[^>]*\bchecked\b/', $html);
     }
 
     public function test_index_supports_filters(): void

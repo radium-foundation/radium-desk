@@ -55,7 +55,7 @@
         @enderror
     </div>
     <div class="mb-2">
-        <label for="{{ $prefix }}_partial_difference_reason" class="form-label">Reason for Difference</label>
+        <label for="{{ $prefix }}_partial_difference_reason" class="form-label">Reason for Partial Refund</label>
         <select name="partial_difference_reason" id="{{ $prefix }}_partial_difference_reason"
                 class="form-select @error('partial_difference_reason') is-invalid @enderror">
             <option value="">Not required for full refund</option>
@@ -66,12 +66,13 @@
                 </option>
             @endforeach
         </select>
+        <div class="form-text">Required only when refund amount is less than the maximum refundable.</div>
         @error('partial_difference_reason')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
     </div>
     <div class="mb-0">
-        <label for="{{ $prefix }}_partial_difference_notes" class="form-label">Difference Notes</label>
+        <label for="{{ $prefix }}_partial_difference_notes" class="form-label">Partial Refund Notes</label>
         <textarea name="partial_difference_notes" id="{{ $prefix }}_partial_difference_notes" rows="2"
                   class="form-control @error('partial_difference_notes') is-invalid @enderror"
                   placeholder="Required when reason is Other">{{ old('partial_difference_notes', $refund->partial_difference_notes) }}</textarea>

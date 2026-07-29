@@ -52,9 +52,11 @@ trait ValidatesRefundRequestPayload
             'order_id' => 'order',
             'incident_id' => 'incident',
             'amount' => 'amount',
-            'reason' => 'reason',
+            'reason' => 'refund request reason',
             'remarks' => 'remarks',
             'customer_preferred_method' => 'customer preferred refund method',
+            'partial_difference_reason' => 'reason for partial refund',
+            'partial_difference_notes' => 'partial refund notes',
             'communication_channels' => 'communication channels',
         ];
     }
@@ -70,11 +72,11 @@ trait ValidatesRefundRequestPayload
         if (! $this->has('communication_channels')) {
             $channels = [];
 
-            if ($this->boolean('notify_email', true)) {
+            if ($this->boolean('notify_email', false)) {
                 $channels[] = 'email';
             }
 
-            if ($this->boolean('notify_whatsapp', true)) {
+            if ($this->boolean('notify_whatsapp', false)) {
                 $channels[] = 'whatsapp';
             }
 
@@ -97,11 +99,11 @@ trait ValidatesRefundRequestPayload
         if (! array_key_exists('communication_channels', $payload)) {
             $channels = [];
 
-            if (filter_var($payload['notify_email'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+            if (filter_var($payload['notify_email'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
                 $channels[] = 'email';
             }
 
-            if (filter_var($payload['notify_whatsapp'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+            if (filter_var($payload['notify_whatsapp'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
                 $channels[] = 'whatsapp';
             }
 

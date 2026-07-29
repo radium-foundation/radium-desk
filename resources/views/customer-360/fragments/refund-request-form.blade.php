@@ -1,5 +1,6 @@
 @php
     use App\Enums\CustomerPreferredRefundMethod;
+    use App\Enums\RefundDifferenceReason;
     use App\Models\RefundRequest;
 
     $order = $incident->order;
@@ -21,18 +22,31 @@
 
     $reasonValue = old('reason', $formPayload['reason'] ?? $refundModel->reason);
     $remarksValue = old('remarks', $formPayload['remarks'] ?? $refundModel->requester_remarks);
+    $partialDifferenceReasonValue = old(
+        'partial_difference_reason',
+        $formPayload['partial_difference_reason'] ?? $refundModel->partial_difference_reason?->value ?? '',
+    );
+    $partialDifferenceNotesValue = old(
+        'partial_difference_notes',
+        $formPayload['partial_difference_notes'] ?? $refundModel->partial_difference_notes ?? '',
+    );
     $notifyEmailChecked = old(
         'notify_email',
         array_key_exists('notify_email', $formPayload ?? [])
             ? filter_var($formPayload['notify_email'], FILTER_VALIDATE_BOOLEAN)
-            : in_array('email', $formPayload['communication_channels'] ?? ['email'], true),
+            : in_array('email', $formPayload['communication_channels'] ?? [], true),
     );
     $notifyWhatsappChecked = old(
         'notify_whatsapp',
         array_key_exists('notify_whatsapp', $formPayload ?? [])
             ? filter_var($formPayload['notify_whatsapp'], FILTER_VALIDATE_BOOLEAN)
-            : in_array('whatsapp', $formPayload['communication_channels'] ?? ['whatsapp'], true),
+            : in_array('whatsapp', $formPayload['communication_channels'] ?? [], true),
     );
+    $isPartialRefund = $amountValue !== null
+        && $maximumRefundable !== null
+        && (float) $amountValue < ((float) $maximumRefundable - 0.001);
+    $showPartialNotes = $isPartialRefund
+        && (string) $partialDifferenceReasonValue === RefundDifferenceReason::Other->value;
     $paymentGateway = filled($order?->payment_method)
         ? $order->payment_method
         : ($order?->isCashfreeVerified() ? 'Cashfree' : null);
@@ -45,11 +59,13 @@
         'Failed' => 'fail',
         default => 'info',
     };
+    $differenceReasons = $differenceReasons ?? RefundDifferenceReason::cases();
 @endphp
 
 <form method="POST"
       action="{{ $workspaceActionUrl }}"
       data-workspace-action-form="refund-request"
+      data-refund-request-form
       class="workspace-note-dialog workspace-dialog-shell c360-dialog refund-request-dialog">
     @csrf
     <input type="hidden" name="workspace_context" value="{{ $workspaceContext }}">
@@ -144,6 +160,8 @@
                             <input type="number"
                                    name="amount"
                                    id="refund-request-amount"
+                                   data-refund-amount-input
+                                   data-refund-maximum="{{ $maximumRefundable !== null ? number_format((float) $maximumRefundable, 2, '.', '') : '' }}"
                                    step="0.01"
                                    min="0.01"
                                    class="form-control @error('amount') is-invalid @enderror"
@@ -159,15 +177,56 @@
                     </div>
                 </div>
 
+                <div class="workspace-form-field workspace-form-field--full {{ $isPartialRefund ? '' : 'd-none' }}"
+                     data-refund-partial-fields>
+                    <label for="refund-request-partial-difference-reason" class="workspace-form-label">
+                        Reason for Partial Refund <span class="text-danger">*</span>
+                    </label>
+                    <select name="partial_difference_reason"
+                            id="refund-request-partial-difference-reason"
+                            data-refund-partial-reason
+                            class="form-select form-select-sm @error('partial_difference_reason') is-invalid @enderror"
+                            @disabled(! $isPartialRefund)>
+                        <option value="">Select a reason</option>
+                        @foreach($differenceReasons as $differenceReason)
+                            <option value="{{ $differenceReason->value }}"
+                                @selected((string) $partialDifferenceReasonValue === $differenceReason->value)>
+                                {{ $differenceReason->label() }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <div class="form-text">Required only when refund amount is less than the maximum refundable.</div>
+                    @error('partial_difference_reason')
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="workspace-form-field workspace-form-field--full {{ $showPartialNotes ? '' : 'd-none' }}"
+                     data-refund-partial-notes-fields>
+                    <label for="refund-request-partial-difference-notes" class="workspace-form-label">
+                        Partial Refund Notes
+                    </label>
+                    <textarea name="partial_difference_notes"
+                              id="refund-request-partial-difference-notes"
+                              data-refund-partial-notes
+                              rows="2"
+                              class="form-control form-control-sm workspace-form-textarea--compact @error('partial_difference_notes') is-invalid @enderror"
+                              placeholder="Required when reason is Other"
+                              @disabled(! $showPartialNotes)>{{ $partialDifferenceNotesValue }}</textarea>
+                    @error('partial_difference_notes')
+                        <div class="invalid-feedback d-block">{{ $message }}</div>
+                    @enderror
+                </div>
+
                 <div class="workspace-form-field workspace-form-field--full">
                     <label for="refund-request-reason" class="workspace-form-label">
-                        Reason <span class="text-danger">*</span>
+                        Refund Request Reason <span class="text-danger">*</span>
                     </label>
                     <textarea name="reason"
                               id="refund-request-reason"
                               rows="3"
                               class="form-control form-control-sm workspace-form-textarea--compact @error('reason') is-invalid @enderror"
-                              placeholder="Why is this refund being requested?"
+                              placeholder="Why is the customer requesting a refund?"
                               required>{{ $reasonValue }}</textarea>
                     @error('reason')
                         <div class="invalid-feedback d-block">{{ $message }}</div>

@@ -46,7 +46,7 @@ class ApproveRefundRequestRequest extends FormRequest
             'approved_refund_method' => 'refund method',
             'refund_amount' => 'refund amount',
             'review_notes' => 'review notes',
-            'partial_difference_reason' => 'reason for difference',
+            'partial_difference_reason' => 'reason for partial refund',
         ];
     }
 }

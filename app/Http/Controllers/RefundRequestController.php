@@ -147,6 +147,7 @@ class RefundRequestController extends Controller
             'calculation' => $calculation,
             'profiles' => $this->profileRegistry->all(),
             'preferredMethods' => CustomerPreferredRefundMethod::cases(),
+            'differenceReasons' => RefundDifferenceReason::cases(),
         ]);
     }
 

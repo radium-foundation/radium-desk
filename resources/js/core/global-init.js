@@ -16,6 +16,7 @@ import { initCorrectDeviceIdentityDialog } from '../workspace/correct-device-ide
 import { initCorrectDeviceModelDialog } from '../workspace/correct-device-model-dialog';
 import { initCorrectSerialNumberDialog } from '../workspace/correct-serial-number-dialog';
 import { initWorkspaceDialogShell } from '../workspace/dialog-shell';
+import { initRefundRequestForm } from '../workspace/refund-request-form';
 import { initMentionTextareas } from './mention-textareas';
 import { initSidebar } from './sidebar';
 import { showAppToast } from './toast';
@@ -90,6 +91,10 @@ const initGlobalWorkspace = () => {
 
             if (component === 'communication-action') {
                 initCommunicationCenterForm(modalContent);
+            }
+
+            if (component === 'refund-request') {
+                initRefundRequestForm(modalContent);
             }
 
             initWorkspaceDialogShell(modalHost, modalContent);

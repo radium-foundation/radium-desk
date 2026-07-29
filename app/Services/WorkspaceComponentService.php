@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Data\Workspace\WorkspaceRequestContext;
 use App\Enums\CommunicationActionKey;
 use App\Enums\CustomerPreferredRefundMethod;
+use App\Enums\RefundDifferenceReason;
 use App\Enums\IncidentStatus;
 use App\Enums\ServiceCaseCloseExceptionReason;
 use App\Enums\ServiceCaseCloseNotificationPreference;
@@ -349,6 +350,7 @@ class WorkspaceComponentService
             'refund' => new RefundRequest,
             'calculation' => $calculation,
             'preferredMethods' => CustomerPreferredRefundMethod::cases(),
+            'differenceReasons' => RefundDifferenceReason::cases(),
             'formPayload' => [],
         ];
     }
