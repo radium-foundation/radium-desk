@@ -5,6 +5,7 @@ namespace App\Services\IncomingEmail;
 use App\Data\IncomingEmail\NormalizedInboundEmail;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Models\GmailMailboxSyncState;
+use App\Services\IncomingEmail\Gmail\GmailSyncMetricsService;
 use App\Services\IncomingEmail\Providers\GmailInboundEmailProvider;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +23,7 @@ class IncomingEmailGmailSyncService
     public function __construct(
         private readonly GmailInboundEmailProvider $gmailProvider,
         private readonly IncomingEmailIngestService $ingestService,
+        private readonly GmailSyncMetricsService $metrics,
     ) {}
 
     /**
@@ -31,6 +33,10 @@ class IncomingEmailGmailSyncService
      *     ingested: int,
      *     skipped: int,
      *     stale_messages_skipped: int,
+     *     messages_failed: int,
+     *     messages_retried: int,
+     *     history_pages: int,
+     *     cursor_advances: int,
      *     failed_mailboxes: int
      * }
      */
@@ -43,6 +49,10 @@ class IncomingEmailGmailSyncService
                 'ingested' => 0,
                 'skipped' => 0,
                 'stale_messages_skipped' => 0,
+                'messages_failed' => 0,
+                'messages_retried' => 0,
+                'history_pages' => 0,
+                'cursor_advances' => 0,
                 'failed_mailboxes' => 0,
             ];
         }
@@ -54,6 +64,10 @@ class IncomingEmailGmailSyncService
         $ingested = 0;
         $skipped = 0;
         $staleMessagesSkipped = 0;
+        $messagesFailed = 0;
+        $messagesRetried = 0;
+        $historyPages = 0;
+        $cursorAdvances = 0;
         $failedMailboxes = 0;
 
         foreach ($mailboxes as $mailbox) {
@@ -75,6 +89,10 @@ class IncomingEmailGmailSyncService
                 $pulled += $stats['received'];
                 $ingested += $stats['received'];
                 $staleMessagesSkipped += $stats['stale_skipped'];
+                $messagesFailed += $stats['fetch_failed'];
+                $messagesRetried += $stats['retried'];
+                $historyPages += $stats['pages'];
+                $cursorAdvances += $stats['cursor_advances'];
             } catch (Throwable $exception) {
                 $failedMailboxes++;
                 $provider->recordError($exception->getMessage());
@@ -95,12 +113,36 @@ class IncomingEmailGmailSyncService
             'ingested' => $ingested,
             'skipped' => $skipped,
             'stale_messages_skipped' => $staleMessagesSkipped,
+            'messages_failed' => $messagesFailed,
+            'messages_retried' => $messagesRetried,
+            'history_pages' => $historyPages,
+            'cursor_advances' => $cursorAdvances,
             'failed_mailboxes' => $failedMailboxes,
         ];
     }
 
+    public function rebaselineMailbox(string $mailbox): string
+    {
+        $this->assertGmailConfigured();
+
+        $provider = $this->gmailProvider->forMailbox($mailbox);
+
+        return $provider->rebaseline();
+    }
+
     /**
-     * @return array{received: int, linked: int, historical: int, ignored: int, failed: int, stale_skipped: int}
+     * @return array{
+     *     received: int,
+     *     linked: int,
+     *     historical: int,
+     *     ignored: int,
+     *     failed: int,
+     *     stale_skipped: int,
+     *     fetch_failed: int,
+     *     retried: int,
+     *     pages: int,
+     *     cursor_advances: int
+     * }
      */
     private function syncMailbox(string $mailbox, GmailInboundEmailProvider $provider): array
     {
@@ -109,59 +151,85 @@ class IncomingEmailGmailSyncService
             ->where('mailbox', $mailbox)
             ->value('history_id');
 
-        $messages = $provider->pull();
-        $messages = $this->oldestFirst($messages);
-
         $linked = 0;
         $historical = 0;
         $ignored = 0;
         $failed = 0;
+        $received = 0;
 
-        foreach ($messages as $dto) {
-            $result = $this->ingestService->ingest($dto);
+        $pullStats = $provider->pullIncremental(function (array $messages) use (
+            &$linked,
+            &$historical,
+            &$ignored,
+            &$failed,
+            &$received,
+            $mailbox,
+        ): void {
+            $messages = $this->oldestFirst($messages);
 
-            if ($result === null) {
-                continue;
+            foreach ($messages as $dto) {
+                $result = $this->ingestService->ingest($dto);
+                $received++;
+                $this->metrics->incrementToday($mailbox, 'processed');
+
+                if ($result === null) {
+                    continue;
+                }
+
+                $status = $result->fresh()?->status ?? $result->status;
+
+                match ($status) {
+                    IncomingEmailMessageStatus::Linked => $linked++,
+                    IncomingEmailMessageStatus::HistoricalCustomer => $historical++,
+                    IncomingEmailMessageStatus::Ignored => $ignored++,
+                    IncomingEmailMessageStatus::Failed => $failed++,
+                    default => null,
+                };
             }
+        });
 
-            $status = $result->fresh()?->status ?? $result->status;
+        $durationMs = (int) round((microtime(true) - $startedAt) * 1000);
+        $newHistoryId = GmailMailboxSyncState::query()->where('mailbox', $mailbox)->value('history_id');
 
-            match ($status) {
-                IncomingEmailMessageStatus::Linked => $linked++,
-                IncomingEmailMessageStatus::HistoricalCustomer => $historical++,
-                IncomingEmailMessageStatus::Ignored => $ignored++,
-                IncomingEmailMessageStatus::Failed => $failed++,
-                default => null,
-            };
-        }
-
-        $newHistoryId = $provider->pendingHistoryId()
-            ?? GmailMailboxSyncState::query()->where('mailbox', $mailbox)->value('history_id');
-
-        $provider->commitCursor();
-
-        $staleSkipped = $provider->staleMessageSkips();
+        $provider->recordRunMetrics(
+            processed: $received,
+            skipped: $pullStats['stale_skipped'] + $pullStats['fetch_failed'],
+            retried: $pullStats['retried'],
+            failed: $pullStats['fetch_failed'],
+            pages: $pullStats['pages'],
+            cursorAdvances: $pullStats['cursor_advances'],
+            durationMs: $durationMs,
+            latencyMs: $pullStats['last_latency_ms'],
+        );
 
         Log::info('[GmailInbound] Mailbox sync completed.', [
             'mailbox' => $mailbox,
             'previous_history_id' => $previousHistoryId,
             'new_history_id' => $newHistoryId,
-            'messages_received' => count($messages),
-            'stale_messages_skipped' => $staleSkipped,
+            'messages_received' => $received,
+            'stale_messages_skipped' => $pullStats['stale_skipped'],
+            'messages_failed' => $pullStats['fetch_failed'],
+            'messages_retried' => $pullStats['retried'],
+            'history_pages' => $pullStats['pages'],
+            'cursor_advances' => $pullStats['cursor_advances'],
             'linked' => $linked,
             'historical' => $historical,
             'ignored' => $ignored,
             'failed' => $failed,
-            'elapsed_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            'elapsed_ms' => $durationMs,
         ]);
 
         return [
-            'received' => count($messages),
+            'received' => $received,
             'linked' => $linked,
             'historical' => $historical,
             'ignored' => $ignored,
             'failed' => $failed,
-            'stale_skipped' => $staleSkipped,
+            'stale_skipped' => $pullStats['stale_skipped'],
+            'fetch_failed' => $pullStats['fetch_failed'],
+            'retried' => $pullStats['retried'],
+            'pages' => $pullStats['pages'],
+            'cursor_advances' => $pullStats['cursor_advances'],
         ];
     }
 
@@ -242,7 +310,6 @@ class IncomingEmailGmailSyncService
     {
         $message = $exception->getMessage();
 
-        // Never surface bearer tokens / JWT assertions if they appear in transport errors.
         $message = preg_replace('/Bearer\s+[A-Za-z0-9\-._~+\/]+=*/i', 'Bearer [redacted]', $message) ?? $message;
         $message = preg_replace('/eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/', '[redacted-jwt]', $message) ?? $message;
 

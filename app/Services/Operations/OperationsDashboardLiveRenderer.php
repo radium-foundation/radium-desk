@@ -198,6 +198,10 @@ class OperationsDashboardLiveRenderer
             'cashfree_health' => view('admin.operations.partials.cashfree-health', [
                 'health' => $dashboard->cashfreeHealth,
             ])->render(),
+            'gmail_health' => view('admin.operations.partials.gmail-health', [
+                'health' => $dashboard->gmailHealth,
+                'showActions' => false,
+            ])->render(),
             'cashfree_device_enrichment_quality' => view('admin.operations.partials.cashfree-device-enrichment-quality', [
                 'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,
             ])->render(),

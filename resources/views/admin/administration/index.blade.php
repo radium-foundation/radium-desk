@@ -17,12 +17,43 @@
   </div>
 
   @can('viewAny', App\Models\SystemSetting::class)
-      <div id="administration-integrations" class="card border-0 shadow-sm">
-          <div class="card-body">
-              @include('admin.hubs.partials.placeholder-card', [
-                  'icon' => 'bi-plug',
-                  'title' => 'Integrations',
-                  'description' => 'Central integration health and configuration hub.',
+      <div id="administration-integrations" class="mb-4">
+          <div id="administration-api-health">
+              <h2 class="h5 mb-3">API Health</h2>
+
+              <div class="card border-0 shadow-sm mb-4">
+                  <div class="card-body py-3">
+                      <div class="operations-integration-grid" role="list" aria-label="Integration status">
+                          @foreach($integrationCards as $card)
+                              @php
+                                  $status = (string) ($card['status'] ?? 'healthy');
+                                  $statusClassMap = [
+                                      'healthy' => 'healthy',
+                                      'warning' => 'warning',
+                                      'failed' => 'danger',
+                                  ];
+                                  $isHealthy = $status === 'healthy';
+                              @endphp
+                              <div
+                                  @class([
+                                      'operations-integration-pill',
+                                      'operations-integration-pill--' . ($statusClassMap[$status] ?? 'info'),
+                                      'operations-integration-pill--issue' => ! $isHealthy,
+                                  ])
+                                  role="listitem"
+                                  title="{{ $card['detail'] ?? '' }}"
+                              >
+                                  <span class="operations-integration-pill-icon" aria-hidden="true">{{ $isHealthy ? '✓' : '!' }}</span>
+                                  <span class="operations-integration-pill-label">{{ $card['label'] }}</span>
+                              </div>
+                          @endforeach
+                      </div>
+                  </div>
+              </div>
+
+              @include('admin.operations.partials.gmail-health', [
+                  'health' => $gmailHealth,
+                  'showActions' => true,
               ])
           </div>
       </div>

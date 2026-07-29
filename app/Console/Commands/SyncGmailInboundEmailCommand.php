@@ -47,14 +47,19 @@ class SyncGmailInboundEmailCommand extends Command
             'pulled' => $result['pulled'],
             'ingested' => $result['ingested'],
             'skipped' => $result['skipped'],
+            'messages_failed' => $result['messages_failed'] ?? 0,
+            'messages_retried' => $result['messages_retried'] ?? 0,
+            'history_pages' => $result['history_pages'] ?? 0,
+            'cursor_advances' => $result['cursor_advances'] ?? 0,
             'failed_mailboxes' => $result['failed_mailboxes'],
         ]);
 
         $this->info(sprintf(
-            'Synced %d mailbox(es); pulled %d; skipped %d; failed %d.',
+            'Synced %d mailbox(es); pulled %d; skipped %d; failed messages %d; failed mailboxes %d.',
             $result['mailboxes'],
             $result['pulled'],
             $result['skipped'],
+            $result['messages_failed'] ?? 0,
             $result['failed_mailboxes'],
         ));
 

@@ -18,6 +18,8 @@ class OperationsDashboardSectionBundles
 
     public const CASHFREE_HEALTH = 'cashfree_health';
 
+    public const GMAIL_HEALTH = 'gmail_health';
+
     public const RECENT_NOTIFICATION_FAILURES = 'recent_notification_failures';
 
     public const RECENT_AUTOMATION_ACTIVITY = 'recent_automation_activity';
@@ -74,6 +76,7 @@ class OperationsDashboardSectionBundles
             self::QUEUE_METRICS,
             self::RADIUMBOX_HEALTH,
             self::CASHFREE_HEALTH,
+            self::GMAIL_HEALTH,
             self::CASHFREE_DEVICE_ENRICHMENT,
             self::MISSING_SERIAL_AUTOMATION,
         ],
@@ -168,6 +171,7 @@ class OperationsDashboardSectionBundles
             self::INTEGRATION_HEALTH,
             self::RADIUMBOX_HEALTH,
             self::CASHFREE_HEALTH,
+            self::GMAIL_HEALTH,
             self::RECENT_NOTIFICATION_FAILURES,
             self::RECENT_AUTOMATION_ACTIVITY,
             self::RECENT_IRA_MESSAGES,

@@ -538,18 +538,17 @@ class GmailInboundEmailSyncTest extends TestCase
         ]);
 
         Log::shouldHaveReceived('warning')
-            ->once()
-            ->with(
-                '[GmailInbound] Stale history message not found; skipping.',
-                [
-                    'mailbox' => 'support@radiumbox.com',
-                    'message_id' => 'msg-stale',
-                ],
-            );
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === '[GmailInbound] Stale history message not found; skipping.'
+                    && ($context['mailbox'] ?? null) === 'support@radiumbox.com'
+                    && ($context['message_id'] ?? null) === 'msg-stale';
+            });
     }
 
-    public function test_sync_still_fails_mailbox_when_message_fetch_returns_server_error(): void
+    public function test_sync_skips_message_fetch_server_error_and_advances_cursor(): void
     {
+        config(['inbound_email.gmail.http_retry_times' => 1]);
+
         $this->seedCustomerWithOpenIncident('customer@example.com');
 
         GmailMailboxSyncState::query()->create([
@@ -562,22 +561,45 @@ class GmailInboundEmailSyncTest extends TestCase
         Http::fake([
             'https://gmail.googleapis.com/gmail/v1/users/me/history*' => Http::response([
                 'history' => [
-                    ['messagesAdded' => [['message' => ['id' => 'msg-fail']]]],
+                    [
+                        'id' => '1100',
+                        'messagesAdded' => [
+                            ['message' => ['id' => 'msg-fail']],
+                            ['message' => ['id' => 'msg-ok']],
+                        ],
+                    ],
                 ],
                 'historyId' => '1200',
             ], 200),
             'https://gmail.googleapis.com/gmail/v1/users/me/messages/msg-fail*' => Http::response([
                 'error' => ['message' => 'Internal error'],
             ], 500),
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/msg-ok*' => Http::response(
+                $this->gmailMessagePayload(
+                    'msg-ok',
+                    'thr-ok',
+                    '<ok@radium.test>',
+                    (string) now()->getTimestampMs(),
+                    'Valid follow-up mail',
+                ),
+                200,
+            ),
         ]);
 
         $result = app(IncomingEmailGmailSyncService::class)->sync();
 
-        $this->assertSame(1, $result['failed_mailboxes']);
-        $this->assertSame(0, $result['stale_messages_skipped']);
+        $this->assertSame(0, $result['failed_mailboxes']);
+        $this->assertSame(1, $result['messages_failed']);
+        $this->assertSame(1, $result['pulled']);
+        $this->assertSame(1, IncomingEmailMessage::query()->count());
         $this->assertDatabaseHas('gmail_mailbox_sync_states', [
             'mailbox' => 'support@radiumbox.com',
-            'history_id' => '1000',
+            'history_id' => '1200',
+        ]);
+        $this->assertDatabaseHas('gmail_sync_message_failures', [
+            'mailbox' => 'support@radiumbox.com',
+            'message_id' => 'msg-fail',
+            'http_status' => 500,
         ]);
     }
 

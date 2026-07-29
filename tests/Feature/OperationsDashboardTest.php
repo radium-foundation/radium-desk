@@ -537,6 +537,7 @@ class OperationsDashboardTest extends TestCase
                 'last_successful_sync_at' => new \stdClass(),
             ],
             cashfreeHealth: $valid->cashfreeHealth,
+            gmailHealth: $valid->gmailHealth,
             recentNotificationFailures: $valid->recentNotificationFailures,
             recentAutomationActivity: $valid->recentAutomationActivity,
             recentIraMessages: $valid->recentIraMessages,

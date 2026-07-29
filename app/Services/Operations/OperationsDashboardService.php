@@ -27,6 +27,7 @@ class OperationsDashboardService
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
         private readonly OperationsCashfreeHealthService $cashfreeHealthService,
+        private readonly OperationsGmailHealthService $gmailHealthService,
         private readonly OperationsRecentNotificationFailuresService $recentNotificationFailuresService,
         private readonly OperationsRecentAutomationActivityService $recentAutomationActivityService,
         private readonly OperationsRecentIraMessagesService $recentIraMessagesService,
@@ -130,6 +131,9 @@ class OperationsDashboardService
             cashfreeHealth: isset($bundleSet[OperationsDashboardSectionBundles::CASHFREE_HEALTH])
                 ? $measure('cashfree_health', fn () => $this->cashfreeHealthService->widget())
                 : $empty->cashfreeHealth,
+            gmailHealth: isset($bundleSet[OperationsDashboardSectionBundles::GMAIL_HEALTH])
+                ? $measure('gmail_health', fn () => $this->gmailHealthService->widget())
+                : $empty->gmailHealth,
             recentNotificationFailures: isset($bundleSet[OperationsDashboardSectionBundles::RECENT_NOTIFICATION_FAILURES])
                 ? $measure('recent_notification_failures', fn () => $this->recentNotificationFailuresService->recent(limit: 15))
                 : $empty->recentNotificationFailures,

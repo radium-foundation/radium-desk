@@ -56,6 +56,13 @@
         @include('admin.operations.partials.cashfree-health', ['health' => $dashboard->cashfreeHealth])
     </div>
 
+    <div id="operations-gmail-health" class="mt-4">
+        @include('admin.operations.partials.gmail-health', [
+            'health' => $dashboard->gmailHealth,
+            'showActions' => auth()->user()?->can('update', App\Models\SystemSetting::class) ?? false,
+        ])
+    </div>
+
     <div id="operations-cashfree-device-enrichment-quality" class="mt-4">
         @include('admin.operations.partials.cashfree-device-enrichment-quality', [
             'quality' => $dashboard->cashfreeDeviceEnrichmentQuality,

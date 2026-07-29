@@ -20,6 +20,7 @@ class OperationsIntegrationHealthService
         private readonly CashfreeIntegrityReadModel $cashfreeIntegrityReadModel,
         private readonly SystemSettingsService $systemSettings,
         private readonly InteraktTemplateConfigurationValidator $interaktTemplateConfigurationValidator,
+        private readonly OperationsGmailHealthService $gmailHealthService,
     ) {}
 
     /**
@@ -29,6 +30,7 @@ class OperationsIntegrationHealthService
     {
         return [
             $this->cashfreeCard($snapshot),
+            $this->gmailHealthService->card(),
             $this->interaktCard($snapshot),
             $this->interaktTemplateConfigurationCard(),
             $this->metaFlowCard(),

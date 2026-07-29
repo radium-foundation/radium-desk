@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdministrationHomeController;
+use App\Http\Controllers\GmailAdminActionsController;
 use App\Http\Controllers\ApprovalNumberController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\PasswordController;
@@ -258,6 +259,14 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/admin/administration', AdministrationHomeController::class)
         ->name('admin.administration.index');
+    Route::post('/admin/gmail/sync-now', [GmailAdminActionsController::class, 'syncNow'])
+        ->name('admin.gmail.sync-now');
+    Route::post('/admin/gmail/rebaseline', [GmailAdminActionsController::class, 'rebaseline'])
+        ->name('admin.gmail.rebaseline');
+    Route::get('/admin/gmail/logs', [GmailAdminActionsController::class, 'logs'])
+        ->name('admin.gmail.logs');
+    Route::get('/admin/gmail/failed-messages', [GmailAdminActionsController::class, 'failedMessages'])
+        ->name('admin.gmail.failed-messages');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');

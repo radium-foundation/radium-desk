@@ -46,8 +46,8 @@
 
     if ($canViewSettings) {
         $tabs['integrations'] = [
-            'label' => 'Integrations',
-            'url' => route('admin.administration.index').'#administration-integrations',
+            'label' => 'API Health',
+            'url' => route('admin.administration.index').'#administration-api-health',
         ];
     }
 @endphp
