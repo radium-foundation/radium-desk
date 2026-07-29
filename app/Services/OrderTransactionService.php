@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Enums\CommercialAction;
 use App\Enums\IncidentStatus;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Operations\TeamMemberActivityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -25,6 +27,7 @@ class OrderTransactionService
         private readonly DashboardService $dashboardService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly CustomerVerificationService $customerVerificationService,
+        private readonly CommercialStateResolver $commercialStateResolver,
     ) {}
 
     public function assignTransactionId(
@@ -48,6 +51,8 @@ class OrderTransactionService
                 'transaction_id' => 'Inquiry cases cannot be assigned a service reference.',
             ]);
         }
+
+        $this->assertCommercialAllowsServiceReference($order);
 
         $transactionId = trim($transactionId);
 
@@ -488,6 +493,28 @@ class OrderTransactionService
                 $incident,
                 'assigned a service reference',
             );
+        }
+    }
+
+    private function assertCommercialAllowsServiceReference(Order $order): void
+    {
+        if (! $this->commercialStateResolver->enabled()) {
+            return;
+        }
+
+        $order->loadMissing(['incidents', 'refundRequests']);
+
+        foreach ($order->incidents as $incident) {
+            $reason = $this->commercialStateResolver->ineligibilityReason(
+                $incident,
+                CommercialAction::AssignServiceReference,
+            );
+
+            if ($reason !== null) {
+                throw ValidationException::withMessages([
+                    'transaction_id' => $reason,
+                ]);
+            }
         }
     }
 }

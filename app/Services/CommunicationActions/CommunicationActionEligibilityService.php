@@ -5,9 +5,11 @@ namespace App\Services\CommunicationActions;
 use App\Data\CommunicationActions\CommunicationActionDefinition;
 use App\Enums\CommunicationActionExecutionMode;
 use App\Enums\CommunicationActionKey;
+use App\Enums\CommercialAction;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\User;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\CommunicationActions\BuyProduct\BuyProductEligibilityService;
 use App\Services\CommunicationActions\BuyRdService\BuyRdServiceEligibilityService;
 use App\Services\CommunicationActions\DriverInstallationGuide\DriverInstallationGuideEligibilityService;
@@ -23,6 +25,7 @@ class CommunicationActionEligibilityService
         private readonly RefundConfirmationEligibilityService $refundConfirmationEligibilityService,
         private readonly BuyRdServiceEligibilityService $buyRdServiceEligibilityService,
         private readonly BuyProductEligibilityService $buyProductEligibilityService,
+        private readonly CommercialStateResolver $commercialStateResolver,
     ) {}
     public function canShowAction(
         CommunicationActionDefinition $definition,
@@ -72,7 +75,28 @@ class CommunicationActionEligibilityService
             return 'Link an order before sending communication actions.';
         }
 
+        $commercialReason = $this->commercialIneligibilityReason($definition->key, $incident);
+
+        if ($commercialReason !== null) {
+            return $commercialReason;
+        }
+
         return $this->actionSpecificIneligibilityReason($definition, $incident, $user);
+    }
+
+    private function commercialIneligibilityReason(CommunicationActionKey $key, Incident $incident): ?string
+    {
+        $action = match ($key) {
+            CommunicationActionKey::BuyRdService => CommercialAction::PaidService,
+            CommunicationActionKey::BuyProduct => CommercialAction::ChargeCustomer,
+            default => null,
+        };
+
+        if ($action === null) {
+            return null;
+        }
+
+        return $this->commercialStateResolver->ineligibilityReason($incident, $action);
     }
 
     private function actionSpecificIneligibilityReason(

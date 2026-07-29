@@ -1,11 +1,16 @@
-@props(['serviceCase', 'canManageTransactions' => false, 'requiresLegacyVerification' => false, 'legacyVerificationUrl' => null, 'legacyVerificationMode' => 'customer'])
+@props(['serviceCase', 'canManageTransactions' => false, 'requiresLegacyVerification' => false, 'legacyVerificationUrl' => null, 'legacyVerificationMode' => 'customer', 'commercialState' => null])
 
 @php
+    use App\Enums\CommercialAction;
+
     $order = $serviceCase->order;
     $isCompleted = $order?->isTransactionLocked() ?? false;
+    $commercialBlocksAssign = is_array($commercialState)
+        && in_array(CommercialAction::AssignServiceReference->value, $commercialState['blocked_actions'] ?? [], true);
     $canAssign = $canManageTransactions
         && $order
         && ! $order->isInquiryOrder()
+        && ! $commercialBlocksAssign
         && auth()->user()?->can('assignTransaction', $order);
 @endphp
 

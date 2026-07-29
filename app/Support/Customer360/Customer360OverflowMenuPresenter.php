@@ -3,12 +3,14 @@
 namespace App\Support\Customer360;
 
 use App\Contracts\Context\ProvidesContextScope;
+use App\Enums\CommercialAction;
 use App\Enums\CommunicationActionKey;
 use App\Enums\ContextScope;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Services\Customer360\Customer360ActionVisibilityService;
@@ -25,6 +27,7 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
         private readonly WorkspaceActionDialogService $workspaceActionDialogService,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly CommunicationActionTargetProviderRegistry $communicationActionTargetProviderRegistry,
+        private readonly CommercialStateResolver $commercialStateResolver,
     ) {}
 
     public function contextScope(): ContextScope
@@ -296,15 +299,28 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
      */
     private function appointmentsGroup(Incident $incident, ?Collection $supportAppointments): array
     {
+        $paidAppointmentBlocked = $this->commercialStateResolver->blocks(
+            $incident,
+            CommercialAction::PaidAppointment,
+        );
+
         $items = [
-            $this->tabItem(
-                id: 'schedule-appointment',
-                label: 'Schedule Appointment',
-                icon: 'calendar-plus',
-                tab: 'overview',
-                anchor: 'support-appointments',
-                keywords: ['appointment', 'schedule'],
-            ),
+            $paidAppointmentBlocked
+                ? [
+                    'id' => 'schedule-appointment',
+                    'type' => 'status',
+                    'label' => 'Schedule Appointment unavailable',
+                    'icon' => 'calendar-plus',
+                    'keywords' => ['appointment', 'schedule'],
+                ]
+                : $this->tabItem(
+                    id: 'schedule-appointment',
+                    label: 'Schedule Appointment',
+                    icon: 'calendar-plus',
+                    tab: 'overview',
+                    anchor: 'support-appointments',
+                    keywords: ['appointment', 'schedule'],
+                ),
         ];
 
         if ($supportAppointments !== null && $supportAppointments->isNotEmpty()) {

@@ -5,10 +5,12 @@ namespace App\Services;
 use App\Enums\SupportAppointmentBookingSource;
 use App\Enums\SupportAppointmentStatus;
 use App\Enums\SupportAppointmentTimeSlot;
+use App\Enums\CommercialAction;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\Assignment\UniversalAssignmentEngine;
+use App\Services\Commercial\CommercialStateResolver;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,7 @@ class SupportAppointmentService
 {
     public function __construct(
         private readonly SupportScheduleAvailabilityService $availabilityService,
+        private readonly CommercialStateResolver $commercialStateResolver,
     ) {}
 
     /**
@@ -46,6 +49,8 @@ class SupportAppointmentService
         array $data,
         SupportAppointmentBookingSource $bookingSource = SupportAppointmentBookingSource::Web,
     ): SupportAppointment {
+        $this->assertCommercialAllowsPaidAppointment($incident);
+
         $validated = $this->validateBookingData($data);
         $normalizedPhone = $this->normalizePhoneNumber($validated['phone_number']);
 
@@ -317,5 +322,19 @@ class SupportAppointmentService
         $sqlState = $exception->errorInfo[0] ?? null;
 
         return in_array($sqlState, ['23000', '23505', '2067'], true);
+    }
+
+    private function assertCommercialAllowsPaidAppointment(Incident $incident): void
+    {
+        $reason = $this->commercialStateResolver->ineligibilityReason(
+            $incident,
+            CommercialAction::PaidAppointment,
+        );
+
+        if ($reason !== null) {
+            throw ValidationException::withMessages([
+                'preferred_date' => $reason,
+            ]);
+        }
     }
 }

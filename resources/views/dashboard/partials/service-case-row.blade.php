@@ -59,6 +59,12 @@
             @if($serviceCase->high_priority)
                 @include('dashboard.partials.high-priority-badge')
             @endif
+            @if(filled($commercialState['dashboard_badge_label'] ?? null))
+                <span class="dashboard-commercial-badge dashboard-commercial-badge--{{ $commercialState['state'] }}"
+                      title="{{ $commercialState['headline'] ?? $commercialState['label'] }}">
+                    {{ $commercialState['dashboard_badge_label'] }}
+                </span>
+            @endif
         </div>
     </td>
     <td class="case-order-cell case-meta-cell">
@@ -79,11 +85,13 @@
             'order' => $order,
             'isScheduledWorkspace' => $isScheduledWorkspace,
             'scheduledAppointmentPresentation' => $scheduledAppointmentPresentation,
+            'commercialState' => $commercialState ?? null,
         ])
     </td>
     @include('dashboard.partials.transaction-id-cell', [
         'serviceCase' => $serviceCase,
         'canManageTransactions' => $canManageTransactions ?? false,
+        'commercialState' => $commercialState ?? null,
         'requiresLegacyVerification' => $requiresLegacyVerification
             ?? ($order !== null && app(\App\Services\CustomerVerificationService::class)->requiresLegacyVerification($order)),
         'legacyVerificationUrl' => $legacyVerificationUrl

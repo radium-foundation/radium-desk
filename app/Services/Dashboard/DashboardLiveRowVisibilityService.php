@@ -98,6 +98,8 @@ class DashboardLiveRowVisibilityService
         $incidents = Incident::query()
             ->with([
                 'order.transactionAssigner',
+                'order.refundRequests',
+                'refundRequests',
                 'creator',
                 'assignee.roles',
                 'activeWaitingState',

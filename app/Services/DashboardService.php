@@ -196,6 +196,12 @@ class DashboardService
 
         $order = $serviceCase->order;
         $verificationService = app(CustomerVerificationService::class);
+        $commercialState = null;
+        $commercialResolver = app(\App\Services\Commercial\CommercialStateResolver::class);
+
+        if ($commercialResolver->enabled()) {
+            $commercialState = $commercialResolver->forIncident($serviceCase)->toArray();
+        }
 
         return [
             'serviceCase' => $serviceCase,
@@ -210,6 +216,7 @@ class DashboardService
                 ? $verificationService->legacyVerificationMode($order)
                 : 'customer',
             'isScheduledWorkspace' => $dashboardOperationQueue === DashboardPersonalizationService::QUEUE_SCHEDULED,
+            'commercialState' => $commercialState,
         ];
     }
 
@@ -224,7 +231,7 @@ class DashboardService
         }
 
         $incidents = Incident::query()
-            ->with(['order.transactionAssigner', 'order.legacyImporter', 'creator', 'assignee'])
+            ->with(['order.transactionAssigner', 'order.legacyImporter', 'order.refundRequests', 'refundRequests', 'creator', 'assignee'])
             ->whereIn('id', $incidentIds)
             ->get()
             ->keyBy('id');

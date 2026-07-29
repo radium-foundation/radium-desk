@@ -3,6 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Models\Incident;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Operations\OperationsQueueClassifier;
 
 /**
@@ -35,6 +36,8 @@ class DashboardSnapshotStore
                     'order.deviceModel',
                     'order.transactionAssigner',
                     'order.legacyImporter',
+                    'order.refundRequests',
+                    'refundRequests',
                     'creator',
                     'assignee.roles',
                     'activeWaitingState',

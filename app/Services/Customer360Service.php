@@ -22,6 +22,7 @@ use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Customer360\Customer360RecentCommunicationService;
 use App\Services\Customer360\Intelligence\CaseIntelligenceEngine;
+use App\Services\Commercial\CommercialStateResolver;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
@@ -32,6 +33,7 @@ use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
+use App\Support\Commercial\CommercialStatePresenter;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
@@ -84,6 +86,8 @@ class Customer360Service
         private readonly Customer360CommunicationActionStatusPresenter $communicationActionStatusPresenter,
         private readonly Customer360RecentCommunicationService $recentCommunicationService,
         private readonly CaseIntelligenceEngine $caseIntelligenceEngine,
+        private readonly CommercialStateResolver $commercialStateResolver,
+        private readonly CommercialStatePresenter $commercialStatePresenter,
     ) {}
 
     /**
@@ -150,6 +154,7 @@ class Customer360Service
             'activeServices' => $activeServices,
             'summary' => $summary,
             'healthCard' => $this->healthCard($order, $customer, $activeServices, $summary),
+            'commercialState' => $this->commercialStateViewData($incident),
             'canRequestSerialNumber' => $actionVisibility['canRequestSerialNumber'],
             'canRequestCorrectSerial' => $actionVisibility['canRequestCorrectSerial'],
             'canCustomerNotResponding' => $actionVisibility['canCustomerNotResponding'],
@@ -1049,6 +1054,7 @@ class Customer360Service
                 'last_interaction_at' => null,
                 'last_call' => null,
             ],
+            'commercialState' => $this->commercialStateViewData($incident),
             'canRequestSerialNumber' => false,
             'canRequestCorrectSerial' => false,
             'canCustomerNotResponding' => false,
@@ -1094,5 +1100,19 @@ class Customer360Service
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
             'communicationActionStatuses' => $this->communicationActionStatusPresenter->forIncident($incident, auth()->user()),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function commercialStateViewData(Incident $incident): ?array
+    {
+        if (! $this->commercialStateResolver->enabled()) {
+            return null;
+        }
+
+        return $this->commercialStatePresenter->present(
+            $this->commercialStateResolver->forIncident($incident),
+        );
     }
 }

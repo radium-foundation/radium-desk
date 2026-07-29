@@ -18,6 +18,8 @@ final class Customer360CardCatalog
 {
     public const OPERATIONS_HEADER = 'operations_header';
 
+    public const COMMERCIAL_STATE = 'commercial_state';
+
     public const QUICK_ACTIONS = 'quick_actions';
 
     public const EXECUTIVE_SUMMARY = 'executive_summary';
@@ -74,6 +76,13 @@ final class Customer360CardCatalog
                 intendedScope: ContextScope::Case,
                 surface: 'components/c360/operations-header',
                 notes: 'Active case shell: reference, owner, status.',
+            ),
+            new Customer360CardDefinition(
+                key: self::COMMERCIAL_STATE,
+                name: 'Commercial State',
+                intendedScope: ContextScope::Case,
+                surface: 'components/c360/commercial-state',
+                notes: 'Sticky commercial posture banner (BR-04). Always above tabs.',
             ),
             new Customer360CardDefinition(
                 key: self::QUICK_ACTIONS,

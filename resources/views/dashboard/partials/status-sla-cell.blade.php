@@ -5,6 +5,7 @@
 
     $slaStatus = $serviceCase->slaStatus();
     $isCompleted = $order?->isTransactionLocked() ?? false;
+    $commercialEnabled = is_array($commercialState ?? null);
     $durationLabel = match (true) {
         $isCompleted => Order::formatCompactDurationBetween($serviceCase->created_at, $order->completed_at),
         $slaStatus === ServiceCaseSlaStatus::Overdue => 'Over',
@@ -13,7 +14,10 @@
 @endphp
 
 @if($order)
-    <div class="dashboard-status-sla-compact">
+    <div @class([
+        'dashboard-status-sla-compact',
+        'dashboard-status-sla-compact--resolved' => $isCompleted && $commercialEnabled,
+    ])>
         @if($isScheduledWorkspace)
             @if($scheduledAppointmentPresentation ?? null)
                 @include('dashboard.partials.scheduled-appointment-status-pill', [
@@ -22,6 +26,15 @@
             @else
                 —
             @endif
+        @elseif($isCompleted && $commercialEnabled)
+            <span class="dashboard-status-sla-compact__resolved-label">
+                @if($durationLabel)
+                    Resolved in {{ $durationLabel }}
+                @else
+                    Resolved
+                @endif
+            </span>
+            <span class="visually-hidden">{{ $order->completionStatus()->label() }}</span>
         @elseif($isCompleted)
             <span class="dashboard-status-sla-compact__icon"
                   aria-hidden="true">✓</span>
