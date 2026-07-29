@@ -6,6 +6,7 @@ use App\Http\Middleware\TrackTeamMemberActivity;
 use App\Infrastructure\Queue\QueueRouting;
 use App\Services\Platform\PlatformHealthCache;
 use App\Services\SystemSettingsService;
+use App\Support\Scheduling\HostCronLockReleaser;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Foundation\Application;
@@ -35,12 +36,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', TrackTeamMemberActivity::class);
     })
     ->withSchedule(function (Schedule $schedule): void {
+        // Must stay first. Releases Hostinger flock FDs before any later
+        // runInBackground child can inherit them, then stamps the health probe.
         $schedule->call(function (): void {
+            HostCronLockReleaser::releaseInherited();
             PlatformHealthCache::recordSchedulerHeartbeat();
         })
             ->name('operations:scheduler-heartbeat')
-            ->everyMinute()
-            ->withoutOverlapping();
+            ->everyMinute();
 
         // Queue drain: only when QUEUE_WORKER_MODE=scheduler (legacy in-schedule worker).
         // dedicated_cron uses Hostinger Cron #2 — see docs/infrastructure-readiness.md.
@@ -94,6 +97,8 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/outbox-processor.log'));
 
+        // Background is safe only because the heartbeat event (above) releases
+        // inherited Hostinger cron flock FDs before this child is spawned.
         $schedule->command('inbound-email:sync-gmail')
             ->cron(sprintf(
                 '*/%d * * * *',

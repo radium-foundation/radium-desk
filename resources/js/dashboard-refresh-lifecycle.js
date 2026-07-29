@@ -1,16 +1,19 @@
 let refreshInFlightSnapshot = false;
 let pendingDashboardRefreshSnapshot = false;
+let pendingLiveRefreshSnapshot = false;
 let workspaceSessionActiveSnapshot = false;
 let workspaceActiveReasonsSnapshot = [];
 
 export const setRefreshLifecycleState = ({
     refreshInFlight = false,
     pendingDashboardRefresh = false,
+    pendingLiveRefresh = false,
     workspaceSessionActive = false,
     workspaceActiveReasons = [],
 } = {}) => {
     refreshInFlightSnapshot = refreshInFlight;
     pendingDashboardRefreshSnapshot = pendingDashboardRefresh;
+    pendingLiveRefreshSnapshot = pendingLiveRefresh;
     workspaceSessionActiveSnapshot = workspaceSessionActive;
     workspaceActiveReasonsSnapshot = Array.isArray(workspaceActiveReasons)
         ? [...workspaceActiveReasons]
@@ -32,6 +35,7 @@ export const logRefreshLifecycle = (pageRoot, event, detail = null) => {
         at: new Date().toISOString(),
         refreshInFlight: refreshInFlightSnapshot,
         pendingDashboardRefresh: pendingDashboardRefreshSnapshot,
+        pendingLiveRefresh: pendingLiveRefreshSnapshot,
         workspaceSessionActive: workspaceSessionActiveSnapshot,
         workspaceActiveReasons: workspaceActiveReasonsSnapshot,
         documentHidden: document.hidden,

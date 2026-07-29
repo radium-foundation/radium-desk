@@ -235,6 +235,84 @@ class PresenceEngineTest extends TestCase
         $this->assertSame(TeamAvailabilityStatus::Offline, $agent->availability_status);
     }
 
+    public function test_timeout_cleanup_closes_stale_duplicate_open_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Duplicate Session Agent');
+        $presenceEngine = app(PresenceEngineService::class);
+        $fresh = $presenceEngine->startSession($agent);
+        $this->assertNotNull($fresh);
+
+        // Simulate a race that left an older open session behind.
+        $stale = WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subHours(2),
+            'last_activity_at' => now()->subMinutes(45),
+            'last_tick_at' => now()->subMinutes(45),
+        ]);
+
+        $fresh->update([
+            'last_activity_at' => now()->subMinutes(2),
+            'last_tick_at' => now()->subMinutes(2),
+        ]);
+
+        $processed = $presenceEngine->processTimedOutSessions();
+        $this->assertSame(1, $processed);
+
+        $stale->refresh();
+        $fresh->refresh();
+
+        $this->assertFalse($stale->isOpen());
+        $this->assertSame(WorkSessionEndReason::AwayTimeout, $stale->ended_reason);
+        $this->assertTrue($fresh->isOpen());
+    }
+
+    public function test_timeout_cleanup_closes_null_last_activity_open_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('Null Activity Agent');
+        $session = WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subHours(2),
+            'last_activity_at' => null,
+            'last_tick_at' => now()->subHour(),
+        ]);
+
+        $processed = app(PresenceEngineService::class)->processTimedOutSessions();
+        $this->assertSame(1, $processed);
+
+        $session->refresh();
+        $this->assertFalse($session->isOpen());
+        $this->assertSame(WorkSessionEndReason::AwayTimeout, $session->ended_reason);
+    }
+
+    public function test_timeout_cleanup_closes_untracked_role_open_session(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+
+        $owner = User::factory()->create(['name' => 'Untracked Stale Owner']);
+        $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $session = WorkSession::query()->create([
+            'user_id' => $owner->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subHours(2),
+            'last_activity_at' => now()->subMinutes(45),
+            'last_tick_at' => now()->subMinutes(45),
+        ]);
+
+        $processed = app(PresenceEngineService::class)->processTimedOutSessions();
+        $this->assertSame(1, $processed);
+
+        $session->refresh();
+        $this->assertFalse($session->isOpen());
+        $this->assertSame(WorkSessionEndReason::AwayTimeout, $session->ended_reason);
+    }
+
     public function test_lunch_time_is_excluded_from_idle(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 13:35:00', 'Asia/Kolkata'));

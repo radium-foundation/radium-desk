@@ -49,7 +49,9 @@ class QueueHealthProvider implements PlatformHealthProvider
             );
         }
 
-        $snapshot = $this->queueMetrics->latest() ?? $this->queueMetrics->capture();
+        // Always capture live metrics for health — cached snapshots can lag up to 24h
+        // when INFRASTRUCTURE_METRICS_ENABLED is off and falsely keep a backlog warning.
+        $snapshot = $this->queueMetrics->capture();
         [$status, $detail] = $this->assessSnapshot($workerMode, $snapshot, $checkedAt);
 
         return new PlatformHealthComponent(

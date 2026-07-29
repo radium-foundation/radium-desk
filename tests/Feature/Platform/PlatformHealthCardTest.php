@@ -78,6 +78,30 @@ class PlatformHealthCardTest extends TestCase
         $this->assertSame(PlatformHealthStatus::Critical, $payload->status);
     }
 
+    public function test_presence_provider_allows_grace_before_stale_critical(): void
+    {
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        // Within away_timeout + 2 grace window — not Critical for stale sessions.
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subHour(),
+            'last_activity_at' => now()->subMinutes(16),
+            'last_tick_at' => now()->subMinutes(16),
+        ]);
+
+        PlatformHealthCache::recordSchedulerHeartbeat(now());
+        PlatformHealthCache::recordPresenceTimeoutRun(0, 0, now());
+
+        $payload = app(PlatformHealthCardProvider::class)->payload($this->viewer());
+        $presence = collect($payload->meta['components'] ?? [])->firstWhere('key', 'presence');
+
+        $this->assertSame(PlatformHealthStatus::Healthy->value, $presence['status'] ?? null);
+        $this->assertSame(0, $presence['metrics']['stale_sessions'] ?? null);
+    }
+
     public function test_healthy_heartbeats_produce_non_critical_presence_and_scheduler(): void
     {
         PlatformHealthCache::recordSchedulerHeartbeat(now()->subMinute());

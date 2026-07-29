@@ -61,7 +61,7 @@ class AgentDashboardRedesignTest extends TestCase
     {
         $agent = $this->createAgent();
 
-        $this->actingAs($agent)
+        $response = $this->actingAs($agent)
             ->get(route('dashboard'))
             ->assertOk()
             ->assertSee('data-hide-zero-count-queue-tabs="true"', false)
@@ -70,9 +70,35 @@ class AgentDashboardRedesignTest extends TestCase
             ->assertDontSee('dashboard-case-filter-chip__label">Waiting Customer<', false)
             ->assertDontSee('dashboard-case-filter-chip__label">Scheduled<', false)
             ->assertDontSee('dashboard-case-filter-chip__label">Today<', false)
-            ->assertDontSee('dashboard-case-filter-chip__label">Appointments<', false)
-            ->assertDontSee('dashboard-case-filter-chip__label">Waiting<', false)
+            ->assertSee('dashboard-case-filter-chip__label">Appointments<', false)
+            ->assertSee('dashboard-case-filter-chip__label">Waiting<', false)
             ->assertDontSee('dashboard-case-filter-chip__label">Done<', false);
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new \DOMXPath($document);
+
+        foreach (['Appointments', 'Waiting'] as $hiddenLabel) {
+            $tabs = $xpath->query(sprintf(
+                '//a[@role="tab"][contains(concat(" ", normalize-space(@class), " "), " d-none ")][.//span[contains(@class, "dashboard-case-filter-chip__label") and normalize-space()="%s"]]',
+                $hiddenLabel,
+            ));
+
+            $this->assertNotFalse($tabs);
+            $this->assertGreaterThan(
+                0,
+                $tabs->length,
+                "Expected zero-count {$hiddenLabel} tab to remain in the DOM with d-none so live counts can reveal it.",
+            );
+        }
+
+        $activeTabs = $xpath->query(
+            '//a[@role="tab"][contains(concat(" ", normalize-space(@class), " "), " is-active ")][.//span[contains(@class, "dashboard-case-filter-chip__label") and normalize-space()="Active"]]',
+        );
+
+        $this->assertNotFalse($activeTabs);
+        $this->assertGreaterThan(0, $activeTabs->length);
+        $this->assertStringNotContainsString(' d-none ', ' '.$activeTabs->item(0)?->getAttribute('class').' ');
     }
 
     public function test_needs_attention_count_combines_attention_and_waiting_follow_ups(): void

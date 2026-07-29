@@ -209,28 +209,66 @@ class PresenceEngineService
     {
         $at ??= now();
         $processed = 0;
+        $cutoff = $at->copy()->subMinutes($this->awayTimeoutMinutes());
 
         WorkSession::query()
             ->with('user')
             ->whereNull('logout_at')
-            ->where('last_activity_at', '<=', $at->copy()->subMinutes($this->awayTimeoutMinutes()))
+            ->where(function ($query) use ($cutoff): void {
+                $query->where('last_activity_at', '<=', $cutoff)
+                    ->orWhere(function ($orphaned) use ($cutoff): void {
+                        // Corrupted rows with null last_activity_at must not stick open forever.
+                        $orphaned->whereNull('last_activity_at')
+                            ->where('login_at', '<=', $cutoff);
+                    });
+            })
             ->orderBy('id')
             ->each(function (WorkSession $session) use ($at, &$processed): void {
-                $user = $session->user;
-
-                if ($user === null || ! $this->tracksPresence($user)) {
-                    return;
-                }
-
-                if ($this->presenceStatus($user, $at) !== PresenceStatus::Away) {
-                    return;
-                }
-
-                $this->forceLogoutUser($user);
+                // Close the specific stale row. Do not route through openSessionFor()/
+                // presenceStatus($user): duplicate open sessions can make the latest row
+                // look active while an older stale row keeps health Critical forever.
+                $this->forceCloseTimedOutSession($session, $at);
                 $processed++;
             });
 
         return $processed;
+    }
+
+    /**
+     * Close one open work session for away-timeout cleanup.
+     *
+     * Unlike forceLogoutUser(), this always finalizes the given session id. Auth
+     * invalidation and availability sync run only when the user has no open session left.
+     */
+    public function forceCloseTimedOutSession(WorkSession $session, ?Carbon $at = null): void
+    {
+        if ($session->logout_at !== null) {
+            return;
+        }
+
+        $at ??= now();
+        $session->loadMissing('user');
+        $user = $session->user;
+
+        $this->tickSession($session, $at, hasActivity: false);
+        $this->finalizeSession($session, $at, WorkSessionEndReason::AwayTimeout);
+
+        if ($user === null) {
+            return;
+        }
+
+        if ($this->openSessionFor($user) !== null) {
+            $this->refreshAttendanceRegister($user, $at, $session);
+
+            return;
+        }
+
+        $this->availabilityService->syncFromSessionEnd(
+            $user,
+            TeamAvailabilityChangeSource::Timeout,
+        );
+        DB::table('sessions')->where('user_id', $user->id)->delete();
+        $this->refreshAttendanceRegister($user, $at, $session);
     }
 
     public function openSessionFor(User $user): ?WorkSession
@@ -546,7 +584,9 @@ class PresenceEngineService
     {
         $session = $this->openSessionFor($user);
 
-        return $session?->last_activity_at ?? $user->last_active_at;
+        return $session?->last_activity_at
+            ?? $session?->login_at
+            ?? $user->last_active_at;
     }
 
     private function statusFromInactivityMinutes(int $inactivityMinutes): PresenceStatus

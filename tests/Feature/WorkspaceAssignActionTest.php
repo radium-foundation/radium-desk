@@ -121,7 +121,10 @@ class WorkspaceAssignActionTest extends TestCase
             ->assertJsonPath('refresh.kpis', true)
             ->assertJsonStructure([
                 'refresh' => [
-                    'kpis_html' => ['kpi_strip_html'],
+                    'kpis_html' => [
+                        'kpi_strip_html',
+                        'service_case_filter_count_variants',
+                    ],
                     'replace_row' => ['incident_id', 'html', 'strategy'],
                 ],
             ])

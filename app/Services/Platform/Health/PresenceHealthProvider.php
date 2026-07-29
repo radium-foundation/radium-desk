@@ -29,9 +29,18 @@ class PresenceHealthProvider implements PlatformHealthProvider
     {
         $checkedAt = now();
         $awayTimeout = max(1, (int) config('presence.away_timeout_minutes', 15));
+        // Grace: allow one missed cron minute before Critical (cleanup runs everyMinute).
+        $staleAfterMinutes = $awayTimeout + 2;
         $staleCount = WorkSession::query()
             ->whereNull('logout_at')
-            ->where('last_activity_at', '<=', $checkedAt->copy()->subMinutes($awayTimeout))
+            ->where(function ($query) use ($checkedAt, $staleAfterMinutes): void {
+                $cutoff = $checkedAt->copy()->subMinutes($staleAfterMinutes);
+                $query->where('last_activity_at', '<=', $cutoff)
+                    ->orWhere(function ($orphaned) use ($cutoff): void {
+                        $orphaned->whereNull('last_activity_at')
+                            ->where('login_at', '<=', $cutoff);
+                    });
+            })
             ->count();
         $lastRunAt = PlatformHealthCache::presenceLastTimeoutRunAt();
         $processed = PlatformHealthCache::presenceLastTimeoutProcessed();
@@ -68,6 +77,7 @@ class PresenceHealthProvider implements PlatformHealthProvider
                 'last_timeout_run_at' => $lastRunAt?->toIso8601String(),
                 'last_timeout_processed' => $processed,
                 'away_timeout_minutes' => $awayTimeout,
+                'stale_after_minutes' => $staleAfterMinutes,
             ],
         );
     }

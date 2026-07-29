@@ -176,7 +176,9 @@ const handleKpisUpdated = async (payload) => {
         return;
     }
 
-    cancelHybridKpiReconcile();
+    // Do not cancel a pending hybrid KPI reconcile. Hybrid membership changes and
+    // classic KPI events can interleave; the reconciler is the authoritative catch-up
+    // for Ready Queue / filter counts after assignment-style fan-out.
 
     const pageRoot = document.getElementById('dashboard-page');
     const liveScope = pageRoot?.dataset.liveScope ?? 'operations_scope';

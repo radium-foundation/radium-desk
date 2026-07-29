@@ -2,6 +2,7 @@
 
 namespace App\Infrastructure\Queue;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -84,7 +85,7 @@ class QueueMetricsService
             return 0;
         }
 
-        return (int) DB::table('jobs')->count();
+        return (int) $this->runnableJobsQuery()->count();
     }
 
     private function countFailedJobs(): int
@@ -139,14 +140,36 @@ class QueueMetricsService
             return null;
         }
 
-        $createdAt = DB::table('jobs')
-            ->orderBy('created_at')
-            ->value('created_at');
+        // Age by when the job became runnable, not original created_at.
+        // created_at stays fixed across backoff releases and falsely trips health
+        // during intentional delays (e.g. RadiumBox enrichment 1800s backoff).
+        $availableAt = $this->runnableJobsQuery()
+            ->orderBy('available_at')
+            ->value('available_at');
 
-        if ($createdAt === null) {
+        if ($availableAt === null) {
             return null;
         }
 
-        return Carbon::parse($createdAt);
+        return Carbon::createFromTimestamp((int) $availableAt);
+    }
+
+    /**
+     * Jobs a database worker can claim right now (matches Laravel DatabaseQueue).
+     */
+    private function runnableJobsQuery(): Builder
+    {
+        $now = now()->getTimestamp();
+        $retryAfter = (int) config('queue.connections.database.retry_after', 90);
+
+        return DB::table('jobs')->where(function (Builder $query) use ($now, $retryAfter): void {
+            $query->where(function (Builder $query) use ($now): void {
+                $query->whereNull('reserved_at')
+                    ->where('available_at', '<=', $now);
+            })->orWhere(function (Builder $query) use ($now, $retryAfter): void {
+                $query->whereNotNull('reserved_at')
+                    ->where('reserved_at', '<=', $now - $retryAfter);
+            });
+        });
     }
 }

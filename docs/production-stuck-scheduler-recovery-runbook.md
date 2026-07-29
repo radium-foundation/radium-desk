@@ -13,10 +13,14 @@
 ## Likely root cause (current Hostinger topology)
 
 1. Cron runs `php artisan schedule:run` every minute.
-2. Scheduled events use `withoutOverlapping()` mutexes.
-3. A long-running event (historically `inbound-email:sync-gmail`) can hold a host-level flock / mutex.
-4. Later events in the same `schedule:run` — including `queue:work --stop-when-empty` — never start.
-5. Backlog compounds: enrichment jobs, automation-pending, Ready Queue catch-up all stall.
+2. Hostinger wraps that cron in `flock` and passes the lock FD into the PHP process (`/tmp/cron_lock_*`).
+3. Scheduled events use `withoutOverlapping()` mutexes.
+4. `inbound-email:sync-gmail` uses `runInBackground()`. Background shells inherit the host flock FD.
+5. A long/hung Gmail sync keeps the flock held after `schedule:run` exits.
+6. Later Hostinger cron ticks fail to acquire flock → **no** `schedule:run` at all (heartbeat, presence, outbox stall).
+7. Separately, a long foreground event can also starve later events in the same `schedule:run` pass.
+
+**Permanent mitigation in code:** the first scheduled event (`operations:scheduler-heartbeat`) calls `HostCronLockReleaser::releaseInherited()` before recording the heartbeat, so background children never inherit the host flock. Do not remove that call while Gmail sync stays `runInBackground()`, and keep the heartbeat as the first event without `withoutOverlapping()`.
 
 ## Safety rules
 
@@ -206,6 +210,8 @@ These remain available and are not replaced by this hotfix:
 ## Post-incident
 
 1. Confirm cron still runs `schedule:run` every minute.
-2. Confirm queue worker log advances each minute.
-3. Hand off root-cause scheduler contention to the scheduler redesign track (separate PR / chat).
-4. Keep this runbook for the next stuck-scheduler incident.
+2. Confirm Super Admin Health → Scheduler heartbeat is fresh (< 3 minutes).
+3. Confirm no process holds `/tmp/cron_lock_*` via `ls -l /proc/<pid>/fd` on `inbound-email:sync-gmail`.
+4. Confirm queue worker log advances each minute.
+5. If flock was held by a hung background sync: `kill <pid>` the sync + its `sh -c` wrapper, then `php artisan schedule:clear-cache`.
+6. Keep this runbook for the next stuck-scheduler incident.

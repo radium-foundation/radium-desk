@@ -36,9 +36,10 @@ class WorkspaceRefreshRenderer
         ];
 
         if ($effects->refreshKpis) {
-            $stats = $this->dashboardService->statsFor($user);
+            $metrics = $this->dashboardService->liveReverbMetricsFor($user);
             $refresh['kpis_html'] = [
-                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats, $user),
+                'kpi_strip_html' => $metrics['kpi_strip_html'],
+                'service_case_filter_count_variants' => $metrics['service_case_filter_count_variants'],
             ];
         }
 
@@ -235,9 +236,10 @@ class WorkspaceRefreshRenderer
         ];
 
         if ($effects->refreshKpis) {
-            $stats = $this->dashboardService->statsFor($user);
+            $metrics = $this->dashboardService->liveReverbMetricsFor($user);
             $refresh['kpis_html'] = [
-                'kpi_strip_html' => $this->dashboardService->renderKpiStrip($stats, $user),
+                'kpi_strip_html' => $metrics['kpi_strip_html'],
+                'service_case_filter_count_variants' => $metrics['service_case_filter_count_variants'],
             ];
         }
 

@@ -86,6 +86,8 @@ const applyAdminUserKpis = (adminKpis) => {
 
 let refreshInFlight = false;
 let pendingDashboardRefresh = null;
+/** @type {{ pageRoot: HTMLElement, source: string, options: Record<string, unknown> } | null} */
+let pendingLiveRefresh = null;
 let dashboardRefreshHooks = {};
 
 const syncRefreshLifecycleState = (pageRoot) => {
@@ -94,11 +96,35 @@ const syncRefreshLifecycleState = (pageRoot) => {
     setRefreshLifecycleState({
         refreshInFlight,
         pendingDashboardRefresh: pendingDashboardRefresh !== null,
+        pendingLiveRefresh: pendingLiveRefresh !== null,
         workspaceSessionActive: session.isActive(),
         workspaceActiveReasons: session.getActiveReasons(),
     });
 
     return pageRoot;
+};
+
+/**
+ * Coalesce concurrent refreshDashboard calls that hit refreshInFlight.
+ * Prefer a full refresh when either side needs rows; otherwise keep kpisOnly.
+ */
+const coalescePendingLiveRefresh = (previous, next) => {
+    if (!previous) {
+        return next;
+    }
+
+    const previousKpisOnly = previous.options?.kpisOnly === true;
+    const nextKpisOnly = next.options?.kpisOnly === true;
+
+    return {
+        pageRoot: next.pageRoot ?? previous.pageRoot,
+        source: next.source || previous.source,
+        options: {
+            ...previous.options,
+            ...next.options,
+            kpisOnly: previousKpisOnly && nextKpisOnly,
+        },
+    };
 };
 
 const toIsoTimestamp = (epochMs) => new Date(epochMs).toISOString();
@@ -264,10 +290,17 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
 });
 
 const buildQueuedPartialRefreshPayload = (data) => {
-    const payload = {
-        kpi_strip_html: data.kpi_strip_html,
-        service_case_filter_counts: data.service_case_filter_counts,
-    };
+    const payload = {};
+
+    // Omit undefined keys so workspace queue merges cannot wipe earlier KPI/count
+    // payloads with a later rows-only partial update.
+    if (data.kpi_strip_html !== undefined) {
+        payload.kpi_strip_html = data.kpi_strip_html;
+    }
+
+    if (data.service_case_filter_counts !== undefined) {
+        payload.service_case_filter_counts = data.service_case_filter_counts;
+    }
 
     // Only include an authoritative row set when the caller supplied one.
     // Missing rows must stay missing so flush does not wipe the grid.
@@ -326,12 +359,17 @@ const mergePendingDashboardRefresh = (previous, next) => {
         return next;
     }
 
-    // Shallow merge keeps an earlier authoritative `rows` set when a later KPI-only
-    // payload omits rows (last-write-wins would otherwise discard the row list).
-    return {
-        ...previous,
-        ...next,
-    };
+    // Merge defined keys only. A later rows-only partial must not clobber earlier
+    // kpi_strip_html / service_case_filter_counts with undefined via object spread.
+    const merged = { ...previous };
+
+    Object.entries(next).forEach(([key, value]) => {
+        if (value !== undefined) {
+            merged[key] = value;
+        }
+    });
+
+    return merged;
 };
 
 const queueDashboardRefresh = (data) => {
@@ -390,10 +428,18 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
     }
 
     if (refreshInFlight) {
-        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+        pendingLiveRefresh = coalescePendingLiveRefresh(pendingLiveRefresh, {
+            pageRoot,
+            source,
+            options: { kpisOnly },
+        });
+
+        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_deferred', {
             source,
             reason: 'refresh_in_flight',
             refreshInFlightBeforeEntry: true,
+            deferredSource: pendingLiveRefresh.source,
+            deferredKpisOnly: pendingLiveRefresh.options?.kpisOnly === true,
         });
 
         return;
@@ -549,6 +595,19 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
             requestFinishedAt: toIsoTimestamp(requestFinishedAt),
             durationMs: requestFinishedAt - requestStartedAt,
         });
+
+        const deferred = pendingLiveRefresh;
+        pendingLiveRefresh = null;
+
+        if (deferred?.pageRoot) {
+            logRefreshLifecycle(syncRefreshLifecycleState(deferred.pageRoot), 'refreshDashboard_deferred_flush', {
+                source: deferred.source,
+                kpisOnly: deferred.options?.kpisOnly === true,
+                priorSource: source,
+            });
+
+            void refreshDashboard(deferred.pageRoot, deferred.source, deferred.options ?? {});
+        }
     }
 };
 
@@ -560,6 +619,7 @@ configureDashboardPolling({
 export const resetLiveDashboardRefreshStateForTests = () => {
     refreshInFlight = false;
     pendingDashboardRefresh = null;
+    pendingLiveRefresh = null;
 };
 
 export const configureLiveDashboard = (hooks = {}) => {

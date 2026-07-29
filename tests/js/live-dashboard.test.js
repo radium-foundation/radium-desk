@@ -260,7 +260,7 @@ describe('live dashboard refresh session integration', () => {
         }
     });
 
-    it('logs refresh lifecycle suppression when refresh is already in flight', async () => {
+    it('defers a second refresh while one is in flight and flushes it afterward', async () => {
         resetLiveDashboardRefreshStateForTests();
         vi.useRealTimers();
         stopPolling();
@@ -268,12 +268,28 @@ describe('live dashboard refresh session integration', () => {
         document.getElementById('dashboard-page').dataset.realtimeLifecycleDebug = '1';
         const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-        let resolveFetch;
-        const fetchMock = vi.fn().mockImplementation(() => new Promise((resolve) => {
-            resolveFetch = resolve;
-        }));
+        let resolveFirstFetch;
+        const fetchMock = vi.fn()
+            .mockImplementationOnce(() => new Promise((resolve) => {
+                resolveFirstFetch = resolve;
+            }))
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    kpi_strip_html: 'stats-fresh',
+                    service_case_filter_counts: {
+                        all: 10,
+                        pending_admin: 10,
+                    },
+                }),
+            });
 
         vi.stubGlobal('fetch', fetchMock);
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
 
         const pageRoot = document.getElementById('dashboard-page');
         const firstRefresh = refreshDashboard(pageRoot, 'test-first');
@@ -282,9 +298,9 @@ describe('live dashboard refresh session integration', () => {
             await Promise.resolve();
         }
 
-        expect(fetchMock).toHaveBeenCalled();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
 
-        const secondRefresh = refreshDashboard(pageRoot, 'test-second');
+        void refreshDashboard(pageRoot, 'hybrid-kpi-reconcile', { kpisOnly: true });
 
         await Promise.resolve();
 
@@ -294,21 +310,112 @@ describe('live dashboard refresh session integration', () => {
 
         expect(payloads.some((payload) => payload.event === 'refreshDashboard_entered')).toBe(true);
         expect(payloads.some((payload) => (
-            payload.event === 'refreshDashboard_suppressed'
+            payload.event === 'refreshDashboard_deferred'
             && payload.reason === 'refresh_in_flight'
         ))).toBe(true);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
 
-        resolveFetch({
+        resolveFirstFetch({
             ok: true,
             json: async () => ({
-                kpi_strip_html: 'stats-new',
+                kpi_strip_html: 'stats-stale',
+                service_case_filter_counts: {
+                    all: 1,
+                    pending_admin: 1,
+                },
                 rows: [],
                 service_cases_empty: true,
                 service_cases_empty_html: '',
             }),
         });
 
+        await firstRefresh;
+
+        for (let attempt = 0; attempt < 40 && fetchMock.mock.calls.length < 2; attempt += 1) {
+            await Promise.resolve();
+        }
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+
+        for (let attempt = 0; attempt < 40; attempt += 1) {
+            if (document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent === '(10)') {
+                break;
+            }
+
+            await Promise.resolve();
+        }
+
+        expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(10)');
+
+        const deferredPayloads = warnSpy.mock.calls
+            .filter(([label]) => label === '[dashboard-refresh-lifecycle]')
+            .map(([, payload]) => payload);
+
+        expect(deferredPayloads.some((payload) => (
+            payload.event === 'refreshDashboard_deferred_flush'
+            && payload.source === 'hybrid-kpi-reconcile'
+        ))).toBe(true);
+
         warnSpy.mockRestore();
+    });
+
+    it('reveals a previously hidden zero-count queue tab when the count becomes positive', () => {
+        document.body.innerHTML = `
+            <div class="dashboard-service-cases-card" data-hide-zero-count-queue-tabs="true">
+                <a href="#" role="tab" class="is-active">
+                    <span data-dashboard-case-filter-count="attention">(1)</span>
+                </a>
+                <a href="#" role="tab" class="d-none">
+                    <span data-dashboard-case-filter-count="action_required">(0)</span>
+                </a>
+            </div>
+        `;
+
+        applyFilterCounts({
+            attention: 1,
+            action_required: 10,
+        });
+
+        const readyTab = document.querySelector('[data-dashboard-case-filter-count="action_required"]')
+            ?.closest('[role="tab"]');
+
+        expect(readyTab?.classList.contains('d-none')).toBe(false);
+        expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent).toBe('(10)');
+    });
+
+    it('preserves queued filter counts when a later rows-only partial arrives during a workspace session', async () => {
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        queueDashboardRefresh({
+            kpi_strip_html: 'stats-kpi',
+            service_case_filter_counts: {
+                all: 15,
+                pending_admin: 10,
+            },
+        });
+
+        queueDashboardRefresh({
+            rows: [{
+                incident_id: 10,
+                html: '<tr id="service-case-row-10"><td>SC00010 updated</td></tr>',
+            }],
+            service_cases_empty: false,
+            service_cases_empty_html: '',
+        });
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-kpi');
+        expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(10)');
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 updated');
     });
 
     it('applies KPI strip and filter counts only when kpisOnly is set', async () => {

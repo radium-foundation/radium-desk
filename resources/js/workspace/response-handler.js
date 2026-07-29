@@ -1,4 +1,4 @@
-import { applyKpis as applyDashboardKpis } from '../live-dashboard';
+import { applyKpis as applyDashboardKpis, applyFilterCounts } from '../live-dashboard';
 import { maybeShowSuccessState } from './c360-dialog';
 import { allowWorkspaceModalClose, initWorkspaceDialogShell } from './dialog-shell';
 
@@ -65,6 +65,27 @@ const applyTargets = (targets, hooks) => {
     });
 };
 
+const resolveWorkspaceFilterCounts = (kpisHtml) => {
+    if (!kpisHtml || typeof kpisHtml !== 'object') {
+        return null;
+    }
+
+    if (kpisHtml.service_case_filter_counts && typeof kpisHtml.service_case_filter_counts === 'object') {
+        return kpisHtml.service_case_filter_counts;
+    }
+
+    const variants = kpisHtml.service_case_filter_count_variants;
+
+    if (!variants || typeof variants !== 'object') {
+        return null;
+    }
+
+    const pageRoot = document.getElementById('dashboard-page');
+    const liveScope = pageRoot?.dataset.liveScope ?? 'operations_scope';
+
+    return variants[liveScope] ?? null;
+};
+
 const applyKpis = (refresh) => {
     if (!refresh?.kpis_html) {
         return;
@@ -72,6 +93,7 @@ const applyKpis = (refresh) => {
 
     if (refresh.kpis_html.kpi_strip_html !== undefined) {
         applyDashboardKpis(refresh.kpis_html.kpi_strip_html);
+        applyFilterCounts(resolveWorkspaceFilterCounts(refresh.kpis_html));
 
         return;
     }

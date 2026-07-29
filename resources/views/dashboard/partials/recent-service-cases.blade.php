@@ -109,14 +109,15 @@
                                     ? $legacyServiceCaseFilter
                                     : $queueKey;
                                 $queueCount = $serviceCaseFilterCounts[$filterCountKey] ?? 0;
+                                $hideZeroCountTab = $hideZeroCountTabs && ! $isActiveQueue && $queueCount === 0;
                             @endphp
-                            @continue($hideZeroCountTabs && ! $isActiveQueue && $queueCount === 0)
                             <a href="{{ $queueUrl($queueKey) }}"
                                @class([
                                    'dashboard-case-filter-chip',
                                    'dashboard-case-filter-chip--agent-pill' => $compactAgentLayout,
                                    'dashboard-case-filter-chip--' . ($queueMeta['tone'] ?? 'primary'),
                                    'is-active' => $isActiveQueue,
+                                   'd-none' => $hideZeroCountTab,
                                ])
                                role="tab"
                                @if($isActiveQueue) aria-selected="true" @else aria-selected="false" @endif

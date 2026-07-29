@@ -115,8 +115,8 @@ class OperationsSystemHealthService
         if ($snapshot !== null) {
             $queueSnapshot = $snapshot->queueSnapshot();
         } else {
-            $queueMetricsService = app(\App\Infrastructure\Queue\QueueMetricsService::class);
-            $queueSnapshot = $queueMetricsService->latest() ?? $queueMetricsService->capture();
+            // Live capture for health — avoid stale cached metrics (24h TTL).
+            $queueSnapshot = app(\App\Infrastructure\Queue\QueueMetricsService::class)->capture();
         }
 
         $prefix = "Queue worker ({$workerMode->value})";

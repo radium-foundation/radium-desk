@@ -18,9 +18,17 @@ class ProcessPresenceTimeoutsCommand extends Command
         $processed = $presenceEngine->processTimedOutSessions();
 
         $awayTimeout = max(1, (int) config('presence.away_timeout_minutes', 15));
+        $staleAfterMinutes = $awayTimeout + 2;
+        $cutoff = now()->subMinutes($staleAfterMinutes);
         $staleCount = WorkSession::query()
             ->whereNull('logout_at')
-            ->where('last_activity_at', '<=', now()->subMinutes($awayTimeout))
+            ->where(function ($query) use ($cutoff): void {
+                $query->where('last_activity_at', '<=', $cutoff)
+                    ->orWhere(function ($orphaned) use ($cutoff): void {
+                        $orphaned->whereNull('last_activity_at')
+                            ->where('login_at', '<=', $cutoff);
+                    });
+            })
             ->count();
 
         PlatformHealthCache::recordPresenceTimeoutRun(

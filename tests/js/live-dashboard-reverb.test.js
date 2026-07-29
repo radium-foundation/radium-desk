@@ -253,48 +253,54 @@ describe('live dashboard reverb handlers', () => {
         expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010');
     });
 
-    it('schedules KPI reconcile after hybrid row merge and cancels when KPI event arrives', async () => {
-        const pageRoot = document.getElementById('dashboard-page');
-        pageRoot.dataset.liveUrl = '/dashboard/live';
-
-        vi.stubGlobal('requestAnimationFrame', (callback) => {
-            callback(0);
-
-            return 1;
-        });
-
-        const fetchMock = vi.fn().mockResolvedValue({
-            ok: true,
-            json: async () => ({
-                rows: [{
-                    incident_id: 10,
-                    html: '<tr id="service-case-row-10"><td>SC00010 hybrid</td></tr>',
-                }],
-                remove_incident_ids: [],
-            }),
-        });
-
-        vi.stubGlobal('fetch', fetchMock);
-
-        const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
-
-        await handleHybridIncidentsUpdated(pageRoot, { incident_ids: [10] });
-
-        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 hybrid');
-        expect(fetchMock).toHaveBeenCalledTimes(1);
-
-        await handleKpisUpdated({ kpi_strip_html: 'stats-live' });
-
-        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-live');
-
+    it('schedules KPI reconcile after hybrid row merge and keeps it after a KPI event', async () => {
         vi.useFakeTimers();
 
         try {
-            await vi.advanceTimersByTimeAsync(1000);
-            expect(refreshSpy).not.toHaveBeenCalled();
+            const pageRoot = document.getElementById('dashboard-page');
+            pageRoot.dataset.liveUrl = '/dashboard/live';
+
+            vi.stubGlobal('requestAnimationFrame', (callback) => {
+                callback(0);
+
+                return 1;
+            });
+
+            const fetchMock = vi.fn().mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    rows: [{
+                        incident_id: 10,
+                        html: '<tr id="service-case-row-10"><td>SC00010 hybrid</td></tr>',
+                    }],
+                    remove_incident_ids: [],
+                }),
+            });
+
+            vi.stubGlobal('fetch', fetchMock);
+
+            const refreshSpy = vi.spyOn(liveDashboard, 'refreshDashboard').mockResolvedValue(undefined);
+
+            await handleHybridIncidentsUpdated(pageRoot, { incident_ids: [10] });
+
+            expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 hybrid');
+            expect(fetchMock).toHaveBeenCalledTimes(1);
+
+            await handleKpisUpdated({ kpi_strip_html: 'stats-live' });
+
+            expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-live');
+
+            await vi.advanceTimersByTimeAsync(500);
+
+            expect(refreshSpy).toHaveBeenCalledWith(
+                pageRoot,
+                'hybrid-kpi-reconcile',
+                { kpisOnly: true },
+            );
+
+            refreshSpy.mockRestore();
         } finally {
             vi.useRealTimers();
-            refreshSpy.mockRestore();
         }
     });
 
