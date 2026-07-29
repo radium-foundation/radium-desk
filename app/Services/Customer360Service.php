@@ -38,6 +38,8 @@ use App\Services\Timeline\TimelineService;
 use App\Support\Customer360\Customer360CommunicationActionStatusPresenter;
 use App\Support\Customer360\Customer360HealthCardPresenter;
 use App\Support\Customer360\Customer360InsightsPresenter;
+use App\Support\Customer360\CaseIntelligenceAssembler;
+use App\Support\Customer360\CaseIntelligenceV2OverviewPresenter;
 use App\Support\Customer360\Customer360IraAdvisorPresenter;
 use App\Support\Customer360\Customer360IraPanelPresenter;
 use App\Support\Customer360\Customer360OverflowMenuPresenter;
@@ -76,6 +78,8 @@ class Customer360Service
         private readonly Customer360InsightsPresenter $insightsPresenter,
         private readonly Customer360IraAdvisorPresenter $iraAdvisorPresenter,
         private readonly Customer360IraPanelPresenter $iraPanelPresenter,
+        private readonly CaseIntelligenceAssembler $caseIntelligenceAssembler,
+        private readonly CaseIntelligenceV2OverviewPresenter $caseIntelligenceV2OverviewPresenter,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly Customer360CommunicationActionStatusPresenter $communicationActionStatusPresenter,
         private readonly Customer360RecentCommunicationService $recentCommunicationService,
@@ -248,6 +252,23 @@ class Customer360Service
                 translateUrl: $translateUrl,
                 workbench: $this->aiWorkbenchService->fromSnapshot($snapshot),
             );
+
+            if ($this->caseIntelligenceAssembler->enabled()) {
+                $aggregate = $this->caseIntelligenceAssembler->fromSnapshot($snapshot, $incident);
+                $iraV2 = $this->caseIntelligenceV2OverviewPresenter->present(
+                    $aggregate,
+                    $incident,
+                    $iraPanel,
+                );
+
+                return [
+                    'html' => view('customer-360.partials.executive-summary', [
+                        'incident' => $incident,
+                        'iraPanel' => null,
+                        'iraV2' => $iraV2,
+                    ])->render(),
+                ];
+            }
         } else {
             $executiveSummary = $this->legacyExecutiveSummary($incident);
 
@@ -269,6 +290,7 @@ class Customer360Service
             'html' => view('customer-360.partials.executive-summary', [
                 'incident' => $incident,
                 'iraPanel' => $iraPanel,
+                'iraV2' => null,
             ])->render(),
         ];
     }

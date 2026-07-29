@@ -5,6 +5,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | IRA v2 Overview (CaseIntelligence aggregate + Signal Bar)
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Customer 360 Overview renders the Phase-1 CaseIntelligence
+    | presentation (Signal Bar + human-readable overview). The existing
+    | CaseIntelligenceEngine / snapshot builders are reused — not replaced.
+    | Default OFF for instant rollback to ira-command-center.
+    |
+    */
+    'v2' => [
+        'enabled' => (bool) env('IRA_V2_ENABLED', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Customer 360 Case Intelligence Engine (IRA v2 foundation)
     |--------------------------------------------------------------------------
     |

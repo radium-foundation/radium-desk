@@ -17666,3 +17666,153 @@ body:has(.settings-center) .toast-container {
         grid-template-columns: repeat(8, minmax(0, 1fr));
     }
 }
+
+/* IRA v2 Phase-1 Signal Bar + Overview */
+.c360-ira-v2-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.c360-ira-v2-signal-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+    gap: 0.5rem;
+    margin: 0 0 0.75rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.65rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: #f8fafc;
+}
+
+.c360-ira-v2-signal {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 0.45rem;
+    background: #fff;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.c360-ira-v2-signal-label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.c360-ira-v2-signal-value {
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: #0f172a;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.c360-ira-v2-signal--nba .c360-ira-v2-signal-value {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.c360-ira-v2-signal-score {
+    margin-left: 0.25rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.c360-ira-v2-comm-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.55rem;
+    white-space: normal;
+}
+
+.c360-ira-v2-comm-grid span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.c360-ira-v2-comm-grid .bi {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+.c360-ira-v2-signal--danger {
+    border-color: rgba(248, 113, 113, 0.45);
+    background: #fef2f2;
+}
+
+.c360-ira-v2-signal--warning {
+    border-color: rgba(251, 191, 36, 0.45);
+    background: #fffbeb;
+}
+
+.c360-ira-v2-signal--info,
+.c360-ira-v2-signal--positive {
+    border-color: rgba(125, 211, 252, 0.55);
+    background: #f0f9ff;
+}
+
+.c360-ira-v2-signal--muted {
+    background: #f8fafc;
+}
+
+.c360-ira-v2-body {
+    margin-top: 0.15rem;
+}
+
+.c360-ira-v2-story-grid {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.c360-ira-v2-story-title {
+    margin: 0 0 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.c360-ira-v2-story-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #334155;
+    font-size: 0.875rem;
+}
+
+.c360-ira-v2-story-list li + li {
+    margin-top: 0.2rem;
+}
+
+.c360-ira-v2-comms-brief {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #334155;
+    line-height: 1.45;
+}
+
+.c360-ira-v2-evidence-note {
+    margin: 0.75rem 0 0;
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+@media (max-width: 767.98px) {
+    .c360-ira-v2-signal-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .c360-ira-v2-signal--nba,
+    .c360-ira-v2-signal--comms {
+        grid-column: 1 / -1;
+    }
+}

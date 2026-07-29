@@ -1,4 +1,9 @@
-@if(!empty($iraPanel))
+@if(!empty($iraV2))
+    <x-c360.ira-v2-overview
+        :overview="$iraV2"
+        :incident="$incident"
+    />
+@elseif(!empty($iraPanel))
     <x-c360.ira-command-center
         :panel="$iraPanel"
         :incident="$incident"

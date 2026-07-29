@@ -153,11 +153,15 @@ class CommunicationSummaryBuilder
             if (str_contains($label, 'email')) {
                 return 'email';
             }
+            if (str_contains($label, 'telegram')) {
+                return 'telegram';
+            }
         }
 
         $title = strtolower($event->title);
 
         return match (true) {
+            str_contains($title, 'telegram') => 'telegram',
             str_contains($title, 'email') => 'email',
             str_contains($title, 'call'), str_contains($title, 'phone') => 'phone',
             default => 'whatsapp',
