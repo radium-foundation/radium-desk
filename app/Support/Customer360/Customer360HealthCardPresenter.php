@@ -2,16 +2,26 @@
 
 namespace App\Support\Customer360;
 
+use App\Contracts\Context\ProvidesContextScope;
+use App\Enums\ContextScope;
 use App\Enums\IncidentStatus;
 use App\Enums\SupportAppointmentStatus;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Support\AppDateFormatter;
+use App\Support\Context\DeclaresContextScope;
 use Illuminate\Support\Carbon;
 
-class Customer360HealthCardPresenter
+class Customer360HealthCardPresenter implements ProvidesContextScope
 {
+    use DeclaresContextScope;
+
+    public function contextScope(): ContextScope
+    {
+        return ContextScope::Case;
+    }
+
     /**
      * @param  array<string, mixed>  $healthCard
      * @param  array<string, int>  $summary

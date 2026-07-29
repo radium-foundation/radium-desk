@@ -2,7 +2,9 @@
 
 namespace App\Support\Customer360;
 
+use App\Contracts\Context\ProvidesContextScope;
 use App\Enums\CommunicationActionLifecycleStatus;
+use App\Enums\ContextScope;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\User;
@@ -11,16 +13,24 @@ use App\Services\CommunicationActions\CommunicationActionLifecycleAuditService;
 use App\Services\CommunicationActions\CommunicationActionLifecycleService;
 use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Support\AppDateFormatter;
+use App\Support\Context\DeclaresContextScope;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
-final class Customer360CommunicationActionStatusPresenter
+final class Customer360CommunicationActionStatusPresenter implements ProvidesContextScope
 {
+    use DeclaresContextScope;
+
     public function __construct(
         private readonly CommunicationActionRegistry $registry,
         private readonly CommunicationActionEligibilityService $eligibilityService,
         private readonly CommunicationActionLifecycleService $lifecycleService,
     ) {}
+
+    public function contextScope(): ContextScope
+    {
+        return ContextScope::Case;
+    }
 
     /**
      * @return list<array{

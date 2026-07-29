@@ -2,6 +2,8 @@
 
 namespace App\Support\Customer360;
 
+use App\Contracts\Context\ProvidesContextScope;
+use App\Enums\ContextScope;
 use App\Enums\IncidentStatus;
 use App\Enums\OrderStatus;
 use App\Enums\SupportAppointmentStatus;
@@ -12,10 +14,18 @@ use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\SupportAppointment;
 use App\Services\SerialValidation\RequestCorrectSerialAuditService;
+use App\Support\Context\DeclaresContextScope;
 
-class Customer360InsightsPresenter
+class Customer360InsightsPresenter implements ProvidesContextScope
 {
+    use DeclaresContextScope;
+
     private const MAX_INSIGHTS = 8;
+
+    public function contextScope(): ContextScope
+    {
+        return ContextScope::Customer;
+    }
 
     /**
      * @param  array<string, mixed>  $healthCardViewModel

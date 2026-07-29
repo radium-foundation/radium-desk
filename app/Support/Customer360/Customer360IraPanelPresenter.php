@@ -2,6 +2,7 @@
 
 namespace App\Support\Customer360;
 
+use App\Contracts\Context\ProvidesContextScope;
 use App\Data\AI\AIWorkbenchDTO;
 use App\Data\AI\IRAExecutiveSummaryDTO;
 use App\Data\Customer360\Intelligence\CaseIntelligenceBlocker;
@@ -13,10 +14,12 @@ use App\Data\Customer360\Intelligence\CommunicationSummary;
 use App\Data\Customer360\Intelligence\CommunicationTouchpoint;
 use App\Data\TimelineEvent;
 use App\Enums\AI\AIRiskLevel;
+use App\Enums\ContextScope;
 use App\Enums\SerialInsightStatus;
 use App\Enums\TimelineEventType;
 use App\Models\Incident;
 use App\Support\AppDateFormatter;
+use App\Support\Context\DeclaresContextScope;
 use App\Support\DeviceModelFormatter;
 use Illuminate\Support\Str;
 
@@ -24,8 +27,10 @@ use Illuminate\Support\Str;
  * Thin IRA Case Intelligence panel presenter.
  * Formats CaseIntelligenceSnapshot for Blade — no domain queries, no business rules.
  */
-class Customer360IraPanelPresenter
+class Customer360IraPanelPresenter implements ProvidesContextScope
 {
+    use DeclaresContextScope;
+
     private const TIMELINE_PREVIEW_LIMIT = 6;
 
     private const COMMUNICATION_ITEM_LIMIT = 8;
@@ -35,6 +40,11 @@ class Customer360IraPanelPresenter
     public function __construct(
         private readonly ExecutiveSummaryPersonEmphasis $personEmphasis,
     ) {}
+
+    public function contextScope(): ContextScope
+    {
+        return ContextScope::Case;
+    }
 
     /**
      * @param  array{requested?: bool, requested_at_label?: string|null}  $correctSerialRequestState

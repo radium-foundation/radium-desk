@@ -2,25 +2,35 @@
 
 namespace App\Support\Customer360;
 
+use App\Contracts\Context\ProvidesContextScope;
 use App\Data\Customer360\Intelligence\CaseIntelligence;
 use App\Data\Customer360\Intelligence\CaseIntelligenceBlocker;
 use App\Data\Customer360\Intelligence\CaseIntelligenceEvidence;
 use App\Data\Customer360\Intelligence\CaseIntelligenceRisk;
 use App\Data\Customer360\Intelligence\CaseStory;
 use App\Enums\AI\AIRiskLevel;
+use App\Enums\ContextScope;
 use App\Models\Incident;
 use App\Support\AppDateFormatter;
+use App\Support\Context\DeclaresContextScope;
 use Illuminate\Support\Str;
 
 /**
  * Formats CaseIntelligence for the Phase-1 Signal Bar + Overview Blade.
  * Presentation only — no domain queries or business rules.
  */
-class CaseIntelligenceV2OverviewPresenter
+class CaseIntelligenceV2OverviewPresenter implements ProvidesContextScope
 {
+    use DeclaresContextScope;
+
     public function __construct(
         private readonly ExecutiveSummaryPersonEmphasis $personEmphasis,
     ) {}
+
+    public function contextScope(): ContextScope
+    {
+        return ContextScope::Case;
+    }
 
     /**
      * @param  array<string, mixed>  $legacyPanel  Existing panel presenter output (action center, translate, etc.)

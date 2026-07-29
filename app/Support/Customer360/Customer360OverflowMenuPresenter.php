@@ -2,7 +2,9 @@
 
 namespace App\Support\Customer360;
 
+use App\Contracts\Context\ProvidesContextScope;
 use App\Enums\CommunicationActionKey;
+use App\Enums\ContextScope;
 use App\Enums\IncidentStatus;
 use App\Models\Incident;
 use App\Models\Order;
@@ -11,16 +13,24 @@ use App\Services\CommunicationActions\CommunicationActionEligibilityService;
 use App\Services\CommunicationActions\CommunicationActionTargetProviderRegistry;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\WorkspaceActionDialogService;
+use App\Support\Context\DeclaresContextScope;
 use Illuminate\Support\Collection;
 
-final class Customer360OverflowMenuPresenter
+final class Customer360OverflowMenuPresenter implements ProvidesContextScope
 {
+    use DeclaresContextScope;
+
     public function __construct(
         private readonly Customer360ActionVisibilityService $visibilityService,
         private readonly WorkspaceActionDialogService $workspaceActionDialogService,
         private readonly CommunicationActionEligibilityService $communicationActionEligibilityService,
         private readonly CommunicationActionTargetProviderRegistry $communicationActionTargetProviderRegistry,
     ) {}
+
+    public function contextScope(): ContextScope
+    {
+        return ContextScope::Case;
+    }
 
     /**
      * @param  array{requested?: bool, requested_at_label?: string|null}  $serialRequestState
