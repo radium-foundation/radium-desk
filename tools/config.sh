@@ -20,5 +20,9 @@ INDEX_BOOTSTRAP_PATH="/home/u215544208/laravel/radium-desk/bootstrap/app.php"
 PHP_BIN="/opt/alt/php84/usr/bin/php"
 COMPOSER_BIN="/usr/local/bin/composer"
 
+# Hostinger Cron #1 must call this wrapper (not bare php artisan schedule:run).
+# See docs/hostinger-scheduler-cron-wrapper.md
+SCHEDULE_RUN_WRAPPER="/home/u215544208/laravel/radium-desk/bin/schedule-run.sh"
+
 # Git branch required for deployment
 DEFAULT_BRANCH="main"

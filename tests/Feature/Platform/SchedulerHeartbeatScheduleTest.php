@@ -12,7 +12,7 @@ class SchedulerHeartbeatScheduleTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_heartbeat_releases_host_flock_before_background_gmail_and_records_last_run(): void
+    public function test_heartbeat_is_first_without_overlap_and_records_last_run_before_background_gmail(): void
     {
         Cache::flush();
 
@@ -44,5 +44,21 @@ class SchedulerHeartbeatScheduleTest extends TestCase
 
         $this->assertNotNull(PlatformHealthCache::schedulerLastRunAt());
         $this->assertLessThanOrEqual(5, PlatformHealthCache::schedulerLastRunAt()->diffInSeconds(now()));
+    }
+
+    public function test_hostinger_schedule_run_wrapper_exists_and_drops_cron_lock_fds(): void
+    {
+        $wrapper = base_path('bin/schedule-run.sh');
+
+        $this->assertFileExists($wrapper);
+        $this->assertTrue(is_executable($wrapper), 'bin/schedule-run.sh must be executable for Hostinger Cron #1');
+
+        $contents = (string) file_get_contents($wrapper);
+
+        $this->assertStringContainsString('cron_lock', $contents);
+        $this->assertStringContainsString('exec', $contents);
+        $this->assertStringContainsString('artisan schedule:run', $contents);
+        $this->assertStringContainsString('php://fd', $contents);
+        $this->assertStringNotContainsString('HostCronLockReleaser', $contents);
     }
 }

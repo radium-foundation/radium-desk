@@ -174,13 +174,23 @@ Hostinger production uses **two** cron entries with **separate** flock locks.
 
 #### Cron #1 — Laravel scheduler
 
+**Required entrypoint:** [`bin/schedule-run.sh`](../bin/schedule-run.sh) (drops inherited Hostinger `/tmp/cron_lock_*` FDs before PHP). See [`docs/hostinger-scheduler-cron-wrapper.md`](hostinger-scheduler-cron-wrapper.md).
+
 Add in Hostinger hPanel → Cron Jobs:
 
 ```cron
-* * * * * cd /home/USER/laravel/radium-desk && /opt/alt/php84/usr/bin/php artisan schedule:run >> /dev/null 2>&1
+* * * * * /home/USER/laravel/radium-desk/bin/schedule-run.sh
 ```
 
-Adjust `USER`, PHP binary, and app path to match your account (see `tools/config.sh` on this project).
+**Exact command for this repository’s production paths** (`tools/config.sh`):
+
+```cron
+* * * * * /home/u215544208/laravel/radium-desk/bin/schedule-run.sh
+```
+
+Do **not** point Cron #1 at bare `php artisan schedule:run` — background Gmail sync can inherit the host flock and starve later ticks (including the scheduler heartbeat).
+
+Adjust `USER` / app path if the account differs. The wrapper uses `PHP_BIN` when set, otherwise `/opt/alt/php84/usr/bin/php`, then `php` on `PATH`.
 
 Runs: heartbeat, outbox, Gmail sync (background), automation snapshot, metrics, IRA/Telegram, etc.  
 Does **not** run `queue:work` when `QUEUE_WORKER_MODE=dedicated_cron`.
@@ -208,9 +218,9 @@ Hostinger may wrap cron commands with `flock` and `timeout` automatically. Cron 
 ```
 Cron #1 every minute          Cron #2 every minute
         ↓                              ↓
-php artisan schedule:run      php artisan queue:work database
-(outbox, gmail, metrics…)     --queue=critical,notifications,default,maintenance
-                               --stop-when-empty --max-time=55
+bin/schedule-run.sh           php artisan queue:work database
+  → php artisan schedule:run  --queue=critical,notifications,default,maintenance
+(outbox, gmail, metrics…)     --stop-when-empty --max-time=55
 ```
 
 **Legacy (scheduler mode — single cron only):**
@@ -218,7 +228,7 @@ php artisan schedule:run      php artisan queue:work database
 ```
 Cron #1 every minute
         ↓
-php artisan schedule:run
+bin/schedule-run.sh → php artisan schedule:run
         ↓
 queue:work --stop-when-empty --max-time=55   (inside schedule, when QUEUE_WORKER_MODE=scheduler)
 ```
@@ -336,7 +346,7 @@ Future integrations add a probe class and register it — no changes to business
 
 | Task | Command |
 |------|---------|
-| Run scheduler (Cron #1) | `php artisan schedule:run` |
+| Run scheduler (Cron #1) | `bin/schedule-run.sh` → `php artisan schedule:run` |
 | Process pending jobs once (Cron #2 or manual) | `php artisan queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1` |
 | List failed jobs | `php artisan queue:failed` |
 | Retry one failed job | `php artisan queue:retry <uuid>` |
@@ -466,7 +476,7 @@ Before VPS migration:
 - [ ] Clone/deploy application; copy `.env`
 - [ ] Import MySQL backup
 - [ ] Set `QUEUE_WORKER_MODE=dedicated_cron` (or `scheduler` for single-cron legacy)
-- [ ] Configure Cron #1: `* * * * * php artisan schedule:run`
+- [ ] Configure Cron #1: `* * * * * /path/to/app/bin/schedule-run.sh`
 - [ ] Configure Cron #2 when using `dedicated_cron` (see §4)
 - [ ] Point DNS; enable SSL
 - [ ] Verify `/up`, webhook endpoint, queue processing
@@ -593,7 +603,7 @@ Instrumentation hooks only write monitoring aggregates to cache and log existing
 ## Quick reference — enable production queue on Hostinger
 
 1. Set `QUEUE_WORKER_MODE=dedicated_cron` in production `.env`
-2. Add Cron #1: `* * * * * cd /path/to/app && php artisan schedule:run`
+2. Add Cron #1: `* * * * * /path/to/app/bin/schedule-run.sh`
 3. Add Cron #2: `* * * * * cd /path/to/app && php artisan queue:work database --queue=critical,notifications,default,maintenance --stop-when-empty --max-time=55 --tries=3 --sleep=1 >> storage/logs/queue-worker.log 2>&1`
 4. Run `php artisan optimize:clear` (or `config:cache` after deploy)
 5. Confirm `jobs` drains each minute; monitor `storage/logs/queue-worker.log`
