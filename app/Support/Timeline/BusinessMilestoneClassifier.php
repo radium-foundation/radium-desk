@@ -58,6 +58,10 @@ final class BusinessMilestoneClassifier
             return BusinessMilestoneType::Appointment;
         }
 
+        if ($event->type === TimelineEventType::ServiceCaseClosed) {
+            return BusinessMilestoneType::Closure;
+        }
+
         if ($event->type === TimelineEventType::ServiceCaseCreated
             || str_contains($haystack, 'service request created')
             || str_contains($haystack, 'support request created')) {

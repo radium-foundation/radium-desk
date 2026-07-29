@@ -7,6 +7,7 @@ use App\Enums\CommercialAction;
 use App\Enums\CommercialState;
 use App\Enums\IncidentStatus;
 use App\Enums\RefundStatus;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
@@ -203,9 +204,7 @@ class CommercialStateResolver
         $closedAt = $outcome?->closed_at
             ?? $order?->completed_at
             ?? $incident->updated_at;
-        $closedBy = $outcome?->closer?->name
-            ?? $incident->assignee?->name
-            ?? '—';
+        $closedBy = $this->resolveClosedByLabel($incident, $outcome);
         $resolutionLabel = $this->resolutionDurationLabel($incident, $closedAt, $order);
 
         $details = [
@@ -292,6 +291,40 @@ class CommercialStateResolver
             : $incident->closeOutcomes()->with('closer')->get();
 
         return $outcomes->sortByDesc(fn (ServiceCaseCloseOutcome $outcome): int => $outcome->id)->first();
+    }
+
+    private function resolveClosedByLabel(Incident $incident, ?ServiceCaseCloseOutcome $outcome): string
+    {
+        if (filled($outcome?->closer?->name)) {
+            return (string) $outcome->closer->name;
+        }
+
+        $auditCloser = $this->latestStatusClosedAuditActorName($incident);
+
+        if (filled($auditCloser)) {
+            return $auditCloser;
+        }
+
+        return $incident->assignee?->name ?? '—';
+    }
+
+    private function latestStatusClosedAuditActorName(Incident $incident): ?string
+    {
+        $auditLog = AuditLog::query()
+            ->with('user')
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', 'service_case.status_changed')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get()
+            ->first(function (AuditLog $log): bool {
+                return ($log->new_values['status'] ?? null) === IncidentStatus::Closed->value;
+            });
+
+        $name = $auditLog?->user?->name;
+
+        return filled($name) ? (string) $name : null;
     }
 
     private function resolutionDurationLabel(

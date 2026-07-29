@@ -7,6 +7,7 @@ use App\Data\TimelineActor;
 use App\Data\TimelineEvent;
 use App\Enums\TimelineActorKind;
 use App\Enums\TimelineEventType;
+use App\Enums\IncidentStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -45,13 +46,14 @@ class ServiceCaseLifecycleTimelineEventSource implements TimelineEventSource
                 }
 
                 $newStatus = (string) ($auditLog->new_values['status'] ?? '');
-                $title = match ($newStatus) {
-                    'closed' => 'Incident closed',
-                    default => 'Incident updated',
-                };
+                $isClosed = $newStatus === IncidentStatus::Closed->value;
+                $title = $isClosed ? 'Incident closed' : 'Incident updated';
+                $type = $isClosed
+                    ? TimelineEventType::ServiceCaseClosed
+                    : TimelineEventType::ServiceCaseCreated;
 
                 return new TimelineEvent(
-                    type: TimelineEventType::ServiceCaseCreated,
+                    type: $type,
                     occurredAt: $auditLog->created_at,
                     title: $title,
                     actor: $this->resolveActor($auditLog->user),

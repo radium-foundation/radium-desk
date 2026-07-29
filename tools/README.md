@@ -122,12 +122,28 @@ Exits `0` on success, `1` on failure (including a failed health check).
 
 **Before deploying:**
 
+1. **Release guard** — verify `CHANGELOG.md` has an entry for the exact release version (see [Release Workflow](../docs/release-workflow.md)). If missing, draft notes and get approval first. Do not tag, push, or deploy until the changelog is approved.
+2. Tag and push:
+
+```bash
+git add CHANGELOG.md
+git commit
+git tag vX.Y.Z
+git push origin main
+git push origin vX.Y.Z
+```
+
+3. Then deploy:
+
 ```bash
 npm install          # if node_modules are missing
 ./tools/desk doctor  # verify prerequisites
-git push origin main # ensure remote has your latest commits
-./tools/desk deploy
+deskd                # or: ./tools/desk deploy
 ```
+
+Do not edit `storage/app/private/release.json` manually — it is written by `release:snapshot` during deploy.
+
+**Release checklist:** CHANGELOG updated → version reviewed → commit → tag → push main → push tag → `deskd` → verify `release.json`, What's New, and footer version/build.
 
 ---
 

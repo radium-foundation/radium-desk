@@ -6,6 +6,7 @@ enum TimelineEventType: string
 {
     case Payment = 'payment';
     case ServiceCaseCreated = 'service_case_created';
+    case ServiceCaseClosed = 'service_case_closed';
     case Assignment = 'assignment';
     case InternalNote = 'internal_note';
     case AuditEvent = 'audit_event';
@@ -29,6 +30,7 @@ enum TimelineEventType: string
         return match ($this) {
             self::Payment => 'Payment',
             self::ServiceCaseCreated => 'Service Case Created',
+            self::ServiceCaseClosed => 'Service Case Closed',
             self::Assignment => 'Assignment',
             self::InternalNote => 'Internal Note',
             self::AuditEvent => 'Audit Event',
@@ -52,6 +54,7 @@ enum TimelineEventType: string
         return match ($this) {
             self::Payment => 'bi-credit-card',
             self::ServiceCaseCreated => 'bi-tools',
+            self::ServiceCaseClosed => 'bi-check-circle',
             self::Assignment => 'bi-person-check',
             self::InternalNote => 'bi-chat-left-text',
             self::AuditEvent => 'bi-journal-text',
@@ -75,6 +78,7 @@ enum TimelineEventType: string
         return match ($this) {
             self::Payment,
             self::ServiceCaseCreated,
+            self::ServiceCaseClosed,
             self::Assignment,
             self::InternalNote,
             self::AuditEvent,
@@ -101,6 +105,7 @@ enum TimelineEventType: string
             self::IvrCall => 'notifications',
             self::Payment => 'payments',
             self::ServiceCaseCreated,
+            self::ServiceCaseClosed,
             self::Assignment,
             self::InternalNote => 'support',
             self::CustomerCorrection => 'customer',

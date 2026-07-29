@@ -233,7 +233,8 @@ class Customer360OperatorTimelinePresentation
         return match ($event->type) {
             TimelineEventType::Payment => 'success',
             TimelineEventType::Assignment,
-            TimelineEventType::ServiceCaseCreated => 'info',
+            TimelineEventType::ServiceCaseCreated,
+            TimelineEventType::ServiceCaseClosed => 'info',
             TimelineEventType::Appointment => 'success',
             TimelineEventType::IvrCall => 'info',
             TimelineEventType::CustomerCorrection => 'info',

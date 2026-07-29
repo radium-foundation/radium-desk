@@ -61,6 +61,7 @@ class BusinessMilestoneClassifierTest extends TestCase
             'customer_email' => [TimelineEventType::Email, 'Customer replied', 'incoming_email:9', BusinessMilestoneType::CustomerReply, TimelineActorKind::Customer],
             'assignment' => [TimelineEventType::Assignment, 'Assigned to Sushant', 'assignment:1', BusinessMilestoneType::EngineerAssignment],
             'case_created' => [TimelineEventType::ServiceCaseCreated, 'Service request created', 'case:1', BusinessMilestoneType::CaseCreated],
+            'case_closed' => [TimelineEventType::ServiceCaseClosed, 'Incident closed', 'incident-status:1', BusinessMilestoneType::Closure],
             'internal_note' => [TimelineEventType::InternalNote, 'Internal note', 'note:1', BusinessMilestoneType::InternalNote],
         ];
     }

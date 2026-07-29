@@ -7,6 +7,7 @@ use App\Enums\CommercialState;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\RefundStatus;
+use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
@@ -55,6 +56,50 @@ class CommercialStateResolverTest extends TestCase
         $this->assertTrue($snapshot->allowsReopen);
         $this->assertTrue($snapshot->timelineIsHistorical);
         $this->assertSame([], $snapshot->blockedActions);
+    }
+
+    public function test_case_closed_closed_by_uses_status_changed_audit_before_assignee_fallback(): void
+    {
+        [$incident, $order, $assignee, $closer] = $this->createIncidentWithUsers();
+
+        $incident->update([
+            'status' => IncidentStatus::Closed->value,
+            'assigned_to_user_id' => $assignee->id,
+        ]);
+
+        AuditLog::query()->create([
+            'user_id' => $closer->id,
+            'event' => 'service_case.status_changed',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'old_values' => ['status' => IncidentStatus::Open->value],
+            'new_values' => ['status' => IncidentStatus::Closed->value],
+        ]);
+
+        $snapshot = app(CommercialStateResolver::class)->forIncident($incident->fresh(['assignee', 'closeOutcomes.closer']));
+
+        $closedBy = collect($snapshot->details)->firstWhere('label', 'Closed By');
+
+        $this->assertNotNull($closedBy);
+        $this->assertSame($closer->name, $closedBy['value']);
+        $this->assertNotSame($assignee->name, $closedBy['value']);
+    }
+
+    public function test_case_closed_closed_by_falls_back_to_assignee_when_no_outcome_or_audit(): void
+    {
+        [$incident, , $assignee] = $this->createIncidentWithUsers();
+
+        $incident->update([
+            'status' => IncidentStatus::Closed->value,
+            'assigned_to_user_id' => $assignee->id,
+        ]);
+
+        $snapshot = app(CommercialStateResolver::class)->forIncident($incident->fresh(['assignee', 'closeOutcomes.closer']));
+
+        $closedBy = collect($snapshot->details)->firstWhere('label', 'Closed By');
+
+        $this->assertNotNull($closedBy);
+        $this->assertSame($assignee->name, $closedBy['value']);
     }
 
     public function test_refund_initiated_blocks_assign_paid_service_and_paid_appointment_only(): void
@@ -136,6 +181,43 @@ class CommercialStateResolverTest extends TestCase
         ]);
 
         return [$incident, $order, $agent];
+    }
+
+    /**
+     * @return array{0: Incident, 1: Order, 2: User, 3: User}
+     */
+    private function createIncidentWithUsers(): array
+    {
+        $assignee = User::factory()->create(['name' => 'Assignee Agent']);
+        $assignee->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $closer = User::factory()->create(['name' => 'Closer Agent']);
+        $closer->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $creator = User::factory()->create();
+        $creator->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $order = Order::query()->create([
+            'order_id' => 'RD-CS-'.uniqid(),
+            'serial_number' => 'SN-CS-'.uniqid(),
+            'product_name' => 'Radium Device',
+            'device_model' => 'Model X',
+            'status' => 'active',
+            'created_by' => $creator->id,
+        ]);
+
+        $incident = Incident::query()->create([
+            'order_id' => $order->id,
+            'reference_no' => app(IncidentReferenceService::class)->generate(),
+            'category' => 'General',
+            'source' => IncidentSource::Internal->value,
+            'title' => 'Commercial state fixture',
+            'description' => 'Commercial state fixture description.',
+            'status' => IncidentStatus::Open->value,
+            'created_by' => $creator->id,
+        ]);
+
+        return [$incident, $order, $assignee, $closer];
     }
 
     private function createRefund(

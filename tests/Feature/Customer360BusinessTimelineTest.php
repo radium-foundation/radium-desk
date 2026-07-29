@@ -82,6 +82,30 @@ class Customer360BusinessTimelineTest extends TestCase
         $this->assertStringNotContainsString('No timeline matches', $hit);
     }
 
+    public function test_business_timeline_labels_case_closure_without_case_created_wording(): void
+    {
+        [$agent, $incident] = $this->createFixture();
+        $order = $incident->order;
+        $this->assertNotNull($order);
+
+        $incident->update(['status' => IncidentStatus::Closed->value]);
+
+        AuditLog::query()->create([
+            'user_id' => $agent->id,
+            'event' => 'service_case.status_changed',
+            'auditable_type' => $incident->getMorphClass(),
+            'auditable_id' => $incident->id,
+            'old_values' => ['status' => IncidentStatus::Open->value],
+            'new_values' => ['status' => IncidentStatus::Closed->value],
+        ]);
+
+        $viewModel = app(Customer360TimelineService::class)->businessForIncident($incident->fresh());
+
+        $titles = $viewModel->items()->pluck('title')->all();
+
+        $this->assertContains('Case closed.', $titles);
+    }
+
     public function test_for_order_still_returns_flat_timeline_view_model(): void
     {
         [$agent, $incident] = $this->createFixture();

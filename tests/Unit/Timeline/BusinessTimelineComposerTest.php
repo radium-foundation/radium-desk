@@ -40,19 +40,37 @@ class BusinessTimelineComposerTest extends TestCase
         Carbon::setTestNow(Carbon::parse('2026-07-01 18:00:00', 'Asia/Kolkata'));
 
         $events = collect([
+            $this->whatsApp(1, now()->subMinutes(10)),
             new TimelineEvent(
                 type: TimelineEventType::Payment,
                 occurredAt: now()->subMinutes(5),
                 title: 'Payment received',
-                actor: new TimelineActor('System'),
+                actor: new TimelineActor('IRA'),
                 dedupeKey: 'payment:1',
             ),
-            $this->whatsApp(1, now()->subMinutes(10)),
         ]);
 
         $viewModel = app(BusinessTimelineComposer::class)->compose($events);
 
         $this->assertSame(2, $viewModel->totalCount);
+    }
+
+    public function test_case_closure_milestone_uses_closure_title_not_case_created(): void
+    {
+        $event = new TimelineEvent(
+            type: TimelineEventType::ServiceCaseClosed,
+            occurredAt: Carbon::parse('2026-07-29 15:47:59', 'Asia/Kolkata'),
+            title: 'Incident closed',
+            actor: new TimelineActor('Avinash'),
+            dedupeKey: 'incident-status:99',
+        );
+
+        $viewModel = app(BusinessTimelineComposer::class)->compose(collect([$event]));
+
+        $item = $viewModel->items()->first();
+        $this->assertNotNull($item);
+        $this->assertSame('Case closed.', $item->title);
+        $this->assertNotSame('Customer created service request.', $item->title);
     }
 
     public function test_search_filters_raw_events_before_clustering(): void
