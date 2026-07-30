@@ -15,6 +15,7 @@ use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class ProductionWatchdogService
@@ -378,12 +379,23 @@ class ProductionWatchdogService
         $healthUrl = rtrim((string) config('app.url'), '/').'/up';
 
         try {
-            $response = Http::timeout(5)->get($healthUrl);
+            // Retries absorb transient network/DNS/Cloudflare blips that would
+            // otherwise produce false-positive "unreachable" alerts.
+            $response = Http::timeout(10)
+                ->retry(2, 500)
+                ->get($healthUrl);
 
             if ($response->successful()) {
                 return [];
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning('Production watchdog site health probe failed.', [
+                'health_url' => $healthUrl,
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+                'timestamp' => now()->toIso8601String(),
+            ]);
+
             return [
                 new ProductionCriticalAlert(
                     key: 'site:down',
