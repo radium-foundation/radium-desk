@@ -90,11 +90,12 @@
     role="row"
     data-team-activity-agent="{{ $agent->id }}"
     data-team-activity-expanded="{{ $agent->expanded ? '1' : '0' }}">
-    <button type="button"
-            class="team-activity-row-summary @if($agent->isVirtual) team-activity-row-summary--virtual @endif"
-            data-team-activity-row-toggle
-            aria-expanded="{{ $agent->expanded ? 'true' : 'false' }}"
-            aria-controls="{{ $historyId }}">
+    <div class="team-activity-row-summary @if($agent->isVirtual) team-activity-row-summary--virtual @endif"
+         data-team-activity-row-toggle
+         role="button"
+         tabindex="0"
+         aria-expanded="{{ $agent->expanded ? 'true' : 'false' }}"
+         aria-controls="{{ $historyId }}">
         <span class="team-activity-col team-activity-col--member" role="cell">
             <span class="team-activity-member">
                 <x-team-activity.agent-avatar
@@ -214,7 +215,7 @@
         </span>
 
         <span class="team-activity-chevron" aria-hidden="true"></span>
-    </button>
+    </div>
 
     <div id="{{ $historyId }}"
          class="team-activity-history"

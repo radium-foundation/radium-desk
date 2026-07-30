@@ -42,6 +42,7 @@ class DashboardTeamActivityTest extends TestCase
             'user_id' => $admin->id,
             'work_date' => now()->toDateString(),
             'login_at' => now()->subHours(2),
+            'last_activity_at' => now(),
             'active_duration_seconds' => 7200,
         ]);
 
@@ -85,13 +86,73 @@ class DashboardTeamActivityTest extends TestCase
     public function test_team_activity_refresh_returns_empty_payload_without_permission(): void
     {
         $user = User::factory()->create();
-        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
-
+        // Permission-less user: no role assigned.
         $this->actingAs($user)
             ->getJson(route('dashboard.team-activity'))
             ->assertOk()
             ->assertJsonPath('empty', true)
             ->assertJsonPath('html', null);
+    }
+
+    public function test_team_activity_refresh_returns_panel_html_for_agents(): void
+    {
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $agent->update(['availability_status' => TeamAvailabilityStatus::Available]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => now()->subHours(2),
+            'last_activity_at' => now(),
+            'active_duration_seconds' => 7200,
+        ]);
+
+        $response = $this->actingAs($agent)
+            ->getJson(route('dashboard.team-activity'));
+
+        $response->assertOk()
+            ->assertJsonPath('empty', false)
+            ->assertJsonStructure(['html', 'generated_at', 'agent_count']);
+
+        $html = (string) $response->json('html');
+
+        $this->assertStringContainsString('Team Activity', $html);
+        $this->assertStringContainsString('data-team-activity-refresh-url', $html);
+        $this->assertStringContainsString((string) $agent->name, $html);
+    }
+
+    public function test_agents_do_not_gain_audit_logs_access_via_team_activity(): void
+    {
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->assertTrue($agent->can('teamActivity.view'));
+        $this->assertTrue($agent->can(RolePermissionSeeder::PERMISSION_TEAM_ACTIVITY_VIEW));
+        $this->assertTrue($agent->can(RolePermissionSeeder::PERMISSION_WORKFORCE_VIEW));
+        $this->assertFalse($agent->can('audit-logs.view'));
+    }
+
+    public function test_team_activity_view_is_derived_for_roles_with_workforce_view(): void
+    {
+        $roles = \Spatie\Permission\Models\Role::query()
+            ->with('permissions')
+            ->get();
+
+        $this->assertNotEmpty($roles);
+
+        foreach ($roles as $role) {
+            $permissions = $role->permissions->pluck('name');
+
+            if (! $permissions->contains(RolePermissionSeeder::PERMISSION_WORKFORCE_VIEW)) {
+                continue;
+            }
+
+            $this->assertTrue(
+                $permissions->contains(RolePermissionSeeder::PERMISSION_TEAM_ACTIVITY_VIEW),
+                "Role [{$role->name}] has workforce.view but is missing team-activity.view.",
+            );
+        }
     }
 
     public function test_dashboard_page_includes_team_activity_attributes(): void
@@ -104,6 +165,7 @@ class DashboardTeamActivityTest extends TestCase
             'user_id' => $admin->id,
             'work_date' => now()->toDateString(),
             'login_at' => now()->subHour(),
+            'last_activity_at' => now(),
             'active_duration_seconds' => 3600,
         ]);
 
@@ -127,6 +189,7 @@ class DashboardTeamActivityTest extends TestCase
             'user_id' => $admin->id,
             'work_date' => now()->toDateString(),
             'login_at' => now()->subHours(3),
+            'last_activity_at' => now(),
             'active_duration_seconds' => 10800,
         ]);
 

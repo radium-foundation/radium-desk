@@ -27,11 +27,27 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_CORRECT_ORDER_IDENTITY = 'orders.correct-identity';
 
+    public const PERMISSION_TEAM_ACTIVITY_VIEW = 'team-activity.view';
+
+    public const PERMISSION_WORKFORCE_VIEW = 'workforce.view';
+
     /**
      * @var list<string>
      */
     public const DIRECT_ASSIGNABLE_PERMISSIONS = [
         self::PERMISSION_CORRECT_ORDER_IDENTITY,
+    ];
+
+    /**
+     * Permissions granted alongside workforce team visibility.
+     *
+     * Any role that receives {@see self::PERMISSION_WORKFORCE_VIEW} inherits these
+     * automatically so new operational roles do not need a separate Team Activity grant.
+     *
+     * @var list<string>
+     */
+    private const WORKFORCE_TEAM_VISIBILITY_PERMISSIONS = [
+        self::PERMISSION_TEAM_ACTIVITY_VIEW,
     ];
 
     /**
@@ -251,6 +267,8 @@ class RolePermissionSeeder extends Seeder
 
         $permissions = collect(self::ROLE_PERMISSIONS)
             ->flatten()
+            ->merge(self::DIRECT_ASSIGNABLE_PERMISSIONS)
+            ->merge(self::WORKFORCE_TEAM_VISIBILITY_PERMISSIONS)
             ->unique()
             ->values();
 
@@ -258,15 +276,27 @@ class RolePermissionSeeder extends Seeder
             Permission::findOrCreate($permission, 'web');
         }
 
-        foreach (self::DIRECT_ASSIGNABLE_PERMISSIONS as $permission) {
-            Permission::findOrCreate($permission, 'web');
-        }
-
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
         foreach (self::ROLE_PERMISSIONS as $roleName => $rolePermissions) {
             $role = Role::findOrCreate($roleName, 'web');
-            $role->syncPermissions($rolePermissions);
+            $role->syncPermissions($this->permissionsForRole($rolePermissions));
         }
+    }
+
+    /**
+     * @param  list<string>  $rolePermissions
+     * @return list<string>
+     */
+    private function permissionsForRole(array $rolePermissions): array
+    {
+        if (! in_array(self::PERMISSION_WORKFORCE_VIEW, $rolePermissions, true)) {
+            return $rolePermissions;
+        }
+
+        return array_values(array_unique([
+            ...$rolePermissions,
+            ...self::WORKFORCE_TEAM_VISIBILITY_PERMISSIONS,
+        ]));
     }
 }

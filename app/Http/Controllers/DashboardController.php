@@ -95,7 +95,7 @@ class DashboardController extends Controller
             'serviceCaseTotalCount' => $serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count(),
             'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count()),
             'teamActivityEnabled' => (bool) config('dashboard-team-activity.enabled', true),
-            'teamActivityPanel' => $user->can('audit-logs.view') && config('dashboard-team-activity.enabled', true)
+            'teamActivityPanel' => $user->can('teamActivity.view') && config('dashboard-team-activity.enabled', true)
                 ? $this->teamActivityPanelService->build()
                 : TeamActivityPanel::empty(),
             'recentActivityStreams' => $user->can('audit-logs.view') && ! config('dashboard-team-activity.enabled', true)

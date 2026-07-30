@@ -2172,6 +2172,7 @@ a:focus-visible .stat-card {
     background: transparent;
     text-align: left;
     cursor: pointer;
+    user-select: text;
     transition: background-color 120ms ease;
 }
 
@@ -2179,6 +2180,10 @@ a:focus-visible .stat-card {
 .team-activity-row-summary:focus-visible {
     background: rgba(15, 23, 42, 0.02);
     outline: none;
+}
+
+.team-activity-row-summary:focus-visible {
+    box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.35);
 }
 
 .team-activity-col {

@@ -15,6 +15,7 @@ use App\Models\SettingSource;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Policies\DashboardPolicy;
+use App\Policies\TeamActivityPolicy;
 use App\Policies\Workforce360Policy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
@@ -208,6 +209,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Gate::define('viewDashboardHardware', fn (User $user): bool => app(DashboardPolicy::class)->viewHardware($user));
+        Gate::define('teamActivity.view', fn (User $user): bool => app(TeamActivityPolicy::class)->view($user));
 
         $workforce360Policy = Workforce360Policy::class;
         Gate::define('workforce360.viewTeam', fn (User $user): bool => app($workforce360Policy)->viewTeam($user));

@@ -16,7 +16,7 @@ class DashboardTeamActivityController extends Controller
     {
         $user = $request->user();
 
-        if (! $user->can('audit-logs.view') || ! config('dashboard-team-activity.enabled', true)) {
+        if (! $user->can('teamActivity.view') || ! config('dashboard-team-activity.enabled', true)) {
             return response()->json([
                 'html' => null,
                 'empty' => true,

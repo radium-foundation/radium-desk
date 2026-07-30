@@ -31,9 +31,13 @@ describe('dashboard team activity', () => {
                     <li data-team-activity-agent="7"
                         data-team-activity-expanded="${expanded ? '1' : '0'}"
                         class="${expanded ? 'is-expanded' : ''}">
-                        <button type="button" data-team-activity-row-toggle aria-expanded="${expanded ? 'true' : 'false'}">
+                        <div data-team-activity-row-toggle
+                             role="button"
+                             tabindex="0"
+                             aria-expanded="${expanded ? 'true' : 'false'}">
                             <span class="agent-version">${version}</span>
-                        </button>
+                            <span class="team-activity-chevron" aria-hidden="true"></span>
+                        </div>
                         <div data-team-activity-history ${expanded ? '' : 'hidden'}></div>
                     </li>
                 </ul>
@@ -41,6 +45,60 @@ describe('dashboard team activity', () => {
             <button type="button" data-team-activity-panel-toggle aria-expanded="true">Toggle</button>
         </div>
     `;
+
+    it('expands a member row when clicking anywhere on the summary', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
+        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
+
+        expect(row.dataset.teamActivityExpanded).toBe('0');
+
+        summary.querySelector('.agent-version').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(row.dataset.teamActivityExpanded).toBe('1');
+        expect(summary.getAttribute('aria-expanded')).toBe('true');
+        expect(row.classList.contains('is-expanded')).toBe(true);
+    });
+
+    it('expands a member row via keyboard on the summary', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
+        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
+
+        summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+        expect(row.dataset.teamActivityExpanded).toBe('1');
+        expect(summary.getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('does not expand when clicking an interactive control inside the row', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
+        const control = document.createElement('button');
+        control.type = 'button';
+        control.textContent = 'Inline';
+        summary.appendChild(control);
+
+        initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
+        control.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(row.dataset.teamActivityExpanded).toBe('0');
+    });
 
     it('starts collapsed by default', () => {
         document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;

@@ -117,6 +117,48 @@ const setPanelCollapsed = (panel, collapsed) => {
     writeCollapsed(collapsed);
 };
 
+const isInteractiveRowTarget = (target) => {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+
+    return Boolean(
+        target.closest([
+            'a[href]',
+            'button',
+            'input',
+            'textarea',
+            'select',
+            'label',
+            '[role="menuitem"]',
+            '[data-bs-toggle]',
+            '[data-dropdown]',
+            'summary',
+        ].join(', '))
+    );
+};
+
+const hasTextSelection = () => {
+    const selection = window.getSelection?.();
+
+    if (!selection || selection.isCollapsed) {
+        return false;
+    }
+
+    return selection.toString().trim().length > 0;
+};
+
+const toggleRowExpanded = (panel, row, pageRoot) => {
+    const nextExpanded = row.dataset.teamActivityExpanded !== '1';
+    setRowExpanded(row, nextExpanded);
+    writeExpandedAgentIds(collectExpandedFromDom(panel));
+    recordUserActivity();
+
+    if (nextExpanded) {
+        void refreshTeamActivity(pageRoot, panel);
+    }
+};
+
 const setRowExpanded = (row, expanded) => {
     row.classList.toggle('is-expanded', expanded);
     row.dataset.teamActivityExpanded = expanded ? '1' : '0';
@@ -280,7 +322,11 @@ const bindPanelInteractions = (pageRoot, panel) => {
 
         const rowToggle = event.target.closest?.('[data-team-activity-row-toggle]');
 
-        if (!rowToggle) {
+        if (!rowToggle || !panel.contains(rowToggle)) {
+            return;
+        }
+
+        if (isInteractiveRowTarget(event.target) || hasTextSelection()) {
             return;
         }
 
@@ -291,14 +337,28 @@ const bindPanelInteractions = (pageRoot, panel) => {
         }
 
         event.preventDefault();
-        const nextExpanded = row.dataset.teamActivityExpanded !== '1';
-        setRowExpanded(row, nextExpanded);
-        writeExpandedAgentIds(collectExpandedFromDom(panel));
-        recordUserActivity();
+        toggleRowExpanded(panel, row, pageRoot);
+    });
 
-        if (nextExpanded) {
-            void refreshTeamActivity(pageRoot, panel);
+    panel.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
         }
+
+        const rowToggle = event.target.closest?.('[data-team-activity-row-toggle]');
+
+        if (!rowToggle || event.target !== rowToggle || !panel.contains(rowToggle)) {
+            return;
+        }
+
+        const row = rowToggle.closest('[data-team-activity-agent]');
+
+        if (!row) {
+            return;
+        }
+
+        event.preventDefault();
+        toggleRowExpanded(panel, row, pageRoot);
     });
 };
 
