@@ -65,6 +65,68 @@ describe('dashboard team activity', () => {
         expect(row.classList.contains('is-expanded')).toBe(true);
     });
 
+    it('still expands when a micro text selection exists without a drag', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
+        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
+        const label = summary.querySelector('.agent-version');
+
+        vi.spyOn(window, 'getSelection').mockReturnValue({
+            isCollapsed: false,
+            toString: () => 'v',
+        });
+
+        label.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+        }));
+        label.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            clientX: 11,
+            clientY: 10,
+        }));
+
+        expect(row.dataset.teamActivityExpanded).toBe('1');
+    });
+
+    it('does not expand after dragging to select text on the row', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
+        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
+        const label = summary.querySelector('.agent-version');
+
+        vi.spyOn(window, 'getSelection').mockReturnValue({
+            isCollapsed: false,
+            toString: () => 'v1',
+        });
+
+        label.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            clientX: 10,
+            clientY: 10,
+        }));
+        label.dispatchEvent(new MouseEvent('click', {
+            bubbles: true,
+            clientX: 40,
+            clientY: 10,
+        }));
+
+        expect(row.dataset.teamActivityExpanded).toBe('0');
+    });
+
     it('expands a member row via keyboard on the summary', () => {
         document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
 
