@@ -1,8 +1,8 @@
 import { getWorkspaceSession } from './workspace/session';
 import {
     dismissIncomingCallCard,
-    maybeShowIncomingCallCardFromNotification,
-    isTerminalPopupStatus,
+    isMissedPopupStatus,
+    resetIncomingCallPopupTerminalState,
 } from './incoming-call-bridge';
 
 const INCOMING_CALL_CHANNEL = 'radium-incoming-call';
@@ -109,7 +109,7 @@ export const maybeHandleIncomingCallInteraction = (interaction) => {
 
     const callId = typeof interaction.call_id === 'string' ? interaction.call_id : '';
 
-    if (isTerminalPopupStatus(interaction.status)) {
+    if (isMissedPopupStatus(interaction.status)) {
         dismissIncomingCallCard(callId);
         logIncomingCallInteraction('Dismissed popup for terminal ringing outcome', { interaction });
 
@@ -120,20 +120,23 @@ export const maybeHandleIncomingCallInteraction = (interaction) => {
         return;
     }
 
+    // Answered ends the ringing popup regardless of workspace / auto-open / dedupe.
+    dismissIncomingCallCard(callId);
+    logIncomingCallInteraction('Dismissed popup for answered call', { interaction });
+
     const incidentId = parseIncidentId(interaction.incident_id);
 
     if (incidentId === null) {
-        logIncomingCallInteraction('Skipped because no incident', { interaction });
+        logIncomingCallInteraction('Skipped auto-open because no incident', { interaction });
 
         return;
     }
 
     if (getWorkspaceSession().isActive()) {
-        logIncomingCallInteraction('Skipped auto-open because workspace busy; refreshing popup actions', {
+        logIncomingCallInteraction('Skipped auto-open because workspace busy; popup already dismissed', {
             reasons: getWorkspaceSession().getActiveReasons(),
             interaction,
         });
-        maybeShowIncomingCallCardFromNotification({ interaction });
 
         return;
     }
@@ -154,12 +157,11 @@ export const maybeHandleIncomingCallInteraction = (interaction) => {
             conversationWorkspace: interaction.conversation_workspace === true,
         },
     }));
-
-    dismissIncomingCallCard(callId);
 };
 
 export const resetIncomingCallInteractionState = () => {
     processedCallIds.clear();
+    resetIncomingCallPopupTerminalState();
 
     try {
         Object.keys(sessionStorage).forEach((key) => {

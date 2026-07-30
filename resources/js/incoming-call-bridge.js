@@ -1,15 +1,24 @@
 import {
-    dismissIncomingCallCard,
+    dismissIncomingCallCard as removeIncomingCallCard,
     showIncomingCallCard,
     updateIncomingCallCard,
 } from './incoming-call-card';
 
-const TERMINAL_POPUP_STATUSES = new Set([
+const MISSED_POPUP_STATUSES = new Set([
     'missed',
     'noanswer',
     'noinput',
     'failed',
 ]);
+
+/** Answered ends the ringing popup permanently — never refresh or recreate. */
+const TERMINAL_POPUP_STATUSES = new Set([
+    ...MISSED_POPUP_STATUSES,
+    'answered',
+]);
+
+/** @type {Set<string>} */
+const terminalPopupCallIds = new Set();
 
 const isIncomingPhoneInteraction = (interaction) => (
     interaction
@@ -22,7 +31,23 @@ const isIncomingPhoneInteraction = (interaction) => (
 
 const normalizeStatus = (status) => String(status ?? '').trim().toLowerCase();
 
+const isMissedPopupStatus = (status) => MISSED_POPUP_STATUSES.has(normalizeStatus(status));
+
 const isTerminalPopupStatus = (status) => TERMINAL_POPUP_STATUSES.has(normalizeStatus(status));
+
+/**
+ * Dismiss the ringing popup and remember the call so later deliveries cannot recreate it.
+ *
+ * @param {string | null | undefined} callId
+ * @returns {boolean}
+ */
+export const dismissIncomingCallCard = (callId) => {
+    if (typeof callId === 'string' && callId.trim() !== '') {
+        terminalPopupCallIds.add(callId);
+    }
+
+    return removeIncomingCallCard(callId);
+};
 
 /**
  * @param {Record<string, unknown> | null | undefined} interaction
@@ -79,7 +104,7 @@ export const renderIncomingCallNotification = (payload, options = {}) => {
         return false;
     }
 
-    if (isTerminalPopupStatus(call.call_status)) {
+    if (isTerminalPopupStatus(call.call_status) || terminalPopupCallIds.has(call.call_id)) {
         dismissIncomingCallCard(call.call_id);
 
         return true;
@@ -103,4 +128,8 @@ export const renderIncomingCallNotification = (payload, options = {}) => {
  */
 export const maybeShowIncomingCallCardFromNotification = (payload) => renderIncomingCallNotification(payload);
 
-export { dismissIncomingCallCard, isTerminalPopupStatus };
+export const resetIncomingCallPopupTerminalState = () => {
+    terminalPopupCallIds.clear();
+};
+
+export { isMissedPopupStatus, isTerminalPopupStatus };

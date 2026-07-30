@@ -4,7 +4,12 @@ import {
     resetIncomingCallInteractionState,
 } from '../../resources/js/incoming-call-interaction';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
-import { initIncomingCallCardHost, showIncomingCallCard } from '../../resources/js/incoming-call-card';
+import {
+    dismissIncomingCallCard,
+    initIncomingCallCardHost,
+    showIncomingCallCard,
+} from '../../resources/js/incoming-call-card';
+import { maybeShowIncomingCallCardFromNotification } from '../../resources/js/incoming-call-bridge';
 
 describe('incoming call interaction auto-open', () => {
     beforeEach(() => {
@@ -34,7 +39,7 @@ describe('incoming call interaction auto-open', () => {
         conversation_workspace: false,
     };
 
-    it('dispatches customer360:open for answered inbound phone call with incident', () => {
+    it('answered while workspace idle opens Customer360 and dismisses popup', () => {
         showIncomingCallCard({
             call_id: 'call-001',
             call_status: 'ringing',
@@ -83,6 +88,82 @@ describe('incoming call interaction auto-open', () => {
         expect(document.querySelector('[data-call-id="call-cw-1"]')).toBeNull();
     });
 
+    it('answered while Customer360 already open dismisses popup without re-opening', () => {
+        getWorkspaceSession().acquire('customer-360-drawer', { incidentId: 42 });
+        showIncomingCallCard({
+            call_id: 'call-001',
+            call_status: 'ringing',
+            action_url: '/dashboard?open_customer_360=42',
+            incident_id: 42,
+        });
+
+        maybeHandleIncomingCallInteraction(answeredInteraction);
+
+        expect(document.dispatchEvent).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-call-id="call-001"]')).toBeNull();
+    });
+
+    it('answered while another workspace is active dismisses popup without auto-open', () => {
+        getWorkspaceSession().acquire('workspace-modal');
+        showIncomingCallCard({
+            call_id: 'call-001',
+            call_status: 'ringing',
+            action_url: '/dashboard',
+            incident_id: null,
+        });
+
+        maybeHandleIncomingCallInteraction(answeredInteraction);
+
+        expect(document.dispatchEvent).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-call-id="call-001"]')).toBeNull();
+    });
+
+    it('duplicate answered events do not recreate the popup or re-open Customer360', () => {
+        showIncomingCallCard({
+            call_id: 'call-001',
+            call_status: 'ringing',
+            action_url: '/dashboard?open_customer_360=42',
+            incident_id: 42,
+        });
+
+        maybeHandleIncomingCallInteraction(answeredInteraction);
+        document.dispatchEvent.mockClear();
+
+        maybeShowIncomingCallCardFromNotification({ interaction: answeredInteraction });
+        maybeHandleIncomingCallInteraction(answeredInteraction);
+
+        expect(document.querySelector('[data-call-id="call-001"]')).toBeNull();
+        const openEvents = document.dispatchEvent.mock.calls
+            .map(([event]) => event)
+            .filter((event) => event.type === 'customer360:open');
+        expect(openEvents).toHaveLength(0);
+    });
+
+    it('answered after popup already dismissed stays dismissed', () => {
+        showIncomingCallCard({
+            call_id: 'call-001',
+            call_status: 'ringing',
+            action_url: '/dashboard?open_customer_360=42',
+            incident_id: 42,
+        });
+        dismissIncomingCallCard('call-001');
+
+        maybeHandleIncomingCallInteraction(answeredInteraction);
+
+        expect(document.querySelector('[data-call-id="call-001"]')).toBeNull();
+
+        maybeShowIncomingCallCardFromNotification({
+            call: {
+                call_id: 'call-001',
+                call_status: 'ringing',
+                action_url: '/dashboard',
+                incident_id: null,
+            },
+        });
+
+        expect(document.querySelector('[data-call-id="call-001"]')).toBeNull();
+    });
+
     it('dismisses popup on missed without opening Customer360', () => {
         showIncomingCallCard({
             call_id: 'call-missed-1',
@@ -111,29 +192,20 @@ describe('incoming call interaction auto-open', () => {
         expect(document.dispatchEvent).not.toHaveBeenCalled();
     });
 
-    it('does nothing when incident is missing', () => {
+    it('dismisses popup when answered without incident but does not auto-open', () => {
+        showIncomingCallCard({
+            call_id: 'call-001',
+            call_status: 'ringing',
+            action_url: '/dashboard',
+        });
+
         maybeHandleIncomingCallInteraction({
             ...answeredInteraction,
             incident_id: null,
         });
 
         expect(document.dispatchEvent).not.toHaveBeenCalled();
-    });
-
-    it('refreshes Open URL when workspace is busy instead of auto-opening', () => {
-        getWorkspaceSession().acquire('workspace-modal');
-        showIncomingCallCard({
-            call_id: 'call-001',
-            call_status: 'ringing',
-            action_url: '/dashboard',
-            incident_id: null,
-        });
-
-        maybeHandleIncomingCallInteraction(answeredInteraction);
-
-        expect(document.dispatchEvent).not.toHaveBeenCalled();
-        expect(document.querySelector('[data-call-id="call-001"] a.btn-primary')?.getAttribute('href'))
-            .toBe('/dashboard?open_customer_360=42');
+        expect(document.querySelector('[data-call-id="call-001"]')).toBeNull();
     });
 
     it('does nothing for unknown customer without incident', () => {
@@ -161,7 +233,13 @@ describe('incoming call interaction auto-open', () => {
         expect(openEvents).toHaveLength(0);
     });
 
-    it('does nothing for malformed incident_id', () => {
+    it('does nothing for malformed incident_id besides dismiss', () => {
+        showIncomingCallCard({
+            call_id: 'call-malformed',
+            call_status: 'ringing',
+            action_url: '/dashboard',
+        });
+
         maybeHandleIncomingCallInteraction({
             ...answeredInteraction,
             call_id: 'call-malformed',
@@ -169,6 +247,7 @@ describe('incoming call interaction auto-open', () => {
         });
 
         expect(document.dispatchEvent).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-call-id="call-malformed"]')).toBeNull();
     });
 
     it('allows a later call_id after the first call was processed', () => {

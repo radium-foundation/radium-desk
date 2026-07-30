@@ -3,9 +3,10 @@ import {
     buildCallPayloadFromInteraction,
     maybeShowIncomingCallCardFromNotification,
     renderIncomingCallNotification,
+    resetIncomingCallPopupTerminalState,
     resolveIncomingCallPayload,
 } from '../../resources/js/incoming-call-bridge';
-import { initIncomingCallCardHost } from '../../resources/js/incoming-call-card';
+import { initIncomingCallCardHost, showIncomingCallCard } from '../../resources/js/incoming-call-card';
 import { handleIncomingCallReceived } from '../../resources/js/realtime-notifications';
 import { handleNotificationCreated } from '../../resources/js/live-dashboard-reverb';
 import { pollNotifications } from '../../resources/js/live-notifications';
@@ -34,6 +35,7 @@ const incomingCallPayload = {
 
 describe('incoming call bridge', () => {
     beforeEach(() => {
+        resetIncomingCallPopupTerminalState();
         document.body.innerHTML = '<div id="incoming-call-card-host"></div>';
         initIncomingCallCardHost();
     });
@@ -80,7 +82,7 @@ describe('incoming call bridge', () => {
         expect(document.querySelectorAll('[data-call-id="call-bridge-001"]')).toHaveLength(1);
     });
 
-    it('rebuilds Open URL on duplicate delivery when incident becomes available', () => {
+    it('rebuilds Open URL on duplicate ringing delivery when incident becomes available', () => {
         maybeShowIncomingCallCardFromNotification({
             call: {
                 ...incomingCallPayload,
@@ -92,7 +94,7 @@ describe('incoming call bridge', () => {
         maybeShowIncomingCallCardFromNotification({
             interaction: {
                 ...ringingInteraction,
-                status: 'answered',
+                status: 'ringing',
                 incident_id: 42,
             },
             url: '/dashboard?open_customer_360=42',
@@ -101,6 +103,23 @@ describe('incoming call bridge', () => {
         expect(document.querySelectorAll('[data-call-id="call-bridge-001"]')).toHaveLength(1);
         expect(document.querySelector('[data-call-id="call-bridge-001"] a.btn-primary')?.getAttribute('href'))
             .toBe('/dashboard?open_customer_360=42');
+    });
+
+    it('dismisses the card for answered interactions and does not recreate it', () => {
+        maybeShowIncomingCallCardFromNotification({ call: incomingCallPayload });
+
+        maybeShowIncomingCallCardFromNotification({
+            interaction: {
+                ...ringingInteraction,
+                status: 'answered',
+            },
+        });
+
+        expect(document.querySelector('[data-call-id="call-bridge-001"]')).toBeNull();
+
+        maybeShowIncomingCallCardFromNotification({ call: incomingCallPayload });
+
+        expect(document.querySelector('[data-call-id="call-bridge-001"]')).toBeNull();
     });
 
     it('dismisses the card for missed interactions', () => {
@@ -112,6 +131,20 @@ describe('incoming call bridge', () => {
                 status: 'missed',
             },
         });
+
+        expect(document.querySelector('[data-call-id="call-bridge-001"]')).toBeNull();
+    });
+
+    it('does not recreate a ringing card after the call was marked terminal', () => {
+        showIncomingCallCard(incomingCallPayload);
+        maybeShowIncomingCallCardFromNotification({
+            interaction: {
+                ...ringingInteraction,
+                status: 'answered',
+            },
+        });
+
+        maybeShowIncomingCallCardFromNotification({ call: incomingCallPayload });
 
         expect(document.querySelector('[data-call-id="call-bridge-001"]')).toBeNull();
     });
