@@ -13,6 +13,27 @@ class UpdateTeamWorkScheduleRequest extends FormRequest
     }
 
     /**
+     * Type hygiene only — do not apply company-default weekly offs here.
+     * Empty/null → company default is owned by TeamWorkScheduleService /
+     * WorkCalendarService::normalizeWeeklyOffDays().
+     */
+    protected function prepareForValidation(): void
+    {
+        $weeklyOffDays = $this->input('weekly_off_days');
+
+        if (! is_array($weeklyOffDays)) {
+            return;
+        }
+
+        $this->merge([
+            'weekly_off_days' => collect($weeklyOffDays)
+                ->map(fn (mixed $day): int => (int) $day)
+                ->values()
+                ->all(),
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function rules(): array

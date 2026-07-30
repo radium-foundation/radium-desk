@@ -85,6 +85,9 @@
                 </div>
                 <div class="col-12">
                     <span class="form-label d-block">Weekly off days</span>
+                    <p class="text-muted small mb-2">
+                        If none are selected, the company default weekly off is applied automatically.
+                    </p>
                     <div class="d-flex flex-wrap gap-3">
                         @foreach($weekdayLabels as $dayValue => $dayLabel)
                             <div class="form-check">
@@ -92,7 +95,7 @@
                                        name="weekly_off_days[]"
                                        id="weekly_off_day_{{ $dayValue }}"
                                        value="{{ $dayValue }}"
-                                       @checked(in_array($dayValue, $selectedDays, true))>
+                                       @checked(in_array((int) $dayValue, array_map('intval', (array) $selectedDays), true))>
                                 <label class="form-check-label" for="weekly_off_day_{{ $dayValue }}">
                                     {{ $dayLabel }}
                                 </label>

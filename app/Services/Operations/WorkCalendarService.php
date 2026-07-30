@@ -23,7 +23,51 @@ class WorkCalendarService
      */
     public function defaultWeeklyOffDays(): array
     {
-        return config('workforce_calendar.default_weekly_off_days', [Carbon::SUNDAY]);
+        return $this->normalizeWeeklyOffDays(
+            config('workforce_calendar.default_weekly_off_days', [Carbon::SUNDAY]),
+        );
+    }
+
+    /**
+     * Resolve weekly offs for a schedule.
+     *
+     * NULL or [] must never mean "no weekly off" — both fall back to the
+     * company default. Values are normalized to integers so "0" and 0 match.
+     *
+     * @return list<int>
+     */
+    public function resolvedWeeklyOffDays(?TeamMemberWorkSchedule $schedule): array
+    {
+        return $this->normalizeWeeklyOffDays($schedule?->weekly_off_days);
+    }
+
+    /**
+     * @param  array<int|string, mixed>|null  $weeklyOffDays
+     * @return list<int>
+     */
+    public function normalizeWeeklyOffDays(?array $weeklyOffDays): array
+    {
+        $normalized = collect($weeklyOffDays ?? [])
+            ->map(fn (mixed $day): int => (int) $day)
+            ->filter(fn (int $day): bool => $day >= 0 && $day <= 6)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        if ($normalized === []) {
+            $defaults = collect(config('workforce_calendar.default_weekly_off_days', [Carbon::SUNDAY]))
+                ->map(fn (mixed $day): int => (int) $day)
+                ->filter(fn (int $day): bool => $day >= 0 && $day <= 6)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+
+            return $defaults !== [] ? $defaults : [Carbon::SUNDAY];
+        }
+
+        return $normalized;
     }
 
     public function scheduleFor(User $user): ?TeamMemberWorkSchedule
@@ -126,9 +170,9 @@ class WorkCalendarService
 
     public function isWorkingDay(TeamMemberWorkSchedule $schedule, Carbon $at): bool
     {
-        $weeklyOff = $schedule->weekly_off_days ?? $this->defaultWeeklyOffDays();
+        $weeklyOff = $this->resolvedWeeklyOffDays($schedule);
 
-        return ! in_array($at->dayOfWeek, $weeklyOff, true);
+        return ! in_array((int) $at->dayOfWeek, $weeklyOff, true);
     }
 
     public function isWithinWorkingHours(TeamMemberWorkSchedule $schedule, Carbon $at): bool
@@ -327,7 +371,7 @@ class WorkCalendarService
                 ? $this->formatTime($schedule->lunch_start_time)
                 : null,
             'expected_working_minutes' => $schedule !== null ? $this->expectedWorkingMinutes($schedule) : null,
-            'weekly_off_days' => $schedule?->weekly_off_days ?? $this->defaultWeeklyOffDays(),
+            'weekly_off_days' => $this->resolvedWeeklyOffDays($schedule),
             'checked_at' => $at->toIso8601String(),
         ];
     }

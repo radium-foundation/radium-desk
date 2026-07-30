@@ -545,6 +545,21 @@ class PresenceEngineService
         );
     }
 
+    /**
+     * Recalculate overtime for a closed session using current OT rules
+     * (login-day end-of-day cap vs expected shift end). Used by historical repair.
+     */
+    public function recalculateOvertimeSeconds(WorkSession $session): int
+    {
+        if ($session->login_at === null || $session->logout_at === null || $session->work_date === null) {
+            return 0;
+        }
+
+        $session->loadMissing('user');
+
+        return $this->calculateOvertimeSeconds($session->user, $session, $session->logout_at);
+    }
+
     private function calculateOvertimeSeconds(?User $user, WorkSession $session, Carbon $logoutAt): int
     {
         if ($user === null) {

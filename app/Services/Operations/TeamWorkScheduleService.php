@@ -18,16 +18,21 @@ class TeamWorkScheduleService
     }
 
     /**
+     * Persist schedule for a user.
+     *
+     * Business rule (owned here / WorkCalendarService, not the HTTP Request):
+     * empty or null weekly_off_days ⇒ company default weekly off.
+     * Every saved schedule therefore always has at least one weekly off day.
+     *
      * @param  array<string, mixed>  $data
      */
     public function upsertForUser(User $user, array $data): TeamMemberWorkSchedule
     {
-        $weeklyOffDays = collect($data['weekly_off_days'] ?? [])
-            ->map(fn ($day): int => (int) $day)
-            ->unique()
-            ->sort()
-            ->values()
-            ->all();
+        $weeklyOffDays = $this->workCalendarService->normalizeWeeklyOffDays(
+            isset($data['weekly_off_days']) && is_array($data['weekly_off_days'])
+                ? $data['weekly_off_days']
+                : null,
+        );
 
         return TeamMemberWorkSchedule::query()->updateOrCreate(
             ['user_id' => $user->id],
@@ -42,9 +47,7 @@ class TeamWorkScheduleService
                     : null,
                 'short_break_count' => (int) ($data['short_break_count'] ?? 0),
                 'short_break_minutes' => (int) ($data['short_break_minutes'] ?? 10),
-                'weekly_off_days' => $weeklyOffDays !== []
-                    ? $weeklyOffDays
-                    : $this->workCalendarService->defaultWeeklyOffDays(),
+                'weekly_off_days' => $weeklyOffDays,
             ],
         );
     }
@@ -81,7 +84,7 @@ class TeamWorkScheduleService
                 : null,
             'short_break_count' => $schedule->short_break_count,
             'short_break_minutes' => $schedule->short_break_minutes,
-            'weekly_off_days' => $schedule->weekly_off_days ?? $this->workCalendarService->defaultWeeklyOffDays(),
+            'weekly_off_days' => $this->workCalendarService->resolvedWeeklyOffDays($schedule),
             'expected_working_minutes' => $this->workCalendarService->expectedWorkingMinutes($schedule),
         ];
     }
