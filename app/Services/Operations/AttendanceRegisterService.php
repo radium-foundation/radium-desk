@@ -2,7 +2,10 @@
 
 namespace App\Services\Operations;
 
+use App\Contracts\Workforce\WorkforceEventPublisher;
 use App\Data\Operations\AttendanceDayResult;
+use App\Data\Workforce\WorkforceEvent;
+use App\Enums\WorkforceEventType;
 use App\Models\User;
 use App\Models\WorkforceAttendanceDay;
 use Illuminate\Support\Carbon;
@@ -13,6 +16,7 @@ class AttendanceRegisterService
     public function __construct(
         private readonly AttendanceDayCalculator $calculator,
         private readonly OperationsRoleService $roleService,
+        private readonly WorkforceEventPublisher $workforceEventPublisher,
     ) {}
 
     public function refreshDay(
@@ -35,7 +39,10 @@ class AttendanceRegisterService
             return null;
         }
 
-        return $this->persist($result);
+        $day = $this->persist($result);
+        $this->publishAttendanceRecorded($day);
+
+        return $day;
     }
 
     public function refreshDateRange(
@@ -230,6 +237,23 @@ class AttendanceRegisterService
             'work_date' => $workDate,
             ...$attributes,
         ]);
+    }
+
+    private function publishAttendanceRecorded(WorkforceAttendanceDay $day): void
+    {
+        $this->workforceEventPublisher->publish(WorkforceEvent::make(
+            type: WorkforceEventType::AttendanceRecorded,
+            userId: (int) $day->user_id,
+            workDate: $day->work_date->copy()->startOfDay(),
+            payload: [
+                'attendance_day_id' => $day->id,
+                'status' => $day->status->value,
+                'calendar_status' => $day->calendar_status?->value,
+                'is_working_day' => (bool) $day->is_working_day,
+                'is_on_leave' => (bool) $day->is_on_leave,
+                'is_company_holiday' => (bool) $day->is_company_holiday,
+            ],
+        ));
     }
 
     /**

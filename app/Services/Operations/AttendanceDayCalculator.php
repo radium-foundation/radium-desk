@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Contracts\Workforce\CalendarPolicy;
 use App\Data\Operations\AttendanceDayResult;
 use App\Enums\AttendanceDayStatus;
 use App\Enums\WorkCalendarDayStatus;
@@ -15,7 +16,7 @@ use Illuminate\Support\Collection;
 class AttendanceDayCalculator
 {
     public function __construct(
-        private readonly WorkCalendarService $workCalendarService,
+        private readonly CalendarPolicy $workCalendarService,
         private readonly OperationsRoleService $roleService,
     ) {}
 

@@ -116,6 +116,51 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Services\Operations\TeamPerformanceMetricsService::class);
         $this->app->scoped(\App\Services\Operations\WorkforceAuthorityService::class);
         $this->app->scoped(\App\Services\Operations\WorkCalendarService::class);
+        $this->app->scoped(
+            \App\Contracts\Workforce\CalendarPolicy::class,
+            \App\Services\Workforce\Policies\CalendarPolicyAdapter::class,
+        );
+        $this->app->scoped(\App\Services\Workforce\DailyWorkforceEngine::class);
+        $this->app->singleton(
+            \App\Contracts\Workforce\WorkforceEventPublisher::class,
+            function ($app): \App\Contracts\Workforce\WorkforceEventPublisher {
+                $inner = $app->bound('workforce.events.inner_publisher')
+                    ? $app->make('workforce.events.inner_publisher')
+                    : $app->make(\App\Services\Workforce\Events\NullWorkforceEventPublisher::class);
+
+                return new \App\Services\Workforce\Events\SafeWorkforceEventPublisher($inner);
+            },
+        );
+        $this->app->singleton(
+            \App\Contracts\Workforce\ContributionPolicy::class,
+            \App\Services\Workforce\Contribution\ConfigContributionPolicy::class,
+        );
+        $this->app->singleton(\App\Services\Workforce\Contribution\ContributionEngine::class, function ($app): \App\Services\Workforce\Contribution\ContributionEngine {
+            return new \App\Services\Workforce\Contribution\ContributionEngine(
+                contributionPolicy: $app->make(\App\Contracts\Workforce\ContributionPolicy::class),
+                workforceEventPublisher: $app->make(\App\Contracts\Workforce\WorkforceEventPublisher::class),
+                collectors: [
+                    $app->make(\App\Services\Workforce\Contribution\Signals\ActiveDurationSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\CaseSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\CasesResolvedSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\CaseClosedSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\CommunicationsSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\EmailSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\WhatsAppSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\CallSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\StatusUpdateSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\RemarkSignalCollector::class),
+                    $app->make(\App\Services\Workforce\Contribution\Signals\OrderSignalCollector::class),
+                    new \App\Services\Workforce\Contribution\Signals\ReservedSignalCollector(\App\Enums\ContributionSignalId::Sales),
+                    new \App\Services\Workforce\Contribution\Signals\ReservedSignalCollector(\App\Enums\ContributionSignalId::ManualAdjustment),
+                ],
+            );
+        });
+        $this->app->singleton(
+            \App\Contracts\Workforce\ExtraQualificationPolicy::class,
+            \App\Services\Workforce\Extra\RuleBookExtraQualificationPolicy::class,
+        );
+        $this->app->singleton(\App\Services\Workforce\Extra\ExtraQualificationEngine::class);
         $this->app->bind(
             \App\Support\Dashboard\Contracts\DashboardAttentionScoreCalculator::class,
             \App\Support\Dashboard\NullDashboardAttentionScoreCalculator::class,

@@ -18855,3 +18855,464 @@ button.attendance-matrix-cell:focus-visible .attendance-matrix-badge {
         padding: 0.75rem 0.9rem;
     }
 }
+
+/* -------------------------------------------------------------------------
+   Workforce Member 360 (reusable drawer)
+   ------------------------------------------------------------------------- */
+
+.attendance-matrix-employee--button {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+}
+
+.attendance-matrix-employee--button:hover .attendance-matrix-employee__name,
+.attendance-matrix-employee--button:focus-visible .attendance-matrix-employee__name {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.attendance-matrix-employee--button:focus-visible {
+    outline: none;
+}
+
+.attendance-matrix-employee--button:focus-visible .attendance-matrix-employee__avatar {
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(37, 99, 235, 0.35);
+}
+
+body.wm360-drawer-open {
+    overflow: hidden;
+}
+
+.wm360-drawer {
+    position: fixed;
+    inset: 0;
+    z-index: 1080;
+    pointer-events: none;
+}
+
+.wm360-drawer.is-open {
+    pointer-events: auto;
+}
+
+.wm360-drawer__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.34);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.wm360-drawer.is-open .wm360-drawer__backdrop {
+    opacity: 1;
+}
+
+.wm360-drawer__panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    width: min(440px, 100vw);
+    height: 100%;
+    background: #fff;
+    border-left: 1px solid rgba(15, 23, 42, 0.08);
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+}
+
+.wm360-drawer.is-open .wm360-drawer__panel {
+    transform: translateX(0);
+}
+
+.wm360-drawer__chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    background: #f8fafc;
+}
+
+.wm360-drawer__chrome-title {
+    font-size: 0.75rem;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.wm360-drawer__close {
+    color: #334155;
+    text-decoration: none;
+}
+
+.wm360-drawer__body {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: 1rem 1rem 1.5rem;
+}
+
+.wm360-drawer__loading {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.wm360-skeleton {
+    border-radius: 0.65rem;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+    background-size: 400% 100%;
+    animation: wm360-skeleton 1.2s ease infinite;
+}
+
+.wm360-skeleton--header {
+    height: 4.5rem;
+}
+
+.wm360-skeleton--block {
+    height: 6rem;
+}
+
+@keyframes wm360-skeleton {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+}
+
+.wm360-header {
+    margin-bottom: 1rem;
+}
+
+.wm360-header__identity {
+    display: flex;
+    gap: 0.85rem;
+    align-items: flex-start;
+}
+
+.wm360-header__avatar {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #0f172a;
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.wm360-header__name-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.6rem;
+}
+
+.wm360-header__name {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+}
+
+.wm360-header__role {
+    margin-top: 0.15rem;
+    font-size: 0.8125rem;
+    color: #475569;
+}
+
+.wm360-header__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.75rem;
+    margin-top: 0.45rem;
+}
+
+.wm360-header__meta-item {
+    font-size: 0.71875rem;
+    color: #64748b;
+}
+
+.wm360-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.625rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.wm360-status-badge--active {
+    color: #166534;
+    background: #e8f7ee;
+}
+
+.wm360-status-badge--inactive {
+    color: #64748b;
+    background: #eef2f6;
+}
+
+.wm360-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.15rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.wm360-tabs__item {
+    flex: 0 0 auto;
+    border: 0;
+    background: transparent;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.78125rem;
+    font-weight: 550;
+    color: #64748b;
+    border-bottom: 2px solid transparent;
+}
+
+.wm360-tabs__item.is-active {
+    color: #0f172a;
+    font-weight: 650;
+    border-bottom-color: #2563eb;
+}
+
+.wm360-tabs__item.is-disabled {
+    opacity: 0.55;
+}
+
+.wm360-soon {
+    display: inline-flex;
+    margin-left: 0.3rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    background: #f8fafc;
+    font-size: 0.55rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.wm360-section + .wm360-section {
+    margin-top: 1.25rem;
+    padding-top: 1.15rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.wm360-section__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+}
+
+.wm360-section__title {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #0f172a;
+}
+
+.wm360-section__note {
+    font-size: 0.71875rem;
+    color: #64748b;
+}
+
+.wm360-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+
+.wm360-kpi {
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 0.65rem;
+    padding: 0.7rem 0.75rem;
+    background: #fff;
+}
+
+.wm360-kpi--accent {
+    background: #f8fafc;
+}
+
+.wm360-kpi--wide {
+    grid-column: 1 / -1;
+}
+
+.wm360-kpi__label {
+    font-size: 0.625rem;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.3rem;
+}
+
+.wm360-kpi__value {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    font-variant-numeric: tabular-nums;
+}
+
+.wm360-callout {
+    margin-bottom: 0.85rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.55rem;
+    background: #f8fafc;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    font-size: 0.765625rem;
+    color: #64748b;
+}
+
+.wm360-subsection + .wm360-subsection {
+    margin-top: 0.85rem;
+}
+
+.wm360-subsection__title {
+    margin: 0 0 0.45rem;
+    font-size: 0.71875rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.wm360-leave-row {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.55rem 0.6rem;
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 0.55rem;
+    text-decoration: none;
+    color: inherit;
+    margin-bottom: 0.4rem;
+}
+
+.wm360-leave-row:hover {
+    background: #f8fafc;
+}
+
+.wm360-leave-row__dates {
+    font-size: 0.8125rem;
+    font-weight: 650;
+    color: #0f172a;
+}
+
+.wm360-leave-row__status {
+    font-size: 0.6875rem;
+    color: #64748b;
+}
+
+.wm360-leave-row__reason {
+    font-size: 0.75rem;
+    color: #475569;
+}
+
+.wm360-empty {
+    margin: 0;
+    font-size: 0.78125rem;
+    color: #94a3b8;
+}
+
+.wm360-timeline {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.wm360-timeline__row {
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 0.55rem;
+    padding: 0.55rem 0.65rem;
+    background: #fff;
+}
+
+.wm360-timeline__row.is-focused {
+    border-color: rgba(37, 99, 235, 0.35);
+    background: #f5f9ff;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.12);
+}
+
+.wm360-timeline__row.is-future {
+    opacity: 0.55;
+}
+
+.wm360-timeline__day {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.wm360-timeline__date {
+    font-size: 0.78125rem;
+    font-weight: 650;
+    color: #0f172a;
+}
+
+.wm360-timeline__meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.2rem 0.75rem;
+    font-size: 0.71875rem;
+    color: #64748b;
+}
+
+.wm360-trends {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.wm360-trend__label {
+    font-size: 0.6875rem;
+    font-weight: 650;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 0.3rem;
+}
+
+.wm360-sparkline {
+    display: block;
+    width: 100%;
+    height: 36px;
+}
+
+.wm360-sparkline--empty {
+    display: flex;
+    align-items: center;
+    min-height: 36px;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.wm360-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.wm360-actions__btn {
+    border-radius: 0.5rem;
+}
+
+@media (min-width: 768px) {
+    .wm360-drawer__panel {
+        width: min(480px, 100vw);
+    }
+}

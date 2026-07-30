@@ -58,6 +58,7 @@ use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\TeamPerformanceController;
 use App\Http\Controllers\Workforce\MonthlyAttendanceController;
+use App\Http\Controllers\Workforce\WorkforceMember360Controller;
 use App\Http\Controllers\TeamTelegramBroadcastController;
 use App\Http\Controllers\TeamWorkScheduleController;
 use App\Http\Controllers\Workforce360Controller;
@@ -255,6 +256,7 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('workforce-management')->name('workforce-management.')->group(function () {
         Route::redirect('/', '/workforce-management/attendance');
         Route::get('attendance', [MonthlyAttendanceController::class, 'index'])->name('attendance.index');
+        Route::get('members/{user}', [WorkforceMember360Controller::class, 'show'])->name('members.show');
     });
 
     Route::get('/my-performance', [MyPerformanceController::class, 'index'])->name('my-performance.index');

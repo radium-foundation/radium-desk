@@ -90,5 +90,7 @@
                 @include('workforce-management.partials.attendance-matrix', ['report' => $report])
             </div>
         </div>
+
+        @include('workforce-management.member-360.drawer-host')
     </div>
 @endsection

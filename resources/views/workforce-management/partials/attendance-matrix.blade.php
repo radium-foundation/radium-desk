@@ -47,7 +47,13 @@
                     data-employee-name="{{ Str::lower($member->name) }}"
                 >
                     <th scope="row" class="attendance-matrix-sticky-col attendance-matrix-employee-col">
-                        <div class="attendance-matrix-employee">
+                        <button
+                            type="button"
+                            class="attendance-matrix-employee attendance-matrix-employee--button"
+                            data-wm360-open-member
+                            data-user-id="{{ $member->userId }}"
+                            aria-label="Open Workforce Member 360 for {{ $member->name }}"
+                        >
                             <span class="attendance-matrix-employee__avatar" aria-hidden="true">{{ $initials !== '' ? $initials : '?' }}</span>
                             <span class="attendance-matrix-employee__text">
                                 <span class="attendance-matrix-employee__name text-truncate" title="{{ $member->name }}">{{ $member->name }}</span>
@@ -55,7 +61,7 @@
                                     <span class="attendance-matrix-employee__role text-truncate">{{ $member->roleLabel }}</span>
                                 @endif
                             </span>
-                        </div>
+                        </button>
                     </th>
                     @foreach($report->days as $day)
                         @php

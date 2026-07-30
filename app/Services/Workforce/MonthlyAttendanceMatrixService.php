@@ -50,98 +50,24 @@ class MonthlyAttendanceMatrixService
         $teamHoliday = 0;
 
         foreach ($users as $user) {
-            $dayRows = $this->attendanceRegister->resolveDaysForRange(
+            $member = $this->buildMemberRow(
                 user: $user,
-                startDate: $month->copy(),
-                endDate: $resolveThrough->copy(),
-                referenceAt: $at,
-                allowPreShiftSkip: false,
-            )->keyBy(fn (WorkforceAttendanceDay $day): string => $day->work_date->toDateString());
-
-            $cells = [];
-            $presentDays = 0;
-            $absentDays = 0;
-            $leaveDays = 0;
-            $lateDays = 0;
-            $holidayDays = 0;
-            $weeklyOffDays = 0;
-            $extraDays = 0;
-            $activeSeconds = 0;
-            $overtimeSeconds = 0;
-
-            foreach ($days as $header) {
-                $dateKey = $header->date->toDateString();
-                $day = $dayRows->get($dateKey);
-                $context = [
-                    'holiday_name' => $holidaysByDate->get($dateKey)?->name,
-                    'leave_reason' => $leaveReasonsByUserDate[$user->id][$dateKey] ?? null,
-                ];
-
-                $kind = $this->cellMapper->kindFor($day, $header->date, $today);
-                $cell = new AttendanceMatrixCell(
-                    userId: $user->id,
-                    workDate: $dateKey,
-                    kind: $kind,
-                    shortLabel: $kind->shortLabel(),
-                    tone: $kind->tone(),
-                    tooltip: $this->cellMapper->tooltipFor($kind, $day, $header->date, $context),
-                    interactive: $kind->isInteractive(),
-                    disabled: $kind === AttendanceMatrixCellKind::Future,
-                    attendanceStatus: $day?->status,
-                    drawerPayload: $this->cellMapper->drawerPayload(
-                        userId: $user->id,
-                        employeeName: (string) $user->name,
-                        workDate: $header->date,
-                        kind: $kind,
-                        day: $day,
-                        context: $context,
-                    ),
-                );
-
-                $cells[$dateKey] = $cell;
-
-                match ($kind) {
-                    AttendanceMatrixCellKind::Present => $presentDays++,
-                    AttendanceMatrixCellKind::Absent => $absentDays++,
-                    AttendanceMatrixCellKind::Leave => $leaveDays++,
-                    AttendanceMatrixCellKind::Late => $lateDays++,
-                    AttendanceMatrixCellKind::Holiday => $holidayDays++,
-                    AttendanceMatrixCellKind::WeeklyOff => $weeklyOffDays++,
-                    AttendanceMatrixCellKind::Extra => $extraDays++,
-                    default => null,
-                };
-
-                if ($day !== null) {
-                    $activeSeconds += (int) $day->active_duration_seconds;
-                    $overtimeSeconds += (int) $day->overtime_seconds;
-                }
-            }
-
-            $teamPresent += $presentDays;
-            $teamAbsent += $absentDays;
-            $teamLeave += $leaveDays;
-            $teamLate += $lateDays;
-            $teamHoliday += $holidayDays;
-
-            $members[] = new AttendanceMatrixMemberRow(
-                userId: $user->id,
-                name: (string) $user->name,
-                roleLabel: $this->roleService->displayLabel($user->roles->first()?->name),
-                cells: $cells,
-                summary: new AttendanceMatrixMemberSummary(
-                    presentDays: $presentDays,
-                    absentDays: $absentDays,
-                    leaveDays: $leaveDays,
-                    lateDays: $lateDays,
-                    holidayDays: $holidayDays,
-                    weeklyOffDays: $weeklyOffDays,
-                    extraDays: $extraDays,
-                    activeDurationSeconds: $activeSeconds,
-                    overtimeSeconds: $overtimeSeconds,
-                    hoursLabel: $this->cellMapper->formatDuration($activeSeconds),
-                    overtimeLabel: $this->cellMapper->formatDuration($overtimeSeconds),
-                ),
+                days: $days,
+                month: $month,
+                resolveThrough: $resolveThrough,
+                at: $at,
+                today: $today,
+                holidaysByDate: $holidaysByDate,
+                leaveReasonsByDate: $leaveReasonsByUserDate[$user->id] ?? [],
             );
+
+            $teamPresent += $member->summary->presentDays;
+            $teamAbsent += $member->summary->absentDays;
+            $teamLeave += $member->summary->leaveDays;
+            $teamLate += $member->summary->lateDays;
+            $teamHoliday += $member->summary->holidayDays;
+
+            $members[] = $member;
         }
 
         return new AttendanceMatrixReport(
@@ -158,6 +84,135 @@ class MonthlyAttendanceMatrixService
                 holiday: $teamHoliday,
             ),
             generatedAt: $at->copy(),
+        );
+    }
+
+    public function buildForUser(User $user, ?Carbon $month = null, ?Carbon $at = null): AttendanceMatrixMemberRow
+    {
+        $user->loadMissing('roles');
+
+        $at ??= now();
+        $month = ($month ?? $at->copy())->copy()->startOfMonth();
+        $monthEnd = $month->copy()->endOfMonth()->startOfDay();
+        $today = $at->copy()->startOfDay();
+        $resolveThrough = $monthEnd->lt($today) ? $monthEnd->copy() : $today->copy();
+
+        $holidaysByDate = $this->holidaysForMonth($month, $monthEnd);
+        $leaveReasonsByUserDate = $this->approvedLeaveReasons(collect([$user]), $month, $monthEnd);
+        $days = $this->buildDayHeaders($month, $monthEnd, $today, $holidaysByDate);
+
+        return $this->buildMemberRow(
+            user: $user,
+            days: $days,
+            month: $month,
+            resolveThrough: $resolveThrough,
+            at: $at,
+            today: $today,
+            holidaysByDate: $holidaysByDate,
+            leaveReasonsByDate: $leaveReasonsByUserDate[$user->id] ?? [],
+        );
+    }
+
+    /**
+     * @param  list<AttendanceMatrixDayHeader>  $days
+     * @param  Collection<string, CompanyHoliday>  $holidaysByDate
+     * @param  array<string, string>  $leaveReasonsByDate
+     */
+    private function buildMemberRow(
+        User $user,
+        array $days,
+        Carbon $month,
+        Carbon $resolveThrough,
+        Carbon $at,
+        Carbon $today,
+        Collection $holidaysByDate,
+        array $leaveReasonsByDate,
+    ): AttendanceMatrixMemberRow {
+        $dayRows = $this->attendanceRegister->resolveDaysForRange(
+            user: $user,
+            startDate: $month->copy(),
+            endDate: $resolveThrough->copy(),
+            referenceAt: $at,
+            allowPreShiftSkip: false,
+        )->keyBy(fn (WorkforceAttendanceDay $day): string => $day->work_date->toDateString());
+
+        $cells = [];
+        $presentDays = 0;
+        $absentDays = 0;
+        $leaveDays = 0;
+        $lateDays = 0;
+        $holidayDays = 0;
+        $weeklyOffDays = 0;
+        $extraDays = 0;
+        $activeSeconds = 0;
+        $overtimeSeconds = 0;
+
+        foreach ($days as $header) {
+            $dateKey = $header->date->toDateString();
+            $day = $dayRows->get($dateKey);
+            $context = [
+                'holiday_name' => $holidaysByDate->get($dateKey)?->name,
+                'leave_reason' => $leaveReasonsByDate[$dateKey] ?? null,
+            ];
+
+            $kind = $this->cellMapper->kindFor($day, $header->date, $today);
+            $cell = new AttendanceMatrixCell(
+                userId: $user->id,
+                workDate: $dateKey,
+                kind: $kind,
+                shortLabel: $kind->shortLabel(),
+                tone: $kind->tone(),
+                tooltip: $this->cellMapper->tooltipFor($kind, $day, $header->date, $context),
+                interactive: $kind->isInteractive(),
+                disabled: $kind === AttendanceMatrixCellKind::Future,
+                attendanceStatus: $day?->status,
+                drawerPayload: $this->cellMapper->drawerPayload(
+                    userId: $user->id,
+                    employeeName: (string) $user->name,
+                    workDate: $header->date,
+                    kind: $kind,
+                    day: $day,
+                    context: $context,
+                ),
+            );
+
+            $cells[$dateKey] = $cell;
+
+            match ($kind) {
+                AttendanceMatrixCellKind::Present => $presentDays++,
+                AttendanceMatrixCellKind::Absent => $absentDays++,
+                AttendanceMatrixCellKind::Leave => $leaveDays++,
+                AttendanceMatrixCellKind::Late => $lateDays++,
+                AttendanceMatrixCellKind::Holiday => $holidayDays++,
+                AttendanceMatrixCellKind::WeeklyOff => $weeklyOffDays++,
+                AttendanceMatrixCellKind::Extra => $extraDays++,
+                default => null,
+            };
+
+            if ($day !== null) {
+                $activeSeconds += (int) $day->active_duration_seconds;
+                $overtimeSeconds += (int) $day->overtime_seconds;
+            }
+        }
+
+        return new AttendanceMatrixMemberRow(
+            userId: $user->id,
+            name: (string) $user->name,
+            roleLabel: $this->roleService->displayLabel($user->roles->first()?->name),
+            cells: $cells,
+            summary: new AttendanceMatrixMemberSummary(
+                presentDays: $presentDays,
+                absentDays: $absentDays,
+                leaveDays: $leaveDays,
+                lateDays: $lateDays,
+                holidayDays: $holidayDays,
+                weeklyOffDays: $weeklyOffDays,
+                extraDays: $extraDays,
+                activeDurationSeconds: $activeSeconds,
+                overtimeSeconds: $overtimeSeconds,
+                hoursLabel: $this->cellMapper->formatDuration($activeSeconds),
+                overtimeLabel: $this->cellMapper->formatDuration($overtimeSeconds),
+            ),
         );
     }
 

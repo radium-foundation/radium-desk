@@ -2,10 +2,13 @@
 
 namespace App\Services\Operations;
 
+use App\Contracts\Workforce\WorkforceEventPublisher;
+use App\Data\Workforce\WorkforceEvent;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\NotificationCategory;
 use App\Enums\NotificationChannelType;
 use App\Enums\WorkforceAuditEvent;
+use App\Enums\WorkforceEventType;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Notifications\LeaveRequestDecisionNotification;
@@ -26,6 +29,7 @@ class LeaveRequestService
         private readonly TelegramBotService $telegramBot,
         private readonly AuditLogService $auditLogService,
         private readonly AttendanceRegisterService $attendanceRegisterService,
+        private readonly WorkforceEventPublisher $workforceEventPublisher,
     ) {}
 
     public function earliestPermittedStartDate(?Carbon $at = null): Carbon
@@ -143,6 +147,7 @@ class LeaveRequestService
             );
         }
 
+        $this->publishLeaveEvent(WorkforceEventType::LeaveApproved, $leaveRequest);
         $this->notifyRequesterOfDecision($leaveRequest);
 
         return $leaveRequest;
@@ -187,6 +192,7 @@ class LeaveRequestService
             return $lockedLeaveRequest;
         });
 
+        $this->publishLeaveEvent(WorkforceEventType::LeaveRejected, $leaveRequest);
         $this->notifyRequesterOfDecision($leaveRequest);
 
         return $leaveRequest;
@@ -330,6 +336,22 @@ class LeaveRequestService
                 'legacy_event' => $event->legacyEvent(),
             ],
         );
+    }
+
+    private function publishLeaveEvent(WorkforceEventType $type, LeaveRequest $leaveRequest): void
+    {
+        $this->workforceEventPublisher->publish(WorkforceEvent::make(
+            type: $type,
+            userId: (int) $leaveRequest->user_id,
+            workDate: $leaveRequest->start_date->copy()->startOfDay(),
+            payload: [
+                'leave_request_id' => $leaveRequest->id,
+                'start_date' => $leaveRequest->start_date->toDateString(),
+                'end_date' => $leaveRequest->end_date->toDateString(),
+                'status' => $leaveRequest->status->value,
+                'reviewed_by' => $leaveRequest->reviewed_by,
+            ],
+        ));
     }
 
     private function notifyApproversOfSubmission(LeaveRequest $leaveRequest): void

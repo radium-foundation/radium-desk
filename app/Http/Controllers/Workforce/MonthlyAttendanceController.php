@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Workforce;
 
 use App\Http\Controllers\Controller;
-use App\Services\Workforce\MonthlyAttendanceMatrixService;
+use App\Services\Workforce\DailyWorkforceEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -11,7 +11,7 @@ use Illuminate\View\View;
 class MonthlyAttendanceController extends Controller
 {
     public function __construct(
-        private readonly MonthlyAttendanceMatrixService $matrixService,
+        private readonly DailyWorkforceEngine $workforceEngine,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless($request->user()?->can('team-performance.view'), 403);
@@ -25,7 +25,7 @@ class MonthlyAttendanceController extends Controller
         $month = $this->resolveMonth($request->query('month'));
 
         return view('workforce-management.attendance.index', [
-            'report' => $this->matrixService->build($month),
+            'report' => $this->workforceEngine->matrix($month),
             'monthValue' => $month->format('Y-m'),
         ]);
     }
