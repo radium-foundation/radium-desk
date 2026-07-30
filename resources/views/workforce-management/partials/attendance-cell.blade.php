@@ -24,14 +24,26 @@
         explode(' · ', (string) $cell->tooltip),
     ), static fn (string $part): bool => $part !== ''));
 
-    $tooltipHtml = collect($tooltipLines)
+    $tooltipHtml = '<div class="att-tip">'.collect($tooltipLines)
         ->values()
         ->map(function (string $line, int $index): string {
-            $class = $index === 0 ? 'att-tip__title' : ($index === 1 ? 'att-tip__status' : 'att-tip__line');
+            if ($index === 0) {
+                return '<div class="att-tip__title">'.e($line).'</div>';
+            }
 
-            return '<div class="'.$class.'">'.e($line).'</div>';
+            if ($index === 1) {
+                return '<div class="att-tip__status">'.e($line).'</div>';
+            }
+
+            if ($index === 2) {
+                return '<div class="att-tip__body"><div class="att-tip__line">'.e($line).'</div>';
+            }
+
+            return '<div class="att-tip__line">'.e($line).'</div>';
         })
-        ->implode('');
+        ->implode('')
+        .(count($tooltipLines) > 2 ? '</div>' : '')
+        .'</div>';
 @endphp
 
 @if($cell->interactive)

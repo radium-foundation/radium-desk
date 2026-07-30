@@ -10,12 +10,8 @@
     <div class="workforce-management-page" data-workforce-management-attendance>
         <header class="wm-page-header">
             <div class="wm-page-header__eyebrow">Workforce Management</div>
-            <div class="wm-page-header__row">
-                <div>
-                    <h1 class="wm-page-header__title">Attendance</h1>
-                    <p class="wm-page-header__subtitle">{{ $report->monthLabel }} · team register overview</p>
-                </div>
-            </div>
+            <h1 class="wm-page-header__title">Attendance</h1>
+            <p class="wm-page-header__subtitle">{{ $report->monthLabel }} · team register overview</p>
         </header>
 
         @include('workforce-management.partials.workspace-nav', ['active' => 'attendance'])
@@ -56,6 +52,7 @@
                         required
                     >
                 </div>
+                <div class="wm-toolbar__divider" aria-hidden="true"></div>
                 <div class="wm-toolbar__field wm-toolbar__field--grow">
                     <label for="attendance-search" class="wm-toolbar__label">Search employee</label>
                     <input
@@ -68,7 +65,6 @@
                     >
                 </div>
                 <div class="wm-toolbar__actions">
-                    <span class="wm-toolbar__label wm-toolbar__label--spacer" aria-hidden="true">&nbsp;</span>
                     <button type="submit" class="btn btn-primary wm-toolbar__submit">Apply</button>
                 </div>
             </form>
