@@ -26,24 +26,30 @@
 <div class="customer-360-drawer-content c360-cockpit"
      data-customer-360-content
      data-c360-search-index="{{ json_encode($searchIndex, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}">
-    <x-c360.operations-header
-        :incident="$incident"
-        :order="$order"
-        :device="$device"
-        :healthCard="$healthCard"
-        :summary="$summary ?? []"
-        :isWaitingForCustomer="$isWaitingForCustomer ?? false"
-        :waitingStateCard="$waitingStateCard ?? null"
-    />
+    @if(($conversationWorkspace['active'] ?? false))
+        @include('customer-360.partials.conversation-workspace', [
+            'conversationWorkspace' => $conversationWorkspace,
+        ])
+    @else
+        <x-c360.operations-header
+            :incident="$incident"
+            :order="$order"
+            :device="$device"
+            :healthCard="$healthCard"
+            :summary="$summary ?? []"
+            :isWaitingForCustomer="$isWaitingForCustomer ?? false"
+            :waitingStateCard="$waitingStateCard ?? null"
+        />
 
-    <x-c360.commercial-state :commercial-state="$commercialState ?? null" />
+        <x-c360.commercial-state :commercial-state="$commercialState ?? null" />
 
-    <x-c360.quick-action-toolbar
-        :incident="$incident"
-        :order="$order"
-        :customer="$customer"
-        :overflowMenuGroups="$overflowMenuGroups ?? []"
-    />
+        <x-c360.quick-action-toolbar
+            :incident="$incident"
+            :order="$order"
+            :customer="$customer"
+            :overflowMenuGroups="$overflowMenuGroups ?? []"
+        />
+    @endif
 
     <nav class="customer-360-tabs" aria-label="Customer 360 sections">
         <ul class="nav nav-pills customer-360-tab-list" role="tablist">

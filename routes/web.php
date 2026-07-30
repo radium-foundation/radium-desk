@@ -11,6 +11,7 @@ use App\Http\Controllers\BonvoiceClickToCallController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\CompanyHolidayController;
+use App\Http\Controllers\ConversationWorkspaceController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardActivityController;
@@ -95,6 +96,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.row');
     Route::get('dashboard/service-cases/{incident}/customer-360', [Customer360Controller::class, 'show'])
         ->name('dashboard.service-cases.customer-360');
+    Route::patch('dashboard/service-cases/{incident}/conversation-workspace', [ConversationWorkspaceController::class, 'update'])
+        ->name('dashboard.service-cases.conversation-workspace.update');
     Route::get('dashboard/orders/{order}/customer-360', [Customer360Controller::class, 'showForOrder'])
         ->name('dashboard.orders.customer-360');
     Route::post('bonvoice/click-to-call', BonvoiceClickToCallController::class)

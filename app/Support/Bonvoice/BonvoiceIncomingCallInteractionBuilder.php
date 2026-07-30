@@ -17,10 +17,14 @@ class BonvoiceIncomingCallInteractionBuilder
      *     customer_name: ?string,
      *     direction: string,
      *     reference_label: string,
+     *     conversation_workspace: bool,
      * }
      */
-    public static function fromAlert(BonvoiceCallAlert $alert, ?string $status = null): array
-    {
+    public static function fromAlert(
+        BonvoiceCallAlert $alert,
+        ?string $status = null,
+        bool $conversationWorkspace = false,
+    ): array {
         $alert->loadMissing(['order', 'incident', 'callEvent']);
 
         $resolvedStatus = $status ?? self::resolveStatus($alert->callEvent?->status);
@@ -36,6 +40,7 @@ class BonvoiceIncomingCallInteractionBuilder
             'reference_label' => $alert->incident?->reference_no
                 ?? $alert->order?->order_id
                 ?? '',
+            'conversation_workspace' => $conversationWorkspace,
         ];
     }
 

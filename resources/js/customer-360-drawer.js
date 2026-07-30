@@ -4,6 +4,7 @@ import { initUnifiedTimeline } from './unified-timeline';
 import { initCustomer360Cockpit, bindIraDisclosures } from './customer-360-cockpit';
 import { bindBonvoiceClickToCall } from './bonvoice-click-to-call';
 import { initMoreMenu, closeMenu as closeMoreMenu, isMoreMenuOpen, openMoreMenuForHost } from './customer-360-more-menu';
+import { initConversationWorkspace } from './conversation-workspace';
 
 const SESSION_REASON = 'customer-360-drawer';
 
@@ -22,7 +23,19 @@ const logCustomer360Failure = (endpoint, status, context, error = null) => {
     });
 };
 
-const drawerContentUrl = (baseUrl, incidentId) => `${baseUrl}/${incidentId}/customer-360`;
+const drawerContentUrl = (baseUrl, incidentId, options = {}) => {
+    const url = new URL(`${baseUrl}/${incidentId}/customer-360`, window.location.origin);
+
+    if (options.conversationWorkspace) {
+        url.searchParams.set('cw', '1');
+    }
+
+    if (typeof options.callId === 'string' && options.callId !== '') {
+        url.searchParams.set('call_id', options.callId);
+    }
+
+    return `${url.pathname}${url.search}`;
+};
 
 const incidentIdFromCustomer360Url = (url) => {
     const match = String(url).match(/\/(\d+)\/customer-360(?:\/|$|\?)/);
@@ -184,10 +197,13 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     let subFetchController = null;
     let contentGeneration = 0;
     let pendingOpenOptions = {};
+    let activeConversationWorkspace = false;
+    let activeCallId = null;
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
     let timelinePollTimer = null;
     let cockpitApi = null;
+    let conversationWorkspaceApi = null;
     const lazyTabState = {
         executiveSummary: false,
         timeline: false,
@@ -1167,6 +1183,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
     const bindCockpitChrome = () => {
         cockpitApi?.destroy?.();
+        conversationWorkspaceApi?.destroy?.();
         cockpitApi = initCustomer360Cockpit({
             drawer,
             contentHost,
@@ -1174,6 +1191,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             showToast,
             isOpen: () => drawer.classList.contains('is-open'),
         });
+        conversationWorkspaceApi = initConversationWorkspace(contentHost, { showToast });
         bindBonvoiceClickToCall(contentHost, { showToast });
     };
 
@@ -1190,7 +1208,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         clearContent();
         setLoading(true);
 
-        const url = drawerContentUrl(baseUrl, incidentId);
+        const url = drawerContentUrl(baseUrl, incidentId, {
+            conversationWorkspace: activeConversationWorkspace,
+            callId: activeCallId,
+        });
 
         try {
             const response = await fetch(url, {
@@ -1233,7 +1254,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         stopTimelinePolling();
         resetLazyTabState();
 
-        const url = drawerContentUrl(baseUrl, incidentId);
+        const url = drawerContentUrl(baseUrl, incidentId, {
+            conversationWorkspace: activeConversationWorkspace,
+            callId: activeCallId,
+        });
         const previousHtml = contentHost.innerHTML;
 
         try {
@@ -1281,6 +1305,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         }
 
         activeIncidentId = null;
+        activeConversationWorkspace = false;
+        activeCallId = null;
 
         drawer.classList.remove('is-open');
         drawer.setAttribute('aria-hidden', 'true');
@@ -1292,6 +1318,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         cockpitApi?.destroy?.();
         cockpitApi = null;
+        conversationWorkspaceApi?.destroy?.();
+        conversationWorkspaceApi = null;
 
         clearContent();
         clearPersistedTab();
@@ -1332,6 +1360,10 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             anchor: options.anchor ?? null,
             openMoreMenu: options.openMoreMenu ?? false,
         };
+        activeConversationWorkspace = options.conversationWorkspace === true;
+        activeCallId = typeof options.callId === 'string' && options.callId !== ''
+            ? options.callId
+            : null;
 
         if (String(previousIncidentId) !== String(incidentId)) {
             clearPersistedTab();
@@ -1460,6 +1492,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             tab: event.detail?.tab ?? null,
             anchor: event.detail?.anchor ?? null,
             openMoreMenu: event.detail?.openMoreMenu ?? false,
+            conversationWorkspace: event.detail?.conversationWorkspace === true,
+            callId: typeof event.detail?.callId === 'string' ? event.detail.callId : null,
         });
     }, { signal: customer360RefreshAbortController.signal });
 

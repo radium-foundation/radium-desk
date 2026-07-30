@@ -14,6 +14,7 @@ use App\Services\Alerts\OperatorAlertCatalog;
 use App\Services\Alerts\OperatorAlertDispatcher;
 use App\Services\DashboardBroadcastService;
 use App\Services\HybridRealtime\HybridRealtimeNotificationBroadcaster;
+use App\Services\ConversationWorkspace\ConversationWorkspaceBootstrapService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Support\Bonvoice\BonvoiceIncomingCallInteractionBuilder;
 use App\Support\BonvoiceCallStatuses;
@@ -33,6 +34,7 @@ class BonvoiceLiveCallAssistService
         private readonly IncomingCallTelegramMessageBuilder $incomingCallTelegramMessageBuilder,
         private readonly HybridRealtimeNotificationBroadcaster $hybridRealtimeBroadcaster,
         private readonly BonvoiceIncomingCallLatency $incomingCallLatency,
+        private readonly ConversationWorkspaceBootstrapService $conversationWorkspaceBootstrap,
     ) {}
 
     public function maybeNotify(BonvoiceCallEvent $event): ?BonvoiceCallAlert
@@ -140,14 +142,27 @@ class BonvoiceLiveCallAssistService
             return;
         }
 
+        $agent = $alert->user ?? $this->agentResolver->resolveUserForCall($event);
+
+        if ($agent === null) {
+            return;
+        }
+
         if ($alert->alert_type === BonvoiceCallAlertType::UnknownCaller) {
-            if (config('app.debug')) {
-                Log::debug('bonvoice.auto_open_customer360.skipped_unknown_customer', [
-                    'call_id' => $event->call_id,
-                ]);
+            $bootstrapped = $this->conversationWorkspaceBootstrap
+                ->ensureIncidentForUnknownAnsweredCall($alert, $event, $agent);
+
+            if ($bootstrapped === null) {
+                if (config('app.debug')) {
+                    Log::debug('bonvoice.auto_open_customer360.skipped_unknown_customer', [
+                        'call_id' => $event->call_id,
+                    ]);
+                }
+
+                return;
             }
 
-            return;
+            $alert = $bootstrapped;
         }
 
         if ($alert->incident_id === null) {
@@ -160,13 +175,14 @@ class BonvoiceLiveCallAssistService
             return;
         }
 
-        $agent = $alert->user ?? $this->agentResolver->resolveUserForCall($event);
+        $conversationWorkspace = $this->conversationWorkspaceBootstrap
+            ->shouldOpenConversationWorkspace($alert);
 
-        if ($agent === null) {
-            return;
-        }
-
-        $interaction = BonvoiceIncomingCallInteractionBuilder::fromAlert($alert, 'answered');
+        $interaction = BonvoiceIncomingCallInteractionBuilder::fromAlert(
+            $alert,
+            'answered',
+            $conversationWorkspace,
+        );
 
         $this->dashboardBroadcastService->incomingCallInteraction($agent, $interaction);
 
@@ -175,6 +191,7 @@ class BonvoiceLiveCallAssistService
                 'call_id' => $event->call_id,
                 'incident_id' => $alert->incident_id,
                 'user_id' => $agent->id,
+                'conversation_workspace' => $conversationWorkspace,
             ]);
         }
     }

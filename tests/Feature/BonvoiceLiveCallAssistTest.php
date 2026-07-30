@@ -630,6 +630,70 @@ class BonvoiceLiveCallAssistTest extends TestCase
         });
     }
 
+    public function test_unknown_caller_answered_bootstraps_inquiry_and_broadcasts_conversation_workspace(): void
+    {
+        Event::fake([NotificationCreated::class]);
+        config([
+            'bonvoice.auto_open_customer360' => true,
+            'conversation_workspace.enabled' => true,
+            'conversation_workspace.auto_create_inquiry_on_answer' => true,
+        ]);
+
+        $agent = User::factory()->create([
+            'bonvoice_extension' => '1800123456',
+        ]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-cw-unknown-001',
+            sourceNumber: '9111999888',
+            status: 'Ringing',
+            eventId: 'evt-cw-unknown-ring',
+        ))->assertOk();
+
+        $this->assertDatabaseHas('bonvoice_call_alerts', [
+            'call_id' => 'call-cw-unknown-001',
+            'alert_type' => BonvoiceCallAlertType::UnknownCaller->value,
+            'incident_id' => null,
+        ]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-cw-unknown-001',
+            sourceNumber: '9111999888',
+            status: 'ANSWERED',
+            eventId: 'evt-cw-unknown-answered',
+        ))->assertOk();
+
+        $alert = BonvoiceCallAlert::query()->where('call_id', 'call-cw-unknown-001')->first();
+        $this->assertNotNull($alert);
+        $this->assertNotNull($alert->incident_id);
+        $this->assertNotNull($alert->order_id);
+
+        $order = Order::query()->find($alert->order_id);
+        $this->assertNotNull($order);
+        $this->assertTrue($order->isInquiryOrder());
+
+        $this->assertDatabaseHas('conversation_workspace_sessions', [
+            'incident_id' => $alert->incident_id,
+            'call_id' => 'call-cw-unknown-001',
+        ]);
+
+        $all = Event::dispatched(NotificationCreated::class);
+        $answeredInteractions = collect($all)
+            ->map(fn (array $payload) => $payload[0] ?? null)
+            ->filter(fn ($event) => $event instanceof NotificationCreated
+                && ($event->interaction['status'] ?? null) === 'answered');
+
+        $this->assertNotEmpty($all, 'No NotificationCreated events. count='.count($all));
+        $this->assertCount(1, $answeredInteractions, 'Answered interactions: '.$answeredInteractions->count());
+
+        /** @var NotificationCreated $event */
+        $event = $answeredInteractions->first();
+        $this->assertTrue($event->recipient->is($agent));
+        $this->assertSame($alert->incident_id, $event->interaction['incident_id'] ?? null);
+        $this->assertSame(true, $event->interaction['conversation_workspace'] ?? null, json_encode($event->interaction));
+    }
+
     public function test_known_customer_without_incident_does_not_broadcast_auto_open_interaction(): void
     {
         Notification::fake();

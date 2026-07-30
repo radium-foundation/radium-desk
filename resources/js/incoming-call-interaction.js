@@ -137,6 +137,8 @@ export const maybeHandleIncomingCallInteraction = (interaction) => {
             referenceLabel: typeof interaction.reference_label === 'string'
                 ? interaction.reference_label
                 : '',
+            callId: typeof interaction.call_id === 'string' ? interaction.call_id : null,
+            conversationWorkspace: interaction.conversation_workspace === true,
         },
     }));
 };

@@ -95,6 +95,11 @@ class Incident extends Model
         return $this->belongsTo(Order::class, 'inquiry_origin_order_id');
     }
 
+    public function conversationWorkspaceSession(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(ConversationWorkspaceSession::class);
+    }
+
     public function isOnInquiryOrder(): bool
     {
         $this->loadMissing('order');

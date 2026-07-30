@@ -33,6 +33,9 @@ use App\Services\Interakt\CustomerNotRespondingEligibilityService;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
+use App\Services\ConversationWorkspace\ConversationWorkspaceModeResolver;
+use App\Services\ConversationWorkspace\ConversationWorkspaceSessionService;
+use App\Support\ConversationWorkspace\ConversationWorkspacePresenter;
 use App\Support\Commercial\CommercialStatePresenter;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
@@ -88,12 +91,27 @@ class Customer360Service
         private readonly CaseIntelligenceEngine $caseIntelligenceEngine,
         private readonly CommercialStateResolver $commercialStateResolver,
         private readonly CommercialStatePresenter $commercialStatePresenter,
+        private readonly ConversationWorkspaceModeResolver $conversationWorkspaceModeResolver,
+        private readonly ConversationWorkspaceSessionService $conversationWorkspaceSessionService,
+        private readonly ConversationWorkspacePresenter $conversationWorkspacePresenter,
     ) {}
+
+    /**
+     * @param  array{live_incoming_call?: bool, call_id?: string|null}  $context
+     * @return array<string, mixed>
+     */
+    public function drawerData(Incident $incident, array $context = []): array
+    {
+        $data = $this->buildDrawerData($incident);
+        $data['conversationWorkspace'] = $this->conversationWorkspacePayload($incident, $data, $context);
+
+        return $data;
+    }
 
     /**
      * @return array<string, mixed>
      */
-    public function drawerData(Incident $incident): array
+    private function buildDrawerData(Incident $incident): array
     {
         $incident->loadMissing([
             'order.deviceModel',
@@ -190,6 +208,35 @@ class Customer360Service
                 $incident->isActive() ? $incident->supportAppointments : collect(),
             ),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $drawerData
+     * @param  array{live_incoming_call?: bool, call_id?: string|null}  $context
+     * @return array<string, mixed>|null
+     */
+    private function conversationWorkspacePayload(Incident $incident, array $drawerData, array $context): ?array
+    {
+        $order = $drawerData['order'] ?? $incident->order;
+
+        if (! $this->conversationWorkspaceModeResolver->isActive($incident, $order instanceof Order ? $order : null, $context)) {
+            return null;
+        }
+
+        $session = $this->conversationWorkspaceSessionService->firstOrCreateForIncident(
+            $incident,
+            auth()->user(),
+            isset($context['call_id']) && is_string($context['call_id']) ? $context['call_id'] : null,
+        );
+
+        return $this->conversationWorkspacePresenter->present(
+            incident: $incident,
+            order: $order,
+            sessionView: $this->conversationWorkspaceSessionService->viewModel($session),
+            canLinkOrder: (bool) ($drawerData['canLinkOrder'] ?? false),
+            callId: isset($context['call_id']) && is_string($context['call_id']) ? $context['call_id'] : null,
+            viewer: auth()->user(),
+        );
     }
 
     /**

@@ -29,8 +29,10 @@ class Customer360Controller extends Controller
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
     ) {}
 
-    public function show(Incident $incident): Response
+    public function show(Incident $incident, ?Request $request = null): Response
     {
+        $request ??= request();
+
         $this->authorize('view', $incident);
 
         $incident->loadMissing('order');
@@ -39,13 +41,22 @@ class Customer360Controller extends Controller
         $profiler = new Customer360DrawerProfiler;
         $startedAt = microtime(true);
 
-        $data = $profiler->measure('drawer_data', fn () => $this->customer360Service->drawerData($incident));
+        $context = [
+            'live_incoming_call' => $request->boolean('cw'),
+            'call_id' => $request->string('call_id')->toString() ?: null,
+        ];
+
+        $data = $profiler->measure(
+            'drawer_data',
+            fn () => $this->customer360Service->drawerData($incident, $context),
+        );
         $html = $profiler->measure('render', fn () => view('customer-360.drawer-content', $data)->render());
 
         Log::info('customer360.drawer.open', [
             'incident_id' => $incident->id,
             'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
             'sections' => $profiler->timings(),
+            'conversation_workspace' => (bool) ($data['conversationWorkspace']['active'] ?? false),
         ]);
 
         return response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
