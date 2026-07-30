@@ -57,6 +57,7 @@ use App\Http\Controllers\SupportAppointmentController;
 use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\TeamPerformanceController;
+use App\Http\Controllers\Workforce\MonthlyAttendanceController;
 use App\Http\Controllers\TeamTelegramBroadcastController;
 use App\Http\Controllers\TeamWorkScheduleController;
 use App\Http\Controllers\Workforce360Controller;
@@ -249,6 +250,11 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('holidays', [CompanyHolidayController::class, 'store'])->name('holidays.store');
         Route::delete('holidays/{holiday}', [CompanyHolidayController::class, 'destroy'])->name('holidays.destroy');
         Route::get('performance', [TeamPerformanceController::class, 'index'])->name('performance.index');
+    });
+
+    Route::prefix('workforce-management')->name('workforce-management.')->group(function () {
+        Route::redirect('/', '/workforce-management/attendance');
+        Route::get('attendance', [MonthlyAttendanceController::class, 'index'])->name('attendance.index');
     });
 
     Route::get('/my-performance', [MyPerformanceController::class, 'index'])->name('my-performance.index');

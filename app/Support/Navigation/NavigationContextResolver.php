@@ -45,6 +45,7 @@ class NavigationContextResolver
      *     dashboard: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     operations: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     mission_control: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
+     *     workforce_management: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     administration: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     personal: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      * }
@@ -84,6 +85,18 @@ class NavigationContextResolver
                     'Mission Control',
                     'bi-radar',
                     $missionControlHomeUrl,
+                    $context,
+                ),
+            ]
+            : [];
+
+        $workforceManagementItems = ($isAdminTeam && $user?->can('team-performance.view'))
+            ? [
+                $this->sidebarItem(
+                    'workforce_management.attendance',
+                    'Attendance',
+                    'bi-calendar2-check',
+                    route('workforce-management.attendance.index'),
                     $context,
                 ),
             ]
@@ -131,6 +144,12 @@ class NavigationContextResolver
                 'home_url' => $missionControlHomeUrl ?? route(NavigationMenu::MissionControl->homeRoute()),
                 'visible' => $missionControlItems !== [],
                 'items' => $missionControlItems,
+            ],
+            'workforce_management' => [
+                'label' => NavigationMenu::WorkforceManagement->label(),
+                'home_url' => route(NavigationMenu::WorkforceManagement->homeRoute()),
+                'visible' => $workforceManagementItems !== [],
+                'items' => $workforceManagementItems,
             ],
             'administration' => [
                 'label' => NavigationMenu::Administration->label(),
@@ -189,6 +208,10 @@ class NavigationContextResolver
 
         if ($request->routeIs('admin.workforce.performance.*')) {
             return [NavigationMenu::MissionControl, 'mission_control.home', null];
+        }
+
+        if ($request->routeIs('workforce-management.*')) {
+            return [NavigationMenu::WorkforceManagement, 'workforce_management.attendance', null];
         }
 
         if ($request->routeIs('leave-requests.*')) {
@@ -373,6 +396,7 @@ class NavigationContextResolver
             NavigationMenu::Dashboard => $pageTitle === 'Dashboard',
             NavigationMenu::Operations => false,
             NavigationMenu::MissionControl => in_array($pageTitle, ['Command Center', 'Mission Control'], true),
+            NavigationMenu::WorkforceManagement => in_array($pageTitle, ['Workforce Management', 'Attendance'], true),
             NavigationMenu::Administration => $pageTitle === 'Administration',
             NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests'], true),
         };
