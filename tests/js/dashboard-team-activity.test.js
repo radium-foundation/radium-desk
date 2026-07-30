@@ -26,141 +26,35 @@ describe('dashboard team activity', () => {
              data-team-activity-user-idle-ms="300000"
              data-team-activity-collapsed="0"
              aria-label="Team Activity">
+            <div class="team-activity-panel-header">
+                <button type="button"
+                        class="team-activity-panel-header-toggle"
+                        data-team-activity-panel-toggle
+                        aria-expanded="true"
+                        aria-label="Collapse Team Activity">
+                    <span class="team-activity-panel-title">Team Activity</span>
+                    <span class="team-activity-panel-chevron" aria-hidden="true"></span>
+                </button>
+            </div>
             <div data-team-activity-panel-body>
                 <ul data-team-activity-list>
                     <li data-team-activity-agent="7"
                         data-team-activity-expanded="${expanded ? '1' : '0'}"
                         class="${expanded ? 'is-expanded' : ''}">
-                        <div data-team-activity-row-toggle
-                             role="button"
-                             tabindex="0"
-                             aria-expanded="${expanded ? 'true' : 'false'}">
+                        <div class="team-activity-row-summary">
                             <span class="agent-version">${version}</span>
-                            <span class="team-activity-chevron" aria-hidden="true"></span>
+                            <button type="button"
+                                    data-team-activity-row-toggle
+                                    aria-expanded="${expanded ? 'true' : 'false'}">
+                                <span class="team-activity-chevron" aria-hidden="true"></span>
+                            </button>
                         </div>
                         <div data-team-activity-history ${expanded ? '' : 'hidden'}></div>
                     </li>
                 </ul>
             </div>
-            <button type="button" data-team-activity-panel-toggle aria-expanded="true">Toggle</button>
         </div>
     `;
-
-    it('expands a member row when clicking anywhere on the summary', () => {
-        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
-
-        const pageRoot = document.getElementById('dashboard-page');
-        initDashboardTeamActivity(pageRoot);
-        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
-
-        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
-        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
-
-        expect(row.dataset.teamActivityExpanded).toBe('0');
-
-        summary.querySelector('.agent-version').dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-        expect(row.dataset.teamActivityExpanded).toBe('1');
-        expect(summary.getAttribute('aria-expanded')).toBe('true');
-        expect(row.classList.contains('is-expanded')).toBe(true);
-    });
-
-    it('still expands when a micro text selection exists without a drag', () => {
-        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
-
-        const pageRoot = document.getElementById('dashboard-page');
-        initDashboardTeamActivity(pageRoot);
-        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
-
-        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
-        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
-        const label = summary.querySelector('.agent-version');
-
-        vi.spyOn(window, 'getSelection').mockReturnValue({
-            isCollapsed: false,
-            toString: () => 'v',
-        });
-
-        label.dispatchEvent(new PointerEvent('pointerdown', {
-            bubbles: true,
-            button: 0,
-            clientX: 10,
-            clientY: 10,
-        }));
-        label.dispatchEvent(new MouseEvent('click', {
-            bubbles: true,
-            clientX: 11,
-            clientY: 10,
-        }));
-
-        expect(row.dataset.teamActivityExpanded).toBe('1');
-    });
-
-    it('does not expand after dragging to select text on the row', () => {
-        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
-
-        const pageRoot = document.getElementById('dashboard-page');
-        initDashboardTeamActivity(pageRoot);
-        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
-
-        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
-        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
-        const label = summary.querySelector('.agent-version');
-
-        vi.spyOn(window, 'getSelection').mockReturnValue({
-            isCollapsed: false,
-            toString: () => 'v1',
-        });
-
-        label.dispatchEvent(new PointerEvent('pointerdown', {
-            bubbles: true,
-            button: 0,
-            clientX: 10,
-            clientY: 10,
-        }));
-        label.dispatchEvent(new MouseEvent('click', {
-            bubbles: true,
-            clientX: 40,
-            clientY: 10,
-        }));
-
-        expect(row.dataset.teamActivityExpanded).toBe('0');
-    });
-
-    it('expands a member row via keyboard on the summary', () => {
-        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
-
-        const pageRoot = document.getElementById('dashboard-page');
-        initDashboardTeamActivity(pageRoot);
-        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
-
-        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
-        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
-
-        summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-
-        expect(row.dataset.teamActivityExpanded).toBe('1');
-        expect(summary.getAttribute('aria-expanded')).toBe('true');
-    });
-
-    it('does not expand when clicking an interactive control inside the row', () => {
-        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
-
-        const pageRoot = document.getElementById('dashboard-page');
-        const summary = pageRoot.querySelector('[data-team-activity-row-toggle]');
-        const control = document.createElement('button');
-        control.type = 'button';
-        control.textContent = 'Inline';
-        summary.appendChild(control);
-
-        initDashboardTeamActivity(pageRoot);
-        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
-
-        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
-        control.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-        expect(row.dataset.teamActivityExpanded).toBe('0');
-    });
 
     it('starts collapsed by default', () => {
         document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
@@ -173,6 +67,69 @@ describe('dashboard team activity', () => {
 
         expect(panel.classList.contains('is-collapsed')).toBe(true);
         expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('expands the panel when clicking the Team Activity title', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+
+        const panel = pageRoot.querySelector('[data-team-activity-panel]');
+        const title = pageRoot.querySelector('.team-activity-panel-title');
+
+        expect(panel.classList.contains('is-collapsed')).toBe(true);
+
+        title.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(panel.classList.contains('is-collapsed')).toBe(false);
+        expect(pageRoot.querySelector('[data-team-activity-panel-toggle]').getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('expands the panel when clicking the panel chevron', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+
+        const panel = pageRoot.querySelector('[data-team-activity-panel]');
+        const chevron = pageRoot.querySelector('.team-activity-panel-chevron');
+
+        chevron.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(panel.classList.contains('is-collapsed')).toBe(false);
+    });
+
+    it('expands a member row when clicking the row chevron', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
+        const toggle = pageRoot.querySelector('[data-team-activity-row-toggle]');
+
+        expect(row.dataset.teamActivityExpanded).toBe('0');
+
+        toggle.click();
+
+        expect(row.dataset.teamActivityExpanded).toBe('1');
+        expect(toggle.getAttribute('aria-expanded')).toBe('true');
+        expect(row.classList.contains('is-expanded')).toBe(true);
+    });
+
+    it('does not expand a member row when clicking row content outside the chevron', () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+
+        const row = pageRoot.querySelector('[data-team-activity-agent="7"]');
+        pageRoot.querySelector('.agent-version').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(row.dataset.teamActivityExpanded).toBe('0');
     });
 
     it('polls the team activity endpoint when the panel is open', async () => {

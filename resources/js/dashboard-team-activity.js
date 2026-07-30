@@ -117,55 +117,6 @@ const setPanelCollapsed = (panel, collapsed) => {
     writeCollapsed(collapsed);
 };
 
-const isInteractiveRowTarget = (target) => {
-    if (!(target instanceof Element)) {
-        return false;
-    }
-
-    return Boolean(
-        target.closest([
-            'a[href]',
-            'button',
-            'input',
-            'textarea',
-            'select',
-            'label',
-            '[role="menuitem"]',
-            '[data-bs-toggle]',
-            '[data-dropdown]',
-            'summary',
-        ].join(', '))
-    );
-};
-
-const hasTextSelection = () => {
-    const selection = window.getSelection?.();
-
-    if (!selection || selection.isCollapsed) {
-        return false;
-    }
-
-    return selection.toString().trim().length > 0;
-};
-
-const ROW_DRAG_THRESHOLD_PX = 4;
-
-/**
- * Only suppress row toggle when the user dragged far enough to select text.
- * A plain click on selectable text must still expand — getSelection() often
- * reports a non-empty range after tiny pointer movement on user-select:text.
- */
-const wasTextDragSelect = (origin, event, rowToggle) => {
-    if (!origin || origin.toggle !== rowToggle) {
-        return false;
-    }
-
-    const dragged = Math.abs(event.clientX - origin.x) > ROW_DRAG_THRESHOLD_PX
-        || Math.abs(event.clientY - origin.y) > ROW_DRAG_THRESHOLD_PX;
-
-    return dragged && hasTextSelection();
-};
-
 const toggleRowExpanded = (panel, row, pageRoot) => {
     const nextExpanded = row.dataset.teamActivityExpanded !== '1';
     setRowExpanded(row, nextExpanded);
@@ -319,30 +270,6 @@ const bindPanelInteractions = (pageRoot, panel) => {
 
     panel.dataset.teamActivityBound = '1';
 
-    let rowPointerOrigin = null;
-
-    panel.addEventListener('pointerdown', (event) => {
-        if (event.button !== 0) {
-            rowPointerOrigin = null;
-
-            return;
-        }
-
-        const rowToggle = event.target.closest?.('[data-team-activity-row-toggle]');
-
-        if (!rowToggle || !panel.contains(rowToggle) || isInteractiveRowTarget(event.target)) {
-            rowPointerOrigin = null;
-
-            return;
-        }
-
-        rowPointerOrigin = {
-            x: event.clientX,
-            y: event.clientY,
-            toggle: rowToggle,
-        };
-    });
-
     panel.addEventListener('click', (event) => {
         const panelToggle = event.target.closest?.('[data-team-activity-panel-toggle]');
 
@@ -359,45 +286,12 @@ const bindPanelInteractions = (pageRoot, panel) => {
                 startPolling(pageRoot, activeController);
             }
 
-            rowPointerOrigin = null;
-
             return;
         }
 
         const rowToggle = event.target.closest?.('[data-team-activity-row-toggle]');
 
         if (!rowToggle || !panel.contains(rowToggle)) {
-            rowPointerOrigin = null;
-
-            return;
-        }
-
-        if (isInteractiveRowTarget(event.target) || wasTextDragSelect(rowPointerOrigin, event, rowToggle)) {
-            rowPointerOrigin = null;
-
-            return;
-        }
-
-        rowPointerOrigin = null;
-
-        const row = rowToggle.closest('[data-team-activity-agent]');
-
-        if (!row) {
-            return;
-        }
-
-        event.preventDefault();
-        toggleRowExpanded(panel, row, pageRoot);
-    });
-
-    panel.addEventListener('keydown', (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') {
-            return;
-        }
-
-        const rowToggle = event.target.closest?.('[data-team-activity-row-toggle]');
-
-        if (!rowToggle || event.target !== rowToggle || !panel.contains(rowToggle)) {
             return;
         }
 
