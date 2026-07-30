@@ -1,4 +1,9 @@
 import { getWorkspaceSession } from './workspace/session';
+import {
+    dismissIncomingCallCard,
+    maybeShowIncomingCallCardFromNotification,
+    isTerminalPopupStatus,
+} from './incoming-call-bridge';
 
 const INCOMING_CALL_CHANNEL = 'radium-incoming-call';
 const PROCESSED_STORAGE_PREFIX = 'radium.incoming-call.processed.';
@@ -102,6 +107,15 @@ export const maybeHandleIncomingCallInteraction = (interaction) => {
         return;
     }
 
+    const callId = typeof interaction.call_id === 'string' ? interaction.call_id : '';
+
+    if (isTerminalPopupStatus(interaction.status)) {
+        dismissIncomingCallCard(callId);
+        logIncomingCallInteraction('Dismissed popup for terminal ringing outcome', { interaction });
+
+        return;
+    }
+
     if (interaction.status !== 'answered') {
         return;
     }
@@ -115,17 +129,16 @@ export const maybeHandleIncomingCallInteraction = (interaction) => {
     }
 
     if (getWorkspaceSession().isActive()) {
-        logIncomingCallInteraction('Skipped because workspace busy', {
+        logIncomingCallInteraction('Skipped auto-open because workspace busy; refreshing popup actions', {
             reasons: getWorkspaceSession().getActiveReasons(),
             interaction,
         });
+        maybeShowIncomingCallCardFromNotification({ interaction });
 
         return;
     }
 
-    const callId = interaction.call_id;
-
-    if (!claimCallId(typeof callId === 'string' ? callId : '')) {
+    if (!claimCallId(callId)) {
         return;
     }
 
@@ -137,10 +150,12 @@ export const maybeHandleIncomingCallInteraction = (interaction) => {
             referenceLabel: typeof interaction.reference_label === 'string'
                 ? interaction.reference_label
                 : '',
-            callId: typeof interaction.call_id === 'string' ? interaction.call_id : null,
+            callId: callId !== '' ? callId : null,
             conversationWorkspace: interaction.conversation_workspace === true,
         },
     }));
+
+    dismissIncomingCallCard(callId);
 };
 
 export const resetIncomingCallInteractionState = () => {

@@ -80,6 +80,42 @@ describe('incoming call bridge', () => {
         expect(document.querySelectorAll('[data-call-id="call-bridge-001"]')).toHaveLength(1);
     });
 
+    it('rebuilds Open URL on duplicate delivery when incident becomes available', () => {
+        maybeShowIncomingCallCardFromNotification({
+            call: {
+                ...incomingCallPayload,
+                incident_id: null,
+                action_url: '/dashboard',
+            },
+        });
+
+        maybeShowIncomingCallCardFromNotification({
+            interaction: {
+                ...ringingInteraction,
+                status: 'answered',
+                incident_id: 42,
+            },
+            url: '/dashboard?open_customer_360=42',
+        });
+
+        expect(document.querySelectorAll('[data-call-id="call-bridge-001"]')).toHaveLength(1);
+        expect(document.querySelector('[data-call-id="call-bridge-001"] a.btn-primary')?.getAttribute('href'))
+            .toBe('/dashboard?open_customer_360=42');
+    });
+
+    it('dismisses the card for missed interactions', () => {
+        maybeShowIncomingCallCardFromNotification({ call: incomingCallPayload });
+
+        maybeShowIncomingCallCardFromNotification({
+            interaction: {
+                ...ringingInteraction,
+                status: 'missed',
+            },
+        });
+
+        expect(document.querySelector('[data-call-id="call-bridge-001"]')).toBeNull();
+    });
+
     it('handleIncomingCallReceived still renders the card', () => {
         handleIncomingCallReceived({ call: incomingCallPayload });
 

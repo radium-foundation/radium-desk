@@ -40,10 +40,24 @@ export const logIncomingCallPopupLatency = (call) => {
     }
 };
 
+const normalizeIncidentId = (incidentId) => {
+    if (incidentId === null || incidentId === undefined || incidentId === '') {
+        return '';
+    }
+
+    return String(incidentId);
+};
+
+const normalizeActionUrl = (actionUrl) => (
+    typeof actionUrl === 'string' ? actionUrl : ''
+);
+
 const buildCard = (call) => {
     const card = document.createElement('div');
     card.className = 'incoming-call-card card border-0 shadow';
     card.dataset.callId = call.call_id;
+    card.dataset.incidentId = normalizeIncidentId(call.incident_id);
+    card.dataset.actionUrl = normalizeActionUrl(call.action_url);
     card.setAttribute('role', 'status');
     card.setAttribute('aria-live', 'polite');
 
@@ -82,6 +96,16 @@ const buildCard = (call) => {
 
 const host = () => document.getElementById(HOST_ID);
 
+const cardForCallId = (callId) => {
+    const container = host();
+
+    if (!container || typeof callId !== 'string' || callId.trim() === '') {
+        return null;
+    }
+
+    return container.querySelector(`[data-call-id="${callId}"]`);
+};
+
 export const showIncomingCallCard = (call) => {
     const container = host();
 
@@ -89,7 +113,7 @@ export const showIncomingCallCard = (call) => {
         return;
     }
 
-    const existing = container.querySelector(`[data-call-id="${call.call_id}"]`);
+    const existing = cardForCallId(call.call_id);
 
     if (existing) {
         existing.replaceWith(buildCard(call));
@@ -102,6 +126,28 @@ export const showIncomingCallCard = (call) => {
     logIncomingCallPopupLatency(call);
 };
 
+/**
+ * Remove the ringing popup for a call. Idempotent.
+ *
+ * @param {string | null | undefined} callId
+ * @returns {boolean} true when a card was removed
+ */
+export const dismissIncomingCallCard = (callId) => {
+    const existing = cardForCallId(typeof callId === 'string' ? callId : '');
+
+    if (!existing) {
+        return false;
+    }
+
+    existing.remove();
+
+    return true;
+};
+
+/**
+ * Update an existing card. Rebuilds when incident_id or action_url change so
+ * Open stays current after Conversation Workspace bootstrap.
+ */
 export const updateIncomingCallCard = (call) => {
     const container = host();
 
@@ -109,10 +155,21 @@ export const updateIncomingCallCard = (call) => {
         return;
     }
 
-    const existing = container.querySelector(`[data-call-id="${call.call_id}"]`);
+    const existing = cardForCallId(call.call_id);
 
     if (!existing) {
         showIncomingCallCard(call);
+
+        return;
+    }
+
+    const nextIncidentId = normalizeIncidentId(call.incident_id);
+    const nextActionUrl = normalizeActionUrl(call.action_url);
+    const previousIncidentId = existing.dataset.incidentId ?? '';
+    const previousActionUrl = existing.dataset.actionUrl ?? '';
+
+    if (previousIncidentId !== nextIncidentId || previousActionUrl !== nextActionUrl) {
+        existing.replaceWith(buildCard(call));
 
         return;
     }

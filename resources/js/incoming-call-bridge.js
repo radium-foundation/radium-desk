@@ -1,4 +1,15 @@
-import { showIncomingCallCard, updateIncomingCallCard } from './incoming-call-card';
+import {
+    dismissIncomingCallCard,
+    showIncomingCallCard,
+    updateIncomingCallCard,
+} from './incoming-call-card';
+
+const TERMINAL_POPUP_STATUSES = new Set([
+    'missed',
+    'noanswer',
+    'noinput',
+    'failed',
+]);
 
 const isIncomingPhoneInteraction = (interaction) => (
     interaction
@@ -8,6 +19,10 @@ const isIncomingPhoneInteraction = (interaction) => (
     && typeof interaction.call_id === 'string'
     && interaction.call_id.trim() !== ''
 );
+
+const normalizeStatus = (status) => String(status ?? '').trim().toLowerCase();
+
+const isTerminalPopupStatus = (status) => TERMINAL_POPUP_STATUSES.has(normalizeStatus(status));
 
 /**
  * @param {Record<string, unknown> | null | undefined} interaction
@@ -64,6 +79,12 @@ export const renderIncomingCallNotification = (payload, options = {}) => {
         return false;
     }
 
+    if (isTerminalPopupStatus(call.call_status)) {
+        dismissIncomingCallCard(call.call_id);
+
+        return true;
+    }
+
     const dedupeKey = `incoming-call:${call.call_id}`;
 
     if (typeof options.dedupe === 'function' && options.dedupe(dedupeKey)) {
@@ -81,3 +102,5 @@ export const renderIncomingCallNotification = (payload, options = {}) => {
  * @param {Record<string, unknown> | null | undefined} payload
  */
 export const maybeShowIncomingCallCardFromNotification = (payload) => renderIncomingCallNotification(payload);
+
+export { dismissIncomingCallCard, isTerminalPopupStatus };

@@ -61,6 +61,7 @@ class BonvoiceWebhookProcessorService
             if (! $options->suppressNotifications) {
                 $this->liveCallAssistService->maybeNotify($callEvent);
                 $this->liveCallAssistService->maybeBroadcastAnsweredAutoOpen($callEvent, $previousStatus);
+                $this->liveCallAssistService->maybeBroadcastMissedPopupDismiss($callEvent, $previousStatus);
                 $this->outboundClickToCallLiveStatusService->maybeBroadcast($callEvent, $previousStatus);
             }
 

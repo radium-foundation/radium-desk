@@ -196,6 +196,52 @@ class BonvoiceLiveCallAssistService
         }
     }
 
+    /**
+     * Dismiss the ringing popup when the inbound call ends without answer.
+     * Independent of auto-open — popup lifecycle ends with the ringing interaction.
+     */
+    public function maybeBroadcastMissedPopupDismiss(BonvoiceCallEvent $event, ?string $previousStatus): void
+    {
+        if (! BonvoiceCallStatuses::isInbound($event->direction)) {
+            return;
+        }
+
+        if (! BonvoiceCallStatuses::transitionedToMissed($previousStatus, $event->status)) {
+            return;
+        }
+
+        if ($previousStatus === null) {
+            return;
+        }
+
+        $alert = BonvoiceCallAlert::query()
+            ->where('call_id', $event->call_id)
+            ->with(['order', 'incident', 'user'])
+            ->first();
+
+        if ($alert === null) {
+            return;
+        }
+
+        $agent = $alert->user ?? $this->agentResolver->resolveUserForCall($event);
+
+        if ($agent === null) {
+            return;
+        }
+
+        $interaction = BonvoiceIncomingCallInteractionBuilder::fromAlert($alert, 'missed');
+
+        $this->dashboardBroadcastService->incomingCallInteraction($agent, $interaction);
+
+        if (config('app.debug')) {
+            Log::debug('bonvoice.incoming_call_popup.missed_dismiss', [
+                'call_id' => $event->call_id,
+                'user_id' => $agent->id,
+                'status' => $event->status,
+            ]);
+        }
+    }
+
     private function sendNotificationSafely(User $agent, BonvoiceCallAlert $alert): void
     {
         try {

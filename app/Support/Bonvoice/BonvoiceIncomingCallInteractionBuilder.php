@@ -46,6 +46,10 @@ class BonvoiceIncomingCallInteractionBuilder
 
     private static function resolveStatus(?string $callStatus): string
     {
+        if (BonvoiceCallStatuses::isMissedStatus($callStatus)) {
+            return 'missed';
+        }
+
         return BonvoiceCallStatuses::isAnsweredStatus($callStatus) ? 'answered' : 'ringing';
     }
 }

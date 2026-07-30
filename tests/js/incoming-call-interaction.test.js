@@ -4,17 +4,21 @@ import {
     resetIncomingCallInteractionState,
 } from '../../resources/js/incoming-call-interaction';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
+import { initIncomingCallCardHost, showIncomingCallCard } from '../../resources/js/incoming-call-card';
 
 describe('incoming call interaction auto-open', () => {
     beforeEach(() => {
         resetWorkspaceSession();
         resetIncomingCallInteractionState();
+        document.body.innerHTML = '<div id="incoming-call-card-host"></div>';
+        initIncomingCallCardHost();
         vi.spyOn(document, 'dispatchEvent').mockImplementation(() => true);
     });
 
     afterEach(() => {
         resetWorkspaceSession();
         resetIncomingCallInteractionState();
+        document.body.innerHTML = '';
         vi.restoreAllMocks();
     });
 
@@ -27,9 +31,17 @@ describe('incoming call interaction auto-open', () => {
         customer_phone: '9876543210',
         customer_name: 'Known Customer',
         reference_label: 'SC00042',
+        conversation_workspace: false,
     };
 
     it('dispatches customer360:open for answered inbound phone call with incident', () => {
+        showIncomingCallCard({
+            call_id: 'call-001',
+            call_status: 'ringing',
+            action_url: '/dashboard?open_customer_360=42',
+            incident_id: 42,
+        });
+
         maybeHandleIncomingCallInteraction(answeredInteraction);
 
         const openEvent = document.dispatchEvent.mock.calls
@@ -40,7 +52,54 @@ describe('incoming call interaction auto-open', () => {
         expect(openEvent.detail).toEqual({
             incidentId: 42,
             referenceLabel: 'SC00042',
+            callId: 'call-001',
+            conversationWorkspace: false,
         });
+        expect(document.querySelector('[data-call-id="call-001"]')).toBeNull();
+    });
+
+    it('opens conversation workspace for new enquiry answered calls and dismisses popup', () => {
+        showIncomingCallCard({
+            call_id: 'call-cw-1',
+            call_status: 'ringing',
+            action_url: '/dashboard',
+            incident_id: null,
+        });
+
+        maybeHandleIncomingCallInteraction({
+            ...answeredInteraction,
+            call_id: 'call-cw-1',
+            incident_id: 77,
+            conversation_workspace: true,
+            reference_label: 'SC00077',
+        });
+
+        const openEvent = document.dispatchEvent.mock.calls
+            .map(([event]) => event)
+            .find((event) => event.type === 'customer360:open');
+
+        expect(openEvent.detail.conversationWorkspace).toBe(true);
+        expect(openEvent.detail.incidentId).toBe(77);
+        expect(document.querySelector('[data-call-id="call-cw-1"]')).toBeNull();
+    });
+
+    it('dismisses popup on missed without opening Customer360', () => {
+        showIncomingCallCard({
+            call_id: 'call-missed-1',
+            call_status: 'ringing',
+            action_url: '/dashboard',
+        });
+
+        maybeHandleIncomingCallInteraction({
+            channel: 'phone',
+            direction: 'inbound',
+            status: 'missed',
+            call_id: 'call-missed-1',
+            incident_id: null,
+        });
+
+        expect(document.dispatchEvent).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-call-id="call-missed-1"]')).toBeNull();
     });
 
     it('does nothing for ringing status', () => {
@@ -61,12 +120,20 @@ describe('incoming call interaction auto-open', () => {
         expect(document.dispatchEvent).not.toHaveBeenCalled();
     });
 
-    it('does nothing when workspace session is active', () => {
+    it('refreshes Open URL when workspace is busy instead of auto-opening', () => {
         getWorkspaceSession().acquire('workspace-modal');
+        showIncomingCallCard({
+            call_id: 'call-001',
+            call_status: 'ringing',
+            action_url: '/dashboard',
+            incident_id: null,
+        });
 
         maybeHandleIncomingCallInteraction(answeredInteraction);
 
         expect(document.dispatchEvent).not.toHaveBeenCalled();
+        expect(document.querySelector('[data-call-id="call-001"] a.btn-primary')?.getAttribute('href'))
+            .toBe('/dashboard?open_customer_360=42');
     });
 
     it('does nothing for unknown customer without incident', () => {

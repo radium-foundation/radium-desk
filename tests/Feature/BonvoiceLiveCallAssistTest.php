@@ -741,6 +741,76 @@ class BonvoiceLiveCallAssistTest extends TestCase
         });
     }
 
+    public function test_noanswer_after_ringing_broadcasts_missed_popup_dismiss(): void
+    {
+        Notification::fake();
+        Event::fake([NotificationCreated::class]);
+        config(['bonvoice.auto_open_customer360' => false]);
+
+        $agent = $this->createAgentWithKnownCustomer();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-missed-dismiss-001',
+            status: 'Ringing',
+            eventId: 'evt-missed-dismiss-ring',
+        ))->assertOk();
+
+        Event::fake([NotificationCreated::class]);
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-missed-dismiss-001',
+            status: 'NOANSWER',
+            eventId: 'evt-missed-dismiss-noanswer',
+        ))->assertOk();
+
+        Event::assertDispatched(NotificationCreated::class, function (NotificationCreated $event) use ($agent): bool {
+            return $event->recipient->is($agent)
+                && ($event->interaction['status'] ?? null) === 'missed'
+                && ($event->interaction['channel'] ?? null) === 'phone'
+                && ($event->interaction['direction'] ?? null) === 'inbound'
+                && ($event->interaction['call_id'] ?? null) === 'call-missed-dismiss-001'
+                && $event->bellHtml === '';
+        });
+    }
+
+    public function test_duplicate_noanswer_webhook_broadcasts_missed_dismiss_only_once(): void
+    {
+        Notification::fake();
+        Event::fake([NotificationCreated::class]);
+        config(['bonvoice.auto_open_customer360' => false]);
+
+        $this->createAgentWithKnownCustomer();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-missed-dup-001',
+            status: 'Ringing',
+            eventId: 'evt-missed-dup-ring',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-missed-dup-001',
+            status: 'NOANSWER',
+            eventId: 'evt-missed-dup-noanswer-1',
+        ))->assertOk();
+
+        $this->postJson('/api/webhooks/bonvoice', $this->inboundCallPayload(
+            callId: 'call-missed-dup-001',
+            status: 'NOANSWER',
+            eventId: 'evt-missed-dup-noanswer-2',
+        ))->assertOk();
+
+        $missedDismissBroadcasts = collect(Event::dispatched(NotificationCreated::class))
+            ->filter(function (array $payload): bool {
+                $event = $payload[0] ?? null;
+
+                return $event instanceof NotificationCreated
+                    && ($event->interaction['status'] ?? null) === 'missed'
+                    && $event->bellHtml === '';
+            });
+
+        $this->assertCount(1, $missedDismissBroadcasts);
+    }
+
     private function createAgentWithKnownCustomer(): User
     {
         $agent = User::factory()->create([

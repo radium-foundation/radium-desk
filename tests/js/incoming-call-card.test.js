@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    dismissIncomingCallCard,
     initIncomingCallCardHost,
     logIncomingCallPopupLatency,
     showIncomingCallCard,
+    updateIncomingCallCard,
 } from '../../resources/js/incoming-call-card';
 
 describe('incoming call card latency', () => {
@@ -27,6 +29,7 @@ describe('incoming call card latency', () => {
             call_status: 'ringing',
             received_at: receivedAt,
             incident_id: 12,
+            action_url: '/dashboard?open_customer_360=12',
         });
 
         expect(console.info).toHaveBeenCalledWith(
@@ -49,5 +52,69 @@ describe('incoming call card latency', () => {
         logIncomingCallPopupLatency({ call_id: 'call-lat-2' });
 
         expect(console.info).not.toHaveBeenCalled();
+    });
+});
+
+describe('incoming call card lifecycle', () => {
+    beforeEach(() => {
+        document.body.innerHTML = '<div id="incoming-call-card-host"></div>';
+        initIncomingCallCardHost();
+    });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    const ringingCall = {
+        call_id: 'call-life-1',
+        customer_name: 'Unknown caller',
+        mobile_number: '9111222333',
+        call_status: 'ringing',
+        incident_id: null,
+        action_url: '/dashboard',
+    };
+
+    it('dismisses the card for a call id', () => {
+        showIncomingCallCard(ringingCall);
+
+        expect(dismissIncomingCallCard('call-life-1')).toBe(true);
+        expect(document.querySelector('[data-call-id="call-life-1"]')).toBeNull();
+        expect(dismissIncomingCallCard('call-life-1')).toBe(false);
+    });
+
+    it('rebuilds Open URL when incident_id becomes available', () => {
+        showIncomingCallCard(ringingCall);
+
+        updateIncomingCallCard({
+            ...ringingCall,
+            call_status: 'answered',
+            incident_id: 99,
+            action_url: '/dashboard?open_customer_360=99',
+        });
+
+        const openLink = document.querySelector('[data-call-id="call-life-1"] a.btn-primary');
+        expect(openLink?.getAttribute('href')).toBe('/dashboard?open_customer_360=99');
+        expect(document.querySelector('[data-call-id="call-life-1"]')?.dataset.incidentId).toBe('99');
+    });
+
+    it('only updates badge when incident and action url are unchanged', () => {
+        showIncomingCallCard({
+            ...ringingCall,
+            incident_id: 42,
+            action_url: '/dashboard?open_customer_360=42',
+        });
+
+        const cardBefore = document.querySelector('[data-call-id="call-life-1"]');
+
+        updateIncomingCallCard({
+            call_id: 'call-life-1',
+            call_status: 'answered',
+            incident_id: 42,
+            action_url: '/dashboard?open_customer_360=42',
+        });
+
+        const cardAfter = document.querySelector('[data-call-id="call-life-1"]');
+        expect(cardAfter).toBe(cardBefore);
+        expect(cardAfter?.querySelector('.badge')?.textContent).toBe('answered');
     });
 });
