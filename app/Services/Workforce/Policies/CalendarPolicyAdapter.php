@@ -3,6 +3,7 @@
 namespace App\Services\Workforce\Policies;
 
 use App\Contracts\Workforce\CalendarPolicy;
+use App\Enums\LeaveDuration;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Services\Operations\WorkCalendarService;
@@ -36,6 +37,11 @@ class CalendarPolicyAdapter implements CalendarPolicy
     public function hasApprovedLeave(User $user, ?Carbon $at = null): bool
     {
         return $this->workCalendarService->hasApprovedLeave($user, $at);
+    }
+
+    public function approvedLeaveDuration(User $user, ?Carbon $at = null): ?LeaveDuration
+    {
+        return $this->workCalendarService->approvedLeaveDuration($user, $at);
     }
 
     public function isEligibleForAssignment(User $user, ?Carbon $at = null): bool

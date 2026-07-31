@@ -74,6 +74,7 @@
             <div class="wm-matrix-panel__meta">
                 <div class="attendance-matrix-legend" aria-label="Attendance legend">
                     <span class="attendance-matrix-badge attendance-matrix-badge--success">Present</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--half">Half Day</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--warning">Late</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--danger">Absent</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--info">Leave</span>

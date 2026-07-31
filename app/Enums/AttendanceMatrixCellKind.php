@@ -8,6 +8,7 @@ enum AttendanceMatrixCellKind: string
     case Late = 'late';
     case Absent = 'absent';
     case Leave = 'leave';
+    case HalfDay = 'half_day';
     case Holiday = 'holiday';
     case WeeklyOff = 'weekly_off';
     case Extra = 'extra';
@@ -21,6 +22,7 @@ enum AttendanceMatrixCellKind: string
             self::Late => 'Late',
             self::Absent => 'Absent',
             self::Leave => 'Leave',
+            self::HalfDay => 'Half Day',
             self::Holiday => 'Holiday',
             self::WeeklyOff => 'Weekly off',
             self::Extra => 'Extra working',
@@ -36,6 +38,7 @@ enum AttendanceMatrixCellKind: string
             self::Late => 'Late',
             self::Absent => 'Absent',
             self::Leave => 'Leave',
+            self::HalfDay => 'Half',
             self::Holiday => 'Holiday',
             self::WeeklyOff => 'Off',
             self::Extra => 'Extra',
@@ -51,10 +54,24 @@ enum AttendanceMatrixCellKind: string
             self::Late => 'warning',
             self::Absent => 'danger',
             self::Leave => 'info',
+            self::HalfDay => 'half',
             self::Holiday => 'secondary',
             self::WeeklyOff => 'secondary',
             self::Extra => 'primary',
             self::Future, self::Empty => 'muted',
+        };
+    }
+
+    /**
+     * Payroll day fraction foundation. Half Day is always 0.5 when
+     * the matrix cell comes from an approved half-day leave request.
+     */
+    public function payableDayFraction(): float
+    {
+        return match ($this) {
+            self::Present, self::Late => 1.0,
+            self::HalfDay => 0.5,
+            default => 0.0,
         };
     }
 

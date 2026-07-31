@@ -20,16 +20,28 @@
             <div class="wm360-kpi__value">{{ $profile->attendance->presentDays }}</div>
         </article>
         <article class="wm360-kpi">
-            <div class="wm360-kpi__label">Absent</div>
-            <div class="wm360-kpi__value">{{ $profile->attendance->absentDays }}</div>
+            <div class="wm360-kpi__label">Half Day</div>
+            <div class="wm360-kpi__value">{{ $profile->attendance->halfDayDays }}</div>
         </article>
         <article class="wm360-kpi">
             <div class="wm360-kpi__label">Leave</div>
             <div class="wm360-kpi__value">{{ $profile->attendance->leaveDays }}</div>
         </article>
         <article class="wm360-kpi">
+            <div class="wm360-kpi__label">Absent</div>
+            <div class="wm360-kpi__value">{{ $profile->attendance->absentDays }}</div>
+        </article>
+        <article class="wm360-kpi">
+            <div class="wm360-kpi__label">Extra</div>
+            <div class="wm360-kpi__value">{{ $profile->attendance->extraDays }}</div>
+        </article>
+        <article class="wm360-kpi">
             <div class="wm360-kpi__label">Late</div>
             <div class="wm360-kpi__value">{{ $profile->attendance->lateDays }}</div>
+        </article>
+        <article class="wm360-kpi">
+            <div class="wm360-kpi__label">Payable Days</div>
+            <div class="wm360-kpi__value">{{ rtrim(rtrim(number_format($profile->attendance->payableDays, 1), '0'), '.') }}</div>
         </article>
         <article class="wm360-kpi">
             <div class="wm360-kpi__label">OT</div>
@@ -54,7 +66,7 @@
         @forelse($profile->leave->upcoming as $item)
             <a href="{{ $item->url }}" class="wm360-leave-row">
                 <span class="wm360-leave-row__dates">{{ $item->dateRangeLabel }}</span>
-                <span class="wm360-leave-row__status">{{ $item->statusLabel }}</span>
+                <span class="wm360-leave-row__status">{{ $item->statusLabel }} · {{ $item->durationLabel }}</span>
                 <span class="wm360-leave-row__reason">{{ \Illuminate\Support\Str::limit($item->reason, 60) }}</span>
             </a>
         @empty
@@ -67,7 +79,7 @@
         @forelse($profile->leave->history as $item)
             <a href="{{ $item->url }}" class="wm360-leave-row">
                 <span class="wm360-leave-row__dates">{{ $item->dateRangeLabel }}</span>
-                <span class="wm360-leave-row__status">{{ $item->statusLabel }}</span>
+                <span class="wm360-leave-row__status">{{ $item->statusLabel }} · {{ $item->durationLabel }}</span>
                 <span class="wm360-leave-row__reason">{{ \Illuminate\Support\Str::limit($item->reason, 60) }}</span>
             </a>
         @empty

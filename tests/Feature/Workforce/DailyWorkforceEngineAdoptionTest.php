@@ -123,6 +123,9 @@ class DailyWorkforceEngineAdoptionTest extends TestCase
         $this->assertSame($matrixRow->summary->presentDays, $attendance->presentDays);
         $this->assertSame($matrixRow->summary->absentDays, $attendance->absentDays);
         $this->assertSame($matrixRow->summary->leaveDays, $attendance->leaveDays);
+        $this->assertSame($matrixRow->summary->halfDayDays, $attendance->halfDayDays);
+        $this->assertSame($matrixRow->summary->extraDays, $attendance->extraDays);
+        $this->assertSame($matrixRow->summary->payableDays, $attendance->payableDays);
         $this->assertSame($matrixRow->summary->lateDays, $attendance->lateDays);
         $this->assertSame($matrixRow->summary->hoursLabel, $attendance->hoursLabel);
         $this->assertSame($matrixRow->summary->overtimeLabel, $attendance->overtimeLabel);

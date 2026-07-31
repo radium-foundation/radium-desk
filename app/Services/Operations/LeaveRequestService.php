@@ -4,6 +4,7 @@ namespace App\Services\Operations;
 
 use App\Contracts\Workforce\WorkforceEventPublisher;
 use App\Data\Workforce\WorkforceEvent;
+use App\Enums\LeaveDuration;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\NotificationCategory;
 use App\Enums\NotificationChannelType;
@@ -42,17 +43,20 @@ class LeaveRequestService
     }
 
     /**
-     * @param  array{start_date: string, end_date: string, reason: string}  $data
+     * @param  array{start_date: string, end_date: string, reason: string, duration?: string}  $data
      */
     public function submit(User $requester, array $data): LeaveRequest
     {
         $startDate = Carbon::parse($data['start_date'])->startOfDay();
         $endDate = Carbon::parse($data['end_date'])->startOfDay();
+        $duration = LeaveDuration::tryFrom((string) ($data['duration'] ?? LeaveDuration::FullDay->value))
+            ?? LeaveDuration::FullDay;
 
-        $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate): LeaveRequest {
+        $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate, $duration): LeaveRequest {
             $this->lockActiveLeaveRequestsFor($requester);
             $this->assertPermittedStartDate($startDate);
             $this->assertValidDateRange($startDate, $endDate);
+            $this->assertDurationMatchesRange($duration, $startDate, $endDate);
             $this->assertNoOverlappingLeave($requester, $startDate, $endDate);
 
             $leaveRequest = LeaveRequest::query()->create([
@@ -60,6 +64,7 @@ class LeaveRequestService
                 'start_date' => $startDate->toDateString(),
                 'end_date' => $endDate->toDateString(),
                 'reason' => $data['reason'],
+                'duration' => $duration,
                 'status' => LeaveRequestStatus::Pending,
             ]);
 
@@ -73,6 +78,7 @@ class LeaveRequestService
                     'requester_id' => $requester->id,
                     'start_date' => $leaveRequest->start_date->toDateString(),
                     'end_date' => $leaveRequest->end_date->toDateString(),
+                    'duration' => $leaveRequest->duration->value,
                     'status' => LeaveRequestStatus::Pending->value,
                 ],
             );
@@ -314,6 +320,18 @@ class LeaveRequestService
         if ($endDate->lt($startDate)) {
             throw ValidationException::withMessages([
                 'end_date' => 'The end date must be on or after the start date.',
+            ]);
+        }
+    }
+
+    private function assertDurationMatchesRange(
+        LeaveDuration $duration,
+        Carbon $startDate,
+        Carbon $endDate,
+    ): void {
+        if ($duration === LeaveDuration::HalfDay && ! $startDate->isSameDay($endDate)) {
+            throw ValidationException::withMessages([
+                'duration' => 'Half day leave must be for a single date.',
             ]);
         }
     }

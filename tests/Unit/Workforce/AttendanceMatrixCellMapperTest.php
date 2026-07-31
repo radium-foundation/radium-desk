@@ -39,6 +39,7 @@ class AttendanceMatrixCellMapperTest extends TestCase
             [AttendanceDayStatus::Active, false, false, false, AttendanceMatrixCellKind::Late],
             [AttendanceDayStatus::NotStarted, true, false, null, AttendanceMatrixCellKind::Absent],
             [AttendanceDayStatus::OnLeave, true, false, null, AttendanceMatrixCellKind::Leave],
+            [AttendanceDayStatus::HalfDay, true, false, true, AttendanceMatrixCellKind::HalfDay],
             [AttendanceDayStatus::ScheduledOff, false, true, null, AttendanceMatrixCellKind::Holiday],
             [AttendanceDayStatus::ScheduledOff, false, false, null, AttendanceMatrixCellKind::WeeklyOff],
             [AttendanceDayStatus::Extra, false, true, true, AttendanceMatrixCellKind::Extra],

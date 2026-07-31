@@ -27,6 +27,9 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <dl class="row mb-0">
+                        <dt class="col-sm-3">Duration</dt>
+                        <dd class="col-sm-9">{{ $leaveRequest->duration?->label() ?? 'Full Day' }}</dd>
+
                         <dt class="col-sm-3">Reason</dt>
                         <dd class="col-sm-9">{{ $leaveRequest->reason }}</dd>
 

@@ -38,6 +38,18 @@
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+                    <div class="col-md-6">
+                        <label for="duration" class="form-label">Duration</label>
+                        <select id="duration" name="duration"
+                                class="form-select @error('duration') is-invalid @enderror" required>
+                            <option value="full_day" @selected(old('duration', 'full_day') === 'full_day')>Full Day</option>
+                            <option value="half_day" @selected(old('duration') === 'half_day')>Half Day</option>
+                        </select>
+                        @error('duration')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="form-text">Half day leave must use the same start and end date.</div>
+                    </div>
                     <div class="col-12">
                         <label for="reason" class="form-label">Reason</label>
                         <textarea id="reason" name="reason" rows="4"

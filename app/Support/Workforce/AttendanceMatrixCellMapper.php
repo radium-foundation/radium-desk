@@ -28,6 +28,7 @@ class AttendanceMatrixCellMapper
 
         return match ($day->status) {
             AttendanceDayStatus::OnLeave => AttendanceMatrixCellKind::Leave,
+            AttendanceDayStatus::HalfDay => AttendanceMatrixCellKind::HalfDay,
             AttendanceDayStatus::ScheduledOff => $day->is_company_holiday
                 ? AttendanceMatrixCellKind::Holiday
                 : AttendanceMatrixCellKind::WeeklyOff,

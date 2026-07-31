@@ -2,6 +2,7 @@
 
 namespace App\Contracts\Workforce;
 
+use App\Enums\LeaveDuration;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -22,6 +23,8 @@ interface CalendarPolicy extends WorkforcePolicy
     public function isCompanyHoliday(?Carbon $at = null): bool;
 
     public function hasApprovedLeave(User $user, ?Carbon $at = null): bool;
+
+    public function approvedLeaveDuration(User $user, ?Carbon $at = null): ?LeaveDuration;
 
     public function isEligibleForAssignment(User $user, ?Carbon $at = null): bool;
 

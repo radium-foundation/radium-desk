@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\LeaveDuration;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\WorkCalendarDayStatus;
 use App\Models\CompanyHoliday;
@@ -114,6 +115,16 @@ class WorkCalendarService
 
     public function hasApprovedLeave(User $user, ?Carbon $at = null): bool
     {
+        return $this->approvedLeaveRequest($user, $at) !== null;
+    }
+
+    public function approvedLeaveDuration(User $user, ?Carbon $at = null): ?LeaveDuration
+    {
+        return $this->approvedLeaveRequest($user, $at)?->duration ?? null;
+    }
+
+    public function approvedLeaveRequest(User $user, ?Carbon $at = null): ?LeaveRequest
+    {
         $at ??= now();
         $dayKey = $at->copy()->startOfDay()->toDateString();
 
@@ -124,7 +135,8 @@ class WorkCalendarService
             ->where('status', LeaveRequestStatus::Approved)
             ->whereDate('start_date', '<=', $dayKey)
             ->whereDate('end_date', '>=', $dayKey)
-            ->exists();
+            ->orderByDesc('id')
+            ->first();
     }
 
     public function isEligibleForAssignment(User $user, ?Carbon $at = null): bool

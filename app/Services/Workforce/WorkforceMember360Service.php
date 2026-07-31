@@ -13,6 +13,7 @@ use App\Data\Workforce\WorkforceMember360Profile;
 use App\Data\Workforce\WorkforceMember360TimelineDay;
 use App\Data\Workforce\WorkforceMember360Trends;
 use App\Enums\AttendanceMatrixCellKind;
+use App\Enums\LeaveDuration;
 use App\Enums\LeaveRequestStatus;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -86,6 +87,7 @@ class WorkforceMember360Service
                 'value' => match ($cell->kind) {
                     AttendanceMatrixCellKind::Present => 2,
                     AttendanceMatrixCellKind::Late => 1,
+                    AttendanceMatrixCellKind::HalfDay => 1,
                     AttendanceMatrixCellKind::Absent => 0,
                     AttendanceMatrixCellKind::Leave => 0,
                     default => -1,
@@ -167,9 +169,12 @@ class WorkforceMember360Service
             attendancePercent: $percent,
             attendancePercentLabel: $denominator > 0 ? rtrim(rtrim(number_format($percent, 1), '0'), '.').'%' : '—',
             presentDays: $summary->presentDays,
+            halfDayDays: $summary->halfDayDays,
             absentDays: $summary->absentDays,
             leaveDays: $summary->leaveDays,
             lateDays: $summary->lateDays,
+            extraDays: $summary->extraDays,
+            payableDays: $summary->payableDays,
             overtimeLabel: $summary->overtimeLabel,
             hoursLabel: $summary->hoursLabel,
             activeDurationSeconds: $summary->activeDurationSeconds,
@@ -224,6 +229,8 @@ class WorkforceMember360Service
                         : $request->start_date->format('M j').' – '.$request->end_date->format('M j, Y'),
                     status: $request->status->value,
                     statusLabel: $request->status->label(),
+                    duration: $request->duration?->value ?? LeaveDuration::FullDay->value,
+                    durationLabel: $request->duration?->label() ?? LeaveDuration::FullDay->label(),
                     reason: (string) $request->reason,
                     url: route('leave-requests.show', $request),
                 );

@@ -6,6 +6,7 @@ enum AttendanceDayStatus: string
 {
     case ScheduledOff = 'scheduled_off';
     case OnLeave = 'on_leave';
+    case HalfDay = 'half_day';
     case NotStarted = 'not_started';
     case OnTime = 'on_time';
     case Late = 'late';
@@ -19,6 +20,7 @@ enum AttendanceDayStatus: string
         return match ($this) {
             self::ScheduledOff => 'Off day',
             self::OnLeave => 'On leave',
+            self::HalfDay => 'Half day',
             self::NotStarted => 'Not logged in',
             self::OnTime => 'On time',
             self::Late => 'Late',

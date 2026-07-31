@@ -140,10 +140,12 @@ class MonthlyAttendanceMatrixService
         $presentDays = 0;
         $absentDays = 0;
         $leaveDays = 0;
+        $halfDayDays = 0;
         $lateDays = 0;
         $holidayDays = 0;
         $weeklyOffDays = 0;
         $extraDays = 0;
+        $payableDays = 0.0;
         $activeSeconds = 0;
         $overtimeSeconds = 0;
 
@@ -182,12 +184,15 @@ class MonthlyAttendanceMatrixService
                 AttendanceMatrixCellKind::Present => $presentDays++,
                 AttendanceMatrixCellKind::Absent => $absentDays++,
                 AttendanceMatrixCellKind::Leave => $leaveDays++,
+                AttendanceMatrixCellKind::HalfDay => $halfDayDays++,
                 AttendanceMatrixCellKind::Late => $lateDays++,
                 AttendanceMatrixCellKind::Holiday => $holidayDays++,
                 AttendanceMatrixCellKind::WeeklyOff => $weeklyOffDays++,
                 AttendanceMatrixCellKind::Extra => $extraDays++,
                 default => null,
             };
+
+            $payableDays += $kind->payableDayFraction();
 
             if ($day !== null) {
                 $activeSeconds += (int) $day->active_duration_seconds;
@@ -204,10 +209,12 @@ class MonthlyAttendanceMatrixService
                 presentDays: $presentDays,
                 absentDays: $absentDays,
                 leaveDays: $leaveDays,
+                halfDayDays: $halfDayDays,
                 lateDays: $lateDays,
                 holidayDays: $holidayDays,
                 weeklyOffDays: $weeklyOffDays,
                 extraDays: $extraDays,
+                payableDays: round($payableDays, 1),
                 activeDurationSeconds: $activeSeconds,
                 overtimeSeconds: $overtimeSeconds,
                 hoursLabel: $this->cellMapper->formatDuration($activeSeconds),

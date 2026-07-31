@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Contracts\Workforce\CalendarPolicy;
 use App\Data\Operations\AttendanceDayResult;
 use App\Enums\AttendanceDayStatus;
+use App\Enums\LeaveDuration;
 use App\Enums\WorkCalendarDayStatus;
 use App\Enums\WorkSessionEndReason;
 use App\Models\TeamMemberWorkSchedule;
@@ -42,7 +43,9 @@ class AttendanceDayCalculator
         $hasSchedule = $schedule !== null;
         $isWeeklyOff = $hasSchedule && ! $this->workCalendarService->isWorkingDay($schedule, $workDate);
         $isWorkingDay = ! $isCompanyHoliday && ! $isWeeklyOff;
-        $isOnLeave = $this->workCalendarService->hasApprovedLeave($user, $workDate);
+        $leaveDuration = $this->workCalendarService->approvedLeaveDuration($user, $workDate);
+        $isOnLeave = $leaveDuration !== null;
+        $isHalfDayLeave = $leaveDuration === LeaveDuration::HalfDay;
         $calendarStatus = WorkCalendarDayStatus::from(
             (string) ($this->workCalendarService->todayStatusFor($user, $this->referenceInstant($workDate, $referenceAt))['status'] ?? WorkCalendarDayStatus::NoSchedule->value),
         );
@@ -67,6 +70,7 @@ class AttendanceDayCalculator
             }
 
             $status = match (true) {
+                $isHalfDayLeave && $isWorkingDay => AttendanceDayStatus::HalfDay,
                 $isOnLeave && $isWorkingDay => AttendanceDayStatus::OnLeave,
                 $isCompanyHoliday || ! $isWorkingDay => AttendanceDayStatus::ScheduledOff,
                 default => AttendanceDayStatus::NotStarted,
@@ -94,6 +98,24 @@ class AttendanceDayCalculator
                 user: $user,
                 workDate: $workDate,
                 status: AttendanceDayStatus::Extra,
+                calendarStatus: $calendarStatus,
+                isWorkingDay: $isWorkingDay,
+                isCompanyHoliday: $isCompanyHoliday,
+                isOnLeave: $isOnLeave,
+                hasSchedule: $hasSchedule,
+                sessionMetrics: $sessionMetrics,
+                expectedWorkingMinutes: $expectedWorkingMinutes,
+                openSession: $openSession,
+                referenceAt: $referenceAt,
+                computedAt: $computedAt,
+            );
+        }
+
+        if ($isHalfDayLeave) {
+            return $this->buildResult(
+                user: $user,
+                workDate: $workDate,
+                status: AttendanceDayStatus::HalfDay,
                 calendarStatus: $calendarStatus,
                 isWorkingDay: $isWorkingDay,
                 isCompanyHoliday: $isCompanyHoliday,

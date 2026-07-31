@@ -18740,6 +18740,12 @@ button.attendance-matrix-cell:focus-visible .attendance-matrix-badge {
     border-color: #c7ebf4;
 }
 
+.attendance-matrix-badge--half {
+    color: #6b21a8;
+    background: #f5eefc;
+    border-color: #e4d4f5;
+}
+
 .attendance-matrix-badge--primary {
     color: #1e40af;
     background: #ebf1ff;

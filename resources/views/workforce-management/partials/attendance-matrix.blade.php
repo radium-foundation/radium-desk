@@ -26,8 +26,10 @@
                     </th>
                 @endforeach
                 <th scope="col" class="attendance-matrix-summary-col attendance-matrix-summary-col--first text-center">Present</th>
-                <th scope="col" class="attendance-matrix-summary-col text-center">Absent</th>
+                <th scope="col" class="attendance-matrix-summary-col text-center">Half</th>
                 <th scope="col" class="attendance-matrix-summary-col text-center">Leave</th>
+                <th scope="col" class="attendance-matrix-summary-col text-center">Absent</th>
+                <th scope="col" class="attendance-matrix-summary-col text-center">Extra</th>
                 <th scope="col" class="attendance-matrix-summary-col text-center">Late</th>
                 <th scope="col" class="attendance-matrix-summary-col text-center">Hours</th>
                 <th scope="col" class="attendance-matrix-summary-col text-center">OT</th>
@@ -84,15 +86,17 @@
                         </td>
                     @endforeach
                     <td class="text-center attendance-matrix-summary-col attendance-matrix-summary-col--first">{{ $member->summary->presentDays }}</td>
-                    <td class="text-center attendance-matrix-summary-col">{{ $member->summary->absentDays }}</td>
+                    <td class="text-center attendance-matrix-summary-col">{{ $member->summary->halfDayDays }}</td>
                     <td class="text-center attendance-matrix-summary-col">{{ $member->summary->leaveDays }}</td>
+                    <td class="text-center attendance-matrix-summary-col">{{ $member->summary->absentDays }}</td>
+                    <td class="text-center attendance-matrix-summary-col">{{ $member->summary->extraDays }}</td>
                     <td class="text-center attendance-matrix-summary-col">{{ $member->summary->lateDays }}</td>
                     <td class="text-center attendance-matrix-summary-col text-nowrap">{{ $member->summary->hoursLabel }}</td>
                     <td class="text-center attendance-matrix-summary-col text-nowrap">{{ $member->summary->overtimeLabel }}</td>
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ count($report->days) + 7 }}" class="text-muted text-center py-5">
+                    <td colspan="{{ count($report->days) + 9 }}" class="text-muted text-center py-5">
                         No attendance-tracked team members found.
                     </td>
                 </tr>

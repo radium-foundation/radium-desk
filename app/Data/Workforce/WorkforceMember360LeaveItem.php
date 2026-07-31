@@ -11,6 +11,8 @@ readonly class WorkforceMember360LeaveItem
         public string $dateRangeLabel,
         public string $status,
         public string $statusLabel,
+        public string $duration,
+        public string $durationLabel,
         public string $reason,
         public ?string $url,
     ) {}
