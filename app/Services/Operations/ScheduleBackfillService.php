@@ -2,6 +2,7 @@
 
 namespace App\Services\Operations;
 
+use App\Enums\AttendanceMatrixCellKind;
 use App\Models\TeamMemberWorkSchedule;
 use App\Models\User;
 use App\Models\WorkSession;
@@ -9,6 +10,7 @@ use App\Models\WorkforceAttendanceDay;
 use App\Support\Workforce\AttendanceMatrixCellMapper;
 use App\Services\Workforce\Extra\ExtraQualificationEngine;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -34,6 +36,45 @@ class ScheduleBackfillService
     ) {}
 
     /**
+     * Employees with an active (open-ended) work schedule, optionally limited
+     * to those whose schedule rows were created/updated/superseded since $since.
+     *
+     * @return Collection<int, User>
+     */
+    public function eligibleUsers(?Carbon $changedSince = null): Collection
+    {
+        $query = User::query()
+            ->where('is_active', true)
+            ->whereHas('workSchedule')
+            ->with(['workSchedule'])
+            ->orderBy('id');
+
+        if ($changedSince !== null) {
+            $since = $changedSince->copy()->startOfDay();
+
+            $query->whereHas('workSchedules', function ($inner) use ($since): void {
+                $inner->where(function ($dates) use ($since): void {
+                    $dates->where('created_at', '>=', $since)
+                        ->orWhere('updated_at', '>=', $since);
+                });
+            });
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Current open schedule label for selection preview.
+     */
+    public function currentScheduleLabel(User $user): string
+    {
+        $user->loadMissing('workSchedule');
+        $schedule = $user->workSchedule ?? $this->workCalendarService->scheduleFor($user);
+
+        return $this->formatSchedule($schedule);
+    }
+
+    /**
      * @return array{
      *     user: User,
      *     dry_run: bool,
@@ -41,8 +82,12 @@ class ScheduleBackfillService
      *     days_processed: int,
      *     sessions_updated: int,
      *     attendance_days_updated: int,
+     *     ot_delta_seconds: int,
+     *     present_to_extra: int,
+     *     present_to_weekly_off: int,
      *     monthly_summaries_refreshed: int,
      *     monthly_aggregate_table: string|null,
+     *     had_impact: bool,
      *     errors: list<string>
      * }
      */
@@ -63,6 +108,9 @@ class ScheduleBackfillService
         $errors = [];
         $sessionsUpdated = 0;
         $attendanceDaysUpdated = 0;
+        $otDeltaSeconds = 0;
+        $presentToExtra = 0;
+        $presentToWeeklyOff = 0;
 
         $cursor = $from->copy();
 
@@ -76,6 +124,17 @@ class ScheduleBackfillService
                 if ($dayReport['attendance_changed']) {
                     $attendanceDaysUpdated++;
                 }
+                $otDeltaSeconds += (int) $dayReport['ot_after'] - (int) $dayReport['ot_before'];
+
+                if ($dayReport['attendance_before_kind'] === AttendanceMatrixCellKind::Present->value
+                    && $dayReport['attendance_after_kind'] === AttendanceMatrixCellKind::Extra->value) {
+                    $presentToExtra++;
+                }
+
+                if ($dayReport['attendance_before_kind'] === AttendanceMatrixCellKind::Present->value
+                    && $dayReport['attendance_after_kind'] === AttendanceMatrixCellKind::WeeklyOff->value) {
+                    $presentToWeeklyOff++;
+                }
             } catch (Throwable $e) {
                 $errors[] = "{$dateString}: {$e->getMessage()}";
                 $days[] = [
@@ -87,6 +146,12 @@ class ScheduleBackfillService
             $cursor->addDay();
         }
 
+        $hadImpact = $sessionsUpdated > 0
+            || $attendanceDaysUpdated > 0
+            || $otDeltaSeconds !== 0
+            || $presentToExtra > 0
+            || $presentToWeeklyOff > 0;
+
         return [
             'user' => $user,
             'dry_run' => $dryRun,
@@ -97,10 +162,13 @@ class ScheduleBackfillService
             )),
             'sessions_updated' => $sessionsUpdated,
             'attendance_days_updated' => $attendanceDaysUpdated,
+            'ot_delta_seconds' => $otDeltaSeconds,
+            'present_to_extra' => $presentToExtra,
+            'present_to_weekly_off' => $presentToWeeklyOff,
             // No workforce_attendance_monthly_summaries (or equivalent) table exists.
-            // Matrix + Member360 sum overtime/status from workforce_attendance_days on read.
             'monthly_summaries_refreshed' => 0,
             'monthly_aggregate_table' => null,
+            'had_impact' => $hadImpact,
             'errors' => $errors,
         ];
     }
@@ -140,7 +208,6 @@ class ScheduleBackfillService
             $beforeKind,
             $beforeOt,
             $today,
-            $dateString,
         ): array {
             foreach ($sessions as $session) {
                 $derived = $this->presenceEngine->scheduleDerivedAttributesFor($session, $schedule);
