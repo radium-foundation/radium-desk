@@ -6,6 +6,8 @@
 @php
     $weekdayLabels = config('workforce_calendar.weekday_labels', []);
     $selectedDays = old('weekly_off_days', $schedule['weekly_off_days'] ?? []);
+    $effectivePreset = old('effective_from_preset', 'today');
+    $effectiveFrom = old('effective_from', now()->toDateString());
 @endphp
 
 <div class="card border-0 shadow-sm mt-4">
@@ -15,6 +17,8 @@
     <div class="card-body">
         <p class="text-muted small mb-3">
             Official working calendar used before availability status for smart assignment.
+            Saving creates a new schedule version from the chosen effective date and never overwrites prior history.
+            Past attendance is not recalculated automatically.
         </p>
 
         @if(($schedule['configured'] ?? true) === false)
@@ -24,11 +28,57 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('users.work-schedule.update', $user) }}">
+        @if(($schedule['configured'] ?? false) === true && ! empty($schedule['effective_from']))
+            <p class="text-muted small mb-3">
+                Current version effective from {{ $schedule['effective_from'] }}
+                @if(! empty($schedule['effective_to']))
+                    through {{ $schedule['effective_to'] }}
+                @else
+                    (open-ended)
+                @endif
+            </p>
+        @endif
+
+        <form method="POST" action="{{ route('users.work-schedule.update', $user) }}" id="work-schedule-form">
             @csrf
             @method('PUT')
 
             <div class="row g-3">
+                <div class="col-12">
+                    <span class="form-label d-block">Effective from</span>
+                    <p class="text-muted small mb-2">
+                        When this schedule version starts applying. Choose today, tomorrow, or a custom date.
+                    </p>
+                    <div class="d-flex flex-wrap gap-3 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="effective_from_preset" id="effective_from_today"
+                                   value="today" @checked($effectivePreset === 'today')>
+                            <label class="form-check-label" for="effective_from_today">Today</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="effective_from_preset" id="effective_from_tomorrow"
+                                   value="tomorrow" @checked($effectivePreset === 'tomorrow')>
+                            <label class="form-check-label" for="effective_from_tomorrow">Tomorrow</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="effective_from_preset" id="effective_from_custom"
+                                   value="custom" @checked($effectivePreset === 'custom')>
+                            <label class="form-check-label" for="effective_from_custom">Custom date</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3 px-0" id="effective_from_custom_wrap" @style(['display: none' => $effectivePreset !== 'custom'])>
+                        <label for="effective_from" class="form-label visually-hidden">Custom effective date</label>
+                        <input type="date" id="effective_from" name="effective_from"
+                               class="form-control @error('effective_from') is-invalid @enderror"
+                               value="{{ $effectiveFrom }}">
+                        @error('effective_from')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    @error('effective_from_preset')
+                        <div class="text-danger small mt-1">{{ $message }}</div>
+                    @enderror
+                </div>
                 <div class="col-md-3">
                     <label for="work_start_time" class="form-label">Work start</label>
                     <input type="time" id="work_start_time" name="work_start_time"
@@ -118,3 +168,21 @@
         </form>
     </div>
 </div>
+
+@push('scripts')
+<script>
+(() => {
+    const form = document.getElementById('work-schedule-form');
+    if (!form) return;
+    const wrap = document.getElementById('effective_from_custom_wrap');
+    const sync = () => {
+        const custom = form.querySelector('input[name="effective_from_preset"]:checked')?.value === 'custom';
+        if (wrap) wrap.style.display = custom ? '' : 'none';
+    };
+    form.querySelectorAll('input[name="effective_from_preset"]').forEach((el) => {
+        el.addEventListener('change', sync);
+    });
+    sync();
+})();
+</script>
+@endpush

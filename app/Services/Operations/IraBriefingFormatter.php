@@ -106,7 +106,7 @@ class IraBriefingFormatter
         }
 
         return $members->contains(
-            fn (User $user): bool => $this->workCalendarService->scheduleFor($user) !== null,
+            fn (User $user): bool => $this->workCalendarService->scheduleFor($user, now()) !== null,
         );
     }
 

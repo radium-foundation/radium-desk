@@ -40,9 +40,10 @@ class TeamPerformanceMetricsService
     ): TeamMemberPerformanceMetrics {
         $range = $this->periodService->resolve($period, $customStart, $customEnd, $at);
         $user->loadMissing(['workSchedule', 'roles']);
+        $at ??= now();
 
         $sessions = $this->sessionsFor($user, $range);
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, $at);
         $attendanceDays = $this->attendanceDaysFor($user, $range, $at);
         $dayBreakdown = $this->dayBreakdown($attendanceDays);
 

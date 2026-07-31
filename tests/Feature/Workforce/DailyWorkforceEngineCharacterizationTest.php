@@ -101,6 +101,10 @@ class DailyWorkforceEngineCharacterizationTest extends TestCase
             $this->calendarPolicy->scheduleFor($agent)?->id,
         );
         $this->assertSame(
+            $this->calendar->scheduleFor($agent, $at)?->id,
+            $this->calendarPolicy->scheduleFor($agent, $at)?->id,
+        );
+        $this->assertSame(
             $this->calendar->isCompanyHoliday($at),
             $this->calendarPolicy->isCompanyHoliday($at),
         );

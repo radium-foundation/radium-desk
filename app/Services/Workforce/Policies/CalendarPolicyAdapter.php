@@ -23,9 +23,9 @@ class CalendarPolicyAdapter implements CalendarPolicy
         return $this->workCalendarService->defaultWeeklyOffDays();
     }
 
-    public function scheduleFor(User $user): ?TeamMemberWorkSchedule
+    public function scheduleFor(User $user, ?Carbon $date = null): ?TeamMemberWorkSchedule
     {
-        return $this->workCalendarService->scheduleFor($user);
+        return $this->workCalendarService->scheduleFor($user, $date);
     }
 
     public function isCompanyHoliday(?Carbon $at = null): bool

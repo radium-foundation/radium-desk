@@ -17,7 +17,7 @@ interface CalendarPolicy extends WorkforcePolicy
      */
     public function defaultWeeklyOffDays(): array;
 
-    public function scheduleFor(User $user): ?TeamMemberWorkSchedule;
+    public function scheduleFor(User $user, ?Carbon $date = null): ?TeamMemberWorkSchedule;
 
     public function isCompanyHoliday(?Carbon $at = null): bool;
 

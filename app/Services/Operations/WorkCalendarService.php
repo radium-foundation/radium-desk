@@ -12,12 +12,6 @@ use Illuminate\Support\Carbon;
 
 class WorkCalendarService
 {
-    /** @var array<string, bool> */
-    private array $companyHolidayCache = [];
-
-    /** @var array<string, bool> */
-    private array $approvedLeaveCache = [];
-
     /**
      * @return list<int>
      */
@@ -70,13 +64,42 @@ class WorkCalendarService
         return $normalized;
     }
 
-    public function scheduleFor(User $user): ?TeamMemberWorkSchedule
+    public function scheduleFor(User $user, ?Carbon $date = null): ?TeamMemberWorkSchedule
     {
-        if ($user->relationLoaded('workSchedule')) {
-            return $user->workSchedule;
+        $date ??= now();
+        $day = $date->copy()->startOfDay();
+        $today = now()->toDateString();
+
+        // Only reuse the eager-loaded "current" relation when asking for today.
+        if ($day->toDateString() === $today && $user->relationLoaded('workSchedule')) {
+            $loaded = $user->workSchedule;
+            if ($loaded !== null && $this->scheduleCoversDate($loaded, $day)) {
+                return $loaded;
+            }
         }
 
-        return $user->workSchedule()->first();
+        return TeamMemberWorkSchedule::query()
+            ->where('user_id', $user->id)
+            ->effectiveOn($day)
+            ->orderByDesc('effective_from')
+            ->first();
+    }
+
+    private function scheduleCoversDate(TeamMemberWorkSchedule $schedule, Carbon $day): bool
+    {
+        if ($schedule->effective_from === null) {
+            return true;
+        }
+
+        if ($schedule->effective_from->gt($day)) {
+            return false;
+        }
+
+        if ($schedule->effective_to === null) {
+            return true;
+        }
+
+        return ! $schedule->effective_to->lt($day->copy()->startOfDay());
     }
 
     public function isCompanyHoliday(?Carbon $at = null): bool
@@ -84,7 +107,7 @@ class WorkCalendarService
         $at ??= now();
         $dateKey = $at->toDateString();
 
-        return $this->companyHolidayCache[$dateKey] ??= CompanyHoliday::query()
+        return CompanyHoliday::query()
             ->whereDate('holiday_date', $dateKey)
             ->exists();
     }
@@ -92,14 +115,15 @@ class WorkCalendarService
     public function hasApprovedLeave(User $user, ?Carbon $at = null): bool
     {
         $at ??= now();
-        $date = $at->copy()->startOfDay();
-        $cacheKey = $user->id.'|'.$date->toDateString();
+        $dayKey = $at->copy()->startOfDay()->toDateString();
 
-        return $this->approvedLeaveCache[$cacheKey] ??= LeaveRequest::query()
+        // Do not memoize: session start / late-login checks can run before leave or
+        // holiday rows exist in the same request (tests and mid-request approvals).
+        return LeaveRequest::query()
             ->where('user_id', $user->id)
             ->where('status', LeaveRequestStatus::Approved)
-            ->whereDate('start_date', '<=', $date)
-            ->whereDate('end_date', '>=', $date)
+            ->whereDate('start_date', '<=', $dayKey)
+            ->whereDate('end_date', '>=', $dayKey)
             ->exists();
     }
 
@@ -115,7 +139,7 @@ class WorkCalendarService
             return false;
         }
 
-        $schedule = $this->scheduleFor($user);
+        $schedule = $this->scheduleFor($user, $at);
 
         if ($schedule === null) {
             return true;
@@ -151,7 +175,7 @@ class WorkCalendarService
             return false;
         }
 
-        $schedule = $this->scheduleFor($user);
+        $schedule = $this->scheduleFor($user, $at);
 
         if ($schedule === null || ! $this->isWorkingDay($schedule, $at)) {
             return false;
@@ -257,7 +281,7 @@ class WorkCalendarService
 
     public function isLateLogin(User $user, Carbon $loginAt): bool
     {
-        $schedule = $this->scheduleFor($user);
+        $schedule = $this->scheduleFor($user, $loginAt);
 
         if ($schedule === null || ! $this->isWorkingDay($schedule, $loginAt)) {
             return false;
@@ -282,7 +306,7 @@ class WorkCalendarService
      */
     public function compareLoginToSchedule(User $user, Carbon $loginAt): array
     {
-        $schedule = $this->scheduleFor($user);
+        $schedule = $this->scheduleFor($user, $loginAt);
 
         if ($schedule === null) {
             return [
@@ -315,7 +339,7 @@ class WorkCalendarService
     public function todayStatusFor(User $user, ?Carbon $at = null): array
     {
         $at ??= now();
-        $schedule = $this->scheduleFor($user);
+        $schedule = $this->scheduleFor($user, $at);
 
         if ($this->isCompanyHoliday($at)) {
             return $this->buildStatusSnapshot(WorkCalendarDayStatus::Holiday, $schedule, $at);

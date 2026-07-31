@@ -51,7 +51,7 @@ class TeamTelegramQuietRulesService
             return false;
         }
 
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, $at);
 
         if ($schedule === null) {
             return false;

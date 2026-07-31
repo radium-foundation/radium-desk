@@ -40,7 +40,7 @@ class PresenceEngineService
             return $openSession;
         }
 
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, $at);
         $breakAllowanceSeconds = $this->breakAllowanceSeconds($schedule);
 
         $session = WorkSession::query()->create([
@@ -468,7 +468,7 @@ class PresenceEngineService
 
     private function nextChunkBoundary(User $user, Carbon $cursor, Carbon $to): Carbon
     {
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, $cursor);
 
         if ($schedule === null) {
             return $to->copy();
@@ -496,7 +496,7 @@ class PresenceEngineService
 
     private function isDuringLunch(User $user, Carbon $at): bool
     {
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, $at);
 
         if ($schedule === null) {
             return false;
@@ -570,13 +570,13 @@ class PresenceEngineService
             return 0;
         }
 
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $workDate = $session->work_date->copy()->startOfDay();
+        $schedule = $this->workCalendarService->scheduleFor($user, $workDate);
 
         if ($schedule === null) {
             return 0;
         }
 
-        $workDate = $session->work_date->copy()->startOfDay();
         // Anchor on shift start for this work_date so overnight schedules
         // (10:00→00:00, 22:00→06:00) resolve the end of THIS day's shift —
         // not yesterday's post-midnight window that startOfDay can fall into.

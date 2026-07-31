@@ -17,7 +17,18 @@ class TeamWorkScheduleController extends Controller
     {
         $this->authorize('update', $user);
 
-        $this->teamWorkScheduleService->upsertForUser($user, $request->validated());
+        try {
+            $this->teamWorkScheduleService->upsertForUser(
+                $user,
+                $request->validated(),
+                $request->user()?->id,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->withErrors(['effective_from' => $e->getMessage()]);
+        }
 
         return redirect()
             ->route('users.edit', $user)

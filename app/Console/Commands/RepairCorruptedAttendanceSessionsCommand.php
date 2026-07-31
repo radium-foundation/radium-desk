@@ -129,7 +129,7 @@ class RepairCorruptedAttendanceSessionsCommand extends Command
         $scanned = 0;
 
         WorkSession::query()
-            ->with(['user:id,name', 'user.workSchedule'])
+            ->with(['user:id,name'])
             ->whereNotNull('logout_at')
             ->whereNotNull('login_at')
             ->whereNotNull('work_date')

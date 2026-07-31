@@ -226,7 +226,7 @@ class IraPerformanceInsightsService
             return null;
         }
 
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, $at);
 
         if ($schedule === null || ! $this->workforceAuthority->isOnDuty($user, $at)) {
             return null;

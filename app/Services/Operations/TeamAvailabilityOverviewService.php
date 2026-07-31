@@ -131,7 +131,7 @@ class TeamAvailabilityOverviewService
      */
     private function shiftTimeLabelsFor(User $user): array
     {
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, now());
 
         if ($schedule === null) {
             return ['start' => null, 'end' => null];

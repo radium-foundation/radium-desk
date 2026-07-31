@@ -3,7 +3,9 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateTeamWorkScheduleRequest extends FormRequest
 {
@@ -21,15 +23,25 @@ class UpdateTeamWorkScheduleRequest extends FormRequest
     {
         $weeklyOffDays = $this->input('weekly_off_days');
 
-        if (! is_array($weeklyOffDays)) {
-            return;
+        if (is_array($weeklyOffDays)) {
+            $this->merge([
+                'weekly_off_days' => collect($weeklyOffDays)
+                    ->map(fn (mixed $day): int => (int) $day)
+                    ->values()
+                    ->all(),
+            ]);
         }
 
+        $preset = (string) $this->input('effective_from_preset', 'today');
+        $effectiveFrom = match ($preset) {
+            'tomorrow' => now()->addDay()->toDateString(),
+            'custom' => $this->input('effective_from'),
+            default => now()->toDateString(),
+        };
+
         $this->merge([
-            'weekly_off_days' => collect($weeklyOffDays)
-                ->map(fn (mixed $day): int => (int) $day)
-                ->values()
-                ->all(),
+            'effective_from_preset' => $preset,
+            'effective_from' => $effectiveFrom,
         ]);
     }
 
@@ -47,6 +59,33 @@ class UpdateTeamWorkScheduleRequest extends FormRequest
             'short_break_minutes' => ['required', 'integer', 'min:1', 'max:120'],
             'weekly_off_days' => ['nullable', 'array'],
             'weekly_off_days.*' => ['integer', Rule::in([0, 1, 2, 3, 4, 5, 6])],
+            'effective_from_preset' => ['required', Rule::in(['today', 'tomorrow', 'custom'])],
+            'effective_from' => ['required', 'date'],
+        ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if ($this->input('effective_from_preset') === 'custom' && ! filled($this->input('effective_from'))) {
+                $validator->errors()->add('effective_from', 'Choose a custom effective date.');
+            }
+
+            try {
+                Carbon::parse((string) $this->input('effective_from'));
+            } catch (\Throwable) {
+                $validator->errors()->add('effective_from', 'Effective from must be a valid date.');
+            }
+        });
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'effective_from.required' => 'Effective from is required.',
         ];
     }
 }

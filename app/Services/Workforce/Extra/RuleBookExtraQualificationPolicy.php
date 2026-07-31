@@ -233,7 +233,7 @@ class RuleBookExtraQualificationPolicy implements ExtraQualificationPolicy
             return ExtraQualificationContext::Holiday;
         }
 
-        $schedule = $this->calendarPolicy->scheduleFor($user);
+        $schedule = $this->calendarPolicy->scheduleFor($user, $workDate);
         if ($schedule === null) {
             return ExtraQualificationContext::Unknown;
         }

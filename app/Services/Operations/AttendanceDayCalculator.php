@@ -35,7 +35,7 @@ class AttendanceDayCalculator
         $workDate = $workDate->copy()->startOfDay();
         $referenceAt ??= now();
         $computedAt = $referenceAt->copy();
-        $schedule = $this->workCalendarService->scheduleFor($user);
+        $schedule = $this->workCalendarService->scheduleFor($user, $workDate);
         $sessions = $this->sessionsFor($user, $workDate);
         $this->flushOpenSessionMetrics($sessions, $referenceAt);
         $isCompanyHoliday = $this->workCalendarService->isCompanyHoliday($workDate);
@@ -369,7 +369,7 @@ class AttendanceDayCalculator
                 openSession: $openSession,
                 referenceAt: $referenceAt,
                 computedAt: $computedAt,
-                schedule: $this->workCalendarService->scheduleFor($user),
+                schedule: $this->workCalendarService->scheduleFor($user, $workDate),
             ),
             computedAt: $computedAt,
             sourceVersion: $this->sourceVersion(),

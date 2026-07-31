@@ -137,9 +137,21 @@ class User extends Authenticatable
         return $this->hasMany(Incident::class, 'assigned_to_user_id');
     }
 
+    /**
+     * Current open-ended schedule version (effective_to is null).
+     * For a point-in-time schedule use WorkCalendarService::scheduleFor($user, $date).
+     */
     public function workSchedule(): HasOne
     {
-        return $this->hasOne(TeamMemberWorkSchedule::class);
+        return $this->hasOne(TeamMemberWorkSchedule::class)->whereNull('effective_to');
+    }
+
+    /**
+     * All schedule versions for this user (effective-dated history).
+     */
+    public function workSchedules(): HasMany
+    {
+        return $this->hasMany(TeamMemberWorkSchedule::class)->orderByDesc('effective_from');
     }
 
     public function assignmentCapabilities(): HasMany
