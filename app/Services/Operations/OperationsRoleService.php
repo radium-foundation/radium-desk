@@ -33,6 +33,7 @@ class OperationsRoleService
             RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
             RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+            RolePermissionSeeder::ROLE_EMPLOYEE,
         ];
     }
 
@@ -97,6 +98,7 @@ class OperationsRoleService
             ...RolePermissionSeeder::SUPPORT_TEAM_ROLES,
             RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+            RolePermissionSeeder::ROLE_EMPLOYEE,
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ];

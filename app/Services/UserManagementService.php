@@ -197,6 +197,7 @@ class UserManagementService
                 RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
                 RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
                 RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+                RolePermissionSeeder::ROLE_EMPLOYEE,
                 RolePermissionSeeder::ROLE_ADMIN,
                 RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
                 RolePermissionSeeder::ROLE_SUPERADMIN,
@@ -209,6 +210,7 @@ class UserManagementService
             RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
             RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
+            RolePermissionSeeder::ROLE_EMPLOYEE,
             RolePermissionSeeder::ROLE_ADMIN,
             RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ];

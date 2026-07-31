@@ -84,6 +84,10 @@ return [
             'label' => 'Hardware Team',
             'description' => 'Hardware orders (RDE, RIN, and configured prefixes) and device processing.',
         ],
+        'employee' => [
+            'label' => 'Employee',
+            'description' => 'Non-support staff: own attendance, leave, profile, and notifications only.',
+        ],
     ],
 
     'hardware_order_prefixes' => array_values(array_filter(array_map(

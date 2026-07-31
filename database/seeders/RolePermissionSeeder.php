@@ -25,6 +25,8 @@ class RolePermissionSeeder extends Seeder
 
     public const ROLE_ESCALATION_SPECIALIST = 'escalation_specialist';
 
+    public const ROLE_EMPLOYEE = 'employee';
+
     public const PERMISSION_CORRECT_ORDER_IDENTITY = 'orders.correct-identity';
 
     public const PERMISSION_TEAM_ACTIVITY_VIEW = 'team-activity.view';
@@ -151,6 +153,12 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.view',
             'leave-requests.create',
             'workforce.view',
+            'workforce.self',
+        ],
+        // Non-support staff: own attendance + leave only (profile/notifications are auth-gated).
+        self::ROLE_EMPLOYEE => [
+            'leave-requests.view',
+            'leave-requests.create',
             'workforce.self',
         ],
         self::ROLE_ADMIN => [
