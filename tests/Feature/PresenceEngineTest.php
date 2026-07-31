@@ -381,6 +381,40 @@ class PresenceEngineTest extends TestCase
         $this->assertSame('10m', $presenceEngine->formatDuration((int) $session?->overtime_seconds));
     }
 
+    public function test_overnight_away_timeout_before_shift_end_has_zero_overtime(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-29 23:45:10', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithOvernightSchedule('Shipra OT Agent');
+        $presenceEngine = app(PresenceEngineService::class);
+        $presenceEngine->startSession($agent);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-29 23:59:59', 'Asia/Kolkata'));
+        $session = $presenceEngine->closeSession($agent, WorkSessionEndReason::AwayTimeout);
+
+        $this->assertNotNull($session);
+        $this->assertSame(889, (int) $session->session_duration_seconds);
+        $this->assertSame(0, (int) $session->overtime_seconds);
+        $this->assertNotSame(86_399, (int) $session->overtime_seconds);
+    }
+
+    public function test_after_hours_away_timeout_ot_capped_to_session_wall_past_shift_end(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-06 20:00:00', 'Asia/Kolkata'));
+
+        $agent = $this->createAgentWithSchedule('After Hours Away Agent');
+        $presenceEngine = app(PresenceEngineService::class);
+        $presenceEngine->startSession($agent);
+
+        Carbon::setTestNow(Carbon::parse('2026-07-06 20:15:00', 'Asia/Kolkata'));
+        $session = $presenceEngine->closeSession($agent, WorkSessionEndReason::AwayTimeout);
+
+        $this->assertNotNull($session);
+        // Session is entirely after 18:00 — OT equals wall duration (15m), not 18:00→20:15.
+        $this->assertSame(15 * 60, (int) $session->overtime_seconds);
+        $this->assertSame((int) $session->session_duration_seconds, (int) $session->overtime_seconds);
+    }
+
     public function test_work_activity_updates_presence(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
@@ -445,6 +479,32 @@ class PresenceEngineTest extends TestCase
             'lunch_start_time' => '13:30:00',
             'lunch_end_time' => '14:00:00',
             'short_break_count' => 2,
+            'short_break_minutes' => 10,
+            'weekly_off_days' => [Carbon::SUNDAY],
+        ]);
+
+        return $user->fresh(['workSchedule']);
+    }
+
+    private function createAgentWithOvernightSchedule(string $name): User
+    {
+        $user = User::factory()->create([
+            'name' => $name,
+            'password' => bcrypt('password'),
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $user->update([
+            'availability_status' => TeamAvailabilityStatus::Available,
+            'availability_updated_at' => now(),
+        ]);
+
+        TeamMemberWorkSchedule::query()->create([
+            'user_id' => $user->id,
+            'work_start_time' => '10:00:00',
+            'work_end_time' => '00:00:00',
+            'lunch_start_time' => null,
+            'lunch_end_time' => null,
+            'short_break_count' => 0,
             'short_break_minutes' => 10,
             'weekly_off_days' => [Carbon::SUNDAY],
         ]);

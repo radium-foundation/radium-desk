@@ -292,6 +292,88 @@ class RepairCorruptedAttendanceSessionsCommandTest extends TestCase
         );
     }
 
+    public function test_repairs_overnight_away_timeout_inflated_overtime(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-30 12:00:00', 'Asia/Kolkata'));
+
+        $agent = User::factory()->create(['is_active' => true, 'name' => 'Shipra']);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        TeamMemberWorkSchedule::query()->create([
+            'user_id' => $agent->id,
+            'work_start_time' => '10:00:00',
+            'work_end_time' => '00:00:00',
+            'lunch_start_time' => null,
+            'lunch_end_time' => null,
+            'short_break_count' => 0,
+            'short_break_minutes' => 10,
+            'weekly_off_days' => [Carbon::SUNDAY],
+        ]);
+
+        $loginAt = Carbon::parse('2026-07-29 23:45:10', 'Asia/Kolkata');
+        $logoutAt = Carbon::parse('2026-07-29 23:59:59', 'Asia/Kolkata');
+        $wallSeconds = (int) $loginAt->diffInSeconds($logoutAt);
+
+        $session = WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-29',
+            'login_at' => $loginAt,
+            'logout_at' => $logoutAt,
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => $wallSeconds,
+            'active_duration_seconds' => $wallSeconds,
+            'idle_duration_seconds' => 0,
+            // Production inflation: expected end wrongly resolved to same-day 00:00.
+            'overtime_seconds' => 86_399,
+            'last_activity_at' => $logoutAt->copy(),
+            'last_tick_at' => $logoutAt->copy(),
+            'on_time_login' => true,
+            'is_attributable' => true,
+        ]);
+
+        WorkforceAttendanceDay::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-29',
+            'status' => 'completed',
+            'calendar_status' => 'working',
+            'is_working_day' => true,
+            'is_company_holiday' => false,
+            'is_on_leave' => false,
+            'has_schedule' => true,
+            'session_count' => 1,
+            'session_duration_seconds' => $wallSeconds,
+            'active_duration_seconds' => $wallSeconds,
+            'overtime_seconds' => 86_399,
+            'computed_at' => now()->subHour(),
+            'source_version' => 1,
+        ]);
+
+        $expectedOt = app(PresenceEngineService::class)->recalculateOvertimeSeconds($session);
+        $this->assertSame(0, $expectedOt);
+
+        $this->artisan('attendance:repair-corrupted-sessions')
+            ->expectsOutputToContain('Overtime sessions repaired: 1')
+            ->expectsOutputToContain('Date range reconciled: 2026-07-29 → 2026-07-29')
+            ->assertSuccessful();
+
+        $session->refresh();
+        $this->assertSame(0, (int) $session->overtime_seconds);
+
+        $day = WorkforceAttendanceDay::query()
+            ->where('user_id', $agent->id)
+            ->whereDate('work_date', '2026-07-29')
+            ->first();
+
+        $this->assertNotNull($day);
+        $this->assertSame(0, (int) $day->overtime_seconds);
+
+        $report = app(MonthlyAttendanceMatrixService::class)->build(Carbon::parse('2026-07-01'));
+        $member = collect($report->members)->firstWhere('userId', $agent->id);
+        $this->assertNotNull($member);
+        $this->assertSame(0, $member->summary->overtimeSeconds);
+        $this->assertNotSame('1863h 15m', $member->summary->overtimeLabel);
+    }
+
     private function createScheduledAgent(): User
     {
         $agent = User::factory()->create(['is_active' => true]);

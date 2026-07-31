@@ -546,8 +546,12 @@ class PresenceEngineService
     }
 
     /**
-     * Recalculate overtime for a closed session using current OT rules
-     * (login-day end-of-day cap vs expected shift end). Used by historical repair.
+     * Recalculate overtime for a closed session using current OT rules.
+     * Used by historical repair (attendance:repair-corrupted-sessions).
+     *
+     * OT = wall-clock seconds of this session that fall after expected shift end,
+     * capped at the login work_date end-of-day. Does not count idle gaps before
+     * login, and cannot exceed the session's own post-shift wall duration.
      */
     public function recalculateOvertimeSeconds(WorkSession $session): int
     {
@@ -562,7 +566,7 @@ class PresenceEngineService
 
     private function calculateOvertimeSeconds(?User $user, WorkSession $session, Carbon $logoutAt): int
     {
-        if ($user === null) {
+        if ($user === null || $session->login_at === null || $session->work_date === null) {
             return 0;
         }
 
@@ -573,16 +577,28 @@ class PresenceEngineService
         }
 
         $workDate = $session->work_date->copy()->startOfDay();
-        $expectedEnd = $this->workCalendarService->expectedWorkEndAt($schedule, $workDate);
+        // Anchor on shift start for this work_date so overnight schedules
+        // (10:00→00:00, 22:00→06:00) resolve the end of THIS day's shift —
+        // not yesterday's post-midnight window that startOfDay can fall into.
+        $shiftStart = $this->workCalendarService->expectedWorkStartAt($schedule, $workDate);
+        $expectedEnd = $this->workCalendarService->expectedWorkEndAt($schedule, $shiftStart);
         $effectiveLogout = $logoutAt->gt($workDate->copy()->endOfDay())
             ? $workDate->copy()->endOfDay()
             : $logoutAt;
 
-        if ($effectiveLogout->lte($expectedEnd)) {
+        // Only the portion of THIS session after shift end counts as OT.
+        // Using expectedEnd→logout (ignoring login) double-counted gaps across
+        // multiple after-hours sessions and, with a wrong overnight end, produced
+        // ~24h OT on short away_timeout sessions.
+        $overtimeStart = $session->login_at->greaterThan($expectedEnd)
+            ? $session->login_at->copy()
+            : $expectedEnd->copy();
+
+        if ($effectiveLogout->lte($overtimeStart)) {
             return 0;
         }
 
-        return max(0, (int) $expectedEnd->diffInSeconds($effectiveLogout));
+        return max(0, (int) $overtimeStart->diffInSeconds($effectiveLogout));
     }
 
     private function incrementAppraisalCounters(WorkSession $session, PresenceActivityType $type): void

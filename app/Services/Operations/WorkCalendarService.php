@@ -242,13 +242,12 @@ class WorkCalendarService
             return $window[1];
         }
 
-        $startToday = $this->timeOnDate($schedule->work_start_time, $date);
         $endToday = $this->timeOnDate($schedule->work_end_time, $date);
 
-        if ($this->isOvernightSchedule($schedule) && $date->lt($startToday)) {
-            return $endToday;
-        }
-
+        // Overnight shifts (e.g. 10:00 → 00:00) end on the next calendar day.
+        // When resolveShiftWindow misses (common for work_date at startOfDay, which is
+        // before today's start), never return same-day midnight — that sits BEFORE the
+        // shift starts and inflates OT to nearly 24h per session.
         if ($this->isOvernightSchedule($schedule)) {
             return $endToday->copy()->addDay();
         }

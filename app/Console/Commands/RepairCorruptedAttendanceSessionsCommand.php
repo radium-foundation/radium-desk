@@ -15,7 +15,8 @@ use Illuminate\Support\Collection;
  * - Caps closed sessions where active_duration_seconds exceeded wall-clock
  *   session_duration_seconds (premature endOfDay tick bug).
  * - Recalculates overtime_seconds from login/logout/schedule using current
- *   PresenceEngineService OT rules (login-day end-of-day cap).
+ *   PresenceEngineService OT rules (overnight-correct expected end + session
+ *   overlap past shift end, login-day end-of-day cap).
  *
  * Does not belong in normal attendance processing.
  *
