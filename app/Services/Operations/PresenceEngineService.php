@@ -564,6 +564,46 @@ class PresenceEngineService
         return $this->calculateOvertimeSeconds($session->user, $session, $session->logout_at);
     }
 
+    /**
+     * Schedule-derived session fields for a point-in-time schedule version.
+     * Does not mutate the session. Open sessions skip overtime (needs logout).
+     *
+     * @return array{
+     *     overtime_seconds: int|null,
+     *     expected_working_minutes: int|null,
+     *     on_time_login: bool|null,
+     *     break_allowance_seconds: int
+     * }
+     */
+    public function scheduleDerivedAttributesFor(
+        WorkSession $session,
+        ?TeamMemberWorkSchedule $schedule,
+    ): array {
+        $session->loadMissing('user');
+        $user = $session->user;
+
+        $overtimeSeconds = null;
+        if ($session->logout_at !== null && $session->login_at !== null && $user !== null) {
+            $overtimeSeconds = $this->calculateOvertimeSeconds($user, $session, $session->logout_at);
+        }
+
+        $expectedWorkingMinutes = $schedule !== null
+            ? $this->workCalendarService->expectedWorkingMinutes($schedule)
+            : null;
+
+        $onTimeLogin = null;
+        if ($schedule !== null && $user !== null && $session->login_at !== null) {
+            $onTimeLogin = ! $this->workCalendarService->isLateLogin($user, $session->login_at);
+        }
+
+        return [
+            'overtime_seconds' => $overtimeSeconds,
+            'expected_working_minutes' => $expectedWorkingMinutes,
+            'on_time_login' => $onTimeLogin,
+            'break_allowance_seconds' => $this->breakAllowanceSeconds($schedule),
+        ];
+    }
+
     private function calculateOvertimeSeconds(?User $user, WorkSession $session, Carbon $logoutAt): int
     {
         if ($user === null || $session->login_at === null || $session->work_date === null) {
