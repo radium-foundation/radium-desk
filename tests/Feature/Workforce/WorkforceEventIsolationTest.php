@@ -183,7 +183,12 @@ class WorkforceEventIsolationTest extends TestCase
     {
         $this->assertTrue(WorkforceEventType::LeaveCancelled->isReserved());
         $this->assertTrue(WorkforceEventType::HalfDayRecorded->isReserved());
-        $this->assertTrue(WorkforceEventType::PayrollLocked->isReserved());
+        $this->assertFalse(WorkforceEventType::PayrollLocked->isReserved());
+        $this->assertFalse(WorkforceEventType::WeeklyOffWorked->isReserved());
+        $this->assertFalse(WorkforceEventType::HolidayWorked->isReserved());
+        $this->assertFalse(WorkforceEventType::RecognitionRecommended->isReserved());
+        $this->assertFalse(WorkforceEventType::RecognitionDecided->isReserved());
+        $this->assertTrue(WorkforceEventType::IncentiveAwarded->isReserved());
         $this->assertFalse(WorkforceEventType::AttendanceRecorded->isReserved());
         $this->assertFalse(WorkforceEventType::LeaveApproved->isReserved());
         $this->assertFalse(WorkforceEventType::LeaveRejected->isReserved());

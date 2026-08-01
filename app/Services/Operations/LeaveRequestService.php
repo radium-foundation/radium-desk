@@ -17,6 +17,7 @@ use App\Notifications\LeaveRequestSubmittedNotification;
 use App\Services\AuditLogService;
 use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\Telegram\TelegramBotService;
+use App\Services\Workforce\PayrollMonthLockService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -31,6 +32,7 @@ class LeaveRequestService
         private readonly AuditLogService $auditLogService,
         private readonly AttendanceRegisterService $attendanceRegisterService,
         private readonly WorkforceEventPublisher $workforceEventPublisher,
+        private readonly PayrollMonthLockService $payrollMonthLockService,
     ) {}
 
     public function earliestPermittedStartDate(?Carbon $at = null): Carbon
@@ -54,6 +56,7 @@ class LeaveRequestService
 
         $leaveRequest = DB::transaction(function () use ($requester, $data, $startDate, $endDate, $duration): LeaveRequest {
             $this->lockActiveLeaveRequestsFor($requester);
+            $this->payrollMonthLockService->assertLeaveWritable($startDate, $endDate);
             $this->assertPermittedStartDate($startDate);
             $this->assertValidDateRange($startDate, $endDate);
             $this->assertDurationMatchesRange($duration, $startDate, $endDate);
@@ -105,6 +108,11 @@ class LeaveRequestService
                     'status' => 'Only pending leave requests can be approved.',
                 ]);
             }
+
+            $this->payrollMonthLockService->assertLeaveWritable(
+                $lockedLeaveRequest->start_date->copy()->startOfDay(),
+                $lockedLeaveRequest->end_date->copy()->startOfDay(),
+            );
 
             $requester = $lockedLeaveRequest->user;
 
@@ -173,6 +181,11 @@ class LeaveRequestService
                     'status' => 'Only pending leave requests can be rejected.',
                 ]);
             }
+
+            $this->payrollMonthLockService->assertLeaveWritable(
+                $lockedLeaveRequest->start_date->copy()->startOfDay(),
+                $lockedLeaveRequest->end_date->copy()->startOfDay(),
+            );
 
             $lockedLeaveRequest->fill([
                 'status' => LeaveRequestStatus::Rejected,
@@ -448,6 +461,7 @@ class LeaveRequestService
             RolePermissionSeeder::ROLE_HARDWARE_TEAM,
             RolePermissionSeeder::ROLE_AGENT,
             RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
+            RolePermissionSeeder::ROLE_EMPLOYEE,
         ];
     }
 

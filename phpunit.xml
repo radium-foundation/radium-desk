@@ -37,6 +37,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="WORKFORCE_ATTENDANCE_MANAGEMENT_RESTRICTED" value="false"/>
         <env name="CASHFREE_CLIENT_SECRET" value="test-client-secret"/>
         <env name="CASHFREE_VERIFY_SIGNATURE" value="false"/>
     </php>

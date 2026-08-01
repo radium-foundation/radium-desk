@@ -8,6 +8,10 @@ enum WorkforceAuditEvent: string
     case LeaveApproved = 'workforce.leave.approved';
     case LeaveRejected = 'workforce.leave.rejected';
     case LeaveNotificationDispatched = 'workforce.leave.notification.dispatched';
+    case PayrollLocked = 'workforce.payroll.locked';
+    case PayrollUnlocked = 'workforce.payroll.unlocked';
+    case RecognitionCreated = 'workforce.recognition.created';
+    case RecognitionDecided = 'workforce.recognition.decided';
 
     public function legacyEvent(): string
     {
@@ -16,6 +20,10 @@ enum WorkforceAuditEvent: string
             self::LeaveApproved => 'leave.approved',
             self::LeaveRejected => 'leave.rejected',
             self::LeaveNotificationDispatched => 'leave.notification.dispatched',
+            self::PayrollLocked => 'payroll.locked',
+            self::PayrollUnlocked => 'payroll.unlocked',
+            self::RecognitionCreated => 'recognition.created',
+            self::RecognitionDecided => 'recognition.decided',
         };
     }
 }

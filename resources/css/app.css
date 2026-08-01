@@ -18341,6 +18341,74 @@ body:has(.settings-center) .toast-container {
     border-radius: var(--wm-radius);
 }
 
+.wm-payroll-lock {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: var(--wm-section-gap);
+    padding: 0.65rem 0.75rem;
+    background: var(--wm-surface);
+    border: 1px solid var(--wm-line);
+    border-radius: var(--wm-radius);
+}
+
+.wm-payroll-lock__status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.wm-payroll-lock__badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--wm-radius-sm);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.wm-payroll-lock__badge--open {
+    color: #166534;
+    background: #ecfdf3;
+}
+
+.wm-payroll-lock__badge--locked {
+    color: #9a3412;
+    background: #fff7ed;
+}
+
+.wm-payroll-lock__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.85rem;
+    font-size: 0.8125rem;
+    color: var(--wm-muted);
+}
+
+.wm-payroll-lock__actions {
+    flex: 1 1 16rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.wm-payroll-lock__form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 28rem;
+}
+
+.wm-payroll-lock__form .wm-toolbar__control {
+    flex: 1 1 10rem;
+}
+
 .wm-toolbar__form {
     display: flex;
     flex-wrap: wrap;

@@ -58,6 +58,7 @@ use App\Http\Controllers\SupportScheduleRedirectController;
 use App\Http\Controllers\TeamAvailabilityController;
 use App\Http\Controllers\TeamPerformanceController;
 use App\Http\Controllers\Workforce\MonthlyAttendanceController;
+use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce\WorkforceMember360Controller;
 use App\Http\Controllers\TeamTelegramBroadcastController;
 use App\Http\Controllers\TeamWorkScheduleController;
@@ -256,6 +257,13 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::prefix('workforce-management')->name('workforce-management.')->group(function () {
         Route::redirect('/', '/workforce-management/attendance');
         Route::get('attendance', [MonthlyAttendanceController::class, 'index'])->name('attendance.index');
+        Route::post('attendance/payroll-lock', [MonthlyAttendanceController::class, 'lock'])->name('attendance.payroll-lock');
+        Route::post('attendance/payroll-unlock', [MonthlyAttendanceController::class, 'unlock'])->name('attendance.payroll-unlock');
+        Route::get('recognition', [WorkRecognitionController::class, 'index'])->name('recognition.index');
+        Route::post('recognition/scan', [WorkRecognitionController::class, 'scan'])->name('recognition.scan');
+        Route::get('recognition/{review}', [WorkRecognitionController::class, 'show'])->name('recognition.show');
+        Route::post('recognition/{review}/decide', [WorkRecognitionController::class, 'decide'])->name('recognition.decide');
+        Route::post('recognition/{review}/refresh', [WorkRecognitionController::class, 'refresh'])->name('recognition.refresh');
         Route::get('members/{user}', [WorkforceMember360Controller::class, 'show'])->name('members.show');
     });
 

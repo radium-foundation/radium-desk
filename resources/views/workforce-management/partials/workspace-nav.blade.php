@@ -9,6 +9,14 @@
             'url' => route('workforce-management.attendance.index'),
             'enabled' => true,
         ],
+        'recognition' => [
+            'label' => 'Work Recognition',
+            'url' => config('workforce_recognition.enabled')
+                ? route('workforce-management.recognition.index')
+                : null,
+            'enabled' => (bool) config('workforce_recognition.enabled')
+                && auth()->user()?->can('workforce.recognition.view'),
+        ],
         'leave' => [
             'label' => 'Leave',
             'url' => null,

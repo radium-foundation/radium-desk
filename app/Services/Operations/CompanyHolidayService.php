@@ -4,12 +4,14 @@ namespace App\Services\Operations;
 
 use App\Enums\CompanyHolidayType;
 use App\Models\CompanyHoliday;
+use App\Services\Workforce\PayrollMonthLockService;
 use Illuminate\Support\Carbon;
 
 class CompanyHolidayService
 {
     public function __construct(
         private readonly AttendanceRegisterService $attendanceRegisterService,
+        private readonly PayrollMonthLockService $payrollMonthLockService,
     ) {}
 
     /**
@@ -17,6 +19,9 @@ class CompanyHolidayService
      */
     public function create(array $data): CompanyHoliday
     {
+        $holidayDate = Carbon::parse($data['holiday_date'])->startOfDay();
+        $this->payrollMonthLockService->assertDateWritable($holidayDate);
+
         $holiday = CompanyHoliday::query()->create([
             'holiday_date' => $data['holiday_date'],
             'name' => $data['name'],
@@ -31,6 +36,7 @@ class CompanyHolidayService
     public function delete(CompanyHoliday $holiday): void
     {
         $holidayDate = $holiday->holiday_date->copy()->startOfDay();
+        $this->payrollMonthLockService->assertDateWritable($holidayDate);
 
         $holiday->delete();
 

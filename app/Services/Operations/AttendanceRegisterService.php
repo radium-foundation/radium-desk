@@ -8,6 +8,7 @@ use App\Data\Workforce\WorkforceEvent;
 use App\Enums\WorkforceEventType;
 use App\Models\User;
 use App\Models\WorkforceAttendanceDay;
+use App\Services\Workforce\PayrollMonthLockService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -17,6 +18,7 @@ class AttendanceRegisterService
         private readonly AttendanceDayCalculator $calculator,
         private readonly OperationsRoleService $roleService,
         private readonly WorkforceEventPublisher $workforceEventPublisher,
+        private readonly PayrollMonthLockService $payrollMonthLockService,
     ) {}
 
     public function refreshDay(
@@ -27,6 +29,11 @@ class AttendanceRegisterService
     ): ?WorkforceAttendanceDay {
         $workDate ??= ($referenceAt ?? now())->copy()->startOfDay();
         $referenceAt ??= now();
+
+        // Soft-skip: locked payroll months are read-only (no recalc / persist).
+        if ($this->payrollMonthLockService->isMonthLocked($workDate)) {
+            return $this->findDay($user, $workDate);
+        }
 
         $result = $this->calculator->compute(
             user: $user,
@@ -87,6 +94,10 @@ class AttendanceRegisterService
         bool $allowPreShiftSkip = false,
     ): ?WorkforceAttendanceDay {
         $existing = $this->findDay($user, $workDate);
+
+        if ($this->payrollMonthLockService->isMonthLocked($workDate)) {
+            return $existing;
+        }
 
         if ($existing !== null && $existing->finalized_at !== null) {
             return $existing;

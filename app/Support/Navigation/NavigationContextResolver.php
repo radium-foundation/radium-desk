@@ -11,6 +11,7 @@ use App\Models\RefundRequest;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\Operations\OperationsRoleService;
+use App\Support\Workforce\AttendanceManagementAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -90,8 +91,8 @@ class NavigationContextResolver
             ]
             : [];
 
-        $workforceManagementItems = ($isAdminTeam && $user?->can('team-performance.view'))
-            ? [
+        $workforceManagementItems = ($isAdminTeam && AttendanceManagementAccess::allows($user))
+            ? array_values(array_filter([
                 $this->sidebarItem(
                     'workforce_management.attendance',
                     'Attendance',
@@ -99,7 +100,16 @@ class NavigationContextResolver
                     route('workforce-management.attendance.index'),
                     $context,
                 ),
-            ]
+                (config('workforce_recognition.enabled') && $user?->can('workforce.recognition.view'))
+                    ? $this->sidebarItem(
+                        'workforce_management.recognition',
+                        'Work Recognition',
+                        'bi-award',
+                        route('workforce-management.recognition.index'),
+                        $context,
+                    )
+                    : null,
+            ]))
             : [];
 
         $administrationItems = ($isAdminTeam && $this->canAccessAdministration($user))
@@ -208,6 +218,10 @@ class NavigationContextResolver
 
         if ($request->routeIs('admin.workforce.performance.*')) {
             return [NavigationMenu::MissionControl, 'mission_control.home', null];
+        }
+
+        if ($request->routeIs('workforce-management.recognition.*')) {
+            return [NavigationMenu::WorkforceManagement, 'workforce_management.recognition', null];
         }
 
         if ($request->routeIs('workforce-management.*')) {

@@ -55,6 +55,15 @@
             'device-model-activated' => 'Model activated successfully.',
             'device-model-deactivated' => 'Model deactivated successfully.',
             'operational-system-settings-updated' => 'System settings saved successfully.',
+            'payroll-month-locked' => 'Payroll month locked successfully.',
+            'payroll-month-unlocked' => 'Payroll month unlocked successfully.',
+            'work-recognition-decided' => 'Work Recognition decision saved.',
+            'work-recognition-refreshed' => 'Recognition evidence refreshed.',
+            'work-recognition-scan-queued' => 'Work Recognition month scan has been queued.',
+            'work-recognition-scanned' => 'Work Recognition scan completed'
+                .(session('work_recognition_scanned_count') !== null
+                    ? ' ('.session('work_recognition_scanned_count').' reviews touched).'
+                    : '.'),
             default => session('status'),
         };
     @endphp

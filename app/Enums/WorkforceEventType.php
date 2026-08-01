@@ -5,7 +5,9 @@ namespace App\Enums;
 /**
  * Workforce Rule Book §8 Event Catalog.
  * Active producers: AttendanceRecorded, LeaveApproved, LeaveRejected,
- * ContributionQualified / ExtraDayEarned (flag-gated). Remaining types are reserved.
+ * PayrollLocked, ContributionQualified / ExtraDayEarned (flag-gated),
+ * WeeklyOffWorked / HolidayWorked / RecognitionRecommended / RecognitionDecided.
+ * Remaining types are reserved.
  */
 enum WorkforceEventType: string
 {
@@ -22,18 +24,17 @@ enum WorkforceEventType: string
     case SalesCredited = 'workforce.sales.credited';
     case IncentiveAwarded = 'workforce.incentive.awarded';
     case PayrollLocked = 'workforce.payroll.locked';
+    case RecognitionRecommended = 'workforce.recognition.recommended';
+    case RecognitionDecided = 'workforce.recognition.decided';
 
     public function isReserved(): bool
     {
         return match ($this) {
             self::LeaveCancelled,
             self::HalfDayRecorded,
-            self::WeeklyOffWorked,
-            self::HolidayWorked,
             self::PerformanceCalculated,
             self::SalesCredited,
-            self::IncentiveAwarded,
-            self::PayrollLocked => true,
+            self::IncentiveAwarded => true,
             default => false,
         };
     }
