@@ -100,8 +100,13 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
     };
 
     const saveInlineTransaction = async (cell) => {
+        if (cell.dataset.saving === '1') {
+            return;
+        }
+
         const input = cell.querySelector('.transaction-inline-input');
         const error = cell.querySelector('.transaction-inline-error');
+        const saveButton = cell.querySelector('.transaction-inline-save');
         const storeUrl = cell.dataset.storeUrl;
         const incidentId = cell.dataset.incidentId;
         const transactionId = input?.value.trim() ?? '';
@@ -120,7 +125,33 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
         }
 
         const performSave = async () => {
+            // Acquire the in-flight lock synchronously before any await so
+            // double-clicks / repeated Enter cannot start a second POST.
+            if (cell.dataset.saving === '1') {
+                return;
+            }
+
+            cell.dataset.saving = '1';
+
+            const previousButtonHtml = saveButton?.innerHTML ?? '';
             input.disabled = true;
+
+            if (saveButton) {
+                saveButton.disabled = true;
+                saveButton.setAttribute('aria-busy', 'true');
+                saveButton.innerHTML = 'Saving…';
+            }
+
+            const releaseSavingState = () => {
+                delete cell.dataset.saving;
+                input.disabled = false;
+
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.removeAttribute('aria-busy');
+                    saveButton.innerHTML = previousButtonHtml;
+                }
+            };
 
             try {
                 const response = await fetch(storeUrl, {
@@ -147,6 +178,8 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
                         error.textContent = message;
                     }
 
+                    releaseSavingState();
+
                     return;
                 }
 
@@ -161,14 +194,19 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
                 }
 
                 showAppToast(data.message ?? 'Service reference saved.');
+
+                // Success replaces the row; only release if the editor cell remains.
+                if (cell.isConnected) {
+                    releaseSavingState();
+                }
             } catch (saveError) {
                 input.classList.add('is-invalid');
 
                 if (error) {
                     error.textContent = 'Unable to save service reference.';
                 }
-            } finally {
-                input.disabled = false;
+
+                releaseSavingState();
             }
         };
 
