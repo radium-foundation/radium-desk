@@ -42,6 +42,9 @@ class WorkingHoursTodayService
         $openUserIds = WorkSession::query()
             ->whereIn('user_id', $userIds)
             ->whereNull('logout_at')
+            ->where(function ($query): void {
+                $query->where('is_attributable', true)->orWhereNull('is_attributable');
+            })
             ->pluck('user_id')
             ->map(fn (mixed $id): int => (int) $id)
             ->unique()
@@ -83,10 +86,7 @@ class WorkingHoursTodayService
         $workDate ??= $at->copy()->startOfDay();
 
         $existing = $this->attendanceRegister->findDay($user, $workDate);
-        $hasOpenSession = WorkSession::query()
-            ->where('user_id', $user->id)
-            ->whereNull('logout_at')
-            ->exists();
+        $hasOpenSession = $this->attendanceRegister->hasOpenAttributableWorkSession($user, $workDate);
 
         return $this->buildForUser(
             user: $user,
@@ -137,7 +137,7 @@ class WorkingHoursTodayService
         ?WorkforceAttendanceDay $existing,
         bool $hasOpenSession,
     ): ?WorkforceAttendanceDay {
-        if ($existing !== null && $existing->finalized_at !== null) {
+        if ($existing !== null && $existing->finalized_at !== null && ! $hasOpenSession) {
             return $existing;
         }
 

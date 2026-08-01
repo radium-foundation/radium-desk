@@ -7,6 +7,7 @@ use App\Data\Operations\AttendanceDayResult;
 use App\Data\Workforce\WorkforceEvent;
 use App\Enums\WorkforceEventType;
 use App\Models\User;
+use App\Models\WorkSession;
 use App\Models\WorkforceAttendanceDay;
 use App\Services\Workforce\PayrollMonthLockService;
 use Illuminate\Support\Carbon;
@@ -35,10 +36,9 @@ class AttendanceRegisterService
             return $this->findDay($user, $workDate);
         }
 
-        // Finalized closed days are immutable — aligns with resolveDay and protects
-        // one-shot historical reconciliations (e.g. July go-live Present backfill).
+        // Finalized + closed stays immutable (July backfill). Open session resumes live ticks.
         $existing = $this->findDay($user, $workDate);
-        if ($existing !== null && $existing->finalized_at !== null) {
+        if ($this->shouldKeepFinalizedRegister($existing, $user, $workDate)) {
             return $existing;
         }
 
@@ -106,7 +106,7 @@ class AttendanceRegisterService
             return $existing;
         }
 
-        if ($existing !== null && $existing->finalized_at !== null) {
+        if ($this->shouldKeepFinalizedRegister($existing, $user, $workDate)) {
             return $existing;
         }
 
@@ -146,7 +146,7 @@ class AttendanceRegisterService
             $dateString = $cursor->toDateString();
             $day = $existing->get($dateString);
 
-            if ($day === null || $day->finalized_at === null) {
+            if (! $this->shouldKeepFinalizedRegister($day, $user, $cursor)) {
                 $dayReference = $cursor->isSameDay($referenceAt)
                     ? $referenceAt
                     : $cursor->copy()->endOfDay();
@@ -287,6 +287,53 @@ class AttendanceRegisterService
         }
 
         return $endOfDay;
+    }
+
+    /**
+     * Finalized rows stay immutable only while closed (July backfill / historical).
+     * An open attributable WorkSession must resume live recompute; calculator
+     * resolveFinalizedAt() clears finalized_at until the last session closes.
+     */
+    private function shouldKeepFinalizedRegister(
+        ?WorkforceAttendanceDay $existing,
+        User $user,
+        Carbon $workDate,
+    ): bool {
+        return $existing !== null
+            && $existing->finalized_at !== null
+            && ! $this->hasOpenAttributableWorkSession($user, $workDate);
+    }
+
+    /**
+     * Open attributable session for this work date, or a pre-day carry-over still open
+     * (aligned with AttendanceDayCalculator::sessionsFor / openSession selection).
+     */
+    public function hasOpenAttributableWorkSession(User $user, Carbon $workDate): bool
+    {
+        $dayStart = $workDate->copy()->startOfDay();
+
+        if ($this->openAttributableSessionsQuery($user)
+            ->whereDate('work_date', $dayStart->toDateString())
+            ->exists()) {
+            return true;
+        }
+
+        return $this->openAttributableSessionsQuery($user)
+            ->where('login_at', '<', $dayStart)
+            ->exists();
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<WorkSession>
+     */
+    private function openAttributableSessionsQuery(User $user): \Illuminate\Database\Eloquent\Builder
+    {
+        return WorkSession::query()
+            ->where('user_id', $user->id)
+            ->whereNull('logout_at')
+            ->where(function ($query): void {
+                $query->where('is_attributable', true)->orWhereNull('is_attributable');
+            });
     }
 
     /**
