@@ -148,6 +148,7 @@ class NavigationContextResolverTest extends TestCase
                 $sidebar['operations']['items'],
                 $sidebar['mission_control']['items'],
                 $sidebar['workforce_management']['items'],
+                $sidebar['finance']['items'],
                 $sidebar['administration']['items'],
                 $sidebar['personal']['items'],
             ),
@@ -156,6 +157,7 @@ class NavigationContextResolverTest extends TestCase
         $this->assertContains('dashboard.home', $keys);
         $this->assertContains('mission_control.home', $keys);
         $this->assertContains('workforce_management.attendance', $keys);
+        $this->assertContains('finance.dashboard', $keys);
         $this->assertContains('administration.home', $keys);
         $this->assertNotContains('super_admin.audit_logs', $keys);
         $this->assertNotContains('super_admin.automation', $keys);
@@ -192,6 +194,21 @@ class NavigationContextResolverTest extends TestCase
         $this->assertSame('workforce_management.attendance', $context->activeItemKey);
         $this->assertTrue($sidebar['workforce_management']['visible']);
         $this->assertTrue($this->sidebarItemIsActive($sidebar, 'workforce_management.attendance'));
+    }
+
+    public function test_finance_dashboard_resolves_dedicated_menu(): void
+    {
+        $user = User::factory()->create(['is_active' => true]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $request = $this->requestFor($user, route('finance.dashboard'));
+        $context = $this->resolver->resolve($request, 'Dashboard');
+        $sidebar = $this->resolver->sidebar($request, $context);
+
+        $this->assertSame(NavigationMenu::Finance, $context->menu);
+        $this->assertSame('finance.dashboard', $context->activeItemKey);
+        $this->assertTrue($sidebar['finance']['visible']);
+        $this->assertTrue($this->sidebarItemIsActive($sidebar, 'finance.dashboard'));
     }
 
     /**
