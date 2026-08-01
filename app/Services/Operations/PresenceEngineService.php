@@ -82,7 +82,11 @@ class PresenceEngineService
 
         $at ??= now();
 
+        // Tick first, then refresh while the session is still open so a prior
+        // shift-end finalized_at cannot block recomputation. Close next (writes
+        // logout + OT), then refresh again for closed totals and re-finalize.
         $this->tickSession($session, $at, hasActivity: false);
+        $this->refreshAttendanceRegister($user, $at, $session);
         $this->finalizeSession($session, $at, $reason);
         $this->availabilityService->syncFromSessionEnd(
             $user,
@@ -90,7 +94,6 @@ class PresenceEngineService
                 ? TeamAvailabilityChangeSource::Timeout
                 : TeamAvailabilityChangeSource::Logout,
         );
-
         $this->refreshAttendanceRegister($user, $at, $session);
 
         return $session->fresh();

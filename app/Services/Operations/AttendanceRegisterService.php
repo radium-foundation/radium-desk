@@ -290,18 +290,28 @@ class AttendanceRegisterService
     }
 
     /**
-     * Finalized rows stay immutable only while closed (July backfill / historical).
-     * An open attributable WorkSession must resume live recompute; calculator
-     * resolveFinalizedAt() clears finalized_at until the last session closes.
+     * Finalized rows stay immutable only when closed AND in sync with sessions
+     * (July backfill / historical). Unlock when an open session exists, or when
+     * attributable session data is newer than the register snapshot.
      */
     private function shouldKeepFinalizedRegister(
         ?WorkforceAttendanceDay $existing,
         User $user,
         Carbon $workDate,
     ): bool {
-        return $existing !== null
-            && $existing->finalized_at !== null
-            && ! $this->hasOpenAttributableWorkSession($user, $workDate);
+        if ($existing === null || $existing->finalized_at === null) {
+            return false;
+        }
+
+        if ($this->hasOpenAttributableWorkSession($user, $workDate)) {
+            return false;
+        }
+
+        if ($this->hasNewerAttributableSessionActivity($existing, $user, $workDate)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -324,6 +334,43 @@ class AttendanceRegisterService
     }
 
     /**
+     * True when attributable same-day session activity is newer than the finalized
+     * register snapshot (post-finalize reopen/logout that left finalized_at set).
+     */
+    private function hasNewerAttributableSessionActivity(
+        WorkforceAttendanceDay $existing,
+        User $user,
+        Carbon $workDate,
+    ): bool {
+        $snapshotAt = $existing->finalized_at ?? $existing->computed_at;
+
+        if ($snapshotAt === null) {
+            return false;
+        }
+
+        $newerActivity = $this->attributableSessionsForWorkDateQuery($user, $workDate)
+            ->where(function ($query) use ($snapshotAt, $existing): void {
+                $query->where('login_at', '>', $snapshotAt)
+                    ->orWhere('logout_at', '>', $snapshotAt)
+                    ->orWhere('last_activity_at', '>', $snapshotAt)
+                    ->orWhere('last_tick_at', '>', $snapshotAt);
+
+                if ($existing->last_logout_at !== null) {
+                    $query->orWhere('logout_at', '>', $existing->last_logout_at);
+                }
+            })
+            ->exists();
+
+        if ($newerActivity) {
+            return true;
+        }
+
+        $sessionCount = $this->attributableSessionsForWorkDateQuery($user, $workDate)->count();
+
+        return $sessionCount > (int) $existing->session_count;
+    }
+
+    /**
      * @return \Illuminate\Database\Eloquent\Builder<WorkSession>
      */
     private function openAttributableSessionsQuery(User $user): \Illuminate\Database\Eloquent\Builder
@@ -331,6 +378,21 @@ class AttendanceRegisterService
         return WorkSession::query()
             ->where('user_id', $user->id)
             ->whereNull('logout_at')
+            ->where(function ($query): void {
+                $query->where('is_attributable', true)->orWhereNull('is_attributable');
+            });
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<WorkSession>
+     */
+    private function attributableSessionsForWorkDateQuery(
+        User $user,
+        Carbon $workDate,
+    ): \Illuminate\Database\Eloquent\Builder {
+        return WorkSession::query()
+            ->where('user_id', $user->id)
+            ->whereDate('work_date', $workDate->toDateString())
             ->where(function ($query): void {
                 $query->where('is_attributable', true)->orWhereNull('is_attributable');
             });
