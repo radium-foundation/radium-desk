@@ -35,6 +35,13 @@ class AttendanceRegisterService
             return $this->findDay($user, $workDate);
         }
 
+        // Finalized closed days are immutable — aligns with resolveDay and protects
+        // one-shot historical reconciliations (e.g. July go-live Present backfill).
+        $existing = $this->findDay($user, $workDate);
+        if ($existing !== null && $existing->finalized_at !== null) {
+            return $existing;
+        }
+
         $result = $this->calculator->compute(
             user: $user,
             workDate: $workDate,

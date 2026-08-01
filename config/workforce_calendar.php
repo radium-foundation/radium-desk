@@ -23,6 +23,16 @@ return [
 
     'attendance_calculator_version' => 1,
 
+    /*
+    | July 2026 HR go-live: presence tracking started 2026-07-05.
+    | One-shot backfill window for pre-go-live working days (not a permanent rule).
+    */
+    'july_golive_attendance_backfill' => [
+        'from' => '2026-07-01',
+        'to' => '2026-07-04',
+        'go_live' => '2026-07-05',
+    ],
+
     'weekday_labels' => [
         0 => 'Sunday',
         1 => 'Monday',
