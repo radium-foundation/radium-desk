@@ -40,6 +40,24 @@ class RolePermissionSeeder extends Seeder
      */
     public const PERMISSION_WORKFORCE_PAYROLL_REOPEN = 'workforce.payroll.reopen';
 
+    public const PERMISSION_FINANCE_VIEW = 'finance.view';
+
+    public const PERMISSION_FINANCE_DASHBOARD_VIEW = 'finance.dashboard.view';
+
+    public const PERMISSION_FINANCE_PAYMENTS_VIEW = 'finance.payments.view';
+
+    public const PERMISSION_FINANCE_EXPENSES_VIEW = 'finance.expenses.view';
+
+    public const PERMISSION_FINANCE_CASH_VIEW = 'finance.cash.view';
+
+    public const PERMISSION_FINANCE_CLOSINGS_VIEW = 'finance.closings.view';
+
+    public const PERMISSION_FINANCE_BANK_VIEW = 'finance.bank.view';
+
+    public const PERMISSION_FINANCE_VENDOR_PAYMENTS_VIEW = 'finance.vendor-payments.view';
+
+    public const PERMISSION_FINANCE_SETTINGS_VIEW = 'finance.settings.view';
+
     /**
      * @var list<string>
      */
@@ -57,6 +75,22 @@ class RolePermissionSeeder extends Seeder
      */
     private const WORKFORCE_TEAM_VISIBILITY_PERMISSIONS = [
         self::PERMISSION_TEAM_ACTIVITY_VIEW,
+    ];
+
+    /**
+     * Finance Phase 1 view permissions. Granted with {@see self::PERMISSION_FINANCE_VIEW}.
+     *
+     * @var list<string>
+     */
+    private const FINANCE_MODULE_VIEW_PERMISSIONS = [
+        self::PERMISSION_FINANCE_DASHBOARD_VIEW,
+        self::PERMISSION_FINANCE_PAYMENTS_VIEW,
+        self::PERMISSION_FINANCE_EXPENSES_VIEW,
+        self::PERMISSION_FINANCE_CASH_VIEW,
+        self::PERMISSION_FINANCE_CLOSINGS_VIEW,
+        self::PERMISSION_FINANCE_BANK_VIEW,
+        self::PERMISSION_FINANCE_VENDOR_PAYMENTS_VIEW,
+        self::PERMISSION_FINANCE_SETTINGS_VIEW,
     ];
 
     /**
@@ -201,6 +235,7 @@ class RolePermissionSeeder extends Seeder
             'workforce.view.member',
             'workforce.self',
             'workforce.recognition.view',
+            self::PERMISSION_FINANCE_VIEW,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -238,6 +273,7 @@ class RolePermissionSeeder extends Seeder
             'workforce.recognition.view',
             'workforce.recognition.review',
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
+            self::PERMISSION_FINANCE_VIEW,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -281,6 +317,7 @@ class RolePermissionSeeder extends Seeder
             'workforce.recognition.review',
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_WORKFORCE_PAYROLL_REOPEN,
+            self::PERMISSION_FINANCE_VIEW,
         ],
     ];
 
@@ -292,6 +329,7 @@ class RolePermissionSeeder extends Seeder
             ->flatten()
             ->merge(self::DIRECT_ASSIGNABLE_PERMISSIONS)
             ->merge(self::WORKFORCE_TEAM_VISIBILITY_PERMISSIONS)
+            ->merge(self::FINANCE_MODULE_VIEW_PERMISSIONS)
             ->unique()
             ->values();
 
@@ -313,13 +351,22 @@ class RolePermissionSeeder extends Seeder
      */
     private function permissionsForRole(array $rolePermissions): array
     {
-        if (! in_array(self::PERMISSION_WORKFORCE_VIEW, $rolePermissions, true)) {
-            return $rolePermissions;
+        $expanded = $rolePermissions;
+
+        if (in_array(self::PERMISSION_WORKFORCE_VIEW, $rolePermissions, true)) {
+            $expanded = [
+                ...$expanded,
+                ...self::WORKFORCE_TEAM_VISIBILITY_PERMISSIONS,
+            ];
         }
 
-        return array_values(array_unique([
-            ...$rolePermissions,
-            ...self::WORKFORCE_TEAM_VISIBILITY_PERMISSIONS,
-        ]));
+        if (in_array(self::PERMISSION_FINANCE_VIEW, $rolePermissions, true)) {
+            $expanded = [
+                ...$expanded,
+                ...self::FINANCE_MODULE_VIEW_PERMISSIONS,
+            ];
+        }
+
+        return array_values(array_unique($expanded));
     }
 }

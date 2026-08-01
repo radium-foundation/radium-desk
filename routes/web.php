@@ -62,6 +62,18 @@ use App\Http\Controllers\Workforce\MonthlyAttendanceController;
 use App\Http\Controllers\Workforce\PayrollController;
 use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce\WorkforceMember360Controller;
+use App\Http\Controllers\Finance\BankAccountController;
+use App\Http\Controllers\Finance\BankLedgerController;
+use App\Http\Controllers\Finance\CashAccountController;
+use App\Http\Controllers\Finance\CashLedgerController;
+use App\Http\Controllers\Finance\CustomerPaymentController;
+use App\Http\Controllers\Finance\DailyClosingController;
+use App\Http\Controllers\Finance\DashboardController as FinanceDashboardController;
+use App\Http\Controllers\Finance\ExpenseCategoryController;
+use App\Http\Controllers\Finance\ExpenseController as FinanceExpenseController;
+use App\Http\Controllers\Finance\PaymentMethodController;
+use App\Http\Controllers\Finance\SettingsController as FinanceSettingsController;
+use App\Http\Controllers\Finance\VendorPaymentController;
 use App\Http\Controllers\TeamTelegramBroadcastController;
 use App\Http\Controllers\TeamWorkScheduleController;
 use App\Http\Controllers\Workforce360Controller;
@@ -273,6 +285,50 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('recognition/{review}/decide', [WorkRecognitionController::class, 'decide'])->name('recognition.decide');
         Route::post('recognition/{review}/refresh', [WorkRecognitionController::class, 'refresh'])->name('recognition.refresh');
         Route::get('members/{user}', [WorkforceMember360Controller::class, 'show'])->name('members.show');
+    });
+
+    Route::prefix('finance')->name('finance.')->group(function () {
+        Route::redirect('/', '/finance/dashboard');
+        Route::get('dashboard', FinanceDashboardController::class)->name('dashboard');
+        Route::get('payments', [CustomerPaymentController::class, 'index'])->name('payments.index');
+        Route::get('expenses', [FinanceExpenseController::class, 'index'])->name('expenses.index');
+        Route::get('expenses/create', [FinanceExpenseController::class, 'create'])->name('expenses.create');
+        Route::post('expenses', [FinanceExpenseController::class, 'store'])->name('expenses.store');
+        Route::get('expenses/{expense}', [FinanceExpenseController::class, 'show'])->name('expenses.show');
+        Route::get('expenses/{expense}/edit', [FinanceExpenseController::class, 'edit'])->name('expenses.edit');
+        Route::put('expenses/{expense}', [FinanceExpenseController::class, 'update'])->name('expenses.update');
+        Route::post('expenses/{expense}/post', [FinanceExpenseController::class, 'post'])->name('expenses.post');
+        Route::get('cash', [CashLedgerController::class, 'index'])->name('cash.index');
+        Route::get('closings', [DailyClosingController::class, 'index'])->name('closings.index');
+        Route::get('bank', [BankLedgerController::class, 'index'])->name('bank.index');
+        Route::get('vendor-payments', [VendorPaymentController::class, 'index'])->name('vendor-payments.index');
+
+        Route::prefix('settings')->name('settings.')->group(function () {
+            Route::redirect('/', '/finance/settings/cash-accounts');
+            Route::get('cash-accounts', [FinanceSettingsController::class, 'cashAccounts'])->name('cash-accounts');
+            Route::post('cash-accounts', [CashAccountController::class, 'store'])->name('cash-accounts.store');
+            Route::put('cash-accounts/{cashAccount}', [CashAccountController::class, 'update'])->name('cash-accounts.update');
+            Route::patch('cash-accounts/{cashAccount}/toggle', [CashAccountController::class, 'toggle'])->name('cash-accounts.toggle');
+
+            Route::get('bank-accounts', [FinanceSettingsController::class, 'bankAccounts'])->name('bank-accounts');
+            Route::post('bank-accounts', [BankAccountController::class, 'store'])->name('bank-accounts.store');
+            Route::put('bank-accounts/{bankAccount}', [BankAccountController::class, 'update'])->name('bank-accounts.update');
+            Route::patch('bank-accounts/{bankAccount}/toggle', [BankAccountController::class, 'toggle'])->name('bank-accounts.toggle');
+
+            Route::get('payment-methods', [FinanceSettingsController::class, 'paymentMethods'])->name('payment-methods');
+            Route::post('payment-methods', [PaymentMethodController::class, 'store'])->name('payment-methods.store');
+            Route::put('payment-methods/{paymentMethod}', [PaymentMethodController::class, 'update'])->name('payment-methods.update');
+            Route::patch('payment-methods/{paymentMethod}/toggle', [PaymentMethodController::class, 'toggle'])->name('payment-methods.toggle');
+
+            Route::get('expense-categories', [FinanceSettingsController::class, 'expenseCategories'])->name('expense-categories');
+            Route::post('expense-categories', [ExpenseCategoryController::class, 'store'])->name('expense-categories.store');
+            Route::put('expense-categories/{expenseCategory}', [ExpenseCategoryController::class, 'update'])->name('expense-categories.update');
+            Route::patch('expense-categories/{expenseCategory}/toggle', [ExpenseCategoryController::class, 'toggle'])->name('expense-categories.toggle');
+
+            Route::get('vendor-master', [FinanceSettingsController::class, 'vendorMaster'])->name('vendor-master');
+            Route::get('financial-preferences', [FinanceSettingsController::class, 'financialPreferences'])->name('financial-preferences');
+            Route::get('opening-balances', [FinanceSettingsController::class, 'openingBalances'])->name('opening-balances');
+        });
     });
 
     Route::get('/my-performance', [MyPerformanceController::class, 'index'])->name('my-performance.index');

@@ -11,6 +11,7 @@ use App\Models\RefundRequest;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\Operations\OperationsRoleService;
+use App\Support\Finance\FinanceAccess;
 use App\Support\Workforce\AttendanceManagementAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
@@ -47,6 +48,7 @@ class NavigationContextResolver
      *     operations: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     mission_control: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     workforce_management: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
+     *     finance: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     administration: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      *     personal: array{label: string, home_url: string, visible: bool, items: list<array<string, mixed>>},
      * }
@@ -112,6 +114,18 @@ class NavigationContextResolver
             ]))
             : [];
 
+        $financeItems = FinanceAccess::allows($user)
+            ? [
+                $this->sidebarItem(
+                    'finance.dashboard',
+                    'Finance',
+                    'bi-wallet2',
+                    route('finance.dashboard'),
+                    $context,
+                ),
+            ]
+            : [];
+
         $administrationItems = ($isAdminTeam && $this->canAccessAdministration($user))
             ? [
                 $this->sidebarItem(
@@ -160,6 +174,12 @@ class NavigationContextResolver
                 'home_url' => route(NavigationMenu::WorkforceManagement->homeRoute()),
                 'visible' => $workforceManagementItems !== [],
                 'items' => $workforceManagementItems,
+            ],
+            'finance' => [
+                'label' => NavigationMenu::Finance->label(),
+                'home_url' => route(NavigationMenu::Finance->homeRoute()),
+                'visible' => $financeItems !== [],
+                'items' => $financeItems,
             ],
             'administration' => [
                 'label' => NavigationMenu::Administration->label(),
@@ -226,6 +246,10 @@ class NavigationContextResolver
 
         if ($request->routeIs('workforce-management.*')) {
             return [NavigationMenu::WorkforceManagement, 'workforce_management.attendance', null];
+        }
+
+        if ($request->routeIs('finance.*')) {
+            return [NavigationMenu::Finance, 'finance.dashboard', null];
         }
 
         if ($request->routeIs('leave-requests.*')) {
@@ -411,6 +435,7 @@ class NavigationContextResolver
             NavigationMenu::Operations => false,
             NavigationMenu::MissionControl => in_array($pageTitle, ['Command Center', 'Mission Control'], true),
             NavigationMenu::WorkforceManagement => in_array($pageTitle, ['Workforce Management', 'Attendance'], true),
+            NavigationMenu::Finance => in_array($pageTitle, ['Finance', 'Dashboard'], true),
             NavigationMenu::Administration => $pageTitle === 'Administration',
             NavigationMenu::Personal => in_array($pageTitle, ['My Workforce', 'My Performance', 'Leave Requests'], true),
         };

@@ -68,6 +68,25 @@
                 .(session('work_recognition_scanned_count') !== null
                     ? ' ('.session('work_recognition_scanned_count').' reviews touched).'
                     : '.'),
+            'finance-payment-method-created' => 'Payment method added successfully.',
+            'finance-payment-method-updated' => 'Payment method updated successfully.',
+            'finance-payment-method-activated' => 'Payment method activated successfully.',
+            'finance-payment-method-deactivated' => 'Payment method deactivated successfully.',
+            'finance-expense-category-created' => 'Expense category added successfully.',
+            'finance-expense-category-updated' => 'Expense category updated successfully.',
+            'finance-expense-category-activated' => 'Expense category activated successfully.',
+            'finance-expense-category-deactivated' => 'Expense category deactivated successfully.',
+            'finance-cash-account-created' => 'Cash account added successfully.',
+            'finance-cash-account-updated' => 'Cash account updated successfully.',
+            'finance-cash-account-activated' => 'Cash account activated successfully.',
+            'finance-cash-account-deactivated' => 'Cash account deactivated successfully.',
+            'finance-bank-account-created' => 'Bank account added successfully.',
+            'finance-bank-account-updated' => 'Bank account updated successfully.',
+            'finance-bank-account-activated' => 'Bank account activated successfully.',
+            'finance-bank-account-deactivated' => 'Bank account deactivated successfully.',
+            'finance-expense-created' => 'Expense draft saved successfully.',
+            'finance-expense-updated' => 'Expense draft updated successfully.',
+            'finance-expense-posted' => 'Expense posted successfully. It can no longer be edited.',
             default => session('status'),
         };
     @endphp
