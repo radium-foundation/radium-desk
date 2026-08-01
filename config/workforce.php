@@ -22,7 +22,8 @@ return [
     |
     | When restricted, /workforce-management/attendance stays behind the usual
     | team-performance.view permission AND an email allowlist (Ravi + Shipra).
-    | Does not affect Member 360 or Team Performance.
+    | Salaries / Payroll require Attendance access + workforce.payroll.manage
+    | (Super Admin + Operations Admin). Admin remains attendance-only.
     |
     | Revert after payroll: set WORKFORCE_ATTENDANCE_MANAGEMENT_RESTRICTED=false
     | (or remove the AttendanceManagementAccess checks).

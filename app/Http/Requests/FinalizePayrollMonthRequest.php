@@ -2,14 +2,14 @@
 
 namespace App\Http\Requests;
 
-use Database\Seeders\RolePermissionSeeder;
+use App\Support\Workforce\AttendanceManagementAccess;
 use Illuminate\Foundation\Http\FormRequest;
 
 class FinalizePayrollMonthRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) ?? false;
+        return AttendanceManagementAccess::allowsPayroll($this->user());
     }
 
     /**

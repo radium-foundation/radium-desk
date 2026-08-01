@@ -9,7 +9,7 @@ class ReviseEmployeeSalaryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return AttendanceManagementAccess::allows($this->user());
+        return AttendanceManagementAccess::allowsPayroll($this->user());
     }
 
     /**

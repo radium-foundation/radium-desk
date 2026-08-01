@@ -312,9 +312,19 @@ class PayrollPhase15FinalizationTest extends TestCase
             ->assertSee('Frozen snapshot');
     }
 
-    public function test_finalize_authorization_super_admin_only(): void
+    public function test_finalize_authorization_admin_forbidden_operations_admin_allowed(): void
     {
+        config([
+            'workforce.attendance_management.allowed_emails' => [
+                'info@radiumbox.com',
+                'shipra@radiumbox.com',
+                'admin.only@radiumbox.com',
+            ],
+        ]);
+
+        $admin = $this->allowlistedAdminRole();
         $ops = $this->allowlistedOpsAdmin();
+        $super = $this->allowlistedAdmin();
         $agent = $this->makeAgent('Auth Agent', withSchedule: true);
         $this->seedFullPresentMonth($agent, '2026-07');
 
@@ -325,7 +335,11 @@ class PayrollPhase15FinalizationTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($ops)
+        $this->actingAs($admin)
+            ->get(route('workforce-management.payroll.index', ['month' => '2026-07']))
+            ->assertForbidden();
+
+        $this->actingAs($admin)
             ->post(route('workforce-management.payroll.finalize'), [
                 'month' => '2026-07',
             ])
@@ -333,11 +347,40 @@ class PayrollPhase15FinalizationTest extends TestCase
 
         $this->assertSame(0, PayrollMonthRun::query()->count());
 
+        // Attendance lock remains Super Admin-only.
+        $this->lockAttendanceMonth($super, '2026-07-01');
+
         $this->actingAs($ops)
             ->get(route('workforce-management.payroll.index', ['month' => '2026-07']))
             ->assertOk()
-            ->assertSee('Draft Payroll')
-            ->assertDontSee('Finalize Payroll');
+            ->assertSee('Finalize Payroll');
+
+        $this->actingAs($ops)
+            ->post(route('workforce-management.payroll.finalize'), [
+                'month' => '2026-07',
+                'notes' => 'Ops finalize',
+            ])
+            ->assertRedirect(route('workforce-management.payroll.index', ['month' => '2026-07']));
+
+        $this->assertDatabaseHas('workforce_payroll_month_runs', [
+            'status' => PayrollRunStatus::Finalized->value,
+            'finalized_by' => $ops->id,
+        ]);
+    }
+
+    public function test_operations_admin_cannot_reopen_payroll(): void
+    {
+        $ops = $this->allowlistedOpsAdmin();
+
+        try {
+            app(PayrollRunService::class)->reopen(Carbon::parse('2026-07-01'), $ops);
+            $this->fail('Expected ValidationException for Operations Admin reopen.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                ['Only Super Admin can reopen a finalized payroll month.'],
+                $exception->errors()['month'] ?? null,
+            );
+        }
     }
 
     public function test_draft_index_shows_draft_label(): void
@@ -361,7 +404,7 @@ class PayrollPhase15FinalizationTest extends TestCase
             ->assertDontSee('Finalize Payroll');
     }
 
-    public function test_reopen_is_stubbed(): void
+    public function test_reopen_is_stubbed_for_super_admin(): void
     {
         $admin = $this->allowlistedAdmin();
 
@@ -392,6 +435,18 @@ class PayrollPhase15FinalizationTest extends TestCase
         return $user->fresh(['roles']);
     }
 
+    private function allowlistedAdminRole(): User
+    {
+        $user = User::factory()->create([
+            'name' => 'Regular Admin',
+            'email' => 'admin.only@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        return $user->fresh(['roles']);
+    }
+
     private function allowlistedOpsAdmin(): User
     {
         $user = User::factory()->create([
@@ -399,7 +454,7 @@ class PayrollPhase15FinalizationTest extends TestCase
             'email' => 'shipra@radiumbox.com',
             'is_active' => true,
         ]);
-        $user->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+        $user->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         return $user->fresh(['roles']);
     }

@@ -13,7 +13,7 @@ use App\Models\PayrollRunLine;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\Workforce\PayrollMonthLockService;
-use Database\Seeders\RolePermissionSeeder;
+use App\Support\Workforce\AttendanceManagementAccess;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -78,7 +78,7 @@ class PayrollRunService
      */
     public function finalize(Carbon $month, User $actor, ?string $notes = null): PayrollMonthRun
     {
-        $this->assertSuperAdmin($actor);
+        $this->assertCanFinalize($actor);
 
         $monthStart = $month->copy()->startOfMonth();
         $notes = $this->normalizeNotes($notes);
@@ -218,9 +218,16 @@ class PayrollRunService
 
     /**
      * Future: reopen a finalized month back to draft. Not implemented in Phase 1.5.
+     * Reserved for Super Admin (workforce.payroll.reopen).
      */
     public function reopen(Carbon $month, User $actor): never
     {
+        if (! AttendanceManagementAccess::allowsPayrollReopen($actor)) {
+            throw ValidationException::withMessages([
+                'month' => 'Only Super Admin can reopen a finalized payroll month.',
+            ]);
+        }
+
         throw new RuntimeException('Payroll reopen is not implemented yet.');
     }
 
@@ -251,11 +258,11 @@ class PayrollRunService
         ]);
     }
 
-    private function assertSuperAdmin(User $actor): void
+    private function assertCanFinalize(User $actor): void
     {
-        if (! $actor->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
+        if (! AttendanceManagementAccess::allowsPayroll($actor)) {
             throw ValidationException::withMessages([
-                'month' => 'Only Super Admin can finalize payroll.',
+                'month' => 'You are not allowed to finalize payroll.',
             ]);
         }
     }

@@ -21,7 +21,7 @@ class EmployeeSalaryController extends Controller
         private readonly OperationsRoleService $roleService,
     ) {
         $this->middleware(function ($request, $next) {
-            abort_unless(AttendanceManagementAccess::allows($request->user()), 403);
+            abort_unless(AttendanceManagementAccess::allowsPayroll($request->user()), 403);
 
             return $next($request);
         });

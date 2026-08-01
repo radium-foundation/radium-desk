@@ -33,6 +33,13 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_WORKFORCE_VIEW = 'workforce.view';
 
+    public const PERMISSION_WORKFORCE_PAYROLL_MANAGE = 'workforce.payroll.manage';
+
+    /**
+     * Future: reopen a finalized payroll month. Super Admin only.
+     */
+    public const PERMISSION_WORKFORCE_PAYROLL_REOPEN = 'workforce.payroll.reopen';
+
     /**
      * @var list<string>
      */
@@ -230,6 +237,7 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             'workforce.recognition.view',
             'workforce.recognition.review',
+            self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -271,6 +279,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             'workforce.recognition.view',
             'workforce.recognition.review',
+            self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
+            self::PERMISSION_WORKFORCE_PAYROLL_REOPEN,
         ],
     ];
 

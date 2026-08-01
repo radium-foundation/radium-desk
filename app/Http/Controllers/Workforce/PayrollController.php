@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Services\Workforce\Payroll\PayrollRunService;
 use App\Services\Workforce\PayrollMonthLockService;
 use App\Support\Workforce\AttendanceManagementAccess;
-use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,7 +20,7 @@ class PayrollController extends Controller
         private readonly PayrollMonthLockService $payrollMonthLockService,
     ) {
         $this->middleware(function ($request, $next) {
-            abort_unless(AttendanceManagementAccess::allows($request->user()), 403);
+            abort_unless(AttendanceManagementAccess::allowsPayroll($request->user()), 403);
 
             return $next($request);
         });
@@ -40,7 +39,7 @@ class PayrollController extends Controller
             'payrollLock' => $this->payrollMonthLockService->statusForMonth($month),
             'isFinalized' => $isFinalized,
             'payrollRun' => $run,
-            'canFinalizePayroll' => $request->user()?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) ?? false,
+            'canFinalizePayroll' => AttendanceManagementAccess::allowsPayroll($request->user()),
         ]);
     }
 
