@@ -41,6 +41,19 @@ class ContributionEngine
 
     public function evaluate(User $user, Carbon $date): ContributionEvaluation
     {
+        return $this->evaluateInternal($user, $date, publishEvents: true);
+    }
+
+    /**
+     * Read-only evaluation for evidence snapshots — never publishes ContributionQualified.
+     */
+    public function evaluateQuiet(User $user, Carbon $date): ContributionEvaluation
+    {
+        return $this->evaluateInternal($user, $date, publishEvents: false);
+    }
+
+    private function evaluateInternal(User $user, Carbon $date, bool $publishEvents): ContributionEvaluation
+    {
         $workDate = $date->copy()->startOfDay();
         $pack = $this->contributionPolicy->resolvePack($user);
         $sessions = $this->loadSessions($user, $workDate);
@@ -65,7 +78,7 @@ class ContributionEngine
 
         $evaluation = $this->contributionPolicy->evaluate($snapshot);
 
-        if ($evaluation->isQualified()) {
+        if ($publishEvents && $evaluation->isQualified()) {
             $this->workforceEventPublisher->publish(WorkforceEvent::make(
                 type: WorkforceEventType::ContributionQualified,
                 userId: (int) $user->id,

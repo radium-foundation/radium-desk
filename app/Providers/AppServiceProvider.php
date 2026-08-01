@@ -161,6 +161,10 @@ class AppServiceProvider extends ServiceProvider
             \App\Services\Workforce\Extra\RuleBookExtraQualificationPolicy::class,
         );
         $this->app->singleton(\App\Services\Workforce\Extra\ExtraQualificationEngine::class);
+        $this->app->singleton(
+            \App\Contracts\Workforce\IncentivePolicy::class,
+            \App\Services\Workforce\Recognition\ConfigIncentivePolicy::class,
+        );
         $this->app->bind(
             \App\Support\Dashboard\Contracts\DashboardAttentionScoreCalculator::class,
             \App\Support\Dashboard\NullDashboardAttentionScoreCalculator::class,

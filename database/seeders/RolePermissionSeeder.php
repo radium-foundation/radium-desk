@@ -193,6 +193,7 @@ class RolePermissionSeeder extends Seeder
             'workforce.view',
             'workforce.view.member',
             'workforce.self',
+            'workforce.recognition.view',
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -227,6 +228,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.view',
             'workforce.view.member',
             'workforce.self',
+            'workforce.recognition.view',
+            'workforce.recognition.review',
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -266,6 +269,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.view',
             'workforce.view.member',
             'workforce.self',
+            'workforce.recognition.view',
+            'workforce.recognition.review',
         ],
     ];
 

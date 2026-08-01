@@ -47,7 +47,7 @@ class WorkforceMember360Service
             leave: $this->buildLeaveSection($user),
             timeline: $this->buildTimeline($memberRow, $normalizedFocus),
             trends: $this->buildTrends($memberRow),
-            actions: $this->buildActions(),
+            actions: $this->buildActions($user, $month),
             tabs: $this->tabs(),
             activeTab: 'overview',
             focusedDay: $normalizedFocus,
@@ -289,7 +289,7 @@ class WorkforceMember360Service
     /**
      * @return list<WorkforceMember360Action>
      */
-    private function buildActions(): array
+    private function buildActions(User $user, Carbon $month): array
     {
         return [
             new WorkforceMember360Action(
@@ -314,6 +314,19 @@ class WorkforceMember360Service
                 ]),
                 enabled: true,
                 soon: false,
+            ),
+            new WorkforceMember360Action(
+                key: 'work_recognition',
+                label: 'Work Recognition',
+                url: (config('workforce_recognition.enabled') && auth()->user()?->can('workforce.recognition.view'))
+                    ? route('workforce-management.recognition.index', [
+                        'month' => $month->format('Y-m'),
+                        'user_id' => $user->id,
+                    ])
+                    : null,
+                enabled: (bool) config('workforce_recognition.enabled')
+                    && (auth()->user()?->can('workforce.recognition.view') ?? false),
+                soon: ! config('workforce_recognition.enabled'),
             ),
             new WorkforceMember360Action(
                 key: 'payroll',
