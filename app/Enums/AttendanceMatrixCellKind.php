@@ -34,14 +34,14 @@ enum AttendanceMatrixCellKind: string
     public function shortLabel(): string
     {
         return match ($this) {
-            self::Present => 'Present',
+            self::Present => 'P',
             self::Late => 'Late',
-            self::Absent => 'Absent',
-            self::Leave => 'Leave',
-            self::HalfDay => 'Half',
-            self::Holiday => 'Holiday',
-            self::WeeklyOff => 'Off',
-            self::Extra => 'Extra',
+            self::Absent => 'A',
+            self::Leave => 'L',
+            self::HalfDay => 'H',
+            self::Holiday => 'N',
+            self::WeeklyOff => 'W',
+            self::Extra => 'E',
             self::Future => '—',
             self::Empty => '—',
         };
