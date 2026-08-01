@@ -9,6 +9,16 @@
             'url' => route('workforce-management.attendance.index'),
             'enabled' => true,
         ],
+        'payroll' => [
+            'label' => 'Payroll',
+            'url' => route('workforce-management.payroll.index'),
+            'enabled' => true,
+        ],
+        'salaries' => [
+            'label' => 'Salaries',
+            'url' => route('workforce-management.salaries.index'),
+            'enabled' => true,
+        ],
         'recognition' => [
             'label' => 'Work Recognition',
             'url' => config('workforce_recognition.enabled')

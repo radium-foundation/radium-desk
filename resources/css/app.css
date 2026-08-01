@@ -18377,6 +18377,16 @@ body:has(.settings-center) .toast-container {
     background: #ecfdf3;
 }
 
+.wm-payroll-lock__badge--draft {
+    color: #1e40af;
+    background: #eff6ff;
+}
+
+.wm-payroll-lock__badge--finalized {
+    color: #5b21b6;
+    background: #f5f3ff;
+}
+
 .wm-payroll-lock__badge--locked {
     color: #9a3412;
     background: #fff7ed;

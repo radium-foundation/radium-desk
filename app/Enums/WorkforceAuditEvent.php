@@ -10,6 +10,7 @@ enum WorkforceAuditEvent: string
     case LeaveNotificationDispatched = 'workforce.leave.notification.dispatched';
     case PayrollLocked = 'workforce.payroll.locked';
     case PayrollUnlocked = 'workforce.payroll.unlocked';
+    case PayrollFinalized = 'workforce.payroll.finalized';
     case RecognitionCreated = 'workforce.recognition.created';
     case RecognitionDecided = 'workforce.recognition.decided';
 
@@ -22,6 +23,7 @@ enum WorkforceAuditEvent: string
             self::LeaveNotificationDispatched => 'leave.notification.dispatched',
             self::PayrollLocked => 'payroll.locked',
             self::PayrollUnlocked => 'payroll.unlocked',
+            self::PayrollFinalized => 'payroll.finalized',
             self::RecognitionCreated => 'recognition.created',
             self::RecognitionDecided => 'recognition.decided',
         };

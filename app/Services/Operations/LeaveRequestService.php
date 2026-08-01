@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Contracts\Workforce\WorkforceEventPublisher;
 use App\Data\Workforce\WorkforceEvent;
 use App\Enums\LeaveDuration;
+use App\Enums\LeavePayClass;
 use App\Enums\LeaveRequestStatus;
 use App\Enums\NotificationCategory;
 use App\Enums\NotificationChannelType;
@@ -45,7 +46,7 @@ class LeaveRequestService
     }
 
     /**
-     * @param  array{start_date: string, end_date: string, reason: string, duration?: string}  $data
+     * @param  array{start_date: string, end_date: string, reason: string, duration?: string, pay_class?: string}  $data
      */
     public function submit(User $requester, array $data): LeaveRequest
     {
@@ -68,6 +69,8 @@ class LeaveRequestService
                 'end_date' => $endDate->toDateString(),
                 'reason' => $data['reason'],
                 'duration' => $duration,
+                'pay_class' => LeavePayClass::tryFrom((string) ($data['pay_class'] ?? LeavePayClass::Paid->value))
+                    ?? LeavePayClass::Paid,
                 'status' => LeaveRequestStatus::Pending,
             ]);
 

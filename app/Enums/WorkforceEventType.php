@@ -5,7 +5,7 @@ namespace App\Enums;
 /**
  * Workforce Rule Book §8 Event Catalog.
  * Active producers: AttendanceRecorded, LeaveApproved, LeaveRejected,
- * PayrollLocked, ContributionQualified / ExtraDayEarned (flag-gated),
+ * PayrollLocked, PayrollFinalized, ContributionQualified / ExtraDayEarned (flag-gated),
  * WeeklyOffWorked / HolidayWorked / RecognitionRecommended / RecognitionDecided.
  * Remaining types are reserved.
  */
@@ -24,6 +24,7 @@ enum WorkforceEventType: string
     case SalesCredited = 'workforce.sales.credited';
     case IncentiveAwarded = 'workforce.incentive.awarded';
     case PayrollLocked = 'workforce.payroll.locked';
+    case PayrollFinalized = 'workforce.payroll.finalized';
     case RecognitionRecommended = 'workforce.recognition.recommended';
     case RecognitionDecided = 'workforce.recognition.decided';
 
