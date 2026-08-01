@@ -35,9 +35,9 @@ enum AttendanceMatrixCellKind: string
     {
         return match ($this) {
             self::Present => 'P',
-            self::Late => 'Late',
+            self::Late => 'L',
             self::Absent => 'A',
-            self::Leave => 'L',
+            self::Leave => 'V',
             self::HalfDay => 'H',
             self::Holiday => 'N',
             self::WeeklyOff => 'W',
