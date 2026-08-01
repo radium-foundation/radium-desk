@@ -130,7 +130,7 @@
                     <span class="attendance-matrix-badge attendance-matrix-badge--warning">Late</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--danger">Absent</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--info">Leave</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--secondary">Holiday</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--holiday">Holiday</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--secondary">Off</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--primary">Extra</span>
                 </div>

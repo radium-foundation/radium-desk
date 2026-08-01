@@ -55,7 +55,7 @@ enum AttendanceMatrixCellKind: string
             self::Absent => 'danger',
             self::Leave => 'info',
             self::HalfDay => 'half',
-            self::Holiday => 'secondary',
+            self::Holiday => 'holiday',
             self::WeeklyOff => 'secondary',
             self::Extra => 'primary',
             self::Future, self::Empty => 'muted',
