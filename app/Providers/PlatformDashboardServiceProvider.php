@@ -35,9 +35,14 @@ use App\Services\Platform\Health\Contributors\IntegrationHealthContributionProvi
 use App\Services\Platform\Health\Contributors\PlatformHealthContributionProvider;
 use App\Services\Platform\Health\PlatformOverallHealthRegistry;
 use App\Services\Platform\Health\PlatformOverallHealthService;
+use App\Services\Platform\Warmers\AutomationSnapshotWarmer;
+use App\Services\Platform\Warmers\CommunicationsSnapshotWarmer;
 use App\Services\Platform\Warmers\CriticalAlertsSnapshotWarmer;
 use App\Services\Platform\Warmers\ExecutiveSnapshotWarmer;
+use App\Services\Platform\Warmers\FinanceSnapshotWarmer;
 use App\Services\Platform\Warmers\IntegrationHealthSnapshotWarmer;
+use App\Services\Platform\Warmers\OperationsSnapshotWarmer;
+use App\Services\Platform\Warmers\PerformanceSnapshotWarmer;
 use App\Services\Platform\Warmers\PlatformHealthSnapshotWarmer;
 use App\Services\Platform\Warmers\PlatformSnapshotWarmerRegistry;
 use App\Services\Platform\Warmers\PlatformSnapshotWarmingService;
@@ -166,6 +171,11 @@ class PlatformDashboardServiceProvider extends ServiceProvider
             ExecutiveSnapshotWarmer::class,
             IntegrationHealthSnapshotWarmer::class,
             CriticalAlertsSnapshotWarmer::class,
+            PerformanceSnapshotWarmer::class,
+            AutomationSnapshotWarmer::class,
+            CommunicationsSnapshotWarmer::class,
+            FinanceSnapshotWarmer::class,
+            OperationsSnapshotWarmer::class,
         ];
     }
 
@@ -181,9 +191,9 @@ class PlatformDashboardServiceProvider extends ServiceProvider
             IntegrationHealthZone::class,
             PerformanceZone::class,
             AutomationZone::class,
-            OperationsOverviewZone::class,
-            FinanceOverviewZone::class,
             CommunicationsZone::class,
+            FinanceOverviewZone::class,
+            OperationsOverviewZone::class,
             ToolsZone::class,
         ];
     }
@@ -353,9 +363,9 @@ class PlatformDashboardServiceProvider extends ServiceProvider
                     ],
                     [
                         'label' => 'Cashfree Health',
-                        'route' => 'admin.operations.index',
-                        'params' => ['hub_tab' => 'system'],
-                        'description' => 'Integration health inside Control Center.',
+                        'route' => 'admin.platform.index',
+                        'fragment' => 'platform-zone-integration_health',
+                        'description' => 'Payment integration diagnostics on Platform.',
                     ],
                 ],
                 detailRoute: [

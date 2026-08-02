@@ -27,7 +27,7 @@ class OperationsRadiumBoxHealthTest extends TestCase
         config(['radiumbox.enabled' => true]);
     }
 
-    public function test_operations_dashboard_includes_radiumbox_health_widget(): void
+    public function test_operations_dashboard_links_radiumbox_monitoring_to_platform(): void
     {
         $admin = $this->createAdminUser();
         $actor = User::factory()->create();
@@ -43,9 +43,8 @@ class OperationsRadiumBoxHealthTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('operations-health-trigger-radiumbox', false)
-            ->assertSee('Expand to load RadiumBox details', false)
-            ->assertSee('RadiumBox', false);
+            ->assertSee('Open Platform Dashboard', false)
+            ->assertDontSee('operations-health-trigger-radiumbox', false);
 
         $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'health_radiumbox']))

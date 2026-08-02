@@ -27,7 +27,7 @@ enum PlatformZoneId: string
             self::OperationsOverview => 'Operations Overview',
             self::FinanceOverview => 'Finance Overview',
             self::Communications => 'Communications',
-            self::Tools => 'Tools',
+            self::Tools => 'Tools & Diagnostics',
         };
     }
 
@@ -40,7 +40,7 @@ enum PlatformZoneId: string
             self::CriticalAlerts, self::ExecutiveSnapshot, self::PlatformHealth => 1,
             self::IntegrationHealth => 2,
             self::Performance, self::Automation => 3,
-            self::OperationsOverview, self::FinanceOverview, self::Communications => 4,
+            self::Communications, self::FinanceOverview, self::OperationsOverview => 4,
             self::Tools => 5,
         };
     }
@@ -54,9 +54,9 @@ enum PlatformZoneId: string
             self::IntegrationHealth => 40,
             self::Performance => 50,
             self::Automation => 60,
-            self::OperationsOverview => 70,
+            self::Communications => 70,
             self::FinanceOverview => 80,
-            self::Communications => 90,
+            self::OperationsOverview => 90,
             self::Tools => 100,
         };
     }

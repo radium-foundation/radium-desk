@@ -3,6 +3,20 @@
 ])
 
 <div class="operations-performance-tab-content">
+    <div class="alert alert-light border mb-4" role="status">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <strong class="d-block">Platform monitoring moved</strong>
+                <span class="text-muted small">
+                    Integration health (RadiumBox, Cashfree, Gmail) and platform diagnostics live on the Platform Dashboard.
+                </span>
+            </div>
+            <a href="{{ route('admin.platform.index') }}" class="btn btn-sm btn-primary">
+                Open Platform Dashboard
+            </a>
+        </div>
+    </div>
+
     <div class="row g-4 mb-4">
         <div class="col-12">
             <div id="operations-ivr-health">
@@ -46,21 +60,6 @@
                 @include('admin.operations.partials.queue-metrics', ['metrics' => $dashboard->queueMetrics])
             </div>
         </div>
-    </div>
-
-    <div id="operations-radiumbox-health">
-        @include('admin.operations.partials.radiumbox-health', ['health' => $dashboard->radiumBoxHealth])
-    </div>
-
-    <div id="operations-cashfree-health" class="mt-4">
-        @include('admin.operations.partials.cashfree-health', ['health' => $dashboard->cashfreeHealth])
-    </div>
-
-    <div id="operations-gmail-health" class="mt-4">
-        @include('admin.operations.partials.gmail-health', [
-            'health' => $dashboard->gmailHealth,
-            'showActions' => auth()->user()?->can('update', App\Models\SystemSetting::class) ?? false,
-        ])
     </div>
 
     <div id="operations-cashfree-device-enrichment-quality" class="mt-4">

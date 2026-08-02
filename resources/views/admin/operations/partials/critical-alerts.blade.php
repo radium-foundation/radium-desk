@@ -21,7 +21,8 @@
             'message' => 'Paid payments need order recovery.',
             'metric' => $paidMissing,
             'metric_label' => 'Paid missing',
-            'action_target' => '#operations-health-trigger-cashfree',
+            'action_url' => route('admin.platform.index').'#platform-zone-integration_health',
+            'action_label' => 'Open Platform',
         ];
     }
 
@@ -33,7 +34,8 @@
             'message' => 'Actionable webhook failures require recovery.',
             'metric' => $activeWebhookFailures,
             'metric_label' => 'Failed webhooks',
-            'action_target' => '#operations-health-trigger-cashfree',
+            'action_url' => route('admin.platform.index').'#platform-zone-integration_health',
+            'action_label' => 'Open Platform',
         ];
     }
 
@@ -45,7 +47,8 @@
             'message' => 'Order syncs failed and need attention.',
             'metric' => $failedSyncs,
             'metric_label' => 'Failed syncs',
-            'action_target' => '#operations-health-trigger-radiumbox',
+            'action_url' => route('admin.platform.index').'#platform-zone-integration_health',
+            'action_label' => 'Open Platform',
         ];
     }
 
@@ -98,8 +101,16 @@
     @else
         <div class="operations-critical-alerts-grid operations-critical-alerts-feed card border-0 shadow-sm">
             @foreach ($alerts as $alert)
-                <button
-                    type="button"
+                @php
+                    $isLink = ! empty($alert['action_url']);
+                    $tag = $isLink ? 'a' : 'button';
+                @endphp
+                <{{ $tag }}
+                    @if ($isLink)
+                        href="{{ $alert['action_url'] }}"
+                    @else
+                        type="button"
+                    @endif
                     @class([
                         'operations-critical-alert-card operations-critical-alert-row',
                         'operations-critical-alert-card--danger' => $alert['severity'] === 'danger',
@@ -131,7 +142,7 @@
                     @else
                         <span @class(['status-badge', 'status-' . $alert['severity'], 'operations-critical-alert-priority'])>{{ $alert['metric_label'] }}</span>
                     @endif
-                </button>
+                </{{ $tag }}>
             @endforeach
         </div>
     @endif

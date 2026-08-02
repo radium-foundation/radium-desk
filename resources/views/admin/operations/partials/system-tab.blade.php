@@ -3,12 +3,23 @@
 ])
 
 <div class="operations-system-tab-content">
-    <div id="operations-system-health" class="mb-4">
-        @include('admin.operations.partials.system-health', ['components' => $dashboard->systemHealth])
-    </div>
-
-    <div id="operations-integration-health" class="mb-4">
-        @include('admin.operations.partials.integration-health', ['cards' => $dashboard->integrationHealth])
+    <div class="alert alert-light border mb-4" role="status">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <strong class="d-block">System &amp; Integration Health</strong>
+                <span class="text-muted small">
+                    Live platform and integration monitoring is on the Platform Dashboard. This tab keeps operational activity feeds.
+                </span>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('admin.platform.index') }}" class="btn btn-sm btn-primary">
+                    Open Platform Dashboard
+                </a>
+                <a href="{{ route('admin.platform.index') }}#platform-zone-integration_health" class="btn btn-sm btn-outline-secondary">
+                    Integration Health
+                </a>
+            </div>
+        </div>
     </div>
 
     <div class="row g-4">

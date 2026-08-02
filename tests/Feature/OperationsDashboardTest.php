@@ -265,33 +265,25 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('operations-command-card', false);
     }
 
-    public function test_healthy_integration_systems_render_collapsed_on_initial_page(): void
+    public function test_healthy_integration_systems_render_platform_link_instead_of_pills(): void
     {
         $admin = $this->createAdminUser('admin-health-collapsed@test.com');
 
         $this->actingAs($admin)
             ->get(route('admin.operations.index'))
             ->assertOk()
-            ->assertSee('Loading integration health', false);
+            ->assertSee('Open Platform Dashboard', false)
+            ->assertDontSee('operations-health-trigger-radiumbox', false)
+            ->assertDontSee('operations-integration-grid', false);
 
         $response = $this->actingAs($admin)
             ->getJson(route('admin.operations.live', ['groups' => 'health']))
-            ->assertOk()
-            ->assertSee('operations-integration-grid', false)
-            ->assertSee('operations-integration-pill', false)
-            ->assertDontSee('operations-health-trigger-cashfree', false);
+            ->assertOk();
 
-        $html = (string) $response->getContent();
-
-        if (str_contains($html, 'All systems operational')) {
-            $this->assertStringContainsString('All systems operational', $html);
-        } else {
-            $this->assertTrue(
-                str_contains($html, 'operations-health-issue-detail')
-                || str_contains($html, 'operations-health-accordion'),
-                'Expected collapsed health issue UI for integrations needing attention.',
-            );
-        }
+        $html = (string) $response->json('html.health_status');
+        $this->assertStringContainsString('Open Platform Dashboard', $html);
+        $this->assertStringContainsString(route('admin.platform.index'), $html);
+        $this->assertStringNotContainsString('operations-integration-grid', $html);
     }
 
     public function test_critical_alerts_still_render_on_initial_page(): void
@@ -346,7 +338,7 @@ class OperationsDashboardTest extends TestCase
             ->assertSee('All systems operational', false);
     }
 
-    public function test_health_status_shell_does_not_include_lazy_placeholders(): void
+    public function test_health_status_shell_links_to_platform_without_lazy_placeholders(): void
     {
         $response = $this->actingAs($this->createAdminUser('admin-health-shell@test.com'))
             ->getJson(route('admin.operations.live', ['groups' => 'health']))
@@ -355,8 +347,8 @@ class OperationsDashboardTest extends TestCase
         $html = (string) $response->json('html.health_status');
 
         $this->assertStringNotContainsString('operations-lazy-placeholder', $html);
-        $this->assertStringContainsString('operations-integration-grid', $html);
-        $this->assertStringContainsString('operations-integration-pill', $html);
+        $this->assertStringNotContainsString('operations-integration-grid', $html);
+        $this->assertStringContainsString('Open Platform Dashboard', $html);
     }
 
     public function test_support_intelligence_renders_workload_cards(): void

@@ -92,7 +92,7 @@ class ExecutiveCommandCenterTest extends TestCase
         ]);
     }
 
-    public function test_command_center_renders_zone_shell_and_workspace_links(): void
+    public function test_command_center_renders_zone_shell_and_tools_catalog(): void
     {
         $actor = $this->createAgent();
         $this->createIncident($actor, IncidentStatus::Open, highPriority: true);
@@ -106,7 +106,7 @@ class ExecutiveCommandCenterTest extends TestCase
             ->assertSee('Platform Health', false)
             ->assertSee('Operations Overview', false)
             ->assertSee('data-platform-zones', false)
-            ->assertSee('data-platform-workspace-links', false)
+            ->assertSee('data-platform-tools-catalog', false)
             ->assertSee(route('admin.operations.index'), false)
             ->assertDontSee('Open Cases', false)
             ->assertDontSee('Cards coming next', false);

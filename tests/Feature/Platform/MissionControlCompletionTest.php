@@ -56,19 +56,18 @@ class MissionControlCompletionTest extends TestCase
         return $user;
     }
 
-    public function test_superadmin_mission_control_exposes_workspace_tabs(): void
+    public function test_superadmin_mission_control_exposes_tools_catalog(): void
     {
         $this->actingAs($this->createSuperadmin())
             ->get(route('admin.platform.index'))
             ->assertOk()
             ->assertSee('aria-label="Mission Control workspace"', false)
-            ->assertSee('data-platform-workspace-links', false)
+            ->assertSee('data-platform-tools-catalog', false)
             ->assertSee(route('admin.operations.index'), false)
             ->assertSee(route('admin.operations.index', ['hub_tab' => 'automation']), false)
             ->assertSee(route('cashfree.webhook-explorer.index'), false)
             ->assertSee(route('audit-logs.index'), false)
             ->assertSee('#platform-health', false)
-            ->assertSee(route('workforce.index'), false)
             ->assertSee(route('refunds.index', ['status' => 'pending']), false)
             ->assertSee('data-platform-zones', false)
             ->assertDontSee('Cards coming next', false);
@@ -80,7 +79,7 @@ class MissionControlCompletionTest extends TestCase
             ->get(route('admin.platform.index'))
             ->assertOk()
             ->assertSee(route('admin.operations.index'), false)
-            ->assertSee('data-platform-workspace-links', false)
+            ->assertSee('data-platform-tools-catalog', false)
             ->assertDontSee('Application Settings', false);
     }
 

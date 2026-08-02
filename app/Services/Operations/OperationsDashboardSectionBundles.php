@@ -57,11 +57,7 @@ class OperationsDashboardSectionBundles
         ],
         'ira_compact' => [],
         'ira_full_analysis' => [],
-        'health_status' => [
-            self::CASHFREE_HEALTH,
-            self::RADIUMBOX_HEALTH,
-            self::TEAM_TELEGRAM_STATUS,
-        ],
+        'health_status' => [],
         'today_tab' => [
             self::SUPPORT_INTELLIGENCE,
         ],
@@ -74,15 +70,10 @@ class OperationsDashboardSectionBundles
             self::NOTIFICATION_METRICS,
             self::AUTOMATION_METRICS,
             self::QUEUE_METRICS,
-            self::RADIUMBOX_HEALTH,
-            self::CASHFREE_HEALTH,
-            self::GMAIL_HEALTH,
             self::CASHFREE_DEVICE_ENRICHMENT,
             self::MISSING_SERIAL_AUTOMATION,
         ],
         'system_tab' => [
-            self::SYSTEM_HEALTH,
-            self::INTEGRATION_HEALTH,
             self::RECENT_NOTIFICATION_FAILURES,
             self::RECENT_AUTOMATION_ACTIVITY,
             self::RECENT_IRA_MESSAGES,
