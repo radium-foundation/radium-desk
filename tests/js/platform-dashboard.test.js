@@ -19,20 +19,19 @@ describe('platform-dashboard polling', () => {
         });
     };
 
-    const mountPlatformPage = () => {
+    const mountZonePlatformPage = ({ available = 'false', stale = 'false' } = {}) => {
         document.body.innerHTML = `
-            <div id="platform-dashboard-root" data-poll-interval-seconds="1">
-                <div data-platform-card-slot="platform_health">
-                    <article
-                        data-platform-card
-                        data-refresh-url="/admin/platform/cards/platform_health"
-                    >
-                        <button type="button" data-platform-card-refresh>
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                        <div>Platform Health</div>
-                    </article>
-                </div>
+            <div id="platform-dashboard-root" data-platform-zones data-poll-interval-seconds="1" data-zone-concurrency="2">
+                <section
+                    data-platform-zone="platform_health"
+                    data-platform-zone-priority="1"
+                    data-zone-available="${available}"
+                    data-zone-stale="${stale}"
+                    data-refresh-url="/admin/platform/zones/platform_health"
+                >
+                    <div data-platform-zone-body>body</div>
+                    <button type="button" data-platform-zone-refresh><i></i></button>
+                </section>
             </div>
         `;
 
@@ -44,11 +43,11 @@ describe('platform-dashboard polling', () => {
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({
-                html: `
-                    <article data-platform-card data-refresh-url="/admin/platform/cards/platform_health">
-                        <div>Refreshed Platform Health</div>
-                    </article>
-                `,
+                html: '<div>refreshed</div>',
+                status: 'healthy',
+                status_label: 'Healthy',
+                available: true,
+                stale: false,
             }),
         }));
         setVisibilityState('visible');
@@ -63,25 +62,36 @@ describe('platform-dashboard polling', () => {
         setVisibilityState('visible');
     });
 
-    it('auto-refreshes refreshable cards on the configured interval', async () => {
-        mountPlatformPage();
+    it('auto-refreshes stale priority zones on the configured interval', async () => {
+        mountZonePlatformPage({ available: 'true', stale: 'true' });
         initPlatformDashboard();
 
-        expect(fetch).not.toHaveBeenCalled();
+        fetch.mockClear();
 
         await vi.advanceTimersByTimeAsync(1000);
 
         expect(fetch).toHaveBeenCalledTimes(1);
         expect(fetch).toHaveBeenCalledWith(
-            '/admin/platform/cards/platform_health',
+            '/admin/platform/zones/platform_health',
             expect.objectContaining({
                 credentials: 'same-origin',
             }),
         );
     });
 
+    it('does not poll-refresh fresh zones', async () => {
+        mountZonePlatformPage({ available: 'true', stale: 'false' });
+        initPlatformDashboard();
+
+        fetch.mockClear();
+
+        await vi.advanceTimersByTimeAsync(3000);
+
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
     it('pauses polling while the browser tab is hidden', async () => {
-        const root = mountPlatformPage();
+        const root = mountZonePlatformPage({ available: 'true', stale: 'true' });
         startPlatformPolling(root, 1000);
 
         fetch.mockClear();
@@ -94,8 +104,8 @@ describe('platform-dashboard polling', () => {
         expect(fetch).not.toHaveBeenCalled();
     });
 
-    it('refreshes cards when the tab becomes visible again', async () => {
-        const root = mountPlatformPage();
+    it('intelligently refreshes stale zones when the tab becomes visible again', async () => {
+        const root = mountZonePlatformPage({ available: 'true', stale: 'true' });
         startPlatformPolling(root, 1000);
 
         fetch.mockClear();
@@ -168,15 +178,23 @@ describe('platform zone scheduler', () => {
         expect(order[1]).toBe('start:b');
     });
 
-    it('priority-refreshes zones after first paint', async () => {
+    it('priority-refreshes only stale or unavailable priority zones', async () => {
         document.body.innerHTML = `
             <div id="platform-dashboard-root" data-platform-zones data-zone-concurrency="2" data-poll-interval-seconds="0">
-                <section data-platform-zone="integration_health" data-platform-zone-priority="2" data-refresh-url="/admin/platform/zones/integration_health">
+                <section data-platform-zone="performance" data-platform-zone-priority="3" data-zone-available="false" data-zone-stale="false" data-refresh-url="/admin/platform/zones/performance">
                     <div data-platform-zone-body>pending</div>
                     <button type="button" data-platform-zone-refresh><i></i></button>
                 </section>
-                <section data-platform-zone="platform_health" data-platform-zone-priority="1" data-refresh-url="/admin/platform/zones/platform_health">
+                <section data-platform-zone="integration_health" data-platform-zone-priority="2" data-zone-available="false" data-zone-stale="false" data-refresh-url="/admin/platform/zones/integration_health">
                     <div data-platform-zone-body>pending</div>
+                    <button type="button" data-platform-zone-refresh><i></i></button>
+                </section>
+                <section data-platform-zone="platform_health" data-platform-zone-priority="1" data-zone-available="false" data-zone-stale="false" data-refresh-url="/admin/platform/zones/platform_health">
+                    <div data-platform-zone-body>pending</div>
+                    <button type="button" data-platform-zone-refresh><i></i></button>
+                </section>
+                <section data-platform-zone="tools" data-platform-zone-priority="5" data-zone-available="true" data-zone-stale="false" data-refresh-url="/admin/platform/zones/tools">
+                    <div data-platform-zone-body>ready</div>
                     <button type="button" data-platform-zone-refresh><i></i></button>
                 </section>
             </div>
@@ -193,6 +211,8 @@ describe('platform zone scheduler', () => {
                     status: 'healthy',
                     status_label: 'Healthy',
                     updated_at: '2026-08-02T12:00:00+05:30',
+                    available: true,
+                    stale: false,
                 }),
             };
         }));
@@ -202,7 +222,45 @@ describe('platform zone scheduler', () => {
 
         expect(calls[0]).toContain('/admin/platform/zones/platform_health');
         expect(calls[1]).toContain('/admin/platform/zones/integration_health');
-        expect(root.querySelector('[data-platform-zone="platform_health"] [data-platform-zone-body]').innerHTML)
-            .toContain('refreshed:');
+        expect(calls).toHaveLength(2);
+        expect(calls.join(',')).not.toContain('/performance');
+        expect(calls.join(',')).not.toContain('/tools');
+    });
+
+    it('skips auto-refresh for fresh snapshots', async () => {
+        document.body.innerHTML = `
+            <div id="platform-dashboard-root" data-platform-zones data-poll-interval-seconds="0">
+                <section data-platform-zone="platform_health" data-platform-zone-priority="1" data-zone-available="true" data-zone-stale="false" data-refresh-url="/admin/platform/zones/platform_health">
+                    <div data-platform-zone-body>fresh</div>
+                    <button type="button" data-platform-zone-refresh><i></i></button>
+                </section>
+            </div>
+        `;
+
+        vi.stubGlobal('fetch', vi.fn());
+
+        await refreshZonesByPriority(document.getElementById('platform-dashboard-root'));
+
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('forceAll refreshes every zone including fresh ones', async () => {
+        document.body.innerHTML = `
+            <div id="platform-dashboard-root" data-platform-zones data-poll-interval-seconds="0">
+                <section data-platform-zone="platform_health" data-platform-zone-priority="1" data-zone-available="true" data-zone-stale="false" data-refresh-url="/admin/platform/zones/platform_health">
+                    <div data-platform-zone-body>fresh</div>
+                    <button type="button" data-platform-zone-refresh><i></i></button>
+                </section>
+            </div>
+        `;
+
+        vi.stubGlobal('fetch', vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ html: '<div>forced</div>', status: 'healthy', status_label: 'Healthy', available: true, stale: false }),
+        })));
+
+        await refreshZonesByPriority(document.getElementById('platform-dashboard-root'), { forceAll: true });
+
+        expect(fetch).toHaveBeenCalledTimes(1);
     });
 });

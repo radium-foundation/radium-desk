@@ -12,9 +12,9 @@ use Illuminate\Support\Facades\Cache;
  */
 class PlatformCommunicationsOverviewService
 {
-    public const CACHE_KEY = 'platform:communications:overview';
+    public const CACHE_KEY = PlatformCachePolicy::KEY_COMMUNICATIONS_OVERVIEW;
 
-    public const CACHE_TTL_SECONDS = 60;
+    public const CACHE_TTL_SECONDS = PlatformCachePolicy::TTL_PRIORITY_3;
 
     public function __construct(
         private readonly PlatformIntegrationHealthOverviewService $integrations,
@@ -58,9 +58,17 @@ class PlatformCommunicationsOverviewService
             }
         }
 
-        $integration = $this->integrations->overview(useCache: false);
+        // Prefer Integration Health caches (warmed first). Re-probe only when cold.
+        $integration = $this->integrations->cachedOverview();
+        if (! $integration['available']) {
+            $integration = $this->integrations->overview(useCache: false);
+        }
 
-        return $this->fromIntegrationItems($integration['items'], $integration['generated_at'] ?? now()->toIso8601String(), write: true);
+        return $this->fromIntegrationItems(
+            $integration['items'],
+            $integration['generated_at'] ?? now()->toIso8601String(),
+            write: true,
+        );
     }
 
     /**

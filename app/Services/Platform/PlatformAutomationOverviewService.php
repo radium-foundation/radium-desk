@@ -4,6 +4,7 @@ namespace App\Services\Platform;
 
 use App\Enums\PlatformHealthStatus;
 use App\Services\Operations\AutomationHealthService;
+use App\Services\Platform\PlatformCachePolicy;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -12,9 +13,9 @@ use Throwable;
  */
 class PlatformAutomationOverviewService
 {
-    public const CACHE_KEY = 'platform:automation:overview';
+    public const CACHE_KEY = PlatformCachePolicy::KEY_AUTOMATION_OVERVIEW;
 
-    public const CACHE_TTL_SECONDS = 60;
+    public const CACHE_TTL_SECONDS = PlatformCachePolicy::TTL_PRIORITY_3;
 
     public function __construct(
         private readonly AutomationHealthService $automationHealth,

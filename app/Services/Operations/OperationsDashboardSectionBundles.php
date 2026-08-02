@@ -41,8 +41,6 @@ class OperationsDashboardSectionBundles
     /** @var array<string, list<string>> */
     public const SECTION_BUNDLES = [
         'critical_alerts' => [
-            self::CASHFREE_HEALTH,
-            self::RADIUMBOX_HEALTH,
             self::SUPPORT_INTELLIGENCE,
         ],
         'overview_cards' => [

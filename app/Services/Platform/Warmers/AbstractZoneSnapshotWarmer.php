@@ -4,15 +4,15 @@ namespace App\Services\Platform\Warmers;
 
 use App\Contracts\Platform\PlatformSnapshotWarmer;
 use App\Models\User;
+use App\Services\Platform\PlatformCacheInvalidator;
 use App\Services\Platform\Zones\PlatformZoneRegistry;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 use Throwable;
 
 abstract class AbstractZoneSnapshotWarmer implements PlatformSnapshotWarmer
 {
     public function __construct(
         protected readonly PlatformZoneRegistry $zoneRegistry,
-        protected readonly PlatformZoneSnapshotStore $snapshotStore,
+        protected readonly PlatformCacheInvalidator $invalidator,
     ) {}
 
     abstract protected function zoneKey(): string;
@@ -25,22 +25,15 @@ abstract class AbstractZoneSnapshotWarmer implements PlatformSnapshotWarmer
             return;
         }
 
+        $actor ??= PlatformWarmingActor::resolve();
         $zone = $this->zoneRegistry->get($zoneKey);
 
-        if ($actor !== null && ! $zone->authorize($actor)) {
-            return;
-        }
-
         try {
-            if ($actor === null) {
-                // Snapshot/refresh paths that need a viewer: resolve later by concrete warmers.
-                return;
-            }
-
+            // Actor-independent: shared zone HTML is RBAC-filtered on read, not write.
             $zone->refresh($actor);
         } catch (Throwable $exception) {
             report($exception);
-            $this->snapshotStore->markStale($zoneKey);
+            $this->invalidator->markZoneStale($zoneKey);
         }
     }
 }

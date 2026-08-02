@@ -67,6 +67,7 @@ class PlatformDashboardServiceProvider extends ServiceProvider
         $this->app->singleton(PlatformSectionRegistry::class);
         $this->app->singleton(PlatformCardRegistry::class);
         $this->app->singleton(PlatformZoneSnapshotStore::class);
+        $this->app->singleton(\App\Services\Platform\PlatformCacheInvalidator::class);
         $this->app->singleton(PlatformZoneRegistry::class);
         $this->app->singleton(PlatformAlertRegistry::class);
         $this->app->singleton(PlatformAlertAggregator::class);

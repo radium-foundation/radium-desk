@@ -12,9 +12,9 @@ use Illuminate\Support\Facades\Schema;
 
 class PlatformFinanceOverviewService
 {
-    public const CACHE_KEY = 'platform:finance:overview';
+    public const CACHE_KEY = PlatformCachePolicy::KEY_FINANCE_OVERVIEW;
 
-    public const CACHE_TTL_SECONDS = 60;
+    public const CACHE_TTL_SECONDS = PlatformCachePolicy::TTL_PRIORITY_3;
 
     public function __construct(
         private readonly PlatformIntegrationHealthOverviewService $integrations,

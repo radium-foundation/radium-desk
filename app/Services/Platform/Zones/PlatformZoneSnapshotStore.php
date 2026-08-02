@@ -3,15 +3,19 @@
 namespace App\Services\Platform\Zones;
 
 use App\Data\Platform\PlatformZoneSnapshot;
+use App\Services\Platform\PlatformCachePolicy;
 use Illuminate\Support\Facades\Cache;
 
 class PlatformZoneSnapshotStore
 {
-    public const TTL_SECONDS = 300;
-
     public function cacheKey(string $zoneKey): string
     {
-        return 'platform:zone:'.$zoneKey.':snapshot';
+        return PlatformCachePolicy::zoneSnapshotKey($zoneKey);
+    }
+
+    public function ttlFor(string $zoneKey): int
+    {
+        return PlatformCachePolicy::ttlForZone($zoneKey);
     }
 
     public function get(string $zoneKey): ?PlatformZoneSnapshot
@@ -38,7 +42,7 @@ class PlatformZoneSnapshotStore
                 'available' => $snapshot->available,
                 'stale' => $snapshot->stale,
             ],
-            now()->addSeconds(self::TTL_SECONDS),
+            now()->addSeconds($this->ttlFor($snapshot->key)),
         );
     }
 
@@ -59,7 +63,7 @@ class PlatformZoneSnapshotStore
         $summary['retry_pending'] = true;
         $payload['summary'] = $summary;
 
-        Cache::put($this->cacheKey($zoneKey), $payload, now()->addSeconds(self::TTL_SECONDS));
+        Cache::put($this->cacheKey($zoneKey), $payload, now()->addSeconds($this->ttlFor($zoneKey)));
 
         return true;
     }

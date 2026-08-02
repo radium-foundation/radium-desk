@@ -4,9 +4,9 @@ namespace App\Services\Platform\Warmers;
 
 use App\Contracts\Platform\PlatformSnapshotWarmer;
 use App\Models\User;
+use App\Services\Platform\PlatformCacheInvalidator;
 use App\Services\Platform\PlatformPerformanceOverviewService;
 use App\Services\Platform\Zones\PlatformZoneRegistry;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 use Throwable;
 
 class PerformanceSnapshotWarmer implements PlatformSnapshotWarmer
@@ -14,7 +14,7 @@ class PerformanceSnapshotWarmer implements PlatformSnapshotWarmer
     public function __construct(
         private readonly PlatformPerformanceOverviewService $performance,
         private readonly PlatformZoneRegistry $zoneRegistry,
-        private readonly PlatformZoneSnapshotStore $snapshotStore,
+        private readonly PlatformCacheInvalidator $invalidator,
     ) {}
 
     public function key(): string
@@ -34,18 +34,19 @@ class PerformanceSnapshotWarmer implements PlatformSnapshotWarmer
 
     public function warm(?User $actor = null): void
     {
-        try {
-            $this->performance->overview(useCache: false);
+        $actor ??= PlatformWarmingActor::resolve();
 
-            if ($actor !== null && $this->zoneRegistry->has('performance')) {
-                $zone = $this->zoneRegistry->get('performance');
-                if ($zone->authorize($actor)) {
-                    $zone->refresh($actor);
-                }
+        try {
+            if ($this->zoneRegistry->has('performance')) {
+                $this->zoneRegistry->get('performance')->refresh($actor);
+
+                return;
             }
+
+            $this->performance->overview(useCache: false);
         } catch (Throwable $exception) {
             report($exception);
-            $this->snapshotStore->markStale('performance');
+            $this->invalidator->markZoneStale('performance');
         }
     }
 }

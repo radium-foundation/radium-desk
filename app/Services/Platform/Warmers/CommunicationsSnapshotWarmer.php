@@ -4,9 +4,9 @@ namespace App\Services\Platform\Warmers;
 
 use App\Contracts\Platform\PlatformSnapshotWarmer;
 use App\Models\User;
+use App\Services\Platform\PlatformCacheInvalidator;
 use App\Services\Platform\PlatformCommunicationsOverviewService;
 use App\Services\Platform\Zones\PlatformZoneRegistry;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 use Throwable;
 
 class CommunicationsSnapshotWarmer implements PlatformSnapshotWarmer
@@ -14,7 +14,7 @@ class CommunicationsSnapshotWarmer implements PlatformSnapshotWarmer
     public function __construct(
         private readonly PlatformCommunicationsOverviewService $communications,
         private readonly PlatformZoneRegistry $zoneRegistry,
-        private readonly PlatformZoneSnapshotStore $snapshotStore,
+        private readonly PlatformCacheInvalidator $invalidator,
     ) {}
 
     public function key(): string
@@ -34,19 +34,19 @@ class CommunicationsSnapshotWarmer implements PlatformSnapshotWarmer
 
     public function warm(?User $actor = null): void
     {
-        try {
-            // Prefer Integration Health caches; may trigger overview refresh if cold.
-            $this->communications->overview(useCache: false);
+        $actor ??= PlatformWarmingActor::resolve();
 
-            if ($actor !== null && $this->zoneRegistry->has('communications')) {
-                $zone = $this->zoneRegistry->get('communications');
-                if ($zone->authorize($actor)) {
-                    $zone->refresh($actor);
-                }
+        try {
+            if ($this->zoneRegistry->has('communications')) {
+                $this->zoneRegistry->get('communications')->refresh($actor);
+
+                return;
             }
+
+            $this->communications->overview(useCache: false);
         } catch (Throwable $exception) {
             report($exception);
-            $this->snapshotStore->markStale('communications');
+            $this->invalidator->markZoneStale('communications');
         }
     }
 }

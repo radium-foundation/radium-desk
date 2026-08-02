@@ -3,8 +3,10 @@
 namespace App\Services\Finance;
 
 use App\Enums\FinanceExpenseStatus;
+use App\Enums\FinanceJournalSourceType;
 use App\Models\FinanceExpense;
 use App\Models\User;
+use App\Services\Finance\Data\JournalLineDraft;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -14,6 +16,8 @@ class FinanceExpenseService
 {
     public function __construct(
         private readonly FinanceExpenseReferenceService $referenceService,
+        private readonly JournalPostingService $journals,
+        private readonly FinanceSettingsService $settings,
     ) {}
 
     /**
@@ -111,15 +115,22 @@ class FinanceExpenseService
         return DB::transaction(function () use ($expense, $actor): FinanceExpense {
             $locked = FinanceExpense::query()
                 ->whereKey($expense->id)
+                ->with(['category', 'cashAccount', 'bankAccount'])
                 ->lockForUpdate()
                 ->firstOrFail();
 
             $this->ensureDraft($locked);
 
+            $journalId = null;
+            if ($this->settings->shouldPostForDate($locked->expense_date)) {
+                $journalId = $this->postJournal($locked, $actor)->id;
+            }
+
             $locked->update([
                 'status' => FinanceExpenseStatus::Posted,
                 'posted_at' => now(),
                 'posted_by' => $actor->id,
+                'journal_id' => $journalId,
             ]);
 
             return $locked->fresh([
@@ -129,8 +140,57 @@ class FinanceExpenseService
                 'bankAccount',
                 'creator',
                 'poster',
+                'journal',
             ]);
         });
+    }
+
+    private function postJournal(FinanceExpense $expense, User $actor): \App\Models\FinanceJournal
+    {
+        $expense->loadMissing(['category', 'cashAccount', 'bankAccount']);
+
+        $expenseGlId = $expense->category?->default_gl_account_id;
+        if ($expenseGlId === null) {
+            throw ValidationException::withMessages([
+                'expense_category_id' => 'Expense category must be linked to a GL account before posting.',
+            ]);
+        }
+
+        $creditAccountId = null;
+        if ($expense->cash_account_id !== null) {
+            $creditAccountId = $expense->cashAccount?->gl_account_id;
+            if ($creditAccountId === null) {
+                throw ValidationException::withMessages([
+                    'cash_account_id' => 'Cash account must be linked to a GL account before posting.',
+                ]);
+            }
+        } elseif ($expense->bank_account_id !== null) {
+            $creditAccountId = $expense->bankAccount?->gl_account_id;
+            if ($creditAccountId === null) {
+                throw ValidationException::withMessages([
+                    'bank_account_id' => 'Bank account must be linked to a GL account before posting.',
+                ]);
+            }
+        } else {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'Posted expenses require a cash or bank account to credit.',
+            ]);
+        }
+
+        $amount = round((float) $expense->amount, 2);
+
+        return $this->journals->post(
+            sourceType: FinanceJournalSourceType::Expense,
+            sourceId: $expense->id,
+            idempotencyKey: 'expense:'.$expense->id,
+            memo: 'Expense '.$expense->expense_no,
+            entryDate: $expense->expense_date,
+            lines: [
+                JournalLineDraft::debit((int) $expenseGlId, $amount, $expense->description),
+                JournalLineDraft::credit((int) $creditAccountId, $amount, $expense->description),
+            ],
+            actor: $actor,
+        );
     }
 
     private function ensureDraft(FinanceExpense $expense): void

@@ -20,6 +20,14 @@
             'label' => 'Expense Categories',
             'url' => route('finance.settings.expense-categories'),
         ],
+        'chart_of_accounts' => [
+            'label' => 'Chart of Accounts',
+            'url' => route('finance.settings.chart-of-accounts'),
+        ],
+        'journals' => [
+            'label' => 'Journal Audit',
+            'url' => route('finance.settings.journals'),
+        ],
         'vendor_master' => [
             'label' => 'Vendor Master',
             'url' => route('finance.settings.vendor-master'),

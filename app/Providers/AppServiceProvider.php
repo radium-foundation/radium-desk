@@ -5,8 +5,12 @@ namespace App\Providers;
 use App\Contracts\AI\AIProvider;
 use App\Contracts\Customer360\CaseIntelligenceLanguageEnhancer;
 use App\Contracts\Operations\IraReasoningProvider;
+use App\Events\Finance\OrderPaid;
+use App\Events\Finance\RefundCompleted;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Listeners\BroadcastNotificationCreated;
+use App\Listeners\Finance\PostOrderPaidJournal;
+use App\Listeners\Finance\PostRefundCompletedJournal;
 use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
 use App\Models\DeviceModel;
 use App\Models\Order;
@@ -247,6 +251,8 @@ class AppServiceProvider extends ServiceProvider
         // The legacy DispatchSupportAssignmentTelegramNotification listener was removed
         // so it cannot be re-registered via event discovery.
         Event::listen(SupportAppointmentSmartAssigned::class, DispatchIraSmartAssignmentNotification::class);
+        Event::listen(OrderPaid::class, PostOrderPaidJournal::class);
+        Event::listen(RefundCompleted::class, PostRefundCompletedJournal::class);
 
         Order::updated(function (Order $order): void {
             if ($order->wasChanged('serial_number') && $order->isSerialLocked()) {

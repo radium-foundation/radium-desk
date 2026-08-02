@@ -4,9 +4,9 @@ namespace App\Services\Platform\Warmers;
 
 use App\Contracts\Platform\PlatformSnapshotWarmer;
 use App\Models\User;
+use App\Services\Platform\PlatformCacheInvalidator;
 use App\Services\Platform\PlatformOperationsOverviewService;
 use App\Services\Platform\Zones\PlatformZoneRegistry;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 use Throwable;
 
 class OperationsSnapshotWarmer implements PlatformSnapshotWarmer
@@ -14,7 +14,7 @@ class OperationsSnapshotWarmer implements PlatformSnapshotWarmer
     public function __construct(
         private readonly PlatformOperationsOverviewService $operations,
         private readonly PlatformZoneRegistry $zoneRegistry,
-        private readonly PlatformZoneSnapshotStore $snapshotStore,
+        private readonly PlatformCacheInvalidator $invalidator,
     ) {}
 
     public function key(): string
@@ -34,18 +34,19 @@ class OperationsSnapshotWarmer implements PlatformSnapshotWarmer
 
     public function warm(?User $actor = null): void
     {
-        try {
-            $this->operations->overview(useCache: false);
+        $actor ??= PlatformWarmingActor::resolve();
 
-            if ($actor !== null && $this->zoneRegistry->has('operations_overview')) {
-                $zone = $this->zoneRegistry->get('operations_overview');
-                if ($zone->authorize($actor)) {
-                    $zone->refresh($actor);
-                }
+        try {
+            if ($this->zoneRegistry->has('operations_overview')) {
+                $this->zoneRegistry->get('operations_overview')->refresh($actor);
+
+                return;
             }
+
+            $this->operations->overview(useCache: false);
         } catch (Throwable $exception) {
             report($exception);
-            $this->snapshotStore->markStale('operations_overview');
+            $this->invalidator->markZoneStale('operations_overview');
         }
     }
 }

@@ -31,7 +31,10 @@ class CashAccountController extends Controller
 
     public function store(StoreFinanceCashAccountRequest $request): RedirectResponse
     {
-        $this->masterDataService->createCashAccount($request->validated('name'));
+        $this->masterDataService->createCashAccount(
+            $request->validated('name'),
+            $request->validated('gl_account_id'),
+        );
 
         return redirect()
             ->route('finance.settings.cash-accounts')
@@ -42,7 +45,11 @@ class CashAccountController extends Controller
         UpdateFinanceCashAccountRequest $request,
         FinanceCashAccount $cashAccount,
     ): RedirectResponse {
-        $this->masterDataService->updateCashAccount($cashAccount, $request->validated('name'));
+        $this->masterDataService->updateCashAccount(
+            $cashAccount,
+            $request->validated('name'),
+            $request->validated('gl_account_id'),
+        );
 
         return redirect()
             ->route('finance.settings.cash-accounts')

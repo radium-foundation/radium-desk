@@ -24,6 +24,7 @@ class StoreFinanceExpenseCategoryRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('finance_expense_categories', 'name')],
+            'default_gl_account_id' => ['nullable', 'integer', Rule::exists('finance_accounts', 'id')],
         ];
     }
 }

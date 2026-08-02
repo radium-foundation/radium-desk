@@ -6,7 +6,7 @@
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Finance · Settings</p>
         <h1 class="h3 mb-1">Bank Accounts</h1>
-        <p class="text-muted mb-0">Bank accounts used for transfers and settlements. No balances stored.</p>
+        <p class="text-muted mb-0">Bank accounts linked to asset GL accounts.</p>
     </div>
 
     @include('finance.partials.workspace-nav', ['active' => 'settings'])
@@ -23,50 +23,30 @@
                         @csrf
                         <div class="mb-3">
                             <label for="bank_name" class="form-label">Bank Name</label>
-                            <input
-                                type="text"
-                                id="bank_name"
-                                name="bank_name"
-                                class="form-control @error('bank_name') is-invalid @enderror"
-                                value="{{ old('bank_name') }}"
-                                required
-                                maxlength="255"
-                            >
-                            @error('bank_name')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            <input type="text" id="bank_name" name="bank_name" class="form-control @error('bank_name') is-invalid @enderror" value="{{ old('bank_name') }}" required maxlength="255">
+                            @error('bank_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-3">
                             <label for="account_name" class="form-label">Account Name</label>
-                            <input
-                                type="text"
-                                id="account_name"
-                                name="account_name"
-                                class="form-control @error('account_name') is-invalid @enderror"
-                                value="{{ old('account_name') }}"
-                                required
-                                maxlength="255"
-                            >
-                            @error('account_name')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            <input type="text" id="account_name" name="account_name" class="form-control @error('account_name') is-invalid @enderror" value="{{ old('account_name') }}" required maxlength="255">
+                            @error('account_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="mb-3">
                             <label for="last_four" class="form-label">Last 4 Digits</label>
-                            <input
-                                type="text"
-                                id="last_four"
-                                name="last_four"
-                                class="form-control @error('last_four') is-invalid @enderror"
-                                value="{{ old('last_four') }}"
-                                required
-                                maxlength="4"
-                                pattern="[0-9]{4}"
-                                inputmode="numeric"
-                            >
-                            @error('last_four')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            <input type="text" id="last_four" name="last_four" class="form-control @error('last_four') is-invalid @enderror" value="{{ old('last_four') }}" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric">
+                            @error('last_four')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="mb-3">
+                            <label for="bank_gl_account_id" class="form-label">GL Account</label>
+                            <select id="bank_gl_account_id" name="gl_account_id" class="form-select @error('gl_account_id') is-invalid @enderror">
+                                <option value="">Default bank clearing GL</option>
+                                @foreach($glAccounts as $gl)
+                                    <option value="{{ $gl->id }}" @selected((string) old('gl_account_id') === (string) $gl->id)>
+                                        {{ $gl->code }} — {{ $gl->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('gl_account_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Add Account</button>
                     </form>
@@ -81,7 +61,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Status</th>
-                                <th>Account</th>
+                                <th>Account / GL</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -96,62 +76,35 @@
                                         @endif
                                     </td>
                                     <td>
-                                        <form
-                                            method="POST"
-                                            action="{{ route('finance.settings.bank-accounts.update', $bankAccount) }}"
-                                            class="row g-2 align-items-center"
-                                        >
+                                        <form method="POST" action="{{ route('finance.settings.bank-accounts.update', $bankAccount) }}" class="row g-2 align-items-center">
                                             @csrf
                                             @method('PUT')
-                                            <div class="col-md-4">
-                                                <input
-                                                    type="text"
-                                                    name="bank_name"
-                                                    class="form-control form-control-sm"
-                                                    value="{{ old('bank_name', $bankAccount->bank_name) }}"
-                                                    required
-                                                    maxlength="255"
-                                                    aria-label="Bank name"
-                                                    placeholder="Bank name"
-                                                >
+                                            <div class="col-md-3">
+                                                <input type="text" name="bank_name" class="form-control form-control-sm" value="{{ old('bank_name', $bankAccount->bank_name) }}" required maxlength="255" placeholder="Bank">
                                             </div>
-                                            <div class="col-md-4">
-                                                <input
-                                                    type="text"
-                                                    name="account_name"
-                                                    class="form-control form-control-sm"
-                                                    value="{{ old('account_name', $bankAccount->account_name) }}"
-                                                    required
-                                                    maxlength="255"
-                                                    aria-label="Account name"
-                                                    placeholder="Account name"
-                                                >
+                                            <div class="col-md-3">
+                                                <input type="text" name="account_name" class="form-control form-control-sm" value="{{ old('account_name', $bankAccount->account_name) }}" required maxlength="255" placeholder="Account">
                                             </div>
                                             <div class="col-md-2">
-                                                <input
-                                                    type="text"
-                                                    name="last_four"
-                                                    class="form-control form-control-sm"
-                                                    value="{{ old('last_four', $bankAccount->last_four) }}"
-                                                    required
-                                                    maxlength="4"
-                                                    pattern="[0-9]{4}"
-                                                    inputmode="numeric"
-                                                    aria-label="Last four digits"
-                                                    placeholder="Last 4"
-                                                >
+                                                <input type="text" name="last_four" class="form-control form-control-sm" value="{{ old('last_four', $bankAccount->last_four) }}" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric">
                                             </div>
-                                            <div class="col-md-2">
+                                            <div class="col-md-3">
+                                                <select name="gl_account_id" class="form-select form-select-sm">
+                                                    <option value="">—</option>
+                                                    @foreach($glAccounts as $gl)
+                                                        <option value="{{ $gl->id }}" @selected((int) old('gl_account_id', $bankAccount->gl_account_id) === $gl->id)>
+                                                            {{ $gl->code }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="col-md-1">
                                                 <button type="submit" class="btn btn-sm btn-outline-primary w-100">Save</button>
                                             </div>
                                         </form>
                                     </td>
                                     <td class="text-end">
-                                        <form
-                                            method="POST"
-                                            action="{{ route('finance.settings.bank-accounts.toggle', $bankAccount) }}"
-                                            class="d-inline"
-                                        >
+                                        <form method="POST" action="{{ route('finance.settings.bank-accounts.toggle', $bankAccount) }}" class="d-inline">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="btn btn-sm btn-outline-secondary">
@@ -169,7 +122,6 @@
                     </table>
                 </div>
             </div>
-            <p class="text-muted small mt-2 mb-0">No balances or reconciliation in this phase.</p>
         </div>
     </div>
 @endsection

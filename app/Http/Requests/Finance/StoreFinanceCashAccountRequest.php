@@ -24,6 +24,7 @@ class StoreFinanceCashAccountRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('finance_cash_accounts', 'name')],
+            'gl_account_id' => ['nullable', 'integer', Rule::exists('finance_accounts', 'id')],
         ];
     }
 }

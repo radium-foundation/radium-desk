@@ -5,14 +5,15 @@ namespace App\Services\Platform\Health;
 use App\Data\Platform\PlatformHealthContribution;
 use App\Data\Platform\PlatformOverallHealth;
 use App\Enums\PlatformOverallHealthStatus;
+use App\Services\Platform\PlatformCachePolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 class PlatformOverallHealthService
 {
-    public const CACHE_KEY = 'platform:overall-health';
+    public const CACHE_KEY = PlatformCachePolicy::KEY_OVERALL_HEALTH;
 
-    public const CACHE_TTL_SECONDS = 120;
+    public const CACHE_TTL_SECONDS = PlatformCachePolicy::TTL_PRIORITY_1;
 
     public function __construct(
         private readonly PlatformOverallHealthRegistry $registry,

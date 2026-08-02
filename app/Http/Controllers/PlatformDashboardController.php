@@ -52,6 +52,7 @@ class PlatformDashboardController extends Controller
             'summary' => $snapshot->summary,
             'from_cache' => $snapshot->fromCache,
             'available' => $snapshot->available,
+            'stale' => $snapshot->stale,
         ]);
     }
 

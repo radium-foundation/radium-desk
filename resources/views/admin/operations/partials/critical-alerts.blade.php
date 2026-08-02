@@ -5,51 +5,42 @@
 
 @php
     use App\Enums\AI\AIRiskLevel;
+    use App\Enums\IntegrationHealthStatus;
+    use App\Services\Platform\PlatformIntegrationHealthOverviewService;
 
-    $cashfreeHealth = $dashboard->cashfreeHealth ?? [];
-    $radiumBoxHealth = $dashboard->radiumBoxHealth ?? [];
+    // Operational alerts only — integration monitoring lives on Platform.
     $supportToday = $dashboard->supportIntelligence['today']
         ?? ($briefing?->snapshot->operations['support']['today'] ?? []);
 
     $alerts = [];
 
-    $paidMissing = (int) ($cashfreeHealth['paid_without_desk_order'] ?? 0);
-    if ($paidMissing > 0) {
-        $alerts[] = [
-            'severity' => 'danger',
-            'title' => 'Cashfree paid orders missing Desk records',
-            'message' => 'Paid payments need order recovery.',
-            'metric' => $paidMissing,
-            'metric_label' => 'Paid missing',
-            'action_url' => route('admin.platform.index').'#platform-zone-integration_health',
-            'action_label' => 'Open Platform',
-        ];
-    }
+    $integrationOverview = app(PlatformIntegrationHealthOverviewService::class)->cachedOverview();
+    if ($integrationOverview['available'] ?? false) {
+        foreach ($integrationOverview['items'] as $item) {
+            $status = IntegrationHealthStatus::tryFrom((string) ($item['status'] ?? ''))
+                ?? IntegrationHealthStatus::Unavailable;
 
-    $activeWebhookFailures = (int) ($cashfreeHealth['active_failed_webhooks'] ?? 0);
-    if ($activeWebhookFailures > 0) {
-        $alerts[] = [
-            'severity' => 'danger',
-            'title' => 'Cashfree webhook failures',
-            'message' => 'Actionable webhook failures require recovery.',
-            'metric' => $activeWebhookFailures,
-            'metric_label' => 'Failed webhooks',
-            'action_url' => route('admin.platform.index').'#platform-zone-integration_health',
-            'action_label' => 'Open Platform',
-        ];
-    }
+            if (! in_array($status, [
+                IntegrationHealthStatus::Critical,
+                IntegrationHealthStatus::Warning,
+                IntegrationHealthStatus::Unavailable,
+            ], true)) {
+                continue;
+            }
 
-    $failedSyncs = (int) ($radiumBoxHealth['failed_syncs'] ?? 0);
-    if (($radiumBoxHealth['enabled'] ?? false) && $failedSyncs > 0) {
-        $alerts[] = [
-            'severity' => 'danger',
-            'title' => 'RadiumBox sync failures',
-            'message' => 'Order syncs failed and need attention.',
-            'metric' => $failedSyncs,
-            'metric_label' => 'Failed syncs',
-            'action_url' => route('admin.platform.index').'#platform-zone-integration_health',
-            'action_label' => 'Open Platform',
-        ];
+            $alerts[] = [
+                'severity' => in_array($status, [
+                    IntegrationHealthStatus::Critical,
+                    IntegrationHealthStatus::Unavailable,
+                ], true) ? 'danger' : 'warning',
+                'title' => ($item['label'] ?? 'Integration').' needs attention',
+                'message' => (string) ($item['summary'] ?? $item['detail'] ?? 'Open Platform Integration Health.'),
+                'metric' => null,
+                'metric_label' => $item['status_label'] ?? $status->label(),
+                'action_url' => route('admin.platform.index').'#platform-zone-integration_health',
+                'action_label' => 'Open Platform',
+            ];
+        }
     }
 
     $missedOverdue = (int) ($supportToday['missed_overdue'] ?? 0);
@@ -84,18 +75,27 @@
 
 <section class="operations-critical-alerts" aria-labelledby="operations-critical-alerts-heading">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-        <h2 id="operations-critical-alerts-heading" class="h6 mb-0 text-uppercase text-muted fw-semibold">Critical Alerts</h2>
-        @if ($alerts === [])
-            <span class="status-badge status-healthy">All clear</span>
-        @else
-            <span class="status-badge status-danger">{{ number_format(count($alerts)) }} active</span>
-        @endif
+        <div>
+            <h2 id="operations-critical-alerts-heading" class="h6 mb-0 text-uppercase text-muted fw-semibold">Critical Alerts</h2>
+            <p class="text-muted small mb-0">Operational signals. Integration diagnostics are on Platform.</p>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <a href="{{ route('admin.platform.index') }}#platform-zone-critical_alerts" class="btn btn-sm btn-outline-secondary">
+                Platform Alerts
+            </a>
+            @if ($alerts === [])
+                <span class="status-badge status-healthy">All clear</span>
+            @else
+                <span class="status-badge status-danger">{{ number_format(count($alerts)) }} active</span>
+            @endif
+        </div>
     </div>
 
     @if ($alerts === [])
         <div class="operations-critical-alerts-clear card border-0 shadow-sm operations-card-hover">
             <div class="card-body py-2 px-3 text-muted small mb-0">
-                No critical operational alerts right now. Systems are running normally.
+                No critical operational alerts right now.
+                <a href="{{ route('admin.platform.index') }}">Open Platform Dashboard</a> for monitoring.
             </div>
         </div>
     @else

@@ -6,7 +6,7 @@
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Finance · Settings</p>
         <h1 class="h3 mb-1">Expense Categories</h1>
-        <p class="text-muted mb-0">Categories available when recording expenses.</p>
+        <p class="text-muted mb-0">Categories with default expense GL accounts for posting.</p>
     </div>
 
     @include('finance.partials.workspace-nav', ['active' => 'settings'])
@@ -23,18 +23,20 @@
                         @csrf
                         <div class="mb-3">
                             <label for="expense_category_name" class="form-label">Name</label>
-                            <input
-                                type="text"
-                                id="expense_category_name"
-                                name="name"
-                                class="form-control @error('name') is-invalid @enderror"
-                                value="{{ old('name') }}"
-                                required
-                                maxlength="255"
-                            >
-                            @error('name')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            <input type="text" id="expense_category_name" name="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name') }}" required maxlength="255">
+                            @error('name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="mb-3">
+                            <label for="default_gl_account_id" class="form-label">Default GL</label>
+                            <select id="default_gl_account_id" name="default_gl_account_id" class="form-select @error('default_gl_account_id') is-invalid @enderror">
+                                <option value="">Default misc expense GL</option>
+                                @foreach($glAccounts as $gl)
+                                    <option value="{{ $gl->id }}" @selected((string) old('default_gl_account_id') === (string) $gl->id)>
+                                        {{ $gl->code }} — {{ $gl->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('default_gl_account_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <button type="submit" class="btn btn-primary w-100">Add Category</button>
                     </form>
@@ -49,7 +51,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Status</th>
-                                <th>Name</th>
+                                <th>Name / Default GL</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -64,30 +66,29 @@
                                         @endif
                                     </td>
                                     <td>
-                                        <form
-                                            method="POST"
-                                            action="{{ route('finance.settings.expense-categories.update', $expenseCategory) }}"
-                                            class="d-flex gap-2"
-                                        >
+                                        <form method="POST" action="{{ route('finance.settings.expense-categories.update', $expenseCategory) }}" class="row g-2 align-items-center">
                                             @csrf
                                             @method('PUT')
-                                            <input
-                                                type="text"
-                                                name="name"
-                                                class="form-control form-control-sm"
-                                                value="{{ old('name', $expenseCategory->name) }}"
-                                                required
-                                                maxlength="255"
-                                            >
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                                            <div class="col-md-5">
+                                                <input type="text" name="name" class="form-control form-control-sm" value="{{ old('name', $expenseCategory->name) }}" required maxlength="255">
+                                            </div>
+                                            <div class="col-md-5">
+                                                <select name="default_gl_account_id" class="form-select form-select-sm">
+                                                    <option value="">—</option>
+                                                    @foreach($glAccounts as $gl)
+                                                        <option value="{{ $gl->id }}" @selected((int) old('default_gl_account_id', $expenseCategory->default_gl_account_id) === $gl->id)>
+                                                            {{ $gl->code }} — {{ $gl->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Save</button>
+                                            </div>
                                         </form>
                                     </td>
                                     <td class="text-end">
-                                        <form
-                                            method="POST"
-                                            action="{{ route('finance.settings.expense-categories.toggle', $expenseCategory) }}"
-                                            class="d-inline"
-                                        >
+                                        <form method="POST" action="{{ route('finance.settings.expense-categories.toggle', $expenseCategory) }}" class="d-inline">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="btn btn-sm btn-outline-secondary">
@@ -105,7 +106,6 @@
                     </table>
                 </div>
             </div>
-            <p class="text-muted small mt-2 mb-0">Deactivating hides a category from new expenses. Existing records keep their values.</p>
         </div>
     </div>
 @endsection

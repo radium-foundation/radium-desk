@@ -4,18 +4,18 @@ namespace App\Services\Platform\Warmers;
 
 use App\Models\User;
 use App\Services\Platform\Cards\PlatformHealthCardProvider;
+use App\Services\Platform\PlatformCacheInvalidator;
 use App\Services\Platform\Zones\PlatformZoneRegistry;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 use Throwable;
 
 class PlatformHealthSnapshotWarmer extends AbstractZoneSnapshotWarmer
 {
     public function __construct(
         PlatformZoneRegistry $zoneRegistry,
-        PlatformZoneSnapshotStore $snapshotStore,
+        PlatformCacheInvalidator $invalidator,
         private readonly PlatformHealthCardProvider $healthCard,
     ) {
-        parent::__construct($zoneRegistry, $snapshotStore);
+        parent::__construct($zoneRegistry, $invalidator);
     }
 
     public function key(): string
@@ -40,17 +40,15 @@ class PlatformHealthSnapshotWarmer extends AbstractZoneSnapshotWarmer
 
     public function warm(?User $actor = null): void
     {
-        if ($actor === null) {
-            return;
-        }
+        $actor ??= PlatformWarmingActor::resolve();
 
         try {
-            // Ensures platform:health:overview is written even if zone refresh is skipped.
+            // Ensures platform:health:overview is written for Administration.
             $this->healthCard->refresh($actor);
             parent::warm($actor);
         } catch (Throwable $exception) {
             report($exception);
-            $this->snapshotStore->markStale($this->zoneKey());
+            $this->invalidator->markZoneStale($this->zoneKey());
         }
     }
 }

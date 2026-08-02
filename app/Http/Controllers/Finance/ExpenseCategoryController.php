@@ -31,7 +31,10 @@ class ExpenseCategoryController extends Controller
 
     public function store(StoreFinanceExpenseCategoryRequest $request): RedirectResponse
     {
-        $this->masterDataService->createExpenseCategory($request->validated('name'));
+        $this->masterDataService->createExpenseCategory(
+            $request->validated('name'),
+            $request->validated('default_gl_account_id'),
+        );
 
         return redirect()
             ->route('finance.settings.expense-categories')
@@ -42,7 +45,11 @@ class ExpenseCategoryController extends Controller
         UpdateFinanceExpenseCategoryRequest $request,
         FinanceExpenseCategory $expenseCategory,
     ): RedirectResponse {
-        $this->masterDataService->updateExpenseCategory($expenseCategory, $request->validated('name'));
+        $this->masterDataService->updateExpenseCategory(
+            $expenseCategory,
+            $request->validated('name'),
+            $request->validated('default_gl_account_id'),
+        );
 
         return redirect()
             ->route('finance.settings.expense-categories')

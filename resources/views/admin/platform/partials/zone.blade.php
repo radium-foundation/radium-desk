@@ -21,6 +21,8 @@
         data-expand-url="{{ route('admin.platform.zones.expand', ['zone' => $definition->key(), 'item' => 'default']) }}"
     @endif
     data-zone-status="{{ $snapshot->status->value }}"
+    data-zone-available="{{ $snapshot->available ? 'true' : 'false' }}"
+    data-zone-stale="{{ $snapshot->stale ? 'true' : 'false' }}"
 >
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
         <div class="d-flex align-items-center gap-2">
@@ -37,6 +39,12 @@
             <span class="badge text-bg-{{ $snapshot->status->badgeClass() }}" data-platform-zone-status>
                 {{ $snapshot->statusLabel }}
             </span>
+
+            @if($snapshot->stale)
+                <span class="badge text-bg-warning" data-platform-zone-stale title="Last known snapshot — background refresh pending">
+                    Stale
+                </span>
+            @endif
 
             @if($snapshot->updatedAt)
                 <span class="text-muted small" data-platform-zone-updated-at>

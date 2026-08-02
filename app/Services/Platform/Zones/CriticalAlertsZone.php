@@ -11,6 +11,7 @@ use App\Enums\PlatformZoneId;
 use App\Models\User;
 use App\Services\Platform\Alerts\PlatformAlertAggregator;
 use App\Services\Platform\Health\PlatformOverallHealthService;
+use App\Services\Platform\PlatformIntegrationHealthOverviewService;
 
 /**
  * Aggregation-only zone. Reads contributor caches — never live probes.
@@ -21,6 +22,7 @@ class CriticalAlertsZone extends AbstractPlatformZone
         PlatformZoneSnapshotStore $snapshotStore,
         private readonly PlatformAlertAggregator $alerts,
         private readonly PlatformOverallHealthService $overallHealth,
+        private readonly PlatformIntegrationHealthOverviewService $integrations,
     ) {
         parent::__construct($snapshotStore);
     }
@@ -97,6 +99,32 @@ class CriticalAlertsZone extends AbstractPlatformZone
     {
         $collected = $this->alerts->collect();
         $actionable = $this->alerts->actionable($collected);
+        $sourcesWarm = $this->contributorSourcesWarm();
+
+        // Cold start with no contributor caches must not imply "all clear".
+        if (! $sourcesWarm && $actionable === []) {
+            return new PlatformZoneSnapshot(
+                key: $this->definition()->key(),
+                status: PlatformHealthStatus::Disabled,
+                statusLabel: 'Pending',
+                updatedAt: null,
+                summary: [
+                    'state' => 'pending',
+                    'alert_count' => 0,
+                    'alerts' => [],
+                    'stale' => false,
+                    'retry_pending' => false,
+                ],
+                html: view('admin.platform.zones.partials.placeholder', [
+                    'title' => $this->definition()->title,
+                    'message' => $this->placeholderMessage(),
+                    'zoneKey' => $this->definition()->key(),
+                ])->render(),
+                fromCache: $fromCache,
+                available: false,
+                stale: false,
+            );
+        }
 
         $status = $this->statusFromAlerts($actionable);
         $stale = false;
@@ -139,6 +167,21 @@ class CriticalAlertsZone extends AbstractPlatformZone
             available: true,
             stale: $stale,
         );
+    }
+
+    private function contributorSourcesWarm(): bool
+    {
+        if ($this->snapshotStore->get('platform_health') !== null) {
+            return true;
+        }
+
+        if ($this->snapshotStore->get('executive_snapshot') !== null) {
+            return true;
+        }
+
+        $integration = $this->integrations->cachedOverview();
+
+        return (bool) ($integration['available'] ?? false);
     }
 
     /**

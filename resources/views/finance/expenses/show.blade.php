@@ -64,6 +64,14 @@
                         @if($expense->isPosted())
                             <dt class="col-sm-3">Posted by</dt>
                             <dd class="col-sm-9">{{ $expense->poster?->name ?? '—' }} · {{ display_app_datetime_24($expense->posted_at) }}</dd>
+                            @if($expense->journal)
+                                <dt class="col-sm-3">Journal</dt>
+                                <dd class="col-sm-9">
+                                    <a href="{{ route('finance.settings.journals.show', $expense->journal) }}">
+                                        {{ $expense->journal->journal_no }}
+                                    </a>
+                                </dd>
+                            @endif
                         @endif
                     </dl>
                 </div>

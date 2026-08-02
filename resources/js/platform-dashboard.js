@@ -1,6 +1,39 @@
 const EXPAND_STORAGE_KEY = 'radium.platform.expandedZones';
 const DEFAULT_ZONE_CONCURRENCY = 3;
 
+/** Priority zones eligible for automatic post-paint / poll refresh when stale or unavailable. */
+const PRIORITY_AUTO_REFRESH_ZONES = new Set([
+    'critical_alerts',
+    'executive_snapshot',
+    'platform_health',
+    'integration_health',
+]);
+
+const zoneIsFresh = (zone) => (
+    zone.dataset.zoneAvailable !== 'false' && zone.dataset.zoneStale !== 'true'
+);
+
+/**
+ * Intelligent auto-refresh:
+ * - Fresh snapshots: never
+ * - Stale/unavailable Priority 1–2: yes
+ * - Lower priority: only when expanded
+ * - Explicit refresh-all / per-zone button: caller bypasses this
+ */
+const shouldAutoRefreshZone = (zone) => {
+    if (zoneIsFresh(zone)) {
+        return false;
+    }
+
+    const key = zone.dataset.platformZone || '';
+
+    if (PRIORITY_AUTO_REFRESH_ZONES.has(key)) {
+        return true;
+    }
+
+    return zone.dataset.expanded === 'true';
+};
+
 const applyCardRefreshPayload = (card, payload) => {
     const slot = card.closest('[data-platform-card-slot]') || card.parentElement;
 
@@ -293,6 +326,11 @@ const expandPlatformZone = async (zone, { surfaceErrors = true, persist = true }
         return false;
     }
 
+    // Expanding a stale/unavailable zone: refresh summary first.
+    if (! zoneIsFresh(zone)) {
+        await refreshPlatformZone(zone, { surfaceErrors: false });
+    }
+
     try {
         const response = await fetch(url, {
             headers: {
@@ -352,10 +390,33 @@ const applyZoneRefreshPayload = (zone, payload) => {
         zone.dataset.zoneStatus = payload.status;
     }
 
+    if (typeof payload.available === 'boolean') {
+        zone.dataset.zoneAvailable = payload.available ? 'true' : 'false';
+    }
+
+    if (typeof payload.stale === 'boolean') {
+        zone.dataset.zoneStale = payload.stale ? 'true' : 'false';
+    }
+
     const statusBadge = zone.querySelector('[data-platform-zone-status]');
 
     if (statusBadge && payload.status_label) {
         statusBadge.textContent = payload.status_label;
+    }
+
+    let staleBadge = zone.querySelector('[data-platform-zone-stale]');
+
+    if (payload.stale === true) {
+        if (! staleBadge) {
+            staleBadge = document.createElement('span');
+            staleBadge.className = 'badge text-bg-warning';
+            staleBadge.dataset.platformZoneStale = '';
+            staleBadge.title = 'Last known snapshot — background refresh pending';
+            staleBadge.textContent = 'Stale';
+            statusBadge?.parentElement?.insertBefore(staleBadge, statusBadge.nextSibling);
+        }
+    } else if (staleBadge) {
+        staleBadge.remove();
     }
 
     const updatedAt = zone.querySelector('[data-platform-zone-updated-at]');
@@ -461,6 +522,8 @@ const refreshableZones = (root) => (
         .sort((a, b) => Number(a.dataset.platformZonePriority || 99) - Number(b.dataset.platformZonePriority || 99))
 );
 
+const zonesNeedingAutoRefresh = (root) => refreshableZones(root).filter((zone) => shouldAutoRefreshZone(zone));
+
 const runWithConcurrency = async (items, concurrency, worker) => {
     const queue = [...items];
     const limit = Math.max(1, concurrency);
@@ -484,15 +547,24 @@ const runWithConcurrency = async (items, concurrency, worker) => {
     await Promise.all(runners);
 };
 
-const refreshZonesByPriority = async (root, { surfaceErrors = false } = {}) => {
+/**
+ * @param {{ surfaceErrors?: boolean, forceAll?: boolean }} options
+ * forceAll: user-triggered Refresh All — refreshes every zone.
+ */
+const refreshZonesByPriority = async (root, { surfaceErrors = false, forceAll = false } = {}) => {
     if (document.hidden) {
         return;
     }
 
     const concurrency = Number(root.dataset.zoneConcurrency || DEFAULT_ZONE_CONCURRENCY);
+    const zones = forceAll ? refreshableZones(root) : zonesNeedingAutoRefresh(root);
+
+    if (zones.length === 0) {
+        return;
+    }
 
     await runWithConcurrency(
-        refreshableZones(root),
+        zones,
         concurrency,
         (zone) => refreshPlatformZone(zone, { surfaceErrors }),
     );
@@ -542,9 +614,20 @@ const refreshAllPlatformCards = async (root, { surfaceErrors = false } = {}) => 
     );
 };
 
+const pollPlatformDashboard = async (root) => {
+    if (document.hidden || !root) {
+        return;
+    }
+
+    // Intelligent only — never force every zone on poll / visibility return.
+    if (root.querySelector('[data-platform-zone]')) {
+        await refreshZonesByPriority(root, { surfaceErrors: false, forceAll: false });
+    }
+};
+
 const refreshAllPlatform = async (root, { surfaceErrors = false } = {}) => {
     if (root.querySelector('[data-platform-zone]')) {
-        await refreshZonesByPriority(root, { surfaceErrors });
+        await refreshZonesByPriority(root, { surfaceErrors, forceAll: true });
     }
 
     await refreshAllPlatformCards(root, { surfaceErrors });
@@ -575,7 +658,7 @@ const bindPlatformPollingVisibilityListener = () => {
             return;
         }
 
-        refreshAllPlatform(pollPageRoot);
+        pollPlatformDashboard(pollPageRoot);
         startPlatformPolling(pollPageRoot, pollIntervalMs);
     };
 
@@ -605,7 +688,7 @@ export const startPlatformPolling = (root, intervalMs) => {
     }
 
     pollIntervalId = window.setInterval(() => {
-        refreshAllPlatform(root);
+        pollPlatformDashboard(root);
     }, intervalMs);
 };
 
@@ -644,9 +727,10 @@ export const initPlatformDashboard = () => {
         refreshAll: (pageRoot = root) => refreshAllPlatform(pageRoot, { surfaceErrors: true }),
         refreshCard: (card) => refreshPlatformCard(card, { surfaceErrors: true }),
         refreshZone: (zone) => refreshPlatformZone(zone, { surfaceErrors: true }),
-        refreshZones: (pageRoot = root) => refreshZonesByPriority(pageRoot, { surfaceErrors: true }),
+        refreshZones: (pageRoot = root) => refreshZonesByPriority(pageRoot, { surfaceErrors: true, forceAll: true }),
         expandZone: (zone) => expandPlatformZone(zone, { surfaceErrors: true }),
         expandIntegration: (button) => expandPlatformIntegration(button, { surfaceErrors: true }),
+        shouldAutoRefreshZone,
     };
 };
 
@@ -657,4 +741,6 @@ export {
     expandPlatformIntegration,
     restoreExpandedZones,
     runWithConcurrency,
+    shouldAutoRefreshZone,
+    zoneIsFresh,
 };

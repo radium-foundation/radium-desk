@@ -6,6 +6,7 @@ use App\Data\CashfreeWebhookDeferredContext;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\OrderStatus;
+use App\Events\Finance\OrderPaid;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
@@ -59,6 +60,11 @@ class CashfreeWebhookProcessorService
 
         if ($deferredContext !== null) {
             $this->dispatchDeferredOperationsSafely($webhookLog, $deferredContext);
+
+            $order = Order::query()->find($deferredContext->orderId);
+            if ($order !== null) {
+                OrderPaid::dispatch($order);
+            }
         }
 
         return $webhookLog->fresh(['incident']);

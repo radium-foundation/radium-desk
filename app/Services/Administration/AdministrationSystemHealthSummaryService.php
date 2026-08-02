@@ -5,6 +5,7 @@ namespace App\Services\Administration;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\PlatformOverallHealthStatus;
 use App\Services\Platform\Health\PlatformOverallHealthService;
+use App\Services\Platform\PlatformCachePolicy;
 use App\Services\Platform\PlatformIntegrationHealthOverviewService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Cache;
  */
 class AdministrationSystemHealthSummaryService
 {
-    public const PLATFORM_OVERVIEW_CACHE_KEY = 'platform:health:overview';
+    public const PLATFORM_OVERVIEW_CACHE_KEY = PlatformCachePolicy::KEY_PLATFORM_HEALTH_OVERVIEW;
 
     public function __construct(
         private readonly PlatformIntegrationHealthOverviewService $integrationOverview,

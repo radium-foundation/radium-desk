@@ -23,11 +23,11 @@ use Throwable;
  */
 class PlatformIntegrationHealthOverviewService
 {
-    public const CACHE_KEY = 'platform:integration-health:overview';
+    public const CACHE_KEY = PlatformCachePolicy::KEY_INTEGRATION_OVERVIEW;
 
-    public const ITEM_CACHE_PREFIX = 'platform:integration-health:item:';
+    public const ITEM_CACHE_PREFIX = PlatformCachePolicy::KEY_INTEGRATION_ITEM_PREFIX;
 
-    public const CACHE_TTL_SECONDS = 60;
+    public const CACHE_TTL_SECONDS = PlatformCachePolicy::TTL_PRIORITY_2;
 
     /**
      * @var list<string>

@@ -33,6 +33,7 @@ class UpdateFinanceCashAccountRequest extends FormRequest
                 'max:255',
                 Rule::unique('finance_cash_accounts', 'name')->ignore($cashAccount->id),
             ],
+            'gl_account_id' => ['nullable', 'integer', Rule::exists('finance_accounts', 'id')],
         ];
     }
 }

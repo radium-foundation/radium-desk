@@ -84,6 +84,7 @@ class FinanceExpenseTest extends TestCase
         $this->assertTrue($expense->isPosted());
         $this->assertSame($this->admin->id, $expense->posted_by);
         $this->assertNotNull($expense->posted_at);
+        $this->assertNotNull($expense->journal_id);
     }
 
     public function test_posted_expense_cannot_be_edited(): void

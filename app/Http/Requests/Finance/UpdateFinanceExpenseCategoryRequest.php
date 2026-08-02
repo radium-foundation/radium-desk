@@ -33,6 +33,7 @@ class UpdateFinanceExpenseCategoryRequest extends FormRequest
                 'max:255',
                 Rule::unique('finance_expense_categories', 'name')->ignore($expenseCategory->id),
             ],
+            'default_gl_account_id' => ['nullable', 'integer', Rule::exists('finance_accounts', 'id')],
         ];
     }
 }

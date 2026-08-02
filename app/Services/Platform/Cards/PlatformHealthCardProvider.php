@@ -56,7 +56,7 @@ class PlatformHealthCardProvider implements PlatformCardProvider
             'status' => $status->value,
             'status_label' => $status->label(),
             'generated_at' => now()->toIso8601String(),
-        ], now()->addSeconds(30));
+        ], now()->addSeconds(\App\Services\Platform\PlatformCachePolicy::TTL_PRIORITY_1));
 
         $metrics = array_map(
             fn (PlatformHealthComponent $component): PlatformMetric => new PlatformMetric(

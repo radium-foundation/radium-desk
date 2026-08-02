@@ -9,6 +9,10 @@ use App\Models\FinancePaymentMethod;
 
 class FinanceMasterDataService
 {
+    public function __construct(
+        private readonly FinanceSettingsService $settings,
+    ) {}
+
     public function createPaymentMethod(string $name): FinancePaymentMethod
     {
         return FinancePaymentMethod::query()->create([
@@ -31,17 +35,26 @@ class FinanceMasterDataService
         return $method->fresh();
     }
 
-    public function createExpenseCategory(string $name): FinanceExpenseCategory
+    public function createExpenseCategory(string $name, ?int $defaultGlAccountId = null): FinanceExpenseCategory
     {
         return FinanceExpenseCategory::query()->create([
             'name' => $name,
+            'default_gl_account_id' => $defaultGlAccountId
+                ?? $this->settings->accountBySettingKey(FinanceSettingsService::KEY_DEFAULT_MISC_EXPENSE)?->id,
             'is_active' => true,
         ]);
     }
 
-    public function updateExpenseCategory(FinanceExpenseCategory $category, string $name): FinanceExpenseCategory
-    {
-        $category->update(['name' => $name]);
+    public function updateExpenseCategory(
+        FinanceExpenseCategory $category,
+        string $name,
+        ?int $defaultGlAccountId = null,
+    ): FinanceExpenseCategory {
+        $payload = ['name' => $name];
+        if ($defaultGlAccountId !== null) {
+            $payload['default_gl_account_id'] = $defaultGlAccountId;
+        }
+        $category->update($payload);
 
         return $category->fresh();
     }
@@ -53,17 +66,22 @@ class FinanceMasterDataService
         return $category->fresh();
     }
 
-    public function createCashAccount(string $name): FinanceCashAccount
+    public function createCashAccount(string $name, ?int $glAccountId = null): FinanceCashAccount
     {
         return FinanceCashAccount::query()->create([
             'name' => $name,
+            'gl_account_id' => $glAccountId ?? $this->settings->defaultCashAccount()?->id,
             'is_active' => true,
         ]);
     }
 
-    public function updateCashAccount(FinanceCashAccount $account, string $name): FinanceCashAccount
+    public function updateCashAccount(FinanceCashAccount $account, string $name, ?int $glAccountId = null): FinanceCashAccount
     {
-        $account->update(['name' => $name]);
+        $payload = ['name' => $name];
+        if ($glAccountId !== null) {
+            $payload['gl_account_id'] = $glAccountId;
+        }
+        $account->update($payload);
 
         return $account->fresh();
     }
@@ -76,18 +94,22 @@ class FinanceMasterDataService
     }
 
     /**
-     * @param  array{bank_name: string, account_name: string, last_four: string}  $attributes
+     * @param  array{bank_name: string, account_name: string, last_four: string, gl_account_id?: int|null}  $attributes
      */
     public function createBankAccount(array $attributes): FinanceBankAccount
     {
         return FinanceBankAccount::query()->create([
-            ...$attributes,
+            'bank_name' => $attributes['bank_name'],
+            'account_name' => $attributes['account_name'],
+            'last_four' => $attributes['last_four'],
+            'gl_account_id' => $attributes['gl_account_id']
+                ?? $this->settings->defaultBankClearingAccount()?->id,
             'is_active' => true,
         ]);
     }
 
     /**
-     * @param  array{bank_name: string, account_name: string, last_four: string}  $attributes
+     * @param  array{bank_name: string, account_name: string, last_four: string, gl_account_id?: int|null}  $attributes
      */
     public function updateBankAccount(FinanceBankAccount $account, array $attributes): FinanceBankAccount
     {

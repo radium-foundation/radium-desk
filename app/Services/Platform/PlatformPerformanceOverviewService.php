@@ -8,6 +8,7 @@ use App\Services\Bonvoice\BonvoiceAnalyticsService;
 use App\Services\Operations\OperationsAutomationMetricsService;
 use App\Services\Operations\OperationsNotificationMetricsService;
 use App\Services\Operations\OperationsQueueMetricsService;
+use App\Services\Platform\PlatformCachePolicy;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -16,9 +17,9 @@ use Throwable;
  */
 class PlatformPerformanceOverviewService
 {
-    public const CACHE_KEY = 'platform:performance:overview';
+    public const CACHE_KEY = PlatformCachePolicy::KEY_PERFORMANCE_OVERVIEW;
 
-    public const CACHE_TTL_SECONDS = 60;
+    public const CACHE_TTL_SECONDS = PlatformCachePolicy::TTL_PRIORITY_3;
 
     public const ITEM_KEYS = ['queue', 'notifications', 'automation', 'ivr'];
 

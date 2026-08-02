@@ -47,7 +47,7 @@ Radium Desk must not become:
 |----------|-----|
 | **ERP** | We orchestrate operations; we do not replace manufacturing, inventory, or enterprise resource planning systems of record |
 | **HRMS** | We understand workforce presence, shifts, and capacity for operations — not full HR lifecycle |
-| **Accounting software** | We surface operational finance signals (refunds, payments, settlements in context) — not a general ledger |
+| **Accounting software** | Desk keeps an **internal operational ledger** (CoA + double-entry journals) for money movements it owns (expenses, collections, refunds). It is **not** a full ERP, GST suite, or replacement for external accounting systems of record |
 | **Payroll** | Compensation calculation and statutory payroll belong elsewhere |
 | **Generic CRM** | We deepen customer operational truth (360 views, timelines, service outcomes) — not marketing pipeline CRM |
 

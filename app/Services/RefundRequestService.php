@@ -8,6 +8,7 @@ use App\Enums\CustomerPreferredRefundMethod;
 use App\Enums\RefundDeductionProfile;
 use App\Enums\RefundDifferenceReason;
 use App\Enums\RefundStatus;
+use App\Events\Finance\RefundCompleted;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
@@ -419,6 +420,8 @@ class RefundRequestService
 
             return $fresh;
         });
+
+        RefundCompleted::dispatch($completed, $user);
 
         $customerNotified = $this->notificationService->notifyCustomer(
             refund: $completed,

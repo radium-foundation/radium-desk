@@ -97,6 +97,7 @@ class ExpenseController extends Controller
             'bankAccount',
             'creator',
             'poster',
+            'journal',
         ]);
 
         return view('finance.expenses.show', [

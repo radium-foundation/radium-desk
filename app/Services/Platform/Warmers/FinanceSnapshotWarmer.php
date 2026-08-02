@@ -4,9 +4,9 @@ namespace App\Services\Platform\Warmers;
 
 use App\Contracts\Platform\PlatformSnapshotWarmer;
 use App\Models\User;
+use App\Services\Platform\PlatformCacheInvalidator;
 use App\Services\Platform\PlatformFinanceOverviewService;
 use App\Services\Platform\Zones\PlatformZoneRegistry;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 use Throwable;
 
 class FinanceSnapshotWarmer implements PlatformSnapshotWarmer
@@ -14,7 +14,7 @@ class FinanceSnapshotWarmer implements PlatformSnapshotWarmer
     public function __construct(
         private readonly PlatformFinanceOverviewService $finance,
         private readonly PlatformZoneRegistry $zoneRegistry,
-        private readonly PlatformZoneSnapshotStore $snapshotStore,
+        private readonly PlatformCacheInvalidator $invalidator,
     ) {}
 
     public function key(): string
@@ -34,18 +34,19 @@ class FinanceSnapshotWarmer implements PlatformSnapshotWarmer
 
     public function warm(?User $actor = null): void
     {
-        try {
-            $this->finance->overview(useCache: false);
+        $actor ??= PlatformWarmingActor::resolve();
 
-            if ($actor !== null && $this->zoneRegistry->has('finance_overview')) {
-                $zone = $this->zoneRegistry->get('finance_overview');
-                if ($zone->authorize($actor)) {
-                    $zone->refresh($actor);
-                }
+        try {
+            if ($this->zoneRegistry->has('finance_overview')) {
+                $this->zoneRegistry->get('finance_overview')->refresh($actor);
+
+                return;
             }
+
+            $this->finance->overview(useCache: false);
         } catch (Throwable $exception) {
             report($exception);
-            $this->snapshotStore->markStale('finance_overview');
+            $this->invalidator->markZoneStale('finance_overview');
         }
     }
 }

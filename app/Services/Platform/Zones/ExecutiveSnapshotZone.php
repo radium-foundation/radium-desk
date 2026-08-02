@@ -8,6 +8,7 @@ use App\Enums\PlatformHealthStatus;
 use App\Enums\PlatformZoneId;
 use App\Models\User;
 use App\Services\Platform\PlatformCardRegistry;
+use App\Services\Platform\Warmers\PlatformWarmingActor;
 
 /**
  * Wraps existing executive metric cards for async refresh only.
@@ -46,7 +47,12 @@ class ExecutiveSnapshotZone extends AbstractPlatformZone
                 continue;
             }
 
-            if ($provider->definition()->hidden || ! $provider->authorize($viewer)) {
+            if ($provider->definition()->hidden) {
+                continue;
+            }
+
+            // Warming actor (synthetic or limited) must populate the shared executive snapshot.
+            if (! PlatformWarmingActor::isSynthetic($viewer) && ! $provider->authorize($viewer)) {
                 continue;
             }
 

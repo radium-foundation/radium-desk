@@ -29,5 +29,7 @@ class FinanceMasterDataSeeder extends Seeder
             ['name' => 'Main Cash Drawer'],
             ['is_active' => true],
         );
+
+        $this->call(FinanceChartOfAccountsSeeder::class);
     }
 }

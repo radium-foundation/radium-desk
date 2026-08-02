@@ -13,9 +13,9 @@ use Throwable;
  */
 class PlatformOperationsOverviewService
 {
-    public const CACHE_KEY = 'platform:operations-overview:overview';
+    public const CACHE_KEY = PlatformCachePolicy::KEY_OPERATIONS_OVERVIEW;
 
-    public const CACHE_TTL_SECONDS = 60;
+    public const CACHE_TTL_SECONDS = PlatformCachePolicy::TTL_PRIORITY_3;
 
     public function __construct(
         private readonly ExecutiveKpiReadModel $executiveKpis,

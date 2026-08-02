@@ -163,6 +163,19 @@ class DashboardIntelligenceTest extends TestCase
         $this->assertNotNull(Cache::get(PlatformOverallHealthService::CACHE_KEY));
     }
 
+    public function test_snapshot_warmer_works_without_browser_actor(): void
+    {
+        Cache::flush();
+
+        $result = app(PlatformSnapshotWarmingService::class)->warmAll(null);
+
+        $this->assertNotEmpty($result['warmed']);
+        $this->assertContains('platform_health', $result['warmed']);
+        $this->assertContains('executive_snapshot', $result['warmed']);
+        $this->assertNotNull(app(PlatformZoneSnapshotStore::class)->get('platform_health'));
+        $this->assertNotNull(app(PlatformZoneSnapshotStore::class)->get('executive_snapshot'));
+    }
+
     public function test_stale_snapshot_is_preserved_on_mark_stale(): void
     {
         $store = app(PlatformZoneSnapshotStore::class);

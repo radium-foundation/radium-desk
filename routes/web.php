@@ -330,8 +330,15 @@ Route::middleware(['auth', 'active'])->group(function () {
             Route::patch('expense-categories/{expenseCategory}/toggle', [ExpenseCategoryController::class, 'toggle'])->name('expense-categories.toggle');
 
             Route::get('vendor-master', [FinanceSettingsController::class, 'vendorMaster'])->name('vendor-master');
+            Route::get('chart-of-accounts', [FinanceSettingsController::class, 'chartOfAccounts'])->name('chart-of-accounts');
+            Route::post('chart-of-accounts', [FinanceSettingsController::class, 'storeAccount'])->name('chart-of-accounts.store');
+            Route::patch('chart-of-accounts/{account}/toggle', [FinanceSettingsController::class, 'toggleAccount'])->name('chart-of-accounts.toggle');
             Route::get('financial-preferences', [FinanceSettingsController::class, 'financialPreferences'])->name('financial-preferences');
+            Route::put('financial-preferences', [FinanceSettingsController::class, 'updateFinancialPreferences'])->name('financial-preferences.update');
             Route::get('opening-balances', [FinanceSettingsController::class, 'openingBalances'])->name('opening-balances');
+            Route::post('opening-balances', [FinanceSettingsController::class, 'storeOpeningBalance'])->name('opening-balances.store');
+            Route::get('journals', [FinanceSettingsController::class, 'journals'])->name('journals');
+            Route::get('journals/{journal}', [FinanceSettingsController::class, 'showJournal'])->name('journals.show');
         });
     });
 

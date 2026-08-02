@@ -6,7 +6,7 @@
     <div class="mb-4">
         <p class="text-muted small text-uppercase fw-semibold mb-1">Finance · Settings</p>
         <h1 class="h3 mb-1">Cash Accounts</h1>
-        <p class="text-muted mb-0">Cash drawers and tills used for daily cash handling.</p>
+        <p class="text-muted mb-0">Cash drawers linked to asset GL accounts.</p>
     </div>
 
     @include('finance.partials.workspace-nav', ['active' => 'settings'])
@@ -36,6 +36,20 @@
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="mb-3">
+                            <label for="cash_gl_account_id" class="form-label">GL Account</label>
+                            <select id="cash_gl_account_id" name="gl_account_id" class="form-select @error('gl_account_id') is-invalid @enderror">
+                                <option value="">Default cash GL</option>
+                                @foreach($glAccounts as $gl)
+                                    <option value="{{ $gl->id }}" @selected((string) old('gl_account_id') === (string) $gl->id)>
+                                        {{ $gl->code }} — {{ $gl->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('gl_account_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                         <button type="submit" class="btn btn-primary w-100">Add Account</button>
                     </form>
                 </div>
@@ -49,7 +63,7 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Status</th>
-                                <th>Name</th>
+                                <th>Name / GL</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -67,19 +81,33 @@
                                         <form
                                             method="POST"
                                             action="{{ route('finance.settings.cash-accounts.update', $cashAccount) }}"
-                                            class="d-flex gap-2"
+                                            class="row g-2 align-items-center"
                                         >
                                             @csrf
                                             @method('PUT')
-                                            <input
-                                                type="text"
-                                                name="name"
-                                                class="form-control form-control-sm"
-                                                value="{{ old('name', $cashAccount->name) }}"
-                                                required
-                                                maxlength="255"
-                                            >
-                                            <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                                            <div class="col-md-5">
+                                                <input
+                                                    type="text"
+                                                    name="name"
+                                                    class="form-control form-control-sm"
+                                                    value="{{ old('name', $cashAccount->name) }}"
+                                                    required
+                                                    maxlength="255"
+                                                >
+                                            </div>
+                                            <div class="col-md-5">
+                                                <select name="gl_account_id" class="form-select form-select-sm">
+                                                    <option value="">—</option>
+                                                    @foreach($glAccounts as $gl)
+                                                        <option value="{{ $gl->id }}" @selected((int) old('gl_account_id', $cashAccount->gl_account_id) === $gl->id)>
+                                                            {{ $gl->code }} — {{ $gl->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <button type="submit" class="btn btn-sm btn-outline-primary w-100">Save</button>
+                                            </div>
                                         </form>
                                     </td>
                                     <td class="text-end">
@@ -105,7 +133,6 @@
                     </table>
                 </div>
             </div>
-            <p class="text-muted small mt-2 mb-0">Balances are not stored here. Cash movement arrives in a later Finance phase.</p>
         </div>
     </div>
 @endsection

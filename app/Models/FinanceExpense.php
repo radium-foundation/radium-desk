@@ -22,6 +22,7 @@ class FinanceExpense extends Model
         'posted_at',
         'posted_by',
         'created_by',
+        'journal_id',
     ];
 
     protected function casts(): array
@@ -72,5 +73,10 @@ class FinanceExpense extends Model
     public function poster(): BelongsTo
     {
         return $this->belongsTo(User::class, 'posted_by');
+    }
+
+    public function journal(): BelongsTo
+    {
+        return $this->belongsTo(FinanceJournal::class, 'journal_id');
     }
 }
