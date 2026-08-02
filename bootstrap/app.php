@@ -91,6 +91,11 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/executive-snapshot.log'));
 
+        $schedule->command('platform:snapshots:warm')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/platform-snapshots-warm.log'));
+
         $schedule->command('outbox:process')
             ->everyMinute()
             ->withoutOverlapping()

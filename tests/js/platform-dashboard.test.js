@@ -3,6 +3,8 @@ import {
     initPlatformDashboard,
     startPlatformPolling,
     stopPlatformPolling,
+    refreshZonesByPriority,
+    runWithConcurrency,
 } from '../../resources/js/platform-dashboard';
 
 describe('platform-dashboard polling', () => {
@@ -107,5 +109,100 @@ describe('platform-dashboard polling', () => {
         await vi.waitFor(() => {
             expect(fetch).toHaveBeenCalled();
         });
+    });
+});
+
+describe('platform zone scheduler', () => {
+    const setVisibilityState = (state) => {
+        Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => state,
+        });
+        Object.defineProperty(document, 'hidden', {
+            configurable: true,
+            get: () => state === 'hidden',
+        });
+    };
+
+    beforeEach(() => {
+        vi.stubGlobal('localStorage', {
+            store: {},
+            getItem(key) {
+                return this.store[key] ?? null;
+            },
+            setItem(key, value) {
+                this.store[key] = String(value);
+            },
+            removeItem(key) {
+                delete this.store[key];
+            },
+        });
+        setVisibilityState('visible');
+    });
+
+    afterEach(() => {
+        stopPlatformPolling();
+        document.body.innerHTML = '';
+        vi.unstubAllGlobals();
+        vi.restoreAllMocks();
+        setVisibilityState('visible');
+    });
+
+    it('refreshes zones by priority with limited concurrency', async () => {
+        const started = [];
+        const order = [];
+
+        await runWithConcurrency(
+            ['a', 'b', 'c', 'd'],
+            2,
+            async (item) => {
+                started.push(item);
+                order.push(`start:${item}`);
+                await Promise.resolve();
+                order.push(`end:${item}`);
+            },
+        );
+
+        expect(started).toEqual(['a', 'b', 'c', 'd']);
+        expect(order[0]).toBe('start:a');
+        expect(order[1]).toBe('start:b');
+    });
+
+    it('priority-refreshes zones after first paint', async () => {
+        document.body.innerHTML = `
+            <div id="platform-dashboard-root" data-platform-zones data-zone-concurrency="2" data-poll-interval-seconds="0">
+                <section data-platform-zone="integration_health" data-platform-zone-priority="2" data-refresh-url="/admin/platform/zones/integration_health">
+                    <div data-platform-zone-body>pending</div>
+                    <button type="button" data-platform-zone-refresh><i></i></button>
+                </section>
+                <section data-platform-zone="platform_health" data-platform-zone-priority="1" data-refresh-url="/admin/platform/zones/platform_health">
+                    <div data-platform-zone-body>pending</div>
+                    <button type="button" data-platform-zone-refresh><i></i></button>
+                </section>
+            </div>
+        `;
+
+        const calls = [];
+        vi.stubGlobal('fetch', vi.fn(async (url) => {
+            calls.push(url);
+
+            return {
+                ok: true,
+                json: async () => ({
+                    html: `<div>refreshed:${url}</div>`,
+                    status: 'healthy',
+                    status_label: 'Healthy',
+                    updated_at: '2026-08-02T12:00:00+05:30',
+                }),
+            };
+        }));
+
+        const root = document.getElementById('platform-dashboard-root');
+        await refreshZonesByPriority(root);
+
+        expect(calls[0]).toContain('/admin/platform/zones/platform_health');
+        expect(calls[1]).toContain('/admin/platform/zones/integration_health');
+        expect(root.querySelector('[data-platform-zone="platform_health"] [data-platform-zone-body]').innerHTML)
+            .toContain('refreshed:');
     });
 });

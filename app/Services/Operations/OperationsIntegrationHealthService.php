@@ -32,7 +32,6 @@ class OperationsIntegrationHealthService
             $this->cashfreeCard($snapshot),
             $this->gmailHealthService->card(),
             $this->interaktCard($snapshot),
-            $this->interaktTemplateConfigurationCard(),
             $this->metaFlowCard(),
             $this->zeptomailCard($snapshot),
             $this->telegramCard($snapshot),
@@ -95,12 +94,30 @@ class OperationsIntegrationHealthService
             return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::NotConfigured, 'Interakt API key is not configured.');
         }
 
+        $templateSummary = $this->interaktTemplateConfigurationValidator->healthSummary();
+        $templateDetail = sprintf(
+            'Templates %d/%d configured.',
+            (int) ($templateSummary['configured_count'] ?? 0),
+            (int) ($templateSummary['total_count'] ?? 0),
+        );
+        $templateStatus = $templateSummary['status'] ?? null;
+
         if (! $this->systemSettings->getBool('whatsapp.api_enabled', false)) {
-            return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::Disabled, 'WhatsApp API integration is disabled.');
+            return $this->integrationCard(
+                'interakt',
+                'Interakt',
+                OperationsHealthStatus::Disabled,
+                'WhatsApp API integration is disabled. '.$templateDetail,
+            );
         }
 
         if (! Schema::hasTable('interakt_messages')) {
-            return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::Warning, 'Message store unavailable.');
+            return $this->integrationCard(
+                'interakt',
+                'Interakt',
+                OperationsHealthStatus::Warning,
+                'Message store unavailable. '.$templateDetail,
+            );
         }
 
         $interaktInputs = $snapshot?->interaktInputs() ?? [
@@ -117,36 +134,37 @@ class OperationsIntegrationHealthService
                 'interakt',
                 'Interakt',
                 OperationsHealthStatus::Warning,
-                "{$recentFailures} outbound failure(s) in the last 24 hours.",
+                "{$recentFailures} outbound failure(s) in the last 24 hours. {$templateDetail}",
+                $lastSuccess,
+            );
+        }
+
+        if ($templateStatus instanceof OperationsHealthStatus && $templateStatus !== OperationsHealthStatus::Healthy) {
+            return $this->integrationCard(
+                'interakt',
+                'Interakt',
+                $templateStatus,
+                (string) ($templateSummary['detail'] ?? 'Template configuration needs attention.'),
                 $lastSuccess,
             );
         }
 
         if ($lastSuccess === null) {
-            return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::Healthy, 'Configured with no outbound messages yet.');
+            return $this->integrationCard(
+                'interakt',
+                'Interakt',
+                OperationsHealthStatus::Healthy,
+                'Configured with no outbound messages yet. '.$templateDetail,
+            );
         }
 
-        return $this->integrationCard('interakt', 'Interakt', OperationsHealthStatus::Healthy, 'WhatsApp messaging is operational.', $lastSuccess);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function interaktTemplateConfigurationCard(): array
-    {
-        $summary = $this->interaktTemplateConfigurationValidator->healthSummary();
-
-        return [
-            'key' => 'interakt_templates',
-            'label' => 'Interakt Template Configuration',
-            'status' => $summary['status']->value,
-            'status_label' => $summary['status_label'],
-            'badge_class' => $summary['status']->badgeClass(),
-            'last_success_at' => null,
-            'detail' => $summary['detail'],
-            'configured_count' => $summary['configured_count'],
-            'total_count' => $summary['total_count'],
-        ];
+        return $this->integrationCard(
+            'interakt',
+            'Interakt',
+            OperationsHealthStatus::Healthy,
+            'WhatsApp messaging is operational. '.$templateDetail,
+            $lastSuccess,
+        );
     }
 
     /**

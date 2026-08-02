@@ -68,7 +68,7 @@ class AdministrationHomeTest extends TestCase
             ->assertSee('Users &amp; Roles', false)
             ->assertSee('Settings', false)
             ->assertSee('Holiday Calendar', false)
-            ->assertSee('Integrations', false)
+            ->assertDontSee('API Health', false)
             ->assertDontSee('Application Settings', false);
     }
 
@@ -110,13 +110,19 @@ class AdministrationHomeTest extends TestCase
         $this->actingAs($superadmin)->get(route('settings.index'))->assertOk();
     }
 
-    public function test_integrations_tab_links_to_administration_anchor(): void
+    public function test_system_health_summary_links_to_platform(): void
     {
-        $admin = $this->createAdmin();
+        $admin = $this->createSuperAdmin();
 
         $this->actingAs($admin)
             ->get(route('admin.administration.index'))
             ->assertOk()
-            ->assertSee(route('admin.administration.index').'#administration-integrations', false);
+            ->assertSee('System Health', false)
+            ->assertSee('Open Platform Dashboard', false)
+            ->assertSee('Open System Settings', false)
+            ->assertSee(route('admin.platform.index'), false)
+            ->assertSee(route('admin.system-settings.index'), false)
+            ->assertDontSee('Gmail Health', false)
+            ->assertDontSee('operations-integration-pill', false);
     }
 }

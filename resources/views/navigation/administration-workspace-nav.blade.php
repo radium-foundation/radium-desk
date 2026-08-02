@@ -43,13 +43,6 @@
             'url' => route('admin.workforce.holidays.index'),
         ];
     }
-
-    if ($canViewSettings) {
-        $tabs['integrations'] = [
-            'label' => 'API Health',
-            'url' => route('admin.administration.index').'#administration-api-health',
-        ];
-    }
 @endphp
 
 @if(count($tabs) > 1)

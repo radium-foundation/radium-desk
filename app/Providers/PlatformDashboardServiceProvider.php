@@ -25,6 +25,34 @@ use App\Services\Platform\Health\StorageHealthProvider;
 use App\Services\Platform\PlatformCardRegistry;
 use App\Services\Platform\PlatformHealthRegistry;
 use App\Services\Platform\PlatformSectionRegistry;
+use App\Services\Platform\Alerts\Contributors\ExecutiveSnapshotAlertContributor;
+use App\Services\Platform\Alerts\Contributors\IntegrationHealthAlertContributor;
+use App\Services\Platform\Alerts\Contributors\PlatformHealthAlertContributor;
+use App\Services\Platform\Alerts\PlatformAlertAggregator;
+use App\Services\Platform\Alerts\PlatformAlertRegistry;
+use App\Services\Platform\Health\Contributors\ExecutiveSnapshotContributionProvider;
+use App\Services\Platform\Health\Contributors\IntegrationHealthContributionProvider;
+use App\Services\Platform\Health\Contributors\PlatformHealthContributionProvider;
+use App\Services\Platform\Health\PlatformOverallHealthRegistry;
+use App\Services\Platform\Health\PlatformOverallHealthService;
+use App\Services\Platform\Warmers\CriticalAlertsSnapshotWarmer;
+use App\Services\Platform\Warmers\ExecutiveSnapshotWarmer;
+use App\Services\Platform\Warmers\IntegrationHealthSnapshotWarmer;
+use App\Services\Platform\Warmers\PlatformHealthSnapshotWarmer;
+use App\Services\Platform\Warmers\PlatformSnapshotWarmerRegistry;
+use App\Services\Platform\Warmers\PlatformSnapshotWarmingService;
+use App\Services\Platform\Zones\AutomationZone;
+use App\Services\Platform\Zones\CommunicationsZone;
+use App\Services\Platform\Zones\CriticalAlertsZone;
+use App\Services\Platform\Zones\ExecutiveSnapshotZone;
+use App\Services\Platform\Zones\FinanceOverviewZone;
+use App\Services\Platform\Zones\IntegrationHealthZone;
+use App\Services\Platform\Zones\OperationsOverviewZone;
+use App\Services\Platform\Zones\PerformanceZone;
+use App\Services\Platform\Zones\PlatformHealthZone;
+use App\Services\Platform\Zones\PlatformZoneRegistry;
+use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
+use App\Services\Platform\Zones\ToolsZone;
 use Illuminate\Support\ServiceProvider;
 
 class PlatformDashboardServiceProvider extends ServiceProvider
@@ -33,6 +61,14 @@ class PlatformDashboardServiceProvider extends ServiceProvider
     {
         $this->app->singleton(PlatformSectionRegistry::class);
         $this->app->singleton(PlatformCardRegistry::class);
+        $this->app->singleton(PlatformZoneSnapshotStore::class);
+        $this->app->singleton(PlatformZoneRegistry::class);
+        $this->app->singleton(PlatformAlertRegistry::class);
+        $this->app->singleton(PlatformAlertAggregator::class);
+        $this->app->singleton(PlatformOverallHealthRegistry::class);
+        $this->app->singleton(PlatformOverallHealthService::class);
+        $this->app->singleton(PlatformSnapshotWarmerRegistry::class);
+        $this->app->singleton(PlatformSnapshotWarmingService::class);
 
         $this->app->singleton(PlatformHealthRegistry::class, function ($app): PlatformHealthRegistry {
             $registry = new PlatformHealthRegistry;
@@ -73,6 +109,83 @@ class PlatformDashboardServiceProvider extends ServiceProvider
         foreach ($this->placeholderCards() as $placeholder) {
             $manifest->registerCard($placeholder);
         }
+
+        $zoneRegistry = $this->app->make(PlatformZoneRegistry::class);
+
+        foreach ($this->zones() as $zoneClass) {
+            $zoneRegistry->register($this->app->make($zoneClass));
+        }
+
+        $alertRegistry = $this->app->make(PlatformAlertRegistry::class);
+        foreach ($this->alertContributors() as $contributorClass) {
+            $alertRegistry->register($this->app->make($contributorClass));
+        }
+
+        $healthRegistry = $this->app->make(PlatformOverallHealthRegistry::class);
+        foreach ($this->healthContributors() as $contributorClass) {
+            $healthRegistry->register($this->app->make($contributorClass));
+        }
+
+        $warmerRegistry = $this->app->make(PlatformSnapshotWarmerRegistry::class);
+        foreach ($this->snapshotWarmers() as $warmerClass) {
+            $warmerRegistry->register($this->app->make($warmerClass));
+        }
+    }
+
+    /**
+     * @return list<class-string>
+     */
+    private function alertContributors(): array
+    {
+        return [
+            PlatformHealthAlertContributor::class,
+            IntegrationHealthAlertContributor::class,
+            ExecutiveSnapshotAlertContributor::class,
+        ];
+    }
+
+    /**
+     * @return list<class-string>
+     */
+    private function healthContributors(): array
+    {
+        return [
+            PlatformHealthContributionProvider::class,
+            IntegrationHealthContributionProvider::class,
+            ExecutiveSnapshotContributionProvider::class,
+        ];
+    }
+
+    /**
+     * @return list<class-string>
+     */
+    private function snapshotWarmers(): array
+    {
+        return [
+            PlatformHealthSnapshotWarmer::class,
+            ExecutiveSnapshotWarmer::class,
+            IntegrationHealthSnapshotWarmer::class,
+            CriticalAlertsSnapshotWarmer::class,
+        ];
+    }
+
+    /**
+     * @return list<class-string>
+     */
+    private function zones(): array
+    {
+        return [
+            CriticalAlertsZone::class,
+            ExecutiveSnapshotZone::class,
+            PlatformHealthZone::class,
+            IntegrationHealthZone::class,
+            PerformanceZone::class,
+            AutomationZone::class,
+            OperationsOverviewZone::class,
+            FinanceOverviewZone::class,
+            CommunicationsZone::class,
+            ToolsZone::class,
+        ];
     }
 
     /**
@@ -307,9 +420,9 @@ class PlatformDashboardServiceProvider extends ServiceProvider
                     ],
                     [
                         'label' => 'Integrations',
-                        'route' => 'admin.administration.index',
-                        'fragment' => 'administration-integrations',
-                        'description' => 'Administration integrations placeholder hub.',
+                        'route' => 'admin.platform.index',
+                        'fragment' => 'platform-health',
+                        'description' => 'RadiumBox, Cashfree, Gmail, and messaging health.',
                     ],
                 ],
                 detailRoute: ['route' => 'admin.system-settings.index'],

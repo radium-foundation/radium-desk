@@ -241,6 +241,10 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.platform.index');
     Route::get('/admin/platform/cards/{card}', [PlatformDashboardController::class, 'showCard'])
         ->name('admin.platform.cards.show');
+    Route::get('/admin/platform/zones/{zone}', [PlatformDashboardController::class, 'zone'])
+        ->name('admin.platform.zones.show');
+    Route::get('/admin/platform/zones/{zone}/expand/{item}', [PlatformDashboardController::class, 'expand'])
+        ->name('admin.platform.zones.expand');
 
     Route::get('/admin/operations', [OperationsDashboardController::class, 'index'])
         ->name('admin.operations.index');

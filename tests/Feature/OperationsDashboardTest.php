@@ -210,10 +210,12 @@ class OperationsDashboardTest extends TestCase
             ->getJson(route('admin.operations.live', ['groups' => 'system']));
 
         $response->assertOk()
-            ->assertSee('Interakt Template Configuration', false);
+            ->assertSee('Meta Flow', false)
+            ->assertDontSee('Interakt Template Configuration', false);
+
 
         $this->assertStringContainsString(
-            '7 / 7 templates configured',
+            'Templates 7/7 configured',
             (string) $response->json('html.system_tab'),
         );
     }

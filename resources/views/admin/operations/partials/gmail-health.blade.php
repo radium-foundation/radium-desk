@@ -5,7 +5,7 @@
 
 <section aria-labelledby="gmail-health-heading" data-gmail-health-card>
     <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
-        <h2 id="gmail-health-heading" class="h5 mb-0">Gmail API Health</h2>
+        <h2 id="gmail-health-heading" class="h5 mb-0">Gmail Health</h2>
         @php
             $statusClass = match ($health['badge_class'] ?? 'secondary') {
                 'success' => 'healthy',
@@ -47,7 +47,7 @@
                     <strong class="operations-metric-row-value operations-metric-row-value--compact">{{ $health['mailbox'] ?? '—' }}</strong>
                 </div>
                 <div class="operations-metric-row-item">
-                    <span class="operations-metric-row-label">Cursor Lag</span>
+                    <span class="operations-metric-row-label">Sync Delay</span>
                     <strong class="operations-metric-row-value">
                         @if(($health['cursor_lag'] ?? null) !== null)
                             {{ number_format($health['cursor_lag']) }}
@@ -57,14 +57,8 @@
                     </strong>
                 </div>
                 <div class="operations-metric-row-item">
-                    <span class="operations-metric-row-label">Latency</span>
-                    <strong class="operations-metric-row-value">
-                        @if(($health['response_latency_ms'] ?? null) !== null)
-                            {{ number_format($health['response_latency_ms']) }} ms
-                        @else
-                            —
-                        @endif
-                    </strong>
+                    <span class="operations-metric-row-label">Credentials</span>
+                    <strong class="operations-metric-row-value operations-metric-row-value--compact">{{ $health['oauth_status'] ?? '—' }}</strong>
                 </div>
             </div>
 
@@ -85,27 +79,11 @@
                     <span class="operations-metric-row-label">Retries Today</span>
                     <strong class="operations-metric-row-value">{{ number_format($health['retry_count_today'] ?? 0) }}</strong>
                 </div>
-                <div class="operations-metric-row-item">
-                    <span class="operations-metric-row-label">OAuth</span>
-                    <strong class="operations-metric-row-value operations-metric-row-value--compact">{{ $health['oauth_status'] ?? '—' }}</strong>
-                </div>
-            </div>
-
-            <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                    <div class="text-muted small">History cursor</div>
-                    <code class="small">{{ $health['history_cursor'] ?? '—' }}</code>
-                </div>
-                <div class="col-md-6">
-                    <div class="text-muted small">Profile historyId</div>
-                    <code class="small">{{ $health['profile_history_id'] ?? '—' }}</code>
-                </div>
             </div>
 
             <div class="d-flex flex-wrap gap-3 mb-3 small text-muted">
                 <span>Scheduler: {{ ($health['scheduler_running'] ?? false) ? 'Running' : 'Stale / unknown' }}</span>
                 <span>Queue: {{ ($health['queue_healthy'] ?? true) ? 'Healthy' : 'Failed jobs present' }}</span>
-                <span>API quota: {{ $health['api_quota'] ?? 'Unavailable' }}</span>
             </div>
 
             @if(! empty($health['last_error']))
@@ -115,17 +93,64 @@
             @endif
 
             @if($showActions)
-                <div class="d-flex flex-wrap gap-2" data-gmail-admin-actions
+                <div class="d-flex flex-wrap gap-2 mb-3" data-gmail-admin-actions
                      data-sync-url="{{ $health['sync_now_url'] ?? route('admin.gmail.sync-now') }}"
                      data-rebaseline-url="{{ $health['rebaseline_url'] ?? route('admin.gmail.rebaseline') }}"
                      data-mailbox="{{ $health['mailbox'] ?? '' }}">
                     <button type="button" class="btn btn-sm btn-primary" data-gmail-sync-now>Run Gmail Sync Now</button>
-                    <button type="button" class="btn btn-sm btn-outline-danger" data-gmail-rebaseline>Re-baseline Cursor</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-gmail-rebaseline>Reset Sync Position</button>
                     <a href="{{ $health['logs_url'] ?? route('admin.gmail.logs') }}" class="btn btn-sm btn-outline-secondary">View Gmail Sync Logs</a>
                     <a href="{{ $health['failed_messages_url'] ?? route('admin.gmail.failed-messages') }}" class="btn btn-sm btn-outline-secondary">View Failed Messages</a>
                     <span class="small text-muted align-self-center" data-gmail-action-message role="status" aria-live="polite"></span>
                 </div>
             @endif
+
+            <details class="gmail-advanced-diagnostics">
+                <summary class="small fw-semibold">Advanced Diagnostics</summary>
+                <div class="pt-3">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="text-muted small">Sync Position</div>
+                            <code class="small">{{ $health['history_cursor'] ?? '—' }}</code>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-muted small">Mailbox Position</div>
+                            <code class="small">{{ $health['profile_history_id'] ?? '—' }}</code>
+                        </div>
+                    </div>
+
+                    <div class="operations-metric-row mb-3">
+                        <div class="operations-metric-row-item">
+                            <span class="operations-metric-row-label">Latency</span>
+                            <strong class="operations-metric-row-value">
+                                @if(($health['response_latency_ms'] ?? null) !== null)
+                                    {{ number_format($health['response_latency_ms']) }} ms
+                                @else
+                                    —
+                                @endif
+                            </strong>
+                        </div>
+                        <div class="operations-metric-row-item">
+                            <span class="operations-metric-row-label">API Quota</span>
+                            <strong class="operations-metric-row-value operations-metric-row-value--compact">{{ $health['api_quota'] ?? 'Unavailable' }}</strong>
+                        </div>
+                        <div class="operations-metric-row-item">
+                            <span class="operations-metric-row-label">Last Sync Duration</span>
+                            <strong class="operations-metric-row-value">
+                                @if(($health['last_sync_duration_ms'] ?? null) !== null)
+                                    {{ number_format($health['last_sync_duration_ms']) }} ms
+                                @else
+                                    —
+                                @endif
+                            </strong>
+                        </div>
+                        <div class="operations-metric-row-item">
+                            <span class="operations-metric-row-label">Consecutive Failures</span>
+                            <strong class="operations-metric-row-value">{{ number_format($health['consecutive_failures'] ?? 0) }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </details>
         </div>
     </div>
 </section>
@@ -174,15 +199,15 @@
         root.querySelector('[data-gmail-rebaseline]')?.addEventListener('click', async () => {
           const mailbox = root.dataset.mailbox || '';
           const confirmed = window.confirm(
-            `Re-baseline the Gmail cursor for ${mailbox || 'this mailbox'}?\n\nThis skips historical mail between the stuck cursor and now. Only use when the cursor is invalid or you accept losing that backlog.`
+            `Reset the Gmail sync position for ${mailbox || 'this mailbox'}?\n\nThis skips historical mail between the stuck position and now. Only use when the sync position is invalid or you accept losing that backlog.`
           );
           if (!confirmed) return;
-          setMessage('Re-baselining cursor…');
+          setMessage('Resetting sync position…');
           try {
             const result = await postJson(root.dataset.rebaselineUrl || '', { mailbox });
-            setMessage(result.message || 'Re-baseline completed.');
+            setMessage(result.message || 'Sync position reset completed.');
           } catch (error) {
-            setMessage(error.message || 'Re-baseline failed.', true);
+            setMessage(error.message || 'Reset failed.', true);
           }
         });
       };

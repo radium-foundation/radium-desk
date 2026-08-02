@@ -9,7 +9,7 @@
   </div>
 
   <div class="mb-3">
-      <a href="{{ route('admin.administration.index') }}#administration-api-health" class="btn btn-sm btn-outline-secondary">Back to API Health</a>
+      <a href="{{ route('admin.platform.index') }}" class="btn btn-sm btn-outline-secondary">Back to Platform</a>
   </div>
 
   <div class="card border-0 shadow-sm">

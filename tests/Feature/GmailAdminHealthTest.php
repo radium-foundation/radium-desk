@@ -2,13 +2,14 @@
 
 namespace Tests\Feature;
 
-use App\Enums\OperationsHealthStatus;
 use App\Models\GmailMailboxSyncState;
 use App\Models\User;
+use App\Enums\OperationsHealthStatus;
 use App\Services\Operations\OperationsGmailHealthService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class GmailAdminHealthTest extends TestCase
@@ -72,13 +73,27 @@ class GmailAdminHealthTest extends TestCase
         $this->assertSame(0, $widget['cursor_lag']);
     }
 
-    public function test_administration_api_health_page_shows_gmail_card(): void
+    public function test_administration_no_longer_renders_gmail_diagnostics(): void
     {
         $admin = User::factory()->create([
             'email' => 'gmail-admin@test.com',
+            'is_active' => true,
         ]);
         $admin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
+        Cache::flush();
+
+        $this->actingAs($admin)
+            ->get(route('admin.administration.index'))
+            ->assertOk()
+            ->assertSee('System Health')
+            ->assertDontSee('Gmail Health')
+            ->assertDontSee('Run Gmail Sync Now')
+            ->assertDontSee('Reset Sync Position');
+    }
+
+    public function test_gmail_health_partial_shows_renamed_labels(): void
+    {
         GmailMailboxSyncState::query()->create([
             'mailbox' => 'mail@radiumbox.com',
             'history_id' => '115205853',
@@ -88,14 +103,22 @@ class GmailAdminHealthTest extends TestCase
             'last_synced_at' => now()->subMinute(),
         ]);
 
-        $this->actingAs($admin)
-            ->get(route('admin.administration.index'))
-            ->assertOk()
-            ->assertSee('API Health')
-            ->assertSee('Gmail API Health')
-            ->assertSee('Run Gmail Sync Now')
-            ->assertSee('Re-baseline Cursor')
-            ->assertSee('115205853');
+        $html = view('admin.operations.partials.gmail-health', [
+            'health' => app(OperationsGmailHealthService::class)->widget(),
+            'showActions' => true,
+        ])->render();
+
+        $this->assertStringContainsString('Gmail Health', $html);
+        $this->assertStringContainsString('Run Gmail Sync Now', $html);
+        $this->assertStringContainsString('Reset Sync Position', $html);
+        $this->assertStringContainsString('Sync Delay', $html);
+        $this->assertStringContainsString('Credentials', $html);
+        $this->assertStringContainsString('Advanced Diagnostics', $html);
+        $this->assertStringContainsString('Sync Position', $html);
+        $this->assertStringContainsString('Mailbox Position', $html);
+        $this->assertStringContainsString('115205853', $html);
+        $this->assertStringNotContainsString('History Cursor', $html);
+        $this->assertStringNotContainsString('Re-baseline Cursor', $html);
     }
 
     public function test_gmail_sync_now_endpoint_requires_permission(): void

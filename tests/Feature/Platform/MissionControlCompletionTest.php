@@ -70,6 +70,7 @@ class MissionControlCompletionTest extends TestCase
             ->assertSee('#platform-health', false)
             ->assertSee(route('workforce.index'), false)
             ->assertSee(route('refunds.index', ['status' => 'pending']), false)
+            ->assertSee('data-platform-zones', false)
             ->assertDontSee('Cards coming next', false);
     }
 

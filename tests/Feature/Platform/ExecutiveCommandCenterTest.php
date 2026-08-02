@@ -92,7 +92,7 @@ class ExecutiveCommandCenterTest extends TestCase
         ]);
     }
 
-    public function test_command_center_renders_executive_snapshot_and_placeholders(): void
+    public function test_command_center_renders_zone_shell_and_workspace_links(): void
     {
         $actor = $this->createAgent();
         $this->createIncident($actor, IncidentStatus::Open, highPriority: true);
@@ -103,20 +103,34 @@ class ExecutiveCommandCenterTest extends TestCase
         $response->assertOk()
             ->assertSee('Platform', false)
             ->assertSee('Executive Snapshot', false)
-            ->assertSee('Open Cases', false)
-            ->assertSee('Critical Cases', false)
-            ->assertSee('Refund Queue', false)
-            ->assertSee('Active Agents', false)
-            ->assertSee('Customers Waiting', false)
-            ->assertSee('Orders Today', false)
-            ->assertSee('Resolved Today', false)
-            ->assertSee('Appointments Today', false)
             ->assertSee('Platform Health', false)
-            ->assertSee('Business Operations', false)
-            ->assertSee('Customer Operations', false)
+            ->assertSee('Operations Overview', false)
+            ->assertSee('data-platform-zones', false)
             ->assertSee('data-platform-workspace-links', false)
             ->assertSee(route('admin.operations.index'), false)
+            ->assertDontSee('Open Cases', false)
             ->assertDontSee('Cards coming next', false);
+    }
+
+    public function test_executive_zone_refresh_loads_kpi_cards(): void
+    {
+        $actor = $this->createAgent();
+        $this->createIncident($actor, IncidentStatus::Open, highPriority: true);
+
+        $response = $this->actingAs($this->createSuperadmin())
+            ->getJson(route('admin.platform.zones.show', ['zone' => 'executive_snapshot']));
+
+        $response->assertOk();
+
+        $html = (string) $response->json('html');
+        $this->assertStringContainsString('Open Cases', $html);
+        $this->assertStringContainsString('Critical Cases', $html);
+        $this->assertStringContainsString('Refund Queue', $html);
+        $this->assertStringContainsString('Active Agents', $html);
+        $this->assertStringContainsString('Customers Waiting', $html);
+        $this->assertStringContainsString('Orders Today', $html);
+        $this->assertStringContainsString('Resolved Today', $html);
+        $this->assertStringContainsString('Appointments Today', $html);
     }
 
     public function test_executive_kpi_counts_reflect_data(): void

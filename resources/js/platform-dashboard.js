@@ -1,3 +1,6 @@
+const EXPAND_STORAGE_KEY = 'radium.platform.expandedZones';
+const DEFAULT_ZONE_CONCURRENCY = 3;
+
 const applyCardRefreshPayload = (card, payload) => {
     const slot = card.closest('[data-platform-card-slot]') || card.parentElement;
 
@@ -85,6 +88,441 @@ const bindRefreshButton = (card) => {
     });
 };
 
+const bindCardRefreshButtons = (root) => {
+    root.querySelectorAll('[data-platform-card]').forEach((card) => {
+        bindRefreshButton(card);
+    });
+};
+
+const readExpandedZones = () => {
+    try {
+        const raw = window.localStorage.getItem(EXPAND_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch (error) {
+        return {};
+    }
+};
+
+const writeExpandedZones = (map) => {
+    try {
+        window.localStorage.setItem(EXPAND_STORAGE_KEY, JSON.stringify(map));
+    } catch (error) {
+        // Ignore quota / private mode failures.
+    }
+};
+
+const setZoneExpanded = (zoneKey, expanded) => {
+    const map = readExpandedZones();
+
+    if (expanded) {
+        map[zoneKey] = true;
+    } else {
+        delete map[zoneKey];
+    }
+
+    writeExpandedZones(map);
+};
+
+const integrationExpandStorageKey = (zoneKey, itemKey) => `${zoneKey}:${itemKey}`;
+
+const applyIntegrationExpandPayload = (button, panel, payload) => {
+    if (!panel || typeof payload.html !== 'string') {
+        throw new Error('Invalid integration expand payload');
+    }
+
+    panel.innerHTML = payload.html;
+    panel.hidden = false;
+    panel.classList.remove('d-none');
+    button.setAttribute('aria-expanded', 'true');
+    button.textContent = 'Collapse';
+    button.dataset.expanded = 'true';
+
+    panel.querySelectorAll('[data-platform-integration-expand]').forEach((nested) => {
+        bindIntegrationExpandButton(nested);
+    });
+};
+
+const collapseIntegrationExpand = (button, panel) => {
+    if (panel) {
+        panel.hidden = true;
+        panel.classList.add('d-none');
+        panel.innerHTML = '';
+    }
+
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = 'Expand';
+    button.dataset.expanded = 'false';
+};
+
+const resolveExpandPanel = (button) => {
+    const target = button.dataset.expandTarget;
+
+    if (target) {
+        return document.querySelector(target);
+    }
+
+    return button.closest('[data-platform-integration-card]')
+        ?.querySelector('[data-platform-integration-expand-panel]');
+};
+
+const expandPlatformIntegration = async (button, { surfaceErrors = true, persist = true } = {}) => {
+    const url = button.dataset.expandUrl;
+    const panel = resolveExpandPanel(button);
+
+    if (!url || !panel || document.hidden) {
+        return false;
+    }
+
+    button.disabled = true;
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Integration expand failed (${response.status})`);
+        }
+
+        const payload = await response.json();
+        applyIntegrationExpandPayload(button, panel, payload);
+
+        if (persist) {
+            const zoneKey = button.dataset.zoneKey || 'integration_health';
+            const itemKey = button.dataset.integrationKey || payload.item || 'default';
+            setZoneExpanded(integrationExpandStorageKey(zoneKey, itemKey), true);
+        }
+
+        return true;
+    } catch (error) {
+        console.error(error);
+
+        if (surfaceErrors) {
+            window.alert('Unable to load diagnostics. Please try again.');
+        }
+
+        return false;
+    } finally {
+        button.disabled = false;
+    }
+};
+
+const togglePlatformIntegrationExpand = async (button) => {
+    const panel = resolveExpandPanel(button);
+    const zoneKey = button.dataset.zoneKey || 'integration_health';
+    const itemKey = button.dataset.integrationKey || 'default';
+
+    if (button.dataset.expanded === 'true') {
+        collapseIntegrationExpand(button, panel);
+        setZoneExpanded(integrationExpandStorageKey(zoneKey, itemKey), false);
+
+        return false;
+    }
+
+    return expandPlatformIntegration(button, { surfaceErrors: true, persist: true });
+};
+
+const bindIntegrationExpandButton = (button) => {
+    if (!button || button.dataset.bound === 'true') {
+        return;
+    }
+
+    button.dataset.bound = 'true';
+    button.addEventListener('click', async () => {
+        await togglePlatformIntegrationExpand(button);
+    });
+};
+
+const bindIntegrationExpands = (root) => {
+    root.querySelectorAll('[data-platform-integration-expand]').forEach((button) => {
+        bindIntegrationExpandButton(button);
+    });
+};
+
+const applyZoneExpandPayload = (zone, payload) => {
+    const panel = zone.querySelector('[data-platform-zone-expand-panel]');
+
+    if (!panel || typeof payload.html !== 'string') {
+        throw new Error('Invalid expand payload');
+    }
+
+    panel.innerHTML = payload.html;
+    panel.hidden = false;
+    panel.classList.remove('d-none');
+    bindIntegrationExpands(panel);
+
+    const button = zone.querySelector('[data-platform-zone-expand]');
+
+    if (button) {
+        button.setAttribute('aria-expanded', 'true');
+        button.textContent = 'Collapse';
+    }
+
+    zone.dataset.expanded = 'true';
+};
+
+const collapseZoneExpand = (zone) => {
+    const panel = zone.querySelector('[data-platform-zone-expand-panel]');
+
+    if (panel) {
+        panel.hidden = true;
+        panel.classList.add('d-none');
+        panel.innerHTML = '';
+    }
+
+    const button = zone.querySelector('[data-platform-zone-expand]');
+
+    if (button) {
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = 'Expand';
+    }
+
+    zone.dataset.expanded = 'false';
+};
+
+const expandPlatformZone = async (zone, { surfaceErrors = true, persist = true } = {}) => {
+    const url = zone.dataset.expandUrl;
+
+    if (!url || document.hidden) {
+        return false;
+    }
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Expand failed (${response.status})`);
+        }
+
+        const payload = await response.json();
+        applyZoneExpandPayload(zone, payload);
+
+        if (persist) {
+            setZoneExpanded(zone.dataset.platformZone, true);
+        }
+
+        return true;
+    } catch (error) {
+        console.error(error);
+
+        if (surfaceErrors) {
+            window.alert('Unable to expand this zone. Please try again.');
+        }
+
+        return false;
+    }
+};
+
+const togglePlatformZoneExpand = async (zone) => {
+    if (zone.dataset.expanded === 'true') {
+        collapseZoneExpand(zone);
+        setZoneExpanded(zone.dataset.platformZone, false);
+
+        return false;
+    }
+
+    return expandPlatformZone(zone, { surfaceErrors: true, persist: true });
+};
+
+const applyZoneRefreshPayload = (zone, payload) => {
+    const body = zone.querySelector('[data-platform-zone-body]');
+
+    if (!body || typeof payload.html !== 'string') {
+        throw new Error('Invalid zone refresh payload');
+    }
+
+    body.innerHTML = payload.html;
+    bindCardRefreshButtons(body);
+    bindIntegrationExpands(body);
+    bindZoneControls(zone);
+
+    if (payload.status) {
+        zone.dataset.zoneStatus = payload.status;
+    }
+
+    const statusBadge = zone.querySelector('[data-platform-zone-status]');
+
+    if (statusBadge && payload.status_label) {
+        statusBadge.textContent = payload.status_label;
+    }
+
+    const updatedAt = zone.querySelector('[data-platform-zone-updated-at]');
+
+    if (updatedAt && payload.updated_at) {
+        try {
+            updatedAt.textContent = new Date(payload.updated_at).toLocaleTimeString([], {
+                hour: 'numeric',
+                minute: '2-digit',
+            });
+        } catch (error) {
+            updatedAt.textContent = payload.updated_at;
+        }
+    }
+
+    if (zone.dataset.expanded === 'true' && zone.dataset.expandable === 'true') {
+        expandPlatformZone(zone, { surfaceErrors: false, persist: false });
+    }
+};
+
+const refreshPlatformZone = async (zone, { surfaceErrors = true } = {}) => {
+    const url = zone.dataset.refreshUrl;
+
+    if (!url || document.hidden) {
+        return false;
+    }
+
+    const button = zone.querySelector('[data-platform-zone-refresh]');
+    const icon = button?.querySelector('i');
+
+    if (button instanceof HTMLButtonElement) {
+        button.disabled = true;
+        button.classList.add('disabled');
+    }
+
+    if (icon) {
+        icon.classList.add('spin');
+    }
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Zone refresh failed (${response.status})`);
+        }
+
+        const payload = await response.json();
+        applyZoneRefreshPayload(zone, payload);
+
+        return true;
+    } catch (error) {
+        console.error(error);
+
+        if (surfaceErrors) {
+            window.alert('Unable to refresh this zone. Please try again.');
+        }
+
+        return false;
+    } finally {
+        if (button instanceof HTMLButtonElement) {
+            button.disabled = false;
+            button.classList.remove('disabled');
+        }
+
+        if (icon) {
+            icon.classList.remove('spin');
+        }
+    }
+};
+
+const bindZoneControls = (zone) => {
+    zone.querySelectorAll('[data-platform-zone-refresh]').forEach((refreshButton) => {
+        if (refreshButton.dataset.bound === 'true') {
+            return;
+        }
+
+        refreshButton.dataset.bound = 'true';
+        refreshButton.addEventListener('click', async () => {
+            await refreshPlatformZone(zone, { surfaceErrors: true });
+        });
+    });
+
+    const expandButton = zone.querySelector('[data-platform-zone-expand]');
+
+    if (expandButton && expandButton.dataset.bound !== 'true') {
+        expandButton.dataset.bound = 'true';
+        expandButton.addEventListener('click', async () => {
+            await togglePlatformZoneExpand(zone);
+        });
+    }
+
+    bindIntegrationExpands(zone);
+};
+
+const refreshableZones = (root) => (
+    [...root.querySelectorAll('[data-platform-zone][data-refresh-url]')]
+        .sort((a, b) => Number(a.dataset.platformZonePriority || 99) - Number(b.dataset.platformZonePriority || 99))
+);
+
+const runWithConcurrency = async (items, concurrency, worker) => {
+    const queue = [...items];
+    const limit = Math.max(1, concurrency);
+
+    const runners = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+        while (queue.length > 0) {
+            if (document.hidden) {
+                return;
+            }
+
+            const item = queue.shift();
+
+            if (!item) {
+                return;
+            }
+
+            await worker(item);
+        }
+    });
+
+    await Promise.all(runners);
+};
+
+const refreshZonesByPriority = async (root, { surfaceErrors = false } = {}) => {
+    if (document.hidden) {
+        return;
+    }
+
+    const concurrency = Number(root.dataset.zoneConcurrency || DEFAULT_ZONE_CONCURRENCY);
+
+    await runWithConcurrency(
+        refreshableZones(root),
+        concurrency,
+        (zone) => refreshPlatformZone(zone, { surfaceErrors }),
+    );
+};
+
+const restoreExpandedZones = async (root) => {
+    const expanded = readExpandedZones();
+
+    for (const zone of root.querySelectorAll('[data-platform-zone][data-expandable="true"]')) {
+        const key = zone.dataset.platformZone;
+
+        if (!key || !expanded[key]) {
+            continue;
+        }
+
+        await expandPlatformZone(zone, { surfaceErrors: false, persist: false });
+    }
+
+    for (const button of root.querySelectorAll('[data-platform-integration-expand]')) {
+        const zoneKey = button.dataset.zoneKey || 'integration_health';
+        const itemKey = button.dataset.integrationKey;
+
+        if (!itemKey || !expanded[integrationExpandStorageKey(zoneKey, itemKey)]) {
+            continue;
+        }
+
+        await expandPlatformIntegration(button, { surfaceErrors: false, persist: false });
+    }
+};
+
 let pollIntervalId = null;
 let pollPageRoot = null;
 let pollIntervalMs = 0;
@@ -102,6 +540,14 @@ const refreshAllPlatformCards = async (root, { surfaceErrors = false } = {}) => 
     await Promise.all(
         refreshableCards(root).map((card) => refreshPlatformCard(card, { surfaceErrors })),
     );
+};
+
+const refreshAllPlatform = async (root, { surfaceErrors = false } = {}) => {
+    if (root.querySelector('[data-platform-zone]')) {
+        await refreshZonesByPriority(root, { surfaceErrors });
+    }
+
+    await refreshAllPlatformCards(root, { surfaceErrors });
 };
 
 export const stopPlatformPolling = () => {
@@ -129,7 +575,7 @@ const bindPlatformPollingVisibilityListener = () => {
             return;
         }
 
-        refreshAllPlatformCards(pollPageRoot);
+        refreshAllPlatform(pollPageRoot);
         startPlatformPolling(pollPageRoot, pollIntervalMs);
     };
 
@@ -159,7 +605,7 @@ export const startPlatformPolling = (root, intervalMs) => {
     }
 
     pollIntervalId = window.setInterval(() => {
-        refreshAllPlatformCards(root);
+        refreshAllPlatform(root);
     }, intervalMs);
 };
 
@@ -170,9 +616,22 @@ export const initPlatformDashboard = () => {
         return;
     }
 
-    root.querySelectorAll('[data-platform-card]').forEach((card) => {
-        bindRefreshButton(card);
+    bindCardRefreshButtons(root);
+
+    root.querySelectorAll('[data-platform-zone]').forEach((zone) => {
+        bindZoneControls(zone);
     });
+
+    // Priority async refresh after first paint (snapshot-only HTML).
+    if (root.hasAttribute('data-platform-zones')) {
+        window.requestAnimationFrame(() => {
+            refreshZonesByPriority(root, { surfaceErrors: false }).then(() => {
+                restoreExpandedZones(root);
+            });
+        });
+    } else {
+        restoreExpandedZones(root);
+    }
 
     const intervalMs = Number(root.dataset.pollIntervalSeconds ?? 0) * 1000;
 
@@ -182,7 +641,20 @@ export const initPlatformDashboard = () => {
 
     window.RadiumDesk = window.RadiumDesk || {};
     window.RadiumDesk.platformDashboard = {
-        refreshAll: (pageRoot = root) => refreshAllPlatformCards(pageRoot, { surfaceErrors: true }),
+        refreshAll: (pageRoot = root) => refreshAllPlatform(pageRoot, { surfaceErrors: true }),
         refreshCard: (card) => refreshPlatformCard(card, { surfaceErrors: true }),
+        refreshZone: (zone) => refreshPlatformZone(zone, { surfaceErrors: true }),
+        refreshZones: (pageRoot = root) => refreshZonesByPriority(pageRoot, { surfaceErrors: true }),
+        expandZone: (zone) => expandPlatformZone(zone, { surfaceErrors: true }),
+        expandIntegration: (button) => expandPlatformIntegration(button, { surfaceErrors: true }),
     };
+};
+
+export {
+    refreshPlatformZone,
+    refreshZonesByPriority,
+    expandPlatformZone,
+    expandPlatformIntegration,
+    restoreExpandedZones,
+    runWithConcurrency,
 };

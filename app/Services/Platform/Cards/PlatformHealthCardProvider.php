@@ -11,8 +11,10 @@ use App\Enums\PlatformCardSize;
 use App\Enums\PlatformDashboardSection;
 use App\Enums\PlatformHealthStatus;
 use App\Models\User;
+use App\Services\Administration\AdministrationSystemHealthSummaryService;
 use App\Services\Platform\Concerns\InteractsWithPlatformCardDefinition;
 use App\Services\Platform\PlatformHealthRegistry;
+use Illuminate\Support\Facades\Cache;
 
 class PlatformHealthCardProvider implements PlatformCardProvider
 {
@@ -49,6 +51,12 @@ class PlatformHealthCardProvider implements PlatformCardProvider
                 $components,
             ),
         );
+
+        Cache::put(AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY, [
+            'status' => $status->value,
+            'status_label' => $status->label(),
+            'generated_at' => now()->toIso8601String(),
+        ], now()->addSeconds(30));
 
         $metrics = array_map(
             fn (PlatformHealthComponent $component): PlatformMetric => new PlatformMetric(

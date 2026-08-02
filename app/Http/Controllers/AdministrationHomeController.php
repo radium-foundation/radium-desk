@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\Operations\OperationsGmailHealthService;
-use App\Services\Operations\OperationsIntegrationHealthService;
+use App\Services\Administration\AdministrationSystemHealthSummaryService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -12,8 +11,7 @@ class AdministrationHomeController extends Controller
 {
     public function __invoke(
         Request $request,
-        OperationsIntegrationHealthService $integrationHealthService,
-        OperationsGmailHealthService $gmailHealthService,
+        AdministrationSystemHealthSummaryService $systemHealthSummary,
     ): View {
         $user = $request->user();
 
@@ -25,8 +23,7 @@ class AdministrationHomeController extends Controller
         ]), 403);
 
         return view('admin.administration.index', [
-            'integrationCards' => $integrationHealthService->cards(),
-            'gmailHealth' => $gmailHealthService->widget(),
+            'systemHealthSummary' => $systemHealthSummary->summary(),
         ]);
     }
 }

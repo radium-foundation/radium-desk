@@ -104,9 +104,9 @@ class PlatformDashboardTest extends TestCase
             ->assertOk()
             ->assertSee('Platform', false)
             ->assertSee('Platform Health', false)
-            ->assertSee('Scheduler', false)
-            ->assertSee('Presence Engine', false)
-            ->assertSee('data-poll-interval-seconds', false);
+            ->assertSee('data-platform-zones', false)
+            ->assertSee('data-poll-interval-seconds', false)
+            ->assertSee('id="platform-health"', false);
     }
 
     public function test_operations_admin_can_view_platform_dashboard(): void

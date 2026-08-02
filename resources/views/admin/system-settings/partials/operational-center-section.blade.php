@@ -195,8 +195,8 @@
                 </div>
             @endif
             <div class="mt-3">
-                <a href="{{ route('admin.administration.index') }}#administration-integrations" class="btn btn-sm btn-outline-secondary">
-                    View integration hub
+                <a href="{{ route('admin.platform.index') }}#platform-health" class="btn btn-sm btn-outline-secondary">
+                    Open Integration Health
                 </a>
             </div>
         </x-system-settings.card>
