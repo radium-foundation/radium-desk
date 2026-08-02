@@ -103,9 +103,10 @@ class ServiceCaseAssignmentService
     ): Incident {
         $incident = $incident->fresh(['assignee', 'supportAppointments', 'order']);
 
+        // Appointment cases keep support ownership. Ready Queue visibility is an
+        // independent overlay and must not reassign away from the support owner.
         if ($incident->hasActiveSupportAppointment()) {
-            return app(\App\Services\Operations\SupportAppointmentSmartAssignmentService::class)
-                ->assignForActiveSupport($incident, $actor);
+            return $incident;
         }
 
         if ($incident->order?->isInquiryOrder()) {
@@ -983,7 +984,12 @@ class ServiceCaseAssignmentService
             'supportAppointments',
         ]);
 
-        if (app(OperationsQueueClassifier::class)->classify($incident) !== OperationQueue::ActionRequired) {
+        $classifier = app(OperationsQueueClassifier::class);
+
+        // Primary Ready classification OR dual-membership Ready overlay (e.g. Scheduled
+        // appointment cases that are still Ready for Service Reference).
+        if ($classifier->classify($incident) !== OperationQueue::ActionRequired
+            && ! $classifier->isReadyForReferenceEntry($incident)) {
             return true;
         }
 

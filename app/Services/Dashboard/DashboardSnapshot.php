@@ -291,6 +291,14 @@ class DashboardSnapshot
             $queue = $this->queueClassifier->classify($incident);
             $buckets[$queue->value][] = $incident;
 
+            // Ready-for-Service-Reference overlay (Dashboard worklist membership).
+            // Classifier primary queue is unchanged; appointment cases stay Scheduled
+            // while still appearing in Ready when validation passed and transaction_id is null.
+            if ($queue !== OperationQueue::ActionRequired
+                && $this->queueClassifier->isReadyForReferenceEntry($incident)) {
+                $buckets[OperationQueue::ActionRequired->value][] = $incident;
+            }
+
             if ($scopeUser !== null && $this->queueClassifier->matchesMyWork($incident, $scopeUser)) {
                 $buckets[OperationQueue::MyWork->value][] = $incident;
             }
@@ -364,7 +372,15 @@ class DashboardSnapshot
         }
 
         $incidents = $this->activeIncidents
-            ->filter(fn (Incident $incident): bool => $this->queueClassifier->matchesQueue($incident, $queue, $scopeUser));
+            ->filter(function (Incident $incident) use ($queue, $scopeUser): bool {
+                if ($this->queueClassifier->matchesQueue($incident, $queue, $scopeUser)) {
+                    return true;
+                }
+
+                // Fallback Ready overlay (same rule as warmQueueIncidents).
+                return $queue === OperationQueue::ActionRequired->value
+                    && $this->queueClassifier->isReadyForReferenceEntry($incident);
+            });
 
         if ($scopeUser !== null && $queue === OperationQueue::WaitingCustomer->value) {
             $incidents = $incidents->filter(

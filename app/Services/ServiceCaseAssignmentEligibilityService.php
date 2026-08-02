@@ -154,11 +154,17 @@ class ServiceCaseAssignmentEligibilityService
                 return;
             }
 
+            // Support appointment assignment is independent of Ready promotion.
+            // Keep appointment ownership/reminders; do not block validation success.
             if ($incident->hasActiveSupportAppointment()) {
                 app(SupportAppointmentSmartAssignmentService::class)
                     ->assignForActiveSupport($incident, $actor);
 
-                return;
+                $incident = $incident->fresh(['order', 'assignee', 'supportAppointments']);
+
+                if ($incident === null || $incident->status === IncidentStatus::Closed) {
+                    return;
+                }
             }
 
             $order = $incident->order;
@@ -183,6 +189,17 @@ class ServiceCaseAssignmentEligibilityService
                     );
                 }
 
+                return;
+            }
+
+            // Cashfree (and similar) cases start as AwaitingProductDetails. Once identity
+            // validation succeeds they are Ready-eligible and must become Open so Service
+            // Reference work can proceed — including when a support appointment still exists.
+            $incident = $this->promoteAwaitingProductDetailsToOpen($incident, $actor);
+
+            // Appointment ownership and incident assignee stay intact. Ready Queue
+            // membership is an independent overlay (see DashboardSnapshot dual membership).
+            if ($incident->hasActiveSupportAppointment()) {
                 return;
             }
 
@@ -211,11 +228,6 @@ class ServiceCaseAssignmentEligibilityService
             if ($incident->automation_pending_until !== null && $incident->automation_pending_until->isPast()) {
                 return;
             }
-
-            // Cashfree (and similar) cases start as AwaitingProductDetails. Once identity
-            // validation succeeds they are Ready-eligible and must become Open before
-            // assignment so OperationsQueueClassifier / Ready Queue can include them.
-            $incident = $this->promoteAwaitingProductDetailsToOpen($incident, $actor);
 
             $this->readyQueueStrategy->assign(
                 AssignmentRequest::make(
