@@ -26,7 +26,7 @@ final class SettingsCenterNav
         if ($canViewSystem) {
             $systemItems[] = self::item(
                 'overview',
-                'Overview',
+                'Configuration Overview',
                 'layout-dashboard',
                 route('admin.system-settings.index').'#section-overview',
                 $activeKey === 'overview',
@@ -69,7 +69,7 @@ final class SettingsCenterNav
             ];
 
             $groups[] = [
-                'label' => 'Platform',
+                'label' => 'Configure',
                 'items' => [
                     self::item(
                         'notifications',
@@ -81,11 +81,11 @@ final class SettingsCenterNav
                         in_array($activeKey, ['notifications', 'category-notifications'], true),
                     ),
                     self::item(
-                        'diagnostics',
-                        'Diagnostics',
-                        'heart-pulse',
+                        'environment',
+                        'Environment',
+                        'info',
                         route('admin.system-settings.index').'#category-system',
-                        in_array($activeKey, ['diagnostics', 'category-system'], true),
+                        in_array($activeKey, ['diagnostics', 'category-system', 'environment'], true),
                     ),
                     self::item(
                         'advanced',
@@ -93,6 +93,19 @@ final class SettingsCenterNav
                         'wrench',
                         route('admin.system-settings.index').'#section-advanced',
                         $activeKey === 'advanced',
+                    ),
+                ],
+            ];
+
+            $groups[] = [
+                'label' => 'Observe',
+                'items' => [
+                    self::item(
+                        'platform-monitoring',
+                        'Platform monitoring',
+                        'heart-pulse',
+                        route('admin.platform.index'),
+                        $activeKey === 'platform-monitoring',
                     ),
                 ],
             ];

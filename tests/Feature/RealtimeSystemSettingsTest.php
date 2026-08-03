@@ -62,8 +62,8 @@ class RealtimeSystemSettingsTest extends TestCase
             ->get(route('admin.system-settings.index'))
             ->assertOk()
             ->assertSee('Realtime')
-            ->assertSee('Connection Status')
-            ->assertSee('Realtime provider');
+            ->assertSee('Connection tools')
+            ->assertSee('Realtime Provider');
     }
 
     public function test_provider_polling_forces_dashboard_poll_mode(): void

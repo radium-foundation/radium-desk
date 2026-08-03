@@ -195,7 +195,7 @@
                 </div>
             @endif
             <div class="mt-3">
-                <a href="{{ route('admin.platform.index') }}#platform-health" class="btn btn-sm btn-outline-secondary">
+                <a href="{{ route('admin.platform.index') }}#platform-zone-integration_health" class="btn btn-sm btn-outline-secondary">
                     Open Integration Health
                 </a>
             </div>

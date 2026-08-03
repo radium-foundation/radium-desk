@@ -79,6 +79,18 @@ class OperationalSystemSettingsTest extends TestCase
             ->get(route('admin.system-settings.index'))
             ->assertOk()
             ->assertSee('System Settings')
+            ->assertSee('Configuration Overview')
+            ->assertSee('Cashfree')
+            ->assertSee('Gmail')
+            ->assertSee('Telegram')
+            ->assertSee('Interakt')
+            ->assertSee('Meta')
+            ->assertSee('SMTP')
+            ->assertSee('Environment')
+            ->assertSee('Version / build')
+            ->assertSee('Last configuration change')
+            ->assertSee('Open audit history')
+            ->assertSee('Open Platform monitoring')
             ->assertSee('Performance')
             ->assertSee('WhatsApp notifications')
             ->assertSee('Email notifications')
@@ -88,6 +100,57 @@ class OperationalSystemSettingsTest extends TestCase
             ->assertSee('Debug mode')
             ->assertSee('Hybrid Realtime')
             ->assertSee('Reference Number');
+    }
+
+    public function test_overview_no_longer_duplicates_platform_runtime_monitoring_widgets(): void
+    {
+        $admin = $this->createAdmin();
+
+        $html = $this->actingAs($admin)
+            ->get(route('admin.system-settings.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/id="section-overview".*?Configuration Overview/s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="section-overview".*?label">Queue</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="section-overview".*?label">Workers</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="section-overview".*?label">CPU Load</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="section-overview".*?label">Memory</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="section-overview".*?label">Response Time</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="category-system".*?label">CPU Load</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="category-system".*?label">Queue</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="category-system".*?label">Failed Jobs</s',
+            $html,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="realtime-settings-card".*?Polling active</s',
+            $html,
+        );
     }
 
     public function test_seeder_sets_initial_defaults(): void

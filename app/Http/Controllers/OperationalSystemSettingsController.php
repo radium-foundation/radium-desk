@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateOperationalSystemSettingsRequest;
 use App\Models\SystemSetting;
+use App\Services\Administration\ConfigurationHealthSummaryService;
 use App\Services\Performance\PerformanceHealthService;
 use App\Services\Performance\PerformanceSettingsService;
 use App\Services\Realtime\RealtimeSettingsService;
@@ -18,6 +19,7 @@ class OperationalSystemSettingsController extends Controller
         private readonly PerformanceSettingsService $performanceSettingsService,
         private readonly PerformanceHealthService $performanceHealthService,
         private readonly RealtimeSettingsService $realtimeSettingsService,
+        private readonly ConfigurationHealthSummaryService $configurationHealthSummaryService,
     ) {
         $this->middleware(function ($request, $next) {
             $this->authorize('viewAny', SystemSetting::class);
@@ -41,6 +43,7 @@ class OperationalSystemSettingsController extends Controller
             'performanceHealth' => $this->performanceHealthService->snapshot(),
             'realtimeSettings' => $this->realtimeSettingsService->settingsForAdmin(),
             'realtimeHealth' => $this->realtimeSettingsService->healthSnapshot(),
+            'configurationHealth' => $this->configurationHealthSummaryService->summary(),
         ]);
     }
 

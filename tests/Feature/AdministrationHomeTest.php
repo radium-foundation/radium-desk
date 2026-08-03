@@ -117,11 +117,13 @@ class AdministrationHomeTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.administration.index'))
             ->assertOk()
-            ->assertSee('System Health', false)
+            ->assertSee('Observe or configure', false)
             ->assertSee('Open Platform Dashboard', false)
             ->assertSee('Open System Settings', false)
             ->assertSee(route('admin.platform.index'), false)
             ->assertSee(route('admin.system-settings.index'), false)
+            ->assertDontSee('Platform Status', false)
+            ->assertDontSee('Integration Status', false)
             ->assertDontSee('Gmail Health', false)
             ->assertDontSee('operations-integration-pill', false);
     }

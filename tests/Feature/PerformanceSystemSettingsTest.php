@@ -62,9 +62,9 @@ class PerformanceSystemSettingsTest extends TestCase
             ->assertOk()
             ->assertSee('Performance')
             ->assertSee('Performance Profile')
-            ->assertSee('Polling Configuration')
+            ->assertSee('Custom Polling Intervals')
             ->assertSee('Hybrid Realtime')
-            ->assertSee('Live Health')
+            ->assertSee('Environment')
             ->assertSee('Reference Number')
             ->assertSee('Balanced');
     }
