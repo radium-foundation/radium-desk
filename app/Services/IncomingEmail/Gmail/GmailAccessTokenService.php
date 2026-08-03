@@ -2,8 +2,10 @@
 
 namespace App\Services\IncomingEmail\Gmail;
 
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 /**
@@ -35,11 +37,7 @@ class GmailAccessTokenService
             ]);
 
         if (! $response->successful()) {
-            throw new RuntimeException(sprintf(
-                'Gmail OAuth token request failed for %s: HTTP %d',
-                $mailbox,
-                $response->status(),
-            ));
+            throw $this->tokenEndpointFailure($mailbox, $response);
         }
 
         $accessToken = (string) $response->json('access_token', '');
@@ -137,5 +135,140 @@ class GmailAccessTokenService
     private function base64UrlEncode(string $value): string
     {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function tokenEndpointFailure(string $mailbox, Response $response): RuntimeException
+    {
+        $status = $response->status();
+        $safeBody = $this->sanitizeTokenErrorBody($response->body());
+        $summary = $this->summarizeTokenError($safeBody);
+
+        Log::error('[GmailInbound] OAuth token endpoint rejected request.', [
+            'mailbox' => $mailbox,
+            'http_status' => $status,
+            'response_body' => $safeBody,
+            'error' => $summary['error'],
+            'error_description' => $summary['error_description'],
+        ]);
+
+        $message = sprintf(
+            'Gmail OAuth token request failed for %s: HTTP %d',
+            $mailbox,
+            $status,
+        );
+
+        if ($safeBody !== '') {
+            $message .= "\n".$safeBody;
+        }
+
+        return new RuntimeException($message);
+    }
+
+    /**
+     * Keep Google error diagnostics while masking JWT assertions / private keys / tokens.
+     */
+    private function sanitizeTokenErrorBody(string $rawBody): string
+    {
+        $rawBody = trim($rawBody);
+
+        if ($rawBody === '') {
+            return '';
+        }
+
+        $decoded = json_decode($rawBody, true);
+
+        if (is_array($decoded)) {
+            $safe = [];
+
+            foreach (['error', 'error_description', 'error_uri', 'error_subtype'] as $key) {
+                if (! array_key_exists($key, $decoded)) {
+                    continue;
+                }
+
+                $value = $decoded[$key];
+                if (is_scalar($value) || $value === null) {
+                    $safe[$key] = $this->maskSensitiveString((string) $value);
+                }
+            }
+
+            // Preserve other non-sensitive scalar keys for unexpected Google payloads.
+            foreach ($decoded as $key => $value) {
+                if (array_key_exists($key, $safe)) {
+                    continue;
+                }
+
+                $normalized = strtolower((string) $key);
+                if ($this->isSensitiveCredentialKey($normalized)) {
+                    $safe[$key] = '[redacted]';
+                    continue;
+                }
+
+                if (is_scalar($value) || $value === null) {
+                    $safe[$key] = $this->maskSensitiveString((string) $value);
+                }
+            }
+
+            $encoded = json_encode($safe, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+            return is_string($encoded) ? $encoded : '';
+        }
+
+        return $this->maskSensitiveString(mb_substr($rawBody, 0, 2000));
+    }
+
+    /**
+     * @return array{error: ?string, error_description: ?string}
+     */
+    private function summarizeTokenError(string $safeBody): array
+    {
+        $decoded = json_decode($safeBody, true);
+
+        if (! is_array($decoded)) {
+            return ['error' => null, 'error_description' => null];
+        }
+
+        return [
+            'error' => isset($decoded['error']) && is_scalar($decoded['error'])
+                ? (string) $decoded['error']
+                : null,
+            'error_description' => isset($decoded['error_description']) && is_scalar($decoded['error_description'])
+                ? (string) $decoded['error_description']
+                : null,
+        ];
+    }
+
+    private function isSensitiveCredentialKey(string $key): bool
+    {
+        return in_array($key, [
+            'assertion',
+            'private_key',
+            'private_key_id',
+            'client_secret',
+            'access_token',
+            'refresh_token',
+            'id_token',
+            'token',
+            'password',
+            'authorization',
+        ], true);
+    }
+
+    private function maskSensitiveString(string $value): string
+    {
+        // JWT / assertion-shaped strings: header.payload.signature
+        $value = preg_replace(
+            '/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/',
+            '[redacted-jwt]',
+            $value,
+        ) ?? $value;
+
+        // PEM private key blocks if Google (or a proxy) ever echoed them.
+        $value = preg_replace(
+            '/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/',
+            '[redacted-private-key]',
+            $value,
+        ) ?? $value;
+
+        return $value;
     }
 }
