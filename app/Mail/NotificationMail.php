@@ -19,8 +19,9 @@ class NotificationMail extends Mailable
      */
     public function __construct(
         private readonly string $mailSubject,
-        private readonly string $viewName,
-        private readonly array $variables,
+        private readonly string $viewName = '',
+        private readonly array $variables = [],
+        private readonly ?string $htmlBody = null,
     ) {}
 
     public function envelope(): Envelope
@@ -32,6 +33,12 @@ class NotificationMail extends Mailable
 
     public function content(): Content
     {
+        if (is_string($this->htmlBody) && $this->htmlBody !== '') {
+            return new Content(
+                htmlString: $this->htmlBody,
+            );
+        }
+
         return new Content(
             view: $this->viewName,
             with: app(SupportContactResolver::class)->mergeIntoVariables($this->variables),

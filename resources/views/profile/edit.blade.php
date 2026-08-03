@@ -37,6 +37,50 @@
                             @enderror
                         </div>
 
+                        <div class="mb-3">
+                            <label for="designation" class="form-label">Designation</label>
+                            <input type="text" id="designation" name="designation" class="form-control @error('designation') is-invalid @enderror"
+                                   value="{{ old('designation', $user->designation) }}">
+                            @error('designation')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="department" class="form-label">Department</label>
+                            <input type="text" id="department" name="department" class="form-control @error('department') is-invalid @enderror"
+                                   value="{{ old('department', $user->department) }}">
+                            @error('department')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">Phone</label>
+                            <input type="text" id="phone" name="phone" class="form-control @error('phone') is-invalid @enderror"
+                                   value="{{ old('phone', $user->phone) }}">
+                            @error('phone')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="company_name" class="form-label">Company</label>
+                            <input type="text" id="company_name" name="company_name" class="form-control @error('company_name') is-invalid @enderror"
+                                   value="{{ old('company_name', $user->company_name) }}">
+                            @error('company_name')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="default_greeting_style" class="form-label">Default Greeting</label>
+                            <select id="default_greeting_style" name="default_greeting_style" class="form-select">
+                                @php
+                                    $greetingValue = old('default_greeting_style', $user->default_greeting_style);
+                                @endphp
+                                <option value="">Company Default</option>
+                                <option value="dear_customer" @selected($greetingValue === 'dear_customer')>Dear {{'{{customer_name}}'}}</option>
+                                <option value="hello_customer" @selected($greetingValue === 'hello_customer')>Hello {{'{{customer_name}}'}}</option>
+                                <option value="good_morning" @selected($greetingValue === 'good_morning')>Good Morning</option>
+                                <option value="good_afternoon" @selected($greetingValue === 'good_afternoon')>Good Afternoon</option>
+                                <option value="good_evening" @selected($greetingValue === 'good_evening')>Good Evening</option>
+                            </select>
+                            <div class="form-text">Used automatically for Blank Reply and Company Default greetings.</div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary">Save changes</button>
                     </form>
                 </div>

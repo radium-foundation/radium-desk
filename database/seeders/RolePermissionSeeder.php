@@ -68,6 +68,10 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_EMAIL_REPLY = 'email.reply';
 
+    public const PERMISSION_COMMUNICATION_TEMPLATES_VIEW = 'communication-templates.view';
+
+    public const PERMISSION_COMMUNICATION_TEMPLATES_MANAGE = 'communication-templates.manage';
+
     /**
      * @var list<string>
      */
@@ -78,6 +82,8 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_CASHBOOK_MANAGE,
         self::PERMISSION_CASHBOOK_HISTORICAL,
         self::PERMISSION_EMAIL_REPLY,
+        self::PERMISSION_COMMUNICATION_TEMPLATES_VIEW,
+        self::PERMISSION_COMMUNICATION_TEMPLATES_MANAGE,
     ];
 
     /**
@@ -267,6 +273,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
             self::PERMISSION_EMAIL_REPLY,
+            self::PERMISSION_COMMUNICATION_TEMPLATES_VIEW,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -357,6 +364,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_MANAGE,
             self::PERMISSION_CASHBOOK_HISTORICAL,
             self::PERMISSION_EMAIL_REPLY,
+            self::PERMISSION_COMMUNICATION_TEMPLATES_VIEW,
+            self::PERMISSION_COMMUNICATION_TEMPLATES_MANAGE,
         ],
     ];
 

@@ -43,7 +43,7 @@ class OutgoingEmailReplyService
             'default_subject' => $this->templatePreviewService->defaultReplySubject($message),
             'mailbox' => $message->mailbox,
             'templates' => $gate['allowed']
-                ? $this->templatePreviewService->availableTemplates()
+                ? $this->templatePreviewService->availableTemplates($user)
                 : [],
         ];
     }

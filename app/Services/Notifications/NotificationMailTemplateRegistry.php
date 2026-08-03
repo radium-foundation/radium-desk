@@ -99,6 +99,8 @@ class NotificationMailTemplateRegistry
                     'buy_device_url',
                 ],
             ),
+            // Internal / staff-only types have no customer mail Blade in Phase 1.
+            default => null,
         };
     }
 

@@ -17,6 +17,7 @@ export default defineConfig({
                 'resources/js/pages/orders.js',
                 'resources/js/pages/service-cases.js',
                 'resources/js/pages/refunds.js',
+                'resources/js/communication-template-editor.js',
             ],
             refresh: true,
         }),

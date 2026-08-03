@@ -119,6 +119,7 @@ class EmailChannelTest extends TestCase
             app(NotificationCustomerContactResolver::class),
             $mailSender,
             app(\App\Services\Operations\TeamMemberActivityService::class),
+            app(\App\Services\CommunicationTemplates\CommunicationTemplateRuntimeService::class),
         );
 
         $result = $channel->send($message);

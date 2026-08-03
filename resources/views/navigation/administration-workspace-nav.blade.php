@@ -3,6 +3,7 @@
 ])
 
 @php
+    use App\Models\CommunicationTemplate;
     use App\Models\CompanyHoliday;
     use App\Models\SystemSetting;
     use App\Models\User;
@@ -15,6 +16,7 @@
     $canViewSettings = Gate::check('viewAny', SystemSetting::class)
         || $user?->can('system-settings.manage');
     $canManagePlatformConfiguration = PlatformConfigurationAccess::canManage($user);
+    $canViewTemplates = Gate::check('viewAny', CommunicationTemplate::class);
 
     $tabs = [];
 
@@ -29,6 +31,13 @@
         $tabs['users_roles'] = [
             'label' => 'Users & Roles',
             'url' => route('users.index'),
+        ];
+    }
+
+    if ($canViewTemplates) {
+        $tabs['communication'] = [
+            'label' => 'Communication',
+            'url' => route('admin.communication-templates.index'),
         ];
     }
 

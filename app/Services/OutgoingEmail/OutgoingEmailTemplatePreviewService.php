@@ -3,31 +3,96 @@
 namespace App\Services\OutgoingEmail;
 
 use App\Data\NotificationMessage;
+use App\Enums\CommunicationTemplates\CommunicationTemplateGreetingStyle;
+use App\Enums\CommunicationTemplates\CommunicationTemplateSignatureMode;
+use App\Enums\CommunicationTemplates\CommunicationTemplateStatus;
 use App\Enums\NotificationType;
+use App\Models\CommunicationTemplate;
 use App\Models\Incident;
 use App\Models\IncomingEmailMessage;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\CommunicationTemplates\CommunicationTemplateRuntimeService;
+use App\Services\CommunicationTemplates\CommunicationTemplateSignatureBuilder;
+use App\Services\CommunicationTemplates\CommunicationTemplateVariableCatalog;
 use App\Services\Notifications\NotificationMailTemplateRegistry;
 use InvalidArgumentException;
 
 class OutgoingEmailTemplatePreviewService
 {
+    public function __construct(
+        private readonly CommunicationTemplateRuntimeService $runtime,
+        private readonly CommunicationTemplateVariableCatalog $variables,
+        private readonly CommunicationTemplateSignatureBuilder $signatures,
+    ) {}
+
     /**
-     * @return list<array{key: string, label: string}>
+     * @return list<array{key: string, label: string, group: string}>
      */
-    public function availableTemplates(): array
+    public function availableTemplates(?User $actor = null): array
     {
-        return [
-            ['key' => 'blank', 'label' => 'Blank (free text)'],
-            ['key' => NotificationType::RequestSerialNumber->value, 'label' => 'Request serial number'],
-            ['key' => NotificationType::CustomerWaitingFollowup->value, 'label' => 'Customer waiting follow-up'],
-            ['key' => NotificationType::CallbackSchedule->value, 'label' => 'Callback schedule'],
-            ['key' => NotificationType::SupportAppointmentBooked->value, 'label' => 'Support appointment booked'],
-            ['key' => NotificationType::ServiceCaseClosed->value, 'label' => 'Service case closed'],
-            ['key' => NotificationType::DriverInstallationGuide->value, 'label' => 'Driver installation guide'],
-            ['key' => NotificationType::RefundConfirmation->value, 'label' => 'Refund confirmation'],
+        $templates = [
+            ['key' => 'blank', 'label' => 'Blank Reply', 'group' => 'blank'],
         ];
+
+        $playbooks = CommunicationTemplate::query()
+            ->where('is_reply_playbook', true)
+            ->whereNotNull('approved_version')
+            ->where('approved_version', '>', 0)
+            ->where(function ($query) use ($actor): void {
+                $query->where('playbook_scope', 'global')
+                    ->orWhere(function ($inner) use ($actor): void {
+                        $inner->where('playbook_scope', 'personal')
+                            ->where('owner_user_id', $actor?->id);
+                    })
+                    ->orWhere(function ($inner): void {
+                        $inner->whereNull('playbook_scope')
+                            ->whereNotNull('notification_type');
+                    });
+            })
+            ->where(function ($query): void {
+                $query->where('status', CommunicationTemplateStatus::Approved->value)
+                    ->orWhereNotNull('approved_version');
+            })
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
+        foreach ($playbooks as $playbook) {
+            $group = $playbook->playbook_scope === 'personal' ? 'personal' : 'suggested';
+            $templates[] = [
+                'key' => 'playbook:'.$playbook->id,
+                'label' => $playbook->name.' ('.$playbook->category->label().')',
+                'group' => $group,
+            ];
+        }
+
+        // Legacy notification-type keys remain available as suggested playbooks when store rows exist.
+        foreach ([
+            NotificationType::RequestSerialNumber,
+            NotificationType::CustomerWaitingFollowup,
+            NotificationType::CallbackSchedule,
+            NotificationType::SupportAppointmentBooked,
+            NotificationType::ServiceCaseClosed,
+            NotificationType::DriverInstallationGuide,
+            NotificationType::RefundConfirmation,
+        ] as $type) {
+            $already = collect($templates)->contains(fn (array $row): bool => str_ends_with($row['key'], $type->value)
+                || ($row['key'] === $type->value));
+            if ($already) {
+                continue;
+            }
+            if ($this->runtime->findApprovedForNotificationType($type) === null) {
+                continue;
+            }
+            $templates[] = [
+                'key' => $type->value,
+                'label' => str_replace('_', ' ', ucfirst($type->value)),
+                'group' => 'suggested',
+            ];
+        }
+
+        return $templates;
     }
 
     /**
@@ -42,33 +107,57 @@ class OutgoingEmailTemplatePreviewService
         $templateKey = trim($templateKey);
 
         if ($templateKey === '' || $templateKey === 'blank') {
-            $subject = $this->defaultReplySubject($message);
-
             return [
-                'subject' => $subject,
-                'body_html' => '<p></p>',
+                'subject' => $this->defaultReplySubject($message),
+                'body_html' => $this->blankReplyBody($message, $actor),
                 'template_key' => 'blank',
             ];
         }
 
-        $type = NotificationType::tryFrom($templateKey);
+        if (str_starts_with($templateKey, 'playbook:')) {
+            $id = (int) substr($templateKey, strlen('playbook:'));
+            $playbook = CommunicationTemplate::query()->find($id);
+            if (! $playbook instanceof CommunicationTemplate || (int) ($playbook->approved_version ?? 0) <= 0) {
+                throw new InvalidArgumentException('Reply playbook is not approved.');
+            }
+            if ($playbook->playbook_scope === 'personal' && (int) $playbook->owner_user_id !== (int) $actor->id) {
+                throw new InvalidArgumentException('Personal playbook is not available.');
+            }
 
+            $version = $playbook->approvedVersionRecord();
+            if ($version === null) {
+                throw new InvalidArgumentException('Reply playbook version missing.');
+            }
+
+            $incident = $this->resolveIncident($message);
+            $order = $this->resolveOrder($message, $incident);
+            $variables = array_merge($this->variables->sampleMap(), $extraVariables, [
+                'customer_name' => trim((string) ($order?->customer_name ?: 'Customer')),
+                'order_id' => trim((string) ($order?->order_id ?: '')),
+                'incident_number' => trim((string) ($incident?->reference_no ?: '')),
+                'reference' => trim((string) ($incident?->reference_no ?: '')),
+                'agent_name' => $actor->name,
+                'company_name' => (string) ($actor->company_name ?: config('communication_actions.company_name', 'Radium')),
+            ]);
+
+            $rendered = $this->runtime->renderStoreVersion($version, $variables, $actor);
+
+            return [
+                'subject' => $rendered['subject'] !== '' ? $rendered['subject'] : $this->defaultReplySubject($message),
+                'body_html' => $rendered['html'],
+                'template_key' => $templateKey,
+            ];
+        }
+
+        $type = NotificationType::tryFrom($templateKey);
         if ($type === null) {
-            throw new InvalidArgumentException('Unknown reply template: '.$templateKey);
+            throw new InvalidArgumentException('Unknown reply playbook: '.$templateKey);
         }
 
         $incident = $this->resolveIncident($message);
         $order = $this->resolveOrder($message, $incident);
-
         if ($incident === null || $order === null) {
             throw new InvalidArgumentException('Template replies require a linked incident and order.');
-        }
-
-        $registry = app(NotificationMailTemplateRegistry::class);
-        $definition = $registry->resolve($type);
-
-        if ($definition === null) {
-            throw new InvalidArgumentException('Template is not registered: '.$templateKey);
         }
 
         $notification = new NotificationMessage(
@@ -79,13 +168,11 @@ class OutgoingEmailTemplatePreviewService
             actor: $actor,
         );
 
-        $variables = $registry->variablesFor($notification);
-        $subject = $registry->subjectFor($type, $notification);
-        $bodyHtml = view($definition->view, $variables)->render();
+        $rendered = $this->runtime->renderNotificationMessage($notification);
 
         return [
-            'subject' => $subject !== '' ? $subject : $this->defaultReplySubject($message),
-            'body_html' => $bodyHtml,
+            'subject' => $rendered['subject'] !== '' ? $rendered['subject'] : $this->defaultReplySubject($message),
+            'body_html' => $rendered['html'],
             'template_key' => $type->value,
         ];
     }
@@ -103,6 +190,36 @@ class OutgoingEmailTemplatePreviewService
         }
 
         return 'Re: '.$subject;
+    }
+
+    private function blankReplyBody(IncomingEmailMessage $message, User $actor): string
+    {
+        $order = $this->resolveOrder($message, $this->resolveIncident($message));
+        $variables = [
+            'customer_name' => trim((string) ($order?->customer_name ?: 'Customer')),
+            'agent_name' => $actor->name,
+            'company_name' => (string) ($actor->company_name ?: config('communication_actions.company_name', 'Radium')),
+        ];
+
+        $greeting = $this->signatures->resolveGreeting(
+            CommunicationTemplateGreetingStyle::CompanyDefault,
+            $actor,
+            $variables,
+        );
+
+        $parts = [];
+        $greetingText = $greeting->render($variables);
+        if ($greetingText !== '') {
+            $parts[] = '<p>'.e($greetingText).'</p>';
+        }
+        $parts[] = '<p></p>';
+        $parts[] = $this->signatures->render(
+            CommunicationTemplateSignatureMode::UserSignature,
+            $actor,
+            $variables['company_name'],
+        );
+
+        return implode("\n", $parts);
     }
 
     private function resolveIncident(IncomingEmailMessage $message): ?Incident
