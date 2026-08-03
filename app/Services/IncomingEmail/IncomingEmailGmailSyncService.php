@@ -7,6 +7,7 @@ use App\Enums\IncomingEmailMessageStatus;
 use App\Models\GmailMailboxSyncState;
 use App\Services\IncomingEmail\Gmail\GmailSyncMetricsService;
 use App\Services\IncomingEmail\Providers\GmailInboundEmailProvider;
+use App\Services\Operations\OperationsGmailHealthService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -24,6 +25,7 @@ class IncomingEmailGmailSyncService
         private readonly GmailInboundEmailProvider $gmailProvider,
         private readonly IncomingEmailIngestService $ingestService,
         private readonly GmailSyncMetricsService $metrics,
+        private readonly OperationsGmailHealthService $gmailHealth,
     ) {}
 
     /**
@@ -93,9 +95,11 @@ class IncomingEmailGmailSyncService
                 $messagesRetried += $stats['retried'];
                 $historyPages += $stats['pages'];
                 $cursorAdvances += $stats['cursor_advances'];
+                $this->gmailHealth->invalidateCachedHealth();
             } catch (Throwable $exception) {
                 $failedMailboxes++;
                 $provider->recordError($exception->getMessage());
+                $this->gmailHealth->invalidateCachedHealth();
 
                 Log::error('[GmailInbound] Sync failed for mailbox.', [
                     'mailbox' => $mailbox,

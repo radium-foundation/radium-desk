@@ -241,6 +241,7 @@ class GmailInboundEmailProvider implements InboundEmailProvider
             'last_synced_at' => now(),
             'last_error' => null,
             'consecutive_failures' => 0,
+            'oauth_status' => 'ok',
         ];
 
         if ($profileHistoryId !== null) {
@@ -262,11 +263,14 @@ class GmailInboundEmailProvider implements InboundEmailProvider
             return;
         }
 
+        $oauthStatus = $this->inferOauthStatusFromError($message);
+
         GmailMailboxSyncState::query()
             ->where('mailbox', $this->mailbox)
             ->update([
                 'last_error' => mb_substr($message, 0, 1000),
                 'last_attempted_at' => now(),
+                'oauth_status' => $oauthStatus,
             ]);
 
         GmailMailboxSyncState::query()
@@ -289,20 +293,32 @@ class GmailInboundEmailProvider implements InboundEmailProvider
             return;
         }
 
+        $payload = [
+            'messages_processed_last_run' => $processed,
+            'messages_skipped_last_run' => $skipped,
+            'messages_retried_last_run' => $retried,
+            'messages_failed_last_run' => $failed,
+            'history_pages_last_run' => $pages,
+            'cursor_advances_last_run' => $cursorAdvances,
+            'last_sync_duration_ms' => $durationMs,
+            'last_response_latency_ms' => $latencyMs,
+            'oauth_status' => $oauthStatus,
+            'last_attempted_at' => now(),
+        ];
+
+        // Successful mailbox completion (oauth ok) clears active health failure.
+        // Per-message fetch failures are tracked separately and may yield Warning,
+        // but must not keep historical OAuth/auth errors as the active health state.
+        // Historical failures remain in gmail_sync_message_failures / diagnostics.
+        if ($oauthStatus === 'ok') {
+            $payload['last_error'] = null;
+            $payload['consecutive_failures'] = 0;
+            $payload['last_synced_at'] = now();
+        }
+
         GmailMailboxSyncState::query()
             ->where('mailbox', $this->mailbox)
-            ->update([
-                'messages_processed_last_run' => $processed,
-                'messages_skipped_last_run' => $skipped,
-                'messages_retried_last_run' => $retried,
-                'messages_failed_last_run' => $failed,
-                'history_pages_last_run' => $pages,
-                'cursor_advances_last_run' => $cursorAdvances,
-                'last_sync_duration_ms' => $durationMs,
-                'last_response_latency_ms' => $latencyMs,
-                'oauth_status' => $oauthStatus,
-                'last_attempted_at' => now(),
-            ]);
+            ->update($payload);
     }
 
     /**
@@ -421,6 +437,7 @@ class GmailInboundEmailProvider implements InboundEmailProvider
             'last_synced_at' => now(),
             'last_error' => null,
             'consecutive_failures' => 0,
+            'oauth_status' => 'ok',
         ];
 
         if ($profileHistoryId !== null && $profileHistoryId !== '') {
@@ -430,6 +447,20 @@ class GmailInboundEmailProvider implements InboundEmailProvider
         GmailMailboxSyncState::query()
             ->where('mailbox', $this->mailbox)
             ->update($payload);
+    }
+
+    private function inferOauthStatusFromError(string $message): string
+    {
+        $lower = strtolower($message);
+
+        return match (true) {
+            str_contains($lower, 'invalid_grant') => 'invalid_grant',
+            str_contains($lower, 'unauthorized_client') => 'unauthorized_client',
+            str_contains($lower, 'invalid_scope') => 'invalid_scope',
+            str_contains($lower, 'access_denied') => 'access_denied',
+            str_contains($lower, 'oauth') || str_contains($lower, 'token') => 'auth_error',
+            default => 'error',
+        };
     }
 
     /**

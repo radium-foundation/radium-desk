@@ -12,14 +12,12 @@ use App\Listeners\BroadcastNotificationCreated;
 use App\Listeners\Finance\PostOrderPaidJournal;
 use App\Listeners\Finance\PostRefundCompletedJournal;
 use App\Listeners\Operations\DispatchIraSmartAssignmentNotification;
-use App\Models\CommunicationTemplate;
 use App\Models\DeviceModel;
 use App\Models\Order;
 use App\Models\SettingProduct;
 use App\Models\SettingSource;
 use App\Models\SystemSetting;
 use App\Models\User;
-use App\Policies\CommunicationTemplatePolicy;
 use App\Policies\DashboardPolicy;
 use App\Policies\TeamActivityPolicy;
 use App\Policies\Workforce360Policy;
@@ -284,7 +282,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SettingSource::class, SettingPolicy::class);
         Gate::policy(DeviceModel::class, SettingPolicy::class);
         Gate::policy(SystemSetting::class, SystemSettingPolicy::class);
-        Gate::policy(CommunicationTemplate::class, CommunicationTemplatePolicy::class);
 
         Paginator::useBootstrapFive();
 

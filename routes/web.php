@@ -375,38 +375,6 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/admin/administration', AdministrationHomeController::class)
         ->name('admin.administration.index');
 
-    Route::prefix('/admin/communication/templates')->name('admin.communication-templates.')->group(function () {
-        Route::get('/', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'index'])
-            ->name('index');
-        Route::get('/create', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'create'])
-            ->name('create');
-        Route::post('/', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'store'])
-            ->name('store');
-        Route::post('/import-blade', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'importBlade'])
-            ->name('import-blade');
-        Route::get('/{communication_template}', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'show'])
-            ->name('show');
-        Route::get('/{communication_template}/edit', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'edit'])
-            ->name('edit');
-        Route::put('/{communication_template}', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'update'])
-            ->name('update');
-        Route::get('/{communication_template}/compare', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'compare'])
-            ->name('compare');
-        Route::post('/{communication_template}/preview', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'preview'])
-            ->name('preview');
-        Route::post('/{communication_template}/approve', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'approve'])
-            ->name('approve');
-        Route::post('/{communication_template}/deprecate', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'deprecate'])
-            ->name('deprecate');
-        Route::post('/{communication_template}/rollback', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'rollback'])
-            ->name('rollback');
-        Route::post('/{communication_template}/test-send', [\App\Http\Controllers\Administration\CommunicationTemplateController::class, 'testSend'])
-            ->name('test-send');
-    });
-
-    Route::get('/admin/communication/health', \App\Http\Controllers\Administration\CommunicationHealthController::class)
-        ->name('admin.communication-health.index');
-
     Route::post('/admin/gmail/sync-now', [GmailAdminActionsController::class, 'syncNow'])
         ->name('admin.gmail.sync-now');
     Route::post('/admin/gmail/rebaseline', [GmailAdminActionsController::class, 'rebaseline'])

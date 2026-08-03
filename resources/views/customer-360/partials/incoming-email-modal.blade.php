@@ -26,7 +26,7 @@
                 <div class="border-top mt-3 pt-3" data-incoming-email-reply-panel hidden>
                     <h3 class="h6 mb-2">Reply</h3>
                     <div class="mb-2">
-                        <label class="form-label small mb-1" for="incomingEmailReplyTemplate">Reply Playbook</label>
+                        <label class="form-label small mb-1" for="incomingEmailReplyTemplate">Template</label>
                         <select id="incomingEmailReplyTemplate"
                                 class="form-select form-select-sm"
                                 data-incoming-email-reply-template></select>

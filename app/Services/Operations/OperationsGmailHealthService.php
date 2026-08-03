@@ -7,7 +7,10 @@ use App\Models\GmailMailboxSyncState;
 use App\Models\GmailSyncMessageFailure;
 use App\Models\IncomingEmailMessage;
 use App\Services\IncomingEmail\Gmail\GmailSyncMetricsService;
+use App\Services\Platform\PlatformCacheInvalidator;
+use App\Services\Platform\PlatformCachePolicy;
 use App\Services\Platform\PlatformHealthCache;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -47,6 +50,7 @@ class OperationsGmailHealthService
         $cursorLag = $state?->cursorLag();
         $processedToday = $this->messagesProcessedToday();
         $failedToday = max($today['failed'], $this->failuresToday($mailbox));
+        $activeError = $this->activeError($state);
 
         return [
             'key' => 'gmail',
@@ -55,7 +59,7 @@ class OperationsGmailHealthService
             'status' => $status->value,
             'status_label' => $status->label(),
             'badge_class' => $status->badgeClass(),
-            'detail' => $this->detail($status, $state, $failedToday, $cursorLag),
+            'detail' => $this->detail($status, $state, (int) ($state?->messages_failed_last_run ?? 0), $cursorLag),
             'overall_status' => $status->label(),
             'last_successful_sync_at' => $state?->last_synced_at,
             'last_attempted_sync_at' => $state?->last_attempted_at ?? $state?->updated_at,
@@ -67,7 +71,8 @@ class OperationsGmailHealthService
             'messages_failed_today' => $failedToday,
             'messages_skipped_today' => $today['skipped'] + (int) ($state?->messages_skipped_last_run ?? 0),
             'retry_count_today' => $today['retried'],
-            'last_error' => $state?->last_error,
+            // Active error only — historical failures live in recent_failures diagnostics.
+            'last_error' => $activeError,
             'response_latency_ms' => $state?->last_response_latency_ms,
             'oauth_status' => $oauthStatus,
             'scheduler_running' => $schedulerRunning,
@@ -108,6 +113,9 @@ class OperationsGmailHealthService
     }
 
     /**
+     * Health is derived from the latest mailbox sync outcome only.
+     * Historical message failures remain visible via diagnostics (recent_failures / today counts).
+     *
      * @param  array{failed: int, skipped: int, processed: int, retried: int, cursor_advances: int}  $today
      */
     public function resolveStatus(?GmailMailboxSyncState $state, array $today = []): OperationsHealthStatus
@@ -124,11 +132,14 @@ class OperationsGmailHealthService
             return OperationsHealthStatus::Warning;
         }
 
-        if (filled($state->last_error) || (int) $state->consecutive_failures >= 3) {
+        // Active failure: latest run left an error or repeated consecutive failures.
+        // Successful runs must clear last_error / consecutive_failures.
+        if ($this->activeError($state) !== null || (int) $state->consecutive_failures >= 3) {
             return OperationsHealthStatus::Failed;
         }
 
-        if (($today['failed'] ?? 0) > 0 || (int) $state->messages_failed_last_run > 0) {
+        // Latest run completed with per-message fetch failures, but mailbox auth/sync worked.
+        if ((int) $state->messages_failed_last_run > 0) {
             return OperationsHealthStatus::Warning;
         }
 
@@ -141,6 +152,23 @@ class OperationsGmailHealthService
         }
 
         return OperationsHealthStatus::Healthy;
+    }
+
+    /**
+     * Drop cached Platform/Operations Gmail health so UI reflects the latest sync immediately.
+     */
+    public function invalidateCachedHealth(): void
+    {
+        Cache::forget(PlatformCachePolicy::KEY_INTEGRATION_ITEM_PREFIX.'gmail');
+        Cache::forget(PlatformCachePolicy::KEY_INTEGRATION_OVERVIEW);
+        Cache::forget(PlatformCachePolicy::KEY_OVERALL_HEALTH);
+
+        try {
+            app(PlatformCacheInvalidator::class)
+                ->markZoneStale(\App\Enums\PlatformZoneId::IntegrationHealth->value);
+        } catch (\Throwable) {
+            // Best-effort: health calculation must not fail the sync path.
+        }
     }
 
     /**
@@ -166,7 +194,7 @@ class OperationsGmailHealthService
     private function detail(
         OperationsHealthStatus $status,
         ?GmailMailboxSyncState $state,
-        int $failedToday,
+        int $failedLastRun,
         ?int $cursorLag,
     ): string {
         return match ($status) {
@@ -176,18 +204,33 @@ class OperationsGmailHealthService
             OperationsHealthStatus::Failed => filled($state?->last_error)
                 ? 'Gmail sync error: '.mb_substr((string) $state->last_error, 0, 160)
                 : 'Gmail sync is failing.',
-            OperationsHealthStatus::Warning => $failedToday > 0
-                ? sprintf('%d message fetch failure(s) today; sync continues.', $failedToday)
+            OperationsHealthStatus::Warning => $failedLastRun > 0
+                ? sprintf('%d message fetch failure(s) in the latest run; sync continues.', $failedLastRun)
                 : ($cursorLag !== null && $cursorLag > 1000
                     ? sprintf('Cursor lag is %s history ticks.', number_format($cursorLag))
                     : 'Gmail sync needs attention.'),
         };
     }
 
+    /**
+     * Active mailbox error for the latest run. Cleared on successful sync;
+     * historical failures remain in recent_failures diagnostics.
+     */
+    private function activeError(?GmailMailboxSyncState $state): ?string
+    {
+        if ($state === null || ! filled($state->last_error)) {
+            return null;
+        }
+
+        return (string) $state->last_error;
+    }
+
     private function oauthStatus(?GmailMailboxSyncState $state): string
     {
-        if ($state?->oauth_status) {
-            return (string) $state->oauth_status;
+        if ($this->activeError($state) !== null) {
+            return filled($state?->oauth_status)
+                ? (string) $state->oauth_status
+                : 'error';
         }
 
         $credentials = trim((string) config('inbound_email.gmail.service_account_json', ''));
@@ -202,7 +245,11 @@ class OperationsGmailHealthService
             return 'missing_credentials';
         }
 
-        return 'ok';
+        $status = (string) ($state?->oauth_status ?? 'ok');
+
+        return in_array($status, ['error', 'auth_error', 'invalid_grant', 'unauthorized_client', 'invalid_scope', 'access_denied'], true)
+            ? 'ok'
+            : ($status !== '' ? $status : 'ok');
     }
 
     private function queueHealthy(): bool
