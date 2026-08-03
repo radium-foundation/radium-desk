@@ -2,6 +2,7 @@
     'lastUpdated' => null,
     'environment' => null,
     'compact' => false,
+    'showAudit' => true,
 ])
 
 <header class="system-settings-header @if($compact) system-settings-header--compact @endif" data-system-settings-header>
@@ -44,14 +45,16 @@
                 </span>
             @endif
 
-            <button type="button"
-                    class="btn btn-sm btn-outline-secondary"
-                    data-system-settings-audit-open
-                    aria-controls="system-settings-audit-drawer"
-                    aria-expanded="false">
-                <x-settings-center.icon name="clock" class="settings-center-icon settings-center-icon--sm" />
-                <span class="d-none d-md-inline">Audit History</span>
-            </button>
+            @if($showAudit)
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-system-settings-audit-open
+                        aria-controls="system-settings-audit-drawer"
+                        aria-expanded="false">
+                    <x-settings-center.icon name="clock" class="settings-center-icon settings-center-icon--sm" />
+                    <span class="d-none d-md-inline">Audit History</span>
+                </button>
+            @endif
 
             <button type="button"
                     class="btn btn-sm btn-outline-secondary"

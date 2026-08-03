@@ -23,6 +23,7 @@ use App\Policies\TeamActivityPolicy;
 use App\Policies\Workforce360Policy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
+use App\Support\Administration\PlatformConfigurationAccess;
 use App\Services\AI\Providers\NullAIProvider;
 use App\Services\Customer360\Intelligence\NullCaseIntelligenceLanguageEnhancer;
 use App\Services\MissingSerial\MissingSerialAutomationService;
@@ -265,6 +266,10 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::define('viewDashboardHardware', fn (User $user): bool => app(DashboardPolicy::class)->viewHardware($user));
         Gate::define('teamActivity.view', fn (User $user): bool => app(TeamActivityPolicy::class)->view($user));
+        Gate::define(
+            'managePlatformConfiguration',
+            fn (?User $user): bool => PlatformConfigurationAccess::canManage($user),
+        );
 
         $workforce360Policy = Workforce360Policy::class;
         Gate::define('workforce360.viewTeam', fn (User $user): bool => app($workforce360Policy)->viewTeam($user));

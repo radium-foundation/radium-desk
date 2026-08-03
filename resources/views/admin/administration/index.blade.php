@@ -24,14 +24,17 @@
               <div class="card-body">
                   <p class="text-muted mb-3">
                       Platform is Mission Control for live health, alerts, and diagnostics.
-                      System Settings is for configuration only.
+                      Operational Settings is for day-to-day Desk behaviour.
                   </p>
                   <div class="d-flex flex-wrap gap-2">
                       @can('platform-dashboard.view')
                           <a href="{{ $systemHealthSummary['platform_url'] }}" class="btn btn-sm btn-primary">Open Platform Dashboard</a>
                           <a href="{{ $systemHealthSummary['platform_integrations_url'] }}" class="btn btn-sm btn-outline-primary">Open Integration Health</a>
                       @endcan
-                      <a href="{{ $systemHealthSummary['settings_url'] }}" class="btn btn-sm btn-outline-secondary">Open System Settings</a>
+                      <a href="{{ $systemHealthSummary['settings_url'] }}" class="btn btn-sm btn-outline-secondary">Open Operational Settings</a>
+                      @can('managePlatformConfiguration')
+                          <a href="{{ route('admin.platform-configuration.index') }}" class="btn btn-sm btn-outline-secondary">Open Platform Configuration</a>
+                      @endcan
                   </div>
               </div>
           </div>

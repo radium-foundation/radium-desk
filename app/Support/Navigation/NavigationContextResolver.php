@@ -78,6 +78,9 @@ class NavigationContextResolver
             Gate::check('viewAny', RefundRequest::class)
                 ? $this->sidebarItem('operations.refunds', 'Refunds', 'bi-currency-exchange', route('refunds.index'), $context)
                 : null,
+            ($user?->can(RolePermissionSeeder::PERMISSION_CASHBOOK_VIEW) ?? false)
+                ? $this->sidebarItem('operations.cash_book', 'Cash Book', 'bi-journal-text', route('cash-book.index'), $context)
+                : null,
         ]));
 
         $missionControlHomeUrl = $this->resolveMenuHomeUrl($request, NavigationMenu::MissionControl);
@@ -302,6 +305,10 @@ class NavigationContextResolver
 
         if ($request->routeIs('refunds.*')) {
             return [NavigationMenu::Operations, 'operations.refunds', null];
+        }
+
+        if ($request->routeIs('cash-book.*')) {
+            return [NavigationMenu::Operations, 'operations.cash_book', null];
         }
 
         if ($request->routeIs('my-workforce.*')) {

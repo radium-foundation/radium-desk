@@ -73,9 +73,11 @@
                     data-url="{{ route('admin.system-settings.realtime.reset-status') }}">
                 Reset Status
             </button>
-            <a href="{{ route('admin.platform.index') }}" class="btn btn-sm btn-outline-secondary">
-                Open Platform monitoring
-            </a>
+            @if($showPlatformLinks ?? true)
+                <a href="{{ route('admin.platform.index') }}" class="btn btn-sm btn-outline-secondary">
+                    Open Platform monitoring
+                </a>
+            @endif
         </div>
         <div class="small mt-2 d-none" data-realtime-admin-message aria-live="polite"></div>
     </x-system-settings.card>

@@ -63,10 +63,17 @@ class PerformanceSystemSettingsTest extends TestCase
             ->assertSee('Performance')
             ->assertSee('Performance Profile')
             ->assertSee('Custom Polling Intervals')
+            ->assertSee('Balanced');
+
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        $this->actingAs($superadmin)
+            ->get(route('admin.platform-configuration.index'))
+            ->assertOk()
             ->assertSee('Hybrid Realtime')
             ->assertSee('Environment')
-            ->assertSee('Reference Number')
-            ->assertSee('Balanced');
+            ->assertSee('Reference Number');
     }
 
     public function test_selecting_high_performance_profile_updates_polling_values(): void

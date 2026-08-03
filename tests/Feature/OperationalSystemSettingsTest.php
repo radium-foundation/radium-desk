@@ -78,36 +78,26 @@ class OperationalSystemSettingsTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.system-settings.index'))
             ->assertOk()
-            ->assertSee('System Settings')
-            ->assertSee('Configuration Overview')
-            ->assertSee('Cashfree')
-            ->assertSee('Gmail')
-            ->assertSee('Telegram')
-            ->assertSee('Interakt')
-            ->assertSee('Meta')
-            ->assertSee('SMTP')
-            ->assertSee('Environment')
-            ->assertSee('Version / build')
-            ->assertSee('Last configuration change')
-            ->assertSee('Open audit history')
-            ->assertSee('Open Platform monitoring')
+            ->assertSee('Operational Settings')
+            ->assertSee('Operational Center')
             ->assertSee('Performance')
             ->assertSee('WhatsApp notifications')
             ->assertSee('Email notifications')
             ->assertSee('Desktop notifications')
             ->assertSee('Telegram notifications')
-            ->assertSee('WhatsApp API')
-            ->assertSee('Debug mode')
-            ->assertSee('Hybrid Realtime')
-            ->assertSee('Reference Number');
+            ->assertDontSee('Configuration Overview')
+            ->assertDontSee('Cashfree')
+            ->assertDontSee('Debug mode')
+            ->assertDontSee('Hybrid Realtime');
     }
 
     public function test_overview_no_longer_duplicates_platform_runtime_monitoring_widgets(): void
     {
-        $admin = $this->createAdmin();
+        $superadmin = User::factory()->create();
+        $superadmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
-        $html = $this->actingAs($admin)
-            ->get(route('admin.system-settings.index'))
+        $html = $this->actingAs($superadmin)
+            ->get(route('admin.platform-configuration.index'))
             ->assertOk()
             ->getContent();
 

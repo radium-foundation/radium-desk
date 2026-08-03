@@ -9,6 +9,7 @@ use App\Services\Performance\PerformanceHealthService;
 use App\Services\Performance\PerformanceSettingsService;
 use App\Services\Realtime\RealtimeSettingsService;
 use App\Services\SystemSettingsService;
+use App\Support\Administration\PlatformConfigurationAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -30,21 +31,14 @@ class OperationalSystemSettingsController extends Controller
 
     public function index(): View
     {
-        $groupedSettings = $this->systemSettingsService->groupedForAdmin(['performance', 'realtime']);
+        return $this->renderSettingsPage(surface: 'operational');
+    }
 
-        return view('admin.system-settings.index', [
-            'categories' => config('system_settings.categories', []),
-            'groupedSettings' => $groupedSettings,
-            'performanceProfiles' => $this->performanceSettingsService->profiles(),
-            'performanceProfile' => $this->performanceSettingsService->currentProfile(),
-            'performancePollingSettings' => $this->performanceSettingsService->pollingSettingsForAdmin(),
-            'performanceHybridRealtimeSettings' => $this->performanceSettingsService->hybridRealtimeSettingsForAdmin(),
-            'performanceNotificationSettings' => $this->performanceSettingsService->notificationSettingsForAdmin(),
-            'performanceHealth' => $this->performanceHealthService->snapshot(),
-            'realtimeSettings' => $this->realtimeSettingsService->settingsForAdmin(),
-            'realtimeHealth' => $this->realtimeSettingsService->healthSnapshot(),
-            'configurationHealth' => $this->configurationHealthSummaryService->summary(),
-        ]);
+    public function platformConfiguration(): View
+    {
+        abort_unless(PlatformConfigurationAccess::canManage(request()->user()), 403);
+
+        return $this->renderSettingsPage(surface: 'platform');
     }
 
     public function update(UpdateOperationalSystemSettingsRequest $request): RedirectResponse
@@ -60,8 +54,35 @@ class OperationalSystemSettingsController extends Controller
             $request->user(),
         );
 
+        $redirectRoute = PlatformConfigurationAccess::canManage($request->user())
+            && $request->input('_settings_surface') === 'platform'
+            ? 'admin.platform-configuration.index'
+            : 'admin.system-settings.index';
+
         return redirect()
-            ->route('admin.system-settings.index')
+            ->route($redirectRoute)
             ->with('status', 'operational-system-settings-updated');
+    }
+
+    private function renderSettingsPage(string $surface): View
+    {
+        $canManagePlatformConfiguration = PlatformConfigurationAccess::canManage(request()->user());
+        $groupedSettings = $this->systemSettingsService->groupedForAdmin(['performance', 'realtime']);
+
+        return view('admin.system-settings.index', [
+            'settingsSurface' => $surface,
+            'canManagePlatformConfiguration' => $canManagePlatformConfiguration,
+            'categories' => config('system_settings.categories', []),
+            'groupedSettings' => $groupedSettings,
+            'performanceProfiles' => $this->performanceSettingsService->profiles(),
+            'performanceProfile' => $this->performanceSettingsService->currentProfile(),
+            'performancePollingSettings' => $this->performanceSettingsService->pollingSettingsForAdmin(),
+            'performanceHybridRealtimeSettings' => $this->performanceSettingsService->hybridRealtimeSettingsForAdmin(),
+            'performanceNotificationSettings' => $this->performanceSettingsService->notificationSettingsForAdmin(),
+            'performanceHealth' => $this->performanceHealthService->snapshot(),
+            'realtimeSettings' => $this->realtimeSettingsService->settingsForAdmin(),
+            'realtimeHealth' => $this->realtimeSettingsService->healthSnapshot(),
+            'configurationHealth' => $this->configurationHealthSummaryService->summary(),
+        ]);
     }
 }

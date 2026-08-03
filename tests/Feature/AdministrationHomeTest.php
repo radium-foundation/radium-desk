@@ -66,8 +66,9 @@ class AdministrationHomeTest extends TestCase
             ->assertSee('Administration')
             ->assertSee('aria-label="Administration workspace"', false)
             ->assertSee('Users &amp; Roles', false)
-            ->assertSee('Settings', false)
+            ->assertSee('Operational Settings', false)
             ->assertSee('Holiday Calendar', false)
+            ->assertDontSee('Platform Configuration', false)
             ->assertDontSee('API Health', false)
             ->assertDontSee('Application Settings', false);
     }
@@ -79,7 +80,8 @@ class AdministrationHomeTest extends TestCase
         $this->actingAs($superadmin)
             ->get(route('admin.administration.index'))
             ->assertOk()
-            ->assertSee('Settings', false);
+            ->assertSee('Operational Settings', false)
+            ->assertSee('Platform Configuration', false);
     }
 
     public function test_administration_workspace_tabs_link_to_existing_routes(): void
@@ -119,9 +121,11 @@ class AdministrationHomeTest extends TestCase
             ->assertOk()
             ->assertSee('Observe or configure', false)
             ->assertSee('Open Platform Dashboard', false)
-            ->assertSee('Open System Settings', false)
+            ->assertSee('Open Operational Settings', false)
+            ->assertSee('Open Platform Configuration', false)
             ->assertSee(route('admin.platform.index'), false)
             ->assertSee(route('admin.system-settings.index'), false)
+            ->assertSee(route('admin.platform-configuration.index'), false)
             ->assertDontSee('Platform Status', false)
             ->assertDontSee('Integration Status', false)
             ->assertDontSee('Gmail Health', false)

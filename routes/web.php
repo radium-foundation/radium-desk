@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\AutomationHealthController;
 use App\Http\Controllers\AutomationOperationsController;
 use App\Http\Controllers\BonvoiceClickToCallController;
+use App\Http\Controllers\CashBook\CashBookController;
 use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\CompanyHolidayController;
@@ -217,6 +218,15 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::post('refunds/{refund}/complete', [RefundRequestController::class, 'complete'])->name('refunds.complete');
     Route::resource('refunds', RefundRequestController::class)->except(['edit', 'update']);
 
+    Route::prefix('cash-book')->name('cash-book.')->group(function () {
+        Route::get('/', [CashBookController::class, 'index'])->name('index');
+        Route::get('/create', [CashBookController::class, 'create'])->name('create');
+        Route::post('/', [CashBookController::class, 'store'])->name('store');
+        Route::get('/{cashBookEntry}/edit', [CashBookController::class, 'edit'])->name('edit');
+        Route::put('/{cashBookEntry}', [CashBookController::class, 'update'])->name('update');
+        Route::delete('/{cashBookEntry}', [CashBookController::class, 'destroy'])->name('destroy');
+    });
+
     Route::get('approvals/{approval}/incidents/lookup', [ApprovalNumberController::class, 'lookupIncidents'])
         ->name('approvals.incidents.lookup');
     Route::post('approvals/{approval}/incidents', [ApprovalNumberController::class, 'linkIncidents'])
@@ -364,6 +374,8 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');
+    Route::get('/admin/platform-configuration', [OperationalSystemSettingsController::class, 'platformConfiguration'])
+        ->name('admin.platform-configuration.index');
     Route::put('/admin/system-settings', [OperationalSystemSettingsController::class, 'update'])
         ->name('admin.system-settings.update');
     Route::post('/admin/system-settings/realtime/test', [RealtimeAdminActionsController::class, 'test'])

@@ -11,6 +11,7 @@ enum FinanceJournalSourceType: string
     case ManualAdjustment = 'manual_adjustment';
     case CashDeposit = 'cash_deposit';
     case BankTransfer = 'bank_transfer';
+    case CashBook = 'cash_book';
 
     public function label(): string
     {
@@ -22,6 +23,7 @@ enum FinanceJournalSourceType: string
             self::ManualAdjustment => 'Manual Adjustment',
             self::CashDeposit => 'Cash Deposit',
             self::BankTransfer => 'Bank Transfer',
+            self::CashBook => 'Cash Book',
         };
     }
 }

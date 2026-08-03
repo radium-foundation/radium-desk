@@ -260,7 +260,7 @@ class FourMenuNavigationTest extends TestCase
             ->assertSee(route('admin.workforce.holidays.index'), false)
             ->assertSee('Holiday Calendar', false)
             ->assertSee('Users &amp; Roles', false)
-            ->assertSee('Settings', false);
+            ->assertSee('Operational Settings', false);
 
         $html = $this->actingAs($admin)
             ->get(route('admin.workforce.holidays.index'))

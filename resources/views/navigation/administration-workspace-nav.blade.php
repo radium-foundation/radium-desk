@@ -6,6 +6,7 @@
     use App\Models\CompanyHoliday;
     use App\Models\SystemSetting;
     use App\Models\User;
+    use App\Support\Administration\PlatformConfigurationAccess;
     use Database\Seeders\RolePermissionSeeder;
     use Illuminate\Support\Facades\Gate;
 
@@ -13,6 +14,7 @@
     $isAdminTeam = $user?->hasAnyRole(RolePermissionSeeder::ADMIN_TEAM_ROLES) ?? false;
     $canViewSettings = Gate::check('viewAny', SystemSetting::class)
         || $user?->can('system-settings.manage');
+    $canManagePlatformConfiguration = PlatformConfigurationAccess::canManage($user);
 
     $tabs = [];
 
@@ -31,8 +33,8 @@
     }
 
     if ($canViewSettings) {
-        $tabs['settings'] = [
-            'label' => 'Settings',
+        $tabs['operational_settings'] = [
+            'label' => 'Operational Settings',
             'url' => route('admin.system-settings.index'),
         ];
     }
@@ -43,6 +45,13 @@
             'url' => route('admin.workforce.holidays.index'),
         ];
     }
+
+    if ($canManagePlatformConfiguration) {
+        $tabs['platform_configuration'] = [
+            'label' => 'Platform Configuration',
+            'url' => route('admin.platform-configuration.index'),
+        ];
+    }
 @endphp
 
 @if(count($tabs) > 1)
@@ -51,9 +60,9 @@
             @foreach($tabs as $key => $tab)
                 <li class="nav-item" role="presentation">
                     <a
-                        @class(['nav-link', 'active' => $active === $key])
+                        @class(['nav-link', 'active' => $active === $key || ($active === 'settings' && $key === 'operational_settings')])
                         href="{{ $tab['url'] }}"
-                        @if($active === $key) aria-current="page" @endif
+                        @if($active === $key || ($active === 'settings' && $key === 'operational_settings')) aria-current="page" @endif
                     >
                         {{ $tab['label'] }}
                     </a>

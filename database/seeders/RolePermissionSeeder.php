@@ -58,11 +58,20 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_FINANCE_SETTINGS_VIEW = 'finance.settings.view';
 
+    public const PERMISSION_CASHBOOK_VIEW = 'cashbook.view';
+
+    public const PERMISSION_CASHBOOK_CREATE = 'cashbook.create';
+
+    public const PERMISSION_CASHBOOK_MANAGE = 'cashbook.manage';
+
     /**
      * @var list<string>
      */
     public const DIRECT_ASSIGNABLE_PERMISSIONS = [
         self::PERMISSION_CORRECT_ORDER_IDENTITY,
+        self::PERMISSION_CASHBOOK_VIEW,
+        self::PERMISSION_CASHBOOK_CREATE,
+        self::PERMISSION_CASHBOOK_MANAGE,
     ];
 
     /**
@@ -137,6 +146,8 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
         ],
         self::ROLE_SUPPORT_SPECIALIST => [
             'orders.view',
@@ -152,6 +163,8 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
         ],
         self::ROLE_CUSTOMER_COORDINATOR => [
             'orders.view',
@@ -167,6 +180,8 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
         ],
         self::ROLE_ESCALATION_SPECIALIST => [
             'orders.view',
@@ -182,6 +197,8 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
         ],
         self::ROLE_HARDWARE_TEAM => [
             'dashboard.hardware.view',
@@ -195,12 +212,16 @@ class RolePermissionSeeder extends Seeder
             'leave-requests.create',
             'workforce.view',
             'workforce.self',
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
         ],
         // Non-support staff: own attendance + leave only (profile/notifications are auth-gated).
         self::ROLE_EMPLOYEE => [
             'leave-requests.view',
             'leave-requests.create',
             'workforce.self',
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
         ],
         self::ROLE_ADMIN => [
             'dashboard.hardware.view',
@@ -236,6 +257,9 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             'workforce.recognition.view',
             self::PERMISSION_FINANCE_VIEW,
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
+            self::PERMISSION_CASHBOOK_MANAGE,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -274,6 +298,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.recognition.review',
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_FINANCE_VIEW,
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -318,6 +344,9 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_WORKFORCE_PAYROLL_REOPEN,
             self::PERMISSION_FINANCE_VIEW,
+            self::PERMISSION_CASHBOOK_VIEW,
+            self::PERMISSION_CASHBOOK_CREATE,
+            self::PERMISSION_CASHBOOK_MANAGE,
         ],
     ];
 
