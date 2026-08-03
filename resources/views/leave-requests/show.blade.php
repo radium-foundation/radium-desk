@@ -22,6 +22,13 @@
         </div>
     </div>
 
+    @if($operationalImpact)
+        @include('leave-requests.partials.operational-impact', [
+            'impact' => $operationalImpact,
+            'leaveRequest' => $leaveRequest,
+        ])
+    @endif
+
     <div class="row g-4">
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm">
@@ -61,13 +68,23 @@
                             <h2 class="h6 mb-0">Review</h2>
                         </div>
                         <div class="card-body d-grid gap-3">
+                            @if($operationalImpact)
+                                <div @class([
+                                    'alert mb-0 py-2 small',
+                                    'alert-warning' => $operationalImpact->hasWorkload,
+                                    'alert-success' => ! $operationalImpact->hasWorkload,
+                                ])>
+                                    {{ $operationalImpact->warningMessage }}
+                                </div>
+                            @endif
+
                             <form method="POST" action="{{ route('leave-requests.approve', $leaveRequest) }}">
                                 @csrf
                                 <div class="mb-3">
                                     <label for="approve_review_notes" class="form-label">Notes (required)</label>
                                     <textarea id="approve_review_notes" name="review_notes" rows="3" class="form-control" required>{{ old('review_notes') }}</textarea>
                                 </div>
-                                <button type="submit" class="btn btn-success w-100">Approve</button>
+                                <button type="submit" class="btn btn-success w-100">Approve Leave</button>
                             </form>
 
                             <form method="POST" action="{{ route('leave-requests.reject', $leaveRequest) }}">
@@ -76,8 +93,28 @@
                                     <label for="reject_review_notes" class="form-label">Rejection notes (required)</label>
                                     <textarea id="reject_review_notes" name="review_notes" rows="3" class="form-control" required></textarea>
                                 </div>
-                                <button type="submit" class="btn btn-outline-danger w-100">Reject</button>
+                                <button type="submit" class="btn btn-outline-danger w-100">Reject Leave</button>
                             </form>
+
+                            @if($operationalImpact)
+                                <div class="d-grid gap-2 pt-1">
+                                    @if($operationalImpact->shortcuts['open_cases'] ?? null)
+                                        <a href="{{ $operationalImpact->shortcuts['open_cases'] }}" class="btn btn-sm btn-outline-secondary">
+                                            Open Assigned Cases
+                                        </a>
+                                    @endif
+                                    @if($operationalImpact->shortcuts['appointments'] ?? null)
+                                        <a href="{{ $operationalImpact->shortcuts['appointments'] }}" class="btn btn-sm btn-outline-secondary">
+                                            Open Appointments
+                                        </a>
+                                    @endif
+                                    @if($operationalImpact->shortcuts['ready_queue'] ?? null)
+                                        <a href="{{ $operationalImpact->shortcuts['ready_queue'] }}" class="btn btn-sm btn-outline-secondary">
+                                            Open Ready Queue
+                                        </a>
+                                    @endif
+                                </div>
+                            @endif
                         </div>
                     </div>
                 @endif

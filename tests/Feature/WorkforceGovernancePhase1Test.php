@@ -35,7 +35,10 @@ class WorkforceGovernancePhase1Test extends TestCase
         $this->leaveService = app(LeaveRequestService::class);
 
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
-        config(['workforce_calendar.retroactive_leave_days' => 2]);
+        config([
+            'workforce_calendar.retroactive_leave_days' => 2,
+            'workforce.leave_approver.email' => 'shipra@radiumbox.com',
+        ]);
     }
 
     protected function tearDown(): void
@@ -45,13 +48,16 @@ class WorkforceGovernancePhase1Test extends TestCase
         parent::tearDown();
     }
 
-    public function test_employee_leave_requires_operations_admin_approver(): void
+    public function test_employee_leave_requires_designated_approver(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $operationsAdmin = User::factory()->create();
-        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+        $shipra = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $shipra->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -65,18 +71,21 @@ class WorkforceGovernancePhase1Test extends TestCase
             'reason' => 'Personal leave',
         ]);
 
-        $this->assertTrue($this->leaveService->canReview($operationsAdmin, $leaveRequest));
+        $this->assertTrue($this->leaveService->canReview($shipra, $leaveRequest));
         $this->assertFalse($this->leaveService->canReview($admin, $leaveRequest));
         $this->assertFalse($this->leaveService->canReview($owner, $leaveRequest));
     }
 
-    public function test_escalation_specialist_leave_can_be_reviewed_by_operations_admin(): void
+    public function test_escalation_specialist_leave_can_be_reviewed_by_designated_approver(): void
     {
         $specialist = User::factory()->create();
         $specialist->assignRole(RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST);
 
-        $operationsAdmin = User::factory()->create();
-        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+        $shipra = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $shipra->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leaveRequest = $this->leaveService->submit($specialist, [
             'start_date' => '2026-07-10',
@@ -84,29 +93,29 @@ class WorkforceGovernancePhase1Test extends TestCase
             'reason' => 'Planned leave',
         ]);
 
-        $this->assertTrue($this->leaveService->canReview($operationsAdmin, $leaveRequest));
+        $this->assertTrue($this->leaveService->canReview($shipra, $leaveRequest));
 
-        $this->leaveService->approve($leaveRequest, $operationsAdmin, 'Approved for planned leave');
+        $this->leaveService->approve($leaveRequest, $shipra, 'Approved for planned leave');
 
         $this->assertSame(LeaveRequestStatus::Approved, $leaveRequest->fresh()->status);
     }
 
-    public function test_operations_admin_and_admin_leave_require_superadmin(): void
+    public function test_admin_leave_is_reviewable_by_designated_approver_not_superadmin_hierarchy(): void
     {
-        $operationsAdmin = User::factory()->create();
-        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+        $shipra = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $shipra->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
-        $admin = User::factory()->create();
+        $admin = User::factory()->create([
+            'email' => 'avinash@radiumbox.com',
+            'is_active' => true,
+        ]);
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $owner = User::factory()->create();
         $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
-
-        $operationsLeave = $this->leaveService->submit($operationsAdmin, [
-            'start_date' => '2026-07-15',
-            'end_date' => '2026-07-16',
-            'reason' => 'Operations leave',
-        ]);
 
         $adminLeave = $this->leaveService->submit($admin, [
             'start_date' => '2026-07-17',
@@ -114,21 +123,29 @@ class WorkforceGovernancePhase1Test extends TestCase
             'reason' => 'Admin leave',
         ]);
 
-        $this->assertFalse($this->leaveService->canReview($operationsAdmin, $operationsLeave));
-        $this->assertFalse($this->leaveService->canReview($admin, $operationsLeave));
-        $this->assertTrue($this->leaveService->canReview($owner, $operationsLeave));
-        $this->assertTrue($this->leaveService->canReview($owner, $adminLeave));
+        $this->assertTrue($this->leaveService->canReview($shipra, $adminLeave));
+        $this->assertFalse($this->leaveService->canReview($owner, $adminLeave));
+        $this->assertFalse($this->leaveService->canReview($admin, $adminLeave));
     }
 
-    public function test_self_approval_is_blocked(): void
+    public function test_self_approval_is_blocked_for_non_designated_users_but_allowed_for_leave_authority(): void
     {
-        $operationsAdmin = User::factory()->create();
-        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+        $shipra = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $shipra->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $owner = User::factory()->create();
         $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
-        $operationsLeave = $this->leaveService->submit($operationsAdmin, [
+        $admin = User::factory()->create([
+            'email' => 'avinash@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $shipraLeave = $this->leaveService->submit($shipra, [
             'start_date' => '2026-07-15',
             'end_date' => '2026-07-16',
             'reason' => 'Operations leave',
@@ -140,8 +157,15 @@ class WorkforceGovernancePhase1Test extends TestCase
             'reason' => 'Owner leave',
         ]);
 
-        $this->assertFalse($this->leaveService->canReview($operationsAdmin, $operationsLeave));
+        $adminLeave = $this->leaveService->submit($admin, [
+            'start_date' => '2026-07-22',
+            'end_date' => '2026-07-22',
+            'reason' => 'Admin leave',
+        ]);
+
+        $this->assertTrue($this->leaveService->canReview($shipra, $shipraLeave));
         $this->assertFalse($this->leaveService->canReview($owner, $ownerLeave));
+        $this->assertFalse($this->leaveService->canReview($admin, $adminLeave));
     }
 
     public function test_review_note_is_required_for_approve_and_reject(): void
@@ -149,7 +173,10 @@ class WorkforceGovernancePhase1Test extends TestCase
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $operationsAdmin = User::factory()->create();
+        $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leaveRequest = $this->leaveService->submit($agent, [
@@ -178,7 +205,10 @@ class WorkforceGovernancePhase1Test extends TestCase
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        $operationsAdmin = User::factory()->create();
+        $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leaveRequest = $this->leaveService->submit($agent, [

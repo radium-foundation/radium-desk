@@ -24,6 +24,7 @@ class Workforce360Controller extends Controller
         return view('workforce.team', [
             'workforce' => $this->workforce360Service->team($request->user()),
             'activeTab' => (string) $request->query('tab', 'overview'),
+            'pendingLeaveApprovals' => $this->workforce360Service->pendingLeaveApprovalsCard($request->user()),
         ]);
     }
 

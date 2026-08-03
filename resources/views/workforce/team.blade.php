@@ -5,6 +5,10 @@
 @section('content')
     @include('workforce.partials.hero-team', ['hero' => $workforce->hero])
 
+    @include('workforce.partials.pending-leave-approvals', [
+        'pendingLeaveApprovals' => $pendingLeaveApprovals ?? ['visible' => false, 'items' => []],
+    ])
+
     @include('workforce.partials.capacity-strip', ['capacity' => $workforce->capacity])
 
     @include('workforce.partials.hub-nav', ['active' => 'team'])

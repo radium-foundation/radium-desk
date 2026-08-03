@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ReviewLeaveRequestRequest;
 use App\Http\Requests\StoreLeaveRequestRequest;
 use App\Models\LeaveRequest;
+use App\Services\Operations\LeaveOperationalImpactService;
 use App\Services\Operations\LeaveRequestService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ class LeaveRequestController extends Controller
 {
     public function __construct(
         private readonly LeaveRequestService $leaveRequestService,
+        private readonly LeaveOperationalImpactService $leaveOperationalImpactService,
     ) {
         $this->authorizeResource(LeaveRequest::class, 'leaveRequest', [
             'except' => ['edit', 'update', 'destroy'],
@@ -23,6 +25,17 @@ class LeaveRequestController extends Controller
     public function index(Request $request): View
     {
         $user = $request->user();
+        $canReviewLeave = $user->can('leave-requests.review')
+            && $this->leaveRequestService->isDesignatedApprover($user);
+
+        $pendingGroups = [
+            'today' => collect(),
+            'upcoming' => collect(),
+        ];
+
+        if ($canReviewLeave) {
+            $pendingGroups = $this->leaveRequestService->pendingApprovalsGrouped();
+        }
 
         $leaveRequests = LeaveRequest::query()
             ->with(['user', 'reviewer'])
@@ -39,6 +52,10 @@ class LeaveRequestController extends Controller
         return view('leave-requests.index', [
             'leaveRequests' => $leaveRequests,
             'filters' => $request->only(['status']),
+            'canReviewLeave' => $canReviewLeave,
+            'pendingToday' => $pendingGroups['today'],
+            'pendingUpcoming' => $pendingGroups['upcoming'],
+            'leaveRequestService' => $this->leaveRequestService,
         ]);
     }
 
@@ -63,8 +80,18 @@ class LeaveRequestController extends Controller
     {
         $leaveRequest->load(['user', 'reviewer']);
 
+        $viewer = request()->user();
+        $showImpact = $viewer !== null
+            && $this->leaveRequestService->isDesignatedApprover($viewer)
+            && $viewer->can('review', $leaveRequest);
+
+        $operationalImpact = $showImpact
+            ? $this->leaveOperationalImpactService->forLeaveRequest($leaveRequest)
+            : null;
+
         return view('leave-requests.show', [
             'leaveRequest' => $leaveRequest,
+            'operationalImpact' => $operationalImpact,
         ]);
     }
 
@@ -76,9 +103,7 @@ class LeaveRequestController extends Controller
             reviewNotes: $request->validated('review_notes'),
         );
 
-        return redirect()
-            ->route('leave-requests.show', $leaveRequest)
-            ->with('status', 'leave-request-approved');
+        return $this->redirectAfterReview($request, $leaveRequest, 'leave-request-approved');
     }
 
     public function reject(ReviewLeaveRequestRequest $request, LeaveRequest $leaveRequest): RedirectResponse
@@ -89,8 +114,24 @@ class LeaveRequestController extends Controller
             reviewNotes: $request->validated('review_notes'),
         );
 
+        return $this->redirectAfterReview($request, $leaveRequest, 'leave-request-rejected');
+    }
+
+    private function redirectAfterReview(
+        ReviewLeaveRequestRequest $request,
+        LeaveRequest $leaveRequest,
+        string $status,
+    ): RedirectResponse {
+        $returnTo = (string) $request->input('return_to', '');
+
+        if ($returnTo === 'index') {
+            return redirect()
+                ->route('leave-requests.index')
+                ->with('status', $status);
+        }
+
         return redirect()
             ->route('leave-requests.show', $leaveRequest)
-            ->with('status', 'leave-request-rejected');
+            ->with('status', $status);
     }
 }

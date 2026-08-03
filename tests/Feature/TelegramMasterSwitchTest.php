@@ -152,6 +152,7 @@ class TelegramMasterSwitchTest extends TestCase
         $supportAgent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
         $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
             'is_active' => true,
             'telegram_chat_id' => '123456789',
             'telegram_notifications_enabled' => true,

@@ -4,6 +4,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Centralized Leave Approver (Phase 1)
+    |--------------------------------------------------------------------------
+    |
+    | Exactly one designated leave approver (Leave Authority). Approval does not
+    | use reporting manager, shift admin, role hierarchy, or "any operations admin"
+    | fallback. The Leave Authority may approve every leave request, including
+    | their own; self-approval remains blocked for every other user.
+    |
+    */
+    'leave_approver' => [
+        'email' => strtolower(trim((string) env(
+            'WORKFORCE_LEAVE_APPROVER_EMAIL',
+            'shipra@radiumbox.com',
+        ))),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Extra Day Qualification (Milestone 5)
     |--------------------------------------------------------------------------
     |

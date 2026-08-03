@@ -12,6 +12,7 @@ use App\Services\Platform\Cards\Executive\OpenCasesCardProvider;
 use App\Services\Platform\Cards\Executive\OrdersTodayCardProvider;
 use App\Services\Platform\Cards\Executive\RefundQueueCardProvider;
 use App\Services\Platform\Cards\Executive\ResolvedTodayCardProvider;
+use App\Services\Platform\Cards\PendingLeaveApprovalsCardProvider;
 use App\Services\Platform\Cards\PlaceholderSectionCardProvider;
 use App\Services\Platform\Cards\PlatformHealthCardProvider;
 use App\Services\Platform\DashboardManifest;
@@ -111,6 +112,7 @@ class PlatformDashboardServiceProvider extends ServiceProvider
         }
 
         $manifest->registerCard($this->app->make(PlatformHealthCardProvider::class));
+        $manifest->registerCard($this->app->make(PendingLeaveApprovalsCardProvider::class));
 
         foreach ($this->placeholderCards() as $placeholder) {
             $manifest->registerCard($placeholder);

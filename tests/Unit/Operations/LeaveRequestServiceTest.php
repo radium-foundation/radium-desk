@@ -58,6 +58,7 @@ class LeaveRequestServiceTest extends TestCase
         $supportAgent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
         $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
             'is_active' => true,
             'telegram_chat_id' => '123456789',
             'telegram_notifications_enabled' => true,
@@ -95,7 +96,10 @@ class LeaveRequestServiceTest extends TestCase
             'telegram_notifications_enabled' => true,
         ]);
 
-        $operationsAdmin = User::factory()->create(['is_active' => true]);
+        $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leaveRequest = $this->service->submit($supportAgent, [
@@ -135,7 +139,10 @@ class LeaveRequestServiceTest extends TestCase
             'telegram_notifications_enabled' => true,
         ]);
 
-        $operationsAdmin = User::factory()->create(['is_active' => true]);
+        $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leaveRequest = $this->service->submit($supportAgent, [
@@ -168,7 +175,10 @@ class LeaveRequestServiceTest extends TestCase
             'telegram_notifications_enabled' => true,
         ]);
 
-        $operationsAdmin = User::factory()->create(['is_active' => true]);
+        $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leaveRequest = $this->service->submit($supportAgent, [
@@ -202,6 +212,7 @@ class LeaveRequestServiceTest extends TestCase
         $supportAgent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
         $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
             'is_active' => true,
             'telegram_chat_id' => '123456789',
             'telegram_notifications_enabled' => false,
@@ -223,13 +234,22 @@ class LeaveRequestServiceTest extends TestCase
         ]);
     }
 
-    public function test_leave_approval_hierarchy_uses_operations_admin_and_superadmin_tiers(): void
+    public function test_leave_approval_is_centralized_to_designated_approver(): void
     {
         $supportAgent = User::factory()->create();
         $supportAgent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
-        $operationsAdmin = User::factory()->create();
-        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+        $shipra = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $shipra->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+
+        $otherOpsAdmin = User::factory()->create([
+            'email' => 'ops-other@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $otherOpsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -237,31 +257,33 @@ class LeaveRequestServiceTest extends TestCase
         $owner = User::factory()->create();
         $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
 
+        config(['workforce.leave_approver.email' => 'shipra@radiumbox.com']);
+
         $supportLeave = $this->service->submit($supportAgent, [
             'start_date' => '2026-07-10',
             'end_date' => '2026-07-12',
             'reason' => 'Personal leave',
         ]);
 
-        $operationsLeave = $this->service->submit($operationsAdmin, [
+        $adminLeave = $this->service->submit($admin, [
             'start_date' => '2026-07-15',
             'end_date' => '2026-07-16',
-            'reason' => 'Operations leave',
+            'reason' => 'Admin leave',
         ]);
 
-        $this->assertTrue($this->service->canReview($operationsAdmin, $supportLeave));
+        $this->assertTrue($this->service->canReview($shipra, $supportLeave));
+        $this->assertTrue($this->service->canReview($shipra, $adminLeave));
+        $this->assertFalse($this->service->canReview($otherOpsAdmin, $supportLeave));
         $this->assertFalse($this->service->canReview($admin, $supportLeave));
         $this->assertFalse($this->service->canReview($owner, $supportLeave));
+        $this->assertFalse($this->service->canReview($owner, $adminLeave));
         $this->assertFalse($this->service->canReview($supportAgent, $supportLeave));
 
-        $this->assertTrue($this->service->canReview($owner, $operationsLeave));
-        $this->assertFalse($this->service->canReview($operationsAdmin, $operationsLeave));
-
-        $this->service->approve($supportLeave, $operationsAdmin, 'Approved for planned leave');
-        $this->service->approve($operationsLeave, $owner, 'Approved for operations leave');
+        $this->service->approve($supportLeave, $shipra, 'Approved for planned leave');
+        $this->service->approve($adminLeave, $shipra, 'Approved for admin leave');
 
         $this->assertSame(LeaveRequestStatus::Approved, $supportLeave->fresh()->status);
-        $this->assertSame(LeaveRequestStatus::Approved, $operationsLeave->fresh()->status);
+        $this->assertSame(LeaveRequestStatus::Approved, $adminLeave->fresh()->status);
     }
 
     /**

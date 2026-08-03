@@ -256,7 +256,10 @@ class LeaveRequestStabilizationTest extends TestCase
 
     private function createOperationsAdmin(): User
     {
-        $operationsAdmin = User::factory()->create(['is_active' => true]);
+        $operationsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         return $operationsAdmin;

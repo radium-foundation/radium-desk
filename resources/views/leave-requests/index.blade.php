@@ -17,6 +17,42 @@
 
     @include('workforce.partials.hub-nav', ['active' => 'leave'])
 
+    @if($canReviewLeave && ($pendingToday->isNotEmpty() || $pendingUpcoming->isNotEmpty()))
+        <div class="card border-0 shadow-sm mb-4 border-warning-subtle">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">Pending Leave Approvals</h2>
+                <span class="badge text-bg-warning">{{ $pendingToday->count() + $pendingUpcoming->count() }}</span>
+            </div>
+            <div class="card-body">
+                @if($pendingToday->isNotEmpty())
+                    <h3 class="h6 text-muted text-uppercase small mb-3">Today</h3>
+                    <div class="d-grid gap-3 mb-4">
+                        @foreach($pendingToday as $leaveRequest)
+                            @include('leave-requests.partials.pending-approval-row', [
+                                'leaveRequest' => $leaveRequest,
+                                'leaveRequestService' => $leaveRequestService,
+                                'compact' => false,
+                            ])
+                        @endforeach
+                    </div>
+                @endif
+
+                @if($pendingUpcoming->isNotEmpty())
+                    <h3 class="h6 text-muted text-uppercase small mb-3">Upcoming</h3>
+                    <div class="d-grid gap-3">
+                        @foreach($pendingUpcoming as $leaveRequest)
+                            @include('leave-requests.partials.pending-approval-row', [
+                                'leaveRequest' => $leaveRequest,
+                                'leaveRequestService' => $leaveRequestService,
+                                'compact' => false,
+                            ])
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" action="{{ route('leave-requests.index') }}" class="row g-3">

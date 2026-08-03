@@ -152,18 +152,22 @@ class WorkforceCalendarTest extends TestCase
         ));
     }
 
-    public function test_correct_leave_approval_hierarchy(): void
+    public function test_correct_leave_approval_is_centralized_to_designated_approver(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-06 10:00:00', 'Asia/Kolkata'));
+        config(['workforce.leave_approver.email' => 'shipra@radiumbox.com']);
 
         $supportAgent = User::factory()->create();
         $supportAgent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
 
-        $operationsAdmin = User::factory()->create();
-        $operationsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+        $shipra = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
+        $shipra->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
-        $owner = User::factory()->create();
-        $owner->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
 
         $supportLeave = app(LeaveRequestService::class)->submit($supportAgent, [
             'start_date' => '2026-07-10',
@@ -171,25 +175,23 @@ class WorkforceCalendarTest extends TestCase
             'reason' => 'Personal leave',
         ]);
 
-        $operationsLeave = app(LeaveRequestService::class)->submit($operationsAdmin, [
+        $adminLeave = app(LeaveRequestService::class)->submit($admin, [
             'start_date' => '2026-07-15',
             'end_date' => '2026-07-16',
-            'reason' => 'Operations leave',
+            'reason' => 'Admin leave',
         ]);
 
         $leaveService = app(LeaveRequestService::class);
 
-        $this->assertTrue($leaveService->canReview($operationsAdmin, $supportLeave));
+        $this->assertTrue($leaveService->canReview($shipra, $supportLeave));
+        $this->assertTrue($leaveService->canReview($shipra, $adminLeave));
         $this->assertFalse($leaveService->canReview($supportAgent, $supportLeave));
 
-        $this->assertTrue($leaveService->canReview($owner, $operationsLeave));
-        $this->assertFalse($leaveService->canReview($operationsAdmin, $operationsLeave));
-
-        $leaveService->approve($supportLeave, $operationsAdmin, 'Approved for planned leave');
-        $leaveService->approve($operationsLeave, $owner, 'Approved for operations leave');
+        $leaveService->approve($supportLeave, $shipra, 'Approved for planned leave');
+        $leaveService->approve($adminLeave, $shipra, 'Approved for admin leave');
 
         $this->assertSame(LeaveRequestStatus::Approved, $supportLeave->fresh()->status);
-        $this->assertSame(LeaveRequestStatus::Approved, $operationsLeave->fresh()->status);
+        $this->assertSame(LeaveRequestStatus::Approved, $adminLeave->fresh()->status);
     }
 
     public function test_lunch_time_does_not_mark_unavailable_permanently(): void

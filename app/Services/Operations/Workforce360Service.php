@@ -35,7 +35,47 @@ class Workforce360Service
         private readonly Workforce360Policy $workforce360Policy,
         private readonly CaseQueueReadModel $caseQueue,
         private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
+        private readonly LeaveRequestService $leaveRequestService,
     ) {}
+
+    /**
+     * Action-first pending leave approvals card payload for Workforce dashboard.
+     * Empty when the viewer is not the designated approver or no pending rows exist.
+     *
+     * @return array{visible: bool, items: list<array<string, mixed>>}
+     */
+    public function pendingLeaveApprovalsCard(User $viewer, ?Carbon $at = null): array
+    {
+        $at ??= now();
+
+        if (! $viewer->can('leave-requests.review')
+            || ! $this->leaveRequestService->isDesignatedApprover($viewer)) {
+            return [
+                'visible' => false,
+                'items' => [],
+            ];
+        }
+
+        $items = $this->leaveRequestService->pendingApprovals($at)
+            ->map(function (LeaveRequest $leaveRequest) use ($at): array {
+                return [
+                    'id' => $leaveRequest->id,
+                    'employee' => $leaveRequest->user?->firstName()
+                        ?: ($leaveRequest->user?->name ?? 'Team member'),
+                    'dates_label' => $this->leaveRequestService->leaveDatesLabel($leaveRequest),
+                    'age_label' => $this->leaveRequestService->pendingAgeLabel($leaveRequest, $at),
+                    'covers_today' => $this->leaveRequestService->pendingCoversDay($leaveRequest, $at),
+                    'review_url' => route('leave-requests.show', $leaveRequest),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'visible' => $items !== [],
+            'items' => $items,
+        ];
+    }
 
     public function team(User $viewer, ?Carbon $at = null): Workforce360TeamData
     {

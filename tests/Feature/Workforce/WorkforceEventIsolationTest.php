@@ -115,7 +115,10 @@ class WorkforceEventIsolationTest extends TestCase
 
         $agent = $this->createScheduledAgent();
         $agent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
-        $opsAdmin = User::factory()->create(['is_active' => true]);
+        $opsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $opsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leave = LeaveRequest::query()->create([
@@ -158,7 +161,10 @@ class WorkforceEventIsolationTest extends TestCase
 
         $agent = $this->createScheduledAgent();
         $agent->assignRole(RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST);
-        $opsAdmin = User::factory()->create(['is_active' => true]);
+        $opsAdmin = User::factory()->create([
+            'email' => 'shipra@radiumbox.com',
+            'is_active' => true,
+        ]);
         $opsAdmin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
 
         $leave = LeaveRequest::query()->create([

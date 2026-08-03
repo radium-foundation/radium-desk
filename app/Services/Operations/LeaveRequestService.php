@@ -19,7 +19,6 @@ use App\Services\AuditLogService;
 use App\Services\Notifications\NotificationAuthorityService;
 use App\Services\Telegram\TelegramBotService;
 use App\Services\Workforce\PayrollMonthLockService;
-use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -138,6 +137,7 @@ class LeaveRequestService
             ])->save();
 
             $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user', 'reviewer']);
+            $selfApproved = (int) $lockedLeaveRequest->user_id === (int) $reviewer->id;
 
             $this->auditLeaveEvent(
                 event: WorkforceAuditEvent::LeaveApproved,
@@ -145,6 +145,9 @@ class LeaveRequestService
                 leaveRequest: $lockedLeaveRequest,
                 newValues: [
                     'reviewer_id' => $reviewer->id,
+                    'approved_by' => $reviewer->id,
+                    'actor' => $reviewer->id,
+                    'self_approved' => $selfApproved,
                     'reviewed_at' => $lockedLeaveRequest->reviewed_at?->toIso8601String(),
                     'status' => $lockedLeaveRequest->status->value,
                     'review_notes' => $lockedLeaveRequest->review_notes,
@@ -198,6 +201,7 @@ class LeaveRequestService
             ])->save();
 
             $lockedLeaveRequest = $lockedLeaveRequest->fresh(['user', 'reviewer']);
+            $selfRejected = (int) $lockedLeaveRequest->user_id === (int) $reviewer->id;
 
             $this->auditLeaveEvent(
                 event: WorkforceAuditEvent::LeaveRejected,
@@ -205,6 +209,9 @@ class LeaveRequestService
                 leaveRequest: $lockedLeaveRequest,
                 newValues: [
                     'reviewer_id' => $reviewer->id,
+                    'rejected_by' => $reviewer->id,
+                    'actor' => $reviewer->id,
+                    'self_rejected' => $selfRejected,
                     'reviewed_at' => $lockedLeaveRequest->reviewed_at?->toIso8601String(),
                     'status' => $lockedLeaveRequest->status->value,
                     'review_notes' => $lockedLeaveRequest->review_notes,
@@ -226,24 +233,19 @@ class LeaveRequestService
             return false;
         }
 
-        $requester = $leaveRequest->user;
-
-        if ($requester === null || $reviewer->id === $requester->id) {
+        if (! $this->isDesignatedApprover($reviewer)) {
             return false;
         }
 
-        if ($requester->hasAnyRole([
-            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-            RolePermissionSeeder::ROLE_ADMIN,
-        ])) {
-            return $reviewer->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+        $requester = $leaveRequest->user;
+
+        if ($requester === null) {
+            return false;
         }
 
-        if ($requester->hasAnyRole($this->employeeLeaveRequesterRoles())) {
-            return $reviewer->hasRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
-        }
-
-        return false;
+        // Leave Authority may review every request, including their own.
+        // Self-approval remains blocked for every non-designated user (they never reach here).
+        return true;
     }
 
     public function assertCanReview(User $reviewer, LeaveRequest $leaveRequest): void
@@ -253,6 +255,132 @@ class LeaveRequestService
                 'reviewer' => 'You are not allowed to review this leave request.',
             ]);
         }
+    }
+
+    public function designatedApproverEmail(): string
+    {
+        return strtolower(trim((string) config('workforce.leave_approver.email', '')));
+    }
+
+    public function isDesignatedApprover(User $user): bool
+    {
+        $email = $this->designatedApproverEmail();
+
+        if ($email === '' || ! $user->is_active || $user->trashed()) {
+            return false;
+        }
+
+        return strcasecmp((string) $user->email, $email) === 0;
+    }
+
+    public function designatedApprover(): ?User
+    {
+        $email = $this->designatedApproverEmail();
+
+        if ($email === '') {
+            return null;
+        }
+
+        return User::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->where('is_active', true)
+            ->first();
+    }
+
+    /**
+     * Pending leave rows for the action-first approvals surfaces.
+     *
+     * @return Collection<int, LeaveRequest>
+     */
+    public function pendingApprovals(?Carbon $at = null): Collection
+    {
+        $at ??= now();
+
+        return LeaveRequest::query()
+            ->with(['user'])
+            ->where('status', LeaveRequestStatus::Pending)
+            ->orderBy('start_date')
+            ->orderBy('id')
+            ->get()
+            ->sortBy(function (LeaveRequest $leaveRequest) use ($at): array {
+                $coversToday = $this->pendingCoversDay($leaveRequest, $at) ? 0 : 1;
+
+                return [
+                    $coversToday,
+                    $leaveRequest->start_date?->timestamp ?? 0,
+                    $leaveRequest->id,
+                ];
+            })
+            ->values();
+    }
+
+    /**
+     * @return array{today: Collection<int, LeaveRequest>, upcoming: Collection<int, LeaveRequest>}
+     */
+    public function pendingApprovalsGrouped(?Carbon $at = null): array
+    {
+        $at ??= now();
+        $pending = $this->pendingApprovals($at);
+
+        return [
+            'today' => $pending
+                ->filter(fn (LeaveRequest $leaveRequest): bool => $this->pendingCoversDay($leaveRequest, $at))
+                ->values(),
+            'upcoming' => $pending
+                ->reject(fn (LeaveRequest $leaveRequest): bool => $this->pendingCoversDay($leaveRequest, $at))
+                ->values(),
+        ];
+    }
+
+    public function pendingCoversDay(LeaveRequest $leaveRequest, ?Carbon $at = null): bool
+    {
+        $at ??= now();
+        $day = $at->copy()->startOfDay();
+
+        if ($leaveRequest->start_date === null || $leaveRequest->end_date === null) {
+            return false;
+        }
+
+        return $leaveRequest->start_date->copy()->startOfDay()->lte($day)
+            && $leaveRequest->end_date->copy()->startOfDay()->gte($day);
+    }
+
+    public function pendingAgeLabel(LeaveRequest $leaveRequest, ?Carbon $at = null): string
+    {
+        $at ??= now();
+        $submittedAt = $leaveRequest->created_at;
+
+        if ($submittedAt === null) {
+            return 'Submitted recently';
+        }
+
+        $days = (int) $submittedAt->copy()->startOfDay()->diffInDays($at->copy()->startOfDay());
+
+        return match (true) {
+            $days <= 0 => 'Submitted today',
+            $days === 1 => 'Submitted 1 day ago',
+            default => "Submitted {$days} days ago",
+        };
+    }
+
+    public function leaveDatesLabel(LeaveRequest $leaveRequest): string
+    {
+        $start = $leaveRequest->start_date;
+        $end = $leaveRequest->end_date;
+
+        if ($start === null || $end === null) {
+            return '—';
+        }
+
+        if ($start->isSameDay($end)) {
+            if ($start->isToday()) {
+                return 'Today';
+            }
+
+            return $start->format('j M');
+        }
+
+        return $start->format('j M').'–'.$end->format('j M');
     }
 
     public function coversDate(LeaveRequest $leaveRequest, Carbon $date): bool
@@ -423,25 +551,18 @@ class LeaveRequestService
      */
     private function eligibleApprovers(LeaveRequest $leaveRequest): Collection
     {
-        $requester = $leaveRequest->user;
+        $approver = $this->designatedApprover();
 
-        if ($requester === null) {
+        if ($approver === null || ! $this->canReview($approver, $leaveRequest)) {
             return collect();
         }
 
-        $approverRoles = $requester->hasAnyRole([
-            RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
-            RolePermissionSeeder::ROLE_ADMIN,
-        ])
-            ? [RolePermissionSeeder::ROLE_SUPERADMIN]
-            : [RolePermissionSeeder::ROLE_OPERATIONS_ADMIN];
+        // Do not notify the Leave Authority about her own submission.
+        if ((int) $leaveRequest->user_id === (int) $approver->id) {
+            return collect();
+        }
 
-        return User::query()
-            ->where('is_active', true)
-            ->whereHas('roles', fn ($query) => $query->whereIn('name', $approverRoles))
-            ->get()
-            ->filter(fn (User $reviewer): bool => $this->canReview($reviewer, $leaveRequest))
-            ->values();
+        return collect([$approver]);
     }
 
     private function assertReviewNotesProvided(?string $reviewNotes): void
@@ -451,21 +572,6 @@ class LeaveRequestService
                 'review_notes' => 'A review note is required when approving or rejecting leave.',
             ]);
         }
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function employeeLeaveRequesterRoles(): array
-    {
-        return [
-            RolePermissionSeeder::ROLE_SUPPORT_SPECIALIST,
-            RolePermissionSeeder::ROLE_CUSTOMER_COORDINATOR,
-            RolePermissionSeeder::ROLE_HARDWARE_TEAM,
-            RolePermissionSeeder::ROLE_AGENT,
-            RolePermissionSeeder::ROLE_ESCALATION_SPECIALIST,
-            RolePermissionSeeder::ROLE_EMPLOYEE,
-        ];
     }
 
     private function dispatchLeaveNotification(
