@@ -123,6 +123,42 @@ class GmailAccessTokenServiceTest extends TestCase
         $this->assertSame('ya29.test-token', $token);
     }
 
+    public function test_logs_sanitized_jwt_claims_before_token_post(): void
+    {
+        Http::fake([
+            'https://oauth2.googleapis.com/token' => Http::response([
+                'access_token' => 'ya29.test-token',
+                'expires_in' => 3600,
+                'token_type' => 'Bearer',
+            ], 200),
+        ]);
+
+        Log::shouldReceive('info')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                if ($message !== '[GmailInbound] OAuth JWT claims (temporary diagnostics).') {
+                    return false;
+                }
+
+                $serialized = json_encode($context);
+
+                return ($context['iss'] ?? null) === 'sa@test.iam.gserviceaccount.com'
+                    && ($context['sub'] ?? null) === 'mail@radiumbox.com'
+                    && ($context['aud'] ?? null) === 'https://oauth2.googleapis.com/token'
+                    && is_string($context['scope'] ?? null)
+                    && is_int($context['iat'] ?? null)
+                    && is_int($context['exp'] ?? null)
+                    && ($context['private_key_loads'] ?? null) === true
+                    && is_string($serialized)
+                    && ! str_contains($serialized, 'assertion')
+                    && ! str_contains($serialized, 'BEGIN PRIVATE KEY')
+                    && ! str_contains($serialized, 'ya29.test-token')
+                    && ! str_contains($serialized, 'eyJ');
+            });
+
+        app(GmailAccessTokenService::class)->tokenForMailbox('mail@radiumbox.com');
+    }
+
     private function ephemeralPrivateKeyPem(): string
     {
         $key = openssl_pkey_new([

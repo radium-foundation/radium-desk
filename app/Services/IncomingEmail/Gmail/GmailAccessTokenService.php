@@ -26,7 +26,22 @@ class GmailAccessTokenService
         }
 
         $credentials = $this->loadCredentials();
-        $jwt = $this->buildJwt($credentials, $mailbox);
+        $now = time();
+        $claims = $this->jwtClaims($credentials, $mailbox, $now);
+        $privateKeyLoads = openssl_pkey_get_private($credentials['private_key']) !== false;
+
+        // Temporary production diagnostics — remove after OAuth grant troubleshooting.
+        Log::info('[GmailInbound] OAuth JWT claims (temporary diagnostics).', [
+            'iss' => $claims['iss'],
+            'sub' => $claims['sub'],
+            'aud' => $claims['aud'],
+            'scope' => $claims['scope'],
+            'iat' => $claims['iat'],
+            'exp' => $claims['exp'],
+            'private_key_loads' => $privateKeyLoads,
+        ]);
+
+        $jwt = $this->buildJwt($credentials, $mailbox, $now);
 
         $response = Http::asForm()
             ->timeout((int) config('inbound_email.gmail.timeout_seconds', 20))
@@ -90,16 +105,15 @@ class GmailAccessTokenService
 
     /**
      * @param  array{client_email: string, private_key: string}  $credentials
+     * @return array{iss: string, sub: string, scope: string, aud: string, iat: int, exp: int}
      */
-    private function buildJwt(array $credentials, string $mailbox): string
+    private function jwtClaims(array $credentials, string $mailbox, int $now): array
     {
-        $now = time();
         $scopes = config('inbound_email.gmail.scopes', [
             'https://www.googleapis.com/auth/gmail.readonly',
         ]);
 
-        $header = ['alg' => 'RS256', 'typ' => 'JWT'];
-        $payload = [
+        return [
             'iss' => $credentials['client_email'],
             'sub' => $mailbox,
             'scope' => is_array($scopes) ? implode(' ', $scopes) : (string) $scopes,
@@ -107,6 +121,17 @@ class GmailAccessTokenService
             'iat' => $now,
             'exp' => $now + 3600,
         ];
+    }
+
+    /**
+     * @param  array{client_email: string, private_key: string}  $credentials
+     */
+    private function buildJwt(array $credentials, string $mailbox, ?int $now = null): string
+    {
+        $now ??= time();
+        $payload = $this->jwtClaims($credentials, $mailbox, $now);
+
+        $header = ['alg' => 'RS256', 'typ' => 'JWT'];
 
         $segments = [
             $this->base64UrlEncode(json_encode($header, JSON_THROW_ON_ERROR)),
