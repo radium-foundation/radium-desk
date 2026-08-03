@@ -36,15 +36,24 @@
             <h1 class="h3 mb-1">Cash Book</h1>
             <p class="text-muted mb-0">Record cash income and expenses in seconds.</p>
         </div>
-        @if ($canCreate)
-            <a href="{{ route('cash-book.create') }}" class="btn btn-primary">
-                + Add Entry
-            </a>
-        @endif
+        <div class="d-flex flex-wrap gap-2">
+            @if ($canHistorical ?? false)
+                <a href="{{ route('cash-book.historical.create') }}" class="btn btn-outline-secondary">
+                    Import Historical
+                </a>
+            @endif
+            @if ($canCreate)
+                <a href="{{ route('cash-book.create') }}" class="btn btn-primary">
+                    + Add Entry
+                </a>
+            @endif
+        </div>
     </div>
 
     @if (session('status') === 'cash-book-entry-created')
-        <div class="alert alert-success">Entry {{ session('status_entry_no') }} saved.</div>
+        <div class="alert alert-success">Entry {{ session('status_entry_no') }} locked and saved.</div>
+    @elseif (session('status') === 'cash-book-historical-imported')
+        <div class="alert alert-success">Historical entry {{ session('status_entry_no') }} imported.</div>
     @elseif (session('status') === 'cash-book-entry-updated')
         <div class="alert alert-success">Entry updated.</div>
     @elseif (session('status') === 'cash-book-entry-deleted')
@@ -182,20 +191,30 @@
                                     @else
                                         <span class="badge text-bg-danger">Expense</span>
                                     @endif
+                                    @if ($entry->isHistorical())
+                                        <span class="badge text-bg-secondary">Historical</span>
+                                    @endif
+                                    @if ($entry->isLocked())
+                                        <span class="badge text-bg-light text-muted border">Locked</span>
+                                    @endif
                                 </td>
                                 <td class="text-end text-nowrap fw-semibold">₹{{ number_format((float) $entry->amount, 2) }}</td>
                                 <td>{{ $entry->categoryLabel() }}</td>
                                 <td>{{ $entry->person ?: '—' }}</td>
-                                <td>{{ $entry->remark }}</td>
+                                <td>
+                                    <div>{{ $entry->remark }}</div>
+                                    @if ($entry->isHistorical())
+                                        <div class="text-muted small">
+                                            Original {{ $entry->entry_date?->format('d M Y') }}
+                                            · Imported {{ $entry->imported_at?->timezone(config('app.timezone'))->format('d M Y') }}
+                                        </div>
+                                    @endif
+                                </td>
                                 <td>{{ $entry->creator?->name ?? '—' }}</td>
                                 @if ($canManage)
                                     <td class="text-end text-nowrap">
-                                        <a href="{{ route('cash-book.edit', $entry) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
-                                        <form method="POST" action="{{ route('cash-book.destroy', $entry) }}" class="d-inline" onsubmit="return confirm('Delete this entry? The ledger journal will be reversed.');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                                        </form>
+                                        <a href="{{ route('cash-book.edit-warning', $entry) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                        <a href="{{ route('cash-book.delete-warning', $entry) }}" class="btn btn-sm btn-outline-danger">Delete</a>
                                     </td>
                                 @endif
                             </tr>

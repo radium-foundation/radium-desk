@@ -23,6 +23,11 @@ class CashBookEntry extends Model
         'updated_by',
         'journal_id',
         'deleted_by',
+        'locked_at',
+        'is_historical',
+        'backdate_reason',
+        'historical_reason',
+        'imported_at',
     ];
 
     protected function casts(): array
@@ -31,6 +36,9 @@ class CashBookEntry extends Model
             'type' => CashBookEntryType::class,
             'amount' => 'decimal:2',
             'entry_date' => 'date',
+            'locked_at' => 'datetime',
+            'is_historical' => 'boolean',
+            'imported_at' => 'datetime',
         ];
     }
 
@@ -42,6 +50,16 @@ class CashBookEntry extends Model
     public function isExpense(): bool
     {
         return $this->type === CashBookEntryType::Expense;
+    }
+
+    public function isLocked(): bool
+    {
+        return $this->locked_at !== null;
+    }
+
+    public function isHistorical(): bool
+    {
+        return (bool) $this->is_historical;
     }
 
     public function categoryLabel(): string
@@ -65,6 +83,27 @@ class CashBookEntry extends Model
     public function categoryFieldLabel(): string
     {
         return $this->isIncome() ? 'Income Source' : 'Expense Category';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function auditSnapshot(): array
+    {
+        return [
+            'entry_no' => $this->entry_no,
+            'type' => $this->type?->value,
+            'amount' => (string) $this->amount,
+            'category' => $this->category,
+            'person' => $this->person,
+            'remark' => $this->remark,
+            'entry_date' => $this->entry_date?->toDateString(),
+            'is_historical' => $this->is_historical,
+            'backdate_reason' => $this->backdate_reason,
+            'historical_reason' => $this->historical_reason,
+            'journal_id' => $this->journal_id,
+            'locked_at' => $this->locked_at?->toIso8601String(),
+        ];
     }
 
     public function creator(): BelongsTo

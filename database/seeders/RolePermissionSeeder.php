@@ -64,6 +64,8 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_CASHBOOK_MANAGE = 'cashbook.manage';
 
+    public const PERMISSION_CASHBOOK_HISTORICAL = 'cashbook.historical';
+
     /**
      * @var list<string>
      */
@@ -72,6 +74,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_CASHBOOK_VIEW,
         self::PERMISSION_CASHBOOK_CREATE,
         self::PERMISSION_CASHBOOK_MANAGE,
+        self::PERMISSION_CASHBOOK_HISTORICAL,
     ];
 
     /**
@@ -347,6 +350,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
+            self::PERMISSION_CASHBOOK_HISTORICAL,
         ],
     ];
 

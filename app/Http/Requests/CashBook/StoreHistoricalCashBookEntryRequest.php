@@ -10,11 +10,11 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
-class StoreCashBookEntryRequest extends FormRequest
+class StoreHistoricalCashBookEntryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return CashBookAccess::allowsCreate($this->user());
+        return CashBookAccess::allowsHistoricalImport($this->user());
     }
 
     /**
@@ -29,7 +29,7 @@ class StoreCashBookEntryRequest extends FormRequest
             'person' => ['nullable', 'string', 'max:255'],
             'remark' => ['required', 'string', 'max:2000'],
             'entry_date' => ['required', 'date'],
-            'backdate_reason' => ['nullable', 'string', 'max:500'],
+            'historical_reason' => ['required', 'string', 'max:500'],
             'confirmed' => ['sometimes', 'boolean'],
         ];
     }
@@ -49,22 +49,6 @@ class StoreCashBookEntryRequest extends FormRequest
             if ($type === CashBookEntryType::Expense->value) {
                 if (! in_array($category, CashBookExpenseCategory::values(), true)) {
                     $validator->errors()->add('category', 'Select a valid expense category.');
-                }
-            }
-
-            if ($this->filled('entry_date')) {
-                try {
-                    CashBookAccess::assertEntryDateAllowed(
-                        $this->user(),
-                        $this->string('entry_date')->toString(),
-                        $this->input('backdate_reason'),
-                    );
-                } catch (\Illuminate\Validation\ValidationException $exception) {
-                    foreach ($exception->errors() as $field => $messages) {
-                        foreach ($messages as $message) {
-                            $validator->errors()->add($field, $message);
-                        }
-                    }
                 }
             }
         });

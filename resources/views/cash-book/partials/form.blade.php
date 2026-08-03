@@ -1,5 +1,7 @@
 @php
     $selectedType = $type ?? old('type', 'income');
+    $canBackdate = $canBackdate ?? false;
+    $isHistorical = ! empty($historical);
 @endphp
 
 <div class="mb-3">
@@ -129,11 +131,42 @@
             class="form-control @error('entry_date') is-invalid @enderror"
             value="{{ $entry_date ?? old('entry_date', now()->toDateString()) }}"
             required
+            @if (! $canBackdate && ! $isHistorical)
+                max="{{ now()->toDateString() }}"
+                min="{{ now()->toDateString() }}"
+            @elseif ($isHistorical)
+                max="{{ now()->toDateString() }}"
+            @else
+                max="{{ now()->toDateString() }}"
+            @endif
         >
         @error('entry_date')
             <div class="invalid-feedback">{{ $message }}</div>
         @enderror
+        @if (! $canBackdate && ! $isHistorical)
+            <div class="form-text">Today only</div>
+        @elseif ($canBackdate && ! $isHistorical)
+            <div class="form-text">Super Admin may back-date with a reason</div>
+        @endif
     </div>
+
+    @if ($canBackdate && ! $isHistorical)
+        <div class="col-12 d-none" id="backdate-reason-wrap">
+            <label for="backdate_reason" class="form-label">Back-date Reason <span class="text-danger">*</span></label>
+            <input
+                type="text"
+                name="backdate_reason"
+                id="backdate_reason"
+                class="form-control @error('backdate_reason') is-invalid @enderror"
+                value="{{ $backdate_reason ?? old('backdate_reason') }}"
+                maxlength="500"
+                placeholder="Late entry, Forgot yesterday, Historical correction…"
+            >
+            @error('backdate_reason')
+                <div class="invalid-feedback">{{ $message }}</div>
+            @enderror
+        </div>
+    @endif
 </div>
 
 <input type="hidden" name="category" id="category" value="{{ $category ?? old('category') }}">
@@ -155,6 +188,9 @@
     const remarkInput = document.getElementById('remark');
     const personInput = document.getElementById('person');
     const personLabel = document.getElementById('person-label');
+    const dateInput = document.getElementById('entry_date');
+    const backdateWrap = document.getElementById('backdate-reason-wrap');
+    const today = @json(now()->toDateString());
 
     function syncType() {
         const isIncome = incomeRadio.checked;
@@ -174,6 +210,12 @@
         }
     }
 
+    function syncBackdate() {
+        if (!backdateWrap || !dateInput) return;
+        const isBackdated = dateInput.value && dateInput.value < today;
+        backdateWrap.classList.toggle('d-none', !isBackdated);
+    }
+
     incomeSelect?.addEventListener('change', () => {
         if (incomeRadio.checked) categoryInput.value = incomeSelect.value;
     });
@@ -182,7 +224,9 @@
     });
     incomeRadio?.addEventListener('change', syncType);
     expenseRadio?.addEventListener('change', syncType);
+    dateInput?.addEventListener('change', syncBackdate);
     syncType();
+    syncBackdate();
 })();
 </script>
 @endpush

@@ -222,8 +222,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('/', [CashBookController::class, 'index'])->name('index');
         Route::get('/create', [CashBookController::class, 'create'])->name('create');
         Route::post('/', [CashBookController::class, 'store'])->name('store');
+        Route::get('/historical/create', [CashBookController::class, 'historicalCreate'])->name('historical.create');
+        Route::post('/historical', [CashBookController::class, 'historicalStore'])->name('historical.store');
+        Route::get('/{cashBookEntry}/edit-warning', [CashBookController::class, 'editWarning'])->name('edit-warning');
+        Route::post('/{cashBookEntry}/edit-acknowledge', [CashBookController::class, 'acknowledgeEdit'])->name('edit-acknowledge');
         Route::get('/{cashBookEntry}/edit', [CashBookController::class, 'edit'])->name('edit');
         Route::put('/{cashBookEntry}', [CashBookController::class, 'update'])->name('update');
+        Route::get('/{cashBookEntry}/delete-warning', [CashBookController::class, 'deleteWarning'])->name('delete-warning');
         Route::delete('/{cashBookEntry}', [CashBookController::class, 'destroy'])->name('destroy');
     });
 

@@ -54,6 +54,7 @@ class CashBookPhase1Test extends TestCase
                 'category' => CashBookIncomeSource::CashSale->value,
                 'remark' => 'Walk-in customer',
                 'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
             ]);
 
         $entry = CashBookEntry::query()->firstOrFail();
@@ -79,6 +80,7 @@ class CashBookPhase1Test extends TestCase
                 'category' => CashBookExpenseCategory::Courier->value,
                 'remark' => 'Blue Dart',
                 'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
             ])
             ->assertRedirect(route('cash-book.index'));
 
@@ -100,6 +102,7 @@ class CashBookPhase1Test extends TestCase
             'category' => CashBookIncomeSource::Accessories->value,
             'remark' => 'Accessories sale',
             'entry_date' => now()->toDateString(),
+            'confirmed' => '1',
         ]);
 
         $this->actingAs($this->agent)->post(route('cash-book.store'), [
@@ -108,6 +111,7 @@ class CashBookPhase1Test extends TestCase
             'category' => CashBookExpenseCategory::Tea->value,
             'remark' => 'Tea',
             'entry_date' => now()->toDateString(),
+            'confirmed' => '1',
         ]);
 
         $summary = app(CashBookSummaryService::class)->dashboard();
@@ -146,6 +150,14 @@ class CashBookPhase1Test extends TestCase
 
         $this->actingAs($this->admin)
             ->get(route('cash-book.edit', $entry))
+            ->assertRedirect(route('cash-book.edit-warning', $entry));
+
+        $this->actingAs($this->admin)
+            ->post(route('cash-book.edit-acknowledge', $entry))
+            ->assertRedirect(route('cash-book.edit', $entry));
+
+        $this->actingAs($this->admin)
+            ->get(route('cash-book.edit', $entry))
             ->assertOk();
 
         $this->actingAs($this->admin)
@@ -160,7 +172,7 @@ class CashBookPhase1Test extends TestCase
         $this->assertNotNull($entry->journal_id);
 
         $this->actingAs($this->admin)
-            ->delete(route('cash-book.destroy', $entry))
+            ->delete(route('cash-book.destroy', $entry), ['confirmed' => '1'])
             ->assertRedirect(route('cash-book.index'));
 
         $this->assertSoftDeleted($entry);
@@ -185,6 +197,10 @@ class CashBookPhase1Test extends TestCase
     {
         $entry = $this->createIncomeAs($this->agent);
         $originalJournalId = $entry->journal_id;
+
+        $this->actingAs($this->admin)
+            ->post(route('cash-book.edit-acknowledge', $entry))
+            ->assertRedirect(route('cash-book.edit', $entry));
 
         $this->actingAs($this->admin)
             ->put(route('cash-book.update', $entry), array_merge($this->incomePayload(), [
@@ -229,6 +245,7 @@ class CashBookPhase1Test extends TestCase
             'category' => CashBookIncomeSource::CashSale->value,
             'remark' => 'Walk-in customer',
             'entry_date' => now()->toDateString(),
+            'confirmed' => '1',
         ];
     }
 

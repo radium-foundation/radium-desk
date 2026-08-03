@@ -21,7 +21,7 @@
                 @csrf
                 @include('cash-book.partials.form')
                 <div class="d-flex flex-wrap gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary">Save Entry</button>
+                    <button type="submit" class="btn btn-primary">Review Entry</button>
                     <a href="{{ route('cash-book.index') }}" class="btn btn-outline-secondary">Cancel</a>
                 </div>
             </form>

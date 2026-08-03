@@ -50,6 +50,7 @@ class CashBookPhase11Test extends TestCase
                 'person' => 'Walk-in Customer',
                 'remark' => 'Invoice 125',
                 'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
             ])
             ->assertRedirect(route('cash-book.index'));
 
@@ -68,6 +69,7 @@ class CashBookPhase11Test extends TestCase
                 'person' => 'Blue Dart',
                 'remark' => 'Parcel',
                 'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
             ])
             ->assertRedirect(route('cash-book.index'));
 
@@ -85,6 +87,7 @@ class CashBookPhase11Test extends TestCase
                 'person' => '',
                 'remark' => 'Misc cash',
                 'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
             ])
             ->assertRedirect(route('cash-book.index'));
 
@@ -100,6 +103,7 @@ class CashBookPhase11Test extends TestCase
             'person' => 'ABC Traders',
             'remark' => 'Accessories',
             'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
         ]);
 
         $this->actingAs($this->agent)->post(route('cash-book.store'), [
@@ -109,6 +113,7 @@ class CashBookPhase11Test extends TestCase
             'person' => 'Tea Stall',
             'remark' => 'Tea',
             'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
         ]);
 
         $summary = app(CashBookSummaryService::class)->dashboard();
@@ -136,6 +141,7 @@ class CashBookPhase11Test extends TestCase
             'person' => 'Ramesh',
             'remark' => 'Sold old MFS110',
             'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
         ]);
 
         $this->actingAs($this->agent)->post(route('cash-book.store'), [
@@ -145,6 +151,7 @@ class CashBookPhase11Test extends TestCase
             'person' => 'Auto Driver',
             'remark' => 'Coolie',
             'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
         ]);
 
         $entry = CashBookEntry::query()->where('person', 'Ramesh')->firstOrFail();
@@ -184,6 +191,7 @@ class CashBookPhase11Test extends TestCase
             'category' => CashBookIncomeSource::CashSale->value,
             'remark' => 'Today income',
             'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
         ]);
 
         $this->actingAs($this->agent)->post(route('cash-book.store'), [
@@ -192,6 +200,7 @@ class CashBookPhase11Test extends TestCase
             'category' => CashBookExpenseCategory::Stationery->value,
             'remark' => 'Today expense',
             'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
         ]);
 
         CashBookEntry::query()->create([
@@ -238,6 +247,7 @@ class CashBookPhase11Test extends TestCase
                 'person' => 'Customer Name',
                 'remark' => 'Regression income',
                 'entry_date' => now()->toDateString(),
+                'confirmed' => '1',
             ])
             ->assertRedirect(route('cash-book.index'));
 
@@ -251,6 +261,10 @@ class CashBookPhase11Test extends TestCase
         $this->actingAs($this->agent)
             ->get(route('cash-book.edit', $entry))
             ->assertForbidden();
+
+        $this->actingAs($this->admin)
+            ->post(route('cash-book.edit-acknowledge', $entry))
+            ->assertRedirect(route('cash-book.edit', $entry));
 
         $this->actingAs($this->admin)
             ->put(route('cash-book.update', $entry), [

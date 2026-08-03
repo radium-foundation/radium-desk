@@ -7,6 +7,7 @@ use App\Enums\CashBookExpenseCategory;
 use App\Enums\CashBookIncomeSource;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CashBook\StoreCashBookEntryRequest;
+use App\Http\Requests\CashBook\StoreHistoricalCashBookEntryRequest;
 use App\Http\Requests\CashBook\UpdateCashBookEntryRequest;
 use App\Models\CashBookEntry;
 use App\Services\CashBook\CashBookEntryService;
@@ -51,6 +52,8 @@ class CashBookController extends Controller
             'filters' => $filters,
             'canCreate' => CashBookAccess::allowsCreate($request->user()),
             'canManage' => CashBookAccess::allowsManage($request->user()),
+            'canHistorical' => CashBookAccess::allowsHistoricalImport($request->user()),
+            'canBackdate' => CashBookAccess::allowsBackdate($request->user()),
         ]);
     }
 
@@ -61,12 +64,22 @@ class CashBookController extends Controller
         return view('cash-book.create', $this->formOptions([
             'type' => old('type', CashBookEntryType::Income->value),
             'entry_date' => old('entry_date', now()->toDateString()),
+            'canBackdate' => CashBookAccess::allowsBackdate($request->user()),
         ]));
     }
 
-    public function store(StoreCashBookEntryRequest $request): RedirectResponse
+    public function store(StoreCashBookEntryRequest $request): View|RedirectResponse
     {
-        $entry = $this->entries->create($request->user(), $request->validated());
+        $data = $request->safe()->except(['confirmed']);
+
+        if (! $request->boolean('confirmed')) {
+            return view('cash-book.confirm', $this->formOptions([
+                'payload' => $data,
+                'mode' => 'create',
+            ]));
+        }
+
+        $entry = $this->entries->create($request->user(), $data);
 
         return redirect()
             ->route('cash-book.index')
@@ -74,9 +87,32 @@ class CashBookController extends Controller
             ->with('status_entry_no', $entry->entry_no);
     }
 
-    public function edit(Request $request, CashBookEntry $cashBookEntry): View
+    public function editWarning(Request $request, CashBookEntry $cashBookEntry): View
     {
         $this->authorize('update', $cashBookEntry);
+
+        return view('cash-book.edit-warning', [
+            'entry' => $cashBookEntry,
+        ]);
+    }
+
+    public function acknowledgeEdit(Request $request, CashBookEntry $cashBookEntry): RedirectResponse
+    {
+        $this->authorize('update', $cashBookEntry);
+
+        $this->entries->auditUnlock($cashBookEntry, $request->user());
+        $request->session()->put($this->editAckKey($cashBookEntry), true);
+
+        return redirect()->route('cash-book.edit', $cashBookEntry);
+    }
+
+    public function edit(Request $request, CashBookEntry $cashBookEntry): View|RedirectResponse
+    {
+        $this->authorize('update', $cashBookEntry);
+
+        if (! $request->session()->get($this->editAckKey($cashBookEntry))) {
+            return redirect()->route('cash-book.edit-warning', $cashBookEntry);
+        }
 
         return view('cash-book.edit', $this->formOptions([
             'entry' => $cashBookEntry,
@@ -86,27 +122,86 @@ class CashBookController extends Controller
             'category' => old('category', $cashBookEntry->category),
             'person' => old('person', $cashBookEntry->person),
             'remark' => old('remark', $cashBookEntry->remark),
+            'backdate_reason' => old('backdate_reason', $cashBookEntry->backdate_reason),
+            'canBackdate' => CashBookAccess::allowsBackdate($request->user()),
         ]));
     }
 
     public function update(UpdateCashBookEntryRequest $request, CashBookEntry $cashBookEntry): RedirectResponse
     {
-        $this->entries->update($cashBookEntry, $request->user(), $request->validated());
+        if (! $request->session()->get($this->editAckKey($cashBookEntry))) {
+            return redirect()->route('cash-book.edit-warning', $cashBookEntry);
+        }
+
+        $this->entries->update(
+            $cashBookEntry,
+            $request->user(),
+            $request->safe()->only([
+                'type',
+                'amount',
+                'category',
+                'person',
+                'remark',
+                'entry_date',
+                'backdate_reason',
+            ]),
+        );
+        $request->session()->forget($this->editAckKey($cashBookEntry));
 
         return redirect()
             ->route('cash-book.index')
             ->with('status', 'cash-book-entry-updated');
     }
 
+    public function deleteWarning(Request $request, CashBookEntry $cashBookEntry): View
+    {
+        $this->authorize('delete', $cashBookEntry);
+
+        return view('cash-book.delete-warning', [
+            'entry' => $cashBookEntry,
+        ]);
+    }
+
     public function destroy(Request $request, CashBookEntry $cashBookEntry): RedirectResponse
     {
         $this->authorize('delete', $cashBookEntry);
+
+        abort_unless($request->boolean('confirmed'), 403);
 
         $this->entries->delete($cashBookEntry, $request->user());
 
         return redirect()
             ->route('cash-book.index')
             ->with('status', 'cash-book-entry-deleted');
+    }
+
+    public function historicalCreate(Request $request): View
+    {
+        abort_unless(CashBookAccess::allowsHistoricalImport($request->user()), 403);
+
+        return view('cash-book.historical-create', $this->formOptions([
+            'type' => old('type', CashBookEntryType::Income->value),
+            'entry_date' => old('entry_date', now()->subDay()->toDateString()),
+        ]));
+    }
+
+    public function historicalStore(StoreHistoricalCashBookEntryRequest $request): View|RedirectResponse
+    {
+        $data = $request->safe()->except(['confirmed']);
+
+        if (! $request->boolean('confirmed')) {
+            return view('cash-book.confirm', $this->formOptions([
+                'payload' => $data,
+                'mode' => 'historical',
+            ]));
+        }
+
+        $entry = $this->entries->importHistorical($request->user(), $data);
+
+        return redirect()
+            ->route('cash-book.index', ['period' => 'all'])
+            ->with('status', 'cash-book-historical-imported')
+            ->with('status_entry_no', $entry->entry_no);
     }
 
     /**
@@ -119,6 +214,12 @@ class CashBookController extends Controller
             'incomeSources' => CashBookIncomeSource::cases(),
             'expenseCategories' => CashBookExpenseCategory::cases(),
             'currentUser' => request()->user(),
+            'canBackdate' => CashBookAccess::allowsBackdate(request()->user()),
         ], $extra);
+    }
+
+    private function editAckKey(CashBookEntry $entry): string
+    {
+        return 'cashbook.edit_ack.'.$entry->id;
     }
 }
