@@ -141,10 +141,15 @@ class IncomingEmailIntakePhase1Test extends TestCase
 
         $this->assertSame(IncomingEmailMessageStatus::Ignored, $message?->status);
         $this->assertSame('spam', $message?->ignore_reason);
+        $this->assertSame(\App\Enums\IncomingEmailClassification::Spam, $message?->classification);
         $this->assertSame(0, IncidentIncomingEmailLink::query()->count());
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'incoming_email.ignored',
             'auditable_id' => $message->id,
+        ]);
+        $this->assertDatabaseHas('incoming_email_ignore_stats', [
+            'reason' => 'spam',
+            'count' => 1,
         ]);
     }
 
@@ -177,16 +182,21 @@ class IncomingEmailIntakePhase1Test extends TestCase
         $this->assertSame('auto_responder', $message?->ignore_reason);
     }
 
-    public function test_unknown_customer_is_ignored_without_creating_incident(): void
+    public function test_unknown_customer_needs_review_without_creating_incident(): void
     {
         $before = Incident::query()->count();
 
         $message = $this->ingestEmail(fromEmail: 'unknown@example.com');
 
-        $this->assertSame(IncomingEmailMessageStatus::Ignored, $message?->status);
+        $this->assertSame(IncomingEmailMessageStatus::NeedsReview, $message?->status);
         $this->assertSame('unknown_customer', $message?->ignore_reason);
+        $this->assertSame(\App\Enums\IncomingEmailClassification::PossibleSalesLead, $message?->classification);
         $this->assertSame($before, Incident::query()->count());
         $this->assertSame(0, IncidentIncomingEmailLink::query()->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'incoming_email.needs_review',
+            'auditable_id' => $message->id,
+        ]);
     }
 
     public function test_known_customer_without_open_incident_is_associated_as_historical_customer(): void
@@ -387,10 +397,11 @@ class IncomingEmailIntakePhase1Test extends TestCase
 
     public function test_known_customer_with_open_incident_is_linked(): void
     {
-        Carbon::setTestNow(Carbon::parse('2026-07-18 22:00:00', 'Asia/Kolkata'));
+        Carbon::setTestNow(Carbon::parse('2026-07-18 10:00:00', 'Asia/Kolkata'));
 
-        $nightAdmin = $this->createAdminUser('night-admin@test.com', 'Night Admin');
-        $this->configureAssignmentSettings($nightAdmin->id, $nightAdmin->id);
+        $primary = $this->createAdminUser('intake-primary@test.com', 'Intake Primary');
+        $fallback = $this->createAdminUser('intake-fallback@test.com', 'Intake Fallback');
+        $this->configureAssignmentSettings($primary->id, $fallback->id);
 
         [$order, $incident] = $this->seedCustomerWithOpenIncident('customer@example.com');
 
@@ -422,7 +433,8 @@ class IncomingEmailIntakePhase1Test extends TestCase
 
         $incident = $incident->fresh();
         $this->assertTrue($incident->high_priority);
-        $this->assertSame($nightAdmin->id, $incident->assigned_to_user_id);
+        // Unassigned case → Communication Intake primary (not round-robin / night admin).
+        $this->assertSame($primary->id, $incident->assigned_to_user_id);
 
         $timeline = app(IncomingEmailTimelineEventSource::class, ['order' => $order])->collect();
         $this->assertCount(1, $timeline);
@@ -607,6 +619,8 @@ class IncomingEmailIntakePhase1Test extends TestCase
             'assignment.night_shift_admin_user_id' => (string) $nightAdminId,
             'assignment.fallback_admin_1_user_id' => '',
             'assignment.fallback_admin_2_user_id' => '',
+            'assignment.communication_intake_primary_user_id' => (string) $dayAdminId,
+            'assignment.communication_intake_fallback_user_id' => (string) $nightAdminId,
         ]);
     }
 

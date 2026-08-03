@@ -2,13 +2,14 @@
 
 namespace App\Services\IncomingEmail;
 
+use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IntakeChannel;
+use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailMessage;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\ServiceCasePriorityService;
-use App\Support\Assignment\CommunicationOwnershipGuard;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -16,10 +17,10 @@ class IncomingEmailProcessorService
 {
     public function __construct(
         private readonly IncomingEmailFilterService $filterService,
+        private readonly IncomingEmailClassifierService $classifierService,
         private readonly IncomingEmailCustomerMatcher $customerMatcher,
         private readonly IncomingEmailLinkService $linkService,
         private readonly IncomingEmailHistoricalAssociationService $historicalAssociationService,
-        private readonly CommunicationOwnershipGuard $ownershipGuard,
         private readonly IncomingEmailAssignmentService $assignmentService,
         private readonly ServiceCasePriorityService $priorityService,
         private readonly AuditLogService $auditLogService,
@@ -35,6 +36,7 @@ class IncomingEmailProcessorService
         if (in_array($message->status, [
             IncomingEmailMessageStatus::Linked,
             IncomingEmailMessageStatus::HistoricalCustomer,
+            IncomingEmailMessageStatus::NeedsReview,
             IncomingEmailMessageStatus::Ignored,
         ], true)) {
             return;
@@ -51,36 +53,44 @@ class IncomingEmailProcessorService
             $filter = $this->filterService->evaluate($message);
 
             if ($filter['ignored']) {
-                $this->markIgnored($message, (string) $filter['reason'], $actor->id);
+                $reason = (string) $filter['reason'];
+                $classification = $this->classifierService->fromFilterReason($reason);
+                $this->markIgnored($message, $reason, $classification, $actor->id);
 
                 return;
             }
 
             DB::transaction(function () use ($message, $actor): void {
-                $match = $this->customerMatcher->resolve($message->fresh());
+                $fresh = $message->fresh();
+                $match = $this->customerMatcher->resolve($fresh);
+                $classification = $this->classifierService->classifyOperational($fresh, $match);
 
                 if ($match['incident'] === null) {
                     if ($match['order'] !== null && ($match['reason'] ?? null) === 'historical_customer') {
                         $this->historicalAssociationService->associate(
                             $match['order'],
-                            $message->fresh(),
+                            $fresh->fresh(),
                             $actor,
+                            $classification,
                         );
 
                         return;
                     }
 
-                    $this->markIgnored(
-                        $message,
-                        (string) ($match['reason'] ?? 'unknown_customer'),
+                    $this->markNeedsReview(
+                        $fresh,
+                        $classification === IncomingEmailClassification::PossibleSalesLead
+                            ? IncomingEmailClassification::PossibleSalesLead
+                            : IncomingEmailClassification::UnknownCustomer,
                         $actor->id,
+                        (string) ($match['reason'] ?? 'unknown_customer'),
                     );
 
                     return;
                 }
 
                 $incident = $match['incident'];
-                $this->linkService->link($incident, $message->fresh(), $actor);
+                $linkedMessage = $this->linkService->link($incident, $fresh->fresh(), $actor, $classification);
 
                 $incident = $this->priorityService->applyInboundLinkBoost(
                     $incident->fresh(['order', 'assignee']),
@@ -88,9 +98,13 @@ class IncomingEmailProcessorService
                     $actor,
                 );
 
-                if (! $this->ownershipGuard->preservesOwnership($incident)) {
-                    $this->assignmentService->assignIfUnassigned($incident, $actor);
-                }
+                // Ownership routing: existing assignee always wins; never reassign.
+                // Unassigned → Communication Intake primary → fallback (no round robin).
+                $this->assignmentService->routeLinkedEmail(
+                    $incident->fresh(['assignee', 'order']),
+                    $linkedMessage->fresh(),
+                    $actor,
+                );
             });
         } catch (Throwable $exception) {
             $message->update([
@@ -111,14 +125,21 @@ class IncomingEmailProcessorService
         }
     }
 
-    private function markIgnored(IncomingEmailMessage $message, string $reason, int $actorId): void
-    {
+    private function markIgnored(
+        IncomingEmailMessage $message,
+        string $reason,
+        IncomingEmailClassification $classification,
+        int $actorId,
+    ): void {
         $message->update([
             'status' => IncomingEmailMessageStatus::Ignored,
             'ignore_reason' => $reason,
+            'classification' => $classification,
             'processed_at' => now(),
             'processing_error' => null,
         ]);
+
+        IncomingEmailIgnoreStat::incrementReason($reason);
 
         $this->auditLogService->log(
             userId: $actorId,
@@ -126,6 +147,37 @@ class IncomingEmailProcessorService
             auditable: $message->fresh(),
             newValues: [
                 'reason' => $reason,
+                'classification' => $classification->value,
+                'mailbox' => $message->mailbox,
+                'from_email' => $message->from_email,
+                'subject' => $message->subject,
+                'rfc_message_id' => $message->rfc_message_id,
+                'thread_id' => $message->thread_id,
+            ],
+        );
+    }
+
+    private function markNeedsReview(
+        IncomingEmailMessage $message,
+        IncomingEmailClassification $classification,
+        int $actorId,
+        string $reason,
+    ): void {
+        $message->update([
+            'status' => IncomingEmailMessageStatus::NeedsReview,
+            'ignore_reason' => $reason,
+            'classification' => $classification,
+            'processed_at' => now(),
+            'processing_error' => null,
+        ]);
+
+        $this->auditLogService->log(
+            userId: $actorId,
+            event: 'incoming_email.needs_review',
+            auditable: $message->fresh(),
+            newValues: [
+                'reason' => $reason,
+                'classification' => $classification->value,
                 'mailbox' => $message->mailbox,
                 'from_email' => $message->from_email,
                 'subject' => $message->subject,

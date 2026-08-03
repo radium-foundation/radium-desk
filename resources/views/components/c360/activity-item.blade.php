@@ -11,6 +11,7 @@
     $isNestedRaw = (bool) $nestedRaw;
     $isInternalNote = $event->type === TimelineEventType::InternalNote;
     $isIncomingEmail = str_starts_with($event->dedupeKey, 'incoming_email:');
+    $isOutgoingEmail = str_starts_with($event->dedupeKey, 'outgoing_email:');
     $incomingEmailId = $isIncomingEmail
         ? (int) substr($event->dedupeKey, strlen('incoming_email:'))
         : null;
@@ -80,7 +81,7 @@
             <div class="c360-activity-item-description unified-timeline-detail unified-timeline-note-body">
                 {!! $mentionFormatter->format($event->noteBody) !!}
             </div>
-        @elseif($isIncomingEmail && filled($event->summary))
+        @elseif(($isIncomingEmail || $isOutgoingEmail) && filled($event->summary))
             <p class="c360-activity-item-context">{{ $event->summary }}</p>
         @elseif(! $hasCommunicationChannels && filled($event->summary) && ! $hasExpandedMetadata)
             <p class="c360-activity-item-context">{{ $event->summary }}</p>

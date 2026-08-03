@@ -72,6 +72,32 @@
                 </select>
                 @error('fallback_admin_2_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
+            <div class="col-md-6">
+                <label for="communication_intake_primary_user_id" class="form-label">Communication Intake Primary</label>
+                <select name="communication_intake_primary_user_id" id="communication_intake_primary_user_id" class="form-select @error('communication_intake_primary_user_id') is-invalid @enderror">
+                    <option value="">None</option>
+                    @foreach($adminUsers as $adminUser)
+                        <option value="{{ $adminUser->id }}" @selected((int) old('communication_intake_primary_user_id', $assignment['communication_intake_primary_user_id'] ?? 0) === $adminUser->id)>
+                            {{ $adminUser->firstName() }} {{ $adminUser->lastName() }} ({{ $adminUser->email }})
+                        </option>
+                    @endforeach
+                </select>
+                <div class="form-text">Email / communication intake owner when the service case is unassigned (e.g. Shubhanshi).</div>
+                @error('communication_intake_primary_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
+            <div class="col-md-6">
+                <label for="communication_intake_fallback_user_id" class="form-label">Communication Intake Fallback</label>
+                <select name="communication_intake_fallback_user_id" id="communication_intake_fallback_user_id" class="form-select @error('communication_intake_fallback_user_id') is-invalid @enderror">
+                    <option value="">None</option>
+                    @foreach($adminUsers as $adminUser)
+                        <option value="{{ $adminUser->id }}" @selected((int) old('communication_intake_fallback_user_id', $assignment['communication_intake_fallback_user_id'] ?? 0) === $adminUser->id)>
+                            {{ $adminUser->firstName() }} {{ $adminUser->lastName() }} ({{ $adminUser->email }})
+                        </option>
+                    @endforeach
+                </select>
+                <div class="form-text">Used when the primary is on leave, offline, inactive, or outside working hours (e.g. Dileep).</div>
+                @error('communication_intake_fallback_user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+            </div>
         </div>
         <div class="settings-center-card__footer settings-center-card__footer--inline">
             <button type="submit" class="btn btn-primary">Save Assignment Settings</button>

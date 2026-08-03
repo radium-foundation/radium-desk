@@ -3,9 +3,12 @@
 namespace App\Services\IncomingEmail;
 
 use App\Data\IncomingEmail\NormalizedInboundEmail;
+use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IntakeChannel;
+use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailMessage;
+use App\Models\OutgoingEmailMessage;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\Outbox\OutboxProcessorService;
@@ -46,6 +49,8 @@ class IncomingEmailIngestService
             $rawPayload['attachments'] = $dto->attachments;
         }
 
+        $isOwnOutbound = $this->isOwnOutboundEcho($dto);
+
         $message = IncomingEmailMessage::query()->create([
             'intake_channel' => IntakeChannel::Email,
             'mailbox' => strtolower(trim($dto->mailbox)),
@@ -67,14 +72,19 @@ class IncomingEmailIngestService
             'headers' => $dto->headers,
             'labels' => $dto->labels,
             'raw_payload' => $rawPayload,
-            'status' => IncomingEmailMessageStatus::Received,
+            'status' => $isOwnOutbound
+                ? IncomingEmailMessageStatus::Ignored
+                : IncomingEmailMessageStatus::Received,
+            'ignore_reason' => $isOwnOutbound ? 'own_outbound' : null,
+            'classification' => $isOwnOutbound ? IncomingEmailClassification::OwnOutbound : null,
+            'processed_at' => $isOwnOutbound ? now() : null,
         ]);
 
         $actor = $this->automationIdentity->systemUser();
 
         $this->auditLogService->log(
             userId: $actor->id,
-            event: 'incoming_email.received',
+            event: $isOwnOutbound ? 'incoming_email.ignored' : 'incoming_email.received',
             auditable: $message,
             newValues: [
                 'mailbox' => $message->mailbox,
@@ -85,8 +95,16 @@ class IncomingEmailIngestService
                 'thread_id' => $message->thread_id,
                 'provider_message_id' => $message->provider_message_id,
                 'attachment_count' => $message->attachment_count,
+                'reason' => $isOwnOutbound ? 'own_outbound' : null,
+                'classification' => $isOwnOutbound ? IncomingEmailClassification::OwnOutbound->value : null,
             ],
         );
+
+        if ($isOwnOutbound) {
+            IncomingEmailIgnoreStat::incrementReason('own_outbound');
+
+            return $message->fresh();
+        }
 
         $this->outboxWriter->writeProcessingJob($message->id);
 
@@ -98,6 +116,29 @@ class IncomingEmailIngestService
         }
 
         return $message->fresh();
+    }
+
+    private function isOwnOutboundEcho(NormalizedInboundEmail $dto): bool
+    {
+        $providerMessageId = $dto->providerMessageId !== null ? trim($dto->providerMessageId) : '';
+
+        if ($providerMessageId !== '') {
+            $exists = OutgoingEmailMessage::query()
+                ->where('provider_message_id', $providerMessageId)
+                ->exists();
+
+            if ($exists) {
+                return true;
+            }
+        }
+
+        $fromEmail = strtolower(trim($dto->fromEmail));
+        $mailboxes = array_map(
+            'strtolower',
+            array_keys(config('inbound_email.mailboxes', [])),
+        );
+
+        return $fromEmail !== '' && in_array($fromEmail, $mailboxes, true);
     }
 
     private function findExisting(NormalizedInboundEmail $dto): ?IncomingEmailMessage

@@ -15,6 +15,7 @@ enum TimelineEventType: string
     case WhatsApp = 'whatsapp';
     case WhatsAppTemplateSent = 'whatsapp_template_sent';
     case Email = 'email';
+    case OutgoingEmail = 'outgoing_email';
     case IvrCall = 'ivr_call';
     case Dispatch = 'dispatch';
     case Replacement = 'replacement';
@@ -37,6 +38,7 @@ enum TimelineEventType: string
             self::WhatsApp => 'WhatsApp',
             self::WhatsAppTemplateSent => 'WhatsApp Template Sent',
             self::Email => 'Email',
+            self::OutgoingEmail => 'Outgoing Email',
             self::IvrCall => 'IVR Call',
             self::Dispatch => 'Dispatch',
             self::Replacement => 'Replacement',
@@ -61,6 +63,7 @@ enum TimelineEventType: string
             self::WhatsApp,
             self::WhatsAppTemplateSent => 'bi-whatsapp',
             self::Email,
+            self::OutgoingEmail,
             self::Notification => 'bi-envelope',
             self::IvrCall => 'bi-telephone',
             self::Dispatch => 'bi-truck',
@@ -85,6 +88,7 @@ enum TimelineEventType: string
             self::WhatsApp,
             self::WhatsAppTemplateSent,
             self::Email,
+            self::OutgoingEmail,
             self::Notification,
             self::Synchronization,
             self::Appointment,
@@ -101,6 +105,7 @@ enum TimelineEventType: string
             self::WhatsApp,
             self::WhatsAppTemplateSent => 'notifications',
             self::Email,
+            self::OutgoingEmail,
             self::Notification,
             self::IvrCall => 'notifications',
             self::Payment => 'payments',

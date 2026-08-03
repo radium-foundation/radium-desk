@@ -38,7 +38,9 @@ class ApplicationSettingsService
      *     day_shift_admin_user_id: int,
      *     night_shift_admin_user_id: int,
      *     fallback_admin_1_user_id: int|null,
-     *     fallback_admin_2_user_id: int|null
+     *     fallback_admin_2_user_id: int|null,
+     *     communication_intake_primary_user_id: int|null,
+     *     communication_intake_fallback_user_id: int|null
      * }  $data
      */
     public function updateAssignment(array $data): void
@@ -48,6 +50,8 @@ class ApplicationSettingsService
             $data['night_shift_admin_user_id'],
             $data['fallback_admin_1_user_id'],
             $data['fallback_admin_2_user_id'],
+            $data['communication_intake_primary_user_id'] ?? null,
+            $data['communication_intake_fallback_user_id'] ?? null,
         ]);
 
         $this->settingService->setMany([
@@ -60,6 +64,10 @@ class ApplicationSettingsService
                 ? (string) $data['fallback_admin_1_user_id'] : '',
             'assignment.fallback_admin_2_user_id' => $data['fallback_admin_2_user_id'] !== null
                 ? (string) $data['fallback_admin_2_user_id'] : '',
+            'assignment.communication_intake_primary_user_id' => ($data['communication_intake_primary_user_id'] ?? null) !== null
+                ? (string) $data['communication_intake_primary_user_id'] : '',
+            'assignment.communication_intake_fallback_user_id' => ($data['communication_intake_fallback_user_id'] ?? null) !== null
+                ? (string) $data['communication_intake_fallback_user_id'] : '',
         ]);
     }
 

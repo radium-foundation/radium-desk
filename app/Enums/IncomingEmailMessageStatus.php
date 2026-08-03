@@ -8,6 +8,7 @@ enum IncomingEmailMessageStatus: string
     case Processing = 'processing';
     case Linked = 'linked';
     case HistoricalCustomer = 'historical_customer';
+    case NeedsReview = 'needs_review';
     case Ignored = 'ignored';
     case Failed = 'failed';
 
@@ -18,6 +19,7 @@ enum IncomingEmailMessageStatus: string
             self::Processing => 'Processing',
             self::Linked => 'Linked',
             self::HistoricalCustomer => 'Historical Customer - No Active Service Case',
+            self::NeedsReview => 'Needs Review',
             self::Ignored => 'Ignored',
             self::Failed => 'Failed',
         };

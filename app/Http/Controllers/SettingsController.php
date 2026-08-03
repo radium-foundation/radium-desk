@@ -41,6 +41,8 @@ class SettingsController extends Controller
                 'night_shift_admin_user_id' => $this->settingService->getInt('assignment.night_shift_admin_user_id'),
                 'fallback_admin_1_user_id' => $this->settingService->getInt('assignment.fallback_admin_1_user_id'),
                 'fallback_admin_2_user_id' => $this->settingService->getInt('assignment.fallback_admin_2_user_id'),
+                'communication_intake_primary_user_id' => $this->settingService->getInt('assignment.communication_intake_primary_user_id'),
+                'communication_intake_fallback_user_id' => $this->settingService->getInt('assignment.communication_intake_fallback_user_id'),
             ],
             'notifications' => [
                 'assignment_enabled' => $this->settingService->getBool('notifications.assignment_enabled', true),

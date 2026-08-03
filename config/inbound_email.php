@@ -123,8 +123,13 @@ return [
 
         'subject' => env('GOOGLE_WORKSPACE_IMPERSONATED_USER'), // optional default; per-mailbox impersonation uses mailbox address
 
+        /*
+         * gmail.send is required for Customer 360 operational reply (Phase 1).
+         * Workspace domain-wide delegation must grant the same scopes before enabling reply.
+         */
         'scopes' => [
             'https://www.googleapis.com/auth/gmail.readonly',
+            'https://www.googleapis.com/auth/gmail.send',
         ],
 
         'api_base_url' => rtrim(env('GMAIL_API_BASE_URL', 'https://gmail.googleapis.com'), '/'),
@@ -166,5 +171,26 @@ return [
             'trim',
             explode(',', (string) env('INBOUND_EMAIL_GMAIL_MAILBOXES', '')),
         ))),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operational reply (Customer 360 → Gmail API send)
+    |--------------------------------------------------------------------------
+    |
+    | Not an inbox. Agents reply to a linked incoming message from Customer 360.
+    | Default: disabled. Phase 1 rollout: support@ mailbox + email.reply permission.
+    |
+    */
+
+    'reply' => [
+        'enabled' => filter_var(env('INBOUND_EMAIL_REPLY_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
+        'mailboxes' => ($mailboxes = trim((string) env('INBOUND_EMAIL_REPLY_MAILBOXES', 'support@radiumbox.com'))) !== ''
+            ? array_values(array_filter(array_map(
+                static fn (string $email): string => strtolower(trim($email)),
+                explode(',', $mailboxes),
+            )))
+            : ['support@radiumbox.com'],
     ],
 ];

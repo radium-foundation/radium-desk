@@ -136,6 +136,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('dashboard.service-cases.customer-360.executive-summary.translate');
     Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/content', [IncomingEmailContentController::class, 'show'])
         ->name('dashboard.incoming-email-messages.content');
+    Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/reply-context', [IncomingEmailContentController::class, 'replyContext'])
+        ->name('dashboard.incoming-email-messages.reply-context');
+    Route::post('dashboard/incoming-email-messages/{incomingEmailMessage}/reply-preview', [IncomingEmailContentController::class, 'replyPreview'])
+        ->name('dashboard.incoming-email-messages.reply-preview');
+    Route::post('dashboard/incoming-email-messages/{incomingEmailMessage}/reply', [IncomingEmailContentController::class, 'reply'])
+        ->name('dashboard.incoming-email-messages.reply');
     Route::get('dashboard/incoming-email-messages/{incomingEmailMessage}/attachments/{attachment}', [IncomingEmailContentController::class, 'downloadAttachment'])
         ->name('dashboard.incoming-email-messages.attachments.download');
     Route::post('dashboard/transactions/bulk', [OrderTransactionController::class, 'bulkStore'])

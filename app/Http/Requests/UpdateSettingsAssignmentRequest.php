@@ -32,6 +32,8 @@ class UpdateSettingsAssignmentRequest extends FormRequest
             'night_shift_admin_user_id' => ['required', 'integer', $adminUserRule],
             'fallback_admin_1_user_id' => ['nullable', 'integer', $adminUserRule],
             'fallback_admin_2_user_id' => ['nullable', 'integer', $adminUserRule],
+            'communication_intake_primary_user_id' => ['nullable', 'integer', $adminUserRule],
+            'communication_intake_fallback_user_id' => ['nullable', 'integer', $adminUserRule],
         ];
     }
 
@@ -40,6 +42,8 @@ class UpdateSettingsAssignmentRequest extends FormRequest
         $this->merge([
             'fallback_admin_1_user_id' => $this->input('fallback_admin_1_user_id') ?: null,
             'fallback_admin_2_user_id' => $this->input('fallback_admin_2_user_id') ?: null,
+            'communication_intake_primary_user_id' => $this->input('communication_intake_primary_user_id') ?: null,
+            'communication_intake_fallback_user_id' => $this->input('communication_intake_fallback_user_id') ?: null,
         ]);
     }
 }

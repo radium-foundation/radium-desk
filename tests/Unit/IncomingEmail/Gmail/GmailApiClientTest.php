@@ -246,4 +246,31 @@ class GmailApiClientTest extends TestCase
 
         app(GmailApiClient::class)->getMessage('support@radiumbox.com', 'msg-denied');
     }
+
+    public function test_send_raw_message_posts_raw_and_thread_id(): void
+    {
+        Http::fake([
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/send' => Http::response([
+                'id' => 'sent-1',
+                'threadId' => 'thr-1',
+                'labelIds' => ['SENT'],
+            ], 200),
+        ]);
+
+        $result = app(GmailApiClient::class)->sendRawMessage(
+            'support@radiumbox.com',
+            'dGVzdA',
+            'thr-1',
+        );
+
+        $this->assertSame('sent-1', $result['id']);
+        $this->assertSame('thr-1', $result['threadId']);
+
+        Http::assertSent(function ($request): bool {
+            return $request->method() === 'POST'
+                && str_ends_with($request->url(), '/messages/send')
+                && ($request['raw'] ?? null) === 'dGVzdA'
+                && ($request['threadId'] ?? null) === 'thr-1';
+        });
+    }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Services\IncomingEmail;
 
+use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Models\IncomingEmailMessage;
 use App\Models\Order;
@@ -14,13 +15,18 @@ class IncomingEmailHistoricalAssociationService
         private readonly AuditLogService $auditLogService,
     ) {}
 
-    public function associate(Order $order, IncomingEmailMessage $message, User $actor): IncomingEmailMessage
-    {
+    public function associate(
+        Order $order,
+        IncomingEmailMessage $message,
+        User $actor,
+        ?IncomingEmailClassification $classification = null,
+    ): IncomingEmailMessage {
         $message->update([
             'status' => IncomingEmailMessageStatus::HistoricalCustomer,
             'order_id' => $order->id,
             'incident_id' => null,
             'ignore_reason' => null,
+            'classification' => $classification ?? IncomingEmailClassification::ExistingCustomer,
             'processed_at' => now(),
             'processing_error' => null,
         ]);
@@ -37,6 +43,7 @@ class IncomingEmailHistoricalAssociationService
                 'subject' => $message->subject,
                 'rfc_message_id' => $message->rfc_message_id,
                 'thread_id' => $message->thread_id,
+                'classification' => ($classification ?? IncomingEmailClassification::ExistingCustomer)->value,
             ],
         );
 

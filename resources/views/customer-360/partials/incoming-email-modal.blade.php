@@ -22,8 +22,47 @@
                 <div class="alert alert-danger" data-incoming-email-modal-error hidden></div>
                 <div class="c360-incoming-email-body" data-incoming-email-modal-body hidden></div>
                 <ul class="list-unstyled mb-0 mt-3" data-incoming-email-modal-attachments hidden></ul>
+
+                <div class="border-top mt-3 pt-3" data-incoming-email-reply-panel hidden>
+                    <h3 class="h6 mb-2">Reply</h3>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1" for="incomingEmailReplyTemplate">Template</label>
+                        <select id="incomingEmailReplyTemplate"
+                                class="form-select form-select-sm"
+                                data-incoming-email-reply-template></select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1" for="incomingEmailReplySubject">Subject</label>
+                        <input id="incomingEmailReplySubject"
+                               type="text"
+                               class="form-control form-control-sm"
+                               data-incoming-email-reply-subject
+                               maxlength="998">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1" for="incomingEmailReplyBody">Message</label>
+                        <textarea id="incomingEmailReplyBody"
+                                  class="form-control form-control-sm"
+                                  rows="8"
+                                  data-incoming-email-reply-body></textarea>
+                    </div>
+                    <div class="alert alert-danger py-2 small mb-2" data-incoming-email-reply-error hidden></div>
+                    <div class="alert alert-success py-2 small mb-0" data-incoming-email-reply-success hidden></div>
+                </div>
             </div>
             <div class="modal-footer border-0 pt-0">
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary me-auto"
+                        data-incoming-email-reply-toggle
+                        hidden>
+                    Reply
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-primary"
+                        data-incoming-email-reply-send
+                        hidden>
+                    Send
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>

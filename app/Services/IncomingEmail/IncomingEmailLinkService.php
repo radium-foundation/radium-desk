@@ -2,6 +2,7 @@
 
 namespace App\Services\IncomingEmail;
 
+use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Models\Incident;
 use App\Models\IncidentIncomingEmailLink;
@@ -16,8 +17,12 @@ class IncomingEmailLinkService
         private readonly AuditLogService $auditLogService,
     ) {}
 
-    public function link(Incident $incident, IncomingEmailMessage $message, User $actor): IncomingEmailMessage
-    {
+    public function link(
+        Incident $incident,
+        IncomingEmailMessage $message,
+        User $actor,
+        ?IncomingEmailClassification $classification = null,
+    ): IncomingEmailMessage {
         $this->createLink($incident, $message);
 
         $message->update([
@@ -25,6 +30,7 @@ class IncomingEmailLinkService
             'incident_id' => $incident->id,
             'order_id' => $incident->order_id,
             'ignore_reason' => null,
+            'classification' => $classification ?? IncomingEmailClassification::ExistingCustomer,
             'processed_at' => now(),
             'processing_error' => null,
         ]);
@@ -45,6 +51,7 @@ class IncomingEmailLinkService
                 'attachment_count' => $message->attachment_count,
                 'received_at' => $message->received_at?->toIso8601String(),
                 'preview' => $message->preview,
+                'classification' => ($classification ?? IncomingEmailClassification::ExistingCustomer)->value,
             ],
         );
 

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IntakeChannel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Services\IncomingEmail\IncomingEmailPreviewExtractor;
 
 class IncomingEmailMessage extends Model
 {
@@ -30,6 +33,7 @@ class IncomingEmailMessage extends Model
         'raw_payload',
         'status',
         'ignore_reason',
+        'classification',
         'incident_id',
         'order_id',
         'processed_at',
@@ -41,6 +45,7 @@ class IncomingEmailMessage extends Model
         return [
             'intake_channel' => IntakeChannel::class,
             'status' => IncomingEmailMessageStatus::class,
+            'classification' => IncomingEmailClassification::class,
             'to_emails' => 'array',
             'headers' => 'array',
             'labels' => 'array',
@@ -64,6 +69,11 @@ class IncomingEmailMessage extends Model
     public function incidentLink(): HasOne
     {
         return $this->hasOne(IncidentIncomingEmailLink::class);
+    }
+
+    public function outgoingReplies(): HasMany
+    {
+        return $this->hasMany(OutgoingEmailMessage::class, 'in_reply_to_incoming_email_message_id');
     }
 
     /**

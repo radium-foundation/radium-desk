@@ -255,7 +255,54 @@ class GmailApiClient
     }
 
     /**
+     * Send a raw RFC 822 message via Gmail API.
+     *
+     * @return array{id: string, threadId: string, labelIds: list<string>}
+     */
+    public function sendRawMessage(string $mailbox, string $rawRfc822Base64Url, ?string $threadId = null): array
+    {
+        $body = [
+            'raw' => $rawRfc822Base64Url,
+        ];
+
+        if ($threadId !== null && trim($threadId) !== '') {
+            $body['threadId'] = trim($threadId);
+        }
+
+        $response = $this->request(
+            $mailbox,
+            'POST',
+            '/gmail/v1/users/me/messages/send',
+            [],
+            null,
+            null,
+            $body,
+        );
+
+        $id = (string) ($response['id'] ?? '');
+        $responseThreadId = (string) ($response['threadId'] ?? '');
+
+        if ($id === '') {
+            throw new RuntimeException('Gmail send response missing message id for '.$mailbox);
+        }
+
+        $labelIds = [];
+        foreach ($response['labelIds'] ?? [] as $labelId) {
+            if (is_string($labelId) && $labelId !== '') {
+                $labelIds[] = $labelId;
+            }
+        }
+
+        return [
+            'id' => $id,
+            'threadId' => $responseThreadId !== '' ? $responseThreadId : (string) ($threadId ?? ''),
+            'labelIds' => $labelIds,
+        ];
+    }
+
+    /**
      * @param  array<string, scalar|null>  $query
+     * @param  array<string, mixed>|null  $jsonBody
      * @return array<string, mixed>
      */
     private function request(
@@ -265,12 +312,14 @@ class GmailApiClient
         array $query = [],
         ?string $historyId = null,
         ?string $messageId = null,
+        ?array $jsonBody = null,
     ): array {
-        return $this->requestWithMeta($mailbox, $method, $path, $query, $historyId, $messageId)['json'];
+        return $this->requestWithMeta($mailbox, $method, $path, $query, $historyId, $messageId, $jsonBody)['json'];
     }
 
     /**
      * @param  array<string, scalar|null>  $query
+     * @param  array<string, mixed>|null  $jsonBody
      * @return array{json: array<string, mixed>, retries: int, elapsed_ms: int, request_id: ?string}
      */
     private function requestWithMeta(
@@ -280,6 +329,7 @@ class GmailApiClient
         array $query = [],
         ?string $historyId = null,
         ?string $messageId = null,
+        ?array $jsonBody = null,
     ): array {
         $attempts = max(1, (int) config('inbound_email.gmail.http_retry_times', 3));
         $sleepMs = max(0, (int) config('inbound_email.gmail.http_retry_sleep_ms', 500));
@@ -303,6 +353,7 @@ class GmailApiClient
                 /** @var Response $response */
                 $response = match (strtoupper($method)) {
                     'GET' => $pending->get($url, $query),
+                    'POST' => $pending->asJson()->post($url, $jsonBody ?? []),
                     default => throw new RuntimeException('Unsupported Gmail HTTP method: '.$method),
                 };
 

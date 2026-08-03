@@ -66,6 +66,8 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_CASHBOOK_HISTORICAL = 'cashbook.historical';
 
+    public const PERMISSION_EMAIL_REPLY = 'email.reply';
+
     /**
      * @var list<string>
      */
@@ -75,6 +77,7 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_CASHBOOK_CREATE,
         self::PERMISSION_CASHBOOK_MANAGE,
         self::PERMISSION_CASHBOOK_HISTORICAL,
+        self::PERMISSION_EMAIL_REPLY,
     ];
 
     /**
@@ -263,6 +266,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
+            self::PERMISSION_EMAIL_REPLY,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -303,6 +307,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
+            self::PERMISSION_EMAIL_REPLY,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -351,6 +356,7 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
             self::PERMISSION_CASHBOOK_HISTORICAL,
+            self::PERMISSION_EMAIL_REPLY,
         ],
     ];
 
