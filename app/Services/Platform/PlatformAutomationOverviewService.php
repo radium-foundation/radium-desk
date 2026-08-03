@@ -4,12 +4,17 @@ namespace App\Services\Platform;
 
 use App\Enums\PlatformHealthStatus;
 use App\Services\Operations\AutomationHealthService;
+use App\Services\Platform\Health\QueueHealthProvider;
+use App\Services\Platform\Health\SchedulerHealthProvider;
 use App\Services\Platform\PlatformCachePolicy;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
  * Cacheable Automation zone summary over AutomationHealthService.
+ *
+ * Scheduler & Workers is independent runtime health (heartbeat + queue probes),
+ * not a mirror of the automation execution ledger.
  */
 class PlatformAutomationOverviewService
 {
@@ -19,6 +24,8 @@ class PlatformAutomationOverviewService
 
     public function __construct(
         private readonly AutomationHealthService $automationHealth,
+        private readonly SchedulerHealthProvider $schedulerHealth,
+        private readonly QueueHealthProvider $queueHealth,
     ) {}
 
     /**
@@ -52,13 +59,17 @@ class PlatformAutomationOverviewService
             }
         }
 
+        $schedulerItem = $this->schedulerWorkersItem();
+        $schedulerStatus = PlatformHealthStatus::tryFrom((string) $schedulerItem['status'])
+            ?? PlatformHealthStatus::Critical;
+
         try {
             $agg = $this->automationHealth->overviewAggregation();
         } catch (Throwable $exception) {
             report($exception);
 
-            return [
-                'items' => [[
+            $items = [
+                [
                     'key' => 'automation_health',
                     'label' => 'Automation Health',
                     'status' => PlatformHealthStatus::Critical->value,
@@ -66,8 +77,16 @@ class PlatformAutomationOverviewService
                     'badge_class' => 'dark',
                     'summary' => 'Unable to refresh automation health.',
                     'updated_at' => now()->toIso8601String(),
-                ]],
-                'overall_status' => PlatformHealthStatus::Critical->value,
+                ],
+                $schedulerItem,
+            ];
+
+            return [
+                'items' => $items,
+                'overall_status' => PlatformHealthStatus::worst(
+                    PlatformHealthStatus::Critical,
+                    $schedulerStatus,
+                )->value,
                 'generated_at' => now()->toIso8601String(),
                 'available' => false,
                 'links' => $this->links(),
@@ -75,7 +94,7 @@ class PlatformAutomationOverviewService
         }
 
         $statusValue = (string) ($agg['health_status'] ?? 'healthy');
-        $status = PlatformHealthStatus::tryFrom($statusValue) ?? match ($statusValue) {
+        $automationStatus = PlatformHealthStatus::tryFrom($statusValue) ?? match ($statusValue) {
             'failed', 'critical' => PlatformHealthStatus::Critical,
             'warning' => PlatformHealthStatus::Warning,
             'disabled' => PlatformHealthStatus::Disabled,
@@ -86,9 +105,9 @@ class PlatformAutomationOverviewService
             [
                 'key' => 'automation_health',
                 'label' => 'Automation Health',
-                'status' => $status->value,
-                'status_label' => (string) ($agg['health_label'] ?? $status->label()),
-                'badge_class' => $status->badgeClass(),
+                'status' => $automationStatus->value,
+                'status_label' => (string) ($agg['health_label'] ?? $automationStatus->label()),
+                'badge_class' => $automationStatus->badgeClass(),
                 'summary' => (string) ($agg['health_detail'] ?? sprintf(
                     '%d failures today · %d pending',
                     (int) ($agg['failures_today'] ?? 0),
@@ -97,25 +116,12 @@ class PlatformAutomationOverviewService
                 'updated_at' => now()->toIso8601String(),
                 'expandable' => true,
             ],
-            [
-                'key' => 'scheduler',
-                'label' => 'Scheduler & Workers',
-                'status' => $status->value,
-                'status_label' => $status->label(),
-                'badge_class' => $status->badgeClass(),
-                'summary' => sprintf(
-                    '%d executions today · last success %s',
-                    (int) ($agg['executions_today'] ?? $agg['total_today'] ?? 0),
-                    $agg['last_success_at'] ?? '—',
-                ),
-                'updated_at' => now()->toIso8601String(),
-                'expandable' => true,
-            ],
+            $schedulerItem,
         ];
 
         $payload = [
             'items' => $items,
-            'overall_status' => $status->value,
+            'overall_status' => PlatformHealthStatus::worst($automationStatus, $schedulerStatus)->value,
             'generated_at' => now()->toIso8601String(),
             'available' => true,
             'links' => $this->links(),
@@ -131,26 +137,9 @@ class PlatformAutomationOverviewService
      */
     public function diagnostics(string $key): array
     {
-        $agg = $this->automationHealth->overviewAggregation();
-
         return match ($key) {
-            'automation_health' => [
-                'key' => 'automation_health',
-                'label' => 'Automation Health',
-                'message' => (string) ($agg['health_detail'] ?? 'Open Automation Health for ledger and failure forensics.'),
-                'links' => $this->links(),
-            ],
-            'scheduler' => [
-                'key' => 'scheduler',
-                'label' => 'Scheduler & Workers',
-                'message' => sprintf(
-                    '%d executions today · %d failures · %d pending',
-                    (int) ($agg['executions_today'] ?? $agg['total_today'] ?? 0),
-                    (int) ($agg['failures_today'] ?? 0),
-                    (int) ($agg['pending_executions'] ?? 0),
-                ),
-                'links' => $this->links(),
-            ],
+            'automation_health' => $this->automationHealthDiagnostics(),
+            'scheduler' => $this->schedulerWorkersDiagnostics(),
             default => abort(404),
         };
     }
@@ -173,5 +162,78 @@ class PlatformAutomationOverviewService
                 'url' => route('admin.operations.index', ['hub_tab' => 'automation']),
             ],
         ]));
+    }
+
+    /**
+     * Runtime health only: scheduler heartbeat + queue worker probes.
+     *
+     * @return array<string, mixed>
+     */
+    private function schedulerWorkersItem(): array
+    {
+        $scheduler = $this->schedulerHealth->probe();
+        $queue = $this->queueHealth->probe();
+        $status = PlatformHealthStatus::worst($scheduler->status, $queue->status);
+
+        return [
+            'key' => 'scheduler',
+            'label' => 'Scheduler & Workers',
+            'status' => $status->value,
+            'status_label' => $status->label(),
+            'badge_class' => $status->badgeClass(),
+            'summary' => $this->schedulerWorkersSummary($scheduler->detail, $queue->detail, $scheduler->metrics),
+            'updated_at' => now()->toIso8601String(),
+            'expandable' => true,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function schedulerWorkersDiagnostics(): array
+    {
+        $scheduler = $this->schedulerHealth->probe();
+        $queue = $this->queueHealth->probe();
+
+        return [
+            'key' => 'scheduler',
+            'label' => 'Scheduler & Workers',
+            'message' => $this->schedulerWorkersSummary($scheduler->detail, $queue->detail, $scheduler->metrics),
+            'links' => $this->links(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function automationHealthDiagnostics(): array
+    {
+        $agg = $this->automationHealth->overviewAggregation();
+
+        return [
+            'key' => 'automation_health',
+            'label' => 'Automation Health',
+            'message' => (string) ($agg['health_detail'] ?? 'Open Automation Health for ledger and failure forensics.'),
+            'links' => $this->links(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $schedulerMetrics
+     */
+    private function schedulerWorkersSummary(string $schedulerDetail, string $queueDetail, array $schedulerMetrics): string
+    {
+        $lastRun = $schedulerMetrics['last_run_at'] ?? null;
+        $minutesAgo = $schedulerMetrics['minutes_ago'] ?? null;
+
+        if (is_string($lastRun) && $lastRun !== '' && is_numeric($minutesAgo)) {
+            $prefix = sprintf('Last scheduler run %d min ago', (int) $minutesAgo);
+        } elseif (is_string($lastRun) && $lastRun !== '') {
+            $prefix = 'Last scheduler run recorded';
+        } else {
+            $prefix = $schedulerDetail;
+        }
+
+        return $prefix.' · '.$queueDetail;
     }
 }
