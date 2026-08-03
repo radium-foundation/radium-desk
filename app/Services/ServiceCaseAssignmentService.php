@@ -27,6 +27,9 @@ class ServiceCaseAssignmentService
 {
     private const ROUND_ROBIN_CURSOR_KEY = 'assignment.agent_round_robin_last_user_id';
 
+    /** @var array<int, bool> */
+    private array $manualOwnershipReadyVisibilityMemo = [];
+
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly SettingService $settingService,
@@ -972,7 +975,85 @@ class ServiceCaseAssignmentService
 
     public function isVisibleInAdminReadyQueue(Incident $incident): bool
     {
-        return ! $this->hasManualSupportOwnership($incident);
+        if (! $this->hasManualSupportOwnership($incident)) {
+            return true;
+        }
+
+        $incident = $incident->loadMissing([
+            'order',
+            'assignee.roles',
+            'supportAppointments',
+            'activeWaitingState',
+        ]);
+
+        // Manual support ownership hides Admin Ready until identity lifecycle
+        // records validation_passed AFTER that ownership began AND the case is
+        // still Ready-eligible for Service Reference.
+        if (! app(OperationsQueueClassifier::class)->isReadyForReferenceEntry($incident)) {
+            return false;
+        }
+
+        return $this->hasIdentityValidationPassAfterManualSupportOwnership($incident);
+    }
+
+    /**
+     * Refresh Admin Ready membership after identity verification succeeds.
+     * Does not change ownership or appointments — Snapshot visibility is derived
+     * from existing validation_passed audits.
+     */
+    public function refreshAdminReadyMembershipAfterIdentityValidation(Order $order, User $actor): void
+    {
+        $incidents = Incident::query()
+            ->where('order_id', $order->id)
+            ->where('status', '!=', IncidentStatus::Closed)
+            ->with(['order', 'assignee.roles', 'supportAppointments', 'activeWaitingState'])
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Incident $incident): bool => $this->hasManualSupportOwnership($incident));
+
+        if ($incidents->isEmpty()) {
+            return;
+        }
+
+        $this->manualOwnershipReadyVisibilityMemo = [];
+        $this->dashboardSnapshotStore->forget();
+
+        foreach ($incidents as $incident) {
+            $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($incident, $actor);
+        }
+    }
+
+    private function hasIdentityValidationPassAfterManualSupportOwnership(Incident $incident): bool
+    {
+        $incidentId = (int) $incident->id;
+
+        if (array_key_exists($incidentId, $this->manualOwnershipReadyVisibilityMemo)) {
+            return $this->manualOwnershipReadyVisibilityMemo[$incidentId];
+        }
+
+        $morphClass = $incident->getMorphClass();
+
+        $manualOwnershipAuditId = AuditLog::query()
+            ->where('auditable_type', $morphClass)
+            ->where('auditable_id', $incidentId)
+            ->whereIn('event', ['service_case.assigned', 'service_case.reassigned', 'service_case.escalated'])
+            ->where('new_values->assignment_origin', AssignmentOrigin::Manual->value)
+            ->orderByDesc('id')
+            ->value('id');
+
+        if ($manualOwnershipAuditId === null) {
+            // Fail closed: cannot prove when manual ownership started.
+            return $this->manualOwnershipReadyVisibilityMemo[$incidentId] = false;
+        }
+
+        $hasPassAfter = AuditLog::query()
+            ->where('auditable_type', $morphClass)
+            ->where('auditable_id', $incidentId)
+            ->where('event', 'service_case.automation.validation_passed')
+            ->where('id', '>', $manualOwnershipAuditId)
+            ->exists();
+
+        return $this->manualOwnershipReadyVisibilityMemo[$incidentId] = $hasPassAfter;
     }
 
     public function shouldRemoveFromAdminReadyQueue(Incident $incident): bool

@@ -124,14 +124,23 @@ class OrderIdentityLifecycleService
 
         $this->assignmentEligibility->evaluateAssignmentEligibility($freshOrder, $actor);
 
-        if ($this->assignmentEligibility->passesValidationForOrder($freshOrder)) {
-            $this->automationMonitor->recordValidationPassed($freshOrder, $actor);
+        $passesValidation = $this->assignmentEligibility->passesValidationForOrder($freshOrder);
+
+        if ($passesValidation) {
+            // Re-record only from identity lifecycle (serial/model/device identity).
+            // Notes, assignment, SLA, appointments never call this method.
+            $this->automationMonitor->recordValidationPassed($freshOrder, $actor, allowRepeat: true);
             $this->waitingStateService->clearIdentityCorrectionWaitingWhenValidationPasses(
                 order: $freshOrder,
                 actor: $actor,
                 source: $source,
             );
         }
+
+        // Re-evaluate Admin Ready overlay after identity change (republish on pass,
+        // drop on fail) without changing ownership or appointments.
+        app(ServiceCaseAssignmentService::class)
+            ->refreshAdminReadyMembershipAfterIdentityValidation($freshOrder, $actor);
 
         if ($serialChanged) {
             app(MissingSerialAutomationService::class)->markCompletedIfApplicable($freshOrder, $source);

@@ -58,12 +58,13 @@ class ServiceCaseAutomationMonitorService
         );
     }
 
-    public function recordValidationPassed(Order $order, User $actor): void
+    public function recordValidationPassed(Order $order, User $actor, bool $allowRepeat = false): void
     {
         $this->recordForOrderIncidents(
             order: $order,
             event: self::EVENT_VALIDATION_PASSED,
             actor: $actor,
+            allowRepeat: $allowRepeat,
         );
     }
 
@@ -116,17 +117,22 @@ class ServiceCaseAutomationMonitorService
         return $this->automationIdentity->systemUser();
     }
 
-    private function recordForOrderIncidents(Order $order, string $event, User $actor): void
-    {
+    private function recordForOrderIncidents(
+        Order $order,
+        string $event,
+        User $actor,
+        bool $allowRepeat = false,
+    ): void {
         Incident::query()
             ->where('order_id', $order->id)
             ->where('status', '!=', IncidentStatus::Closed)
             ->orderBy('id')
-            ->each(function (Incident $incident) use ($event, $actor): void {
+            ->each(function (Incident $incident) use ($event, $actor, $allowRepeat): void {
                 $this->recordOnce(
                     incident: $incident,
                     event: $event,
                     actor: $actor,
+                    allowRepeat: $allowRepeat,
                 );
             });
     }
@@ -134,16 +140,23 @@ class ServiceCaseAutomationMonitorService
     /**
      * @param  array<string, mixed>  $newValues
      */
-    private function recordOnce(Incident $incident, string $event, User $actor, array $newValues = []): void
-    {
-        $alreadyRecorded = AuditLog::query()
-            ->where('auditable_type', $incident->getMorphClass())
-            ->where('auditable_id', $incident->id)
-            ->where('event', $event)
-            ->exists();
+    private function recordOnce(
+        Incident $incident,
+        string $event,
+        User $actor,
+        array $newValues = [],
+        bool $allowRepeat = false,
+    ): void {
+        if (! $allowRepeat) {
+            $alreadyRecorded = AuditLog::query()
+                ->where('auditable_type', $incident->getMorphClass())
+                ->where('auditable_id', $incident->id)
+                ->where('event', $event)
+                ->exists();
 
-        if ($alreadyRecorded) {
-            return;
+            if ($alreadyRecorded) {
+                return;
+            }
         }
 
         $this->auditLogService->log(
