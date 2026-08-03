@@ -22,6 +22,8 @@ class IncomingEmailProcessorService
         private readonly IncomingEmailLinkService $linkService,
         private readonly IncomingEmailHistoricalAssociationService $historicalAssociationService,
         private readonly IncomingEmailAssignmentService $assignmentService,
+        private readonly IncomingEmailServiceCaseCreateService $serviceCaseCreateService,
+        private readonly IncomingEmailServiceCaseCategoryMapper $categoryMapper,
         private readonly ServiceCasePriorityService $priorityService,
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
@@ -67,6 +69,21 @@ class IncomingEmailProcessorService
 
                 if ($match['incident'] === null) {
                     if ($match['order'] !== null && ($match['reason'] ?? null) === 'historical_customer') {
+                        // Branch B — order exists, no active SC.
+                        // Flag off (default): Historical association (unchanged).
+                        // Flag on: auto-create SC + link + route for customer-facing mail only.
+                        // Internal operational (Finance/HR/Vendor) still parks as Historical.
+                        if ($this->shouldAutoCreateCustomerServiceCase($classification)) {
+                            $this->serviceCaseCreateService->createLinkAndRouteForOrder(
+                                order: $match['order'],
+                                message: $fresh->fresh(),
+                                actor: $actor,
+                                classification: $classification,
+                            );
+
+                            return;
+                        }
+
                         $this->historicalAssociationService->associate(
                             $match['order'],
                             $fresh->fresh(),
@@ -77,11 +94,27 @@ class IncomingEmailProcessorService
                         return;
                     }
 
+                    // Branch C — customer email, no matching order.
+                    // Flag off (default): NeedsReview (unchanged).
+                    // Flag on: INQ Order + Email SC + link + route for customer-facing mail only.
+                    // Finance/HR/Vendor/spam/promo/system never auto-create (filter or park).
+                    $customerClassification = $classification === IncomingEmailClassification::PossibleSalesLead
+                        ? IncomingEmailClassification::PossibleSalesLead
+                        : IncomingEmailClassification::UnknownCustomer;
+
+                    if ($this->shouldAutoCreateCustomerServiceCase($classification)) {
+                        $this->serviceCaseCreateService->createLinkAndRouteForUnknownCustomer(
+                            message: $fresh->fresh(),
+                            actor: $actor,
+                            classification: $customerClassification,
+                        );
+
+                        return;
+                    }
+
                     $this->markNeedsReview(
                         $fresh,
-                        $classification === IncomingEmailClassification::PossibleSalesLead
-                            ? IncomingEmailClassification::PossibleSalesLead
-                            : IncomingEmailClassification::UnknownCustomer,
+                        $customerClassification,
                         $actor->id,
                         (string) ($match['reason'] ?? 'unknown_customer'),
                     );
@@ -123,6 +156,20 @@ class IncomingEmailProcessorService
 
             throw $exception;
         }
+    }
+
+    private function shouldAutoCreateCustomerServiceCase(
+        IncomingEmailClassification $classification,
+    ): bool {
+        if (! $this->serviceCaseCreateService->isEnabled()) {
+            return false;
+        }
+
+        if ($this->categoryMapper->isInternalOperational($classification)) {
+            return false;
+        }
+
+        return $classification->isOperational();
     }
 
     private function markIgnored(

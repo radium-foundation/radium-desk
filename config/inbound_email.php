@@ -14,6 +14,22 @@ return [
 
     'enabled' => filter_var(env('INBOUND_EMAIL_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Auto-create Service Cases from inbound email (P[04-08]-004)
+    |--------------------------------------------------------------------------
+    |
+    | When false (default), the processor keeps Historical / NeedsReview behaviour.
+    | When true, customer-facing actionable mail creates or links a Service Case.
+    | Internal operational classifications (Finance / HR / Vendor) never auto-create.
+    |
+    */
+
+    'auto_create_service_case' => filter_var(
+        env('INBOUND_EMAIL_AUTO_CREATE_SERVICE_CASE', false),
+        FILTER_VALIDATE_BOOLEAN,
+    ),
+
     'preview_max_chars' => (int) env('INBOUND_EMAIL_PREVIEW_MAX_CHARS', 500),
 
     /*
