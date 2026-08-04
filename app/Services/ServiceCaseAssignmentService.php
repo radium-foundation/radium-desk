@@ -126,10 +126,11 @@ class ServiceCaseAssignmentService
             return $routed;
         }
 
-        $assignee = $this->resolveAssigneeOrNull($at);
+        $readyQueueAdmins = app(\App\Services\Assignment\ReadyQueueAdminAssignmentService::class);
+        $assignee = $readyQueueAdmins->resolveEligibleAdmin($at);
 
         if ($assignee === null) {
-            return $incident;
+            return $readyQueueAdmins->recordNoEligibleAdmin($incident, $actor);
         }
 
         return $this->applyAssignment(
@@ -570,7 +571,7 @@ class ServiceCaseAssignmentService
         $incident = $incident->fresh(['order']);
 
         return $this->orderRoutingService->resolveAssignee($incident)
-            ?? $this->resolveAssigneeOrNull($at);
+            ?? app(\App\Services\Assignment\ReadyQueueAdminAssignmentService::class)->resolveEligibleAdmin($at);
     }
 
     /**

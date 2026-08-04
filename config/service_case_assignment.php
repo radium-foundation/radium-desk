@@ -113,6 +113,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Ready Queue admin leave-aware pickup
+    |--------------------------------------------------------------------------
+    |
+    | When configured Ready Queue admins are on approved leave, cases stay
+    | unassigned (IRA Ready Queue). Pickup batch size limits how many oldest
+    | unassigned Ready cases are claimed when an eligible admin returns.
+    |
+    */
+
+    'ready_queue_pickup_batch_size' => max(1, (int) env('SERVICE_CASE_READY_QUEUE_PICKUP_BATCH_SIZE', 25)),
+
+    /*
+    |--------------------------------------------------------------------------
     | Customer Escalation Workflow
     |--------------------------------------------------------------------------
     |

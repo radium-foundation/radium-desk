@@ -65,6 +65,8 @@ class PresenceEngineService
         $this->refreshAttendanceRegister($user, $at, $session);
 
         app(DeferredSmartAssignmentService::class)->processPendingBatch();
+        app(\App\Services\Assignment\ReadyQueueAdminAssignmentService::class)
+            ->pickupUnassignedReadyQueueCases($at);
 
         return $session;
     }
