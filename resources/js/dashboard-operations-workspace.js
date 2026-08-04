@@ -18,6 +18,60 @@ const READY_QUEUE = 'action_required';
 
 export const isEmbeddedWorkspace = (workspace) => EMBEDDED_WORKSPACES.has(workspace);
 
+/**
+ * Map legacy listing URLs (pre–Phase 2 KPI hrefs) to embedded workspace targets.
+ * Used when Blade still emits /incidents or /refunds but Phase 2 embed is enabled.
+ */
+export const parseLegacyEmbeddedNavigationTarget = (href) => {
+    let url;
+
+    try {
+        url = new URL(href, window.location.origin);
+    } catch (error) {
+        return null;
+    }
+
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+    const status = url.searchParams.get('status');
+
+    if (path.endsWith('/incidents') && status === 'active') {
+        return {
+            workspace: 'active_cases',
+            kind: 'embedded',
+            operationQueue: READY_QUEUE,
+            serviceCaseFilter: READY_QUEUE,
+            url,
+            query: {
+                workspace: 'active_cases',
+                status: 'active',
+                ...Object.fromEntries(url.searchParams.entries()),
+            },
+        };
+    }
+
+    if (path.endsWith('/refunds')) {
+        const query = Object.fromEntries(url.searchParams.entries());
+
+        if (!query.status && !query.queue) {
+            query.status = 'pending';
+        }
+
+        return {
+            workspace: 'refunds',
+            kind: 'embedded',
+            operationQueue: READY_QUEUE,
+            serviceCaseFilter: READY_QUEUE,
+            url,
+            query: {
+                workspace: 'refunds',
+                ...query,
+            },
+        };
+    }
+
+    return null;
+};
+
 export const parseDashboardNavigationTarget = (href, currentPath = '/dashboard') => {
     let url;
 
@@ -332,6 +386,7 @@ const fetchEmbeddedPanel = async (pageRoot, target) => {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
         },
+        credentials: 'same-origin',
     });
 
     if (!response.ok) {
@@ -339,6 +394,25 @@ const fetchEmbeddedPanel = async (pageRoot, target) => {
     }
 
     return response.json();
+};
+
+const embeddedFallbackDashboardUrl = (target) => {
+    const href = typeof target?.url?.href === 'string' ? target.url.href : null;
+
+    if (href && href.includes('/dashboard')) {
+        return href;
+    }
+
+    const extraParams = { ...(target?.query ?? {}) };
+    delete extraParams.workspace;
+
+    return buildWorkspaceHistoryUrl(target?.workspace, {
+        pathname: window.location.pathname.endsWith('/dashboard')
+            ? window.location.pathname
+            : '/dashboard',
+        search: window.location.pathname.endsWith('/dashboard') ? window.location.search : '',
+        extraParams,
+    });
 };
 
 const switchToEmbeddedWorkspace = async (pageRoot, target, { pushHistory = true } = {}) => {
@@ -371,10 +445,8 @@ const switchToEmbeddedWorkspace = async (pageRoot, target, { pushHistory = true 
         const data = await fetchEmbeddedPanel(pageRoot, target);
 
         if (!data?.panel_html) {
-            window.location.assign(target.url?.href
-                ?? (target.workspace === 'refunds'
-                    ? '/refunds?status=pending'
-                    : '/incidents?status=active'));
+            // Stay on Dashboard SSR embed — never bounce to legacy /incidents or /refunds.
+            window.location.assign(embeddedFallbackDashboardUrl(target));
 
             return false;
         }
@@ -624,7 +696,8 @@ export const initOperationsWorkspaceSoftSwitch = ({
             return;
         }
 
-        let target = parseDashboardNavigationTarget(href, dashboardPath);
+        let target = parseDashboardNavigationTarget(href, dashboardPath)
+            ?? (phase2Enabled ? parseLegacyEmbeddedNavigationTarget(href) : null);
 
         if (!target && explicitWorkspace && phase2Enabled && isEmbeddedWorkspace(explicitWorkspace)) {
             target = {
@@ -683,19 +756,60 @@ export const initOperationsWorkspaceSoftSwitch = ({
     };
 
     pageRoot.addEventListener('click', (event) => {
-        const link = event.target.closest('[data-operations-workspace-link]');
+        const softLink = event.target.closest('[data-operations-workspace-link]');
 
-        if (!link || !pageRoot.contains(link)) {
+        if (softLink && pageRoot.contains(softLink)) {
+            const href = softLink.getAttribute('href');
+
+            if (href) {
+                handleNavigation(event, href, softLink.dataset.workspace ?? null);
+            }
+
             return;
         }
 
-        const href = link.getAttribute('href');
+        // Defense-in-depth: stale KPI markup may still point at /incidents or /refunds
+        // without data-operations-workspace-link. Intercept those when Phase 2 is on.
+        if (!phase2Enabled) {
+            return;
+        }
+
+        const legacyKpi = event.target.closest('#dashboard-kpi-strip a.dashboard-kpi-item, a.dashboard-kpi-item');
+
+        if (!legacyKpi || !pageRoot.contains(legacyKpi)) {
+            return;
+        }
+
+        const href = legacyKpi.getAttribute('href');
 
         if (!href) {
             return;
         }
 
-        handleNavigation(event, href, link.dataset.workspace ?? null);
+        const legacyTarget = parseLegacyEmbeddedNavigationTarget(href);
+
+        if (!legacyTarget) {
+            return;
+        }
+
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (switching) {
+            return;
+        }
+
+        switching = true;
+
+        switchOperationsWorkspace(pageRoot, legacyTarget, {
+            pushHistory: true,
+            clearQuickFilter,
+        }).finally(() => {
+            switching = false;
+        });
     });
 
     window.addEventListener('popstate', () => {
