@@ -112,6 +112,8 @@
                                 $hideZeroCountTab = $hideZeroCountTabs && ! $isActiveQueue && $queueCount === 0;
                             @endphp
                             <a href="{{ $queueUrl($queueKey) }}"
+                               data-workspace="{{ $queueKey }}"
+                               data-operations-workspace-link
                                @class([
                                    'dashboard-case-filter-chip',
                                    'dashboard-case-filter-chip--agent-pill' => $compactAgentLayout,
@@ -187,6 +189,14 @@
                     'dashboard-cases-table-wrap--empty' => $renderedServiceCaseCount === 0 && ! $compactAgentLayout,
                 ])
                  id="dashboard-service-cases-scroll">
+                <div class="dashboard-workspace-skeleton d-none"
+                     data-operations-workspace-skeleton
+                     aria-hidden="true">
+                    <div class="dashboard-workspace-skeleton__row"></div>
+                    <div class="dashboard-workspace-skeleton__row"></div>
+                    <div class="dashboard-workspace-skeleton__row"></div>
+                    <div class="dashboard-workspace-skeleton__row"></div>
+                </div>
                 <table class="table table-sm table-hover align-middle mb-0 dashboard-cases-table">
                     <thead class="table-light">
                         <tr>

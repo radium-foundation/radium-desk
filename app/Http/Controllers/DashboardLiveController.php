@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\Dashboard\DashboardLiveRowVisibilityService;
+use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use Illuminate\Http\JsonResponse;
@@ -15,6 +16,7 @@ class DashboardLiveController extends Controller
     public function __construct(
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
+        private readonly OperationsWorkspaceResolver $operationsWorkspace,
         private readonly DashboardLiveRowVisibilityService $liveRowVisibility,
     ) {}
 
@@ -37,21 +39,12 @@ class DashboardLiveController extends Controller
             ->take(self::LIVE_ROWS_MAX_IDS)
             ->all();
 
-        $legacyView = $request->query('view');
-        $legacyFilter = $request->query('filter');
-        $requestedQueue = $request->query('queue');
-
-        $queueResolution = $this->dashboardPersonalization->resolveQueue(
-            $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
-        );
+        $workspace = $this->operationsWorkspace->resolve($user, $request);
 
         $payload = $this->liveRowVisibility->liveRowsPayload(
             $incidentIds,
             $user,
-            $queueResolution['queue'],
+            $workspace['operation_queue'],
         );
 
         return response()->json($payload);
@@ -60,23 +53,9 @@ class DashboardLiveController extends Controller
     public function refresh(Request $request): JsonResponse
     {
         $user = $request->user();
-        $legacyView = $request->query('view');
-        $legacyFilter = $request->query('filter');
-        $requestedQueue = $request->query('queue');
-
-        $queueResolution = $this->dashboardPersonalization->resolveQueue(
-            $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
-        );
-        $operationQueue = $queueResolution['queue'];
-        $serviceCaseFilter = $this->dashboardPersonalization->resolveServiceCaseFilter(
-            $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
-        );
+        $workspace = $this->operationsWorkspace->resolve($user, $request);
+        $operationQueue = $workspace['operation_queue'];
+        $serviceCaseFilter = $workspace['service_case_filter'];
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);
@@ -86,9 +65,9 @@ class DashboardLiveController extends Controller
         // Read-only live refresh — no transaction (avoids holding a DB connection unnecessarily).
         $metrics = $this->dashboardService->liveMetricsFor(
             $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
+            $workspace['requested_queue'],
+            $workspace['legacy_view'],
+            $workspace['legacy_filter'],
         );
         $filterCounts = $metrics['service_case_filter_counts'];
 
@@ -125,6 +104,11 @@ class DashboardLiveController extends Controller
             'total_count' => $serviceCasesPayload['total_count'],
             'has_more' => $serviceCasesPayload['has_more'],
             'loaded_count' => $serviceCasesPayload['loaded_count'],
+            'workspace' => $workspace['workspace'],
+            'operation_queue' => $operationQueue,
+            'service_case_filter' => $serviceCaseFilter,
+            'live_scope' => $workspace['live_scope'],
+            'panel_title' => $workspace['panel_title'],
         ]);
     }
 }

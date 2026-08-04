@@ -1,5 +1,15 @@
 export const buildDashboardLiveQuery = (pageRoot, extras = {}) => {
     const fallbackQueue = extras.fallbackQueue ?? 'action_required';
+    const filterWorkspaces = new Set([
+        'overdue',
+        'warning',
+        'my_attention',
+        'needs_attention',
+        'high_priority',
+        'pending_support',
+    ]);
+    const liveWorkspace = pageRoot.dataset.liveWorkspace ?? '';
+    const isFilterWorkspace = filterWorkspaces.has(liveWorkspace);
     const queue = pageRoot.dataset.liveQueue ?? pageRoot.dataset.liveFilter ?? fallbackQueue;
     const filter = pageRoot.dataset.liveFilter ?? queue;
     const query = new URLSearchParams();
@@ -11,6 +21,16 @@ export const buildDashboardLiveQuery = (pageRoot, extras = {}) => {
 
         query.set(key, String(value));
     });
+
+    if (liveWorkspace) {
+        query.set('workspace', liveWorkspace);
+    }
+
+    if (isFilterWorkspace) {
+        query.set('filter', filter);
+
+        return query;
+    }
 
     if (pageRoot.dataset.liveQueue) {
         query.set('queue', pageRoot.dataset.liveQueue);

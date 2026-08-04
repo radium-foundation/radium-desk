@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Data\RecentActivityStreams;
 use App\Data\TeamActivityPanel;
+use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\Dashboard\TeamActivityPanelService;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
@@ -20,6 +21,7 @@ class DashboardController extends Controller
     public function __construct(
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
+        private readonly OperationsWorkspaceResolver $operationsWorkspace,
         private readonly TeamActivityPanelService $teamActivityPanelService,
         private readonly PerformanceRuntimeConfig $performanceRuntime,
         private readonly RealtimeRuntimeConfig $realtimeRuntime,
@@ -28,25 +30,11 @@ class DashboardController extends Controller
     public function index(Request $request): View|RedirectResponse
     {
         $user = $request->user();
-        $legacyView = $request->query('view');
-        $legacyFilter = $request->query('filter');
-        $requestedQueue = $request->query('queue');
+        $workspace = $this->operationsWorkspace->resolve($user, $request);
+        $operationQueue = $workspace['operation_queue'];
+        $serviceCaseFilter = $workspace['service_case_filter'];
 
-        $queueResolution = $this->dashboardPersonalization->resolveQueue(
-            $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
-        );
-        $operationQueue = $queueResolution['queue'];
-        $serviceCaseFilter = $this->dashboardPersonalization->resolveServiceCaseFilter(
-            $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
-        );
-
-        if ($queueResolution['redirect']) {
+        if ($workspace['redirect']) {
             $redirect = $this->dashboardPersonalization->redirectToResolvedQueue(
                 $request,
                 $user,
@@ -104,15 +92,13 @@ class DashboardController extends Controller
             'canQuickCreate' => $user->can('orders.view') && $user->can('incidents.create'),
             'serviceCaseFilter' => $serviceCaseFilter,
             'operationQueue' => $operationQueue,
-            'dashboardLiveScope' => $this->dashboardPersonalization->scopeForQueue($operationQueue, $user),
+            'operationsWorkspace' => $workspace['workspace'],
+            'operationsWorkspaceSoftSwitch' => $this->operationsWorkspace->softSwitchEnabled(),
+            'dashboardLiveScope' => $workspace['live_scope'],
             'operationQueues' => $this->dashboardPersonalization->queueMetaFor($user),
             'availableOperationQueues' => $this->dashboardPersonalization->availableQueuesFor($user),
             'showsQueueNavigation' => $this->dashboardPersonalization->showsQueueNavigation($user),
-            'serviceCasePanelTitle' => match ($serviceCaseFilter) {
-                'needs_attention' => 'Needs Attention',
-                'my_attention' => 'My Attention',
-                default => $this->dashboardPersonalization->serviceCasePanelTitle($operationQueue),
-            },
+            'serviceCasePanelTitle' => $workspace['panel_title'],
             'assignedToScope' => $assignedTo,
             'canManageTransactions' => $canManageTransactions,
             'enabledProducts' => app(SettingService::class)->enabledProductNames(),

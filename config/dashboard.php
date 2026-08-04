@@ -42,4 +42,17 @@ return [
 
     'service_cases_load_more_size' => (int) env('DASHBOARD_SERVICE_CASES_LOAD_MORE_SIZE', 25),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operations Workspace Soft Switch (Phase 1)
+    |--------------------------------------------------------------------------
+    |
+    | When true, queue/KPI links that stay on /dashboard soft-switch the
+    | service-cases panel via AJAX + History API instead of a full reload.
+    | Set false to restore legacy full-page navigation (rollback).
+    |
+    */
+
+    'operations_workspace_soft_switch' => (bool) env('DASHBOARD_OPERATIONS_WORKSPACE_SOFT_SWITCH', true),
+
 ];

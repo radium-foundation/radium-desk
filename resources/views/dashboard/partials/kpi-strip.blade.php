@@ -22,6 +22,7 @@
             'icon' => 'bi-inbox',
             'color' => 'primary',
             'href' => route('dashboard', ['queue' => 'action_required']).'#dashboard-service-cases-panel',
+            'workspace' => 'action_required',
         ];
 
         $items[] = [
@@ -30,6 +31,7 @@
             'icon' => 'bi-exclamation-octagon-fill',
             'color' => 'danger',
             'href' => route('dashboard', ['filter' => 'overdue']).'#dashboard-service-cases-panel',
+            'workspace' => 'overdue',
         ];
 
         $items[] = [
@@ -38,6 +40,7 @@
             'icon' => 'bi-hourglass-split',
             'color' => 'warning',
             'href' => route('dashboard', ['queue' => 'waiting_customer']).'#dashboard-service-cases-panel',
+            'workspace' => 'waiting_customer',
         ];
     }
 

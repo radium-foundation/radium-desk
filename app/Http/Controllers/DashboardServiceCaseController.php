@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Incident;
+use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use Illuminate\Http\JsonResponse;
@@ -13,6 +14,7 @@ class DashboardServiceCaseController extends Controller
     public function __construct(
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
+        private readonly OperationsWorkspaceResolver $operationsWorkspace,
     ) {}
 
     public function row(Request $request, Incident $incident): JsonResponse
@@ -80,23 +82,9 @@ class DashboardServiceCaseController extends Controller
             ]);
         }
 
-        $legacyView = $request->query('view');
-        $legacyFilter = $request->query('filter');
-        $requestedQueue = $request->query('queue');
-
-        $queueResolution = $this->dashboardPersonalization->resolveQueue(
-            $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
-        );
-        $operationQueue = $queueResolution['queue'];
-        $serviceCaseFilter = $this->dashboardPersonalization->resolveServiceCaseFilter(
-            $user,
-            is_string($requestedQueue) ? $requestedQueue : null,
-            is_string($legacyView) ? $legacyView : null,
-            is_string($legacyFilter) ? $legacyFilter : null,
-        );
+        $workspace = $this->operationsWorkspace->resolve($user, $request);
+        $operationQueue = $workspace['operation_queue'];
+        $serviceCaseFilter = $workspace['service_case_filter'];
 
         $assignedTo = $this->dashboardPersonalization->resolveAssignedToScope($user, $operationQueue);
         $prioritizeRecentAssignments = $this->dashboardPersonalization->prioritizesRecentAssignments($operationQueue);

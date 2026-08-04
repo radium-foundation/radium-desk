@@ -123,6 +123,8 @@ const coalescePendingLiveRefresh = (previous, next) => {
             ...previous.options,
             ...next.options,
             kpisOnly: previousKpisOnly && nextKpisOnly,
+            force: Boolean(previous.options?.force || next.options?.force),
+            resetPagination: Boolean(previous.options?.resetPagination || next.options?.resetPagination),
         },
     };
 };
@@ -400,12 +402,14 @@ const buildLiveRefreshQuery = (pageRoot, loadedCount = 0) => buildDashboardLiveQ
 });
 
 const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
-    const { kpisOnly = false } = options;
+    const { kpisOnly = false, force = false, resetPagination = false } = options;
     const liveUrl = pageRoot?.dataset.liveUrl;
 
     logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_entered', {
         source,
         kpisOnly,
+        force,
+        resetPagination,
         refreshInFlightBeforeEntry: refreshInFlight,
     });
 
@@ -415,23 +419,23 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
             reason: 'missing_live_url',
         });
 
-        return;
+        return null;
     }
 
-    if (document.hidden) {
+    if (document.hidden && !force) {
         logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
             source,
             reason: 'document_hidden',
         });
 
-        return;
+        return null;
     }
 
     if (refreshInFlight) {
         pendingLiveRefresh = coalescePendingLiveRefresh(pendingLiveRefresh, {
             pageRoot,
             source,
-            options: { kpisOnly },
+            options: { kpisOnly, force, resetPagination },
         });
 
         logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_deferred', {
@@ -442,25 +446,29 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
             deferredKpisOnly: pendingLiveRefresh.options?.kpisOnly === true,
         });
 
-        return;
+        return null;
     }
 
     if (isDashboardSearchActive()) {
-        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
-            source,
-            reason: 'dashboard_search_active',
-        });
+        if (!force) {
+            logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+                source,
+                reason: 'dashboard_search_active',
+            });
 
-        return;
+            return null;
+        }
     }
 
     if (isDashboardQuickFilterActive()) {
-        logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
-            source,
-            reason: 'quick_filter_active',
-        });
+        if (!force) {
+            logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'refreshDashboard_suppressed', {
+                source,
+                reason: 'quick_filter_active',
+            });
 
-        return;
+            return null;
+        }
     }
 
     refreshInFlight = true;
@@ -478,9 +486,11 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
     let requestFinishedAt = null;
 
     try {
-        const loadedCount = Number(
-            pageRoot.querySelector('.dashboard-service-cases-card')?.dataset.serviceCasesLoaded ?? 0,
-        );
+        const loadedCount = resetPagination
+            ? 0
+            : Number(
+                pageRoot.querySelector('.dashboard-service-cases-card')?.dataset.serviceCasesLoaded ?? 0,
+            );
         const query = buildLiveRefreshQuery(pageRoot, loadedCount);
         requestUrl = `${liveUrl}?${query.toString()}`;
 
@@ -518,7 +528,7 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
                 durationMs: requestFinishedAt - requestStartedAt,
             });
 
-            return;
+            return null;
         }
 
         const data = await response.json();
@@ -544,7 +554,7 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
                     service_case_filter_counts: data.service_case_filter_counts,
                 });
 
-                return;
+                return data;
             }
 
             await applyPartialDashboardUpdate({
@@ -552,20 +562,22 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
                 service_case_filter_counts: data.service_case_filter_counts,
             });
 
-            return;
+            return data;
         }
 
-        if (getWorkspaceSession().isActive()) {
+        if (getWorkspaceSession().isActive() && !force) {
             logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'dashboard_live_response_queued', {
                 source,
                 reason: 'workspace_session_active',
             });
             queueDashboardRefresh(data);
 
-            return;
+            return data;
         }
 
         await applyDashboardRefresh(data);
+
+        return data;
     } catch (error) {
         requestFinishedAt = Date.now();
 
@@ -579,6 +591,7 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
             url: requestUrl,
         });
         // Ignore transient network errors during background refresh.
+        return null;
     } finally {
         refreshInFlight = false;
         requestFinishedAt = requestFinishedAt ?? Date.now();

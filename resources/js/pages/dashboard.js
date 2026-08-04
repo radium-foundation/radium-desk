@@ -5,6 +5,7 @@ import { initDashboardQuickFilter } from '../dashboard-filter';
 import { initDashboardSerialNumbers } from '../dashboard-serial';
 import { initDashboardLoadMore } from '../dashboard-load-more';
 import { initDashboardKpiActions } from '../dashboard-kpi';
+import { initOperationsWorkspaceSoftSwitch } from '../dashboard-operations-workspace';
 import { initServiceCasePaginationState } from '../dashboard-service-case-state';
 import { createServiceCaseRowReplacer } from '../service-case-row';
 import { initTooltips } from '../tooltips';
@@ -376,6 +377,11 @@ export const bootDashboard = () => {
         onFilterApplied: () => {
             dashboardTransactions?.batchSession.updateToolbar();
         },
+    });
+
+    initOperationsWorkspaceSoftSwitch({
+        pageRoot,
+        clearQuickFilter: () => dashboardQuickFilter?.clearFilter?.(),
     });
 
     initDashboardLoadMore({

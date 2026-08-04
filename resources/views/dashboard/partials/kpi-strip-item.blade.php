@@ -6,6 +6,7 @@
     'href' => null,
     'itemClass' => null,
     'kpiAction' => null,
+    'workspace' => null,
 ])
 
 @php
@@ -30,6 +31,10 @@
 <{{ $tag }}
     @if($href)
         href="{{ $href }}"
+    @endif
+    @if($workspace)
+        data-workspace="{{ $workspace }}"
+        data-operations-workspace-link
     @endif
     @if($kpiAction)
         data-dashboard-kpi-action="{{ $kpiAction }}"
