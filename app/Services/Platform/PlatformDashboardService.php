@@ -16,6 +16,7 @@ class PlatformDashboardService
     public function __construct(
         private readonly DashboardManifest $manifest,
         private readonly PlatformZoneRegistry $zoneRegistry,
+        private readonly PlatformCacheInvalidator $cacheInvalidator,
     ) {}
 
     public function build(User $viewer): PlatformDashboardData
@@ -50,7 +51,10 @@ class PlatformDashboardService
             throw new InvalidArgumentException("Unauthorized platform zone [{$zoneKey}].");
         }
 
-        return $zone->refresh($viewer);
+        $snapshot = $zone->refresh($viewer);
+        $this->cacheInvalidator->invalidateDependents($zoneKey);
+
+        return $snapshot;
     }
 
     public function expandZone(User $viewer, string $zoneKey, string $item): ?PlatformZoneExpandResult

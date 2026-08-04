@@ -19,7 +19,7 @@ enum PlatformZoneId: string
     {
         return match ($this) {
             self::CriticalAlerts => 'Critical Alerts',
-            self::ExecutiveSnapshot => 'Executive Snapshot',
+            self::ExecutiveSnapshot => 'Operations Snapshot',
             self::PlatformHealth => 'Platform Health',
             self::IntegrationHealth => 'Integration Health',
             self::Performance => 'Performance',

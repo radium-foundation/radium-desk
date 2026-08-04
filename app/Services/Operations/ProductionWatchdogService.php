@@ -5,6 +5,7 @@ namespace App\Services\Operations;
 use App\Data\Operations\ProductionCriticalAlert;
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
+use App\Enums\PlatformHealthStatus;
 use App\Models\AutomationExecution;
 use App\Models\BonvoiceWebhookLog;
 use App\Models\CashfreeWebhookLog;
@@ -12,6 +13,7 @@ use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -32,6 +34,7 @@ class ProductionWatchdogService
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly OperationsSystemHealthService $systemHealthService,
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
+        private readonly PlatformHealthSnapshotService $platformHealthSnapshot,
     ) {}
 
     /**
@@ -152,6 +155,11 @@ class ProductionWatchdogService
      */
     private function queueAlerts(): array
     {
+        $fromSnapshot = $this->queueAlertsFromSharedSnapshot();
+        if ($fromSnapshot !== null) {
+            return $fromSnapshot;
+        }
+
         foreach ($this->systemHealthService->components() as $component) {
             if (($component['key'] ?? '') !== 'queue_worker') {
                 continue;
@@ -184,6 +192,52 @@ class ProductionWatchdogService
     }
 
     /**
+     * Prefer shared Platform Health queue component when warm (same object as Platform Health).
+     *
+     * @return list<ProductionCriticalAlert>|null null = snapshot unavailable, use legacy path
+     */
+    private function queueAlertsFromSharedSnapshot(): ?array
+    {
+        $snapshot = $this->platformHealthSnapshot->current();
+        if ($snapshot === null) {
+            return null;
+        }
+
+        $queue = $snapshot->component('queue');
+        if ($queue === null) {
+            return null;
+        }
+
+        if ($queue->status === PlatformHealthStatus::Critical) {
+            return [
+                new ProductionCriticalAlert(
+                    key: 'queue:dead_letter',
+                    label: 'Queue',
+                    message: $queue->detail !== ''
+                        ? $queue->detail
+                        : 'Queue worker has failed jobs.',
+                    affectedCount: (int) ($queue->metrics['failed_jobs'] ?? 0),
+                ),
+            ];
+        }
+
+        if ($queue->status === PlatformHealthStatus::Warning) {
+            return [
+                new ProductionCriticalAlert(
+                    key: 'queue:backlog',
+                    label: 'Queue',
+                    message: $queue->detail !== ''
+                        ? $queue->detail
+                        : 'Queue backlog requires attention.',
+                    affectedCount: (int) ($queue->metrics['pending_jobs'] ?? 0),
+                ),
+            ];
+        }
+
+        return [];
+    }
+
+    /**
      * @return list<ProductionCriticalAlert>
      */
     private function automationAlerts(): array
@@ -192,6 +246,64 @@ class ProductionWatchdogService
             return [];
         }
 
+        $fromSnapshot = $this->automationAlertsFromSharedSnapshot();
+        if ($fromSnapshot !== null) {
+            return $fromSnapshot;
+        }
+
+        return $this->automationAlertsFromLedger();
+    }
+
+    /**
+     * Prefer shared Platform Health automation component when warm.
+     *
+     * @return list<ProductionCriticalAlert>|null null = snapshot unavailable, use ledger path
+     */
+    private function automationAlertsFromSharedSnapshot(): ?array
+    {
+        $snapshot = $this->platformHealthSnapshot->current();
+        if ($snapshot === null) {
+            return null;
+        }
+
+        $automation = $snapshot->component('automation');
+        if ($automation === null) {
+            return null;
+        }
+
+        // Critical only — Warning/Healthy still fall through to ledger so a stale
+        // Healthy snapshot can never suppress new open failures (no semantic change).
+        if ($automation->status !== PlatformHealthStatus::Critical) {
+            return null;
+        }
+
+        $openFailures = (int) ($automation->metrics['critical_failures_today']
+            ?? $automation->metrics['open_failures_24h']
+            ?? 0);
+
+        if ($openFailures < 1) {
+            // Snapshot says Critical but metrics missing — fall back to ledger for accurate count.
+            return null;
+        }
+
+        return [
+            new ProductionCriticalAlert(
+                key: 'automation:failures',
+                label: 'Automation',
+                message: sprintf(
+                    '%d open automation failure(s) require attention.',
+                    $openFailures,
+                ),
+                affectedCount: $openFailures,
+            ),
+        ];
+    }
+
+    /**
+     * @return list<ProductionCriticalAlert>
+     */
+    private function automationAlertsFromLedger(): array
+    {
         $threshold = max(1, (int) config('ira.watchdog.automation_failure_threshold', 3));
         $classifier = app(AutomationFailureClassifier::class);
 

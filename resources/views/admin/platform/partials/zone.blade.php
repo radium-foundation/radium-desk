@@ -6,6 +6,7 @@
     /** @var \App\Data\Platform\PlatformZoneViewData $zone */
     $definition = $zone->definition;
     $snapshot = $zone->snapshot;
+    $isOperationsSnapshot = $definition->key() === 'executive_snapshot';
 @endphp
 
 <section
@@ -28,7 +29,21 @@
         <div class="d-flex align-items-center gap-2">
             <i class="bi {{ $definition->icon }}" aria-hidden="true"></i>
             <div>
-                <h2 class="h5 mb-0">{{ $definition->title }}</h2>
+                <div class="d-flex align-items-center gap-2">
+                    <h2 class="h5 mb-0">{{ $definition->title }}</h2>
+                    @if($isOperationsSnapshot)
+                        <button
+                            type="button"
+                            class="btn btn-link btn-sm p-0 text-muted"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="right"
+                            title="{{ \App\Support\Platform\OperationsSnapshotPresentation::TOOLTIP }}"
+                            aria-label="{{ \App\Support\Platform\OperationsSnapshotPresentation::TOOLTIP }}"
+                        >
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                        </button>
+                    @endif
+                </div>
                 @if($definition->description)
                     <p class="text-muted small mb-0">{{ $definition->description }}</p>
                 @endif

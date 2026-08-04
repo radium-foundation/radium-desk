@@ -9,10 +9,13 @@ use App\Enums\PlatformZoneId;
 use App\Models\User;
 use App\Services\Platform\PlatformCardRegistry;
 use App\Services\Platform\Warmers\PlatformWarmingActor;
+use App\Support\Platform\OperationsSnapshotPresentation;
 
 /**
  * Wraps existing executive metric cards for async refresh only.
  * First paint uses snapshot/cache — never loads KPI cards eagerly.
+ *
+ * Presentation title: Operations Snapshot (route key remains executive_snapshot).
  */
 class ExecutiveSnapshotZone extends AbstractPlatformZone
 {
@@ -30,12 +33,12 @@ class ExecutiveSnapshotZone extends AbstractPlatformZone
 
     protected function description(): ?string
     {
-        return 'Live executive KPIs for cases, queue, and throughput.';
+        return OperationsSnapshotPresentation::DESCRIPTION;
     }
 
     protected function placeholderMessage(): string
     {
-        return 'Executive metrics load after first refresh.';
+        return OperationsSnapshotPresentation::PLACEHOLDER;
     }
 
     protected function buildFreshSnapshot(User $viewer): PlatformZoneSnapshot
@@ -73,6 +76,7 @@ class ExecutiveSnapshotZone extends AbstractPlatformZone
                 'state' => 'ready',
                 'card_count' => count($cards),
             ],
+            statusLabel: OperationsSnapshotPresentation::statusLabel($status),
         );
     }
 

@@ -11,7 +11,7 @@ class ExecutiveSnapshotWarmer extends AbstractZoneSnapshotWarmer
 
     public function label(): string
     {
-        return 'Executive Snapshot';
+        return 'Operations Snapshot';
     }
 
     public function priority(): int

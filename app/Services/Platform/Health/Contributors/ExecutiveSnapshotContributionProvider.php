@@ -5,6 +5,7 @@ namespace App\Services\Platform\Health\Contributors;
 use App\Contracts\Platform\PlatformHealthContributor;
 use App\Data\Platform\PlatformHealthContribution;
 use App\Enums\PlatformOverallHealthStatus;
+use App\Support\Platform\OperationsSnapshotPresentation;
 use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 
 class ExecutiveSnapshotContributionProvider implements PlatformHealthContributor
@@ -20,7 +21,7 @@ class ExecutiveSnapshotContributionProvider implements PlatformHealthContributor
 
     public function label(): string
     {
-        return 'Executive Snapshot';
+        return OperationsSnapshotPresentation::TITLE;
     }
 
     public function sortOrder(): int

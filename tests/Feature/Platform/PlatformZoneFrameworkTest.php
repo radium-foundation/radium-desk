@@ -62,7 +62,7 @@ class PlatformZoneFrameworkTest extends TestCase
             ->assertSee('data-platform-zone="finance_overview"', false)
             ->assertSee('data-platform-zone="communications"', false)
             ->assertSee('data-platform-zone="tools"', false)
-            ->assertSee('Executive Snapshot', false)
+            ->assertSee('Operations Snapshot', false)
             ->assertSee('Platform Health', false)
             ->assertSee('Integration Health', false)
             ->assertDontSee('Open Cases', false);

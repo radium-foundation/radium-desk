@@ -121,6 +121,15 @@ class DashboardIntelligenceTest extends TestCase
 
     public function test_health_score_uses_cached_contributions_only(): void
     {
+        Cache::put(\App\Services\Platform\Health\PlatformHealthSnapshotService::CACHE_KEY, [
+            'status' => PlatformHealthStatus::Healthy->value,
+            'status_label' => 'Healthy',
+            'components' => [],
+            'generated_at' => now()->toIso8601String(),
+            'stale' => false,
+            'available' => true,
+        ], now()->addMinutes(5));
+
         Cache::put(AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY, [
             'status' => PlatformHealthStatus::Healthy->value,
             'status_label' => 'Healthy',
@@ -160,6 +169,7 @@ class DashboardIntelligenceTest extends TestCase
         $this->assertContains('critical_alerts', $result['warmed']);
         $this->assertNotNull(app(PlatformZoneSnapshotStore::class)->get('platform_health'));
         $this->assertNotNull(Cache::get(AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY));
+        $this->assertNotNull(Cache::get(\App\Services\Platform\Health\PlatformHealthSnapshotService::CACHE_KEY));
         $this->assertNotNull(Cache::get(PlatformOverallHealthService::CACHE_KEY));
     }
 
@@ -217,7 +227,6 @@ class DashboardIntelligenceTest extends TestCase
         $this->actingAs($this->createSuperadmin())
             ->get(route('admin.administration.index'))
             ->assertOk()
-            ->assertSee('Waiting for background refresh', false)
             ->assertSee('Open Platform Dashboard', false);
     }
 

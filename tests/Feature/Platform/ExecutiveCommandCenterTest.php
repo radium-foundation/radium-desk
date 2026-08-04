@@ -102,7 +102,7 @@ class ExecutiveCommandCenterTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Platform', false)
-            ->assertSee('Executive Snapshot', false)
+            ->assertSee('Operations Snapshot', false)
             ->assertSee('Platform Health', false)
             ->assertSee('Operations Overview', false)
             ->assertSee('data-platform-zones', false)

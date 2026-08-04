@@ -31,6 +31,7 @@ abstract class AbstractZoneSnapshotWarmer implements PlatformSnapshotWarmer
         try {
             // Actor-independent: shared zone HTML is RBAC-filtered on read, not write.
             $zone->refresh($actor);
+            $this->invalidator->invalidateDependents($zoneKey);
         } catch (Throwable $exception) {
             report($exception);
             $this->invalidator->markZoneStale($zoneKey);

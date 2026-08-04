@@ -10,6 +10,7 @@ use App\Enums\PlatformHealthStatus;
 use App\Enums\PlatformZoneId;
 use App\Models\User;
 use App\Services\Platform\Alerts\PlatformAlertAggregator;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use App\Services\Platform\Health\PlatformOverallHealthService;
 use App\Services\Platform\PlatformIntegrationHealthOverviewService;
 
@@ -23,6 +24,7 @@ class CriticalAlertsZone extends AbstractPlatformZone
         private readonly PlatformAlertAggregator $alerts,
         private readonly PlatformOverallHealthService $overallHealth,
         private readonly PlatformIntegrationHealthOverviewService $integrations,
+        private readonly PlatformHealthSnapshotService $healthSnapshot,
     ) {
         parent::__construct($snapshotStore);
     }
@@ -39,7 +41,7 @@ class CriticalAlertsZone extends AbstractPlatformZone
 
     protected function description(): ?string
     {
-        return 'Aggregated alerts from Platform Health, Integration Health, and Executive Snapshot.';
+        return 'Aggregated alerts from Platform Health, Integration Health, and Operations Snapshot.';
     }
 
     protected function placeholderMessage(): string
@@ -171,6 +173,10 @@ class CriticalAlertsZone extends AbstractPlatformZone
 
     private function contributorSourcesWarm(): bool
     {
+        if ($this->healthSnapshot->current() !== null) {
+            return true;
+        }
+
         if ($this->snapshotStore->get('platform_health') !== null) {
             return true;
         }

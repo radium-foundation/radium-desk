@@ -5,10 +5,11 @@ namespace App\Services\Platform\Alerts\Contributors;
 use App\Contracts\Platform\PlatformAlertContributor;
 use App\Data\Platform\PlatformAlert;
 use App\Enums\PlatformAlertSeverity;
+use App\Support\Platform\OperationsSnapshotPresentation;
 use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
 
 /**
- * Cache-only alerts from Executive Snapshot zone cache.
+ * Cache-only alerts from Operations Snapshot zone cache (key: executive_snapshot).
  */
 class ExecutiveSnapshotAlertContributor implements PlatformAlertContributor
 {
@@ -23,7 +24,7 @@ class ExecutiveSnapshotAlertContributor implements PlatformAlertContributor
 
     public function label(): string
     {
-        return 'Executive Snapshot';
+        return OperationsSnapshotPresentation::TITLE;
     }
 
     public function sortOrder(): int
@@ -54,21 +55,32 @@ class ExecutiveSnapshotAlertContributor implements PlatformAlertContributor
         }
 
         $cardCount = (int) ($snapshot->summary['card_count'] ?? 0);
+        $opsStatus = OperationsSnapshotPresentation::rawStatusLabel($snapshot->status);
 
         return [
             new PlatformAlert(
                 id: 'executive_snapshot:status',
                 source: $this->key(),
                 groupKey: 'executive_snapshot',
-                title: 'Executive Snapshot',
+                title: OperationsSnapshotPresentation::TITLE,
                 summary: $snapshot->stale
-                    ? 'Executive Snapshot is stale — retry pending.'
-                    : sprintf('Executive metrics status: %s (%d cards).', $snapshot->statusLabel, $cardCount),
+                    ? OperationsSnapshotPresentation::TITLE.' is stale — retry pending.'
+                    : OperationsSnapshotPresentation::ALERT_SUMMARY,
                 severity: $severity,
-                status: $snapshot->statusLabel,
+                status: OperationsSnapshotPresentation::statusLabel($snapshot->status),
                 lastUpdated: $snapshot->updatedAt,
                 count: 1,
                 link: route('admin.platform.index').'#platform-zone-executive_snapshot',
+                related: [
+                    [
+                        'title' => 'operations_status',
+                        'summary' => $opsStatus,
+                    ],
+                    [
+                        'title' => 'affected_kpi_cards',
+                        'summary' => (string) $cardCount,
+                    ],
+                ],
             ),
         ];
     }

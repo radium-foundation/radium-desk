@@ -9,19 +9,16 @@ use App\Data\Platform\PlatformHealthComponent;
 use App\Data\Platform\PlatformMetric;
 use App\Enums\PlatformCardSize;
 use App\Enums\PlatformDashboardSection;
-use App\Enums\PlatformHealthStatus;
 use App\Models\User;
-use App\Services\Administration\AdministrationSystemHealthSummaryService;
 use App\Services\Platform\Concerns\InteractsWithPlatformCardDefinition;
-use App\Services\Platform\PlatformHealthRegistry;
-use Illuminate\Support\Facades\Cache;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 
 class PlatformHealthCardProvider implements PlatformCardProvider
 {
     use InteractsWithPlatformCardDefinition;
 
     public function __construct(
-        private readonly PlatformHealthRegistry $healthRegistry,
+        private readonly PlatformHealthSnapshotService $healthSnapshot,
     ) {}
 
     public function definition(): PlatformCardDefinition
@@ -44,19 +41,7 @@ class PlatformHealthCardProvider implements PlatformCardProvider
     public function load(User $viewer): PlatformCardPayload
     {
         $definition = $this->definition();
-        $components = $this->healthRegistry->probeAll();
-        $status = PlatformHealthStatus::worst(
-            ...array_map(
-                fn (PlatformHealthComponent $component): PlatformHealthStatus => $component->status,
-                $components,
-            ),
-        );
-
-        Cache::put(AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY, [
-            'status' => $status->value,
-            'status_label' => $status->label(),
-            'generated_at' => now()->toIso8601String(),
-        ], now()->addSeconds(\App\Services\Platform\PlatformCachePolicy::TTL_PRIORITY_1));
+        $snapshot = $this->healthSnapshot->probe();
 
         $metrics = array_map(
             fn (PlatformHealthComponent $component): PlatformMetric => new PlatformMetric(
@@ -66,18 +51,18 @@ class PlatformHealthCardProvider implements PlatformCardProvider
                 detail: $component->detail,
                 status: $component->status,
             ),
-            $components,
+            $snapshot->components,
         );
 
         return PlatformCardPayload::fromDefinition(
             definition: $definition,
-            status: $status,
-            generatedAt: now(),
+            status: $snapshot->status,
+            generatedAt: $snapshot->generatedAt,
             metrics: $metrics,
             meta: [
                 'components' => array_map(
                     fn (PlatformHealthComponent $component): array => $component->toArray(),
-                    $components,
+                    $snapshot->components,
                 ),
             ],
         );

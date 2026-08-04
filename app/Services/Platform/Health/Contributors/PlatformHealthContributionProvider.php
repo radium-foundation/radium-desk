@@ -5,15 +5,12 @@ namespace App\Services\Platform\Health\Contributors;
 use App\Contracts\Platform\PlatformHealthContributor;
 use App\Data\Platform\PlatformHealthContribution;
 use App\Enums\PlatformOverallHealthStatus;
-use App\Services\Administration\AdministrationSystemHealthSummaryService;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 
 class PlatformHealthContributionProvider implements PlatformHealthContributor
 {
     public function __construct(
-        private readonly PlatformZoneSnapshotStore $snapshotStore,
+        private readonly PlatformHealthSnapshotService $healthSnapshot,
     ) {}
 
     public function key(): string
@@ -33,23 +30,9 @@ class PlatformHealthContributionProvider implements PlatformHealthContributor
 
     public function contribute(): ?PlatformHealthContribution
     {
-        $snapshot = $this->snapshotStore->get('platform_health');
+        $snapshot = $this->healthSnapshot->current();
 
-        if ($snapshot !== null) {
-            return new PlatformHealthContribution(
-                source: $this->key(),
-                label: $this->label(),
-                status: PlatformOverallHealthStatus::fromPlatformHealth($snapshot->status),
-                available: $snapshot->available,
-                updatedAt: $snapshot->updatedAt,
-                stale: $snapshot->stale,
-                weight: 2,
-            );
-        }
-
-        $overview = Cache::get(AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY);
-
-        if (! is_array($overview) || ! isset($overview['status'])) {
+        if ($snapshot === null || ! $snapshot->available) {
             return new PlatformHealthContribution(
                 source: $this->key(),
                 label: $this->label(),
@@ -61,25 +44,13 @@ class PlatformHealthContributionProvider implements PlatformHealthContributor
             );
         }
 
-        $status = \App\Enums\PlatformHealthStatus::tryFrom((string) $overview['status']);
-        $updatedAt = null;
-        if (! empty($overview['generated_at']) && is_string($overview['generated_at'])) {
-            try {
-                $updatedAt = Carbon::parse($overview['generated_at']);
-            } catch (\Throwable) {
-                $updatedAt = null;
-            }
-        }
-
         return new PlatformHealthContribution(
             source: $this->key(),
             label: $this->label(),
-            status: $status
-                ? PlatformOverallHealthStatus::fromPlatformHealth($status)
-                : PlatformOverallHealthStatus::Unavailable,
-            available: $status !== null,
-            updatedAt: $updatedAt,
-            stale: false,
+            status: PlatformOverallHealthStatus::fromPlatformHealth($snapshot->status),
+            available: true,
+            updatedAt: $snapshot->generatedAt,
+            stale: $snapshot->stale,
             weight: 2,
         );
     }

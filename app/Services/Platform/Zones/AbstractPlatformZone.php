@@ -130,11 +130,12 @@ abstract class AbstractPlatformZone implements PlatformZone
         array $summary = [],
         ?\Illuminate\Support\Carbon $updatedAt = null,
         bool $available = true,
+        ?string $statusLabel = null,
     ): PlatformZoneSnapshot {
         return new PlatformZoneSnapshot(
             key: $this->definition()->key(),
             status: $status,
-            statusLabel: $status->label(),
+            statusLabel: $statusLabel ?? $status->label(),
             updatedAt: $updatedAt ?? now(),
             summary: $summary,
             html: $html,

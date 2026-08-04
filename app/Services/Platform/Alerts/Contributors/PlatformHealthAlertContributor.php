@@ -5,19 +5,15 @@ namespace App\Services\Platform\Alerts\Contributors;
 use App\Contracts\Platform\PlatformAlertContributor;
 use App\Data\Platform\PlatformAlert;
 use App\Enums\PlatformAlertSeverity;
-use App\Enums\PlatformHealthStatus;
-use App\Services\Administration\AdministrationSystemHealthSummaryService;
-use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 
 /**
- * Cache-only alerts from Platform Health overview / zone snapshot.
+ * Alerts from the shared Platform Health snapshot — never a separate probe or stale zone bake.
  */
 class PlatformHealthAlertContributor implements PlatformAlertContributor
 {
     public function __construct(
-        private readonly PlatformZoneSnapshotStore $snapshotStore,
+        private readonly PlatformHealthSnapshotService $healthSnapshot,
     ) {}
 
     public function key(): string
@@ -37,33 +33,15 @@ class PlatformHealthAlertContributor implements PlatformAlertContributor
 
     public function alerts(): array
     {
-        $snapshot = $this->snapshotStore->get('platform_health');
-        $overview = Cache::get(AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY);
+        $snapshot = $this->healthSnapshot->current();
 
-        $status = null;
-        $updatedAt = null;
-        $stale = false;
-
-        if ($snapshot !== null) {
-            $status = $snapshot->status;
-            $updatedAt = $snapshot->updatedAt;
-            $stale = $snapshot->stale;
-        } elseif (is_array($overview) && isset($overview['status'])) {
-            $status = PlatformHealthStatus::tryFrom((string) $overview['status']);
-            if (! empty($overview['generated_at']) && is_string($overview['generated_at'])) {
-                try {
-                    $updatedAt = Carbon::parse($overview['generated_at']);
-                } catch (\Throwable) {
-                    $updatedAt = null;
-                }
-            }
-        }
-
-        if ($status === null) {
+        if ($snapshot === null || ! $snapshot->available) {
             return [];
         }
 
+        $status = $snapshot->status;
         $severity = PlatformAlertSeverity::fromPlatformHealth($status);
+        $stale = $snapshot->stale;
 
         if (! in_array($severity, [PlatformAlertSeverity::Critical, PlatformAlertSeverity::Warning], true) && ! $stale) {
             return [];
@@ -84,7 +62,7 @@ class PlatformHealthAlertContributor implements PlatformAlertContributor
                     : ($status->label().' infrastructure status.'),
                 severity: $severity,
                 status: $status->label(),
-                lastUpdated: $updatedAt,
+                lastUpdated: $snapshot->generatedAt,
                 count: 1,
                 link: route('admin.platform.index').'#platform-health',
             ),

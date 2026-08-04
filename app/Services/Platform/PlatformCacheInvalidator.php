@@ -23,6 +23,10 @@ final class PlatformCacheInvalidator
             Cache::forget($key);
         }
 
+        foreach (PlatformCachePolicy::dependentZones($zoneKey) as $dependent) {
+            $this->snapshotStore->forget($dependent);
+        }
+
         if ($zoneKey === PlatformZoneId::IntegrationHealth->value) {
             $this->forgetIntegrationItems();
         }
@@ -38,6 +42,24 @@ final class PlatformCacheInvalidator
                 continue;
             }
             Cache::forget($key);
+        }
+
+        foreach (PlatformCachePolicy::dependentZones($zoneKey) as $dependent) {
+            $this->snapshotStore->forget($dependent);
+        }
+    }
+
+    /**
+     * After a contributor zone refreshes successfully, drop Critical Alerts so it rebuilds.
+     */
+    public function invalidateDependents(string $zoneKey): void
+    {
+        foreach (PlatformCachePolicy::dependentZones($zoneKey) as $dependent) {
+            $this->snapshotStore->forget($dependent);
+        }
+
+        if (PlatformCachePolicy::dependentZones($zoneKey) !== []) {
+            Cache::forget(PlatformCachePolicy::KEY_OVERALL_HEALTH);
         }
     }
 

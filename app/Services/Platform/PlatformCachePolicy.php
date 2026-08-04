@@ -12,7 +12,7 @@ use App\Enums\PlatformZoneId;
  */
 final class PlatformCachePolicy
 {
-    /** Priority 1 — Critical Alerts, Executive Snapshot, Platform Health, Overall Health. */
+    /** Priority 1 — Critical Alerts, Operations Snapshot, Platform Health, Overall Health. */
     public const TTL_PRIORITY_1 = 120;
 
     /** Priority 2 — Integration Health (+ per-item diagnostics). */
@@ -27,6 +27,9 @@ final class PlatformCachePolicy
     public const KEY_OVERALL_HEALTH = 'platform:overall-health';
 
     public const KEY_PLATFORM_HEALTH_OVERVIEW = 'platform:health:overview';
+
+    /** Full shared infra health snapshot (components + status). */
+    public const KEY_PLATFORM_HEALTH_SNAPSHOT = 'platform:health:snapshot';
 
     public const KEY_INTEGRATION_OVERVIEW = 'platform:integration-health:overview';
 
@@ -69,6 +72,7 @@ final class PlatformCachePolicy
     {
         return match ($cacheKey) {
             self::KEY_PLATFORM_HEALTH_OVERVIEW,
+            self::KEY_PLATFORM_HEALTH_SNAPSHOT,
             self::KEY_OVERALL_HEALTH => self::TTL_PRIORITY_1,
             self::KEY_INTEGRATION_OVERVIEW => self::TTL_PRIORITY_2,
             self::KEY_PERFORMANCE_OVERVIEW,
@@ -100,7 +104,11 @@ final class PlatformCachePolicy
     public static function relatedOverviewKeys(string $zoneKey): array
     {
         return match ($zoneKey) {
-            'platform_health' => [self::KEY_PLATFORM_HEALTH_OVERVIEW, self::KEY_OVERALL_HEALTH],
+            'platform_health' => [
+                self::KEY_PLATFORM_HEALTH_OVERVIEW,
+                self::KEY_PLATFORM_HEALTH_SNAPSHOT,
+                self::KEY_OVERALL_HEALTH,
+            ],
             'critical_alerts' => [self::KEY_OVERALL_HEALTH],
             'integration_health' => [self::KEY_INTEGRATION_OVERVIEW, self::KEY_COMMUNICATIONS_OVERVIEW],
             'performance' => [self::KEY_PERFORMANCE_OVERVIEW],
@@ -109,6 +117,21 @@ final class PlatformCachePolicy
             'finance_overview' => [self::KEY_FINANCE_OVERVIEW],
             'operations_overview' => [self::KEY_OPERATIONS_OVERVIEW],
             'executive_snapshot' => [self::KEY_OVERALL_HEALTH],
+            default => [],
+        };
+    }
+
+    /**
+     * Downstream zones that must rebuild when a contributor zone changes.
+     *
+     * @return list<string>
+     */
+    public static function dependentZones(string $zoneKey): array
+    {
+        return match ($zoneKey) {
+            'platform_health',
+            'executive_snapshot',
+            'integration_health' => ['critical_alerts'],
             default => [],
         };
     }

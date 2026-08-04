@@ -17,7 +17,7 @@ enum PlatformDashboardSection: string
     public function label(): string
     {
         return match ($this) {
-            self::Executive => 'Executive Snapshot',
+            self::Executive => 'Operations Snapshot',
             self::PlatformHealth => 'Platform Health',
             self::Operations => 'Business Operations',
             self::Workforce => 'Workforce',
