@@ -246,6 +246,8 @@ return [
         'leave' => ['label' => 'On Leave', 'tone' => 'leave'],
         'off_duty' => ['label' => 'Shift Ended', 'tone' => 'unavailable'],
         'offline' => ['label' => 'Offline', 'tone' => 'unavailable'],
+        'not_logged_in' => ['label' => 'Not Logged In', 'tone' => 'unavailable'],
+        'no_schedule' => ['label' => 'No Schedule', 'tone' => 'unavailable'],
         'not_started_shift' => ['label' => 'Shift Not Started', 'tone' => 'unavailable'],
         'ira' => ['label' => 'Busy', 'tone' => 'busy'],
         'unknown' => ['label' => 'Offline', 'tone' => 'unavailable'],

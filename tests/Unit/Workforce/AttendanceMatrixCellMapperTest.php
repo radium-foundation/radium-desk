@@ -77,9 +77,23 @@ class AttendanceMatrixCellMapperTest extends TestCase
             ['leave_reason' => 'Family event'],
         );
 
-        $this->assertStringContainsString('Leave', $tooltip);
+        $this->assertStringContainsString('V · Leave', $tooltip);
         $this->assertStringContainsString('Reason: Family event', $tooltip);
         $this->assertStringContainsString('Register: On leave', $tooltip);
+    }
+
+    public function test_tooltip_and_legend_label_include_short_code_for_late(): void
+    {
+        $this->assertSame('L · Late', $this->mapper->kindLegendLabel(AttendanceMatrixCellKind::Late));
+        $this->assertSame('P · Present', $this->mapper->kindLegendLabel(AttendanceMatrixCellKind::Present));
+
+        $tooltip = $this->mapper->tooltipFor(
+            AttendanceMatrixCellKind::Late,
+            null,
+            Carbon::parse('2026-07-10'),
+        );
+
+        $this->assertStringContainsString('L · Late', $tooltip);
     }
 
     public function test_drawer_payload_exposes_register_fields(): void

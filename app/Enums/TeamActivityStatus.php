@@ -26,6 +26,8 @@ enum TeamActivityStatus: string
     case Leave = 'leave';
     case OffDuty = 'off_duty';
     case Offline = 'offline';
+    case NotLoggedIn = 'not_logged_in';
+    case NoSchedule = 'no_schedule';
     case NotStartedShift = 'not_started_shift';
     case Ira = 'ira';
     case Unknown = 'unknown';

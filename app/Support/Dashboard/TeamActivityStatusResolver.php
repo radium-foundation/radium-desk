@@ -60,10 +60,33 @@ class TeamActivityStatusResolver
         }
 
         if ($this->sessionsToday($sessionSummary, $presenceMetrics) === 0) {
-            return TeamActivityStatus::Offline;
+            return $this->resolveZeroSessionsStatus($workCalendar);
         }
 
         return TeamActivityStatus::OffDuty;
+    }
+
+    /**
+     * Distinguish unscheduled / mid-shift / off-day when there is no session today.
+     * Does not invent presence — only maps calendar context to a clearer label.
+     *
+     * @param  array<string, mixed>  $workCalendar
+     */
+    private function resolveZeroSessionsStatus(array $workCalendar): TeamActivityStatus
+    {
+        $status = (string) ($workCalendar['status'] ?? '');
+
+        return match ($status) {
+            WorkCalendarDayStatus::NoSchedule->value => TeamActivityStatus::NoSchedule,
+            WorkCalendarDayStatus::StartsLater->value => TeamActivityStatus::NotStartedShift,
+            WorkCalendarDayStatus::Working->value,
+            WorkCalendarDayStatus::Lunch->value,
+            WorkCalendarDayStatus::OutsideHours->value => TeamActivityStatus::NotLoggedIn,
+            // Off-roster day without a session — calendar badge carries Weekly Off / Holiday.
+            WorkCalendarDayStatus::WeeklyOff->value,
+            WorkCalendarDayStatus::Holiday->value => TeamActivityStatus::Offline,
+            default => TeamActivityStatus::NotLoggedIn,
+        };
     }
 
     /**
@@ -95,7 +118,9 @@ class TeamActivityStatusResolver
         return match ($status) {
             TeamActivityStatus::Leave => $this->leaveWorkingLabel($member),
             TeamActivityStatus::AutoLogout,
-            TeamActivityStatus::Offline => null,
+            TeamActivityStatus::Offline,
+            TeamActivityStatus::NotLoggedIn,
+            TeamActivityStatus::NoSchedule => null,
             TeamActivityStatus::OffDuty,
             TeamActivityStatus::Logout => $this->offDutyWorkingLabel($member),
             TeamActivityStatus::NotStartedShift => $this->notStartedWorkingLabel($member),

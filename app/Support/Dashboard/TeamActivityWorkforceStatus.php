@@ -18,7 +18,9 @@ use App\Enums\TeamActivityStatus;
  * - waiting_customer → Pending (blocked on external customer input)
  * - break → On Break
  * - leave → On Leave (approved leave; reason shown in secondary line)
- * - offline, unknown → Offline
+ * - not_logged_in → Not Logged In (shift window / outside hours, no session today)
+ * - no_schedule → No Schedule
+ * - offline, unknown → Offline (off-roster day without session, or unknown)
  * - auto_logout → Auto Logged Out
  * - logout → Logged Out
  * - off_duty → Shift Ended
@@ -52,6 +54,8 @@ class TeamActivityWorkforceStatus
             TeamActivityStatus::WaitingCustomer => 'Pending',
             TeamActivityStatus::Break => 'On Break',
             TeamActivityStatus::Leave => 'On Leave',
+            TeamActivityStatus::NotLoggedIn => 'Not Logged In',
+            TeamActivityStatus::NoSchedule => 'No Schedule',
             TeamActivityStatus::Offline,
             TeamActivityStatus::Unknown => 'Offline',
             TeamActivityStatus::AutoLogout => 'Auto Logged Out',

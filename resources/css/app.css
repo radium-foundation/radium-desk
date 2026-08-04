@@ -18516,6 +18516,19 @@ body:has(.settings-center) .toast-container {
     margin-bottom: var(--wm-section-gap);
 }
 
+.wm-summary-strip__heading {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 0.75rem;
+}
+
+.wm-summary-strip__hint {
+    font-size: 0.8125rem;
+    color: var(--wm-muted);
+}
+
 .wm-summary-card {
     position: relative;
     overflow: hidden;
@@ -18553,6 +18566,13 @@ body:has(.settings-center) .toast-container {
     line-height: 1;
     color: var(--wm-ink);
     font-variant-numeric: tabular-nums;
+}
+
+.wm-summary-card__meta {
+    margin-top: 0.35rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--wm-muted);
 }
 
 .wm-summary-card--present { color: #16a34a; background: #f7fcf8; }

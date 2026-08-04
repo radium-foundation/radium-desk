@@ -275,7 +275,7 @@ class DashboardTeamActivityTest extends TestCase
         $this->assertStringContainsString('Off Duty Agent', $html);
         $this->assertStringContainsString('Leave Agent', $html);
         $this->assertStringContainsString('On Leave', $html);
-        $this->assertStringContainsString('Offline', $html);
+        $this->assertStringContainsString('Not Logged In', $html);
         $this->assertStringContainsString('Annual Leave', $html);
 
         Carbon::setTestNow();

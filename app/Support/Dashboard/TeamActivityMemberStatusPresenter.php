@@ -20,6 +20,8 @@ class TeamActivityMemberStatusPresenter
         return match ($agent->status) {
             TeamActivityStatus::Leave => filled($agent->workingLabel) ? $agent->workingLabel : null,
             TeamActivityStatus::Offline,
+            TeamActivityStatus::NotLoggedIn,
+            TeamActivityStatus::NoSchedule,
             TeamActivityStatus::Unknown => null,
             TeamActivityStatus::WaitingCustomer,
             TeamActivityStatus::OnIvr,

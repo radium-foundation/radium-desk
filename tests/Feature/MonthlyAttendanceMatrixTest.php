@@ -71,6 +71,11 @@ class MonthlyAttendanceMatrixTest extends TestCase
             ->assertSee('Matrix Agent')
             ->assertSee('data-attendance-matrix', false)
             ->assertSee('Present')
+            ->assertSee('Month totals')
+            ->assertSee('Person-days')
+            ->assertSee('P · Present', false)
+            ->assertSee('L · Late', false)
+            ->assertSee('V · Leave', false)
             ->assertSee('name="month"', false)
             ->assertSee('value="2026-07"', false)
             ->assertSee('data-attendance-search', false);
@@ -234,17 +239,23 @@ class MonthlyAttendanceMatrixTest extends TestCase
         $this->assertStringContainsString('title="', $html);
     }
 
-    public function test_coming_soon_modules_are_visible_but_disabled(): void
+    public function test_workspace_nav_links_leave_and_hides_unimplemented_tabs(): void
     {
+        config(['workforce_recognition.enabled' => false]);
+
         $admin = $this->createAdmin();
 
-        $this->actingAs($admin)
+        $html = $this->actingAs($admin)
             ->get(route('workforce-management.attendance.index'))
             ->assertOk()
             ->assertSee('Leave')
-            ->assertSee('Calendar')
-            ->assertSee('Performance')
-            ->assertSee('Soon');
+            ->assertDontSee('Calendar')
+            ->assertDontSee('Performance')
+            ->assertDontSee('Soon')
+            ->getContent();
+
+        $this->assertStringContainsString(route('leave-requests.index'), $html);
+        $this->assertStringNotContainsString('Work Recognition', $html);
     }
 
     private function createAdmin(): User

@@ -55,7 +55,7 @@ class AttendanceMatrixCellMapper
     ): string {
         $parts = [
             $workDate->format('D, M j Y'),
-            $kind->label(),
+            $this->kindLegendLabel($kind),
         ];
 
         if ($kind === AttendanceMatrixCellKind::Holiday && filled($context['holiday_name'] ?? null)) {
@@ -93,6 +93,20 @@ class AttendanceMatrixCellMapper
         }
 
         return implode(' · ', $parts);
+    }
+
+    /**
+     * Legend-aligned tooltip status line (short code + full label).
+     */
+    public function kindLegendLabel(AttendanceMatrixCellKind $kind): string
+    {
+        $short = $kind->shortLabel();
+
+        if ($short === '—' || $short === '') {
+            return $kind->label();
+        }
+
+        return $short.' · '.$kind->label();
     }
 
     /**

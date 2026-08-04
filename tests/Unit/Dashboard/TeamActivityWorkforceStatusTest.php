@@ -18,6 +18,9 @@ class TeamActivityWorkforceStatusTest extends TestCase
         $this->assertSame('On Leave', TeamActivityWorkforceStatus::labelFor(TeamActivityStatus::Leave));
         $this->assertSame('Shift Ended', TeamActivityWorkforceStatus::labelFor(TeamActivityStatus::OffDuty));
         $this->assertSame('Shift Not Started', TeamActivityWorkforceStatus::labelFor(TeamActivityStatus::NotStartedShift));
+        $this->assertSame('Not Logged In', TeamActivityWorkforceStatus::labelFor(TeamActivityStatus::NotLoggedIn));
+        $this->assertSame('No Schedule', TeamActivityWorkforceStatus::labelFor(TeamActivityStatus::NoSchedule));
+        $this->assertSame('Offline', TeamActivityWorkforceStatus::labelFor(TeamActivityStatus::Offline));
     }
 
     public function test_maps_ira_automation_states_to_workforce_labels(): void

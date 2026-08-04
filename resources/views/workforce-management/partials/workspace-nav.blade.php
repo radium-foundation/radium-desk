@@ -3,7 +3,11 @@
 ])
 
 @php
-    $canPayroll = \App\Support\Workforce\AttendanceManagementAccess::allowsPayroll(auth()->user());
+    $viewer = auth()->user();
+    $canPayroll = \App\Support\Workforce\AttendanceManagementAccess::allowsPayroll($viewer);
+    $canLeave = $viewer?->can('viewAny', \App\Models\LeaveRequest::class) ?? false;
+    $recognitionEnabled = (bool) config('workforce_recognition.enabled')
+        && ($viewer?->can('workforce.recognition.view') ?? false);
 
     $tabs = [
         'attendance' => [
@@ -26,30 +30,15 @@
         ],
         'recognition' => [
             'label' => 'Work Recognition',
-            'url' => config('workforce_recognition.enabled')
-                ? route('workforce-management.recognition.index')
-                : null,
-            'enabled' => (bool) config('workforce_recognition.enabled')
-                && auth()->user()?->can('workforce.recognition.view'),
-            'visible' => true,
+            'url' => route('workforce-management.recognition.index'),
+            'enabled' => true,
+            'visible' => $recognitionEnabled,
         ],
         'leave' => [
             'label' => 'Leave',
-            'url' => null,
-            'enabled' => false,
-            'visible' => true,
-        ],
-        'calendar' => [
-            'label' => 'Calendar',
-            'url' => null,
-            'enabled' => false,
-            'visible' => true,
-        ],
-        'performance' => [
-            'label' => 'Performance',
-            'url' => null,
-            'enabled' => false,
-            'visible' => true,
+            'url' => route('leave-requests.index'),
+            'enabled' => true,
+            'visible' => $canLeave,
         ],
     ];
 @endphp
@@ -59,24 +48,13 @@
         @foreach($tabs as $key => $tab)
             @continue(! ($tab['visible'] ?? true))
             <li class="nav-item" role="presentation">
-                @if($tab['enabled'])
-                    <a
-                        @class(['nav-link', 'active' => $active === $key])
-                        href="{{ $tab['url'] }}"
-                        @if($active === $key) aria-current="page" @endif
-                    >
-                        {{ $tab['label'] }}
-                    </a>
-                @else
-                    <span
-                        @class(['nav-link', 'disabled', 'text-muted'])
-                        aria-disabled="true"
-                        title="Coming soon"
-                    >
-                        {{ $tab['label'] }}
-                        <span class="wm-soon-pill">Soon</span>
-                    </span>
-                @endif
+                <a
+                    @class(['nav-link', 'active' => $active === $key])
+                    href="{{ $tab['url'] }}"
+                    @if($active === $key) aria-current="page" @endif
+                >
+                    {{ $tab['label'] }}
+                </a>
             </li>
         @endforeach
     </ul>

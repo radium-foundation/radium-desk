@@ -68,26 +68,35 @@
             @endif
         </section>
 
-        <section class="wm-summary-strip" data-attendance-team-summary aria-label="Team attendance summary">
+        <section class="wm-summary-strip" data-attendance-team-summary aria-label="Month attendance totals">
+            <div class="wm-summary-strip__heading">
+                <span class="wm-toolbar__label">Month totals</span>
+                <span class="wm-summary-strip__hint">Person-days for {{ $report->monthLabel }}</span>
+            </div>
             <article class="wm-summary-card wm-summary-card--present">
                 <div class="wm-summary-card__label">Present</div>
                 <div class="wm-summary-card__value" data-summary="present">{{ $report->teamSummary->present }}</div>
+                <div class="wm-summary-card__meta">Month total</div>
             </article>
             <article class="wm-summary-card wm-summary-card--absent">
                 <div class="wm-summary-card__label">Absent</div>
                 <div class="wm-summary-card__value" data-summary="absent">{{ $report->teamSummary->absent }}</div>
+                <div class="wm-summary-card__meta">Month total</div>
             </article>
             <article class="wm-summary-card wm-summary-card--leave">
                 <div class="wm-summary-card__label">Leave</div>
                 <div class="wm-summary-card__value" data-summary="leave">{{ $report->teamSummary->leave }}</div>
+                <div class="wm-summary-card__meta">Month total</div>
             </article>
             <article class="wm-summary-card wm-summary-card--late">
                 <div class="wm-summary-card__label">Late</div>
                 <div class="wm-summary-card__value" data-summary="late">{{ $report->teamSummary->late }}</div>
+                <div class="wm-summary-card__meta">Month total</div>
             </article>
             <article class="wm-summary-card wm-summary-card--holiday">
                 <div class="wm-summary-card__label">Holiday</div>
                 <div class="wm-summary-card__value" data-summary="holiday">{{ $report->teamSummary->holiday }}</div>
+                <div class="wm-summary-card__meta">Month total</div>
             </article>
         </section>
 
@@ -125,14 +134,14 @@
         <div class="wm-matrix-panel">
             <div class="wm-matrix-panel__meta">
                 <div class="attendance-matrix-legend" aria-label="Attendance legend">
-                    <span class="attendance-matrix-badge attendance-matrix-badge--success">Present</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--half">Half Day</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--warning">Late</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--danger">Absent</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--info">Leave</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--holiday">Holiday</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--secondary">Off</span>
-                    <span class="attendance-matrix-badge attendance-matrix-badge--primary">Extra</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--success" title="Present">P · Present</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--danger" title="Absent">A · Absent</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--warning" title="Late">L · Late</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--info" title="Leave">V · Leave</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--half" title="Half Day">H · Half Day</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--holiday" title="Holiday">N · Holiday</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--secondary" title="Weekly Off">W · Weekly Off</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--primary" title="Extra Working">E · Extra Working</span>
                 </div>
                 <div class="wm-matrix-panel__note">
                     Hours from attendance register · generated {{ $report->generatedAt->format('M j, Y H:i') }}

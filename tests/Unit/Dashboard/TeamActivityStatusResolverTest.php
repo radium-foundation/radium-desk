@@ -93,10 +93,44 @@ class TeamActivityStatusResolverTest extends TestCase
             'shift_times' => ['start' => '9:00 AM', 'end' => '6:00 PM'],
         ]);
 
-        $this->assertSame(TeamActivityStatus::Offline, $status);
+        $this->assertSame(TeamActivityStatus::NotLoggedIn, $status);
+        $this->assertSame('Not Logged In', $status->label());
         $this->assertNull($resolver->workingLabel([
             'shift_times' => ['start' => '9:00 AM', 'end' => '6:00 PM'],
         ], $status));
+    }
+
+    public function test_resolves_not_logged_in_during_shift_without_session(): void
+    {
+        $resolver = new TeamActivityStatusResolver;
+
+        $status = $resolver->resolve([
+            'on_duty' => false,
+            'authority' => ['block_reasons' => ['not_present']],
+            'presence' => ['session_open' => false],
+            'session_summary' => [],
+            'work_calendar' => ['status' => WorkCalendarDayStatus::Working->value],
+            'shift_times' => ['start' => '9:00 AM', 'end' => '6:00 PM'],
+        ]);
+
+        $this->assertSame(TeamActivityStatus::NotLoggedIn, $status);
+        $this->assertSame('Not Logged In', $status->label());
+    }
+
+    public function test_resolves_no_schedule_when_calendar_has_no_schedule(): void
+    {
+        $resolver = new TeamActivityStatusResolver;
+
+        $status = $resolver->resolve([
+            'on_duty' => false,
+            'authority' => ['block_reasons' => ['not_present']],
+            'presence' => ['session_open' => false],
+            'session_summary' => [],
+            'work_calendar' => ['status' => WorkCalendarDayStatus::NoSchedule->value],
+        ]);
+
+        $this->assertSame(TeamActivityStatus::NoSchedule, $status);
+        $this->assertSame('No Schedule', $status->label());
     }
 
     public function test_open_session_overrides_auto_logout_even_when_off_duty(): void
@@ -145,7 +179,23 @@ class TeamActivityStatusResolverTest extends TestCase
             'work_calendar' => ['status' => WorkCalendarDayStatus::OutsideHours->value],
         ]);
 
+        $this->assertSame(TeamActivityStatus::NotLoggedIn, $status);
+    }
+
+    public function test_offline_reserved_for_weekly_off_without_session(): void
+    {
+        $resolver = new TeamActivityStatusResolver;
+
+        $status = $resolver->resolve([
+            'on_duty' => false,
+            'authority' => ['block_reasons' => []],
+            'presence' => ['session_open' => false],
+            'session_summary' => [],
+            'work_calendar' => ['status' => WorkCalendarDayStatus::WeeklyOff->value],
+        ]);
+
         $this->assertSame(TeamActivityStatus::Offline, $status);
+        $this->assertSame('Offline', $status->label());
     }
 
     public function test_idle_presence_resolves_to_idle_workforce_status(): void
