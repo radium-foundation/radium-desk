@@ -193,12 +193,16 @@ class ProductionWatchdogService
         }
 
         $threshold = max(1, (int) config('ira.watchdog.automation_failure_threshold', 3));
-        $failuresToday = AutomationExecution::query()
+        $classifier = app(AutomationFailureClassifier::class);
+
+        $openFailures = AutomationExecution::query()
             ->where('status', AutomationExecutionStatus::Failed)
             ->where('created_at', '>=', now()->startOfDay())
+            ->get(['id', 'error_message'])
+            ->filter(fn (AutomationExecution $execution): bool => $classifier->isOpen($execution->error_message))
             ->count();
 
-        if ($failuresToday < $threshold) {
+        if ($openFailures < $threshold) {
             return [];
         }
 
@@ -207,10 +211,10 @@ class ProductionWatchdogService
                 key: 'automation:failures',
                 label: 'Automation',
                 message: sprintf(
-                    '%d automation execution failure(s) recorded today.',
-                    $failuresToday,
+                    '%d open automation failure(s) require attention.',
+                    $openFailures,
                 ),
-                affectedCount: $failuresToday,
+                affectedCount: $openFailures,
             ),
         ];
     }

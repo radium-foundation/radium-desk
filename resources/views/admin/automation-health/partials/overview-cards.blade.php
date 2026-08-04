@@ -33,7 +33,25 @@
             'label' => 'Failures Today',
             'value' => $overview['failures_today'] ?? 0,
             'icon' => 'bi-exclamation-triangle',
-            'color' => ($overview['failures_today'] ?? 0) > 0 ? 'danger' : 'secondary',
+            'color' => ($overview['open_failures_today'] ?? $overview['failures_today'] ?? 0) > 0 ? 'danger' : 'secondary',
+        ],
+        [
+            'label' => 'Historical Failures',
+            'value' => $overview['historical_failures_today'] ?? 0,
+            'icon' => 'bi-journal-text',
+            'color' => 'secondary',
+        ],
+        [
+            'label' => 'Open Failures',
+            'value' => $overview['open_failures_today'] ?? 0,
+            'icon' => 'bi-exclamation-circle',
+            'color' => ($overview['open_failures_today'] ?? 0) > 0 ? 'warning' : 'secondary',
+        ],
+        [
+            'label' => 'Critical Failures',
+            'value' => $overview['critical_failures_today'] ?? 0,
+            'icon' => 'bi-shield-exclamation',
+            'color' => ($overview['critical_failures_today'] ?? 0) > 0 ? 'danger' : 'secondary',
         ],
         [
             'label' => 'Pending Executions',

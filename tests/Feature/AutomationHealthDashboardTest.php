@@ -102,7 +102,37 @@ class AutomationHealthDashboardTest extends TestCase
             ->get(route('admin.operations.automation-health'))
             ->assertOk()
             ->assertSee('Warning')
-            ->assertSee('Channel timeout');
+            ->assertSee('Channel timeout')
+            ->assertSee('Historical Failures')
+            ->assertSee('Open Failures')
+            ->assertSee('Critical Failures');
+    }
+
+    public function test_dashboard_stays_healthy_when_only_historical_terminal_failures_exist(): void
+    {
+        $admin = $this->createAdminUser();
+        $this->seedSuccessfulWaitingExecution();
+        $waitingState = $this->createWaitingState();
+
+        AutomationExecution::query()->create([
+            'waiting_state_id' => $waitingState->id,
+            'policy_key' => 'customer_waiting_default',
+            'schedule_step' => 1,
+            'action_type' => AutomationPolicyActionType::AutoClose,
+            'action_key' => 'customer_not_responding',
+            'channel' => null,
+            'status' => AutomationExecutionStatus::Failed,
+            'idempotency_key' => 'automation.health.historical.1',
+            'error_message' => 'Service case is already closed.',
+            'started_at' => now()->subMinutes(5),
+            'completed_at' => now()->subMinutes(5),
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.operations.automation-health'))
+            ->assertOk()
+            ->assertSee('Healthy')
+            ->assertSee('Historical Failures');
     }
 
     public function test_dashboard_shows_failed_status_when_scheduler_is_stalled(): void
@@ -245,7 +275,7 @@ class AutomationHealthDashboardTest extends TestCase
     {
         $actor = User::factory()->create();
         $order = Order::query()->create([
-            'order_id' => 'RD-HEALTH-001',
+            'order_id' => 'RD-HEALTH-'.uniqid(),
             'customer_name' => 'Health Customer',
             'serial_number' => 'FPSPL1141XX',
             'product_name' => 'MFS 110',

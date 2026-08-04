@@ -101,6 +101,10 @@ class PlatformAutomationOverviewService
             default => PlatformHealthStatus::Healthy,
         };
 
+        $openFailures = (int) ($agg['open_failures_today'] ?? 0);
+        $criticalFailures = (int) ($agg['critical_failures_today'] ?? 0);
+        $historicalFailures = (int) ($agg['historical_failures_today'] ?? 0);
+
         $items = [
             [
                 'key' => 'automation_health',
@@ -108,13 +112,12 @@ class PlatformAutomationOverviewService
                 'status' => $automationStatus->value,
                 'status_label' => (string) ($agg['health_label'] ?? $automationStatus->label()),
                 'badge_class' => $automationStatus->badgeClass(),
-                'summary' => (string) ($agg['health_detail'] ?? sprintf(
-                    '%d failures today · %d pending',
-                    (int) ($agg['failures_today'] ?? 0),
-                    (int) ($agg['pending_executions'] ?? 0),
-                )),
+                'summary' => $this->automationHealthSummary($agg),
                 'updated_at' => now()->toIso8601String(),
                 'expandable' => true,
+                'historical_failures_today' => $historicalFailures,
+                'open_failures_today' => $openFailures,
+                'critical_failures_today' => $criticalFailures,
             ],
             $schedulerItem,
         ];
@@ -213,9 +216,36 @@ class PlatformAutomationOverviewService
         return [
             'key' => 'automation_health',
             'label' => 'Automation Health',
-            'message' => (string) ($agg['health_detail'] ?? 'Open Automation Health for ledger and failure forensics.'),
+            'message' => $this->automationHealthSummary($agg),
+            'historical_failures_today' => (int) ($agg['historical_failures_today'] ?? 0),
+            'open_failures_today' => (int) ($agg['open_failures_today'] ?? 0),
+            'critical_failures_today' => (int) ($agg['critical_failures_today'] ?? 0),
+            'failures_today' => (int) ($agg['failures_today'] ?? 0),
             'links' => $this->links(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $agg
+     */
+    private function automationHealthSummary(array $agg, ?PlatformHealthStatus $status = null): string
+    {
+        $historical = (int) ($agg['historical_failures_today'] ?? 0);
+        $open = (int) ($agg['open_failures_today'] ?? 0);
+        $critical = (int) ($agg['critical_failures_today'] ?? 0);
+
+        $parts = [
+            sprintf('Historical %d', $historical),
+            sprintf('Open %d', $open),
+            sprintf('Critical %d', $critical),
+        ];
+
+        $detail = (string) ($agg['health_detail'] ?? '');
+        if ($detail !== '') {
+            return implode(' · ', $parts).' — '.$detail;
+        }
+
+        return implode(' · ', $parts);
     }
 
     /**

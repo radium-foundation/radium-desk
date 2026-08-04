@@ -112,6 +112,9 @@ class AutomationHealthService
             failuresToday: $overview['failures_today'],
             pendingCount: $overview['pending_executions'],
             oldestPendingStartedAt: $overview['oldest_pending_started_at'],
+            openFailuresToday: $overview['open_failures_today'],
+            criticalFailuresToday: $overview['critical_failures_today'],
+            historicalFailuresToday: $overview['historical_failures_today'],
         );
 
         return [
@@ -279,6 +282,8 @@ class AutomationHealthService
     private function overviewMetrics(): array
     {
         $today = today();
+        $classifier = app(AutomationFailureClassifier::class);
+        $criticalThreshold = max(1, (int) config('ira.watchdog.automation_failure_threshold', 3));
 
         $statusCounts = AutomationExecution::query()
             ->where('created_at', '>=', $today)
@@ -287,6 +292,21 @@ class AutomationHealthService
             ->pluck('aggregate', 'status')
             ->map(fn ($count): int => (int) $count)
             ->all();
+
+        $failedToday = AutomationExecution::query()
+            ->where('status', AutomationExecutionStatus::Failed)
+            ->where('created_at', '>=', $today)
+            ->get(['id', 'error_message']);
+
+        $historicalFailuresToday = $failedToday
+            ->filter(fn (AutomationExecution $execution): bool => $classifier->isTerminal($execution->error_message))
+            ->count();
+        $openFailuresToday = $failedToday
+            ->filter(fn (AutomationExecution $execution): bool => $classifier->isOpen($execution->error_message))
+            ->count();
+        $criticalFailuresToday = $openFailuresToday >= $criticalThreshold
+            ? $openFailuresToday
+            : 0;
 
         $lastSuccessAt = AutomationExecution::query()
             ->where('status', AutomationExecutionStatus::Success)
@@ -332,6 +352,9 @@ class AutomationHealthService
             'success_today' => (int) ($statusCounts[AutomationExecutionStatus::Success->value] ?? 0),
             'skipped_today' => (int) ($statusCounts[AutomationExecutionStatus::Skipped->value] ?? 0),
             'failures_today' => (int) ($statusCounts[AutomationExecutionStatus::Failed->value] ?? 0),
+            'historical_failures_today' => $historicalFailuresToday,
+            'open_failures_today' => $openFailuresToday,
+            'critical_failures_today' => $criticalFailuresToday,
             'pending_executions' => $pendingCount,
             'oldest_pending_started_at' => $oldestPendingStartedAt instanceof Carbon ? $oldestPendingStartedAt : null,
             'average_execution_ms' => $averageExecutionMs,
@@ -660,6 +683,9 @@ class AutomationHealthService
                 'success_today' => 0,
                 'skipped_today' => 0,
                 'failures_today' => 0,
+                'historical_failures_today' => 0,
+                'open_failures_today' => 0,
+                'critical_failures_today' => 0,
                 'pending_executions' => 0,
                 'average_execution_ms' => null,
                 'average_execution_display' => '—',

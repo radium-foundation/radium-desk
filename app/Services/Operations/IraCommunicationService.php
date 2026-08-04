@@ -403,16 +403,31 @@ class IraCommunicationService
     public function sendCriticalAlerts(): array
     {
         $watchdog = app(ProductionWatchdogService::class);
+        $gate = app(WatchdogCriticalAlertGate::class);
+        $alerts = $watchdog->collectCriticalAlerts();
+        $gate->syncResolved($alerts);
         $results = [];
 
-        foreach ($watchdog->collectCriticalAlerts() as $alert) {
-            $results = [
-                ...$results,
-                ...$this->dispatch(new IraCommunicationInput(
-                    event: IraNotificationType::CriticalSystemAlert,
-                    context: $alert->toContext(),
-                )),
-            ];
+        foreach ($alerts as $alert) {
+            if (! $gate->shouldNotify($alert)) {
+                continue;
+            }
+
+            $delivered = $this->dispatch(new IraCommunicationInput(
+                event: IraNotificationType::CriticalSystemAlert,
+                context: $alert->toContext(),
+            ));
+
+            $sent = array_filter(
+                $delivered,
+                fn ($notification) => $notification->status->value === 'sent',
+            );
+
+            if ($sent !== []) {
+                $gate->markNotified($alert);
+            }
+
+            $results = [...$results, ...$delivered];
         }
 
         return $results;
@@ -606,6 +621,12 @@ class IraCommunicationService
 
     private function isOnCooldown(User $user, IraCommunicationInput $input): bool
     {
+        // Watchdog critical alerts use WatchdogCriticalAlertGate fingerprints
+        // (send once / severity escalate / clear on resolve) — not time cooldowns.
+        if ($input->event === IraNotificationType::CriticalSystemAlert) {
+            return false;
+        }
+
         if (in_array($input->event, [
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,
@@ -631,6 +652,10 @@ class IraCommunicationService
 
     private function recordCooldown(User $user, IraCommunicationInput $input): void
     {
+        if ($input->event === IraNotificationType::CriticalSystemAlert) {
+            return;
+        }
+
         $ttlSeconds = in_array($input->event, [
             IraNotificationType::DailyBriefing,
             IraNotificationType::TeamDailyBriefing,

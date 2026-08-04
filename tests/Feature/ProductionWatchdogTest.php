@@ -103,7 +103,7 @@ class ProductionWatchdogTest extends TestCase
             ->count());
     }
 
-    public function test_critical_alert_respects_cooldown_dedupe(): void
+    public function test_critical_alert_fingerprint_suppresses_unchanged_repeats(): void
     {
         Http::fake([
             'api.telegram.org/*' => Http::response([

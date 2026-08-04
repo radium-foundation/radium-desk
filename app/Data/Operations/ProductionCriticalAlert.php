@@ -15,6 +15,19 @@ readonly class ProductionCriticalAlert
         public array $orderIds = [],
     ) {}
 
+    public function fingerprint(): string
+    {
+        return hash('sha256', $this->key.'|'.$this->message.'|'.$this->affectedCount);
+    }
+
+    /**
+     * Numeric severity used for Telegram escalation (higher = worse).
+     */
+    public function severity(): int
+    {
+        return max(0, $this->affectedCount);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -26,6 +39,8 @@ readonly class ProductionCriticalAlert
             'affected_count' => $this->affectedCount,
             'order_ids' => $this->orderIds,
             'dedupe_key' => 'watchdog:'.$this->key,
+            'fingerprint' => $this->fingerprint(),
+            'severity' => $this->severity(),
         ];
     }
 }
