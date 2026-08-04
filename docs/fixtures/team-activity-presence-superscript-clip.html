@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Presence superscript clip fixture</title>
+  <style>
+    body {
+      margin: 24px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #fff;
+      color: #212529;
+    }
+    h1 { font-size: 14px; margin: 0 0 16px; color: #64748b; font-weight: 600; }
+    .row {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      align-items: center;
+      min-height: 2.75rem;
+      padding: 0.375rem;
+      border: 1px solid #eef2f6;
+      margin-bottom: 12px;
+    }
+    .label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Shared status chrome (from app.css) */
+    .team-activity-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .team-activity-status__dot {
+      width: 0.4375rem;
+      height: 0.4375rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: currentColor;
+    }
+    .team-activity-status-pill {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      padding: 0;
+      background: transparent;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .team-activity-status-pill--working { color: #3f6f51; }
+    .team-activity-duration { display: inline-flex; align-items: baseline; white-space: nowrap; }
+    .team-activity-duration__segment { display: inline-flex; align-items: baseline; }
+    .team-activity-operational-indicator {
+      display: inline-flex;
+      align-items: baseline;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .team-activity-operational-indicator--late {
+      color: #8a6a2f;
+      font-size: 0.5625rem;
+      font-weight: 600;
+    }
+    .team-activity-operational-indicator__late-sup {
+      margin-left: 0.0625rem;
+      font-size: 0.85em;
+      font-weight: 600;
+      line-height: 1;
+      vertical-align: super;
+    }
+
+    /* BEFORE (clipped) — current production rules */
+    .before .team-activity-live-presence--compact {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.25rem;
+      flex-wrap: nowrap;
+      overflow: hidden;
+    }
+    .before .team-activity-live-presence__primary {
+      gap: 0.25rem;
+      overflow: visible;
+      text-overflow: clip;
+    }
+    .before .team-activity-live-presence__code {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0.02em;
+    }
+    .before .team-activity-live-presence__duration {
+      margin-left: 0.0625rem;
+      font-size: 0.5625rem;
+      font-weight: 600;
+      line-height: 1;
+      vertical-align: super;
+      color: currentColor;
+      opacity: 0.85;
+    }
+    .before .team-activity-live-presence__duration .team-activity-duration { gap: 0; }
+    .before .team-activity-live-presence__duration .team-activity-duration__gap { display: none; }
+    .before .team-activity-live-presence__duration .team-activity-duration__unit {
+      font-size: 0.85em;
+      color: inherit;
+      opacity: 0.9;
+    }
+    .before .team-activity-live-presence__late { font-size: 0.5625rem; }
+
+    /* AFTER (fixed) */
+    .after .team-activity-live-presence--compact {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.25rem;
+      flex-wrap: nowrap;
+      overflow: visible;
+      line-height: 1.45;
+      padding-block: 0.0625rem;
+    }
+    .after .team-activity-live-presence__primary.team-activity-status-pill,
+    .after .team-activity-live-presence__primary {
+      align-items: baseline;
+      gap: 0.25rem;
+      overflow: visible;
+      text-overflow: clip;
+      line-height: 1.45;
+    }
+    .after .team-activity-live-presence__code {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      line-height: 1.45;
+      letter-spacing: 0.02em;
+    }
+    .after .team-activity-live-presence__duration {
+      position: relative;
+      top: -0.4em;
+      margin-left: 0.0625rem;
+      font-size: 0.5625rem;
+      font-weight: 600;
+      line-height: 1;
+      vertical-align: baseline;
+      color: currentColor;
+      opacity: 0.85;
+    }
+    .after .team-activity-live-presence__duration .team-activity-duration { gap: 0; }
+    .after .team-activity-live-presence__duration .team-activity-duration__gap { display: none; }
+    .after .team-activity-live-presence__duration .team-activity-duration__unit {
+      font-size: 0.85em;
+      color: inherit;
+      opacity: 0.9;
+    }
+    .after .team-activity-live-presence__late {
+      font-size: 0.5625rem;
+      line-height: 1.45;
+      overflow: visible;
+    }
+    .after .team-activity-live-presence__late .team-activity-operational-indicator__late-sup {
+      position: relative;
+      top: -0.35em;
+      vertical-align: baseline;
+    }
+  </style>
+</head>
+<body>
+  <h1>Before — superscript clipped</h1>
+  <div class="row before" id="before">
+    <div class="label">Before</div>
+    <div class="team-activity-live-presence team-activity-live-presence--compact">
+      <span class="team-activity-status team-activity-status-pill team-activity-status-pill--working team-activity-live-presence__primary">
+        <span class="team-activity-status__dot"></span>
+        <span class="team-activity-live-presence__code">A</span>
+        <sup class="team-activity-live-presence__duration">
+          <span class="team-activity-duration">
+            <span class="team-activity-duration__segment"><span class="team-activity-duration__value">2</span><span class="team-activity-duration__unit">h</span></span>
+            <span class="team-activity-duration__gap"> </span>
+            <span class="team-activity-duration__segment"><span class="team-activity-duration__value">1</span><span class="team-activity-duration__unit">m</span></span>
+          </span>
+        </sup>
+      </span>
+      <span class="team-activity-operational-indicator team-activity-operational-indicator--late team-activity-live-presence__late">
+        <span class="team-activity-operational-indicator__late-mark">L</span>
+        <sup class="team-activity-operational-indicator__late-sup">
+          <span class="team-activity-duration">
+            <span class="team-activity-duration__segment"><span class="team-activity-duration__value">13</span><span class="team-activity-duration__unit">m</span></span>
+          </span>
+        </sup>
+      </span>
+    </div>
+  </div>
+
+  <h1>After — superscript fully visible</h1>
+  <div class="row after" id="after">
+    <div class="label">After</div>
+    <div class="team-activity-live-presence team-activity-live-presence--compact">
+      <span class="team-activity-status team-activity-status-pill team-activity-status-pill--working team-activity-live-presence__primary">
+        <span class="team-activity-status__dot"></span>
+        <span class="team-activity-live-presence__code">A</span>
+        <sup class="team-activity-live-presence__duration">
+          <span class="team-activity-duration">
+            <span class="team-activity-duration__segment"><span class="team-activity-duration__value">2</span><span class="team-activity-duration__unit">h</span></span>
+            <span class="team-activity-duration__gap"> </span>
+            <span class="team-activity-duration__segment"><span class="team-activity-duration__value">1</span><span class="team-activity-duration__unit">m</span></span>
+          </span>
+        </sup>
+      </span>
+      <span class="team-activity-operational-indicator team-activity-operational-indicator--late team-activity-live-presence__late">
+        <span class="team-activity-operational-indicator__late-mark">L</span>
+        <sup class="team-activity-operational-indicator__late-sup">
+          <span class="team-activity-duration">
+            <span class="team-activity-duration__segment"><span class="team-activity-duration__value">13</span><span class="team-activity-duration__unit">m</span></span>
+          </span>
+        </sup>
+      </span>
+    </div>
+  </div>
+</body>
+</html>

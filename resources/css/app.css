@@ -2637,34 +2637,49 @@ a:focus-visible .stat-card {
     max-width: 100%;
 }
 
+/*
+ * Compact Presence codes (A²ʰ¹ᵐ L¹³ᵐ): superscripts sit above the code baseline.
+ * Root cause of clipping: overflow:hidden + inline-flex align-items:center
+ * (vertical-align:super is ignored on flex children) + tight line-height.
+ */
 .team-activity-live-presence--compact {
     display: inline-flex;
     align-items: baseline;
     gap: 0.25rem;
     flex-wrap: nowrap;
-    overflow: hidden;
+    overflow: visible;
+    line-height: 1.45;
+    padding-block: 0.0625rem;
 }
 
+.team-activity-live-presence__primary.team-activity-status,
+.team-activity-live-presence__primary.team-activity-status-pill,
 .team-activity-live-presence__primary {
+    align-items: baseline;
     gap: 0.25rem;
     overflow: visible;
     text-overflow: clip;
+    line-height: 1.45;
+    max-height: none;
 }
 
 .team-activity-live-presence__code {
     font-size: 0.6875rem;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.45;
     letter-spacing: 0.02em;
     font-variant-numeric: tabular-nums;
 }
 
 .team-activity-live-presence__duration {
+    /* Flex ignores vertical-align; raise the duration explicitly. */
+    position: relative;
+    top: -0.4em;
     margin-left: 0.0625rem;
     font-size: 0.5625rem;
     font-weight: 600;
     line-height: 1;
-    vertical-align: super;
+    vertical-align: baseline;
     color: currentColor;
     opacity: 0.85;
 }
@@ -2685,6 +2700,14 @@ a:focus-visible .stat-card {
 
 .team-activity-live-presence__late {
     font-size: 0.5625rem;
+    line-height: 1.45;
+    overflow: visible;
+}
+
+.team-activity-live-presence__late .team-activity-operational-indicator__late-sup {
+    position: relative;
+    top: -0.35em;
+    vertical-align: baseline;
 }
 
 .team-activity-operational-indicators {
@@ -2736,6 +2759,12 @@ a:focus-visible .stat-card {
 
 .team-activity-presence-state {
     justify-self: start;
+    overflow: visible;
+    min-width: 0;
+}
+
+.team-activity-col--presence {
+    overflow: visible;
 }
 
 .team-activity-presence-metrics {
