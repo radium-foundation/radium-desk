@@ -99,12 +99,17 @@ class WorkspaceCustomerNotRespondingActionService
 
         if ($this->waitingStateService->activeFor($incident) === null) {
             $waitingState = $this->waitingStateService->ensureCustomerNotRespondingWaitingState($incident, $actor);
+            if ($waitingState === null) {
+                $waitingStateSuffix = 'Waiting state not started (service case closed).';
+            }
         } else {
             $waitingState = $this->waitingStateService->activeFor($incident);
             $waitingStateSuffix = 'Waiting state already active.';
         }
 
-        $this->customerWaitingLifecycleService->recordFollowupSent($waitingState);
+        if ($waitingState !== null) {
+            $this->customerWaitingLifecycleService->recordFollowupSent($waitingState);
+        }
 
         $effects = $this->refreshPolicy->effectsFor(
             $requestContext->context,

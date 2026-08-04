@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\IncidentStatus;
 use App\Enums\WaitingReason;
 use App\Exceptions\ActiveWaitingStateExistsException;
 use App\Exceptions\InvalidAutomationPolicyException;
@@ -17,6 +18,7 @@ use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Support\AppDateFormatter;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class IncidentWaitingStateService
 {
@@ -43,7 +45,19 @@ class IncidentWaitingStateService
         ?Carbon $startedAt = null,
         ?array $metadata = null,
         ?Carbon $nextActionAt = null,
-    ): IncidentWaitingState {
+    ): ?IncidentWaitingState {
+        $incident = $incident->fresh() ?? $incident;
+
+        if ($incident->status === IncidentStatus::Closed) {
+            Log::info('Skipping waiting state start on closed service case.', [
+                'incident_id' => $incident->id,
+                'reference_no' => $incident->reference_no,
+                'waiting_reason' => $reason->value,
+            ]);
+
+            return null;
+        }
+
         return DB::transaction(function () use ($incident, $reason, $actor, $reminderPolicyKey, $pauseSla, $startedAt, $metadata, $nextActionAt): IncidentWaitingState {
             $existing = IncidentWaitingState::query()
                 ->where('incident_id', $incident->id)
@@ -185,8 +199,14 @@ class IncidentWaitingStateService
     /**
      * @param  array<string, mixed>|null  $metadata
      */
-    public function ensureSerialWaitingState(Incident $incident, User $actor, ?array $metadata = null): IncidentWaitingState
+    public function ensureSerialWaitingState(Incident $incident, User $actor, ?array $metadata = null): ?IncidentWaitingState
     {
+        $incident = $incident->fresh(['activeWaitingState']) ?? $incident;
+
+        if ($incident->status === IncidentStatus::Closed) {
+            return $this->activeFor($incident);
+        }
+
         $existing = $this->activeFor($incident);
 
         if ($existing !== null) {
@@ -215,8 +235,14 @@ class IncidentWaitingStateService
         );
     }
 
-    public function ensureCustomerNotRespondingWaitingState(Incident $incident, User $actor): IncidentWaitingState
+    public function ensureCustomerNotRespondingWaitingState(Incident $incident, User $actor): ?IncidentWaitingState
     {
+        $incident = $incident->fresh(['activeWaitingState']) ?? $incident;
+
+        if ($incident->status === IncidentStatus::Closed) {
+            return $this->activeFor($incident);
+        }
+
         $existing = $this->activeFor($incident);
 
         if ($existing !== null) {

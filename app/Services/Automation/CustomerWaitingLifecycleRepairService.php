@@ -48,62 +48,15 @@ class CustomerWaitingLifecycleRepairService
         ];
         $samples = [];
 
-        $staleStates = IncidentWaitingState::query()
-            ->active()
-            ->whereHas('incident', fn ($query) => $query->where('status', IncidentStatus::Closed))
-            ->with('incident.order')
-            ->orderBy('id')
-            ->get();
-
-        $counts['stale_on_closed_found'] = $staleStates->count();
-
-        $actor = null;
-
-        foreach ($staleStates as $waitingState) {
-            if (count($samples) < 20) {
-                $samples[] = [
-                    'action' => 'clear_stale_on_closed',
-                    'waiting_state_id' => $waitingState->id,
-                    'incident_id' => $waitingState->incident_id,
-                    'order_id' => $waitingState->incident?->order?->order_id,
-                ];
-            }
-
-            if ($dryRun) {
-                continue;
-            }
-
-            $incident = $waitingState->incident;
-
-            if ($incident === null) {
-                continue;
-            }
-
-            $actor = $this->resolveAutomationActor($actor);
-            if ($actor === null) {
-                return $this->configurationErrorSummary($dryRun, $closeLegacy, $counts, $samples);
-            }
-
-            DB::transaction(function () use ($incident, $waitingState, $actor): void {
-                $this->waitingStateService->clearActiveIfPresent($incident, $actor);
-
-                $this->auditLogService->log(
-                    userId: $actor->id,
-                    event: self::EVENT_STALE_WAITING_CLEARED,
-                    auditable: $incident,
-                    oldValues: [
-                        'waiting_state_id' => $waitingState->id,
-                        'waiting_reason' => $waitingState->waiting_reason->value,
-                        'reminder_policy_key' => $waitingState->reminder_policy_key,
-                    ],
-                    newValues: [
-                        'cleared' => true,
-                    ],
-                );
-            });
-
-            $counts['stale_on_closed_cleared']++;
+        $orphanSummary = $this->repairOrphansOnClosed(dryRun: $dryRun);
+        if ($orphanSummary->configurationError !== null) {
+            return $orphanSummary;
         }
+
+        $counts['stale_on_closed_found'] = $orphanSummary->counts['stale_on_closed_found'] ?? 0;
+        $counts['stale_on_closed_cleared'] = $orphanSummary->counts['stale_on_closed_cleared'] ?? 0;
+        $samples = $orphanSummary->samples;
+        $actor = null;
 
         $mismatched = IncidentWaitingState::query()
             ->active()
@@ -186,6 +139,86 @@ class CustomerWaitingLifecycleRepairService
         Log::info('Customer waiting lifecycle repair completed.', [
             'dry_run' => $dryRun,
             'close_legacy' => $closeLegacy,
+            'counts' => $counts,
+        ]);
+
+        return new CustomerWaitingLifecycleRepairSummary(
+            dryRun: $dryRun,
+            counts: $counts,
+            samples: $samples,
+        );
+    }
+
+    /**
+     * Clear active waiting states attached to closed service cases.
+     */
+    public function repairOrphansOnClosed(bool $dryRun = true): CustomerWaitingLifecycleRepairSummary
+    {
+        $counts = [
+            'stale_on_closed_found' => 0,
+            'stale_on_closed_cleared' => 0,
+        ];
+        $samples = [];
+
+        $staleStates = IncidentWaitingState::query()
+            ->active()
+            ->whereHas('incident', fn ($query) => $query->where('status', IncidentStatus::Closed))
+            ->with('incident.order')
+            ->orderBy('id')
+            ->get();
+
+        $counts['stale_on_closed_found'] = $staleStates->count();
+        $actor = null;
+
+        foreach ($staleStates as $waitingState) {
+            if (count($samples) < 20) {
+                $samples[] = [
+                    'action' => 'clear_stale_on_closed',
+                    'waiting_state_id' => $waitingState->id,
+                    'incident_id' => $waitingState->incident_id,
+                    'order_id' => $waitingState->incident?->order?->order_id,
+                    'reference_no' => $waitingState->incident?->reference_no,
+                ];
+            }
+
+            if ($dryRun) {
+                continue;
+            }
+
+            $incident = $waitingState->incident;
+
+            if ($incident === null) {
+                continue;
+            }
+
+            $actor = $this->resolveAutomationActor($actor);
+            if ($actor === null) {
+                return $this->configurationErrorSummary($dryRun, false, $counts, $samples);
+            }
+
+            DB::transaction(function () use ($incident, $waitingState, $actor): void {
+                $this->waitingStateService->clearActiveIfPresent($incident, $actor);
+
+                $this->auditLogService->log(
+                    userId: $actor->id,
+                    event: self::EVENT_STALE_WAITING_CLEARED,
+                    auditable: $incident,
+                    oldValues: [
+                        'waiting_state_id' => $waitingState->id,
+                        'waiting_reason' => $waitingState->waiting_reason->value,
+                        'reminder_policy_key' => $waitingState->reminder_policy_key,
+                    ],
+                    newValues: [
+                        'cleared' => true,
+                    ],
+                );
+            });
+
+            $counts['stale_on_closed_cleared']++;
+        }
+
+        Log::info('Closed-case orphan waiting repair completed.', [
+            'dry_run' => $dryRun,
             'counts' => $counts,
         ]);
 

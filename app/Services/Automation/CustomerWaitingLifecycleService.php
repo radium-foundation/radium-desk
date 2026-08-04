@@ -35,6 +35,8 @@ class CustomerWaitingLifecycleService
 
     public const EVENT_AUTO_CLOSED = 'service_case.customer_waiting_auto_closed';
 
+    public const EVENT_ALREADY_CLOSED_WAITING_CLEARED = 'service_case.customer_waiting_already_closed_cleared';
+
     public const EVENT_LEGACY_CLEANUP_CLOSED = 'service_case.customer_waiting_cleanup_closed';
 
     public const LEGACY_CLEANUP_REMARK = <<<'TEXT'
@@ -198,7 +200,39 @@ TEXT;
         }
 
         if ($incident->status === IncidentStatus::Closed) {
-            return ActionHandlerResult::failure('Service case is already closed.');
+            $actor = $this->automationIdentity->systemUser();
+
+            return DB::transaction(function () use ($waitingState, $incident, $actor): ActionHandlerResult {
+                $cleared = $this->waitingStateService->clearActiveIfPresent($incident, $actor);
+
+                $this->auditLogService->log(
+                    userId: $actor->id,
+                    event: self::EVENT_ALREADY_CLOSED_WAITING_CLEARED,
+                    auditable: $incident->fresh(),
+                    oldValues: [
+                        'status' => IncidentStatus::Closed->value,
+                        'waiting_state_id' => $waitingState->id,
+                        'waiting_reason' => $waitingState->waiting_reason->value,
+                        'cleared_at' => null,
+                    ],
+                    newValues: [
+                        'status' => IncidentStatus::Closed->value,
+                        'waiting_state_id' => $waitingState->id,
+                        'cleared' => $cleared !== null,
+                        'cleared_at' => $cleared?->cleared_at?->toIso8601String(),
+                        'message' => 'Already closed - waiting cleared.',
+                    ],
+                );
+
+                return ActionHandlerResult::success(
+                    externalId: 'customer-waiting-already-closed',
+                    metadata: [
+                        'message' => 'Already closed - waiting cleared.',
+                        'waiting_state_id' => $waitingState->id,
+                        'cleared' => $cleared !== null,
+                    ],
+                );
+            });
         }
 
         if ($incident->hasActiveSupportAppointment()) {

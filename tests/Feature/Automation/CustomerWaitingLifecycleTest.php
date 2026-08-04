@@ -520,6 +520,7 @@ class CustomerWaitingLifecycleTest extends TestCase
             startedAt: $startedAt,
         );
 
+        $this->assertNotNull($waitingState);
         $this->assertSame('customer_waiting_default', $waitingState->reminder_policy_key);
 
         $this->assertDatabaseHas('audit_logs', [

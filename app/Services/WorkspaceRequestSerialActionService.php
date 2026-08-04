@@ -113,7 +113,10 @@ class WorkspaceRequestSerialActionService
         $waitingStateSuffix = 'Waiting state started.';
 
         if ($this->waitingStateService->activeFor($incident) === null) {
-            $this->waitingStateService->ensureSerialWaitingState($incident, $actor);
+            $started = $this->waitingStateService->ensureSerialWaitingState($incident, $actor);
+            if ($started === null) {
+                $waitingStateSuffix = 'Waiting state not started (service case closed).';
+            }
         } else {
             $waitingStateSuffix = 'Waiting state already active.';
         }

@@ -5,6 +5,7 @@ namespace App\Services\MissingSerial;
 use App\Data\MissingSerial\MissingSerialAutomationOrderResult;
 use App\Data\MissingSerial\MissingSerialAutomationProcessResult;
 use App\Data\NotificationMessage;
+use App\Enums\IncidentStatus;
 use App\Enums\MissingSerialAutomationAction;
 use App\Enums\MissingSerialAutomationStatus;
 use App\Enums\NotificationChannelType;
@@ -126,7 +127,20 @@ class MissingSerialAutomationService
                 orderId: $order->id,
                 action: $action,
                 outcome: 'skipped',
-                message: 'No service case linked to order.',
+                message: 'No open service case linked to order.',
+            );
+        }
+
+        if ($incident->status === IncidentStatus::Closed || ! $incident->isActive()) {
+            $this->auditService->recordSkippedClosedCase($order, $incident, [
+                'automation_action' => $action->value,
+            ]);
+
+            return new MissingSerialAutomationOrderResult(
+                orderId: $order->id,
+                action: $action,
+                outcome: 'skipped',
+                message: 'Service case is closed.',
             );
         }
 
@@ -304,6 +318,12 @@ class MissingSerialAutomationService
             })
             ->whereDoesntHave('refundRequests', function (Builder $query): void {
                 $query->where('status', RefundStatus::Approved->value);
+            })
+            ->whereHas('incidents', function (Builder $query): void {
+                $query->whereIn('status', array_map(
+                    static fn (IncidentStatus $status): string => $status->value,
+                    IncidentStatus::operationallyActive(),
+                ));
             });
     }
 
@@ -527,7 +547,8 @@ class MissingSerialAutomationService
 
     private function resolveIncident(Order $order): ?Incident
     {
-        return $order->activeIncident() ?? $order->latestIncident();
+        // Closed cases are terminal — never fall back to latestIncident().
+        return $order->activeIncident();
     }
 
     private function paymentReferenceAt(Order $order): ?Carbon
@@ -677,7 +698,7 @@ class MissingSerialAutomationService
 
         $incident = $this->resolveIncident($order);
 
-        if ($incident !== null) {
+        if ($incident !== null && $incident->isActive()) {
             $this->waitingStateService->ensureSerialWaitingState(
                 $incident->fresh(['activeWaitingState']),
                 $this->automationIdentityService->systemUser(),

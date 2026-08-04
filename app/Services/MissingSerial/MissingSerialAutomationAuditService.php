@@ -16,6 +16,8 @@ class MissingSerialAutomationAuditService
 
     public const EVENT_ESCALATED = 'missing_serial.escalated';
 
+    public const EVENT_SKIPPED_CLOSED_CASE = 'missing_serial.skipped_closed_case';
+
     public function __construct(
         private readonly AuditLogService $auditLogService,
     ) {}
@@ -59,6 +61,17 @@ class MissingSerialAutomationAuditService
     {
         $this->record(self::EVENT_ESCALATED, $order, $incident, array_merge([
             'coordinator_user_id' => $coordinatorUserId,
+        ], $context));
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function recordSkippedClosedCase(Order $order, Incident $incident, array $context = []): void
+    {
+        $this->record(self::EVENT_SKIPPED_CLOSED_CASE, $order, $incident, array_merge([
+            'reason' => 'Service case is closed.',
+            'status' => $incident->status->value,
         ], $context));
     }
 

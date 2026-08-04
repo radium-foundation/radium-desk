@@ -187,6 +187,7 @@ class IncidentWaitingStateTest extends TestCase
             actor: $agent,
         );
 
+        $this->assertNotNull($second);
         $this->assertSame(WaitingReason::Payment, $second->waiting_reason);
         $this->assertNull($second->cleared_at);
     }
