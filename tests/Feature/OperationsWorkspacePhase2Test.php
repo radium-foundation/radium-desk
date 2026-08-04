@@ -48,7 +48,7 @@ class OperationsWorkspacePhase2Test extends TestCase
             ->assertOk()
             ->assertJsonPath('workspace', 'refunds')
             ->assertJsonPath('supports_live', false)
-            ->assertSee('Refunds', false);
+            ->assertJsonPath('panel_title', 'Refund Queue');
     }
 
     public function test_dashboard_ssr_embeds_active_cases_workspace(): void

@@ -68,4 +68,17 @@ return [
 
     'operations_workspace_phase2_embed' => (bool) env('DASHBOARD_OPERATIONS_WORKSPACE_PHASE2_EMBED', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operations Workspace Phase 3 — Native Dashboard Layouts
+    |--------------------------------------------------------------------------
+    |
+    | When true, Active Cases and Refunds use native Dashboard Operations
+    | Workspace chrome (same visual language as Ready Queue). Set false to
+    | restore Phase 2 legacy listing markup inside the embed host.
+    |
+    */
+
+    'operations_workspace_phase3_native' => (bool) env('DASHBOARD_OPERATIONS_WORKSPACE_PHASE3_NATIVE', true),
+
 ];

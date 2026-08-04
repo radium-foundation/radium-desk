@@ -72,18 +72,24 @@ class OperationsWorkspacePanelService
             ...$this->incidentListingQuery->filtersFrom($request),
         ], fn ($value) => $value !== null && $value !== ''));
 
-        $html = view('incidents.partials.index-listing', [
+        $viewData = [
             'incidents' => $incidents,
             'categories' => $this->incidentListingQuery->categories(),
             'filters' => $this->incidentListingQuery->filtersFrom($request),
-            'embedded' => true,
             'workspace' => OperationsWorkspaceResolver::WORKSPACE_ACTIVE_CASES,
             'formAction' => route('dashboard.workspace'),
             'clearUrl' => route('dashboard.workspace', [
                 'workspace' => OperationsWorkspaceResolver::WORKSPACE_ACTIVE_CASES,
                 'status' => 'active',
             ]),
-        ])->render();
+        ];
+
+        $html = $this->resolver->phase3NativeLayoutEnabled()
+            ? view('dashboard.partials.active-cases-workspace', $viewData)->render()
+            : view('incidents.partials.index-listing', [
+                ...$viewData,
+                'embedded' => true,
+            ])->render();
 
         return [
             'workspace' => OperationsWorkspaceResolver::WORKSPACE_ACTIVE_CASES,
@@ -121,20 +127,26 @@ class OperationsWorkspacePanelService
             ...$this->refundListingQuery->filtersFrom($request),
         ], fn ($value) => $value !== null && $value !== ''));
 
-        $html = view('refunds.partials.index-listing', [
+        $viewData = [
             'refunds' => $refunds,
             'requesters' => $this->refundListingQuery->requesters(),
             'queueCounts' => $this->refundListingQuery->queueCounts(),
             'activeQueue' => $request->string('queue')->trim()->toString(),
             'filters' => $this->refundListingQuery->filtersFrom($request),
-            'embedded' => true,
             'workspace' => OperationsWorkspaceResolver::WORKSPACE_REFUNDS,
             'formAction' => route('dashboard.workspace'),
             'clearUrl' => route('dashboard.workspace', [
                 'workspace' => OperationsWorkspaceResolver::WORKSPACE_REFUNDS,
                 'status' => 'pending',
             ]),
-        ])->render();
+        ];
+
+        $html = $this->resolver->phase3NativeLayoutEnabled()
+            ? view('dashboard.partials.refunds-workspace', $viewData)->render()
+            : view('refunds.partials.index-listing', [
+                ...$viewData,
+                'embedded' => true,
+            ])->render();
 
         return [
             'workspace' => OperationsWorkspaceResolver::WORKSPACE_REFUNDS,

@@ -1193,6 +1193,73 @@ a:focus-visible .stat-card {
     z-index: 1;
 }
 
+/* Phase 3 — native Operations Workspace filters (Active Cases / Refunds) */
+.dashboard-ops-workspace-card .dashboard-cases-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.dashboard-ops-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.dashboard-ops-filter__primary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dashboard-ops-filter__primary .dashboard-quick-filter {
+    flex: 1 1 12rem;
+    min-width: 10rem;
+}
+
+.dashboard-ops-filter__advanced {
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 0.5rem;
+    background: rgba(248, 250, 252, 0.8);
+    padding: 0.375rem 0.625rem;
+}
+
+.dashboard-ops-filter__advanced-toggle {
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--dashboard-color-heading, #0f172a);
+}
+
+.dashboard-ops-filter__advanced-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.dashboard-ops-filter__advanced-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.5rem 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.dashboard-ops-filter__advanced-grid .form-label {
+    margin-bottom: 0.125rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.dashboard-ops-filter__advanced-actions {
+    display: flex;
+    align-items: flex-end;
+}
+
+.dashboard-ops-workspace-card .dashboard-case-filters {
+    width: 100%;
+}
+
 .dashboard-cases-table {
     --bs-table-border-color: rgba(0, 0, 0, 0.04);
     --dashboard-table-row-border: rgba(0, 0, 0, 0.04);

@@ -163,6 +163,11 @@ class OperationsWorkspaceResolver
         return (bool) config('dashboard.operations_workspace_phase2_embed', true);
     }
 
+    public function phase3NativeLayoutEnabled(): bool
+    {
+        return (bool) config('dashboard.operations_workspace_phase3_native', true);
+    }
+
     /**
      * @return array{0: ?string, 1: ?string, 2: ?string} queue, view, filter
      */
