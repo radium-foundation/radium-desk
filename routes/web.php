@@ -20,6 +20,7 @@ use App\Http\Controllers\DashboardTeamActivityController;
 use App\Http\Controllers\DashboardDeviceModelComponentController;
 use App\Http\Controllers\DashboardLiveController;
 use App\Http\Controllers\DashboardServiceCaseController;
+use App\Http\Controllers\OperationsWorkspaceController;
 use App\Http\Controllers\DashboardWorkspaceActionController;
 use App\Http\Controllers\DashboardWorkspaceComponentController;
 use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
@@ -101,6 +102,8 @@ Route::middleware(['auth', 'active'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/live', [DashboardLiveController::class, 'refresh'])->name('dashboard.live');
     Route::get('/dashboard/live/rows', [DashboardLiveController::class, 'rows'])->name('dashboard.live.rows');
+    Route::get('/dashboard/workspace', [OperationsWorkspaceController::class, 'show'])
+        ->name('dashboard.workspace');
     Route::get('/dashboard/activity', [DashboardActivityController::class, 'refresh'])->name('dashboard.activity');
     Route::get('/dashboard/team-activity', [DashboardTeamActivityController::class, 'refresh'])->name('dashboard.team-activity');
     Route::post('/dashboard/realtime/connection-status', RealtimeConnectionStatusController::class)

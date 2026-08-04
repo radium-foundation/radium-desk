@@ -95,7 +95,7 @@ class OperationsWorkspacePhase1Test extends TestCase
         $this->assertSame('overdue', $viaWorkspace['workspace']);
     }
 
-    public function test_active_cases_and_refunds_kpi_links_are_not_soft_switch_marked(): void
+    public function test_active_cases_and_refunds_kpi_links_are_soft_switch_marked_when_phase2_enabled(): void
     {
         $admin = User::factory()->create();
         $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
@@ -106,11 +106,9 @@ class OperationsWorkspacePhase1Test extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString(route('incidents.index', ['status' => 'active']), $html);
-        $this->assertStringContainsString(route('refunds.index', ['status' => 'pending']), $html);
-        $this->assertDoesNotMatchRegularExpression(
-            '/data-workspace="active_cases"|data-workspace="refunds"/',
-            $html,
-        );
+        $this->assertStringContainsString('data-workspace="active_cases"', $html);
+        $this->assertStringContainsString('data-workspace="refunds"', $html);
+        $this->assertStringContainsString(route('dashboard', ['workspace' => 'active_cases']), $html);
+        $this->assertStringContainsString('workspace=refunds', $html);
     }
 }

@@ -23,7 +23,10 @@
          data-live-workspace="{{ $operationsWorkspace ?? $operationQueue }}"
          data-live-scope="{{ $dashboardLiveScope ?? 'operations_scope' }}"
          data-live-filter="{{ $serviceCaseFilter ?? $operationQueue }}"
+         data-operations-workspace-kind="{{ $operationsWorkspaceKind ?? 'case_queue' }}"
          data-operations-workspace-soft-switch="{{ ($operationsWorkspaceSoftSwitch ?? true) ? '1' : '0' }}"
+         data-operations-workspace-phase2-embed="{{ ($operationsWorkspacePhase2Embed ?? true) ? '1' : '0' }}"
+         data-operations-workspace-url="{{ route('dashboard.workspace') }}"
          data-live-mode="{{ $dashboardLiveMode ?? 'auto' }}"
          data-live-interval-active="{{ $dashboardPollIntervalActiveMs ?? 20000 }}"
          data-live-interval-idle="{{ $dashboardPollIntervalIdleMs ?? 60000 }}"
@@ -76,22 +79,33 @@
             @include('dashboard.partials.kpi-strip', ['stats' => $stats])
         </div>
 
-        @if(auth()->user()?->can('incidents.view'))
-            <div class="dashboard-primary-panel mb-1">
-                @include('dashboard.partials.recent-service-cases', [
-                    'recentServiceCases' => $recentServiceCases,
-                    'serviceCaseFilter' => $serviceCaseFilter ?? $operationQueue,
-                    'operationQueue' => $operationQueue,
-                    'operationQueues' => $operationQueues ?? [],
-                    'availableOperationQueues' => $availableOperationQueues ?? [],
-                    'showsQueueNavigation' => $showsQueueNavigation ?? true,
-                    'serviceCasePanelTitle' => $serviceCasePanelTitle ?? 'Service Cases',
-                    'serviceCaseFilterCounts' => $serviceCaseFilterCounts ?? [],
-                    'serviceCaseTotalCount' => $serviceCaseTotalCount ?? 0,
-                    'serviceCaseHasMore' => $serviceCaseHasMore ?? false,
-                    'canManageTransactions' => $canManageTransactions ?? false,
-                    'compactAgentLayout' => $usesAgentDashboard,
-                ])
+        @if(auth()->user()?->can('incidents.view') || (($operationsWorkspacePhase2Embed ?? true) && auth()->user()?->can('refunds.view')))
+            <div class="dashboard-primary-panel mb-1" data-operations-primary-panel>
+                <div data-operations-case-host
+                     @if(($operationsWorkspaceKind ?? 'case_queue') === 'embedded') hidden @endif>
+                    @if(auth()->user()?->can('incidents.view'))
+                        @include('dashboard.partials.recent-service-cases', [
+                            'recentServiceCases' => $recentServiceCases,
+                            'serviceCaseFilter' => $serviceCaseFilter ?? $operationQueue,
+                            'operationQueue' => $operationQueue,
+                            'operationQueues' => $operationQueues ?? [],
+                            'availableOperationQueues' => $availableOperationQueues ?? [],
+                            'showsQueueNavigation' => $showsQueueNavigation ?? true,
+                            'serviceCasePanelTitle' => $serviceCasePanelTitle ?? 'Service Cases',
+                            'serviceCaseFilterCounts' => $serviceCaseFilterCounts ?? [],
+                            'serviceCaseTotalCount' => $serviceCaseTotalCount ?? 0,
+                            'serviceCaseHasMore' => $serviceCaseHasMore ?? false,
+                            'canManageTransactions' => $canManageTransactions ?? false,
+                            'compactAgentLayout' => $usesAgentDashboard,
+                        ])
+                    @endif
+                </div>
+                <div data-operations-embedded-host
+                     @if(($operationsWorkspaceKind ?? 'case_queue') !== 'embedded') hidden @endif>
+                    @if(($operationsWorkspaceKind ?? 'case_queue') === 'embedded')
+                        {!! $embeddedWorkspacePanelHtml !!}
+                    @endif
+                </div>
             </div>
         @endif
 

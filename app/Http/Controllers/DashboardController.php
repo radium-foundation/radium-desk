@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Data\RecentActivityStreams;
 use App\Data\TeamActivityPanel;
+use App\Services\Dashboard\OperationsWorkspacePanelService;
 use App\Services\Dashboard\OperationsWorkspaceResolver;
 use App\Services\Dashboard\TeamActivityPanelService;
 use App\Services\DashboardPersonalizationService;
@@ -15,6 +16,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Throwable;
 
 class DashboardController extends Controller
 {
@@ -22,6 +24,7 @@ class DashboardController extends Controller
         private readonly DashboardService $dashboardService,
         private readonly DashboardPersonalizationService $dashboardPersonalization,
         private readonly OperationsWorkspaceResolver $operationsWorkspace,
+        private readonly OperationsWorkspacePanelService $operationsWorkspacePanel,
         private readonly TeamActivityPanelService $teamActivityPanelService,
         private readonly PerformanceRuntimeConfig $performanceRuntime,
         private readonly RealtimeRuntimeConfig $realtimeRuntime,
@@ -33,8 +36,10 @@ class DashboardController extends Controller
         $workspace = $this->operationsWorkspace->resolve($user, $request);
         $operationQueue = $workspace['operation_queue'];
         $serviceCaseFilter = $workspace['service_case_filter'];
+        $isEmbedded = ($workspace['kind'] ?? 'case_queue') === 'embedded'
+            && $this->operationsWorkspace->phase2EmbedEnabled();
 
-        if ($workspace['redirect']) {
+        if ($workspace['redirect'] && ! $isEmbedded) {
             $redirect = $this->dashboardPersonalization->redirectToResolvedQueue(
                 $request,
                 $user,
@@ -73,6 +78,15 @@ class DashboardController extends Controller
             RolePermissionSeeder::ROLE_OPERATIONS_ADMIN,
         ]);
 
+        $embeddedPanelHtml = null;
+        if ($isEmbedded) {
+            try {
+                $embeddedPanelHtml = $this->operationsWorkspacePanel->renderEmbedded($user, $request)['panel_html'];
+            } catch (Throwable) {
+                $isEmbedded = false;
+            }
+        }
+
         return view('dashboard.index', [
             'stats' => $this->dashboardService->statsFor($user),
             'openCustomer360IncidentId' => $openCustomer360IncidentId,
@@ -93,12 +107,19 @@ class DashboardController extends Controller
             'serviceCaseFilter' => $serviceCaseFilter,
             'operationQueue' => $operationQueue,
             'operationsWorkspace' => $workspace['workspace'],
+            'operationsWorkspaceKind' => $isEmbedded ? 'embedded' : 'case_queue',
             'operationsWorkspaceSoftSwitch' => $this->operationsWorkspace->softSwitchEnabled(),
+            'operationsWorkspacePhase2Embed' => $this->operationsWorkspace->phase2EmbedEnabled(),
+            'embeddedWorkspacePanelHtml' => $embeddedPanelHtml,
             'dashboardLiveScope' => $workspace['live_scope'],
             'operationQueues' => $this->dashboardPersonalization->queueMetaFor($user),
             'availableOperationQueues' => $this->dashboardPersonalization->availableQueuesFor($user),
             'showsQueueNavigation' => $this->dashboardPersonalization->showsQueueNavigation($user),
-            'serviceCasePanelTitle' => $workspace['panel_title'],
+            'serviceCasePanelTitle' => $workspace['case_panel_title'] ?? (
+                $isEmbedded
+                    ? $this->operationsWorkspace->panelTitle($operationQueue, $serviceCaseFilter)
+                    : $workspace['panel_title']
+            ),
             'assignedToScope' => $assignedTo,
             'canManageTransactions' => $canManageTransactions,
             'enabledProducts' => app(SettingService::class)->enabledProductNames(),

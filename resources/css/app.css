@@ -1181,6 +1181,12 @@ a:focus-visible .stat-card {
     opacity: 0.45;
 }
 
+.dashboard-primary-panel.is-workspace-switching [data-operations-embedded-host],
+.dashboard-primary-panel.is-workspace-switching [data-operations-case-host] {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
 .dashboard-service-cases-footer {
     position: sticky;
     bottom: 0;

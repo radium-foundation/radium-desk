@@ -17,6 +17,8 @@ vi.mock('../../resources/js/live-dashboard', () => ({
         loaded_count: 0,
         total_count: 0,
     })),
+    stopPolling: vi.fn(),
+    startPolling: vi.fn(),
 }));
 
 import { refreshDashboard } from '../../resources/js/live-dashboard';

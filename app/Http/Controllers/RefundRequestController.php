@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\RefundCalculationService;
 use App\Services\RefundProfileRegistry;
 use App\Services\RefundRequestService;
+use App\Services\Refunds\RefundListingQuery;
 use App\Services\RemarkTimelineService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +32,7 @@ class RefundRequestController extends Controller
         private readonly RemarkTimelineService $remarkTimelineService,
         private readonly RefundCalculationService $calculationService,
         private readonly RefundProfileRegistry $profileRegistry,
+        private readonly RefundListingQuery $refundListingQuery,
     ) {
         $this->authorizeResource(RefundRequest::class, 'refund', [
             'except' => ['edit', 'update'],
@@ -41,83 +43,13 @@ class RefundRequestController extends Controller
     {
         $queue = $request->string('queue')->trim()->toString();
 
-        $refunds = RefundRequest::query()
-            ->with(['order', 'incident', 'requester'])
-            ->when($queue !== '', function ($query) use ($queue) {
-                match ($queue) {
-                    'requested', 'pending_approval' => $query->where('status', RefundStatus::Pending->value),
-                    'pending_execution' => $query->where('status', RefundStatus::PendingExecution->value),
-                    'completed_today' => $query->whereIn('status', [
-                        RefundStatus::Completed->value,
-                        RefundStatus::Closed->value,
-                    ])->whereDate('executed_at', now()->toDateString()),
-                    'rejected' => $query->where('status', RefundStatus::Rejected->value),
-                    default => null,
-                };
-            })
-            ->when($request->filled('reference_no'), function ($query) use ($request) {
-                $query->where(
-                    'reference_no',
-                    'like',
-                    '%'.$request->string('reference_no')->trim().'%',
-                );
-            })
-            ->when($request->filled('order_id'), function ($query) use ($request) {
-                $query->whereHas('order', function ($orderQuery) use ($request) {
-                    $orderQuery->where(
-                        'order_id',
-                        'like',
-                        '%'.$request->string('order_id')->trim().'%',
-                    );
-                });
-            })
-            ->when($request->filled('incident_reference_no'), function ($query) use ($request) {
-                $query->whereHas('incident', function ($incidentQuery) use ($request) {
-                    $incidentQuery->where(
-                        'reference_no',
-                        'like',
-                        '%'.$request->string('incident_reference_no')->trim().'%',
-                    );
-                });
-            })
-            ->when($request->filled('status'), function ($query) use ($request) {
-                $query->where('status', $request->string('status')->trim());
-            })
-            ->when($request->filled('requested_by'), function ($query) use ($request) {
-                $query->where('requested_by', $request->integer('requested_by'));
-            })
-            ->when($request->filled('date_from'), function ($query) use ($request) {
-                $query->whereDate('created_at', '>=', $request->string('date_from')->trim());
-            })
-            ->when($request->filled('date_to'), function ($query) use ($request) {
-                $query->whereDate('created_at', '<=', $request->string('date_to')->trim());
-            })
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
-
-        $requesters = User::query()
-            ->whereIn('id', RefundRequest::query()->distinct()->pluck('requested_by'))
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        $queueCounts = $this->queueCounts();
-
         return view('refunds.index', [
-            'refunds' => $refunds,
-            'requesters' => $requesters,
-            'queueCounts' => $queueCounts,
+            'refunds' => $this->refundListingQuery->paginate($request),
+            'requesters' => $this->refundListingQuery->requesters(),
+            'queueCounts' => $this->refundListingQuery->queueCounts(),
             'activeQueue' => $queue,
-            'filters' => $request->only([
-                'reference_no',
-                'order_id',
-                'incident_reference_no',
-                'status',
-                'requested_by',
-                'date_from',
-                'date_to',
-                'queue',
-            ]),
+            'filters' => $this->refundListingQuery->filtersFrom($request),
+            'embedded' => false,
         ]);
     }
 
@@ -303,21 +235,5 @@ class RefundRequestController extends Controller
         return redirect()
             ->route('refunds.show', $refund)
             ->with('status', 'refund-completed');
-    }
-
-    /**
-     * @return array{pending_approval: int, pending_execution: int, completed_today: int, rejected: int}
-     */
-    private function queueCounts(): array
-    {
-        return [
-            'pending_approval' => RefundRequest::query()->where('status', RefundStatus::Pending)->count(),
-            'pending_execution' => RefundRequest::query()->where('status', RefundStatus::PendingExecution)->count(),
-            'completed_today' => RefundRequest::query()
-                ->whereIn('status', [RefundStatus::Completed, RefundStatus::Closed])
-                ->whereDate('executed_at', now()->toDateString())
-                ->count(),
-            'rejected' => RefundRequest::query()->where('status', RefundStatus::Rejected)->count(),
-        ];
     }
 }

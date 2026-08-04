@@ -72,8 +72,8 @@
                                     $greetingValue = old('default_greeting_style', $user->default_greeting_style);
                                 @endphp
                                 <option value="">Company Default</option>
-                                <option value="dear_customer" @selected($greetingValue === 'dear_customer')>Dear {{'{{customer_name}}'}}</option>
-                                <option value="hello_customer" @selected($greetingValue === 'hello_customer')>Hello {{'{{customer_name}}'}}</option>
+                                <option value="dear_customer" @selected($greetingValue === 'dear_customer')>Dear @{{customer_name}}</option>
+                                <option value="hello_customer" @selected($greetingValue === 'hello_customer')>Hello @{{customer_name}}</option>
                                 <option value="good_morning" @selected($greetingValue === 'good_morning')>Good Morning</option>
                                 <option value="good_afternoon" @selected($greetingValue === 'good_afternoon')>Good Afternoon</option>
                                 <option value="good_evening" @selected($greetingValue === 'good_evening')>Good Evening</option>

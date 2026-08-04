@@ -28,6 +28,10 @@ class OperationsWorkspaceResolver
 
     public const WORKSPACE_MY_ATTENTION = 'my_attention';
 
+    public const WORKSPACE_ACTIVE_CASES = 'active_cases';
+
+    public const WORKSPACE_REFUNDS = 'refunds';
+
     /**
      * Canonical Phase 1 workspace ids (plus agent aliases accepted for soft-switch).
      *
@@ -42,6 +46,16 @@ class OperationsWorkspaceResolver
         self::WORKSPACE_OVERDUE,
         self::WORKSPACE_MY_WORK,
         self::WORKSPACE_MY_ATTENTION,
+    ];
+
+    /**
+     * Phase 2 embedded listing workspaces (not operation queues).
+     *
+     * @var list<string>
+     */
+    public const EMBEDDED_WORKSPACES = [
+        self::WORKSPACE_ACTIVE_CASES,
+        self::WORKSPACE_REFUNDS,
     ];
 
     /**
@@ -65,6 +79,7 @@ class OperationsWorkspaceResolver
     /**
      * @return array{
      *     workspace: string,
+     *     kind: string,
      *     requested_queue: ?string,
      *     legacy_view: ?string,
      *     legacy_filter: ?string,
@@ -73,10 +88,31 @@ class OperationsWorkspaceResolver
      *     redirect: bool,
      *     live_scope: string,
      *     panel_title: string,
+     *     supports_live: bool,
      * }
      */
     public function resolve(User $user, Request $request): array
     {
+        $workspaceParam = $request->query('workspace');
+
+        if (is_string($workspaceParam) && $this->isEmbeddedWorkspace($workspaceParam)) {
+            $caseResolution = $this->resolve($user, Request::create(
+                $request->url(),
+                'GET',
+                collect($request->query())->except('workspace')->all(),
+            ));
+
+            return [
+                ...$caseResolution,
+                'workspace' => $workspaceParam,
+                'kind' => 'embedded',
+                'case_panel_title' => $caseResolution['panel_title'],
+                'panel_title' => $this->embeddedPanelTitle($workspaceParam),
+                'supports_live' => false,
+                'redirect' => false,
+            ];
+        }
+
         [$requestedQueue, $legacyView, $legacyFilter] = $this->navigationInputsFromRequest($request);
 
         $queueResolution = $this->personalization->resolveQueue(
@@ -95,6 +131,7 @@ class OperationsWorkspaceResolver
 
         return [
             'workspace' => $this->canonicalWorkspace($operationQueue, $serviceCaseFilter),
+            'kind' => 'case_queue',
             'requested_queue' => $requestedQueue,
             'legacy_view' => $legacyView,
             'legacy_filter' => $legacyFilter,
@@ -103,7 +140,27 @@ class OperationsWorkspaceResolver
             'redirect' => $queueResolution['redirect'],
             'live_scope' => $this->personalization->scopeForQueue($operationQueue, $user),
             'panel_title' => $this->panelTitle($operationQueue, $serviceCaseFilter),
+            'supports_live' => true,
         ];
+    }
+
+    public function isEmbeddedWorkspace(?string $workspace): bool
+    {
+        return is_string($workspace) && in_array($workspace, self::EMBEDDED_WORKSPACES, true);
+    }
+
+    public function embeddedPanelTitle(string $workspace): string
+    {
+        return match ($workspace) {
+            self::WORKSPACE_ACTIVE_CASES => 'Active Service Cases',
+            self::WORKSPACE_REFUNDS => 'Refund Queue',
+            default => 'Workspace',
+        };
+    }
+
+    public function phase2EmbedEnabled(): bool
+    {
+        return (bool) config('dashboard.operations_workspace_phase2_embed', true);
     }
 
     /**

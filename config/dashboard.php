@@ -55,4 +55,17 @@ return [
 
     'operations_workspace_soft_switch' => (bool) env('DASHBOARD_OPERATIONS_WORKSPACE_SOFT_SWITCH', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operations Workspace Phase 2 — Embedded Listings
+    |--------------------------------------------------------------------------
+    |
+    | When true, Total Active Cases and Refunds KPIs soft-switch into embedded
+    | listing panels on the Dashboard. Set false to restore full navigation to
+    | /incidents and /refunds (Phase 1 soft-switch for case queues remains).
+    |
+    */
+
+    'operations_workspace_phase2_embed' => (bool) env('DASHBOARD_OPERATIONS_WORKSPACE_PHASE2_EMBED', true),
+
 ];

@@ -253,6 +253,15 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
         document.dispatchEvent(new CustomEvent('dashboard:live-refresh', { detail: data }));
         applyFilterCounts(data.service_case_filter_counts);
 
+        if (pageRoot?.dataset.operationsEmbeddedActive === '1') {
+            logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_skipped_rows', {
+                reason: 'operations_embedded_active',
+            });
+            resolve();
+
+            return;
+        }
+
         // KPI-only / partial queued payloads omit `rows`. Never coerce missing rows to [] —
         // that would delete every unlocked DOM row while leaving the badge count correct.
         if (hasRows) {

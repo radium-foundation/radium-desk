@@ -12,6 +12,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\IncidentReferenceService;
+use App\Services\Incidents\IncidentListingQuery;
 use App\Services\Operations\WorkforceActivityContextService;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Services\ServiceCaseActivityTimelineService;
@@ -28,67 +29,18 @@ class IncidentController extends Controller
         private readonly ServiceCaseAssignmentService $serviceCaseAssignmentService,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
         private readonly WorkforceActivityContextService $workforceActivityContextService,
+        private readonly IncidentListingQuery $incidentListingQuery,
     ) {
         $this->authorizeResource(Incident::class, 'incident');
     }
 
     public function index(Request $request): View
     {
-        $incidents = Incident::query()
-            ->with(['order', 'creator'])
-            ->when($request->filled('order_id'), function ($query) use ($request) {
-                $query->whereHas('order', function ($orderQuery) use ($request) {
-                    $orderQuery->where('order_id', 'like', '%'.$request->string('order_id')->trim().'%');
-                });
-            })
-            ->when($request->filled('reference_no'), function ($query) use ($request) {
-                $query->matchingReference($request->string('reference_no')->trim()->toString());
-            })
-            ->when($request->filled('category'), function ($query) use ($request) {
-                $query->where('category', $request->string('category')->trim());
-            })
-            ->when($request->filled('status'), function ($query) use ($request) {
-                $status = $request->string('status')->trim()->toString();
-
-                if ($status === 'active') {
-                    $query->whereIn('status', IncidentStatus::operationallyActive());
-
-                    return;
-                }
-
-                $query->where('status', $status);
-            })
-            ->when($request->filled('source'), function ($query) use ($request) {
-                $query->where('source', $request->string('source')->trim());
-            })
-            ->when($request->filled('date_from'), function ($query) use ($request) {
-                $query->whereDate('created_at', '>=', $request->string('date_from')->trim());
-            })
-            ->when($request->filled('date_to'), function ($query) use ($request) {
-                $query->whereDate('created_at', '<=', $request->string('date_to')->trim());
-            })
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
-
-        $categories = Incident::query()
-            ->select('category')
-            ->distinct()
-            ->orderBy('category')
-            ->pluck('category');
-
         return view('incidents.index', [
-            'incidents' => $incidents,
-            'categories' => $categories,
-            'filters' => $request->only([
-                'order_id',
-                'reference_no',
-                'category',
-                'status',
-                'source',
-                'date_from',
-                'date_to',
-            ]),
+            'incidents' => $this->incidentListingQuery->paginate($request),
+            'categories' => $this->incidentListingQuery->categories(),
+            'filters' => $this->incidentListingQuery->filtersFrom($request),
+            'embedded' => false,
         ]);
     }
 

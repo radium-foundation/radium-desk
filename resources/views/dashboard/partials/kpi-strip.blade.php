@@ -50,7 +50,10 @@
             'value' => $stats['total_active_cases'],
             'icon' => 'bi-clipboard-data',
             'color' => 'info',
-            'href' => route('incidents.index', ['status' => 'active']),
+            'href' => config('dashboard.operations_workspace_phase2_embed', true)
+                ? route('dashboard', ['workspace' => 'active_cases'])
+                : route('incidents.index', ['status' => 'active']),
+            'workspace' => config('dashboard.operations_workspace_phase2_embed', true) ? 'active_cases' : null,
         ];
     }
 
@@ -60,7 +63,10 @@
             'value' => $stats['pending_refunds'],
             'icon' => 'bi-cash-stack',
             'color' => 'warning',
-            'href' => route('refunds.index', ['status' => 'pending']),
+            'href' => config('dashboard.operations_workspace_phase2_embed', true)
+                ? route('dashboard', ['workspace' => 'refunds', 'status' => 'pending'])
+                : route('refunds.index', ['status' => 'pending']),
+            'workspace' => config('dashboard.operations_workspace_phase2_embed', true) ? 'refunds' : null,
         ];
     }
 
