@@ -24,6 +24,7 @@ class PlatformHealthCardTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         Cache::flush();
         Carbon::setTestNow(Carbon::parse('2026-07-20 11:00:00', 'Asia/Kolkata'));
+        PlatformHealthCache::clearDurableForTests();
     }
 
     protected function tearDown(): void

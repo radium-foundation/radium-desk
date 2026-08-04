@@ -30,14 +30,17 @@ class SchedulerHealthProvider implements PlatformHealthProvider
         $lastRunAt = PlatformHealthCache::schedulerLastRunAt();
 
         if ($lastRunAt === null) {
+            // Missing heartbeat after cache flush is not proof the cron is dead —
+            // treat as Warning until the first schedule:run re-records it.
             return new PlatformHealthComponent(
                 key: $this->key(),
                 label: $this->label(),
-                status: PlatformHealthStatus::Critical,
-                detail: 'No scheduler heartbeat recorded. Confirm cron is running schedule:run every minute.',
+                status: PlatformHealthStatus::Warning,
+                detail: 'No scheduler heartbeat recorded yet. Waiting for schedule:run (or heartbeat cache was cleared).',
                 checkedAt: $checkedAt,
                 metrics: [
                     'last_run_at' => null,
+                    'heartbeat_missing' => true,
                 ],
             );
         }

@@ -61,6 +61,23 @@ class CriticalAlertsZone extends AbstractPlatformZone
         return $this->buildFromCaches(fromCache: true);
     }
 
+    /**
+     * Never persist cold Pending snapshots — concurrent contributor probes race
+     * PlatformHealthSnapshotService::store() and would re-poison critical_alerts.
+     */
+    public function refresh(User $viewer): PlatformZoneSnapshot
+    {
+        $snapshot = $this->buildFreshSnapshot($viewer);
+
+        if ($snapshot->available) {
+            $this->snapshotStore->put($snapshot);
+        } else {
+            $this->snapshotStore->forget($this->definition()->key());
+        }
+
+        return $snapshot;
+    }
+
     protected function buildFreshSnapshot(User $viewer): PlatformZoneSnapshot
     {
         $snapshot = $this->buildFromCaches(fromCache: false);

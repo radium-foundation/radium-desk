@@ -52,8 +52,9 @@ class PresenceHealthProvider implements PlatformHealthProvider
             $status = PlatformHealthStatus::Critical;
             $detail = "{$staleCount} stale open work session(s) exceed the away timeout.";
         } elseif ($lastRunAt === null) {
-            $status = PlatformHealthStatus::Critical;
-            $detail = 'No presence timeout run recorded. Confirm presence:process-timeouts is scheduled.';
+            // Missing run marker after cache flush ≠ pipeline failure while no stale sessions.
+            $status = PlatformHealthStatus::Warning;
+            $detail = 'No presence timeout run recorded yet. Waiting for presence:process-timeouts (or heartbeat cache was cleared).';
         } else {
             $minutesAgo = (int) $lastRunAt->diffInMinutes($checkedAt);
 

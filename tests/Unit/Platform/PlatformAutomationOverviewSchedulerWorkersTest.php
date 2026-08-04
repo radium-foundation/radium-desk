@@ -67,7 +67,7 @@ class PlatformAutomationOverviewSchedulerWorkersTest extends TestCase
         $this->assertSame(PlatformHealthStatus::Critical->value, $overview['overall_status']);
     }
 
-    public function test_scheduler_workers_is_critical_without_heartbeat_even_if_automation_is_healthy(): void
+    public function test_scheduler_workers_is_warning_without_heartbeat_even_if_automation_is_healthy(): void
     {
         $overview = $this->makeService(
             automationAggregation: [
@@ -79,8 +79,8 @@ class PlatformAutomationOverviewSchedulerWorkersTest extends TestCase
                 'executions_today' => 3,
                 'last_success_at' => now()->toIso8601String(),
             ],
-            schedulerStatus: PlatformHealthStatus::Critical,
-            schedulerDetail: 'No scheduler heartbeat recorded. Confirm cron is running schedule:run every minute.',
+            schedulerStatus: PlatformHealthStatus::Warning,
+            schedulerDetail: 'No scheduler heartbeat recorded yet. Waiting for schedule:run (or heartbeat cache was cleared).',
             schedulerMetrics: [
                 'last_run_at' => null,
             ],
@@ -91,8 +91,8 @@ class PlatformAutomationOverviewSchedulerWorkersTest extends TestCase
         $scheduler = collect($overview['items'])->firstWhere('key', 'scheduler');
 
         $this->assertSame(PlatformHealthStatus::Healthy->value, collect($overview['items'])->firstWhere('key', 'automation_health')['status'] ?? null);
-        $this->assertSame(PlatformHealthStatus::Critical->value, $scheduler['status'] ?? null);
-        $this->assertSame(PlatformHealthStatus::Critical->value, $overview['overall_status']);
+        $this->assertSame(PlatformHealthStatus::Warning->value, $scheduler['status'] ?? null);
+        $this->assertSame(PlatformHealthStatus::Warning->value, $overview['overall_status']);
         $this->assertStringContainsString('No scheduler heartbeat recorded', (string) ($scheduler['summary'] ?? ''));
     }
 

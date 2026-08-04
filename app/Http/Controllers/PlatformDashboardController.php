@@ -38,10 +38,11 @@ class PlatformDashboardController extends Controller
         abort_unless($request->user()?->can('platform-dashboard.view'), 403);
         abort_unless($this->zoneRegistry->has($zone), 404);
 
-        $provider = $this->zoneRegistry->get($zone);
-        abort_unless($provider->authorize($request->user()), 403);
-
-        $snapshot = $provider->refresh($request->user());
+        try {
+            $snapshot = $this->dashboardService->refreshZone($request->user(), $zone);
+        } catch (InvalidArgumentException) {
+            abort(403);
+        }
 
         return response()->json([
             'key' => $snapshot->key,

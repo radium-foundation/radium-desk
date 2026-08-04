@@ -22,6 +22,7 @@ class PlatformDashboardTest extends TestCase
 
         $this->seed(RolePermissionSeeder::class);
         Cache::flush();
+        PlatformHealthCache::clearDurableForTests();
     }
 
     protected function tearDown(): void
@@ -173,9 +174,11 @@ class PlatformDashboardTest extends TestCase
         );
     }
 
-    public function test_scheduler_health_is_critical_without_heartbeat(): void
+    public function test_scheduler_health_is_warning_without_heartbeat(): void
     {
         Carbon::setTestNow(Carbon::parse('2026-07-20 11:00:00', 'Asia/Kolkata'));
+        Cache::flush();
+        PlatformHealthCache::clearDurableForTests();
         PlatformHealthCache::recordPresenceTimeoutRun(0, 0, now());
 
         $payload = app(PlatformDashboardService::class)
@@ -184,7 +187,8 @@ class PlatformDashboardTest extends TestCase
         $scheduler = collect($payload->meta['components'] ?? [])
             ->firstWhere('key', 'scheduler');
 
-        $this->assertSame(PlatformHealthStatus::Critical->value, $scheduler['status'] ?? null);
+        $this->assertSame(PlatformHealthStatus::Warning->value, $scheduler['status'] ?? null);
+        $this->assertTrue($scheduler['metrics']['heartbeat_missing'] ?? false);
     }
 
     public function test_presence_timeout_command_records_health_cache(): void

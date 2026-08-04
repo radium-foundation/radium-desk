@@ -45,6 +45,12 @@ class IntegrationHealthAlertContributor implements PlatformAlertContributor
 
             $status = IntegrationHealthStatus::tryFrom((string) $item['status'])
                 ?? IntegrationHealthStatus::Unavailable;
+
+            // Loading placeholders are first-paint stubs — never actionable alerts.
+            if ($status === IntegrationHealthStatus::Loading) {
+                continue;
+            }
+
             $severity = PlatformAlertSeverity::fromIntegration($status);
 
             if (! in_array($severity, [

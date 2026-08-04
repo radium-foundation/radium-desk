@@ -550,6 +550,10 @@ const runWithConcurrency = async (items, concurrency, worker) => {
 /**
  * @param {{ surfaceErrors?: boolean, forceAll?: boolean }} options
  * forceAll: user-triggered Refresh All — refreshes every zone.
+ *
+ * Contributor zones (platform_health, executive_snapshot, integration_health)
+ * always refresh before critical_alerts so aggregation never bakes a cold Pending
+ * snapshot that races the shared health probe.
  */
 const refreshZonesByPriority = async (root, { surfaceErrors = false, forceAll = false } = {}) => {
     if (document.hidden) {
@@ -563,11 +567,33 @@ const refreshZonesByPriority = async (root, { surfaceErrors = false, forceAll = 
         return;
     }
 
-    await runWithConcurrency(
-        zones,
-        concurrency,
-        (zone) => refreshPlatformZone(zone, { surfaceErrors }),
-    );
+    const ordered = [...zones].sort((left, right) => {
+        const leftKey = left.dataset.platformZone || '';
+        const rightKey = right.dataset.platformZone || '';
+        const leftRank = leftKey === 'critical_alerts' ? 1 : 0;
+        const rightRank = rightKey === 'critical_alerts' ? 1 : 0;
+
+        return leftRank - rightRank;
+    });
+
+    const contributors = ordered.filter((zone) => zone.dataset.platformZone !== 'critical_alerts');
+    const criticalAlerts = ordered.filter((zone) => zone.dataset.platformZone === 'critical_alerts');
+
+    if (contributors.length > 0) {
+        await runWithConcurrency(
+            contributors,
+            concurrency,
+            (zone) => refreshPlatformZone(zone, { surfaceErrors }),
+        );
+    }
+
+    if (criticalAlerts.length > 0) {
+        await runWithConcurrency(
+            criticalAlerts,
+            1,
+            (zone) => refreshPlatformZone(zone, { surfaceErrors }),
+        );
+    }
 };
 
 const restoreExpandedZones = async (root) => {
