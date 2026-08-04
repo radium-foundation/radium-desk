@@ -246,7 +246,7 @@ export const initCustomer360Cockpit = ({
 
         if (!(target instanceof HTMLElement)) {
             if (actionKey === 'email') {
-                showToast?.('Email integration coming soon.');
+                showToast?.('Email conversation is unavailable for this case.');
             }
 
             return false;

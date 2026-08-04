@@ -11,6 +11,8 @@ use App\Services\AI\AIWorkbenchAuditService;
 use App\Services\AI\IRAExecutiveSummaryTranslationService;
 use App\Services\Customer360\Customer360DrawerProfiler;
 use App\Services\Customer360Service;
+use App\Services\IncomingEmail\IncomingEmailConversationService;
+use App\Services\IncomingEmail\IncomingEmailWorkspaceReadState;
 use App\Enums\RadiumBoxSyncTrigger;
 use App\Services\RadiumBox\RadiumBoxAutoSyncTriggerService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentService;
@@ -27,6 +29,7 @@ class Customer360Controller extends Controller
         private readonly IRAExecutiveSummaryTranslationService $executiveSummaryTranslationService,
         private readonly RadiumBoxOrderEnrichmentService $radiumBoxOrderEnrichmentService,
         private readonly RadiumBoxAutoSyncTriggerService $radiumBoxAutoSyncTriggerService,
+        private readonly IncomingEmailConversationService $incomingEmailConversationService,
     ) {}
 
     public function show(Incident $incident, ?Request $request = null): Response
@@ -110,6 +113,53 @@ class Customer360Controller extends Controller
             'success' => true,
             'message' => $result->message,
             'device_html' => $this->renderDeviceSection($incident->fresh(['order.deviceModel'])),
+        ]);
+    }
+
+    public function emailThread(Incident $incident, Request $request): JsonResponse
+    {
+        $this->authorize('view', $incident);
+
+        $incident->loadMissing('order');
+
+        return response()->json(
+            $this->incomingEmailConversationService->threadForIncident(
+                $incident,
+                $this->authenticatedUser(),
+                [
+                    'limit' => $request->integer('limit', IncomingEmailConversationService::DEFAULT_LIMIT),
+                    'before_at' => $request->query('before_at'),
+                    'before_id' => $request->query('before_id'),
+                    'before_direction' => $request->query('before_direction'),
+                    'since_at' => $request->query('since_at'),
+                    'since_id' => $request->query('since_id'),
+                    'since_direction' => $request->query('since_direction'),
+                ],
+            ),
+        );
+    }
+
+    public function markEmailThreadRead(Incident $incident, Request $request): JsonResponse
+    {
+        $this->authorize('view', $incident);
+
+        $validated = $request->validate([
+            'latest_inbound_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $latestInboundId = (int) ($validated['latest_inbound_id'] ?? 0);
+
+        if ($latestInboundId > 0) {
+            app(IncomingEmailWorkspaceReadState::class)->markRead(
+                $this->authenticatedUser(),
+                $incident,
+                $latestInboundId,
+            );
+        }
+
+        return response()->json([
+            'unread_inbound_count' => app(IncomingEmailWorkspaceReadState::class)
+                ->unreadInboundCount($incident, $this->authenticatedUser()),
         ]);
     }
 

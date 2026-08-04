@@ -3,6 +3,9 @@
     'order' => null,
     'customer' => [],
     'overflowMenuGroups' => [],
+    'emailUnreadCount' => 0,
+    'emailThreadUrl' => null,
+    'emailThreadReadUrl' => null,
 ])
 
 @php
@@ -58,12 +61,22 @@
 
         <button type="button"
                 class="c360-quick-toolbar-btn"
-                disabled
-                title="Email integration coming soon"
-                aria-label="Email unavailable"
-                data-c360-shortcut-action="email">
+                title="Email conversation (E)"
+                aria-label="Open email conversation"
+                data-c360-shortcut-action="email"
+                data-c360-email-open
+                data-c360-email-incident-id="{{ $incident->id }}"
+                data-c360-email-thread-url="{{ $emailThreadUrl ?? route('dashboard.service-cases.email-thread', $incident) }}"
+                data-c360-email-read-url="{{ $emailThreadReadUrl ?? route('dashboard.service-cases.email-thread.read', $incident) }}">
             <i class="bi bi-envelope" aria-hidden="true"></i>
             <span>Email</span>
+            @if(($emailUnreadCount ?? 0) > 0)
+                <span class="c360-email-unread-badge"
+                      data-c360-email-unread-badge
+                      aria-label="{{ $emailUnreadCount }} unread emails">
+                    {{ $emailUnreadCount > 9 ? '9+' : $emailUnreadCount }}
+                </span>
+            @endif
         </button>
 
         @if($hasOverflowMenu)

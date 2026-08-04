@@ -48,6 +48,9 @@
             :order="$order"
             :customer="$customer"
             :overflowMenuGroups="$overflowMenuGroups ?? []"
+            :emailUnreadCount="$emailUnreadCount ?? 0"
+            :emailThreadUrl="$emailThreadUrl ?? null"
+            :emailThreadReadUrl="$emailThreadReadUrl ?? null"
         />
     @endif
 
@@ -101,6 +104,9 @@
             'activeServices' => $activeServices ?? [],
             'summary' => $summary ?? [],
         ])
+        @include('customer-360.partials.communication-section', [
+            'communicationSection' => $communicationSection ?? null,
+        ])
         @include('customer-360.partials.communication-actions', [
             'communicationActionStatuses' => $communicationActionStatuses ?? [],
             'incident' => $incident,
@@ -139,3 +145,5 @@
 </div>
 
 @include('customer-360.partials.incoming-email-modal')
+@include('customer-360.partials.service-case-email-modal')
+@include('customer-360.partials.whatsapp-channel-panel')

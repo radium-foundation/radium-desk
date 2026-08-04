@@ -30,6 +30,7 @@ use App\Services\Interakt\RequestCorrectSerialEligibilityService;
 use App\Services\Interakt\RequestSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestSerialNumberEligibilityService;
 use App\Services\Interakt\CustomerNotRespondingEligibilityService;
+use App\Services\IncomingEmail\IncomingEmailWorkspaceReadState;
 use App\Services\Inquiry\InquiryOrderLinkEligibilityService;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Services\RadiumBox\RadiumBoxSyncTimelineService;
@@ -40,6 +41,7 @@ use App\Support\Commercial\CommercialStatePresenter;
 use App\Support\RadiumBox\RadiumBoxSyncErrorFormatter;
 use App\Services\Timeline\Customer360TimelineService;
 use App\Services\Timeline\TimelineService;
+use App\Support\Customer360\Customer360CommunicationSectionPresenter;
 use App\Support\Customer360\Customer360CommunicationActionStatusPresenter;
 use App\Support\Customer360\Customer360HealthCardPresenter;
 use App\Support\Customer360\Customer360InsightsPresenter;
@@ -104,6 +106,15 @@ class Customer360Service
     {
         $data = $this->buildDrawerData($incident);
         $data['conversationWorkspace'] = $this->conversationWorkspacePayload($incident, $data, $context);
+
+        $user = auth()->user();
+        $data['emailUnreadCount'] = $user instanceof \App\Models\User
+            ? app(IncomingEmailWorkspaceReadState::class)->unreadInboundCount($incident, $user)
+            : 0;
+        $data['emailThreadUrl'] = route('dashboard.service-cases.email-thread', $incident);
+        $data['emailThreadReadUrl'] = route('dashboard.service-cases.email-thread.read', $incident);
+        $data['communicationSection'] = app(Customer360CommunicationSectionPresenter::class)
+            ->forIncident($incident, $user instanceof \App\Models\User ? $user : null);
 
         return $data;
     }

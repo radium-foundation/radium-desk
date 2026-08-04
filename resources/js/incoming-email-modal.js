@@ -261,6 +261,9 @@ const sendReply = async (elements) => {
         elements.replyPanel.hidden = true;
         elements.replySend.hidden = true;
         elements.replyToggle.textContent = 'Reply';
+
+        const { refreshCustomer360TimelineAfterEmail } = await import('./service-case-email-workspace');
+        await refreshCustomer360TimelineAfterEmail();
     } catch (error) {
         elements.replyError.textContent = 'Failed to send reply. Please try again.';
         elements.replyError.hidden = false;
@@ -269,7 +272,7 @@ const sendReply = async (elements) => {
     }
 };
 
-const openIncomingEmailModal = async (messageId) => {
+export const openIncomingEmailModal = async (messageId) => {
     const elements = getModalElements();
 
     if (! elements || ! globalThis.bootstrap?.Modal) {

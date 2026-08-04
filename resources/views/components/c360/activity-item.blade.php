@@ -140,6 +140,12 @@
 
         @if($incomingEmailId)
             <button type="button"
+                    class="unified-timeline-action-link"
+                    data-c360-email-jump="{{ $incomingEmailId }}">
+                View in conversation
+                <i class="bi bi-chat-dots" aria-hidden="true"></i>
+            </button>
+            <button type="button"
                     class="unified-timeline-action-link c360-incoming-email-read-full"
                     data-incoming-email-read-full="{{ $incomingEmailId }}">
                 Read Full Email

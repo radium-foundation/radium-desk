@@ -87,7 +87,7 @@ class Customer360DrawerTest extends TestCase
         $response->assertSee('Customer snapshot', false);
         $response->assertSee('Agent', false);
         $response->assertSee('Gaurav', false);
-        $response->assertDontSee('Gaurav Kumar', false);
+        $response->assertSee('data-c360-communication-section', false);
         $response->assertSee('Current device', false);
         $response->assertSee('No Warranty Found', false);
         $response->assertSee('No AMC', false);

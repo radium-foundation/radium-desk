@@ -11563,6 +11563,236 @@ body.customer-360-drawer-open {
     outline-offset: 2px;
 }
 
+.c360-email-workspace .c360-email-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: min(48vh, 28rem);
+    overflow-y: auto;
+    padding: 0.25rem 0.15rem 0.5rem;
+}
+
+.c360-email-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem 0;
+}
+
+.c360-email-skeleton {
+    width: 100%;
+    height: 3.25rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+    background-size: 400% 100%;
+    animation: c360-email-shimmer 1.2s ease-in-out infinite;
+}
+
+.c360-email-skeleton--short {
+    width: 72%;
+    align-self: flex-start;
+}
+
+@keyframes c360-email-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+}
+
+.c360-email-unread-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.3rem;
+    margin-left: 0.25rem;
+    border-radius: 999px;
+    background: #dc2626;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.c360-email-bubble {
+    max-width: 88%;
+    padding: 0.65rem 0.8rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--dashboard-border-subtle, #e2e8f0);
+    background: #f8fafc;
+    transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.c360-email-bubble--in {
+    align-self: flex-start;
+    border-bottom-left-radius: 0.25rem;
+}
+
+.c360-email-bubble--out {
+    align-self: flex-end;
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    border-bottom-right-radius: 0.25rem;
+}
+
+.c360-email-bubble--highlight {
+    box-shadow: 0 0 0 2px #6366f1;
+    background: #eef2ff;
+}
+
+.c360-email-bubble-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+}
+
+.c360-email-bubble-subject {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.c360-email-bubble-preview {
+    margin-top: 0.35rem;
+    font-size: 0.8125rem;
+    color: #334155;
+    white-space: pre-wrap;
+}
+
+.c360-email-bubble-open {
+    margin-top: 0.25rem;
+}
+
+.c360-email-header-stats {
+    line-height: 1.35;
+}
+
+.c360-communication-section {
+    margin: 1rem 0 1.25rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--dashboard-border-subtle, #e5e7eb);
+    border-radius: 0.65rem;
+    background: var(--dashboard-surface, #fff);
+}
+
+.c360-communication-section-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin-bottom: 0.75rem;
+}
+
+.c360-communication-channel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 0.75rem;
+}
+
+.c360-communication-channel-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.75rem;
+    border: 1px solid var(--dashboard-border-subtle, #e5e7eb);
+    border-radius: 0.55rem;
+    background: var(--dashboard-surface-muted, #f8fafc);
+}
+
+.c360-communication-channel-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.c360-communication-channel-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    font-size: 0.92rem;
+}
+
+.c360-communication-channel-status {
+    font-size: 0.75rem;
+    color: var(--dashboard-text-muted, #64748b);
+}
+
+.c360-communication-channel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.c360-communication-future {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+.c360-communication-future-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    border: 1px dashed var(--dashboard-border-subtle, #cbd5e1);
+    color: var(--dashboard-text-muted, #64748b);
+    font-size: 0.72rem;
+}
+
+.c360-channel-meta-header {
+    width: 100%;
+}
+
+.c360-channel-meta-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    color: var(--dashboard-text-muted, #64748b);
+}
+
+.c360-channel-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem 0.75rem;
+}
+
+.c360-channel-meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
+.c360-channel-meta-key {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--dashboard-text-muted, #64748b);
+}
+
+.c360-channel-meta-value {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--dashboard-text, #0f172a);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.c360-channel-panel .modal-body {
+    padding-top: 0.25rem;
+}
+
+@media (max-width: 575.98px) {
+    .c360-channel-meta-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .c360-quick-toolbar-more-wrap {
     position: relative;
     flex: 1;
