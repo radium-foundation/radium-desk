@@ -1,3 +1,5 @@
+import { initTooltips } from './tooltips';
+
 const PANEL_CONTROLLER = Symbol('dashboardTeamActivityController');
 const PANEL_COLLAPSED_KEY = 'radium.teamActivityPanel.collapsed';
 const EXPANDED_AGENTS_KEY = 'radium.teamActivityPanel.expandedAgents';
@@ -171,6 +173,7 @@ const applyPanelHtml = (pageRoot, panel, html) => {
     setPanelCollapsed(nextPanel, wasCollapsed);
     restoreExpandedRows(nextPanel);
     bindPanelInteractions(pageRoot, nextPanel);
+    initTooltips(nextPanel);
 };
 
 const refreshTeamActivity = async (pageRoot, panel) => {

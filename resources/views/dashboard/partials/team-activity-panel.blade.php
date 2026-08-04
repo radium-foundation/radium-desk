@@ -33,7 +33,7 @@
                 <div class="team-activity-grid-header" role="row">
                     <span class="team-activity-grid-header__cell team-activity-col--member" role="columnheader">Team Member</span>
                     <span class="team-activity-grid-header__cell team-activity-col--presence team-activity-grid-header__cell--presence" role="columnheader">
-                        <span class="team-activity-grid-header__title">Presence</span>
+                        <x-team-activity.presence-legend />
                         <span class="team-activity-presence-header" aria-hidden="true">
                             <span class="team-activity-presence-header__state"></span>
                             <span class="team-activity-presence-head">

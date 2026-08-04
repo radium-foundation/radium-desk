@@ -364,6 +364,14 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('team-activity-presence-layout', $html);
         $this->assertStringContainsString('team-activity-presence-metrics', $html);
         $this->assertStringContainsString('team-activity-presence-header', $html);
+        $this->assertStringContainsString('team-activity-presence-legend-trigger', $html);
+        $this->assertStringContainsString('aria-label="Presence status legend"', $html);
+        $this->assertStringContainsString('Presence legend', $html);
+        $this->assertStringContainsString('team-activity-presence-legend__abbr">A<', $html);
+        $this->assertStringContainsString('team-activity-presence-legend__abbr">L<', $html);
+        $this->assertStringContainsString('team-activity-presence-legend__abbr">WFH<', $html);
+        $this->assertStringContainsString('(future)', $html);
+        $this->assertStringContainsString('bi-info-circle', $html);
     }
 
     private function agentRowHtml(string $panelHtml, int $agentId): string
