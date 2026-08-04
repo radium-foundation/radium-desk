@@ -7,6 +7,7 @@ use App\Services\Operations\AutomationHealthService;
 use App\Services\Platform\Health\QueueHealthProvider;
 use App\Services\Platform\Health\SchedulerHealthProvider;
 use App\Services\Platform\PlatformCachePolicy;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -34,6 +35,13 @@ class PlatformAutomationOverviewService
     public function cachedOverview(): array
     {
         $cached = Cache::get(self::CACHE_KEY);
+        PlatformCacheAudit::read(
+            service: self::class,
+            method: 'cachedOverview',
+            cacheKey: self::CACHE_KEY,
+            payload: is_array($cached) ? $cached : null,
+            hit: is_array($cached) && isset($cached['items']),
+        );
         if (is_array($cached) && isset($cached['items'])) {
             return $cached + ['available' => true];
         }
@@ -130,6 +138,14 @@ class PlatformAutomationOverviewService
             'links' => $this->links(),
         ];
 
+        $old = Cache::get(self::CACHE_KEY);
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'overview',
+            cacheKey: self::CACHE_KEY,
+            oldPayload: is_array($old) ? $old : null,
+            newPayload: $payload,
+        );
         Cache::put(self::CACHE_KEY, $payload, now()->addSeconds(self::CACHE_TTL_SECONDS));
 
         return $payload;

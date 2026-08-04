@@ -8,6 +8,7 @@ use App\Enums\PlatformZoneId;
 use App\Models\User;
 use App\Services\Administration\AdministrationSystemHealthSummaryService;
 use App\Services\Platform\Cards\PlatformHealthCardProvider;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -46,6 +47,13 @@ class PlatformHealthZone extends AbstractPlatformZone
         }
 
         $overview = Cache::get(AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY);
+        PlatformCacheAudit::read(
+            service: self::class,
+            method: 'snapshot',
+            cacheKey: AdministrationSystemHealthSummaryService::PLATFORM_OVERVIEW_CACHE_KEY,
+            payload: is_array($overview) ? $overview : null,
+            hit: is_array($overview) && isset($overview['status'], $overview['status_label']),
+        );
 
         if (is_array($overview) && isset($overview['status'], $overview['status_label'])) {
             $status = PlatformHealthStatus::tryFrom((string) $overview['status'])

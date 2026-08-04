@@ -5,6 +5,7 @@ namespace App\Services\Platform;
 use App\Enums\IntegrationHealthStatus;
 use App\Enums\PlatformHealthStatus;
 use App\Services\Operations\OperationsRecentNotificationFailuresService;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -149,6 +150,14 @@ class PlatformCommunicationsOverviewService
         ];
 
         if ($write) {
+            $old = Cache::get(self::CACHE_KEY);
+            PlatformCacheAudit::write(
+                service: self::class,
+                method: 'overview',
+                cacheKey: self::CACHE_KEY,
+                oldPayload: is_array($old) ? $old : null,
+                newPayload: $payload,
+            );
             Cache::put(self::CACHE_KEY, $payload, now()->addSeconds(self::CACHE_TTL_SECONDS));
         }
 

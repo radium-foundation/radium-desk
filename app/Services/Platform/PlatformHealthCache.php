@@ -2,6 +2,7 @@
 
 namespace App\Services\Platform;
 
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
@@ -30,6 +31,14 @@ class PlatformHealthCache
     public static function recordSchedulerHeartbeat(?Carbon $at = null): void
     {
         $iso = ($at ?? now())->toIso8601String();
+        $old = Cache::get(self::SCHEDULER_LAST_RUN_AT);
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'recordSchedulerHeartbeat',
+            cacheKey: self::SCHEDULER_LAST_RUN_AT,
+            oldPayload: is_string($old) ? ['value' => $old] : null,
+            newPayload: ['value' => $iso],
+        );
         Cache::put(self::SCHEDULER_LAST_RUN_AT, $iso, self::TTL_SECONDS);
         self::writeDurable(['scheduler_last_run_at' => $iso]);
     }
@@ -44,6 +53,19 @@ class PlatformHealthCache
     {
         $at ??= now();
         $iso = $at->toIso8601String();
+
+        $oldAt = Cache::get(self::PRESENCE_LAST_TIMEOUT_RUN_AT);
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'recordPresenceTimeoutRun',
+            cacheKey: self::PRESENCE_LAST_TIMEOUT_RUN_AT,
+            oldPayload: is_string($oldAt) ? ['value' => $oldAt] : null,
+            newPayload: [
+                'value' => $iso,
+                'processed' => $processed,
+                'stale_count' => $staleCount,
+            ],
+        );
 
         Cache::put(self::PRESENCE_LAST_TIMEOUT_RUN_AT, $iso, self::TTL_SECONDS);
         Cache::put(self::PRESENCE_LAST_TIMEOUT_PROCESSED, $processed, self::TTL_SECONDS);

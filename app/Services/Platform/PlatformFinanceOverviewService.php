@@ -6,6 +6,7 @@ use App\Enums\IntegrationHealthStatus;
 use App\Enums\PlatformHealthStatus;
 use App\Enums\RefundStatus;
 use App\Models\RefundRequest;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
@@ -108,6 +109,14 @@ class PlatformFinanceOverviewService
             'links' => $this->links(),
         ];
 
+        $old = Cache::get(self::CACHE_KEY);
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'overview',
+            cacheKey: self::CACHE_KEY,
+            oldPayload: is_array($old) ? $old : null,
+            newPayload: $payload,
+        );
         Cache::put(self::CACHE_KEY, $payload, now()->addSeconds(self::CACHE_TTL_SECONDS));
 
         return $payload;

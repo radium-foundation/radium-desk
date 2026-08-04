@@ -6,6 +6,7 @@ use App\Data\Platform\PlatformHealthContribution;
 use App\Data\Platform\PlatformOverallHealth;
 use App\Enums\PlatformOverallHealthStatus;
 use App\Services\Platform\PlatformCachePolicy;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -26,6 +27,13 @@ class PlatformOverallHealthService
     {
         if ($useCache) {
             $cached = Cache::get(self::CACHE_KEY);
+            PlatformCacheAudit::read(
+                service: self::class,
+                method: 'summarize',
+                cacheKey: self::CACHE_KEY,
+                payload: is_array($cached) ? $cached : null,
+                hit: is_array($cached) && isset($cached['status']),
+            );
             if (is_array($cached) && isset($cached['status'])) {
                 return $this->fromCachePayload($cached);
             }
@@ -112,7 +120,18 @@ class PlatformOverallHealthService
 
     public function store(PlatformOverallHealth $health): void
     {
-        Cache::put(self::CACHE_KEY, $health->toArray(), now()->addSeconds(self::CACHE_TTL_SECONDS));
+        $new = $health->toArray();
+        $old = Cache::get(self::CACHE_KEY);
+
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'store',
+            cacheKey: self::CACHE_KEY,
+            oldPayload: is_array($old) ? $old : null,
+            newPayload: $new,
+        );
+
+        Cache::put(self::CACHE_KEY, $new, now()->addSeconds(self::CACHE_TTL_SECONDS));
     }
 
     /**

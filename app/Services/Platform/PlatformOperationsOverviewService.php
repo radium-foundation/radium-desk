@@ -5,6 +5,7 @@ namespace App\Services\Platform;
 use App\Enums\PlatformHealthStatus;
 use App\Data\Executive\ExecutiveMetricDto;
 use App\ReadModels\Executive\ExecutiveKpiReadModel;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -87,6 +88,14 @@ class PlatformOperationsOverviewService
             'links' => $this->links(),
         ];
 
+        $old = Cache::get(self::CACHE_KEY);
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'overview',
+            cacheKey: self::CACHE_KEY,
+            oldPayload: is_array($old) ? $old : null,
+            newPayload: $payload,
+        );
         Cache::put(self::CACHE_KEY, $payload, now()->addSeconds(self::CACHE_TTL_SECONDS));
 
         return $payload;

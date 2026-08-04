@@ -9,6 +9,7 @@ use App\Services\Operations\OperationsAutomationMetricsService;
 use App\Services\Operations\OperationsNotificationMetricsService;
 use App\Services\Operations\OperationsQueueMetricsService;
 use App\Services\Platform\PlatformCachePolicy;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Facades\Cache;
 use Throwable;
 
@@ -87,6 +88,14 @@ class PlatformPerformanceOverviewService
             'available' => true,
         ];
 
+        $old = Cache::get(self::CACHE_KEY);
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'overview',
+            cacheKey: self::CACHE_KEY,
+            oldPayload: is_array($old) ? $old : null,
+            newPayload: $payload,
+        );
         Cache::put(self::CACHE_KEY, $payload, now()->addSeconds(self::CACHE_TTL_SECONDS));
 
         return $payload;

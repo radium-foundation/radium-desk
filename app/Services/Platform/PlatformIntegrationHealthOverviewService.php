@@ -9,6 +9,7 @@ use App\Services\Operations\OperationsCashfreeHealthService;
 use App\Services\Operations\OperationsGmailHealthService;
 use App\Services\Operations\OperationsRadiumBoxHealthService;
 use App\Services\SystemSettingsService;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
@@ -105,6 +106,13 @@ class PlatformIntegrationHealthOverviewService
 
         if (! $anyAvailable) {
             $aggregate = Cache::get(self::CACHE_KEY);
+            PlatformCacheAudit::read(
+                service: self::class,
+                method: 'cachedOverview',
+                cacheKey: self::CACHE_KEY,
+                payload: is_array($aggregate) ? $aggregate : null,
+                hit: is_array($aggregate) && isset($aggregate['items'], $aggregate['overall_status']),
+            );
 
             if (is_array($aggregate) && isset($aggregate['items'], $aggregate['overall_status'])) {
                 return [
@@ -163,12 +171,21 @@ class PlatformIntegrationHealthOverviewService
 
         $composed = $this->composeOverview($items, now()->toIso8601String(), available: true);
 
-        Cache::put(self::CACHE_KEY, [
+        $old = Cache::get(self::CACHE_KEY);
+        $new = [
             'items' => $composed['items'],
             'overall_status' => $composed['overall_status'],
             'overall_status_label' => $composed['overall_status_label'],
             'generated_at' => $composed['generated_at'],
-        ], now()->addSeconds(self::CACHE_TTL_SECONDS));
+        ];
+        PlatformCacheAudit::write(
+            service: self::class,
+            method: 'overview',
+            cacheKey: self::CACHE_KEY,
+            oldPayload: is_array($old) ? $old : null,
+            newPayload: $new,
+        );
+        Cache::put(self::CACHE_KEY, $new, now()->addSeconds(self::CACHE_TTL_SECONDS));
 
         return $composed;
     }
@@ -183,6 +200,13 @@ class PlatformIntegrationHealthOverviewService
         }
 
         $cached = Cache::get($this->itemCacheKey($key));
+        PlatformCacheAudit::read(
+            service: self::class,
+            method: 'cachedItem',
+            cacheKey: $this->itemCacheKey($key),
+            payload: is_array($cached) ? $cached : null,
+            hit: is_array($cached) && isset($cached['key'], $cached['status']),
+        );
 
         return is_array($cached) && isset($cached['key'], $cached['status']) ? $cached : null;
     }
@@ -210,6 +234,14 @@ class PlatformIntegrationHealthOverviewService
                 default => $this->unavailableItem($key, 'Unknown integration.'),
             };
 
+            $oldItem = Cache::get($this->itemCacheKey($key));
+            PlatformCacheAudit::write(
+                service: self::class,
+                method: 'refreshItem',
+                cacheKey: $this->itemCacheKey($key),
+                oldPayload: is_array($oldItem) ? $oldItem : null,
+                newPayload: $item,
+            );
             Cache::put($this->itemCacheKey($key), $item, now()->addSeconds(self::CACHE_TTL_SECONDS));
 
             return $item;

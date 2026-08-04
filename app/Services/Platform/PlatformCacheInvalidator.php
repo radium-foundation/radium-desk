@@ -4,6 +4,7 @@ namespace App\Services\Platform;
 
 use App\Enums\PlatformZoneId;
 use App\Services\Platform\Zones\PlatformZoneSnapshotStore;
+use App\Support\Platform\PlatformCacheAudit;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -20,6 +21,7 @@ final class PlatformCacheInvalidator
         $this->snapshotStore->forget($zoneKey);
 
         foreach (PlatformCachePolicy::relatedOverviewKeys($zoneKey) as $key) {
+            PlatformCacheAudit::forget(self::class, 'invalidateZone', $key);
             Cache::forget($key);
         }
 
@@ -41,6 +43,7 @@ final class PlatformCacheInvalidator
             if ($key === PlatformCachePolicy::KEY_OVERALL_HEALTH) {
                 continue;
             }
+            PlatformCacheAudit::forget(self::class, 'markZoneStale', $key);
             Cache::forget($key);
         }
 
@@ -59,6 +62,7 @@ final class PlatformCacheInvalidator
         }
 
         if (PlatformCachePolicy::dependentZones($zoneKey) !== []) {
+            PlatformCacheAudit::forget(self::class, 'invalidateDependents', PlatformCachePolicy::KEY_OVERALL_HEALTH);
             Cache::forget(PlatformCachePolicy::KEY_OVERALL_HEALTH);
         }
     }
@@ -66,7 +70,9 @@ final class PlatformCacheInvalidator
     private function forgetIntegrationItems(): void
     {
         foreach (['radiumbox', 'cashfree', 'gmail', 'interakt', 'telegram', 'zeptomail', 'meta'] as $item) {
-            Cache::forget(PlatformCachePolicy::KEY_INTEGRATION_ITEM_PREFIX.$item);
+            $key = PlatformCachePolicy::KEY_INTEGRATION_ITEM_PREFIX.$item;
+            PlatformCacheAudit::forget(self::class, 'forgetIntegrationItems', $key);
+            Cache::forget($key);
         }
     }
 }
