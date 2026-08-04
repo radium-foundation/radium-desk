@@ -1,32 +1,42 @@
 @props([
     'status',
-    'label',
+    'code',
+    'duration' => null,
     'late' => null,
-    'secondary' => null,
+    'title' => null,
     'ariaLabel' => null,
 ])
 
 @php
+    $durationValue = is_string($duration) ? trim($duration) : '';
     $lateDuration = is_string($late) ? trim($late) : '';
-    $secondaryText = is_string($secondary) ? trim($secondary) : '';
+    $titleText = is_string($title) ? trim($title) : '';
 @endphp
 
-<div {{ $attributes->class(['team-activity-status-stack', 'team-activity-live-presence']) }}
-     @if(filled($ariaLabel)) aria-label="{{ $ariaLabel }}" @endif>
-    <x-team-activity.status-badge :status="$status" :label="$label" />
+<div {{ $attributes->class(['team-activity-live-presence', 'team-activity-live-presence--compact']) }}
+     @if(filled($ariaLabel)) aria-label="{{ $ariaLabel }}" @endif
+     @if($titleText !== '') title="{{ $titleText }}" @endif>
+    <span @class([
+        'team-activity-status',
+        'team-activity-status-pill',
+        'team-activity-status-pill--'.$status,
+        'team-activity-live-presence__primary',
+    ]) aria-hidden="true">
+        <span class="team-activity-status__dot"></span>
+        <span class="team-activity-live-presence__code">{{ $code }}</span>
+        @if($durationValue !== '')
+            <sup class="team-activity-live-presence__duration"
+                 title="{{ $durationValue }}">
+                <x-team-activity.duration :value="$durationValue" />
+            </sup>
+        @endif
+    </span>
 
-    @if($lateDuration !== '' || $secondaryText !== '')
-        <div class="team-activity-operational-indicators" aria-hidden="true">
-            @if($lateDuration !== '')
-                <span class="team-activity-operational-indicator team-activity-operational-indicator--late"
-                      title="{{ $lateDuration }} late">
-                    <span class="team-activity-operational-indicator__late-mark">L</span><sup class="team-activity-operational-indicator__late-sup"><x-team-activity.duration :value="$lateDuration" /></sup>
-                </span>
-            @endif
-        </div>
-    @endif
-
-    @if($secondaryText !== '')
-        <span class="team-activity-status-note" aria-hidden="true">{{ $secondaryText }}</span>
+    @if($lateDuration !== '')
+        <span class="team-activity-operational-indicator team-activity-operational-indicator--late team-activity-live-presence__late"
+              title="{{ $lateDuration }} late"
+              aria-hidden="true">
+            <span class="team-activity-operational-indicator__late-mark">L</span><sup class="team-activity-operational-indicator__late-sup"><x-team-activity.duration :value="$lateDuration" /></sup>
+        </span>
     @endif
 </div>

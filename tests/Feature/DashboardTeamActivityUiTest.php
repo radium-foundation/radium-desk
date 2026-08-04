@@ -211,8 +211,9 @@ class DashboardTeamActivityUiTest extends TestCase
         $html = $this->panelHtml($viewer);
 
         $this->assertStringContainsString('team-activity-status-pill--auto_logout', $html);
-        $this->assertStringContainsString('Auto Logged Out', $html);
+        $this->assertStringContainsString('team-activity-live-presence__code">ALO<', $html);
         $this->assertStringContainsString('team-activity-status-pill--offline', $html);
+        $this->assertStringContainsString('team-activity-live-presence__code">OFF<', $html);
 
         Carbon::setTestNow(Carbon::parse('2026-07-26 11:00:00', 'Asia/Kolkata'));
     }
@@ -232,11 +233,11 @@ class DashboardTeamActivityUiTest extends TestCase
         $html = $this->panelHtml($viewer);
 
         $this->assertStringContainsString('team-activity-status-pill--leave', $html);
-        $this->assertStringContainsString('On Leave', $html);
+        $this->assertStringContainsString('team-activity-live-presence__code">LV<', $html);
         $this->assertStringContainsString('team-activity-name', $html);
         $this->assertStringContainsString('Very Long Employee Name', $html);
-        $this->assertStringContainsString('Annual Leave', $html);
         $this->assertStringNotContainsString('team-activity-operational-indicator--late', $html);
+        $this->assertStringNotContainsString('>On Leave<', $html);
     }
 
     public function test_late_employee_renders_secondary_indicator_in_presence_column(): void
@@ -280,13 +281,16 @@ class DashboardTeamActivityUiTest extends TestCase
         $lateHtml = $this->agentRowHtml($html, $late->id);
 
         $this->assertStringContainsString('team-activity-live-presence', $lateHtml);
+        $this->assertStringContainsString('team-activity-live-presence--compact', $lateHtml);
+        $this->assertStringContainsString('team-activity-live-presence__code">A<', $lateHtml);
         $this->assertStringContainsString('team-activity-operational-indicator--late', $lateHtml);
         $this->assertStringContainsString('team-activity-operational-indicator__late-mark">L<', $lateHtml);
         $this->assertStringContainsString('title="33m late"', $lateHtml);
-        $this->assertStringContainsString('aria-label="Active · L33m"', $lateHtml);
+        $this->assertStringContainsString('aria-label="Active · 57m · Late 33m"', $lateHtml);
         $this->assertStringContainsString('team-activity-status-pill--working', $lateHtml);
         $this->assertStringContainsString('team-activity-presence-metrics', $lateHtml);
         $this->assertStringNotContainsString('team-activity-member-status', $lateHtml);
+        $this->assertStringNotContainsString('>Active<', $lateHtml);
 
         $onTimeHtmlSlice = $this->agentRowHtml($html, $onTime->id);
         $this->assertStringNotContainsString('team-activity-operational-indicator--late', $onTimeHtmlSlice);
@@ -323,8 +327,9 @@ class DashboardTeamActivityUiTest extends TestCase
         $weeklyHtml = $this->agentRowHtml($html, $weeklyOff->id);
 
         $this->assertStringContainsString('team-activity-status-pill--leave', $leaveHtml);
-        $this->assertStringContainsString('Annual Leave', $leaveHtml);
+        $this->assertStringContainsString('team-activity-live-presence__code">LV<', $leaveHtml);
         $this->assertStringNotContainsString('team-activity-operational-indicator--late', $leaveHtml);
+        $this->assertStringNotContainsString('>On Leave<', $leaveHtml);
 
         $this->assertStringContainsString('Weekly Off', $weeklyHtml);
         $this->assertStringNotContainsString('team-activity-operational-indicator--late', $weeklyHtml);
@@ -368,6 +373,7 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('aria-label="Presence status legend"', $html);
         $this->assertStringContainsString('Presence legend', $html);
         $this->assertStringContainsString('team-activity-presence-legend__abbr">A<', $html);
+        $this->assertStringContainsString('team-activity-presence-legend__abbr">ALO<', $html);
         $this->assertStringContainsString('team-activity-presence-legend__abbr">L<', $html);
         $this->assertStringContainsString('team-activity-presence-legend__abbr">WFH<', $html);
         $this->assertStringContainsString('(future)', $html);

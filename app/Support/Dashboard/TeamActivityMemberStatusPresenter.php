@@ -39,34 +39,45 @@ class TeamActivityMemberStatusPresenter
     }
 
     /**
-     * Secondary line beneath live status in the Presence column.
-     * Omits session durations already shown in the Current metric column.
+     * Compact operational status code (A, I, P, ALO, …).
      */
-    public function secondaryContextLabel(TeamActivityAgentRow $agent, ?string $latestElapsed): ?string
+    public function statusCode(TeamActivityAgentRow $agent): string
+    {
+        return TeamActivityPresenceLegend::codeFor($agent->status);
+    }
+
+    /**
+     * Duration merged into the status code as a superscript (e.g. 1h 34m → A¹ʰ³⁴ᵐ).
+     * Null when the status has no state duration (LV, NLI, SNS, NS, …).
+     */
+    public function stateDurationLabel(TeamActivityAgentRow $agent, ?string $latestElapsed): ?string
     {
         if ($agent->isVirtual) {
             return $this->normalizeDuration($latestElapsed);
         }
 
         return match ($agent->status) {
-            TeamActivityStatus::Leave,
-            TeamActivityStatus::AutoLogout,
-            TeamActivityStatus::OffDuty,
-            TeamActivityStatus::NotStartedShift,
-            TeamActivityStatus::NotLoggedIn,
-            TeamActivityStatus::NoSchedule,
-            TeamActivityStatus::Offline => filled($agent->workingLabel) ? $agent->workingLabel : null,
+            TeamActivityStatus::Working,
+            TeamActivityStatus::Idle,
+            TeamActivityStatus::Break,
+            TeamActivityStatus::Login,
+            TeamActivityStatus::Assignment,
+            TeamActivityStatus::Remark,
+            TeamActivityStatus::StatusChanged,
+            TeamActivityStatus::SerialUpdated,
+            TeamActivityStatus::ModelUpdated,
+            TeamActivityStatus::Refund,
+            TeamActivityStatus::Approval => $this->normalizeDuration($agent->currentDurationLabel)
+                ?? $this->normalizeDuration($latestElapsed),
             TeamActivityStatus::WaitingCustomer,
             TeamActivityStatus::OnIvr,
             TeamActivityStatus::Email,
             TeamActivityStatus::Whatsapp,
-            TeamActivityStatus::Ira => $this->normalizeDuration($latestElapsed),
-            TeamActivityStatus::Working,
-            TeamActivityStatus::Idle,
-            TeamActivityStatus::Break => null,
-            default => filled($agent->workingLabel)
-                ? $agent->workingLabel
-                : $this->normalizeDuration($latestElapsed),
+            TeamActivityStatus::Ira => $this->normalizeDuration($latestElapsed)
+                ?? $this->normalizeDuration($agent->currentDurationLabel),
+            TeamActivityStatus::AutoLogout => $this->normalizeDuration($agent->currentDurationLabel)
+                ?? $this->normalizeDuration($latestElapsed),
+            default => null,
         };
     }
 
@@ -87,18 +98,23 @@ class TeamActivityMemberStatusPresenter
         return $agent->minutesLate.'m';
     }
 
+    /**
+     * Accessible label: full words + durations (not the compact visual codes).
+     */
     public function presenceAriaLabel(TeamActivityAgentRow $agent, ?string $latestElapsed): string
     {
         $parts = [$agent->statusLabel];
+        $duration = $this->stateDurationLabel($agent, $latestElapsed);
         $late = $this->lateDurationLabel($agent);
-        $secondary = $this->secondaryContextLabel($agent, $latestElapsed);
 
-        if ($late !== null) {
-            $parts[] = 'L'.$late;
+        if ($agent->status === TeamActivityStatus::Leave && filled($agent->workingLabel)) {
+            $parts[] = $agent->workingLabel;
+        } elseif ($duration !== null) {
+            $parts[] = $duration;
         }
 
-        if ($secondary !== null) {
-            $parts[] = $secondary;
+        if ($late !== null) {
+            $parts[] = 'Late '.$late;
         }
 
         return implode(' · ', $parts);

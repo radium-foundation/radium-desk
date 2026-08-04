@@ -2219,7 +2219,7 @@ a:focus-visible .stat-card {
 
 .team-activity-presence-header {
     display: grid;
-    grid-template-columns: minmax(3.75rem, 4.75rem) 1fr;
+    grid-template-columns: minmax(4.25rem, 5.5rem) 1fr;
     gap: 0.375rem;
     width: 100%;
 }
@@ -2637,6 +2637,56 @@ a:focus-visible .stat-card {
     max-width: 100%;
 }
 
+.team-activity-live-presence--compact {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.team-activity-live-presence__primary {
+    gap: 0.25rem;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.team-activity-live-presence__code {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.team-activity-live-presence__duration {
+    margin-left: 0.0625rem;
+    font-size: 0.5625rem;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: super;
+    color: currentColor;
+    opacity: 0.85;
+}
+
+.team-activity-live-presence__duration .team-activity-duration {
+    gap: 0;
+}
+
+.team-activity-live-presence__duration .team-activity-duration__gap {
+    display: none;
+}
+
+.team-activity-live-presence__duration .team-activity-duration__unit {
+    font-size: 0.85em;
+    color: inherit;
+    opacity: 0.9;
+}
+
+.team-activity-live-presence__late {
+    font-size: 0.5625rem;
+}
+
 .team-activity-operational-indicators {
     display: flex;
     flex-direction: column;
@@ -2677,7 +2727,7 @@ a:focus-visible .stat-card {
 
 .team-activity-presence-layout {
     display: grid;
-    grid-template-columns: minmax(3.75rem, 4.75rem) 1fr;
+    grid-template-columns: minmax(4.25rem, 5.5rem) 1fr;
     gap: 0.375rem;
     align-items: center;
     width: 100%;
@@ -3046,7 +3096,7 @@ a:focus-visible .stat-card {
 
     .team-activity-presence-layout,
     .team-activity-presence-header {
-        grid-template-columns: minmax(3.25rem, 4rem) 1fr;
+        grid-template-columns: minmax(3.75rem, 5rem) 1fr;
         gap: 0.25rem;
     }
 

@@ -82,9 +82,13 @@
             .($overdueCount === 1 ? '1 overdue case' : number_format($overdueCount).' overdue cases');
     }
 
-    $statusContext = $memberStatusPresenter->secondaryContextLabel($agent, $latestElapsed);
+    $statusCode = $memberStatusPresenter->statusCode($agent);
+    $stateDuration = $memberStatusPresenter->stateDurationLabel($agent, $latestElapsed);
     $lateDuration = $memberStatusPresenter->lateDurationLabel($agent);
     $presenceAriaLabel = $memberStatusPresenter->presenceAriaLabel($agent, $latestElapsed);
+    $presenceTitle = $agent->status === \App\Enums\TeamActivityStatus::Leave && filled($agent->workingLabel)
+        ? $agent->workingLabel
+        : $agent->statusLabel;
     $hasLivePresence = ! $agent->isVirtual || filled($agent->statusLabel);
 @endphp
 
@@ -117,9 +121,10 @@
                     <x-team-activity.live-presence
                         class="team-activity-presence-state"
                         :status="$agent->status->value"
-                        :label="$agent->statusLabel"
+                        :code="$statusCode"
+                        :duration="$stateDuration"
                         :late="$lateDuration"
-                        :secondary="$statusContext"
+                        :title="$presenceTitle"
                         :ariaLabel="$presenceAriaLabel" />
                 @endif
 
