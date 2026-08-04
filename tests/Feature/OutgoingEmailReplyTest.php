@@ -175,6 +175,129 @@ class OutgoingEmailReplyTest extends TestCase
         $this->assertSame(0, OutgoingEmailMessage::query()->count());
     }
 
+    public function test_super_admin_can_reply(): void
+    {
+        [, , $message] = $this->seedLinkedEmailAndAdmin();
+
+        $superAdmin = User::factory()->create(['is_active' => true]);
+        $superAdmin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        Http::fake([
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/send' => Http::response([
+                'id' => 'gmail-out-super',
+                'threadId' => 'thr-reply-1',
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($superAdmin)->postJson(
+            route('dashboard.incoming-email-messages.reply', $message),
+            [
+                'subject' => 'Re: Support request',
+                'body_html' => '<p>Super admin reply.</p>',
+                'template_key' => 'blank',
+            ],
+        );
+
+        $response->assertOk();
+        $this->assertSame(1, OutgoingEmailMessage::query()->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'outgoing_email.sent',
+            'auditable_id' => OutgoingEmailMessage::query()->first()->id,
+        ]);
+    }
+
+    public function test_assigned_service_case_owner_can_reply_without_email_reply_permission(): void
+    {
+        [$order, $incident, $message] = $this->seedLinkedEmailAndAdmin();
+
+        $assignee = User::factory()->create(['is_active' => true]);
+        $assignee->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $this->assertFalse($assignee->can('email.reply'));
+
+        $incident->update(['assigned_to_user_id' => $assignee->id]);
+
+        Http::fake([
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages/send' => Http::response([
+                'id' => 'gmail-out-assignee',
+                'threadId' => 'thr-reply-1',
+            ], 200),
+        ]);
+
+        $response = $this->actingAs($assignee)->postJson(
+            route('dashboard.incoming-email-messages.reply', $message->fresh()),
+            [
+                'subject' => 'Re: Support request',
+                'body_html' => '<p>Assignee reply from Desk.</p>',
+                'template_key' => 'blank',
+            ],
+        );
+
+        $response->assertOk();
+
+        $outgoing = OutgoingEmailMessage::query()->first();
+        $this->assertNotNull($outgoing);
+        $this->assertSame(OutgoingEmailMessageStatus::Sent, $outgoing->status);
+        $this->assertSame($incident->id, $outgoing->incident_id);
+        $this->assertSame($order->id, $outgoing->order_id);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'outgoing_email.sent',
+            'auditable_id' => $outgoing->id,
+        ]);
+
+        $timeline = app(OutgoingEmailTimelineEventSource::class, ['order' => $order])->collect();
+        $this->assertTrue(
+            $timeline->contains(
+                fn ($event): bool => $event->type === TimelineEventType::OutgoingEmail
+                    && $event->dedupeKey === 'outgoing_email:'.$outgoing->id,
+            ),
+        );
+    }
+
+    public function test_different_support_agent_cannot_reply_to_another_agents_case(): void
+    {
+        [, $incident, $message] = $this->seedLinkedEmailAndAdmin();
+
+        $owner = User::factory()->create(['is_active' => true]);
+        $owner->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $other = User::factory()->create(['is_active' => true]);
+        $other->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $incident->update(['assigned_to_user_id' => $owner->id]);
+
+        $response = $this->actingAs($other)->postJson(
+            route('dashboard.incoming-email-messages.reply', $message->fresh()),
+            [
+                'subject' => 'Re: Support request',
+                'body_html' => '<p>Not my case.</p>',
+            ],
+        );
+
+        $response->assertForbidden();
+        $this->assertSame(0, OutgoingEmailMessage::query()->count());
+    }
+
+    public function test_unassigned_agent_cannot_reply(): void
+    {
+        [, $incident, $message] = $this->seedLinkedEmailAndAdmin();
+
+        $this->assertNull($incident->assigned_to_user_id);
+
+        $agent = User::factory()->create(['is_active' => true]);
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        $response = $this->actingAs($agent)->postJson(
+            route('dashboard.incoming-email-messages.reply', $message),
+            [
+                'subject' => 'Re: Support request',
+                'body_html' => '<p>Unassigned attempt.</p>',
+            ],
+        );
+
+        $response->assertForbidden();
+        $this->assertSame(0, OutgoingEmailMessage::query()->count());
+    }
+
     public function test_reply_disabled_by_feature_flag(): void
     {
         config(['inbound_email.reply.enabled' => false]);

@@ -129,7 +129,7 @@ When false: zero behaviour change vs production today.
 | **3** | Processor: branch B (order, no SC) behind flag | **Done** — see [`p-04-08-004-step3-branch-b.md`](p-04-08-004-step3-branch-b.md) |
 | **4** | Processor: branch C (no order) behind flag | **Done** — see [`p-04-08-004-step4-branch-c.md`](p-04-08-004-step4-branch-c.md) |
 | **5** | Explicit branch D (internal ops skip create) | Pending |
-| **6** | `OutgoingEmailReplyGate` assignee exception | Pending |
+| **6** | `OutgoingEmailReplyGate` assignee exception | **Done** — see [`p-04-08-005-assignee-reply-gate.md`](p-04-08-005-assignee-reply-gate.md) |
 | **7** | Tests (A–E matrix) + docs | Pending |
 | **8** | Enable flag in staging → production | Ops |
 

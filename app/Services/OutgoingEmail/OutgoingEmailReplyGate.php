@@ -18,7 +18,9 @@ class OutgoingEmailReplyGate
             return ['allowed' => false, 'reason' => 'reply_disabled'];
         }
 
-        if (! $user->can('email.reply')) {
+        // Admin / Ops / SuperAdmin keep email.reply. Linked SC assignees may reply
+        // without that permission — only for their assigned case.
+        if (! $user->can('email.reply') && ! $this->isAssignedServiceCaseOwner($user, $message)) {
             return ['allowed' => false, 'reason' => 'missing_permission'];
         }
 
@@ -63,5 +65,29 @@ class OutgoingEmailReplyGate
         }
 
         return ['allowed' => true, 'reason' => null];
+    }
+
+    /**
+     * Narrow exception: Linked inbound email on a Service Case assigned to this user.
+     * Does not grant email.reply and does not apply to Historical / unassigned mail.
+     */
+    private function isAssignedServiceCaseOwner(User $user, IncomingEmailMessage $message): bool
+    {
+        if ($message->status !== IncomingEmailMessageStatus::Linked) {
+            return false;
+        }
+
+        if ($message->incident_id === null) {
+            return false;
+        }
+
+        $message->loadMissing('incident');
+        $incident = $message->incident;
+
+        if ($incident === null || $incident->assigned_to_user_id === null) {
+            return false;
+        }
+
+        return (int) $incident->assigned_to_user_id === (int) $user->id;
     }
 }
