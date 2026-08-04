@@ -2122,8 +2122,8 @@ a:focus-visible .stat-card {
 
 .team-activity-grid {
     --team-activity-cols:
-        minmax(9.5rem, 12rem)
-        minmax(13rem, 16rem)
+        minmax(8.5rem, 10.5rem)
+        minmax(16rem, 19.5rem)
         minmax(0, 1fr)
         minmax(5.5rem, 7rem)
         minmax(3.75rem, 5rem)
@@ -2182,11 +2182,23 @@ a:focus-visible .stat-card {
     text-align: center;
 }
 
+.team-activity-presence-header {
+    display: grid;
+    grid-template-columns: minmax(3.75rem, 4.75rem) 1fr;
+    gap: 0.375rem;
+    width: 100%;
+}
+
+.team-activity-presence-header__state {
+    min-width: 0;
+}
+
 .team-activity-presence-head {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.125rem 0.375rem;
     width: 100%;
+    text-align: center;
 }
 
 .team-activity-list > .team-activity-row:nth-child(even) .team-activity-row-summary {
@@ -2383,6 +2395,30 @@ a:focus-visible .stat-card {
     flex-shrink: 0;
 }
 
+.team-activity-member-status__late {
+    display: inline-flex;
+    align-items: baseline;
+    flex-shrink: 0;
+    color: #8a6a2f;
+    font-weight: 600;
+}
+
+.team-activity-member-status__late-mark {
+    line-height: 1;
+}
+
+.team-activity-member-status__late-sup {
+    margin-left: 0.0625rem;
+    font-size: 0.85em;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: super;
+}
+
+.team-activity-member-status__late-sup .team-activity-duration__unit {
+    font-size: 0.85em;
+}
+
 .team-activity-member-status--working,
 .team-activity-member-status--login,
 .team-activity-member-status--assignment,
@@ -2554,9 +2590,83 @@ a:focus-visible .stat-card {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.625rem;
-    color: #64748b;
+    font-size: 0.5625rem;
+    font-weight: 500;
+    color: #94a3b8;
     line-height: 1.2;
+    max-width: 100%;
+}
+
+.team-activity-live-presence {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.team-activity-operational-indicators {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.team-activity-operational-indicator {
+    display: inline-flex;
+    align-items: baseline;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.team-activity-operational-indicator--late {
+    color: #8a6a2f;
+    font-size: 0.5625rem;
+    font-weight: 600;
+}
+
+.team-activity-operational-indicator__late-mark {
+    line-height: 1;
+}
+
+.team-activity-operational-indicator__late-sup {
+    margin-left: 0.0625rem;
+    font-size: 0.85em;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: super;
+}
+
+.team-activity-operational-indicator__late-sup .team-activity-duration__unit {
+    font-size: 0.85em;
+}
+
+.team-activity-presence-layout {
+    display: grid;
+    grid-template-columns: minmax(3.75rem, 4.75rem) 1fr;
+    gap: 0.375rem;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+}
+
+.team-activity-presence-state {
+    justify-self: start;
+}
+
+.team-activity-presence-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.125rem 0.375rem;
+    width: 100%;
+    align-items: center;
+    text-align: center;
+    min-width: 0;
+}
+
+.team-activity-presence-metrics--empty {
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    text-align: center;
 }
 
 .team-activity-presence {
@@ -2871,8 +2981,8 @@ a:focus-visible .stat-card {
 @media (max-width: 1199.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(8.5rem, 10.5rem)
-            minmax(11rem, 13.5rem)
+            minmax(7.5rem, 9.5rem)
+            minmax(14rem, 16.5rem)
             minmax(0, 1fr)
             minmax(5rem, 6.25rem)
             minmax(3.25rem, 4.5rem)
@@ -2889,14 +2999,20 @@ a:focus-visible .stat-card {
 @media (max-width: 767.98px) {
     .team-activity-grid {
         --team-activity-cols:
-            minmax(7.25rem, 9rem)
-            minmax(9.5rem, 11.5rem)
+            minmax(6.5rem, 8.25rem)
+            minmax(12rem, 14.5rem)
             minmax(0, 1fr)
             minmax(4.5rem, 5.75rem)
             minmax(3rem, 4.25rem)
             minmax(3.25rem, 4.5rem)
             0.875rem;
         --team-activity-metric-size: 0.6875rem;
+    }
+
+    .team-activity-presence-layout,
+    .team-activity-presence-header {
+        grid-template-columns: minmax(3.25rem, 4rem) 1fr;
+        gap: 0.25rem;
     }
 
     .team-activity-name {

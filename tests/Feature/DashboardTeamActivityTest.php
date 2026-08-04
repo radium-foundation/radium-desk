@@ -79,8 +79,8 @@ class DashboardTeamActivityTest extends TestCase
         $this->assertStringContainsString('Active', $html);
         $this->assertStringContainsString('team-activity-grid-header', $html);
         $this->assertStringContainsString('team-activity-avatar', $html);
-        $this->assertStringContainsString('team-activity-member-status', $html);
-        $this->assertStringContainsString('team-activity-member-status__dot', $html);
+        $this->assertStringContainsString('team-activity-live-presence', $html);
+        $this->assertStringContainsString('team-activity-status__dot', $html);
     }
 
     public function test_team_activity_refresh_returns_empty_payload_without_permission(): void

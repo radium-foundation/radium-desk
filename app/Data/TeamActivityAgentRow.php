@@ -45,6 +45,7 @@ readonly class TeamActivityAgentRow
         public ?int $pendingCasesCount = null,
         public ?int $overdueCasesCount = null,
         public ?Carbon $previousActivityAt = null,
+        public ?int $minutesLate = null,
     ) {}
 
     /**
@@ -88,6 +89,7 @@ readonly class TeamActivityAgentRow
             'pending_cases_count' => $this->pendingCasesCount,
             'overdue_cases_count' => $this->overdueCasesCount,
             'previous_activity_at' => $this->previousActivityAt?->toIso8601String(),
+            'minutes_late' => $this->minutesLate,
         ];
     }
 }

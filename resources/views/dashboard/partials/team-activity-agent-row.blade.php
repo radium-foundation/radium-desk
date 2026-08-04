@@ -82,8 +82,10 @@
             .($overdueCount === 1 ? '1 overdue case' : number_format($overdueCount).' overdue cases');
     }
 
-    $statusContext = $memberStatusPresenter->contextLabel($agent, $latestElapsed);
-    $statusAriaLabel = $memberStatusPresenter->ariaLabel($agent, $latestElapsed);
+    $statusContext = $memberStatusPresenter->secondaryContextLabel($agent, $latestElapsed);
+    $lateDuration = $memberStatusPresenter->lateDurationLabel($agent);
+    $presenceAriaLabel = $memberStatusPresenter->presenceAriaLabel($agent, $latestElapsed);
+    $hasLivePresence = ! $agent->isVirtual || filled($agent->statusLabel);
 @endphp
 
 <li class="team-activity-row @if($agent->expanded) is-expanded @endif @if($agent->isVirtual) is-virtual @endif"
@@ -98,13 +100,8 @@
                     :status="$agent->status->value"
                     :is-virtual="$agent->isVirtual" />
                 <span class="team-activity-member-text"
-                      aria-label="{{ $displayName }}, {{ $statusAriaLabel }}">
+                      aria-label="{{ $displayName }}, {{ $presenceAriaLabel }}">
                     <span class="team-activity-name" title="{{ $agent->name }}">{{ $displayName }}</span>
-                    <x-team-activity.member-status
-                        :status="$agent->status->value"
-                        :label="$agent->statusLabel"
-                        :context="$statusContext"
-                        aria-hidden="true" />
                     @if(filled($agent->calendarBadge))
                         <x-team-activity.calendar-badge
                             class="team-activity-member-calendar"
@@ -115,17 +112,29 @@
         </span>
 
         <span class="team-activity-col team-activity-col--presence" role="cell">
-            @if($hasPresenceMetrics)
-                <span class="team-activity-presence" aria-label="Today {{ $agent->todayDurationLabel ?: '—' }}, Current {{ $agent->currentDurationLabel ?: '—' }}, Sessions {{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}, Latest {{ $latestElapsed ?: '—' }}, Previous {{ $previousElapsed ?: '—' }}">
-                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$agent->todayDurationLabel ?: '—'" /></span>
-                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$agent->currentDurationLabel ?: '—'" /></span>
-                    <span class="team-activity-metric-value">{{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}</span>
-                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$latestElapsed ?: '—'" /></span>
-                    <span class="team-activity-metric-value"><x-team-activity.duration :value="$previousElapsed ?: '—'" /></span>
-                </span>
-            @else
-                <span class="team-activity-presence team-activity-presence--empty" aria-hidden="true">—</span>
-            @endif
+            <div class="team-activity-presence-layout">
+                @if($hasLivePresence)
+                    <x-team-activity.live-presence
+                        class="team-activity-presence-state"
+                        :status="$agent->status->value"
+                        :label="$agent->statusLabel"
+                        :late="$lateDuration"
+                        :secondary="$statusContext"
+                        :ariaLabel="$presenceAriaLabel" />
+                @endif
+
+                @if($hasPresenceMetrics)
+                    <span class="team-activity-presence-metrics" aria-label="Today {{ $agent->todayDurationLabel ?: '—' }}, Current {{ $agent->currentDurationLabel ?: '—' }}, Sessions {{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}, Latest {{ $latestElapsed ?: '—' }}, Previous {{ $previousElapsed ?: '—' }}">
+                        <span class="team-activity-metric-value"><x-team-activity.duration :value="$agent->todayDurationLabel ?: '—'" /></span>
+                        <span class="team-activity-metric-value"><x-team-activity.duration :value="$agent->currentDurationLabel ?: '—'" /></span>
+                        <span class="team-activity-metric-value">{{ filled($agent->sessionsToday) ? number_format($agent->sessionsToday) : '—' }}</span>
+                        <span class="team-activity-metric-value"><x-team-activity.duration :value="$latestElapsed ?: '—'" /></span>
+                        <span class="team-activity-metric-value"><x-team-activity.duration :value="$previousElapsed ?: '—'" /></span>
+                    </span>
+                @elseif(! $hasLivePresence)
+                    <span class="team-activity-presence-metrics team-activity-presence-metrics--empty" aria-hidden="true">—</span>
+                @endif
+            </div>
         </span>
 
         <span class="team-activity-col team-activity-col--latest" role="cell">

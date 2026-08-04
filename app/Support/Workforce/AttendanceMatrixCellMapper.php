@@ -10,6 +10,23 @@ use Illuminate\Support\Carbon;
 class AttendanceMatrixCellMapper
 {
     /**
+     * Minutes late for today when the register already classifies the day as Late.
+     * Returns null for Present / Leave / Holiday / Weekly Off / etc.
+     */
+    public function lateMinutesForDisplay(?WorkforceAttendanceDay $day, Carbon $today): ?int
+    {
+        if ($day === null) {
+            return null;
+        }
+
+        if ($this->kindFor($day, $today, $today) !== AttendanceMatrixCellKind::Late) {
+            return null;
+        }
+
+        return max(0, (int) ($day->minutes_late ?? 0));
+    }
+
+    /**
      * Map a register day (or lack thereof) into a presentation kind.
      * Does not invent attendance math — only classifies existing register values.
      */

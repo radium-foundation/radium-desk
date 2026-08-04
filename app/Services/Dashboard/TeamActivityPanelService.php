@@ -145,6 +145,7 @@ class TeamActivityPanelService
                 pendingCasesCount: $pendingMetrics?->pendingCount,
                 overdueCasesCount: $pendingMetrics?->overdueCount,
                 previousActivityAt: $previousActivityAtByUser[$userId] ?? null,
+                minutesLate: $presenceMetrics?->minutesLate,
             );
         }
 

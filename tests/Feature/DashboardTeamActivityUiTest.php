@@ -56,7 +56,8 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('SP', $html);
         $this->assertStringContainsString('>Shipra<', $html);
         $this->assertStringContainsString('title="Shipra Patel"', $html);
-        $this->assertStringContainsString('team-activity-member-status--working', $html);
+        $this->assertStringContainsString('team-activity-status-pill--working', $html);
+        $this->assertStringContainsString('team-activity-live-presence', $html);
     }
 
     public function test_zero_activity_count_renders_emphasized_kpi(): void
@@ -170,7 +171,8 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $this->assertStringContainsString('team-activity-calendar-pill', $html);
         $this->assertStringContainsString('Weekly Off', $html);
-        $this->assertStringContainsString('team-activity-member-status--working', $html);
+        $this->assertStringContainsString('team-activity-status-pill--working', $html);
+        $this->assertStringContainsString('team-activity-live-presence', $html);
     }
 
     public function test_ira_virtual_row_uses_ira_avatar_and_status_ring(): void
@@ -183,7 +185,7 @@ class DashboardTeamActivityUiTest extends TestCase
         $this->assertStringContainsString('is-virtual', $html);
         $this->assertStringContainsString('team-activity-avatar--ira', $html);
         $this->assertStringContainsString('team-activity-avatar--virtual', $html);
-        $this->assertStringContainsString('team-activity-member-status--ira', $html);
+        $this->assertStringContainsString('team-activity-status-pill--ira', $html);
         $this->assertStringContainsString('team-activity-kpi--ira', $html);
         $this->assertStringContainsString('team-activity-kpi-supplementary', $html);
         $this->assertStringNotContainsString('calendar-pill__icon', $html);
@@ -208,9 +210,9 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $html = $this->panelHtml($viewer);
 
-        $this->assertStringContainsString('team-activity-member-status--auto_logout', $html);
+        $this->assertStringContainsString('team-activity-status-pill--auto_logout', $html);
         $this->assertStringContainsString('Auto Logged Out', $html);
-        $this->assertStringContainsString('team-activity-member-status--offline', $html);
+        $this->assertStringContainsString('team-activity-status-pill--offline', $html);
 
         Carbon::setTestNow(Carbon::parse('2026-07-26 11:00:00', 'Asia/Kolkata'));
     }
@@ -229,11 +231,152 @@ class DashboardTeamActivityUiTest extends TestCase
 
         $html = $this->panelHtml($viewer);
 
-        $this->assertStringContainsString('team-activity-member-status--leave', $html);
+        $this->assertStringContainsString('team-activity-status-pill--leave', $html);
         $this->assertStringContainsString('On Leave', $html);
         $this->assertStringContainsString('team-activity-name', $html);
         $this->assertStringContainsString('Very Long Employee Name', $html);
         $this->assertStringContainsString('Annual Leave', $html);
+        $this->assertStringNotContainsString('team-activity-operational-indicator--late', $html);
+    }
+
+    public function test_late_employee_renders_secondary_indicator_in_presence_column(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-28 10:30:00', 'Asia/Kolkata'));
+
+        $viewer = $this->supervisor();
+        $late = $this->createAgent('Jayram Late');
+        $onTime = $this->createAgent('On Time Agent');
+
+        WorkSession::query()->create([
+            'user_id' => $late->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => Carbon::parse('2026-07-28 09:33:00', 'Asia/Kolkata'),
+            'on_time_login' => false,
+            'session_duration_seconds' => 3420,
+        ]);
+        WorkSession::query()->create([
+            'user_id' => $onTime->id,
+            'work_date' => now()->toDateString(),
+            'login_at' => Carbon::parse('2026-07-28 09:00:00', 'Asia/Kolkata'),
+            'on_time_login' => true,
+            'session_duration_seconds' => 5400,
+        ]);
+
+        app(\App\Services\Operations\AttendanceRegisterService::class)
+            ->refreshDay($late, now()->startOfDay(), now());
+        app(\App\Services\Operations\AttendanceRegisterService::class)
+            ->refreshDay($onTime, now()->startOfDay(), now());
+
+        $panel = app(TeamActivityPanelService::class)->build();
+        $lateRow = collect($panel->agents)->firstWhere('id', $late->id);
+        $onTimeRow = collect($panel->agents)->firstWhere('id', $onTime->id);
+
+        $this->assertNotNull($lateRow);
+        $this->assertSame(33, $lateRow->minutesLate);
+        $this->assertNotNull($onTimeRow);
+        $this->assertNull($onTimeRow->minutesLate);
+
+        $html = $this->panelHtml($viewer);
+        $lateHtml = $this->agentRowHtml($html, $late->id);
+
+        $this->assertStringContainsString('team-activity-live-presence', $lateHtml);
+        $this->assertStringContainsString('team-activity-operational-indicator--late', $lateHtml);
+        $this->assertStringContainsString('team-activity-operational-indicator__late-mark">L<', $lateHtml);
+        $this->assertStringContainsString('title="33m late"', $lateHtml);
+        $this->assertStringContainsString('aria-label="Active · L33m"', $lateHtml);
+        $this->assertStringContainsString('team-activity-status-pill--working', $lateHtml);
+        $this->assertStringContainsString('team-activity-presence-metrics', $lateHtml);
+        $this->assertStringNotContainsString('team-activity-member-status', $lateHtml);
+
+        $onTimeHtmlSlice = $this->agentRowHtml($html, $onTime->id);
+        $this->assertStringNotContainsString('team-activity-operational-indicator--late', $onTimeHtmlSlice);
+        $this->assertStringNotContainsString('L33m', $onTimeHtmlSlice);
+    }
+
+    public function test_leave_and_weekly_off_do_not_render_late_indicator(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-28 10:30:00', 'Asia/Kolkata'));
+
+        $viewer = $this->supervisor();
+        $onLeave = $this->createAgent('Leave Agent');
+        LeaveRequest::query()->create([
+            'user_id' => $onLeave->id,
+            'start_date' => now()->toDateString(),
+            'end_date' => now()->toDateString(),
+            'reason' => 'Annual Leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        $weeklyOff = $this->createAgent('Weekly Off Agent');
+        TeamMemberWorkSchedule::query()
+            ->where('user_id', $weeklyOff->id)
+            ->update(['weekly_off_days' => [now()->dayOfWeek]]);
+
+        app(\App\Services\Operations\AttendanceRegisterService::class)
+            ->refreshDay($onLeave, now()->startOfDay(), now());
+        app(\App\Services\Operations\AttendanceRegisterService::class)
+            ->refreshDay($weeklyOff, now()->startOfDay(), now());
+
+        $html = $this->panelHtml($viewer);
+
+        $leaveHtml = $this->agentRowHtml($html, $onLeave->id);
+        $weeklyHtml = $this->agentRowHtml($html, $weeklyOff->id);
+
+        $this->assertStringContainsString('team-activity-status-pill--leave', $leaveHtml);
+        $this->assertStringContainsString('Annual Leave', $leaveHtml);
+        $this->assertStringNotContainsString('team-activity-operational-indicator--late', $leaveHtml);
+
+        $this->assertStringContainsString('Weekly Off', $weeklyHtml);
+        $this->assertStringNotContainsString('team-activity-operational-indicator--late', $weeklyHtml);
+    }
+
+    public function test_holiday_renders_calendar_badge_without_late_indicator(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-28 10:30:00', 'Asia/Kolkata'));
+
+        $viewer = $this->supervisor();
+        $agent = $this->createAgent('Holiday Agent');
+
+        \App\Models\CompanyHoliday::query()->create([
+            'holiday_date' => now()->toDateString(),
+            'name' => 'Independence Day',
+            'type' => \App\Enums\CompanyHolidayType::Company,
+        ]);
+
+        app(\App\Services\Operations\AttendanceRegisterService::class)
+            ->refreshDay($agent, now()->startOfDay(), now());
+
+        $html = $this->panelHtml($viewer);
+        $rowHtml = $this->agentRowHtml($html, $agent->id);
+
+        $this->assertStringContainsString('team-activity-calendar-pill', $rowHtml);
+        $this->assertStringContainsString('Holiday', $rowHtml);
+        $this->assertStringNotContainsString('team-activity-operational-indicator--late', $rowHtml);
+    }
+
+    public function test_presence_column_layout_classes_are_present(): void
+    {
+        $viewer = $this->supervisor();
+        $this->createAgent('Layout Agent', startSession: true);
+
+        $html = $this->panelHtml($viewer);
+
+        $this->assertStringContainsString('team-activity-presence-layout', $html);
+        $this->assertStringContainsString('team-activity-presence-metrics', $html);
+        $this->assertStringContainsString('team-activity-presence-header', $html);
+    }
+
+    private function agentRowHtml(string $panelHtml, int $agentId): string
+    {
+        if (! preg_match(
+            '/data-team-activity-agent="'.$agentId.'"[^>]*>.*?(?=<li class="team-activity-row|<\/ul>)/s',
+            $panelHtml,
+            $matches,
+        )) {
+            $this->fail("Could not isolate Team Activity row for agent {$agentId}");
+        }
+
+        return $matches[0];
     }
 
     private function panelHtml(User $viewer): string

@@ -61,6 +61,46 @@ class AttendanceMatrixCellMapperTest extends TestCase
         }
     }
 
+    public function test_late_minutes_for_display_reuses_register_late_kind(): void
+    {
+        $today = Carbon::parse('2026-07-15');
+
+        $late = new WorkforceAttendanceDay([
+            'status' => AttendanceDayStatus::Active,
+            'is_working_day' => true,
+            'is_company_holiday' => false,
+            'on_time_login' => false,
+            'minutes_late' => 33,
+        ]);
+        $onTime = new WorkforceAttendanceDay([
+            'status' => AttendanceDayStatus::Active,
+            'is_working_day' => true,
+            'is_company_holiday' => false,
+            'on_time_login' => true,
+            'minutes_late' => null,
+        ]);
+        $leave = new WorkforceAttendanceDay([
+            'status' => AttendanceDayStatus::OnLeave,
+            'is_working_day' => true,
+            'is_company_holiday' => false,
+            'on_time_login' => null,
+            'minutes_late' => 20,
+        ]);
+        $weeklyOff = new WorkforceAttendanceDay([
+            'status' => AttendanceDayStatus::ScheduledOff,
+            'is_working_day' => false,
+            'is_company_holiday' => false,
+            'on_time_login' => null,
+            'minutes_late' => null,
+        ]);
+
+        $this->assertSame(33, $this->mapper->lateMinutesForDisplay($late, $today));
+        $this->assertNull($this->mapper->lateMinutesForDisplay($onTime, $today));
+        $this->assertNull($this->mapper->lateMinutesForDisplay($leave, $today));
+        $this->assertNull($this->mapper->lateMinutesForDisplay($weeklyOff, $today));
+        $this->assertNull($this->mapper->lateMinutesForDisplay(null, $today));
+    }
+
     public function test_tooltip_includes_login_leave_and_holiday_context(): void
     {
         $day = new WorkforceAttendanceDay([

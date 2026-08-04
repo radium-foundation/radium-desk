@@ -5,7 +5,6 @@ namespace Tests\Unit\Dashboard;
 use App\Data\TeamActivityAgentRow;
 use App\Enums\TeamActivityStatus;
 use App\Support\Dashboard\TeamActivityMemberStatusPresenter;
-use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class TeamActivityMemberStatusPresenterTest extends TestCase
@@ -18,12 +17,20 @@ class TeamActivityMemberStatusPresenterTest extends TestCase
         $this->assertSame('18m', $presenter->contextLabel($agent, '5m'));
     }
 
-    public function test_context_label_uses_leave_reason_for_on_leave(): void
+    public function test_secondary_context_omits_duration_for_active_states(): void
+    {
+        $presenter = app(TeamActivityMemberStatusPresenter::class);
+        $agent = $this->agentRow(TeamActivityStatus::Working, currentDurationLabel: '18m');
+
+        $this->assertNull($presenter->secondaryContextLabel($agent, '5m'));
+    }
+
+    public function test_secondary_context_uses_leave_reason_for_on_leave(): void
     {
         $presenter = app(TeamActivityMemberStatusPresenter::class);
         $agent = $this->agentRow(TeamActivityStatus::Leave, workingLabel: 'Annual Leave');
 
-        $this->assertSame('Annual Leave', $presenter->contextLabel($agent, null));
+        $this->assertSame('Annual Leave', $presenter->secondaryContextLabel($agent, null));
     }
 
     public function test_context_label_is_null_for_offline(): void
@@ -34,12 +41,62 @@ class TeamActivityMemberStatusPresenterTest extends TestCase
         $this->assertNull($presenter->contextLabel($agent, '12 min'));
     }
 
-    public function test_aria_label_joins_status_and_context(): void
+    public function test_presence_aria_label_for_active_omits_current_duration(): void
     {
         $presenter = app(TeamActivityMemberStatusPresenter::class);
         $agent = $this->agentRow(TeamActivityStatus::Working, currentDurationLabel: '4m', statusLabel: 'Active');
 
-        $this->assertSame('Active · 4m', $presenter->ariaLabel($agent, null));
+        $this->assertSame('Active', $presenter->presenceAriaLabel($agent, null));
+    }
+
+    public function test_presence_aria_label_includes_late_without_current_duration(): void
+    {
+        $presenter = app(TeamActivityMemberStatusPresenter::class);
+        $agent = $this->agentRow(
+            TeamActivityStatus::Working,
+            currentDurationLabel: '37m',
+            statusLabel: 'Active',
+            minutesLate: 33,
+        );
+
+        $this->assertSame('33m', $presenter->lateDurationLabel($agent));
+        $this->assertSame('Active · L33m', $presenter->presenceAriaLabel($agent, null));
+    }
+
+    public function test_idle_presence_aria_label_includes_late_only(): void
+    {
+        $presenter = app(TeamActivityMemberStatusPresenter::class);
+        $agent = $this->agentRow(
+            TeamActivityStatus::Idle,
+            currentDurationLabel: '15m',
+            statusLabel: 'Idle',
+            minutesLate: 8,
+        );
+
+        $this->assertSame('Idle · L8m', $presenter->presenceAriaLabel($agent, null));
+    }
+
+    public function test_late_indicator_suppressed_for_leave_and_non_late(): void
+    {
+        $presenter = app(TeamActivityMemberStatusPresenter::class);
+
+        $leave = $this->agentRow(
+            TeamActivityStatus::Leave,
+            workingLabel: 'Annual Leave',
+            statusLabel: 'On Leave',
+            minutesLate: 20,
+        );
+        $onTime = $this->agentRow(
+            TeamActivityStatus::Working,
+            currentDurationLabel: '12m',
+            statusLabel: 'Active',
+            minutesLate: null,
+        );
+
+        $this->assertNull($presenter->lateDurationLabel($leave));
+        $this->assertSame('On Leave · Annual Leave', $presenter->presenceAriaLabel($leave, null));
+        $this->assertNull($presenter->lateDurationLabel($onTime));
+        $this->assertSame('Active', $presenter->presenceAriaLabel($onTime, null));
     }
 
     public function test_normalize_duration_formats_compact_presence_values(): void
@@ -58,6 +115,7 @@ class TeamActivityMemberStatusPresenterTest extends TestCase
         ?string $currentDurationLabel = null,
         ?string $workingLabel = null,
         string $statusLabel = 'Active',
+        ?int $minutesLate = null,
     ): TeamActivityAgentRow {
         return new TeamActivityAgentRow(
             id: 1,
@@ -73,6 +131,7 @@ class TeamActivityMemberStatusPresenterTest extends TestCase
             expanded: false,
             isVirtual: false,
             currentDurationLabel: $currentDurationLabel,
+            minutesLate: $minutesLate,
         );
     }
 }

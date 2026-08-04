@@ -34,14 +34,17 @@
                     <span class="team-activity-grid-header__cell team-activity-col--member" role="columnheader">Team Member</span>
                     <span class="team-activity-grid-header__cell team-activity-col--presence team-activity-grid-header__cell--presence" role="columnheader">
                         <span class="team-activity-grid-header__title">Presence</span>
-                        <span class="team-activity-grid-header__sub team-activity-presence-head" aria-hidden="true">
-                            <span>Today</span>
-                            <span>Current</span>
-                            <span>Sessions</span>
-                            <span>Latest</span>
-                            <span>Previous</span>
+                        <span class="team-activity-presence-header" aria-hidden="true">
+                            <span class="team-activity-presence-header__state"></span>
+                            <span class="team-activity-presence-head">
+                                <span>Today</span>
+                                <span>Current</span>
+                                <span>Sessions</span>
+                                <span>Latest</span>
+                                <span>Previous</span>
+                            </span>
                         </span>
-                        <span class="visually-hidden">Today, Current, Sessions, Latest, Previous</span>
+                        <span class="visually-hidden">Live state, Today, Current, Sessions, Latest, Previous</span>
                     </span>
                     <span class="team-activity-grid-header__cell team-activity-col--latest" role="columnheader">Latest Event</span>
                     <span class="team-activity-grid-header__cell team-activity-col--calls" role="columnheader">Calls</span>

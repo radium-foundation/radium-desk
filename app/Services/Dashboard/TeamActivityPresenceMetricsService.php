@@ -87,6 +87,7 @@ class TeamActivityPresenceMetricsService
             currentDurationLabel: $currentSeconds !== null
                 ? $this->presenceEngine->formatDuration($currentSeconds)
                 : null,
+            minutesLate: $hours->minutesLate,
         );
     }
 }

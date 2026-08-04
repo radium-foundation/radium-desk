@@ -11,5 +11,6 @@ readonly class TeamActivityPresenceMetrics
         public bool $hasOpenSession,
         public ?string $todayDurationLabel = null,
         public ?string $currentDurationLabel = null,
+        public ?int $minutesLate = null,
     ) {}
 }

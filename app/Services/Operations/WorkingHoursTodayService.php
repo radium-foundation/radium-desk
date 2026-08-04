@@ -6,6 +6,7 @@ use App\Data\Operations\WorkingHoursToday;
 use App\Models\User;
 use App\Models\WorkSession;
 use App\Models\WorkforceAttendanceDay;
+use App\Support\Workforce\AttendanceMatrixCellMapper;
 use Illuminate\Support\Carbon;
 
 /**
@@ -19,6 +20,7 @@ class WorkingHoursTodayService
     public function __construct(
         private readonly AttendanceRegisterService $attendanceRegister,
         private readonly PresenceEngineService $presenceEngine,
+        private readonly AttendanceMatrixCellMapper $attendanceMatrixCellMapper,
     ) {}
 
     /**
@@ -122,6 +124,8 @@ class WorkingHoursTodayService
             activeDurationSeconds: $seconds,
             label: $this->presenceEngine->formatDuration($seconds),
             sessionCount: (int) $day->session_count,
+            onTimeLogin: $day->on_time_login,
+            minutesLate: $this->attendanceMatrixCellMapper->lateMinutesForDisplay($day, $workDate),
         );
     }
 
