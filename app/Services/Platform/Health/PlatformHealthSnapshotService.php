@@ -46,10 +46,13 @@ class PlatformHealthSnapshotService
     }
 
     /**
-     * Overall Platform Health from enabled infrastructure only.
+     * Overall status of the Platform Health snapshot from enabled infrastructure only.
      *
      * Disabled components stay on their cards for information, but must not
      * degrade the shared snapshot overall status.
+     *
+     * Distinct from the Platform page banner (Overall System Health), which
+     * combines Platform Health + Integration Health + Operations Snapshot.
      *
      * @param  list<PlatformHealthComponent>  $components
      */

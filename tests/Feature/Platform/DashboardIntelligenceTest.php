@@ -295,6 +295,7 @@ class DashboardIntelligenceTest extends TestCase
             ->get(route('admin.platform.index'))
             ->assertOk()
             ->assertSee('data-platform-overall-health', false)
-            ->assertSee('Overall Platform Health', false);
+            ->assertSee('Overall System Health', false)
+            ->assertDontSee('Overall Platform Health', false);
     }
 }

@@ -4,16 +4,20 @@
 
 @php
     /** @var \App\Data\Platform\PlatformOverallHealth $overallHealth */
+    use App\Support\Platform\OverallSystemHealthPresentation;
 @endphp
 
 <div
     class="platform-overall-health mb-3"
     data-platform-overall-health
     data-status="{{ $overallHealth->status->value }}"
+    role="status"
+    aria-label="{{ OverallSystemHealthPresentation::TITLE }}: {{ $overallHealth->statusLabel }}"
+    title="{{ OverallSystemHealthPresentation::TOOLTIP }}"
 >
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 py-2 px-3 border rounded-3 bg-body-tertiary">
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <span class="text-muted small text-uppercase fw-semibold">Overall Platform Health</span>
+            <span class="text-muted small text-uppercase fw-semibold">{{ OverallSystemHealthPresentation::TITLE }}</span>
             <span class="badge text-bg-{{ $overallHealth->status->badgeClass() }}">{{ $overallHealth->statusLabel }}</span>
             @if($overallHealth->scorePercent !== null)
                 <span class="small fw-semibold">{{ $overallHealth->scorePercent }}%</span>

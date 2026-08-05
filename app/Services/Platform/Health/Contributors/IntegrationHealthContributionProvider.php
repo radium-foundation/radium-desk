@@ -10,10 +10,10 @@ use App\Services\Platform\PlatformIntegrationHealthOverviewService;
 use Illuminate\Support\Carbon;
 
 /**
- * Feeds Integration Health into Overall Mission Health.
+ * Feeds Integration Health into Overall System Health.
  *
  * NotConfigured / Disabled items are configuration state — they remain visible
- * on the Integration Health zone but are excluded from Mission Health scoring.
+ * on the Integration Health zone but are excluded from Overall System Health scoring.
  */
 class IntegrationHealthContributionProvider implements PlatformHealthContributor
 {
@@ -88,7 +88,7 @@ class IntegrationHealthContributionProvider implements PlatformHealthContributor
     }
 
     /**
-     * Map configured/live integration item statuses for Mission Health only.
+     * Map configured/live integration item statuses for Overall System Health only.
      * Skips NotConfigured and Disabled (configuration state).
      *
      * @param  list<mixed>  $items

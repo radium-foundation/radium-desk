@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\Platform\PlatformCardRegistry;
 use App\Services\Platform\Warmers\PlatformWarmingActor;
 use App\Support\Platform\OperationsSnapshotPresentation;
+use App\Support\Platform\OperationsSnapshotScoring;
 
 /**
  * Wraps existing executive metric cards for async refresh only.
@@ -67,7 +68,8 @@ class ExecutiveSnapshotZone extends AbstractPlatformZone
             'variant' => 'executive',
         ])->render();
 
-        $status = $this->worstStatus($cards);
+        $status = OperationsSnapshotScoring::aggregateStatus($cards);
+        $pressure = OperationsSnapshotScoring::operationalPressurePercent($cards);
 
         return $this->makeSnapshot(
             status: $status,
@@ -75,25 +77,9 @@ class ExecutiveSnapshotZone extends AbstractPlatformZone
             summary: [
                 'state' => 'ready',
                 'card_count' => count($cards),
+                'operational_pressure_percent' => $pressure,
             ],
             statusLabel: OperationsSnapshotPresentation::statusLabel($status),
-        );
-    }
-
-    /**
-     * @param  list<PlatformCardPayload>  $cards
-     */
-    private function worstStatus(array $cards): PlatformHealthStatus
-    {
-        if ($cards === []) {
-            return PlatformHealthStatus::Disabled;
-        }
-
-        return PlatformHealthStatus::worst(
-            ...array_map(
-                static fn (PlatformCardPayload $card): PlatformHealthStatus => $card->status,
-                $cards,
-            ),
         );
     }
 }
