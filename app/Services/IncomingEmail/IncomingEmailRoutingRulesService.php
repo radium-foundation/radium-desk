@@ -145,6 +145,13 @@ class IncomingEmailRoutingRulesService
         return $this->matchesRuleSet($message, config('inbound_email.routing.sales', []));
     }
 
+    public function matchesSalesSignals(IncomingEmailMessage $message): bool
+    {
+        $classification = $message->classification ?? IncomingEmailClassification::UnknownCustomer;
+
+        return $this->matchesSales($message, $classification);
+    }
+
     private function matchesSupport(
         IncomingEmailMessage $message,
         IncomingEmailClassification $classification,

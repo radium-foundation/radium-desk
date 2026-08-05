@@ -97,7 +97,7 @@
                             'serviceCaseHasMore' => $serviceCaseHasMore ?? false,
                             'canManageTransactions' => $canManageTransactions ?? false,
                             'compactAgentLayout' => $usesAgentDashboard,
-                            'emailIntakeCounters' => $stats['email_intake_counters'] ?? [],
+                            'emailIntakeWidget' => $stats['email_intake_widget'] ?? null,
                         ])
                     @endif
                 </div>

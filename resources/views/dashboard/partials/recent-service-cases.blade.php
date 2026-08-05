@@ -138,8 +138,8 @@
                         @endforeach
 
                         @if($compactAgentLayout ?? false)
-                            @include('dashboard.partials.email-intake-counters', [
-                                'counters' => $emailIntakeCounters ?? [],
+                            @include('dashboard.partials.email-intake-kpi-card', [
+                                'widget' => $emailIntakeWidget ?? null,
                             ])
                         @endif
                     </div>

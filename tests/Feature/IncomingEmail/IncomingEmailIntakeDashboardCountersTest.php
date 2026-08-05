@@ -3,6 +3,7 @@
 namespace Tests\Feature\IncomingEmail;
 
 use App\Data\IncomingEmail\NormalizedInboundEmail;
+use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailIntakeQueue;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Models\IncomingEmailIgnoreStat;
@@ -48,7 +49,7 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
         ])->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
     }
 
-    public function test_counters_hide_at_zero_and_show_needs_human_on_dashboard(): void
+    public function test_dashboard_shows_email_intake_kpi_card_when_needs_attention_exists(): void
     {
         $admin = $this->createAdmin('email-admin@test.com');
 
@@ -60,16 +61,15 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
             'subject' => 'Help needed',
             'preview' => 'Please assist.',
             'status' => IncomingEmailMessageStatus::NeedsReview,
+            'classification' => IncomingEmailClassification::UnknownCustomer,
             'received_at' => now(),
         ]);
 
         $html = (string) $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('data-email-intake-counters', $html);
-        $this->assertStringContainsString('dashboard-email-intake-counter', $html);
+        $this->assertStringContainsString('data-email-intake-kpi', $html);
+        $this->assertStringContainsString('Email Intake', $html);
         $this->assertStringContainsString('admin/incoming-emails?queue=needs_human', $html);
-        $this->assertStringNotContainsString('queue=promotional', $html);
-        $this->assertStringNotContainsString('queue=spam', $html);
     }
 
     public function test_ignore_stat_counters_map_to_promotional_spam_and_automatic_queues(): void
@@ -102,7 +102,7 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
         $this->assertSame(4, collect($counters)->firstWhere('queue', IncomingEmailIntakeQueue::Promotional->value)['count']);
     }
 
-    public function test_agent_without_email_admin_permission_does_not_see_counters(): void
+    public function test_agent_without_email_admin_permission_does_not_see_widget(): void
     {
         $agent = User::factory()->create();
         $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
@@ -118,10 +118,10 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
             'received_at' => now(),
         ]);
 
-        $this->assertSame([], app(IncomingEmailIntakeCounterService::class)->visibleCounters($agent));
+        $this->assertNull(app(IncomingEmailIntakeCounterService::class)->dashboardWidget($agent));
 
         $html = (string) $this->actingAs($agent)->get(route('dashboard'))->assertOk()->getContent();
-        $this->assertStringNotContainsString('data-email-intake-counters', $html);
+        $this->assertStringNotContainsString('data-email-intake-kpi', $html);
     }
 
     public function test_admin_index_filters_needs_human_and_spam_queues(): void

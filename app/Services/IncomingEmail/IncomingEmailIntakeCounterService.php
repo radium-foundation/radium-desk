@@ -3,6 +3,7 @@
 namespace App\Services\IncomingEmail;
 
 use App\Enums\IncomingEmailClassification;
+use App\Enums\IncomingEmailAttentionCategory;
 use App\Enums\IncomingEmailIntakeQueue;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Models\IncomingEmailIgnoreStat;
@@ -14,6 +15,75 @@ use Illuminate\Support\Carbon;
 
 class IncomingEmailIntakeCounterService
 {
+    public function __construct(
+        private readonly IncomingEmailAttentionCategoryService $attentionCategoryService,
+    ) {}
+
+    /**
+     * @return array{
+     *     title: string,
+     *     subtitle: string,
+     *     needs_attention: int,
+     *     severity: string,
+     *     url: string,
+     *     hover: array{
+     *         needs_attention: list<array{label: string, count: int}>,
+     *         ignored: list<array{label: string, count: int}>
+     *     }
+     * }|null
+     */
+    public function dashboardWidget(?User $user = null, ?Carbon $statDate = null): ?array
+    {
+        $user ??= auth()->user();
+
+        if (! $this->canView($user)) {
+            return null;
+        }
+
+        $statDate ??= now();
+        $attention = $this->attentionCategoryService->aggregateCounts();
+        $ignoredCounts = $this->counts($statDate);
+
+        $needsAttention = $attention['sales'] + $attention['orders'] + $attention['priority'];
+
+        return [
+            'title' => 'Email Intake',
+            'subtitle' => 'Needs Attention',
+            'needs_attention' => $needsAttention,
+            'severity' => $this->severityForCount($needsAttention),
+            'url' => route('admin.incoming-emails.index', ['queue' => IncomingEmailIntakeQueue::NeedsHuman->value]),
+            'hover' => [
+                'needs_attention' => [
+                    ['label' => IncomingEmailAttentionCategory::Sales->label(), 'count' => $attention['sales']],
+                    ['label' => IncomingEmailAttentionCategory::Orders->label(), 'count' => $attention['orders']],
+                    ['label' => IncomingEmailAttentionCategory::Priority->label(), 'count' => $attention['priority']],
+                ],
+                'ignored' => [
+                    ['label' => 'Promotions', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Promotional->value] ?? 0],
+                    ['label' => 'Spam', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Spam->value] ?? 0],
+                    ['label' => 'Automatic', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Automatic->value] ?? 0],
+                ],
+            ],
+        ];
+    }
+
+    public function severityForCount(int $count): string
+    {
+        if ($count <= 0) {
+            return 'normal';
+        }
+
+        if ($count <= 5) {
+            return 'blue';
+        }
+
+        if ($count <= 15) {
+            return 'amber';
+        }
+
+        return 'red';
+    }
+
     /**
      * @return array<string, int>
      */

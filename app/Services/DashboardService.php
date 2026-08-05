@@ -72,8 +72,8 @@ class DashboardService
             'total_active_cases' => $activeKpis['total_active_cases'],
         ];
 
-        $stats['email_intake_counters'] = app(IncomingEmailIntakeCounterService::class)
-            ->visibleCounters($user);
+        $stats['email_intake_widget'] = app(IncomingEmailIntakeCounterService::class)
+            ->dashboardWidget($user);
 
         if ($roles->usesSupportQueues($user)) {
             $stats = [

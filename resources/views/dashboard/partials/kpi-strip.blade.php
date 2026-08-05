@@ -100,8 +100,8 @@
         @include('dashboard.partials.kpi-strip-item', $item)
     @endforeach
 
-    @include('dashboard.partials.email-intake-counters', [
-        'counters' => $stats['email_intake_counters'] ?? [],
+    @include('dashboard.partials.email-intake-kpi-card', [
+        'widget' => $stats['email_intake_widget'] ?? null,
     ])
 @endif
 </div>

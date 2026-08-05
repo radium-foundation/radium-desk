@@ -94,6 +94,21 @@ return [
         'refund_round_robin_cursor' => 'assignment.inbound_email_refund_round_robin_last_user_id',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Priority phrase detection (Dashboard V2 + attention categorization)
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated phrases in INBOUND_EMAIL_PRIORITY_PHRASES. No defaults in
+    | code — configure per environment.
+    |
+    */
+
+    'priority_phrases' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('INBOUND_EMAIL_PRIORITY_PHRASES', '')),
+    ))),
+
     'preview_max_chars' => (int) env('INBOUND_EMAIL_PREVIEW_MAX_CHARS', 500),
 
     /*

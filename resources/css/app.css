@@ -725,6 +725,122 @@ a.dashboard-u-hover-lift:focus-visible {
     align-items: center;
 }
 
+.dashboard-email-intake-kpi {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    min-width: 7.5rem;
+    min-height: 4.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    color: inherit;
+}
+
+.dashboard-email-intake-kpi--blue {
+    border-color: rgba(37, 99, 235, 0.55);
+}
+
+.dashboard-email-intake-kpi--amber {
+    border-color: rgba(245, 158, 11, 0.65);
+}
+
+.dashboard-email-intake-kpi--red {
+    border-color: rgba(220, 38, 38, 0.65);
+}
+
+.dashboard-email-intake-kpi__body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    text-align: center;
+}
+
+.dashboard-email-intake-kpi__title {
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: var(--dashboard-color-muted-light);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dashboard-email-intake-kpi__value {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--dashboard-color-text);
+    line-height: 1.1;
+}
+
+.dashboard-email-intake-kpi__subtitle {
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: var(--dashboard-color-muted);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.dashboard-email-intake-kpi__hover {
+    display: none;
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 0.5rem);
+    transform: translateX(-50%);
+    min-width: 12rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    z-index: 20;
+    pointer-events: none;
+}
+
+.dashboard-email-intake-kpi:hover .dashboard-email-intake-kpi__hover,
+.dashboard-email-intake-kpi:focus-visible .dashboard-email-intake-kpi__hover {
+    display: block;
+}
+
+.dashboard-email-intake-kpi__hover-title {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: var(--dashboard-color-text);
+    margin-bottom: 0.375rem;
+}
+
+.dashboard-email-intake-kpi__hover-list {
+    margin: 0;
+}
+
+.dashboard-email-intake-kpi__hover-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.6875rem;
+    line-height: 1.4;
+}
+
+.dashboard-email-intake-kpi__hover-row dt {
+    margin: 0;
+    font-weight: 500;
+    color: var(--dashboard-color-muted);
+}
+
+.dashboard-email-intake-kpi__hover-row dd {
+    margin: 0;
+    font-weight: 700;
+    color: var(--dashboard-color-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-email-intake-kpi__hover-divider {
+    height: 1px;
+    margin: 0.375rem 0;
+    background: rgba(148, 163, 184, 0.25);
+}
+
 .dashboard-email-intake-counters {
     display: inline-flex;
     flex-wrap: wrap;
