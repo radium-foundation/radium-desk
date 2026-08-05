@@ -563,7 +563,7 @@ class RefundRequestTest extends TestCase
             ->assertSessionHasErrors('refund_amount');
     }
 
-    public function test_service_case_stays_open_when_customer_notification_fails(): void
+    public function test_service_case_closes_when_customer_notification_fails(): void
     {
         $ops = User::factory()->create();
         $ops->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
@@ -581,7 +581,7 @@ class RefundRequestTest extends TestCase
             'reference_no' => 'REF-2026-000451',
             'amount' => 1000,
             'refund_amount' => 1000,
-            'reason' => 'Customer notification failure should keep the service case open.',
+            'reason' => 'Customer notification failure must not block case close.',
             'status' => RefundStatus::PendingExecution,
             'approved_refund_method' => ApprovedRefundMethod::Cashfree,
             'requested_by' => $ops->id,
@@ -601,11 +601,18 @@ class RefundRequestTest extends TestCase
         $refund->refresh();
         $incident->refresh();
 
-        $this->assertSame(RefundStatus::Completed, $refund->status);
-        $this->assertSame('open', $incident->status->value);
+        $this->assertSame(RefundStatus::Closed, $refund->status);
+        $this->assertSame('closed', $incident->status->value);
+        $this->assertNotNull($refund->closed_at);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'refund.customer_notified',
+            'auditable_type' => $refund->getMorphClass(),
+            'auditable_id' => $refund->id,
+        ]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'refund.closed',
             'auditable_type' => $refund->getMorphClass(),
             'auditable_id' => $refund->id,
         ]);

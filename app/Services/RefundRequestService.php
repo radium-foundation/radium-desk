@@ -17,7 +17,9 @@ use App\Services\Operations\TeamMemberActivityService;
 use App\Services\Refunds\RefundExecutorResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class RefundRequestService
 {
@@ -423,25 +425,37 @@ class RefundRequestService
 
         RefundCompleted::dispatch($completed, $user);
 
-        $customerNotified = $this->notificationService->notifyCustomer(
-            refund: $completed,
-            actor: $user,
-            channels: $completed->communication_channels,
-            request: $request,
-        );
-
-        if ($customerNotified === false) {
-            return $completed->fresh() ?? $completed;
-        }
-
-        $this->notificationService->notifyRequesterOfDecision(
-            $completed->fresh(['requester']) ?? $completed,
-            'completed',
-        );
-
+        // Business close is independent of customer/requester notifications.
         $this->caseCloseService->closeLinkedCase($completed, $user, $request);
 
-        return $completed->fresh() ?? $completed;
+        $closed = $completed->fresh(['requester']) ?? $completed;
+
+        try {
+            $this->notificationService->notifyCustomer(
+                refund: $closed,
+                actor: $user,
+                channels: $closed->communication_channels,
+                request: $request,
+            );
+        } catch (Throwable $exception) {
+            Log::warning('[Refunds] Customer notification failed after refund completion; workflow continued.', [
+                'refund_id' => $closed->id,
+                'reference_no' => $closed->reference_no,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        try {
+            $this->notificationService->notifyRequesterOfDecision($closed, 'completed');
+        } catch (Throwable $exception) {
+            Log::warning('[Refunds] Requester notification failed after refund completion; workflow continued.', [
+                'refund_id' => $closed->id,
+                'reference_no' => $closed->reference_no,
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        return $closed->fresh() ?? $closed;
     }
 
     public function delete(RefundRequest $refund, User $user, Request $request): void

@@ -20,6 +20,7 @@ use App\Services\Telegram\TelegramBotService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class RefundNotificationService
@@ -56,21 +57,45 @@ class RefundNotificationService
             return;
         }
 
-        $this->dispatchAgentFacingNotification(
-            recipient: $requester,
-            refund: $refund,
-            inAppNotification: new RefundRequestDecisionNotification($refund, $trigger),
-            telegramTitle: $this->decisionTelegramTitle($refund),
-            telegramMessage: $this->formatDecisionTelegramMessage($refund),
-            trigger: $trigger,
-        );
+        try {
+            $this->dispatchAgentFacingNotification(
+                recipient: $requester,
+                refund: $refund,
+                inAppNotification: new RefundRequestDecisionNotification($refund, $trigger),
+                telegramTitle: $this->decisionTelegramTitle($refund),
+                telegramMessage: $this->formatDecisionTelegramMessage($refund),
+                trigger: $trigger,
+            );
+        } catch (Throwable $exception) {
+            Log::warning('[Refunds] Requester notification failed; workflow continued.', [
+                'refund_id' => $refund->id,
+                'reference_no' => $refund->reference_no,
+                'trigger' => $trigger,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $this->auditLogService->log(
+                userId: $refund->requested_by,
+                event: 'refund.requester_notification_failed',
+                auditable: $refund,
+                newValues: [
+                    'recipient_id' => $requester->id,
+                    'trigger' => $trigger,
+                    'status' => $refund->status->value,
+                    'reference_no' => $refund->reference_no,
+                    'error' => $exception->getMessage(),
+                ],
+            );
+        }
     }
 
     /**
      * Send refund_confirmation via the Communication Actions framework.
      *
+     * Best-effort communication only — callers must not gate business close on the result.
+     *
      * @param  list<string>|null  $channels
-     * @return bool|null true when sent, false when required but failed, null when skipped
+     * @return bool|null true when sent, false when attempted but failed, null when skipped
      */
     public function notifyCustomer(
         RefundRequest $refund,
@@ -86,13 +111,31 @@ class RefundNotificationService
         ));
 
         if ($selectedChannels === []) {
+            $this->auditCustomerNotification(
+                refund: $refund,
+                actor: $actor,
+                channels: $selectedChannels,
+                outcome: 'skipped',
+                success: null,
+                request: $request,
+                reason: 'No communication channels selected.',
+            );
+
             return null;
         }
 
         $incident = $refund->incident;
 
         if ($incident === null || $incident->order === null) {
-            $this->auditCustomerNotification($refund, $actor, $selectedChannels, false, $request);
+            $this->auditCustomerNotification(
+                refund: $refund,
+                actor: $actor,
+                channels: $selectedChannels,
+                outcome: 'failed',
+                success: false,
+                request: $request,
+                reason: 'Linked service case or order is missing.',
+            );
 
             return false;
         }
@@ -116,7 +159,15 @@ class RefundNotificationService
                 ->all();
 
             if ($allowedChannels === []) {
-                $this->auditCustomerNotification($refund, $actor, $selectedChannels, false, $request);
+                $this->auditCustomerNotification(
+                    refund: $refund,
+                    actor: $actor,
+                    channels: $selectedChannels,
+                    outcome: 'failed',
+                    success: false,
+                    request: $request,
+                    reason: 'No valid notification channels were selected.',
+                );
 
                 return false;
             }
@@ -140,10 +191,29 @@ class RefundNotificationService
                 allowedChannels: $allowedChannels,
             );
 
+            $results = $dispatchResult->results;
+            $allSkipped = $results !== [] && collect($results)->every(
+                fn (\App\Data\NotificationResult $result): bool => $result->isSkipped(),
+            );
+
+            if ($allSkipped) {
+                $this->auditCustomerNotification(
+                    refund: $refund,
+                    actor: $actor,
+                    channels: $selectedChannels,
+                    outcome: 'skipped',
+                    success: null,
+                    request: $request,
+                    reason: $dispatchResult->message ?? 'Notification channels skipped (template/channel not configured).',
+                );
+
+                return null;
+            }
+
             $success = $dispatchResult->success;
 
             if ($success) {
-                $sentChannels = collect($dispatchResult->results)
+                $sentChannels = collect($results)
                     ->filter(fn (\App\Data\NotificationResult $result): bool => $result->countsTowardSuccess())
                     ->map(fn (\App\Data\NotificationResult $result): string => $result->channel->value)
                     ->values()
@@ -156,13 +226,55 @@ class RefundNotificationService
                     channels: $sentChannels,
                     request: $request,
                 );
+
+                $this->auditCustomerNotification(
+                    refund: $refund,
+                    actor: $actor,
+                    channels: $selectedChannels,
+                    outcome: 'sent',
+                    success: true,
+                    request: $request,
+                    reason: $dispatchResult->message,
+                );
+
+                return true;
             }
 
-            $this->auditCustomerNotification($refund, $actor, $selectedChannels, $success, $request);
+            Log::warning('[Refunds] Customer notification failed; workflow continued.', [
+                'refund_id' => $refund->id,
+                'reference_no' => $refund->reference_no,
+                'channels' => $selectedChannels,
+                'message' => $dispatchResult->message,
+            ]);
 
-            return $success;
-        } catch (Throwable) {
-            $this->auditCustomerNotification($refund, $actor, $selectedChannels, false, $request);
+            $this->auditCustomerNotification(
+                refund: $refund,
+                actor: $actor,
+                channels: $selectedChannels,
+                outcome: 'failed',
+                success: false,
+                request: $request,
+                reason: $dispatchResult->message ?? 'Customer notification dispatch failed.',
+            );
+
+            return false;
+        } catch (Throwable $exception) {
+            Log::warning('[Refunds] Customer notification threw; workflow continued.', [
+                'refund_id' => $refund->id,
+                'reference_no' => $refund->reference_no,
+                'channels' => $selectedChannels,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $this->auditCustomerNotification(
+                refund: $refund,
+                actor: $actor,
+                channels: $selectedChannels,
+                outcome: 'failed',
+                success: false,
+                request: $request,
+                reason: $exception->getMessage(),
+            );
 
             return false;
         }
@@ -175,19 +287,23 @@ class RefundNotificationService
         RefundRequest $refund,
         User $actor,
         array $channels,
-        bool $success,
+        string $outcome,
+        ?bool $success,
         ?Request $request,
+        ?string $reason = null,
     ): void {
         $this->auditLogService->log(
             userId: $actor->id,
             event: 'refund.customer_notified',
             auditable: $refund,
-            newValues: [
+            newValues: array_filter([
                 'channels' => $channels,
+                'outcome' => $outcome,
                 'success' => $success,
+                'reason' => $reason,
                 'reference_no' => $refund->reference_no,
                 'communication_action_key' => CommunicationActionKey::RefundConfirmation->value,
-            ],
+            ], static fn ($value): bool => $value !== null),
             request: $request,
         );
     }
