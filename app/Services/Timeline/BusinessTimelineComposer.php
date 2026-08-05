@@ -12,6 +12,7 @@ use App\Support\AppDateFormatter;
 use App\Support\Timeline\BusinessMilestoneClassifier;
 use App\Support\Timeline\BusinessTimelineTitlePresenter;
 use App\Support\Timeline\TimelineGroupResolver;
+use App\Services\Timeline\IncomingEmailReopenTimelinePresenter;
 use Illuminate\Support\Collection;
 
 class BusinessTimelineComposer
@@ -78,6 +79,8 @@ class BusinessTimelineComposer
                 $type = $this->classifier->classify($event);
                 $presented = $this->titlePresenter->present($type, [$event], false);
 
+                $unified = $event->storyKey === IncomingEmailReopenTimelinePresenter::STORY_KEY;
+
                 return new BusinessTimelineItem(
                     id: 'm:'.$event->dedupeKey,
                     type: $type,
@@ -89,6 +92,13 @@ class BusinessTimelineComposer
                     searchText: $this->searchTokens([$event], $presented['title'], $presented['summary']),
                     filterTags: $event->allFilterTags(),
                     isCluster: false,
+                    displayFields: $unified ? $event->summaryFields : [],
+                    actionBadges: $event->actionBadges,
+                    technicalFields: $event->technicalFields,
+                    unifiedPresentation: $unified,
+                    iconClass: str_starts_with($event->dedupeKey, 'incoming_email:')
+                        ? 'bi-envelope'
+                        : null,
                 );
             })
             ->values();
@@ -193,6 +203,11 @@ class BusinessTimelineComposer
             searchText: $this->searchTokens($rawEvents, $presented['title'], $presented['summary']),
             filterTags: array_values(array_unique($filterTags)),
             isCluster: true,
+            displayFields: [],
+            actionBadges: [],
+            technicalFields: [],
+            unifiedPresentation: false,
+            iconClass: $buffer[0]->iconClass,
         );
     }
 
@@ -256,6 +271,15 @@ class BusinessTimelineComposer
             foreach ($event->summaryFields as $field) {
                 $tokens[] = (string) ($field['label'] ?? '');
                 $tokens[] = (string) ($field['value'] ?? '');
+            }
+
+            foreach ($event->technicalFields as $field) {
+                $tokens[] = (string) ($field['label'] ?? '');
+                $tokens[] = (string) ($field['value'] ?? '');
+            }
+
+            foreach ($event->actionBadges as $badge) {
+                $tokens[] = $badge;
             }
 
             foreach ($event->communicationChannels as $channel) {

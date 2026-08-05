@@ -65,7 +65,7 @@
                         ])>
                             <dt>{{ $row['label'] }}</dt>
                             <dd>
-                                @if(($row['label'] ?? '') === 'Current Owner')
+                                @if(($row['label'] ?? '') === 'Assigned To')
                                     <strong class="c360-ira-person">{{ $row['value'] }}</strong>
                                 @else
                                     {{ $row['value'] }}

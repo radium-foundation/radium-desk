@@ -175,7 +175,7 @@ final class BusinessTimelineTitlePresenter
     private function replyTitle(TimelineEvent $event, string $clean): string
     {
         if (str_starts_with(strtolower($event->dedupeKey), 'incoming_email:')) {
-            return 'Customer replied by email.';
+            return 'Customer replied by email';
         }
 
         if ($event->type->value === 'whatsapp') {

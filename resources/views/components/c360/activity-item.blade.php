@@ -119,13 +119,31 @@
                     <div class="c360-activity-item-metadata-detail">{{ $event->detail }}</div>
                 @endif
             </details>
-        @elseif($event->isDetailExpandable())
-            <details class="c360-activity-item-metadata">
-                <summary>View details</summary>
-                <div class="c360-activity-item-metadata-detail">{{ $event->detail }}</div>
+        @endif
+
+        @if($event->technicalFields !== [])
+            <details class="c360-activity-item-metadata" data-timeline-technical-details>
+                <summary>Technical Details</summary>
+                <dl class="c360-activity-item-metadata-fields">
+                    @foreach($event->technicalFields as $field)
+                        <div>
+                            <dt>{{ $field['label'] }}</dt>
+                            <dd>{{ $field['value'] }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
             </details>
-        @elseif(filled($event->detail) && ! $isInternalNote)
-            <p class="c360-activity-item-context">{{ $event->detail }}</p>
+        @endif
+
+        @if(! $hasExpandedMetadata)
+            @if($event->isDetailExpandable())
+                <details class="c360-activity-item-metadata">
+                    <summary>View details</summary>
+                    <div class="c360-activity-item-metadata-detail">{{ $event->detail }}</div>
+                </details>
+            @elseif(filled($event->detail) && ! $isInternalNote)
+                <p class="c360-activity-item-context">{{ $event->detail }}</p>
+            @endif
         @endif
 
         @if($event->actionUrl && $event->actionLabel)

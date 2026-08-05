@@ -13,6 +13,9 @@ readonly class BusinessTimelineItem
      * @param  list<TimelineEvent>  $rawEvents
      * @param  list<string>  $searchText
      * @param  list<string>  $filterTags
+     * @param  list<array{label: string, value: string}>  $displayFields
+     * @param  list<string>  $actionBadges
+     * @param  list<array{label: string, value: string}>  $technicalFields
      */
     public function __construct(
         public string $id,
@@ -25,6 +28,11 @@ readonly class BusinessTimelineItem
         public array $searchText,
         public array $filterTags,
         public bool $isCluster = false,
+        public array $displayFields = [],
+        public array $actionBadges = [],
+        public array $technicalFields = [],
+        public bool $unifiedPresentation = false,
+        public ?string $iconClass = null,
     ) {}
 
     public function matchesFilter(string $filterKey): bool

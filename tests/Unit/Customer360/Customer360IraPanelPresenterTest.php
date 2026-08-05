@@ -62,7 +62,7 @@ class Customer360IraPanelPresenterTest extends TestCase
         $this->assertStringContainsString('c360-ira-person', $panel['executive_narrative_html']);
         $this->assertStringContainsString('Jayram', strip_tags($panel['executive_narrative_html']));
         $this->assertTrue($panel['has_contributors']);
-        $this->assertSame('Current Owner', $panel['case_contributors'][0]['role']);
+        $this->assertSame('Assigned To', $panel['case_contributors'][0]['role']);
         $this->assertSame('Jayram', $panel['case_contributors'][0]['name']);
         // Plain payload for translation must not include markup.
         foreach ($panel['summary_payload']['executive_summary'] as $plainLine) {
@@ -109,7 +109,7 @@ class Customer360IraPanelPresenterTest extends TestCase
         $this->assertSame($canonical, $snapshot->executiveSummary->recommendation);
 
         $briefLabels = array_column($panel['executive_brief'], 'label');
-        $this->assertContains('Current Status', $briefLabels);
+        $this->assertContains('Current Stage', $briefLabels);
         $this->assertContains('Product', $briefLabels);
 
         foreach ($panel['evidence'] as $item) {

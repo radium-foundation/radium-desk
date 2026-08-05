@@ -53,7 +53,8 @@ class Customer360ExecutiveSummaryTest extends TestCase
         $this->assertStringContainsString('Action Center', $summaryHtml);
         $this->assertStringContainsString('Customer Journey', $summaryHtml);
         $this->assertStringContainsString('Case Contributors', $summaryHtml);
-        $this->assertStringContainsString('Current Status', $summaryHtml);
+        $this->assertStringContainsString('Current Stage', $summaryHtml);
+        $this->assertStringNotContainsString('>SLA<', $summaryHtml);
         $this->assertStringContainsString('Why IRA thinks this', $summaryHtml);
         $this->assertStringContainsString('Timeline', $summaryHtml);
         $this->assertStringContainsString('data-ira-summary-lang-toggle', $summaryHtml);

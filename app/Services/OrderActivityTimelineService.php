@@ -325,13 +325,15 @@ class OrderActivityTimelineService
             $incident = $incidentsById->get($auditLog->auditable_id);
 
             return match ($auditLog->event) {
-                'service_case.assigned' => new OrderTimelineEntry(
-                    occurredAt: $occurredAt,
-                    title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident, $assigneeUsers),
-                    detail: $incident?->reference_no,
-                    actor: $actor,
-                    dedupeKey: "audit:{$auditLog->id}",
-                ),
+                'service_case.assigned' => ($auditLog->new_values['assignment_method'] ?? null) === 'inbound_email_reopen_previous_owner'
+                    ? null
+                    : new OrderTimelineEntry(
+                        occurredAt: $occurredAt,
+                        title: 'Assigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident, $assigneeUsers),
+                        detail: $incident?->reference_no,
+                        actor: $actor,
+                        dedupeKey: "audit:{$auditLog->id}",
+                    ),
                 'service_case.reassigned' => new OrderTimelineEntry(
                     occurredAt: $occurredAt,
                     title: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON

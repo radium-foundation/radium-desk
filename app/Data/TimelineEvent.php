@@ -37,6 +37,10 @@ readonly class TimelineEvent
         public array $communicationChannels = [],
         public ?string $indicatorVariant = null,
         public ?string $storyKey = null,
+        /** @var list<array{label: string, value: string}> */
+        public array $technicalFields = [],
+        /** @var list<string> */
+        public array $actionBadges = [],
     ) {}
 
     public function withOperatorPresentation(
@@ -50,6 +54,8 @@ readonly class TimelineEvent
         ?string $statusLabel = null,
         ?string $statusVariant = null,
         ?string $storyKey = null,
+        ?array $technicalFields = null,
+        ?array $actionBadges = null,
     ): self {
         return new self(
             type: $this->type,
@@ -72,6 +78,8 @@ readonly class TimelineEvent
             communicationChannels: $communicationChannels ?? $this->communicationChannels,
             indicatorVariant: $indicatorVariant ?? $this->indicatorVariant,
             storyKey: $storyKey ?? $this->storyKey,
+            technicalFields: $technicalFields ?? $this->technicalFields,
+            actionBadges: $actionBadges ?? $this->actionBadges,
         );
     }
 

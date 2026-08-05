@@ -38,6 +38,8 @@ class PrefixedTimelineEventSource implements TimelineEventSource
                     communicationChannels: $event->communicationChannels,
                     indicatorVariant: $event->indicatorVariant,
                     storyKey: $event->storyKey,
+                    technicalFields: $event->technicalFields,
+                    actionBadges: $event->actionBadges,
                 );
             });
     }

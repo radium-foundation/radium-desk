@@ -19,6 +19,10 @@ class Customer360OperatorTimelinePresentation
         'Order created',
     ];
 
+    public function __construct(
+        private readonly IncomingEmailReopenTimelinePresenter $reopenPresenter,
+    ) {}
+
     public function apply(Collection $events, Order $order): Collection
     {
         $events = $events
@@ -60,6 +64,11 @@ class Customer360OperatorTimelinePresentation
         }
 
         if ($this->shouldHideDuplicateCommunication($event)) {
+            return $event->withOperatorPresentation(operatorVisible: false);
+        }
+
+        if ($event->type === TimelineEventType::InternalNote
+            && $this->reopenPresenter->isReopenRemarkBody($event->noteBody)) {
             return $event->withOperatorPresentation(operatorVisible: false);
         }
 

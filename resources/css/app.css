@@ -8781,6 +8781,87 @@ a:focus-visible .stat-card {
     color: #475569;
 }
 
+.c360-business-timeline-item-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin: 0.375rem 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.c360-business-timeline-item-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+    background: transparent;
+    color: #475569;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.c360-business-timeline-item-fields {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0.375rem 0 0;
+}
+
+.c360-business-timeline-item-field {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 0.5rem;
+    align-items: start;
+}
+
+.c360-business-timeline-item-field dt {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.c360-business-timeline-item-field dd {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: #334155;
+    word-break: break-word;
+}
+
+.c360-business-timeline-item-technical {
+    margin-top: 0.375rem;
+}
+
+.c360-business-timeline-item-technical > summary {
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    list-style: none;
+}
+
+.c360-business-timeline-item-technical > summary::-webkit-details-marker {
+    display: none;
+}
+
+.c360-business-timeline-item-technical > summary::before {
+    content: '▼ ';
+    font-size: 0.625rem;
+}
+
+.c360-business-timeline-item-technical:not([open]) > summary::before {
+    content: '▼ ';
+}
+
+.c360-business-timeline-item-fields--technical {
+    margin-top: 0.375rem;
+}
+
 .c360-business-timeline-item-raw {
     margin-top: 0.375rem;
 }

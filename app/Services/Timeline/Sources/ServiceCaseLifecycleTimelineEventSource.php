@@ -45,7 +45,15 @@ class ServiceCaseLifecycleTimelineEventSource implements TimelineEventSource
                     return null;
                 }
 
+                $oldStatus = (string) ($auditLog->old_values['status'] ?? '');
                 $newStatus = (string) ($auditLog->new_values['status'] ?? '');
+
+                // Reopen (closed → open) is presented on the inbound email card.
+                if ($oldStatus === IncidentStatus::Closed->value
+                    && $newStatus === IncidentStatus::Open->value) {
+                    return null;
+                }
+
                 $isClosed = $newStatus === IncidentStatus::Closed->value;
                 $title = $isClosed ? 'Incident closed' : 'Incident updated';
                 $type = $isClosed

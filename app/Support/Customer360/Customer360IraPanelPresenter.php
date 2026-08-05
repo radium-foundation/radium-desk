@@ -18,6 +18,7 @@ use App\Enums\ContextScope;
 use App\Enums\SerialInsightStatus;
 use App\Enums\TimelineEventType;
 use App\Models\Incident;
+use App\Support\Customer360\Customer360AgentLanguagePresenter;
 use App\Support\AppDateFormatter;
 use App\Support\Context\DeclaresContextScope;
 use App\Support\DeviceModelFormatter;
@@ -217,11 +218,11 @@ class Customer360IraPanelPresenter implements ProvidesContextScope
                     'value' => (string) $product,
                 ] : null,
                 filled($owner) ? [
-                    'label' => 'Current Owner',
+                    'label' => 'Assigned To',
                     'value' => (string) $owner,
                 ] : null,
                 [
-                    'label' => 'Current Status',
+                    'label' => 'Current Stage',
                     'value' => $incident->status->label(),
                 ],
             ])),
@@ -235,7 +236,7 @@ class Customer360IraPanelPresenter implements ProvidesContextScope
             'customer_journey_items' => [],
             'has_customer_journey' => false,
             'case_contributors' => filled($owner) ? [[
-                'role' => 'Current Owner',
+                'role' => 'Assigned To',
                 'name' => $owner,
                 'name_html' => '<strong class="c360-ira-person">'.e($owner).'</strong>',
                 'icon' => 'bi-person-fill',
@@ -321,34 +322,45 @@ class Customer360IraPanelPresenter implements ProvidesContextScope
             ?: DeviceModelFormatter::shortDisplay($incident->order?->device_model);
         $owner = trim((string) ($snapshot->engineerName ?? $incident->assignee?->name ?? ''));
         $priority = strtolower($snapshot->priorityLevel);
-        $sla = $this->slaBriefValue($snapshot, $incident);
+        $caseDelay = Customer360AgentLanguagePresenter::caseDelayBrief(
+            $snapshot->slaStatus,
+            $incident->created_at,
+        );
         $waitingSince = $snapshot->waitingSince !== null
             ? AppDateFormatter::waitingDuration($snapshot->waitingSince)
             : null;
-        $appointment = $this->appointmentBriefValue($snapshot);
+        $appointment = Customer360AgentLanguagePresenter::appointmentConditionBrief(
+            $snapshot->currentStatusCode,
+            $snapshot->supportAppointment,
+        );
+        $stageLabel = Customer360AgentLanguagePresenter::currentStageLabel(
+            $snapshot->currentStatusCode,
+            $snapshot->currentStatusLabel,
+        );
 
         return array_values(array_filter([
             $customer !== '' ? ['label' => 'Customer', 'value' => $customer] : null,
             filled($product) ? ['label' => 'Product', 'value' => (string) $product] : null,
-            $owner !== '' ? ['label' => 'Current Owner', 'value' => $owner] : null,
+            $owner !== '' ? ['label' => 'Assigned To', 'value' => $owner] : null,
             [
-                'label' => 'Current Status',
-                'value' => $snapshot->currentStatusLabel,
+                'label' => 'Current Stage',
+                'value' => $stageLabel,
                 'tone' => $this->statusTone($snapshot),
             ],
             in_array($priority, ['high', 'critical'], true) || $incident->high_priority
                 ? [
                     'label' => 'Priority',
-                    'value' => $incident->high_priority && $priority === 'normal'
-                        ? 'High'
-                        : Str::headline($snapshot->priorityLevel),
+                    'value' => Customer360AgentLanguagePresenter::agentPriorityLabel(
+                        $snapshot->priorityLevel,
+                        (bool) $incident->high_priority,
+                    ),
                     'tone' => $priority === 'critical' ? 'danger' : 'warning',
                 ]
                 : null,
-            $sla !== null ? [
-                'label' => 'SLA',
-                'value' => $sla['value'],
-                'tone' => $sla['tone'],
+            $caseDelay !== null ? [
+                'label' => $caseDelay['label'],
+                'value' => $caseDelay['value'],
+                'tone' => $caseDelay['tone'],
             ] : null,
             ($snapshot->isWaiting && filled($waitingSince)) ? [
                 'label' => 'Waiting Since',
@@ -361,59 +373,6 @@ class Customer360IraPanelPresenter implements ProvidesContextScope
                 'tone' => $appointment['tone'],
             ] : null,
         ]));
-    }
-
-    /**
-     * @return array{value: string, tone: string}|null
-     */
-    private function slaBriefValue(CaseIntelligenceSnapshot $snapshot, Incident $incident): ?array
-    {
-        $sla = strtolower($snapshot->slaStatus);
-
-        if ($sla === 'overdue') {
-            $pending = AppDateFormatter::waitingDuration($incident->created_at);
-            $value = filled($pending)
-                ? 'Overdue ('.Str::title((string) $pending).')'
-                : 'Overdue';
-
-            return ['value' => $value, 'tone' => 'danger'];
-        }
-
-        return match (true) {
-            $sla === 'warning' => ['value' => 'At risk', 'tone' => 'warning'],
-            $sla === 'paused' => ['value' => 'Paused', 'tone' => 'warning'],
-            default => null,
-        };
-    }
-
-    /**
-     * @return array{value: string, tone: string}|null
-     */
-    private function appointmentBriefValue(CaseIntelligenceSnapshot $snapshot): ?array
-    {
-        if ($snapshot->currentStatusCode === 'appointment_overdue') {
-            return ['value' => 'Overdue', 'tone' => 'danger'];
-        }
-
-        $appointment = $snapshot->supportAppointment;
-        if (! is_array($appointment)) {
-            return null;
-        }
-
-        if ($appointment['is_completed'] ?? false) {
-            return null;
-        }
-
-        if ($appointment['is_active'] ?? false) {
-            $date = $appointment['preferred_date'] ?? null;
-            $label = $date instanceof \Illuminate\Support\Carbon
-                ? $date->format('M j, Y')
-                : (filled($date) ? (string) $date : 'Scheduled');
-
-            return ['value' => $label, 'tone' => 'info'];
-        }
-
-        return null;
     }
 
     /**
@@ -762,7 +721,7 @@ class Customer360IraPanelPresenter implements ProvidesContextScope
 
         $currentOwner = trim((string) ($snapshot->engineerName ?? $incident->assignee?->name ?? ''));
         if ($currentOwner !== '') {
-            $push('Current Owner', $currentOwner, 'bi-person-fill', 'owner');
+            $push('Assigned To', $currentOwner, 'bi-person-fill', 'owner');
         }
 
         foreach ($this->previousOwnerNames($snapshot, $currentOwner) as $previous) {

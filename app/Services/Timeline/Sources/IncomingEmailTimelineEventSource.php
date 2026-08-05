@@ -8,10 +8,11 @@ use App\Data\TimelineEvent;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\TimelineActorKind;
 use App\Enums\TimelineEventType;
+use App\Models\AuditLog;
 use App\Models\IncomingEmailMessage;
 use App\Models\Order;
 use App\Services\IncomingEmail\IncomingEmailOrderVisibilityQuery;
-use App\Support\AppDateFormatter;
+use App\Services\Timeline\IncomingEmailReopenTimelinePresenter;
 use Illuminate\Support\Collection;
 
 class IncomingEmailTimelineEventSource implements TimelineEventSource
@@ -19,12 +20,14 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
     public function __construct(
         private readonly Order $order,
         private readonly IncomingEmailOrderVisibilityQuery $visibilityQuery,
+        private readonly IncomingEmailReopenTimelinePresenter $reopenPresenter,
     ) {}
 
     public function collect(?int $limit = null): Collection
     {
         $query = $this->visibilityQuery
             ->forOrder($this->order)
+            ->with(['incident.order'])
             ->orderByDesc('received_at')
             ->orderByDesc('id');
 
@@ -32,13 +35,23 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
             $query->limit($limit);
         }
 
-        return $query->get()
-            ->map(fn (IncomingEmailMessage $message): TimelineEvent => $this->mapMessage($message))
+        $messages = $query->get();
+        $indexes = $this->reopenPresenter->indexForMessages($messages);
+
+        return $messages
+            ->map(fn (IncomingEmailMessage $message): TimelineEvent => $this->mapMessage(
+                $message,
+                $indexes['reopens'][(int) $message->id] ?? null,
+                $indexes['assignments'][(int) $message->id] ?? null,
+            ))
             ->values();
     }
 
-    private function mapMessage(IncomingEmailMessage $message): TimelineEvent
-    {
+    private function mapMessage(
+        IncomingEmailMessage $message,
+        ?AuditLog $reopenAudit,
+        ?AuditLog $assignmentAudit,
+    ): TimelineEvent {
         $occurredAt = $message->received_at ?? $message->created_at ?? now();
         $isHistorical = $message->status === IncomingEmailMessageStatus::HistoricalCustomer;
         $preview = $message->displayPreview();
@@ -49,47 +62,15 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
             $message->attachmentMetadata(),
         )));
 
-        $summaryFields = array_values(array_filter([
-            filled($preview) ? [
-                'label' => 'Preview',
-                'value' => (string) $preview,
-            ] : null,
-            filled($message->mailbox) ? [
-                'label' => 'Mailbox',
-                'value' => (string) $message->mailbox,
-            ] : null,
-            filled($message->from_email) ? [
-                'label' => 'Sender',
-                'value' => filled($message->from_name)
-                    ? $message->from_name.' <'.$message->from_email.'>'
-                    : (string) $message->from_email,
-            ] : null,
-            filled($message->subject) ? [
-                'label' => 'Subject',
-                'value' => (string) $message->subject,
-            ] : null,
-            [
-                'label' => 'Received',
-                'value' => AppDateFormatter::timelineDatetime($occurredAt) ?? '—',
-            ],
-            filled($message->thread_id) ? [
-                'label' => 'Thread ID',
-                'value' => (string) $message->thread_id,
-            ] : null,
-            filled($message->provider_message_id) ? [
-                'label' => 'Gmail Message ID',
-                'value' => (string) $message->provider_message_id,
-            ] : null,
-            filled($message->rfc_message_id) ? [
-                'label' => 'Message ID',
-                'value' => (string) $message->rfc_message_id,
-            ] : null,
-            $attachmentNames !== [] ? [
+        $summaryFields = $this->reopenPresenter->displayFields($message);
+        if ($attachmentNames !== []) {
+            $summaryFields[] = [
                 'label' => 'Attachments',
                 'value' => implode(', ', $attachmentNames),
-            ] : null,
-        ]));
+            ];
+        }
 
+        $isReopen = $reopenAudit instanceof AuditLog;
         $orderId = $message->order_id ?? $this->order->id;
 
         return new TimelineEvent(
@@ -118,9 +99,14 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
                 ])
                 : null,
             filterTags: ['customer', 'notifications', 'communication'],
-            contextLine: $isHistorical
-                ? 'Known customer with no active service case.'
-                : null,
+            contextLine: $isReopen
+                ? IncomingEmailReopenTimelinePresenter::REOPEN_BODY
+                : ($isHistorical ? 'Known customer with no active service case.' : null),
+            storyKey: $isReopen ? IncomingEmailReopenTimelinePresenter::STORY_KEY : null,
+            technicalFields: $this->reopenPresenter->technicalFields($message),
+            actionBadges: $isReopen
+                ? $this->reopenPresenter->actionBadges($message, $assignmentAudit)
+                : [],
         );
     }
 }

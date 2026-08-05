@@ -9,10 +9,10 @@
 ])
 
 @php
-    use App\Enums\ServiceCaseSlaStatus;
+    use App\Support\Customer360\Customer360AgentLanguagePresenter;
     use App\Support\Customer360\Customer360AgentNamePresenter;
+    use App\Support\Customer360\ScheduledSupportAppointmentContext;
 
-    $slaStatus = $incident->slaStatus();
     $openCases = (int) ($summary['open_cases'] ?? 0);
     $repeatContact = is_array($healthCard['repeat_contact'] ?? null) ? $healthCard['repeat_contact'] : [];
     $highUrgency = (bool) ($repeatContact['high_urgency'] ?? false);
@@ -20,7 +20,7 @@
 
     $healthStatus = match (true) {
         $highUrgency => ['status' => 'critical', 'label' => 'Critical'],
-        $openCases > 0 || $contactsToday > 0 => ['status' => 'attention', 'label' => 'Needs attention'],
+        $openCases > 0 || $contactsToday > 0 => ['status' => 'attention', 'label' => 'Needs Attention'],
         default => ['status' => 'healthy', 'label' => 'Healthy'],
     };
 
@@ -39,19 +39,12 @@
             default => 'neutral',
         };
 
-    $slaVariant = match ($slaStatus) {
-        ServiceCaseSlaStatus::Overdue => 'danger',
-        ServiceCaseSlaStatus::Warning => 'warning',
-        ServiceCaseSlaStatus::Paused => 'neutral',
-        default => 'success',
-    };
-
-    $slaLabel = match ($slaStatus) {
-        ServiceCaseSlaStatus::Overdue => 'SLA breached',
-        ServiceCaseSlaStatus::Warning => 'SLA warning',
-        ServiceCaseSlaStatus::Paused => 'SLA paused',
-        default => 'Within SLA',
-    };
+    $supportAppointment = app(ScheduledSupportAppointmentContext::class)->forIncident($incident);
+    $overdueChip = Customer360AgentLanguagePresenter::overdueAttentionChip(
+        $incident,
+        $supportAppointment,
+        is_array($waitingStateCard) ? $waitingStateCard : null,
+    );
 
     $product = $order !== null && filled($order->product_name ?? null)
         ? $order->product_name
@@ -74,9 +67,11 @@
         <span class="c360-ops-header-sc font-monospace">{{ $incident->display_reference }}</span>
         <x-c360.chip :value="$statusLabel" :variant="$statusVariant" class="c360-chip--status" />
         @if($incident->high_priority)
-            <x-c360.chip value="High priority" variant="danger" icon="bi-flag-fill" />
+            <x-c360.chip value="High" variant="danger" icon="bi-flag-fill" />
         @endif
-        <x-c360.chip :value="$slaLabel" :variant="$slaVariant" />
+        @if(is_array($overdueChip))
+            <x-c360.chip :value="$overdueChip['label']" :variant="$overdueChip['variant']" />
+        @endif
         <x-c360.chip :value="$healthStatus['label']" :variant="$healthStatus['status']" class="c360-chip--health" />
     </div>
 
