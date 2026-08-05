@@ -657,35 +657,88 @@ class ServiceCaseAssignmentService
                 return null;
             }
 
-            Setting::query()->firstOrCreate(
-                ['key' => self::ROUND_ROBIN_CURSOR_KEY],
-                ['value' => '0'],
+            return $this->selectNextRoundRobinAgent(
+                agents: $agents,
+                cursorSettingKey: self::ROUND_ROBIN_CURSOR_KEY,
             );
-
-            $cursorRow = Setting::query()
-                ->where('key', self::ROUND_ROBIN_CURSOR_KEY)
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            $lastUserId = (int) ($cursorRow->value ?? 0);
-            $nextAgent = null;
-
-            foreach ($agents as $agent) {
-                if ($agent->id > $lastUserId) {
-                    $nextAgent = $agent;
-                    break;
-                }
-            }
-
-            if ($nextAgent === null) {
-                $nextAgent = $agents[0];
-            }
-
-            $cursorRow->update(['value' => (string) $nextAgent->id]);
-            $this->settingService->forget();
-
-            return $nextAgent;
         });
+    }
+
+    /**
+     * Round-robin over an explicit user-id pool (reuses cursor mechanics; separate cursor key per pool).
+     *
+     * @param  list<int>  $userIds
+     */
+    public function resolveAgentViaRoundRobinFromPool(
+        array $userIds,
+        string $cursorSettingKey,
+        ?Carbon $at = null,
+    ): ?User {
+        if ($userIds === []) {
+            return null;
+        }
+
+        if (! config('service_case_assignment.round_robin_enabled', true)) {
+            return null;
+        }
+
+        $at ??= now();
+
+        return DB::transaction(function () use ($userIds, $cursorSettingKey, $at): ?User {
+            $agents = User::query()
+                ->whereIn('id', $userIds)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->get()
+                ->filter(fn (User $agent): bool => ! $agent->trashed())
+                ->values()
+                ->all();
+
+            if ($agents === []) {
+                return null;
+            }
+
+            return $this->selectNextRoundRobinAgent($agents, $cursorSettingKey);
+        });
+    }
+
+    /**
+     * @param  list<User>  $agents
+     */
+    private function selectNextRoundRobinAgent(array $agents, string $cursorSettingKey): ?User
+    {
+        if ($agents === []) {
+            return null;
+        }
+
+        Setting::query()->firstOrCreate(
+            ['key' => $cursorSettingKey],
+            ['value' => '0'],
+        );
+
+        $cursorRow = Setting::query()
+            ->where('key', $cursorSettingKey)
+            ->lockForUpdate()
+            ->firstOrFail();
+
+        $lastUserId = (int) ($cursorRow->value ?? 0);
+        $nextAgent = null;
+
+        foreach ($agents as $agent) {
+            if ($agent->id > $lastUserId) {
+                $nextAgent = $agent;
+                break;
+            }
+        }
+
+        if ($nextAgent === null) {
+            $nextAgent = $agents[0];
+        }
+
+        $cursorRow->update(['value' => (string) $nextAgent->id]);
+        $this->settingService->forget();
+
+        return $nextAgent;
     }
 
     private function logUnassignedOnCreate(Incident $incident, User $actor): Incident

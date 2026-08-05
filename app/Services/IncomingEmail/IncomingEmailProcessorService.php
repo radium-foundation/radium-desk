@@ -25,6 +25,7 @@ class IncomingEmailProcessorService
         private readonly IncomingEmailClosedCaseReopenService $closedCaseReopenService,
         private readonly IncomingEmailServiceCaseCreateService $serviceCaseCreateService,
         private readonly IncomingEmailServiceCaseCategoryMapper $categoryMapper,
+        private readonly IncomingEmailSmartRoutingService $smartRoutingService,
         private readonly ServiceCasePriorityService $priorityService,
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
@@ -81,6 +82,17 @@ class IncomingEmailProcessorService
                 }
 
                 if ($match['incident'] === null) {
+                    if ($this->smartRoutingService->isEnabled()) {
+                        $this->smartRoutingService->processUnmatched(
+                            message: $fresh->fresh(),
+                            match: $match,
+                            classification: $classification,
+                            actor: $actor,
+                        );
+
+                        return;
+                    }
+
                     if ($match['order'] !== null && ($match['reason'] ?? null) === 'historical_customer') {
                         // Branch B — order exists, no active SC and no reopenable closed SC.
                         // Flag off (default): Historical association (unchanged).

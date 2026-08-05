@@ -30,6 +30,70 @@ return [
         FILTER_VALIDATE_BOOLEAN,
     ),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Smart routing (Phase 1.3)
+    |--------------------------------------------------------------------------
+    |
+    | Rule-based routing for new actionable email. When enabled, unmatched mail
+    | is classified and routed to Support / Sales / Refund teams or Needs Human.
+    | Existing active/closed case paths (Phase 1.1) are unchanged.
+    |
+    */
+
+    'smart_routing_enabled' => filter_var(
+        env('INBOUND_EMAIL_SMART_ROUTING_ENABLED', false),
+        FILTER_VALIDATE_BOOLEAN,
+    ),
+
+    'routing' => [
+        'sales' => [
+            'mailbox_channels' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_SALES_MAILBOX_CHANNELS', 'sales')),
+            ))),
+            'recipient_addresses' => array_values(array_filter(array_map(
+                static fn (string $email): string => strtolower(trim($email)),
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_SALES_RECIPIENTS', '')),
+            ))),
+            'subject_keywords' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_SALES_SUBJECT_KEYWORDS', '')),
+            ))),
+            'from_aliases' => array_values(array_filter(array_map(
+                static fn (string $email): string => strtolower(trim($email)),
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_SALES_FROM_ALIASES', '')),
+            ))),
+        ],
+        'refund' => [
+            'mailbox_channels' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_REFUND_MAILBOX_CHANNELS', 'refund')),
+            ))),
+            'subject_keywords' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_REFUND_SUBJECT_KEYWORDS', '')),
+            ))),
+        ],
+        'support' => [
+            'mailbox_channels' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_SUPPORT_MAILBOX_CHANNELS', 'support,service')),
+            ))),
+            'subject_keywords' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('INBOUND_EMAIL_ROUTING_SUPPORT_SUBJECT_KEYWORDS', '')),
+            ))),
+        ],
+    ],
+
+    'assignment_settings' => [
+        'refund_team_user_ids' => 'assignment.inbound_email_refund_team_user_ids',
+        'sales_round_robin_user_ids' => 'assignment.inbound_email_sales_round_robin_user_ids',
+        'sales_round_robin_cursor' => 'assignment.inbound_email_sales_round_robin_last_user_id',
+        'refund_round_robin_cursor' => 'assignment.inbound_email_refund_round_robin_last_user_id',
+    ],
+
     'preview_max_chars' => (int) env('INBOUND_EMAIL_PREVIEW_MAX_CHARS', 500),
 
     /*

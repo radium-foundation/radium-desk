@@ -37,7 +37,8 @@ class IncomingEmailServiceCaseCreateService
 
     public function isEnabled(): bool
     {
-        return (bool) config('inbound_email.auto_create_service_case', false);
+        return (bool) config('inbound_email.auto_create_service_case', false)
+            || (bool) config('inbound_email.smart_routing_enabled', false);
     }
 
     /**
@@ -206,6 +207,7 @@ class IncomingEmailServiceCaseCreateService
         IncomingEmailMessage $message,
         User $actor,
         IncomingEmailClassification $classification,
+        bool $skipAssignment = false,
     ): array {
         $result = $this->ensureActiveForOrder(
             order: $order,
@@ -221,6 +223,7 @@ class IncomingEmailServiceCaseCreateService
             actor: $actor,
             classification: $classification,
             created: $result['created'],
+            skipAssignment: $skipAssignment,
         );
     }
 
@@ -233,6 +236,7 @@ class IncomingEmailServiceCaseCreateService
         IncomingEmailMessage $message,
         User $actor,
         IncomingEmailClassification $classification,
+        bool $skipAssignment = false,
     ): array {
         $result = $this->ensureForUnknownCustomer($message, $actor, $classification);
 
@@ -242,6 +246,7 @@ class IncomingEmailServiceCaseCreateService
             actor: $actor,
             classification: $classification,
             created: $result['created'],
+            skipAssignment: $skipAssignment,
         );
     }
 
@@ -254,6 +259,7 @@ class IncomingEmailServiceCaseCreateService
         User $actor,
         IncomingEmailClassification $classification,
         bool $created,
+        bool $skipAssignment = false,
     ): array {
         $linkedMessage = $this->linkService->link(
             $incident,
@@ -268,11 +274,13 @@ class IncomingEmailServiceCaseCreateService
             $actor,
         );
 
-        $incident = $this->assignmentService->routeLinkedEmail(
-            $incident->fresh(['assignee', 'order']),
-            $linkedMessage->fresh(),
-            $actor,
-        );
+        if (! $skipAssignment) {
+            $incident = $this->assignmentService->routeLinkedEmail(
+                $incident->fresh(['assignee', 'order']),
+                $linkedMessage->fresh(),
+                $actor,
+            );
+        }
 
         return [
             'incident' => $incident->fresh(['order', 'assignee']),

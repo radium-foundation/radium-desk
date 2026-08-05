@@ -14,6 +14,7 @@ use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
 use App\Services\Operations\OperationsRoleService;
 use App\Support\Dashboard\DashboardIncidentSortComparator;
 use App\Support\Dashboard\RecentActivityPresenter;
@@ -70,6 +71,9 @@ class DashboardService
             'high_priority_cases' => $activeKpis['high_priority_cases'],
             'total_active_cases' => $activeKpis['total_active_cases'],
         ];
+
+        $stats['email_intake_counters'] = app(IncomingEmailIntakeCounterService::class)
+            ->visibleCounters($user);
 
         if ($roles->usesSupportQueues($user)) {
             $stats = [

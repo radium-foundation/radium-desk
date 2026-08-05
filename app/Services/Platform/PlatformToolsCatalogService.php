@@ -58,6 +58,7 @@ class PlatformToolsCatalogService
                     $this->link('Operations Control Center', 'admin.operations.index'),
                     $this->link('Ops System Tab', 'admin.operations.index', ['hub_tab' => 'system']),
                     $this->link('Gmail Failed Messages', 'admin.gmail.failed-messages'),
+                    $this->link('Email Intake Queues', 'admin.incoming-emails.index'),
                 ])),
             ],
         ];

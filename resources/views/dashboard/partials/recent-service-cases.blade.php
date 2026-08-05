@@ -136,6 +136,12 @@
                                       data-dashboard-case-filter-count="{{ $filterCountKey }}">{{ $compactAgentLayout ? $queueCount : '('.$queueCount.')' }}</span>
                             </a>
                         @endforeach
+
+                        @if($compactAgentLayout ?? false)
+                            @include('dashboard.partials.email-intake-counters', [
+                                'counters' => $emailIntakeCounters ?? [],
+                            ])
+                        @endif
                     </div>
                 @endif
 

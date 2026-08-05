@@ -34,7 +34,19 @@ class IncomingEmailClassifierService
      */
     public function classifyOperational(IncomingEmailMessage $message, array $match): IncomingEmailClassification
     {
+        $smartRouting = (bool) config('inbound_email.smart_routing_enabled');
+
         if (($match['reason'] ?? null) === 'unknown_customer' || ($match['order'] ?? null) === null) {
+            $keywordClass = $this->fromKeywords($message);
+
+            if ($keywordClass !== null) {
+                return $keywordClass;
+            }
+
+            if ($smartRouting) {
+                return $this->classifyFromMailboxChannel($message, defaultUnknown: true);
+            }
+
             return IncomingEmailClassification::PossibleSalesLead;
         }
 
@@ -44,13 +56,22 @@ class IncomingEmailClassifierService
             return $keywordClass;
         }
 
+        return $this->classifyFromMailboxChannel($message);
+    }
+
+    private function classifyFromMailboxChannel(
+        IncomingEmailMessage $message,
+        bool $defaultUnknown = false,
+    ): IncomingEmailClassification {
         $channel = strtolower(trim((string) ($message->channel ?? '')));
 
         return match ($channel) {
             'refund' => IncomingEmailClassification::Refund,
             'sales' => IncomingEmailClassification::PossibleSalesLead,
             'support', 'service' => IncomingEmailClassification::Support,
-            default => IncomingEmailClassification::ExistingCustomer,
+            default => $defaultUnknown
+                ? IncomingEmailClassification::UnknownCustomer
+                : IncomingEmailClassification::ExistingCustomer,
         };
     }
 

@@ -13,6 +13,7 @@ use App\Models\IncomingEmailMessage;
 use App\Models\Order;
 use App\Services\IncomingEmail\IncomingEmailOrderVisibilityQuery;
 use App\Services\Timeline\IncomingEmailReopenTimelinePresenter;
+use App\Services\Timeline\IncomingEmailRoutingTimelinePresenter;
 use Illuminate\Support\Collection;
 
 class IncomingEmailTimelineEventSource implements TimelineEventSource
@@ -21,6 +22,7 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
         private readonly Order $order,
         private readonly IncomingEmailOrderVisibilityQuery $visibilityQuery,
         private readonly IncomingEmailReopenTimelinePresenter $reopenPresenter,
+        private readonly IncomingEmailRoutingTimelinePresenter $routingPresenter,
     ) {}
 
     public function collect(?int $limit = null): Collection
@@ -37,12 +39,14 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
 
         $messages = $query->get();
         $indexes = $this->reopenPresenter->indexForMessages($messages);
+        $routingIndexes = $this->routingPresenter->indexForMessages($messages);
 
         return $messages
             ->map(fn (IncomingEmailMessage $message): TimelineEvent => $this->mapMessage(
                 $message,
                 $indexes['reopens'][(int) $message->id] ?? null,
                 $indexes['assignments'][(int) $message->id] ?? null,
+                $routingIndexes[(int) $message->id] ?? null,
             ))
             ->values();
     }
@@ -51,6 +55,7 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
         IncomingEmailMessage $message,
         ?AuditLog $reopenAudit,
         ?AuditLog $assignmentAudit,
+        ?AuditLog $routingAudit = null,
     ): TimelineEvent {
         $occurredAt = $message->received_at ?? $message->created_at ?? now();
         $isHistorical = $message->status === IncomingEmailMessageStatus::HistoricalCustomer;
@@ -71,6 +76,7 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
         }
 
         $isReopen = $reopenAudit instanceof AuditLog;
+        $routingContext = $this->routingPresenter->contextLine($routingAudit);
         $orderId = $message->order_id ?? $this->order->id;
 
         return new TimelineEvent(
@@ -101,12 +107,14 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
             filterTags: ['customer', 'notifications', 'communication'],
             contextLine: $isReopen
                 ? IncomingEmailReopenTimelinePresenter::REOPEN_BODY
-                : ($isHistorical ? 'Known customer with no active service case.' : null),
-            storyKey: $isReopen ? IncomingEmailReopenTimelinePresenter::STORY_KEY : null,
+                : ($routingContext ?? ($isHistorical ? 'Known customer with no active service case.' : null)),
+            storyKey: $isReopen
+                ? IncomingEmailReopenTimelinePresenter::STORY_KEY
+                : ($routingAudit instanceof AuditLog ? IncomingEmailRoutingTimelinePresenter::STORY_KEY : null),
             technicalFields: $this->reopenPresenter->technicalFields($message),
             actionBadges: $isReopen
                 ? $this->reopenPresenter->actionBadges($message, $assignmentAudit)
-                : [],
+                : $this->routingPresenter->actionBadges($routingAudit),
         );
     }
 }

@@ -99,5 +99,9 @@
     @foreach($items as $item)
         @include('dashboard.partials.kpi-strip-item', $item)
     @endforeach
+
+    @include('dashboard.partials.email-intake-counters', [
+        'counters' => $stats['email_intake_counters'] ?? [],
+    ])
 @endif
 </div>

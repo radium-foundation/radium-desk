@@ -725,6 +725,53 @@ a.dashboard-u-hover-lift:focus-visible {
     align-items: center;
 }
 
+.dashboard-email-intake-counters {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    margin-left: 0.5rem;
+}
+
+.dashboard-email-intake-counter {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.125rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+    background: #fff;
+    color: #334155;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.dashboard-email-intake-counter:hover,
+.dashboard-email-intake-counter:focus-visible {
+    border-color: rgba(37, 99, 235, 0.45);
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.dashboard-email-intake-counter__symbol {
+    font-size: 0.875rem;
+    line-height: 1;
+}
+
+.dashboard-email-intake-counter__count {
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.dashboard-email-intake-counter__sup {
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+    top: -0.35em;
+}
+
 .stat-card {
     border: 0;
     background-color: #fff;

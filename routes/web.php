@@ -27,6 +27,7 @@ use App\Http\Controllers\DashboardWorkspaceDeviceModelController;
 use App\Http\Controllers\DeviceModelAliasController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\IncidentController;
+use App\Http\Controllers\IncomingEmailAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\IraOperationsBrainController;
 use App\Http\Controllers\LeaveRequestController;
@@ -391,6 +392,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.gmail.logs');
     Route::get('/admin/gmail/failed-messages', [GmailAdminActionsController::class, 'failedMessages'])
         ->name('admin.gmail.failed-messages');
+
+    Route::get('/admin/incoming-emails', [IncomingEmailAdminController::class, 'index'])
+        ->name('admin.incoming-emails.index');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');
