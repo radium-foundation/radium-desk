@@ -3,6 +3,7 @@
     'code',
     'duration' => null,
     'late' => null,
+    'performanceBadges' => [],
     'title' => null,
     'ariaLabel' => null,
 ])
@@ -39,4 +40,8 @@
             <span class="team-activity-operational-indicator__late-mark">L</span><sup class="team-activity-operational-indicator__late-sup"><x-team-activity.duration :value="$lateDuration" /></sup>
         </span>
     @endif
+
+    <x-team-activity.performance-badges
+        :badges="$performanceBadges"
+        class="team-activity-live-presence__performance-badges" />
 </div>

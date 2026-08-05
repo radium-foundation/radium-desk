@@ -33,6 +33,7 @@ use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\MyPerformanceController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPollController;
+use App\Http\Controllers\Admin\PerformanceIntelligenceController;
 use App\Http\Controllers\OperationalSystemSettingsController;
 use App\Http\Controllers\RealtimeAdminActionsController;
 use App\Http\Controllers\RealtimeConnectionStatusController;
@@ -395,6 +396,13 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.system-settings.index');
     Route::get('/admin/platform-configuration', [OperationalSystemSettingsController::class, 'platformConfiguration'])
         ->name('admin.platform-configuration.index');
+    Route::get('/admin/performance-intelligence', [PerformanceIntelligenceController::class, 'index'])
+        ->name('admin.performance-intelligence.index');
+    Route::get('/admin/performance-intelligence/{userId}', [PerformanceIntelligenceController::class, 'show'])
+        ->whereNumber('userId')
+        ->name('admin.performance-intelligence.show');
+    Route::post('/admin/performance-intelligence/capture', [PerformanceIntelligenceController::class, 'capture'])
+        ->name('admin.performance-intelligence.capture');
     Route::put('/admin/system-settings', [OperationalSystemSettingsController::class, 'update'])
         ->name('admin.system-settings.update');
     Route::post('/admin/system-settings/realtime/test', [RealtimeAdminActionsController::class, 'test'])

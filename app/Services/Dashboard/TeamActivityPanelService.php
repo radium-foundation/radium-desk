@@ -10,6 +10,8 @@ use App\Models\User;
 use App\Services\Operations\RoleAwareKpiMetricsService;
 use App\Services\Operations\TeamAvailabilityOverviewService;
 use App\Support\Dashboard\RecentActivityPresenter;
+use App\Services\PerformanceIntelligence\PerformanceSnapshotRepository;
+use App\Support\Dashboard\TeamActivityBadgeResolver;
 use App\Support\Dashboard\TeamActivityEntryPresenter;
 use App\Support\Dashboard\TeamActivityKpiAuditQuery;
 use App\Support\Dashboard\TeamActivityRowSorter;
@@ -30,6 +32,8 @@ class TeamActivityPanelService
         private readonly TeamActivityCallMetricsService $callMetricsService,
         private readonly TeamActivityPendingMetricsService $pendingMetricsService,
         private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
+        private readonly TeamActivityBadgeResolver $badgeResolver,
+        private readonly PerformanceSnapshotRepository $snapshotRepository,
     ) {}
 
     /**
@@ -83,6 +87,8 @@ class TeamActivityPanelService
         $callMetricsByUser = $this->callMetricsService->forUsers($userIds);
         $ivrCallsTotalToday = $this->callMetricsService->teamIvrCallsTotalToday();
         $pendingMetricsByUser = $this->pendingMetricsService->forUsers($userIds);
+
+        $performanceBadgesByUser = $this->performanceBadgesForUsers($userIds);
 
         $agents = [];
 
@@ -146,6 +152,10 @@ class TeamActivityPanelService
                 overdueCasesCount: $pendingMetrics?->overdueCount,
                 previousActivityAt: $previousActivityAtByUser[$userId] ?? null,
                 minutesLate: $presenceMetrics?->minutesLate,
+                performanceBadges: array_map(
+                    static fn ($badge): array => $badge->toArray(),
+                    $performanceBadgesByUser[$userId] ?? [],
+                ),
             );
         }
 
@@ -163,6 +173,24 @@ class TeamActivityPanelService
         return view('dashboard.partials.team-activity-panel', [
             'panel' => $panel,
         ])->render();
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     * @return array<int, list<\App\Data\TeamActivityPerformanceBadge>>
+     */
+    private function performanceBadgesForUsers(array $userIds): array
+    {
+        if (! $this->badgeResolver->enabled() || $userIds === []) {
+            return [];
+        }
+
+        $snapshots = $this->snapshotRepository->forUsersOnDate(
+            $userIds,
+            now()->startOfDay(),
+        );
+
+        return $this->badgeResolver->resolveForUsers($userIds, $snapshots);
     }
 
     /**

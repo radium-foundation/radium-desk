@@ -6,6 +6,7 @@
     use App\Models\CompanyHoliday;
     use App\Models\SystemSetting;
     use App\Models\User;
+    use App\Support\Administration\PerformanceIntelligenceAccess;
     use App\Support\Administration\PlatformConfigurationAccess;
     use Database\Seeders\RolePermissionSeeder;
     use Illuminate\Support\Facades\Gate;
@@ -15,6 +16,7 @@
     $canViewSettings = Gate::check('viewAny', SystemSetting::class)
         || $user?->can('system-settings.manage');
     $canManagePlatformConfiguration = PlatformConfigurationAccess::canManage($user);
+    $canViewPerformanceIntelligence = PerformanceIntelligenceAccess::canView($user);
 
     $tabs = [];
 
@@ -50,6 +52,13 @@
         $tabs['platform_configuration'] = [
             'label' => 'Platform Configuration',
             'url' => route('admin.platform-configuration.index'),
+        ];
+    }
+
+    if ($canViewPerformanceIntelligence) {
+        $tabs['performance_intelligence'] = [
+            'label' => 'Performance Intelligence',
+            'url' => route('admin.performance-intelligence.index'),
         ];
     }
 @endphp

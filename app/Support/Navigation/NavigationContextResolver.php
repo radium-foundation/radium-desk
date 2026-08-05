@@ -283,6 +283,14 @@ class NavigationContextResolver
             return [NavigationMenu::Administration, 'administration.home', null];
         }
 
+        if ($request->routeIs('admin.performance-intelligence.*')) {
+            return [NavigationMenu::Administration, 'administration.home', null];
+        }
+
+        if ($request->routeIs('admin.platform-configuration.*')) {
+            return [NavigationMenu::Administration, 'administration.home', null];
+        }
+
         if ($request->routeIs('dashboard')) {
             return [NavigationMenu::Dashboard, 'dashboard.home', null];
         }

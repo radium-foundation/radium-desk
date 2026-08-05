@@ -23,6 +23,7 @@ use App\Policies\TeamActivityPolicy;
 use App\Policies\Workforce360Policy;
 use App\Policies\SettingPolicy;
 use App\Policies\SystemSettingPolicy;
+use App\Support\Administration\PerformanceIntelligenceAccess;
 use App\Support\Administration\PlatformConfigurationAccess;
 use App\Services\AI\Providers\NullAIProvider;
 use App\Services\Customer360\Intelligence\NullCaseIntelligenceLanguageEnhancer;
@@ -271,6 +272,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define(
             'managePlatformConfiguration',
             fn (?User $user): bool => PlatformConfigurationAccess::canManage($user),
+        );
+        Gate::define(
+            'viewPerformanceIntelligence',
+            fn (?User $user): bool => PerformanceIntelligenceAccess::canView($user),
         );
 
         $workforce360Policy = Workforce360Policy::class;

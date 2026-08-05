@@ -46,6 +46,8 @@ readonly class TeamActivityAgentRow
         public ?int $overdueCasesCount = null,
         public ?Carbon $previousActivityAt = null,
         public ?int $minutesLate = null,
+        /** @var list<array{key: string, emoji: string, title: string, tooltip: string}> */
+        public array $performanceBadges = [],
     ) {}
 
     /**
@@ -90,6 +92,7 @@ readonly class TeamActivityAgentRow
             'overdue_cases_count' => $this->overdueCasesCount,
             'previous_activity_at' => $this->previousActivityAt?->toIso8601String(),
             'minutes_late' => $this->minutesLate,
+            'performance_badges' => $this->performanceBadges,
         ];
     }
 }

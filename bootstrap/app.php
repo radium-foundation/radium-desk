@@ -135,6 +135,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-memory-snapshot.log'));
 
+        $schedule->command('performance-intelligence:snapshot')
+            ->dailyAt(config('performance_intelligence.snapshot_time', '00:15'))
+            ->when(fn (): bool => (bool) config('performance_intelligence.enabled', false))
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/performance-intelligence-snapshot.log'));
+
         $schedule->command('ira:send-daily-briefing')
             ->dailyAt(config('ira.communication.daily_briefing_time', '08:00'))
             ->withoutOverlapping()

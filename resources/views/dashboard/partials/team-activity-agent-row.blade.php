@@ -86,6 +86,15 @@
     $stateDuration = $memberStatusPresenter->stateDurationLabel($agent, $latestElapsed);
     $lateDuration = $memberStatusPresenter->lateDurationLabel($agent);
     $presenceAriaLabel = $memberStatusPresenter->presenceAriaLabel($agent, $latestElapsed);
+    if ($agent->performanceBadges !== []) {
+        $badgeLabels = collect($agent->performanceBadges)
+            ->pluck('title')
+            ->filter()
+            ->implode(', ');
+        if ($badgeLabels !== '') {
+            $presenceAriaLabel .= ' · '.$badgeLabels;
+        }
+    }
     $presenceTitle = $agent->status === \App\Enums\TeamActivityStatus::Leave && filled($agent->workingLabel)
         ? $agent->workingLabel
         : $agent->statusLabel;
@@ -124,6 +133,7 @@
                         :code="$statusCode"
                         :duration="$stateDuration"
                         :late="$lateDuration"
+                        :performanceBadges="$agent->performanceBadges"
                         :title="$presenceTitle"
                         :ariaLabel="$presenceAriaLabel" />
                 @endif
