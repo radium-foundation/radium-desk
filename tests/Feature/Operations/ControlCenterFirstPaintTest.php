@@ -37,7 +37,11 @@ class ControlCenterFirstPaintTest extends TestCase
             ->assertSee('aria-label="Mission Control workspace"', false)
             ->assertSee('operations-queue-summary-compact', false)
             ->assertSee('operations-active-operators-compact', false)
-            ->assertSee('Loading integration health', false)
+            // Health strip is a Platform demotion link on first paint (not a lazy integration-health stub).
+            ->assertSee('Platform Health', false)
+            ->assertSee('Open Platform Dashboard', false)
+            ->assertDontSee('Loading integration health', false)
+            // Ira remains deferred behind a first-paint placeholder.
             ->assertSee('Loading Ira insights', false);
 
         $firstPaintSections = OperationsDashboardLiveRenderer::resolveSections(

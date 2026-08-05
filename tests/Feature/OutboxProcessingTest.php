@@ -24,26 +24,20 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
 use RuntimeException;
+use Tests\Concerns\EnsuresCashfreeSystemUser;
 use Tests\TestCase;
 
 class OutboxProcessingTest extends TestCase
 {
+    use EnsuresCashfreeSystemUser;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        config(['cashfree.verify_signature' => false]);
-
         $this->seed(RolePermissionSeeder::class);
-
-        $admin = User::factory()->create([
-            'email' => 'superadmin@radium.local',
-            'is_active' => true,
-        ]);
-        $admin->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
-
+        $this->ensureCashfreeSystemUser();
         $this->seed(SettingsSeeder::class);
         config(['radiumbox.enabled' => false]);
 

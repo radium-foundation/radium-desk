@@ -4,6 +4,7 @@ namespace App\Services\Operations;
 
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
+use App\Services\Cashfree\CashfreeHealthService;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -17,6 +18,7 @@ class OperationsCashfreeHealthService
     public function __construct(
         private readonly CashfreeIntegrationHealthProbe $probe,
         private readonly CashfreeIntegrityReadModel $integrityReadModel,
+        private readonly CashfreeHealthService $cashfreeHealthService,
     ) {}
 
     /**
@@ -45,8 +47,10 @@ class OperationsCashfreeHealthService
     {
         $classification = $this->integrityReadModel->classifyFailedWebhooks();
         $probeSnapshot = $this->probe->probe();
+        $selfTest = $this->cashfreeHealthService->status();
         $paidWithoutDeskOrder = $this->integrityReadModel->paidWithoutDeskOrderCount();
-        $isHealthy = ! $this->integrityReadModel->requiresCashfreeHealthAlert();
+        $configHealthy = $selfTest->isHealthy();
+        $isHealthy = $configHealthy && ! $this->integrityReadModel->requiresCashfreeHealthAlert();
 
         return [
             'is_healthy' => $isHealthy,
@@ -61,16 +65,50 @@ class OperationsCashfreeHealthService
             'oldest_failed_at' => $classification->oldestFailedAt,
             'newest_failed_at' => $classification->newestFailedAt,
             'affected_order_ids' => $classification->affectedOrderIds,
-            'last_successful_webhook_at' => $probeSnapshot->lastSuccessAt,
-            'detail' => $this->detailMessage($isHealthy, $paidWithoutDeskOrder, $classification),
+            'last_successful_webhook_at' => $selfTest->lastSuccessfulPaymentAt ?? $probeSnapshot->lastSuccessAt,
+            'last_failed_webhook_at' => $selfTest->lastFailedPaymentAt ?? $probeSnapshot->lastFailureAt,
+            'latest_webhook_at' => $selfTest->latestWebhookAt,
+            'webhook_secret_status' => $selfTest->webhookSecretStatus,
+            'webhook_secret_status_label' => $selfTest->webhookSecretStatusLabel,
+            'system_user_status' => $selfTest->systemUserStatus,
+            'system_user_status_label' => $selfTest->systemUserStatusLabel,
+            'system_user_email' => $selfTest->configuredEmail,
+            'system_user_role_label' => $selfTest->systemUserRoleLabel,
+            'queue_pending' => $selfTest->queuePending,
+            'queue_failed' => $selfTest->queueFailed,
+            'outbox_pending' => $selfTest->outboxPending,
+            'outbox_failed' => $selfTest->outboxFailed,
+            'database_ready' => $selfTest->databaseReady,
+            'self_test_failures' => $selfTest->failures,
+            'detail' => $this->detailMessage(
+                $isHealthy,
+                $configHealthy,
+                $paidWithoutDeskOrder,
+                $classification,
+                $selfTest->systemUserStatusLabel,
+                $selfTest->configuredEmail,
+            ),
         ];
     }
 
     private function detailMessage(
         bool $isHealthy,
+        bool $configHealthy,
         int $paidWithoutDeskOrder,
         \App\Data\CashfreeFailedWebhookClassificationReport $classification,
+        string $systemUserStatusLabel,
+        string $configuredEmail,
     ): string {
+        if (! $configHealthy) {
+            if ($systemUserStatusLabel === 'Missing') {
+                return $configuredEmail !== ''
+                    ? 'System user missing or inactive ('.$configuredEmail.').'
+                    : 'System user email is not configured.';
+            }
+
+            return 'Cashfree configuration requires attention.';
+        }
+
         if ($paidWithoutDeskOrder > 0) {
             return sprintf(
                 '%d paid payment(s) missing Desk orders.',
@@ -106,6 +144,8 @@ class OperationsCashfreeHealthService
             'oldest_failed_at' => $this->serializeDate($widget['oldest_failed_at'] ?? null),
             'newest_failed_at' => $this->serializeDate($widget['newest_failed_at'] ?? null),
             'last_successful_webhook_at' => $this->serializeDate($widget['last_successful_webhook_at'] ?? null),
+            'last_failed_webhook_at' => $this->serializeDate($widget['last_failed_webhook_at'] ?? null),
+            'latest_webhook_at' => $this->serializeDate($widget['latest_webhook_at'] ?? null),
         ];
     }
 
@@ -120,6 +160,8 @@ class OperationsCashfreeHealthService
             'oldest_failed_at' => $this->hydrateDate($cached['oldest_failed_at'] ?? null),
             'newest_failed_at' => $this->hydrateDate($cached['newest_failed_at'] ?? null),
             'last_successful_webhook_at' => $this->hydrateDate($cached['last_successful_webhook_at'] ?? null),
+            'last_failed_webhook_at' => $this->hydrateDate($cached['last_failed_webhook_at'] ?? null),
+            'latest_webhook_at' => $this->hydrateDate($cached['latest_webhook_at'] ?? null),
         ];
     }
 

@@ -1,5 +1,7 @@
 # Performance Sprint — Operator Dashboard Quick Wins
 
+> **Note (2026-08-05):** Snapshot cache key is now `operator.dashboard.snapshot:v2` with array payload (not Eloquent). Canonical post-hardening record: [dashboard-snapshot-cache-hardening.md](./dashboard-snapshot-cache-hardening.md).
+
 **Date:** 2026-08-05  
 **Source:** [radium-desk-performance-audit.md](./radium-desk-performance-audit.md)  
 **Scope:** Dashboard only — snapshot cache, slow scalar deferral, fast/slow split  

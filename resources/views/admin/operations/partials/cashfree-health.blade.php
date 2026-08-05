@@ -22,6 +22,69 @@
 
             <div class="operations-metric-row mb-3">
                 <div class="operations-metric-row-item">
+                    <span class="operations-metric-row-label">Webhook Secret</span>
+                    <strong class="operations-metric-row-value operations-metric-row-value--compact">
+                        {{ $health['webhook_secret_status_label'] ?? '—' }}
+                    </strong>
+                </div>
+                <div class="operations-metric-row-item">
+                    <span class="operations-metric-row-label">System User</span>
+                    <strong class="operations-metric-row-value operations-metric-row-value--compact">
+                        {{ $health['system_user_status_label'] ?? '—' }}
+                    </strong>
+                </div>
+                <div class="operations-metric-row-item">
+                    <span class="operations-metric-row-label">Queue</span>
+                    <strong class="operations-metric-row-value operations-metric-row-value--compact">
+                        {{ number_format($health['queue_pending'] ?? 0) }} pending
+                        / {{ number_format($health['queue_failed'] ?? 0) }} failed
+                    </strong>
+                </div>
+                <div class="operations-metric-row-item">
+                    <span class="operations-metric-row-label">Outbox</span>
+                    <strong class="operations-metric-row-value operations-metric-row-value--compact">
+                        {{ number_format($health['outbox_pending'] ?? 0) }} pending
+                        / {{ number_format($health['outbox_failed'] ?? 0) }} failed
+                    </strong>
+                </div>
+            </div>
+
+            <dl class="row small mb-3">
+                <dt class="col-sm-4 text-muted">Configured email</dt>
+                <dd class="col-sm-8 mb-1">
+                    {{ $health['system_user_email'] !== '' ? $health['system_user_email'] : '—' }}
+                    @if(! empty($health['system_user_role_label']))
+                        <span class="text-muted">({{ $health['system_user_role_label'] }})</span>
+                    @endif
+                </dd>
+                <dt class="col-sm-4 text-muted">Latest webhook</dt>
+                <dd class="col-sm-8 mb-1">
+                    @if(! empty($health['latest_webhook_at']))
+                        {{ display_app_datetime($health['latest_webhook_at']) }}
+                    @else
+                        —
+                    @endif
+                </dd>
+                <dt class="col-sm-4 text-muted">Last successful payment</dt>
+                <dd class="col-sm-8 mb-1">
+                    @if(! empty($health['last_successful_webhook_at']))
+                        {{ display_app_datetime($health['last_successful_webhook_at']) }}
+                    @else
+                        —
+                    @endif
+                </dd>
+                <dt class="col-sm-4 text-muted">Last failed payment</dt>
+                <dd class="col-sm-8 mb-0">
+                    @if(! empty($health['last_failed_webhook_at']))
+                        {{ display_app_datetime($health['last_failed_webhook_at']) }}
+                    @else
+                        —
+                    @endif
+                </dd>
+            </dl>
+
+            <div class="operations-metric-row mb-3">
+                <div class="operations-metric-row-item">
                     <span class="operations-metric-row-label">Paid Missing</span>
                     <strong class="operations-metric-row-value">{{ number_format($health['paid_without_desk_order'] ?? 0) }}</strong>
                 </div>
@@ -36,16 +99,6 @@
                 <div class="operations-metric-row-item">
                     <span class="operations-metric-row-label">Invalid Events</span>
                     <strong class="operations-metric-row-value">{{ number_format($health['invalid_event_failures'] ?? 0) }}</strong>
-                </div>
-                <div class="operations-metric-row-item">
-                    <span class="operations-metric-row-label">Last Success</span>
-                    <strong class="operations-metric-row-value operations-metric-row-value--compact">
-                        @if(! empty($health['last_successful_webhook_at']))
-                            {{ display_app_datetime($health['last_successful_webhook_at']) }}
-                        @else
-                            —
-                        @endif
-                    </strong>
                 </div>
             </div>
 

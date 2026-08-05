@@ -5,7 +5,7 @@ namespace App\Infrastructure\IntegrationHealth\Probes;
 use App\Infrastructure\IntegrationHealth\Contracts\IntegrationHealthProbe;
 use App\Infrastructure\IntegrationHealth\IntegrationHealthSnapshot;
 use App\Models\CashfreeWebhookLog;
-use App\Services\Cashfree\CashfreeConfigurationValidator;
+use App\Services\Cashfree\CashfreeHealthService;
 use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Cashfree\CashfreeWebhookProcessorService;
 use Illuminate\Support\Facades\Schema;
@@ -14,7 +14,7 @@ class CashfreeIntegrationHealthProbe implements IntegrationHealthProbe
 {
     public function __construct(
         private readonly CashfreePaymentIntegrityService $integrityService,
-        private readonly CashfreeConfigurationValidator $configurationValidator,
+        private readonly CashfreeHealthService $cashfreeHealthService,
     ) {}
 
     public function key(): string
@@ -29,7 +29,7 @@ class CashfreeIntegrationHealthProbe implements IntegrationHealthProbe
 
     public function probe(): IntegrationHealthSnapshot
     {
-        $configurationFailures = $this->configurationValidator->failures();
+        $configurationFailures = $this->cashfreeHealthService->blockingFailures();
 
         if ($configurationFailures !== []) {
             return $this->misconfiguredSnapshot($configurationFailures[0]);

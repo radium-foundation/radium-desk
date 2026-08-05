@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -13,14 +14,19 @@ use Illuminate\Support\Facades\Cache;
  * Cross-request cache for the operator dashboard.
  *
  * Fast path (cases / presence) uses a short-TTL active-incident snapshot.
+ * The shared cache stores a plain-array projection only (never Eloquent graphs).
  * Slow path (admin table COUNTs) uses a separate short-TTL scalar cache so
  * live polls do not re-scan orders / users / audit_logs on every request.
  */
 class OperatorDashboardCache
 {
-    public const SNAPSHOT_CACHE_KEY = 'operator.dashboard.snapshot:v1';
+    public const SNAPSHOT_CACHE_KEY = 'operator.dashboard.snapshot:v2';
 
     public const SLOW_SCALARS_CACHE_KEY = 'operator.dashboard.slow_scalars:v1';
+
+    public function __construct(
+        private readonly ActiveIncidentSnapshotPayload $snapshotPayload,
+    ) {}
 
     /**
      * @param  callable(): Collection<int, Incident>  $loader
@@ -34,17 +40,24 @@ class OperatorDashboardCache
 
         $cached = Cache::get(self::SNAPSHOT_CACHE_KEY);
 
-        if ($cached instanceof Collection) {
-            return $cached;
+        if ($this->snapshotPayload->isValidPayload($cached)) {
+            $decoded = $this->snapshotPayload->decode($cached);
+
+            if ($decoded instanceof EloquentCollection) {
+                return $decoded;
+            }
         }
 
         $incidents = $loader();
 
         Cache::put(
             self::SNAPSHOT_CACHE_KEY,
-            $incidents,
+            $this->snapshotPayload->encode($incidents),
             now()->addSeconds($this->snapshotTtlSeconds()),
         );
+
+        // Drop any legacy Eloquent Collection payload from v1.
+        Cache::forget('operator.dashboard.snapshot:v1');
 
         return $incidents;
     }
@@ -65,6 +78,7 @@ class OperatorDashboardCache
     public function forgetSnapshot(): void
     {
         Cache::forget(self::SNAPSHOT_CACHE_KEY);
+        Cache::forget('operator.dashboard.snapshot:v1');
     }
 
     public function forgetSlowScalars(): void

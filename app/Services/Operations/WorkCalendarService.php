@@ -13,6 +13,35 @@ use Illuminate\Support\Carbon;
 
 class WorkCalendarService
 {
+    private bool $readBatchActive = false;
+
+    /** @var array<string, bool> */
+    private array $companyHolidayCache = [];
+
+    /** @var array<string, LeaveRequest|null> */
+    private array $approvedLeaveCache = [];
+
+    /**
+     * Enable request-local memoization for holiday/leave lookups.
+     *
+     * Use only around pure read paths (Team Activity / roster). Do not wrap
+     * session-start or leave-approval flows: those may create rows mid-request
+     * and must observe fresh writes.
+     */
+    public function beginReadBatch(): void
+    {
+        $this->readBatchActive = true;
+        $this->companyHolidayCache = [];
+        $this->approvedLeaveCache = [];
+    }
+
+    public function endReadBatch(): void
+    {
+        $this->readBatchActive = false;
+        $this->companyHolidayCache = [];
+        $this->approvedLeaveCache = [];
+    }
+
     /**
      * @return list<int>
      */
@@ -108,9 +137,19 @@ class WorkCalendarService
         $at ??= now();
         $dateKey = $at->toDateString();
 
-        return CompanyHoliday::query()
+        if ($this->readBatchActive && array_key_exists($dateKey, $this->companyHolidayCache)) {
+            return $this->companyHolidayCache[$dateKey];
+        }
+
+        $exists = CompanyHoliday::query()
             ->whereDate('holiday_date', $dateKey)
             ->exists();
+
+        if ($this->readBatchActive) {
+            $this->companyHolidayCache[$dateKey] = $exists;
+        }
+
+        return $exists;
     }
 
     public function hasApprovedLeave(User $user, ?Carbon $at = null): bool
@@ -127,16 +166,28 @@ class WorkCalendarService
     {
         $at ??= now();
         $dayKey = $at->copy()->startOfDay()->toDateString();
+        $cacheKey = $user->id.'|'.$dayKey;
 
-        // Do not memoize: session start / late-login checks can run before leave or
-        // holiday rows exist in the same request (tests and mid-request approvals).
-        return LeaveRequest::query()
+        // Default: do not memoize — session start / late-login checks can run
+        // before leave or holiday rows exist in the same request (tests and
+        // mid-request approvals). Read-batch mode is opt-in for pure readers.
+        if ($this->readBatchActive && array_key_exists($cacheKey, $this->approvedLeaveCache)) {
+            return $this->approvedLeaveCache[$cacheKey];
+        }
+
+        $leave = LeaveRequest::query()
             ->where('user_id', $user->id)
             ->where('status', LeaveRequestStatus::Approved)
             ->whereDate('start_date', '<=', $dayKey)
             ->whereDate('end_date', '>=', $dayKey)
             ->orderByDesc('id')
             ->first();
+
+        if ($this->readBatchActive) {
+            $this->approvedLeaveCache[$cacheKey] = $leave;
+        }
+
+        return $leave;
     }
 
     public function isEligibleForAssignment(User $user, ?Carbon $at = null): bool

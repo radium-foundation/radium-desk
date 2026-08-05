@@ -27,20 +27,6 @@ class GmailAccessTokenService
 
         $credentials = $this->loadCredentials();
         $now = time();
-        $claims = $this->jwtClaims($credentials, $mailbox, $now);
-        $privateKeyLoads = openssl_pkey_get_private($credentials['private_key']) !== false;
-
-        // Temporary production diagnostics — remove after OAuth grant troubleshooting.
-        Log::info('[GmailInbound] OAuth JWT claims (temporary diagnostics).', [
-            'iss' => $claims['iss'],
-            'sub' => $claims['sub'],
-            'aud' => $claims['aud'],
-            'scope' => $claims['scope'],
-            'iat' => $claims['iat'],
-            'exp' => $claims['exp'],
-            'private_key_loads' => $privateKeyLoads,
-        ]);
-
         $jwt = $this->buildJwt($credentials, $mailbox, $now);
 
         $response = Http::asForm()

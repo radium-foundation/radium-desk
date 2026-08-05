@@ -17,6 +17,12 @@ use Illuminate\Support\Facades\DB;
 
 class PresenceEngineService
 {
+    /** @var array<int, WorkSession|null> */
+    private array $openSessionCache = [];
+
+    /** @var array<string, WorkSession|null> */
+    private array $todaySessionCache = [];
+
     public function __construct(
         private readonly WorkCalendarService $workCalendarService,
         private readonly OperationsRoleService $roleService,
@@ -37,7 +43,20 @@ class PresenceEngineService
         $openSession = $this->openSessionFor($user);
 
         if ($openSession !== null) {
-            return $openSession;
+            // Request cache can outlive an out-of-band close (direct DB update,
+            // concurrent timeout). Re-check before treating the row as open.
+            $openSession->refresh();
+
+            if ($openSession->logout_at === null) {
+                return $openSession;
+            }
+
+            $this->forgetOpenSession((int) $user->id);
+            $openSession = $this->openSessionFor($user);
+
+            if ($openSession !== null) {
+                return $openSession;
+            }
         }
 
         $schedule = $this->workCalendarService->scheduleFor($user, $at);
@@ -59,6 +78,9 @@ class PresenceEngineService
                 ? ! $this->workCalendarService->isLateLogin($user, $at)
                 : null,
         ]);
+
+        $this->rememberOpenSession($user->id, $session);
+        $this->forgetTodaySession($user->id, $at);
 
         $this->availabilityService->syncFromSessionStart($user, $at);
 
@@ -90,6 +112,8 @@ class PresenceEngineService
         $this->tickSession($session, $at, hasActivity: false);
         $this->refreshAttendanceRegister($user, $at, $session);
         $this->finalizeSession($session, $at, $reason);
+        $this->forgetOpenSession($user->id);
+        $this->forgetTodaySession($user->id, $at);
         $this->availabilityService->syncFromSessionEnd(
             $user,
             $reason === WorkSessionEndReason::AwayTimeout
@@ -262,6 +286,9 @@ class PresenceEngineService
             return;
         }
 
+        $this->forgetOpenSession((int) $user->id);
+        $this->forgetTodaySession((int) $user->id, $at);
+
         if ($this->openSessionFor($user) !== null) {
             $this->refreshAttendanceRegister($user, $at, $session);
 
@@ -278,8 +305,14 @@ class PresenceEngineService
 
     public function openSessionFor(User $user): ?WorkSession
     {
-        return WorkSession::query()
-            ->where('user_id', $user->id)
+        $userId = (int) $user->id;
+
+        if (array_key_exists($userId, $this->openSessionCache)) {
+            return $this->openSessionCache[$userId];
+        }
+
+        return $this->openSessionCache[$userId] = WorkSession::query()
+            ->where('user_id', $userId)
             ->whereNull('logout_at')
             ->latest('login_at')
             ->first();
@@ -288,12 +321,32 @@ class PresenceEngineService
     public function todaySessionFor(User $user, ?Carbon $at = null): ?WorkSession
     {
         $at ??= now();
+        $cacheKey = $user->id.'|'.$at->toDateString();
 
-        return WorkSession::query()
+        if (array_key_exists($cacheKey, $this->todaySessionCache)) {
+            return $this->todaySessionCache[$cacheKey];
+        }
+
+        return $this->todaySessionCache[$cacheKey] = WorkSession::query()
             ->where('user_id', $user->id)
             ->whereDate('work_date', $at->toDateString())
             ->latest('login_at')
             ->first();
+    }
+
+    private function rememberOpenSession(int $userId, WorkSession $session): void
+    {
+        $this->openSessionCache[$userId] = $session;
+    }
+
+    private function forgetOpenSession(int $userId): void
+    {
+        unset($this->openSessionCache[$userId]);
+    }
+
+    private function forgetTodaySession(int $userId, Carbon $at): void
+    {
+        unset($this->todaySessionCache[$userId.'|'.$at->toDateString()]);
     }
 
     public function formatDuration(int $seconds): string

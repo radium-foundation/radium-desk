@@ -87,7 +87,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Cross-request cache for the active-incident hydrate used by KPI strip,
-    | filter counts, and service-case rows. TTL is clamped to 15–30 seconds.
+    | filter counts, and service-case rows. Shared cache stores a plain-array
+    | projection (never Eloquent models). TTL is clamped to 15–30 seconds.
     |
     */
 

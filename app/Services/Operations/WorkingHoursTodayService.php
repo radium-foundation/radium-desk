@@ -17,6 +17,9 @@ use Illuminate\Support\Carbon;
  */
 class WorkingHoursTodayService
 {
+    /** @var array<string, array<int, WorkingHoursToday>> */
+    private array $forUsersCache = [];
+
     public function __construct(
         private readonly AttendanceRegisterService $attendanceRegister,
         private readonly PresenceEngineService $presenceEngine,
@@ -35,6 +38,13 @@ class WorkingHoursTodayService
 
         $at ??= now();
         $workDate = $at->copy()->startOfDay();
+        $sortedIds = $userIds;
+        sort($sortedIds);
+        $cacheKey = $workDate->toDateString().'|'.implode(',', $sortedIds);
+
+        if (isset($this->forUsersCache[$cacheKey])) {
+            return $this->forUsersCache[$cacheKey];
+        }
 
         $users = User::query()
             ->whereIn('id', $userIds)
@@ -79,7 +89,7 @@ class WorkingHoursTodayService
             );
         }
 
-        return $hours;
+        return $this->forUsersCache[$cacheKey] = $hours;
     }
 
     public function forUser(User $user, ?Carbon $at = null, ?Carbon $workDate = null): WorkingHoursToday

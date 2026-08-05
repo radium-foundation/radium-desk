@@ -107,7 +107,7 @@ class TeamActivityMemberStatusPresenter
         $duration = $this->stateDurationLabel($agent, $latestElapsed);
         $late = $this->lateDurationLabel($agent);
 
-        if ($agent->status === TeamActivityStatus::Leave && filled($agent->workingLabel)) {
+        if ($this->usesWorkingLabelContext($agent) && filled($agent->workingLabel)) {
             $parts[] = $agent->workingLabel;
         } elseif ($duration !== null) {
             $parts[] = $duration;
@@ -134,5 +134,31 @@ class TeamActivityMemberStatusPresenter
         $compact = $this->durationPresenter->compact($value);
 
         return $this->durationPresenter->isDuration($compact) ? $compact : $value;
+    }
+
+    /**
+     * Shift / leave metadata shown in accessible context (not compact visual codes).
+     */
+    public function usesWorkingLabelContext(TeamActivityAgentRow $agent): bool
+    {
+        return match ($agent->status) {
+            TeamActivityStatus::Leave,
+            TeamActivityStatus::NotStartedShift,
+            TeamActivityStatus::OffDuty,
+            TeamActivityStatus::Logout => true,
+            default => false,
+        };
+    }
+
+    /**
+     * Tooltip title: leave reason or shift start/end copy when present.
+     */
+    public function presenceTitle(TeamActivityAgentRow $agent): string
+    {
+        if ($this->usesWorkingLabelContext($agent) && filled($agent->workingLabel)) {
+            return $agent->workingLabel;
+        }
+
+        return $agent->statusLabel;
     }
 }

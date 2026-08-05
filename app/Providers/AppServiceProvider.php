@@ -124,6 +124,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(\App\Services\Operations\TeamPerformanceMetricsService::class);
         $this->app->scoped(\App\Services\Operations\WorkforceAuthorityService::class);
         $this->app->scoped(\App\Services\Operations\WorkCalendarService::class);
+        $this->app->scoped(\App\Services\Operations\WorkingHoursTodayService::class);
+        $this->app->scoped(\App\Services\Operations\PresenceEngineService::class);
+        $this->app->scoped(\App\Services\Workforce\PayrollMonthLockService::class);
         $this->app->scoped(
             \App\Contracts\Workforce\CalendarPolicy::class,
             \App\Services\Workforce\Policies\CalendarPolicyAdapter::class,

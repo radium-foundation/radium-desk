@@ -93,8 +93,23 @@ class TeamActivityMemberStatusPresenterTest extends TestCase
 
         $this->assertNull($presenter->lateDurationLabel($leave));
         $this->assertSame('On Leave · Annual Leave', $presenter->presenceAriaLabel($leave, null));
+        $this->assertSame('Annual Leave', $presenter->presenceTitle($leave));
         $this->assertNull($presenter->lateDurationLabel($onTime));
         $this->assertSame('Active · 12m', $presenter->presenceAriaLabel($onTime, null));
+    }
+
+    public function test_not_started_shift_surfaces_shift_starts_context(): void
+    {
+        $presenter = app(TeamActivityMemberStatusPresenter::class);
+        $agent = $this->agentRow(
+            TeamActivityStatus::NotStartedShift,
+            workingLabel: 'Shift starts 9:00 AM',
+            statusLabel: 'Shift Not Started',
+        );
+
+        $this->assertSame('Shift Not Started · Shift starts 9:00 AM', $presenter->presenceAriaLabel($agent, null));
+        $this->assertSame('Shift starts 9:00 AM', $presenter->presenceTitle($agent));
+        $this->assertNull($presenter->stateDurationLabel($agent, null));
     }
 
     public function test_normalize_duration_formats_compact_presence_values(): void

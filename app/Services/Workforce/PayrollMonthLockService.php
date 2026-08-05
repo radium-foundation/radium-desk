@@ -17,6 +17,9 @@ use Illuminate\Validation\ValidationException;
 
 class PayrollMonthLockService
 {
+    /** @var array<string, bool> */
+    private array $monthLockedCache = [];
+
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly WorkforceEventPublisher $workforceEventPublisher,
@@ -26,7 +29,11 @@ class PayrollMonthLockService
     {
         $month = $monthOrDay->copy()->startOfMonth()->toDateString();
 
-        return PayrollMonthLock::query()
+        if (array_key_exists($month, $this->monthLockedCache)) {
+            return $this->monthLockedCache[$month];
+        }
+
+        return $this->monthLockedCache[$month] = PayrollMonthLock::query()
             ->whereDate('month', $month)
             ->whereNull('unlocked_at')
             ->exists();
@@ -120,6 +127,8 @@ class PayrollMonthLockService
             ],
         ));
 
+        unset($this->monthLockedCache[$monthStart->toDateString()]);
+
         return $lock;
     }
 
@@ -162,6 +171,8 @@ class PayrollMonthLockService
                 'unlocked_at' => $lock->unlocked_at?->toIso8601String(),
             ],
         );
+
+        unset($this->monthLockedCache[$monthStart->toDateString()]);
 
         return $lock;
     }

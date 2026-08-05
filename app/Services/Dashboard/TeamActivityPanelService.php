@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\Operations\RoleAwareKpiMetricsService;
 use App\Services\Operations\TeamAvailabilityOverviewService;
+use App\Services\Operations\WorkCalendarService;
 use App\Support\Dashboard\RecentActivityPresenter;
 use App\Services\PerformanceIntelligence\PerformanceSnapshotRepository;
 use App\Support\Dashboard\TeamActivityBadgeResolver;
@@ -34,6 +35,7 @@ class TeamActivityPanelService
         private readonly RoleAwareKpiMetricsService $roleAwareKpiMetricsService,
         private readonly TeamActivityBadgeResolver $badgeResolver,
         private readonly PerformanceSnapshotRepository $snapshotRepository,
+        private readonly WorkCalendarService $workCalendarService,
     ) {}
 
     /**
@@ -45,6 +47,20 @@ class TeamActivityPanelService
             return TeamActivityPanel::empty();
         }
 
+        $this->workCalendarService->beginReadBatch();
+
+        try {
+            return $this->buildPanel($expandedAgentIds);
+        } finally {
+            $this->workCalendarService->endReadBatch();
+        }
+    }
+
+    /**
+     * @param  list<int>  $expandedAgentIds
+     */
+    private function buildPanel(array $expandedAgentIds): TeamActivityPanel
+    {
         $overview = $this->overviewService->operationalRoster();
         $members = $this->humanRosterMembers(array_values($overview));
 
@@ -316,18 +332,35 @@ class TeamActivityPanelService
         }
 
         $todayStart = today();
+
+        // One grouped query: max prior allowlisted audit id per user, bounded by each user's latest.
+        $previousIds = AuditLog::query()
+            ->selectRaw('user_id, MAX(id) as id')
+            ->whereIn('event', $allowlist)
+            ->where(function ($query) use ($latestByUser): void {
+                foreach ($latestByUser as $userId => $latestAudit) {
+                    $query->orWhere(function ($inner) use ($userId, $latestAudit): void {
+                        $inner->where('user_id', $userId)
+                            ->where('id', '<', $latestAudit->id);
+                    });
+                }
+            })
+            ->groupBy('user_id')
+            ->pluck('id', 'user_id');
+
+        if ($previousIds->isEmpty()) {
+            return [];
+        }
+
         $previousByUser = [];
 
-        foreach ($latestByUser as $userId => $latestAudit) {
-            $previousAudit = AuditLog::query()
-                ->where('user_id', $userId)
-                ->whereIn('event', $allowlist)
-                ->where('id', '<', $latestAudit->id)
-                ->orderByDesc('id')
-                ->first(['created_at']);
-
-            if ($previousAudit?->created_at !== null && $previousAudit->created_at >= $todayStart) {
-                $previousByUser[$userId] = $previousAudit->created_at;
+        foreach (
+            AuditLog::query()
+                ->whereIn('id', $previousIds->values()->all())
+                ->get(['id', 'user_id', 'created_at']) as $previousAudit
+        ) {
+            if ($previousAudit->created_at !== null && $previousAudit->created_at >= $todayStart) {
+                $previousByUser[(int) $previousAudit->user_id] = $previousAudit->created_at;
             }
         }
 

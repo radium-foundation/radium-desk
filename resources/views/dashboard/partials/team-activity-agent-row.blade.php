@@ -95,9 +95,7 @@
             $presenceAriaLabel .= ' · '.$badgeLabels;
         }
     }
-    $presenceTitle = $agent->status === \App\Enums\TeamActivityStatus::Leave && filled($agent->workingLabel)
-        ? $agent->workingLabel
-        : $agent->statusLabel;
+    $presenceTitle = $memberStatusPresenter->presenceTitle($agent);
     $hasLivePresence = ! $agent->isVirtual || filled($agent->statusLabel);
 @endphp
 

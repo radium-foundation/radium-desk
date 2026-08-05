@@ -8,7 +8,6 @@ export default defineConfig({
                 'resources/css/app.css',
                 'resources/js/app.js',
                 'resources/js/customer-portal.js',
-                'resources/js/service-case-show.js',
                 'resources/js/pages/dashboard.js',
                 'resources/js/pages/platform.js',
                 'resources/js/pages/system-settings.js',

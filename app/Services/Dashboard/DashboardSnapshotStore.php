@@ -10,6 +10,9 @@ use App\Services\Operations\OperationsQueueClassifier;
  *
  * Prevents duplicate incident loads during the same HTTP request and
  * reuses a short-TTL cross-request cache via OperatorDashboardCache.
+ *
+ * Shared cache holds a serializable array projection only; this store
+ * rehydrates Eloquent models for DashboardSnapshot consumers.
  */
 class DashboardSnapshotStore
 {

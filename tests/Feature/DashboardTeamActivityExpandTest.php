@@ -58,9 +58,18 @@ class DashboardTeamActivityExpandTest extends TestCase
         $this->assertStringContainsString('team-activity-kpi-table', $html);
         $this->assertStringNotContainsString('AI / Automation', $html);
         $this->assertStringNotContainsString('team-activity-badge', $html);
-        $this->assertStringNotContainsString('Shift starts', $html);
-        $this->assertStringNotContainsString('Logged In', $html);
-        $this->assertStringNotContainsString('Logged Out', $html);
+
+        // Scope to the IRA row. Panel legend includes "Not Logged In" /
+        // "Auto Logged Out" — those are not IRA attendance inheritance.
+        $iraHtml = $this->agentRowHtml($html, $iraId);
+        $this->assertNotSame('', $iraHtml);
+        $this->assertStringContainsString('is-virtual', $iraHtml);
+        $this->assertStringNotContainsString('Shift starts', $iraHtml);
+        $this->assertStringNotContainsString('Logged In', $iraHtml);
+        $this->assertStringNotContainsString('Logged Out', $iraHtml);
+        $this->assertStringNotContainsString('Not Logged In', $iraHtml);
+        $this->assertStringNotContainsString('Auto Logged Out', $iraHtml);
+        $this->assertStringNotContainsString('Shift Not Started', $iraHtml);
     }
 
     public function test_expanded_history_count_matches_today_kpi_count(): void
@@ -226,6 +235,19 @@ class DashboardTeamActivityExpandTest extends TestCase
             ->getJson(route('dashboard.team-activity', ['expanded' => $expanded]))
             ->assertOk()
             ->json('html');
+    }
+
+    private function agentRowHtml(string $panelHtml, int $agentId): string
+    {
+        if (! preg_match(
+            '/<li\b[^>]*\bdata-team-activity-agent="'.preg_quote((string) $agentId, '/').'"[^>]*>.*?<\/li>/s',
+            $panelHtml,
+            $matches,
+        )) {
+            return '';
+        }
+
+        return $matches[0];
     }
 
     private function createAssignmentAudit(User $user, Carbon $createdAt): void

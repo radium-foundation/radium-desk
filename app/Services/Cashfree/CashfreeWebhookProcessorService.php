@@ -11,6 +11,7 @@ use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Inquiry\InquiryOrderLinkService;
 use App\Services\Outbox\OutboxProcessorService;
@@ -28,6 +29,10 @@ class CashfreeWebhookProcessorService
 
     public const STATUS_FAILED = 'failed';
 
+    public const ERROR_SYSTEM_USER_PREFLIGHT = 'Cashfree system user pre-flight failed.';
+
+    public const AUDIT_EVENT_SYSTEM_USER_MISSING = 'cashfree.system_user_missing';
+
     public function __construct(
         private readonly CashfreeWebhookPayloadParser $payloadParser,
         private readonly IncidentReferenceService $incidentReferenceService,
@@ -36,6 +41,8 @@ class CashfreeWebhookProcessorService
         private readonly OutboxProcessorService $outboxProcessorService,
         private readonly CashfreeWebhookReliabilityMetrics $reliabilityMetrics,
         private readonly InquiryOrderLinkService $inquiryOrderLinkService,
+        private readonly CashfreeHealthService $cashfreeHealthService,
+        private readonly AuditLogService $auditLogService,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -51,6 +58,7 @@ class CashfreeWebhookProcessorService
         }
 
         try {
+            $this->assertSystemUserPreflight($webhookLog);
             $deferredContext = $this->persistSuccessfulPayment($webhookLog, $payload);
         } catch (Throwable $exception) {
             $this->markWebhookFailed($webhookLog, $exception);
@@ -131,10 +139,12 @@ class CashfreeWebhookProcessorService
             return null;
         }
 
+        // System user is pre-flighted in process(); resolve again for the unit of work.
+        $systemUser = $this->cashfreeHealthService->assertSystemUserReady();
+
         // Allocate SC outside the payment unit-of-work so reference_sequences
         // FOR UPDATE is released before order/incident/outbox writes begin.
         $referenceNo = $this->incidentReferenceService->generate();
-        $systemUser = $this->resolveSystemUser();
 
         return DB::transaction(function () use ($webhookLog, $payload, $cfPaymentId, $referenceNo, $systemUser): ?CashfreeWebhookDeferredContext {
             $existingIncident = $this->findExistingIncidentForPayment($cfPaymentId);
@@ -203,6 +213,33 @@ class CashfreeWebhookProcessorService
                 'exception' => $exception::class,
             ]);
         }
+    }
+
+    private function assertSystemUserPreflight(CashfreeWebhookLog $webhookLog): void
+    {
+        $check = $this->cashfreeHealthService->systemUserCheck();
+
+        if ($check['status'] === CashfreeHealthService::SYSTEM_USER_STATUS_HEALTHY) {
+            return;
+        }
+
+        $error = (string) ($check['failure'] ?? self::ERROR_SYSTEM_USER_PREFLIGHT);
+
+        $this->auditLogService->log(
+            userId: null,
+            event: self::AUDIT_EVENT_SYSTEM_USER_MISSING,
+            auditable: $webhookLog,
+            oldValues: null,
+            newValues: [
+                'severity' => 'high',
+                'configured_email' => $check['email'] ?: null,
+                'system_user_status' => $check['status'],
+                'processing_error' => $error,
+                'cf_payment_id' => $webhookLog->cf_payment_id,
+            ],
+        );
+
+        throw new RuntimeException($error);
     }
 
     private function markWebhookFailed(CashfreeWebhookLog $webhookLog, Throwable $exception): void
@@ -311,16 +348,5 @@ class CashfreeWebhookProcessorService
         return $webhookLog->fresh(['incident']);
     }
 
-    private function resolveSystemUser(): User
-    {
-        $email = (string) config('cashfree.system_user_email');
-
-        $user = User::query()->where('email', $email)->first();
-
-        if ($user === null || $user->trashed() || ! $user->is_active) {
-            throw new RuntimeException('Cashfree system user is not configured or inactive.');
-        }
-
-        return $user;
-    }
 }
+

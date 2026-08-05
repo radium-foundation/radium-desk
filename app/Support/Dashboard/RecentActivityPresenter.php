@@ -413,20 +413,8 @@ class RecentActivityPresenter
 
     private function formatIncidentReference(?Incident $incident, AuditLog $auditLog): ?string
     {
-        if ($incident !== null) {
-            if (filled($incident->display_reference)) {
-                return (string) $incident->display_reference;
-            }
-
-            if (filled($incident->reference_no)) {
-                return (string) $incident->reference_no;
-            }
-
-            return 'SC'.$incident->id;
-        }
-
-        if ($auditLog->auditable_type === (new Incident)->getMorphClass() && $auditLog->auditable_id !== null) {
-            return 'SC'.$auditLog->auditable_id;
+        if ($incident !== null && filled($incident->display_reference)) {
+            return (string) $incident->display_reference;
         }
 
         $auditable = $auditLog->auditable;

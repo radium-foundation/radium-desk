@@ -1182,8 +1182,6 @@ const initOperationsDashboard = async () => {
         return;
     }
 
-    console.info('Operations dashboard JS version P06-07-021 loaded');
-
     bindBatchRecoveryForms(pageRoot);
     bindOperationsTabShortcuts(pageRoot);
     activateOperationsHubTabFromQuery(pageRoot);

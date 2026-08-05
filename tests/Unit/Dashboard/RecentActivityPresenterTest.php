@@ -111,7 +111,8 @@ class RecentActivityPresenterTest extends TestCase
         $item = $this->presenter->presentStreams(collect([$log]), $user)->team->first()?->latest();
 
         $this->assertNotNull($item);
-        $this->assertSame('SC'.$incident->id, $item->incidentReference);
+        $this->assertSame($incident->display_reference, $item->incidentReference);
+        $this->assertSame('SC00001', $item->incidentReference);
         $this->assertSame($incident->id, $item->entityIncidentId);
         $this->assertNotSame('', $item->incidentLabel());
     }

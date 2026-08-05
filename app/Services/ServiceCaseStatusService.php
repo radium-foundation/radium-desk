@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\User;
+use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\TeamMemberActivityService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ class ServiceCaseStatusService
         private readonly AuditLogService $auditLogService,
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly IncidentWaitingStateService $waitingStateService,
+        private readonly DashboardSnapshotStore $dashboardSnapshotStore,
     ) {}
 
     /**
@@ -90,6 +92,10 @@ class ServiceCaseStatusService
             app(TeamMemberActivityService::class)
                 ->recordStatusChange($actor);
 
+            // Snapshot membership changes with status — always invalidate,
+            // independent of Hybrid Realtime / broadcast / Reverb flags.
+            $this->dashboardSnapshotStore->forget();
+
             if ($status === IncidentStatus::Closed) {
                 $this->waitingStateService->clearActiveIfPresent(
                     incident: $freshIncident,
@@ -141,6 +147,9 @@ class ServiceCaseStatusService
 
             app(TeamMemberActivityService::class)
                 ->recordStatusChange($actor);
+
+            // Reopen returns a case to the active snapshot — always invalidate.
+            $this->dashboardSnapshotStore->forget();
 
             $this->dashboardBroadcastService->serviceCaseQueueMembershipChanged($freshIncident, $actor);
 
