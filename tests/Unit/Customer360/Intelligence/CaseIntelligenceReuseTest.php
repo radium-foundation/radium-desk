@@ -113,6 +113,36 @@ class CaseIntelligenceReuseTest extends TestCase
         $this->assertSame(2, $engine->buildCountFor($incident));
     }
 
+    public function test_snapshot_is_shared_across_engine_instances_via_incident_updated_at_cache(): void
+    {
+        [$incident] = $this->createIncident();
+
+        $realCollector = app(CaseIntelligenceFactCollector::class);
+        $collectCount = 0;
+
+        $collector = Mockery::mock(CaseIntelligenceFactCollector::class);
+        $collector->shouldReceive('collect')
+            ->andReturnUsing(function (Incident $incident) use ($realCollector, &$collectCount) {
+                $collectCount++;
+
+                return $realCollector->collect($incident);
+            });
+
+        $this->app->instance(CaseIntelligenceFactCollector::class, $collector);
+
+        $this->app->forgetInstance(CaseIntelligenceEngine::class);
+        $first = app(CaseIntelligenceEngine::class)->build($incident);
+        $this->assertNotNull($first);
+        $this->assertSame(1, $collectCount);
+
+        $this->app->forgetInstance(CaseIntelligenceEngine::class);
+        $second = app(CaseIntelligenceEngine::class)->build($incident);
+        $this->assertNotNull($second);
+        $this->assertSame(1, $collectCount);
+        $this->assertSame($first->incidentId, $second->incidentId);
+        $this->assertSame($first->workbench->scenario, $second->workbench->scenario);
+    }
+
     /**
      * @return array{0: Incident, 1: Order, 2: User}
      */

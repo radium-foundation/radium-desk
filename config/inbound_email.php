@@ -109,6 +109,20 @@ return [
         explode(',', (string) env('INBOUND_EMAIL_PRIORITY_PHRASES', '')),
     ))),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Dashboard Email Intake KPI widget cache
+    |--------------------------------------------------------------------------
+    |
+    | Short TTL for Needs Attention / ignored hover aggregates. No Gmail API.
+    |
+    */
+
+    'dashboard_widget_cache_seconds' => max(
+        30,
+        min(60, (int) env('INBOUND_EMAIL_DASHBOARD_WIDGET_CACHE_SECONDS', 45)),
+    ),
+
     'preview_max_chars' => (int) env('INBOUND_EMAIL_PREVIEW_MAX_CHARS', 500),
 
     /*

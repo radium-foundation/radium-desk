@@ -60,7 +60,9 @@ class IncomingEmailAttentionCategoryService
      */
     public function categorize(IncomingEmailMessage $message, Collection $knownOrderEmails): IncomingEmailAttentionCategory
     {
-        if ($this->priorityPhraseService->matchAndAudit($message) !== null) {
+        // Read-only: never write audit logs from dashboard/KPI paths.
+        // Priority audits are created during ingest/sync via matchAndAudit().
+        if ($this->priorityPhraseService->match($message) !== null) {
             return IncomingEmailAttentionCategory::Priority;
         }
 

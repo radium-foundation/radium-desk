@@ -1,9 +1,10 @@
 @props([
-    'panel',
+    'panel' => null,
 ])
 
 @php
-    /** @var \App\Data\TeamActivityPanel $panel */
+    /** @var \App\Data\TeamActivityPanel|null $panel */
+    $isShell = $panel === null;
 @endphp
 
 <div class="team-activity-panel is-collapsed"
@@ -13,6 +14,7 @@
      data-team-activity-poll-interval-ms="{{ (int) config('dashboard-team-activity.poll_interval_ms', 30000) }}"
      data-team-activity-user-idle-ms="{{ (int) config('dashboard-team-activity.user_idle_ms', 300000) }}"
      data-team-activity-collapsed="1"
+     @if($isShell) data-team-activity-lazy="1" @endif
      aria-label="Team Activity">
     <div class="team-activity-panel-header">
         <button type="button"
@@ -26,7 +28,9 @@
     </div>
 
     <div class="team-activity-panel-body" data-team-activity-panel-body>
-        @if($panel->empty || $panel->agents === [])
+        @if($isShell)
+            {{-- Hydrated on expand / poll via GET /dashboard/team-activity --}}
+        @elseif($panel->empty || $panel->agents === [])
             <p class="team-activity-empty text-muted small mb-0">No team members to show.</p>
         @else
             <div class="team-activity-grid" role="table" aria-label="Team activity roster">

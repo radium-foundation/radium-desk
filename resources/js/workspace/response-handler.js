@@ -3,16 +3,6 @@ import { maybeShowSuccessState } from './c360-dialog';
 import { allowWorkspaceModalClose, initWorkspaceDialogShell } from './dialog-shell';
 import { initRefundRequestForm } from './refund-request-form';
 
-const replaceInnerHtml = (elementId, html) => {
-    const element = document.getElementById(elementId);
-
-    if (!element || html === undefined || html === null) {
-        return;
-    }
-
-    element.innerHTML = html;
-};
-
 const applyDomPatch = (selector, html, strategy = 'innerHTML') => {
     const element = document.querySelector(selector);
 
@@ -88,19 +78,12 @@ const resolveWorkspaceFilterCounts = (kpisHtml) => {
 };
 
 const applyKpis = (refresh) => {
-    if (!refresh?.kpis_html) {
+    if (!refresh?.kpis_html?.kpi_strip_html) {
         return;
     }
 
-    if (refresh.kpis_html.kpi_strip_html !== undefined) {
-        applyDashboardKpis(refresh.kpis_html.kpi_strip_html);
-        applyFilterCounts(resolveWorkspaceFilterCounts(refresh.kpis_html));
-
-        return;
-    }
-
-    replaceInnerHtml('dashboard-action-stats', refresh.kpis_html.action_stats_html);
-    replaceInnerHtml('dashboard-sla-cards', refresh.kpis_html.sla_cards_html);
+    applyDashboardKpis(refresh.kpis_html.kpi_strip_html);
+    applyFilterCounts(resolveWorkspaceFilterCounts(refresh.kpis_html));
 };
 
 export const createResponseHandler = (hooks = {}, lifecycle = null) => {

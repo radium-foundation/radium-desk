@@ -7,13 +7,13 @@ use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
-use App\Models\Order;
 use App\Models\User;
 use App\ReadModels\Cases\CaseQueueReadModel;
 use App\Services\Dashboard\AgentNextAppointmentResolver;
 use App\Services\Dashboard\DashboardKpiAggregator;
 use App\Services\Dashboard\DashboardSnapshot;
 use App\Services\Dashboard\DashboardSnapshotStore;
+use App\Services\Dashboard\OperatorDashboardCache;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
 use App\Services\Operations\OperationsRoleService;
 use App\Support\Dashboard\DashboardIncidentSortComparator;
@@ -46,6 +46,19 @@ class DashboardService
      */
     public function statsFor(User $user): array
     {
+        return [
+            ...$this->fastChangingStatsFor($user),
+            ...$this->slowChangingStatsFor($user),
+        ];
+    }
+
+    /**
+     * Fast-changing operator metrics (cases, presence, role KPIs).
+     *
+     * @return array<string, mixed>
+     */
+    public function fastChangingStatsFor(User $user): array
+    {
         $onlineUsers = $this->onlineUsers();
         $snapshot = $this->snapshot();
         $activeIncidents = $snapshot->activeIncidents();
@@ -60,7 +73,6 @@ class DashboardService
         $stats = [
             'online_count' => $onlineUsers->count(),
             'online_users' => $onlineUsers,
-            'total_orders' => Order::query()->count(),
             'open_cases' => $operationalKpis['open_cases'],
             'waiting_cases' => $operationalKpis['waiting_cases'],
             'open_incidents' => $operationalKpis['open_cases'],
@@ -104,11 +116,6 @@ class DashboardService
                 ->countsFor($activeIncidents);
         }
 
-        if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
-            $stats['total_users'] = User::query()->count();
-            $stats['audit_log_count'] = AuditLog::query()->count();
-        }
-
         if ($user->can('incidents.view')) {
             // H4-6E: identical SLA summary counts via CaseQueueReadModel (DashboardSnapshot owner).
             $slaCounts = $this->caseQueue()->slaCounts(snapshot: $snapshot);
@@ -123,6 +130,27 @@ class DashboardService
                 'hardware_overdue_cases' => $hardwareSla['overdue_cases'],
                 'hardware_warning_cases' => $hardwareSla['warning_cases'],
             ];
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Slow-changing admin scalars (full-table COUNTs), served from short TTL cache.
+     *
+     * @return array<string, mixed>
+     */
+    public function slowChangingStatsFor(User $user): array
+    {
+        $scalars = app(OperatorDashboardCache::class)->slowScalars();
+
+        $stats = [
+            'total_orders' => $scalars['total_orders'],
+        ];
+
+        if ($user->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN)) {
+            $stats['total_users'] = $scalars['total_users'];
+            $stats['audit_log_count'] = $scalars['audit_log_count'];
         }
 
         return $stats;
@@ -510,6 +538,13 @@ class DashboardService
      *     next_appointment: array<string, mixed>|null,
      *     online_count: int,
      *     online_users: list<array{id: int, name: string}>,
+     *     fast: array{
+     *         service_case_filter_counts: array<string, int>,
+     *         next_appointment: array<string, mixed>|null,
+     *         online_count: int,
+     *         online_users: list<array{id: int, name: string}>,
+     *     },
+     *     slow: array<string, mixed>,
      * }
      */
     public function liveMetricsFor(
@@ -525,16 +560,28 @@ class DashboardService
             $legacyFilter,
         );
 
-        $stats = $this->statsFor($user);
+        $fast = $this->fastChangingStatsFor($user);
+        $slow = $this->slowChangingStatsFor($user);
+        $stats = [...$fast, ...$slow];
+
+        $filterCounts = $user->can('incidents.view')
+            ? $this->serviceCaseFilterCounts($context['assigned_to'], $user)
+            : [];
+        $onlineUsers = $this->onlineUsersPayload($stats);
 
         return [
             'kpi_strip_html' => $this->renderKpiStrip($stats, $user),
-            'service_case_filter_counts' => $user->can('incidents.view')
-                ? $this->serviceCaseFilterCounts($context['assigned_to'], $user)
-                : [],
-            'next_appointment' => $stats['next_appointment'] ?? null,
-            'online_count' => $stats['online_count'],
-            'online_users' => $this->onlineUsersPayload($stats),
+            'service_case_filter_counts' => $filterCounts,
+            'next_appointment' => $fast['next_appointment'] ?? null,
+            'online_count' => $fast['online_count'],
+            'online_users' => $onlineUsers,
+            'fast' => [
+                'service_case_filter_counts' => $filterCounts,
+                'next_appointment' => $fast['next_appointment'] ?? null,
+                'online_count' => $fast['online_count'],
+                'online_users' => $onlineUsers,
+            ],
+            'slow' => $slow,
         ];
     }
 

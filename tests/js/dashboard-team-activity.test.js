@@ -132,6 +132,57 @@ describe('dashboard team activity', () => {
         expect(row.dataset.teamActivityExpanded).toBe('0');
     });
 
+    it('loads team activity immediately when the panel expands', async () => {
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                empty: false,
+                html: panelHtml('v2'),
+            }),
+        });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchMock).toHaveBeenCalled();
+        const calledUrl = String(fetchMock.mock.calls[0][0]);
+        expect(calledUrl).toContain('/dashboard/team-activity');
+        expect(pageRoot.querySelector('.agent-version')?.textContent).toBe('v2');
+    });
+
+    it('hydrates immediately when session restores the panel expanded', async () => {
+        sessionStorage.setItem('radium.teamActivityPanel.collapsed', '0');
+        document.body.innerHTML = `<div id="dashboard-page">${panelHtml('shell')}</div>`;
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                empty: false,
+                html: panelHtml('hydrated'),
+            }),
+        });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        const pageRoot = document.getElementById('dashboard-page');
+        initDashboardTeamActivity(pageRoot);
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(pageRoot.querySelector('.agent-version')?.textContent).toBe('hydrated');
+    });
+
     it('polls the team activity endpoint when the panel is open', async () => {
         document.body.innerHTML = `<div id="dashboard-page">${panelHtml('v1')}</div>`;
 
@@ -149,12 +200,15 @@ describe('dashboard team activity', () => {
         initDashboardTeamActivity(pageRoot);
         pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
 
+        await Promise.resolve();
+        await Promise.resolve();
+        fetchMock.mockClear();
+
         await vi.advanceTimersByTimeAsync(30000);
 
         expect(fetchMock).toHaveBeenCalled();
         const calledUrl = String(fetchMock.mock.calls[0][0]);
         expect(calledUrl).toContain('/dashboard/team-activity');
-        expect(pageRoot.querySelector('.agent-version')?.textContent).toBe('v2');
     });
 
     it('does not poll when the panel is collapsed', async () => {

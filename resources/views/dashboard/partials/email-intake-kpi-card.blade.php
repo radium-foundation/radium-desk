@@ -24,23 +24,23 @@
 
         <div class="dashboard-email-intake-kpi__hover" role="tooltip" aria-hidden="true">
             <div class="dashboard-email-intake-kpi__hover-title">Needs Attention</div>
-            <dl class="dashboard-email-intake-kpi__hover-list">
+            <div class="dashboard-email-intake-kpi__hover-list">
                 @foreach($widget['hover']['needs_attention'] as $row)
                     <div class="dashboard-email-intake-kpi__hover-row">
-                        <dt>{{ $row['label'] }}</dt>
-                        <dd>{{ number_format($row['count']) }}</dd>
+                        <span class="dashboard-email-intake-kpi__hover-label">{{ $row['label'] }}</span>
+                        <span class="dashboard-email-intake-kpi__hover-count">{{ number_format($row['count']) }}</span>
                     </div>
                 @endforeach
-            </dl>
+            </div>
             <div class="dashboard-email-intake-kpi__hover-divider" aria-hidden="true"></div>
-            <dl class="dashboard-email-intake-kpi__hover-list">
+            <div class="dashboard-email-intake-kpi__hover-list">
                 @foreach($widget['hover']['ignored'] as $row)
                     <div class="dashboard-email-intake-kpi__hover-row">
-                        <dt>{{ $row['label'] }}</dt>
-                        <dd>{{ number_format($row['count']) }}</dd>
+                        <span class="dashboard-email-intake-kpi__hover-label">{{ $row['label'] }}</span>
+                        <span class="dashboard-email-intake-kpi__hover-count">{{ number_format($row['count']) }}</span>
                     </div>
                 @endforeach
-            </dl>
+            </div>
         </div>
     </a>
 @endif

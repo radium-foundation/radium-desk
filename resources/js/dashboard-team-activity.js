@@ -3,6 +3,33 @@ import { initTooltips } from './tooltips';
 const PANEL_CONTROLLER = Symbol('dashboardTeamActivityController');
 const PANEL_COLLAPSED_KEY = 'radium.teamActivityPanel.collapsed';
 const EXPANDED_AGENTS_KEY = 'radium.teamActivityPanel.expandedAgents';
+const TOOLTIP_RUNTIME_ATTRS = ['aria-describedby', 'data-bs-original-title'];
+
+const stablePanelHtml = (htmlOrElement) => {
+    const template = document.createElement('template');
+
+    if (typeof htmlOrElement === 'string') {
+        template.innerHTML = htmlOrElement.trim();
+    } else if (htmlOrElement?.outerHTML) {
+        template.innerHTML = htmlOrElement.outerHTML;
+    } else {
+        return '';
+    }
+
+    const root = template.content.firstElementChild;
+
+    if (!root) {
+        return '';
+    }
+
+    [root, ...root.querySelectorAll('*')].forEach((node) => {
+        TOOLTIP_RUNTIME_ATTRS.forEach((attr) => {
+            node.removeAttribute(attr);
+        });
+    });
+
+    return root.outerHTML.replace(/\s+/g, ' ').trim();
+};
 
 let refreshInFlight = false;
 let pollTimeoutId = null;
@@ -218,7 +245,7 @@ const refreshTeamActivity = async (pageRoot, panel) => {
             return;
         }
 
-        if (data.html === currentPanel.outerHTML) {
+        if (stablePanelHtml(data.html) === stablePanelHtml(currentPanel)) {
             return;
         }
 
@@ -383,10 +410,8 @@ export const initDashboardTeamActivity = (pageRoot) => {
     pageRoot[PANEL_CONTROLLER] = refreshController;
 
     if (!collapsed) {
-        if (collectExpandedFromDom(panel).length > 0) {
-            void refreshTeamActivity(pageRoot, panel);
-        }
-
+        // SSR ships a shell only; always hydrate when restored expanded.
+        void refreshTeamActivity(pageRoot, panel);
         startPolling(pageRoot, controller);
     }
 

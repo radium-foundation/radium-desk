@@ -204,6 +204,29 @@ class Customer360CommunicationActionStatusPresenterTest extends TestCase
         $this->assertSame('Available', $reviewRequest['status_label']);
     }
 
+    public function test_batches_lifecycle_audit_lookups_into_a_single_query(): void
+    {
+        [$agent, $incident] = $this->createIncident(IncidentStatus::Resolved);
+
+        app(CommunicationActionLifecycleService::class)->recordSuccessfulExecution(
+            incident: $incident,
+            actor: $agent,
+            actionKey: CommunicationActionKey::ReviewRequest->value,
+            channels: ['whatsapp'],
+        );
+
+        \Illuminate\Support\Facades\DB::flushQueryLog();
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+
+        $this->present($incident, $agent);
+
+        $lifecycleQueries = collect(\Illuminate\Support\Facades\DB::getQueryLog())
+            ->filter(fn (array $query): bool => str_contains((string) $query['query'], 'audit_logs')
+                && str_contains((string) ($query['bindings'][2] ?? ''), 'communication_action.lifecycle'));
+
+        $this->assertCount(1, $lifecycleQueries);
+    }
+
     /**
      * @param  list<array<string, mixed>>  $statuses
      * @return array<string, mixed>

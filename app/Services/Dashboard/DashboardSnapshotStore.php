@@ -3,13 +3,13 @@
 namespace App\Services\Dashboard;
 
 use App\Models\Incident;
-use App\Services\Commercial\CommercialStateResolver;
 use App\Services\Operations\OperationsQueueClassifier;
 
 /**
  * Request-scoped store for the active-incident dashboard snapshot.
  *
- * Prevents duplicate incident loads during the same HTTP request.
+ * Prevents duplicate incident loads during the same HTTP request and
+ * reuses a short-TTL cross-request cache via OperatorDashboardCache.
  */
 class DashboardSnapshotStore
 {
@@ -24,14 +24,16 @@ class DashboardSnapshotStore
     {
         $this->snapshot = null;
         app(OperationsQueueClassifier::class)->forgetClassifications();
+        app(OperatorDashboardCache::class)->forgetSnapshot();
     }
 
     private function loadFresh(): DashboardSnapshot
     {
         $classifier = app(OperationsQueueClassifier::class)->rememberClassifications();
+        $cache = app(OperatorDashboardCache::class);
 
-        return new DashboardSnapshot(
-            Incident::query()
+        $incidents = $cache->rememberActiveIncidents(
+            fn () => Incident::query()
                 ->with([
                     'order.deviceModel',
                     'order.transactionAssigner',
@@ -46,7 +48,8 @@ class DashboardSnapshotStore
                 ])
                 ->whereIn('status', \App\Enums\IncidentStatus::operationallyActive())
                 ->get(),
-            $classifier,
         );
+
+        return new DashboardSnapshot($incidents, $classifier);
     }
 }

@@ -38,6 +38,7 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
     /**
      * @param  array{requested?: bool, requested_at_label?: string|null}  $serialRequestState
      * @param  array{requested?: bool, requested_at_label?: string|null}  $correctSerialRequestState
+     * @param  array<string, mixed>|null  $visibility  Precomputed action visibility; when null, computed once here.
      * @return array{
      *     groups: list<array{label: string, icon: string, items: list<array<string, mixed>>}>,
      *     paletteActions: list<array<string, mixed>>,
@@ -50,8 +51,9 @@ final class Customer360OverflowMenuPresenter implements ProvidesContextScope
         array $serialRequestState = [],
         array $correctSerialRequestState = [],
         ?Collection $supportAppointments = null,
+        ?array $visibility = null,
     ): array {
-        $visibility = $this->visibilityService->forIncident($incident, $user);
+        $visibility ??= $this->visibilityService->forIncident($incident, $user);
         $capabilities = $this->workspaceActionDialogService->capabilities($incident, $user);
         $requestCorrectSerialMenu = RequestCorrectSerialMenuPresenter::resolve(
             (bool) $visibility['canRequestCorrectSerial'],

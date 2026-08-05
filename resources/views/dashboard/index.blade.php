@@ -110,8 +110,9 @@
             </div>
         @endif
 
-        @if(($teamActivityEnabled ?? true) && ! ($teamActivityPanel?->empty ?? true))
-            @include('dashboard.partials.team-activity-panel', ['panel' => $teamActivityPanel])
+        @if(($teamActivityEnabled ?? true) && ($teamActivityCanView ?? false))
+            {{-- Shell only on SSR; roster loads via GET /dashboard/team-activity after expand --}}
+            @include('dashboard.partials.team-activity-panel')
         @elseif(! ($teamActivityEnabled ?? true) && ! $recentActivityStreams->isEmpty())
             @include('dashboard.partials.recent-activity-feed', ['streams' => $recentActivityStreams])
         @endif

@@ -174,9 +174,12 @@ class DashboardTeamActivityTest extends TestCase
             ->assertOk()
             ->assertSee('data-team-activity-refresh-url', false)
             ->assertSee('data-team-activity-poll-interval-ms', false)
+            ->assertSee('data-team-activity-lazy', false)
             ->assertSee(route('dashboard.team-activity'), false)
             ->assertSee('Team Activity', false)
-            ->assertDontSee('data-activity-refresh-url', false);
+            ->assertDontSee('data-activity-refresh-url', false)
+            ->assertDontSee('data-team-activity-list', false)
+            ->assertDontSee('team-activity-grid', false);
     }
 
     public function test_expanded_agent_history_is_included_in_refresh_payload(): void

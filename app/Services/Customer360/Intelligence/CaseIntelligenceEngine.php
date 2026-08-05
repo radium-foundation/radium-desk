@@ -21,15 +21,21 @@ use App\Services\Customer360\Intelligence\Builders\CommunicationSummaryBuilder;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\ServiceCaseEscalationService;
 use App\Support\Customer360\Customer360HealthCardPresenter;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Customer 360 case intelligence orchestration layer.
  *
  * Owns assembly of CaseIntelligenceSnapshot from deterministic builders.
- * Request-scoped: build() is memoized per incident id for the request lifetime.
+ * Memoized per incident id for the request lifetime, and shared across
+ * Overview / IRA / AI AJAX requests via Cache keyed by incident_id + updated_at.
  */
 class CaseIntelligenceEngine
 {
+    private const CROSS_REQUEST_CACHE_TTL_SECONDS = 300;
+
+    private const CROSS_REQUEST_NULL_SENTINEL = '__case_intelligence_null__';
+
     /** @var array<int, CaseIntelligenceSnapshot|null> */
     private array $snapshotCache = [];
 
@@ -62,9 +68,22 @@ class CaseIntelligenceEngine
     public function build(Incident $incident, bool $force = false): ?CaseIntelligenceSnapshot
     {
         $cacheKey = $incident->id;
+        $crossRequestKey = $this->crossRequestCacheKey($incident);
 
         if (! $force && array_key_exists($cacheKey, $this->snapshotCache)) {
             return $this->snapshotCache[$cacheKey];
+        }
+
+        if (! $force) {
+            $cached = Cache::get($crossRequestKey);
+
+            if ($cached === self::CROSS_REQUEST_NULL_SENTINEL) {
+                return $this->snapshotCache[$cacheKey] = null;
+            }
+
+            if ($cached instanceof CaseIntelligenceSnapshot) {
+                return $this->snapshotCache[$cacheKey] = $cached;
+            }
         }
 
         $this->buildCounts[$cacheKey] = ($this->buildCounts[$cacheKey] ?? 0) + 1;
@@ -72,6 +91,8 @@ class CaseIntelligenceEngine
         $facts = $this->factCollector->collect($incident);
 
         if ($facts === null) {
+            $this->putCrossRequestCache($crossRequestKey, self::CROSS_REQUEST_NULL_SENTINEL);
+
             return $this->snapshotCache[$cacheKey] = null;
         }
 
@@ -176,13 +197,28 @@ class CaseIntelligenceEngine
         );
 
         $snapshot = $this->reasoningEngine->enrich($snapshot);
+        $snapshot = $this->languageEnhancer->enhance($snapshot);
 
-        return $this->snapshotCache[$cacheKey] = $this->languageEnhancer->enhance($snapshot);
+        $this->putCrossRequestCache($crossRequestKey, $snapshot);
+
+        return $this->snapshotCache[$cacheKey] = $snapshot;
     }
 
     public function executiveSummary(Incident $incident): ?IRAExecutiveSummaryDTO
     {
         return $this->build($incident)?->executiveSummary;
+    }
+
+    private function crossRequestCacheKey(Incident $incident): string
+    {
+        $updatedAt = $incident->updated_at?->getTimestamp() ?? 0;
+
+        return 'customer360:case-intelligence:'.$incident->id.':'.$updatedAt;
+    }
+
+    private function putCrossRequestCache(string $key, CaseIntelligenceSnapshot|string $value): void
+    {
+        Cache::put($key, $value, now()->addSeconds(self::CROSS_REQUEST_CACHE_TTL_SECONDS));
     }
 
     private function withCanonicalRecommendation(
@@ -217,6 +253,7 @@ class CaseIntelligenceEngine
         }
 
         unset($this->snapshotCache[$incident->id]);
+        Cache::forget($this->crossRequestCacheKey($incident));
     }
 
     public function buildCountFor(Incident $incident): int

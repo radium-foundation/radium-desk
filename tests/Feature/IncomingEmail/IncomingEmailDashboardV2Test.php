@@ -13,11 +13,13 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\IncomingEmail\IncomingEmailAttentionCategoryService;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
-use App\Services\IncomingEmail\IncomingEmailPriorityPhraseService;
+use App\Services\IncomingEmail\IncomingEmailProcessorService;
 use App\Services\SettingService;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\SettingsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class IncomingEmailDashboardV2Test extends TestCase
@@ -45,6 +47,8 @@ class IncomingEmailDashboardV2Test extends TestCase
             'name' => 'System',
             'email' => 'superadmin@radium.local',
         ])->assignRole(RolePermissionSeeder::ROLE_SUPERADMIN);
+
+        Cache::flush();
     }
 
     public function test_dashboard_shows_email_intake_kpi_card_with_needs_attention_total(): void
@@ -86,6 +90,9 @@ class IncomingEmailDashboardV2Test extends TestCase
         $this->assertStringContainsString('Escalations', $html);
         $this->assertStringContainsString('admin/incoming-emails?queue=needs_human', $html);
         $this->assertStringNotContainsString('data-email-intake-counters', $html);
+        $this->assertStringContainsString('dashboard-email-intake-kpi__hover-label', $html);
+        $this->assertStringContainsString('dashboard-email-intake-kpi__hover-count', $html);
+        $this->assertStringNotContainsString('<dl class="dashboard-email-intake-kpi__hover-list">', $html);
     }
 
     public function test_needs_attention_equals_sales_plus_orders_plus_escalations(): void
@@ -160,20 +167,22 @@ class IncomingEmailDashboardV2Test extends TestCase
         $this->assertSame(43, $widget['hover']['ignored'][2]['count']);
     }
 
-    public function test_escalation_phrase_detection_is_auditable(): void
+    public function test_categorize_and_dashboard_widget_are_read_only(): void
     {
         config(['inbound_email.priority_phrases' => ['consumer forum']]);
 
         $message = IncomingEmailMessage::query()->create([
             'mailbox' => 'support@radiumbox.com',
             'provider' => 'fixture',
-            'provider_message_id' => 'priority-1',
+            'provider_message_id' => 'priority-read-only',
             'from_email' => 'forum@example.com',
             'subject' => 'Consumer forum complaint',
             'preview' => 'Escalation',
             'status' => IncomingEmailMessageStatus::NeedsReview,
             'received_at' => now(),
         ]);
+
+        $admin = $this->createAdmin('v2-readonly@test.com');
 
         $category = app(IncomingEmailAttentionCategoryService::class)->categorize(
             $message,
@@ -182,6 +191,39 @@ class IncomingEmailDashboardV2Test extends TestCase
 
         $this->assertSame(IncomingEmailAttentionCategory::Priority, $category);
         $this->assertSame('Escalations', IncomingEmailAttentionCategory::Priority->label());
+
+        $widget = app(IncomingEmailIntakeCounterService::class)->dashboardWidget($admin);
+        $this->assertSame(1, $widget['needs_attention']);
+        $this->assertSame(1, $widget['hover']['needs_attention'][2]['count']);
+
+        $this->assertDatabaseMissing('audit_logs', [
+            'event' => 'incoming_email.priority_detected',
+            'auditable_id' => $message->id,
+        ]);
+    }
+
+    public function test_escalation_phrase_audit_is_written_during_ingest_processing(): void
+    {
+        config([
+            'inbound_email.enabled' => true,
+            'inbound_email.priority_phrases' => ['consumer forum'],
+            'inbound_email.smart_routing_enabled' => false,
+            'inbound_email.auto_create_service_case' => false,
+        ]);
+
+        $message = IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'channel' => 'support',
+            'provider' => 'fixture',
+            'provider_message_id' => 'priority-ingest-1',
+            'from_email' => 'forum@example.com',
+            'subject' => 'Consumer forum complaint',
+            'preview' => 'Escalation',
+            'status' => IncomingEmailMessageStatus::Received,
+            'received_at' => now(),
+        ]);
+
+        app(IncomingEmailProcessorService::class)->process($message->fresh());
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'incoming_email.priority_detected',
@@ -193,8 +235,61 @@ class IncomingEmailDashboardV2Test extends TestCase
             ->where('auditable_id', $message->id)
             ->first();
 
+        $this->assertNotNull($audit);
         $this->assertSame('consumer forum', $audit->new_values['matched_phrase'] ?? null);
         $this->assertSame('config:inbound_email.priority_phrases', $audit->new_values['rule_source'] ?? null);
+    }
+
+    public function test_dashboard_widget_is_cached_within_ttl(): void
+    {
+        $admin = $this->createAdmin('v2-cache@test.com');
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'sales@radiumbox.com',
+            'channel' => 'sales',
+            'provider' => 'fixture',
+            'provider_message_id' => 'cache-1',
+            'from_email' => 'lead@example.com',
+            'subject' => 'Buy',
+            'preview' => 'Buy',
+            'status' => IncomingEmailMessageStatus::NeedsReview,
+            'classification' => IncomingEmailClassification::PossibleSalesLead,
+            'received_at' => now(),
+        ]);
+
+        $service = app(IncomingEmailIntakeCounterService::class);
+
+        $first = $service->dashboardWidget($admin);
+        $this->assertSame(1, $first['needs_attention']);
+        $this->assertTrue(Cache::has(
+            IncomingEmailIntakeCounterService::DASHBOARD_WIDGET_CACHE_KEY_PREFIX.now()->toDateString()
+        ));
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'sales@radiumbox.com',
+            'channel' => 'sales',
+            'provider' => 'fixture',
+            'provider_message_id' => 'cache-2',
+            'from_email' => 'lead2@example.com',
+            'subject' => 'Buy more',
+            'preview' => 'Buy more',
+            'status' => IncomingEmailMessageStatus::NeedsReview,
+            'classification' => IncomingEmailClassification::PossibleSalesLead,
+            'received_at' => now(),
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $cached = $service->dashboardWidget($admin);
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertSame(1, $cached['needs_attention'], 'Warm widget must reuse cache and ignore new rows.');
+        $this->assertSame(0, $queryCount, 'Cached dashboard widget must not query on hit.');
+
+        $service->forgetDashboardWidgetCache();
+        $fresh = $service->dashboardWidget($admin);
+        $this->assertSame(2, $fresh['needs_attention']);
     }
 
     public function test_zero_state_shows_card_with_normal_severity(): void

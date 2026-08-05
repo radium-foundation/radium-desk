@@ -3,10 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Data\RecentActivityStreams;
-use App\Data\TeamActivityPanel;
 use App\Services\Dashboard\OperationsWorkspacePanelService;
 use App\Services\Dashboard\OperationsWorkspaceResolver;
-use App\Services\Dashboard\TeamActivityPanelService;
 use App\Services\DashboardPersonalizationService;
 use App\Services\DashboardService;
 use App\Services\Performance\PerformanceRuntimeConfig;
@@ -25,7 +23,6 @@ class DashboardController extends Controller
         private readonly DashboardPersonalizationService $dashboardPersonalization,
         private readonly OperationsWorkspaceResolver $operationsWorkspace,
         private readonly OperationsWorkspacePanelService $operationsWorkspacePanel,
-        private readonly TeamActivityPanelService $teamActivityPanelService,
         private readonly PerformanceRuntimeConfig $performanceRuntime,
         private readonly RealtimeRuntimeConfig $realtimeRuntime,
     ) {}
@@ -97,9 +94,7 @@ class DashboardController extends Controller
             'serviceCaseTotalCount' => $serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count(),
             'serviceCaseHasMore' => $recentServiceCases->count() < ($serviceCaseFilterCounts[$serviceCaseFilter] ?? $recentServiceCases->count()),
             'teamActivityEnabled' => (bool) config('dashboard-team-activity.enabled', true),
-            'teamActivityPanel' => $user->can('teamActivity.view') && config('dashboard-team-activity.enabled', true)
-                ? $this->teamActivityPanelService->build()
-                : TeamActivityPanel::empty(),
+            'teamActivityCanView' => $user->can('teamActivity.view') && (bool) config('dashboard-team-activity.enabled', true),
             'recentActivityStreams' => $user->can('audit-logs.view') && ! config('dashboard-team-activity.enabled', true)
                 ? $this->dashboardService->recentActivityStreams($user)
                 : RecentActivityStreams::empty(),

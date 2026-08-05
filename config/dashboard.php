@@ -81,4 +81,30 @@ return [
 
     'operations_workspace_phase3_native' => (bool) env('DASHBOARD_OPERATIONS_WORKSPACE_PHASE3_NATIVE', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Operator Dashboard Snapshot Cache
+    |--------------------------------------------------------------------------
+    |
+    | Cross-request cache for the active-incident hydrate used by KPI strip,
+    | filter counts, and service-case rows. TTL is clamped to 15–30 seconds.
+    |
+    */
+
+    'snapshot_cache_enabled' => (bool) env('DASHBOARD_SNAPSHOT_CACHE_ENABLED', true),
+
+    'snapshot_cache_ttl_seconds' => (int) env('DASHBOARD_SNAPSHOT_CACHE_TTL_SECONDS', 20),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Slow-Changing Dashboard Scalars Cache
+    |--------------------------------------------------------------------------
+    |
+    | Caches Order / User / AuditLog table COUNTs used by admin KPI stats.
+    | TTL is clamped to 15–60 seconds. Invalidation is TTL-based.
+    |
+    */
+
+    'slow_scalars_cache_ttl_seconds' => (int) env('DASHBOARD_SLOW_SCALARS_CACHE_TTL_SECONDS', 30),
+
 ];

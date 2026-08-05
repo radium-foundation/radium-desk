@@ -4,6 +4,7 @@ import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
 import { isDashboardQuickFilterActive, setServiceCasePagination } from './dashboard-service-case-state';
 import { buildDashboardLiveQuery } from './dashboard-live-query';
+import { applyAdminKpiSlotDom, applyKpiStripDom } from './dashboard-kpi-dom';
 import {
     configureDashboardPolling,
     destroyPolling,
@@ -17,16 +18,6 @@ import {
     logRefreshLifecycle,
     setRefreshLifecycleState,
 } from './dashboard-refresh-lifecycle';
-
-const replaceInnerHtml = (elementId, html) => {
-    const element = document.getElementById(elementId);
-
-    if (!element || html === undefined) {
-        return;
-    }
-
-    element.innerHTML = html;
-};
 
 const splitOperationalKpiStripHtml = (kpiStripHtml) => {
     if (!kpiStripHtml) {
@@ -68,18 +59,16 @@ const applyAdminUserKpis = (adminKpis) => {
         return;
     }
 
-    const totalUsersSlot = document.querySelector('[data-admin-kpi-slot="total-users"]');
-    const onlineUsersSlot = document.querySelector('[data-admin-kpi-slot="online-users"]');
+    const totalResult = applyAdminKpiSlotDom(
+        '[data-admin-kpi-slot="total-users"]',
+        adminKpis.totalUsers,
+    );
+    const onlineResult = applyAdminKpiSlotDom(
+        '[data-admin-kpi-slot="online-users"]',
+        adminKpis.onlineUsers,
+    );
 
-    if (adminKpis.totalUsers && totalUsersSlot) {
-        totalUsersSlot.innerHTML = adminKpis.totalUsers;
-    }
-
-    if (adminKpis.onlineUsers && onlineUsersSlot) {
-        onlineUsersSlot.innerHTML = adminKpis.onlineUsers;
-    }
-
-    if (adminKpis.totalUsers || adminKpis.onlineUsers) {
+    if ([totalResult, onlineResult].some((result) => result === 'patched' || result === 'replaced')) {
         initTooltips(document.querySelector('.dashboard-admin-metrics') ?? document);
     }
 };
@@ -149,7 +138,11 @@ const applyFilterCounts = (counts) => {
             return;
         }
 
-        countElement.textContent = isAgentCompact ? String(count) : `(${count})`;
+        const nextLabel = isAgentCompact ? String(count) : `(${count})`;
+
+        if (countElement.textContent !== nextLabel) {
+            countElement.textContent = nextLabel;
+        }
 
         if (!hideZeroCountTabs) {
             return;
@@ -172,10 +165,15 @@ const applyKpis = (kpiStripHtml) => {
     }
 
     const { operationalHtml, adminKpis } = splitOperationalKpiStripHtml(kpiStripHtml);
+    const applyResult = applyKpiStripDom('dashboard-kpi-strip', operationalHtml);
 
-    replaceInnerHtml('dashboard-kpi-strip', operationalHtml);
-    initTooltips(document.getElementById('dashboard-kpi-strip') ?? document);
+    if (applyResult === 'patched' || applyResult === 'replaced') {
+        initTooltips(document.getElementById('dashboard-kpi-strip') ?? document);
+    }
+
     applyAdminUserKpis(adminKpis);
+
+    return applyResult;
 };
 
 const applyRows = (rows, options = {}) => {

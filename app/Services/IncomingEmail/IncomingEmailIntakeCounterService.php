@@ -12,9 +12,12 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class IncomingEmailIntakeCounterService
 {
+    public const DASHBOARD_WIDGET_CACHE_KEY_PREFIX = 'incoming_email:dashboard_widget:';
+
     public function __construct(
         private readonly IncomingEmailAttentionCategoryService $attentionCategoryService,
     ) {}
@@ -41,30 +44,17 @@ class IncomingEmailIntakeCounterService
         }
 
         $statDate ??= now();
-        $attention = $this->attentionCategoryService->aggregateCounts();
-        $ignoredCounts = $this->counts($statDate);
 
-        $needsAttention = $attention['sales'] + $attention['orders'] + $attention['priority'];
+        return Cache::remember(
+            $this->dashboardWidgetCacheKey($statDate),
+            (int) config('inbound_email.dashboard_widget_cache_seconds', 45),
+            fn (): array => $this->buildDashboardWidget($statDate),
+        );
+    }
 
-        return [
-            'title' => 'Email Intake',
-            'subtitle' => 'Needs Attention',
-            'needs_attention' => $needsAttention,
-            'severity' => $this->severityForCount($needsAttention),
-            'url' => route('admin.incoming-emails.index', ['queue' => IncomingEmailIntakeQueue::NeedsHuman->value]),
-            'hover' => [
-                'needs_attention' => [
-                    ['label' => IncomingEmailAttentionCategory::Sales->label(), 'count' => $attention['sales']],
-                    ['label' => IncomingEmailAttentionCategory::Orders->label(), 'count' => $attention['orders']],
-                    ['label' => IncomingEmailAttentionCategory::Priority->label(), 'count' => $attention['priority']],
-                ],
-                'ignored' => [
-                    ['label' => 'Promotions', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Promotional->value] ?? 0],
-                    ['label' => 'Spam', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Spam->value] ?? 0],
-                    ['label' => 'Automatic', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Automatic->value] ?? 0],
-                ],
-            ],
-        ];
+    public function forgetDashboardWidgetCache(?Carbon $statDate = null): void
+    {
+        Cache::forget($this->dashboardWidgetCacheKey($statDate ?? now()));
     }
 
     public function severityForCount(int $count): string
@@ -210,6 +200,52 @@ class IncomingEmailIntakeCounterService
                     }
                 });
             });
+    }
+
+    /**
+     * @return array{
+     *     title: string,
+     *     subtitle: string,
+     *     needs_attention: int,
+     *     severity: string,
+     *     url: string,
+     *     hover: array{
+     *         needs_attention: list<array{label: string, count: int}>,
+     *         ignored: list<array{label: string, count: int}>
+     *     }
+     * }
+     */
+    private function buildDashboardWidget(Carbon $statDate): array
+    {
+        $attention = $this->attentionCategoryService->aggregateCounts();
+        $ignoredCounts = $this->counts($statDate);
+
+        $needsAttention = $attention['sales'] + $attention['orders'] + $attention['priority'];
+
+        return [
+            'title' => 'Email Intake',
+            'subtitle' => 'Needs Attention',
+            'needs_attention' => $needsAttention,
+            'severity' => $this->severityForCount($needsAttention),
+            'url' => route('admin.incoming-emails.index', ['queue' => IncomingEmailIntakeQueue::NeedsHuman->value]),
+            'hover' => [
+                'needs_attention' => [
+                    ['label' => IncomingEmailAttentionCategory::Sales->label(), 'count' => $attention['sales']],
+                    ['label' => IncomingEmailAttentionCategory::Orders->label(), 'count' => $attention['orders']],
+                    ['label' => IncomingEmailAttentionCategory::Priority->label(), 'count' => $attention['priority']],
+                ],
+                'ignored' => [
+                    ['label' => 'Promotions', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Promotional->value] ?? 0],
+                    ['label' => 'Spam', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Spam->value] ?? 0],
+                    ['label' => 'Automatic', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Automatic->value] ?? 0],
+                ],
+            ],
+        ];
+    }
+
+    private function dashboardWidgetCacheKey(Carbon $statDate): string
+    {
+        return self::DASHBOARD_WIDGET_CACHE_KEY_PREFIX.$statDate->toDateString();
     }
 
     private function ignoredStatCount(IncomingEmailIntakeQueue $queue, Carbon $statDate): int

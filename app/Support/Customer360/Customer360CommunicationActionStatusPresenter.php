@@ -9,7 +9,6 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\User;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
-use App\Services\CommunicationActions\CommunicationActionLifecycleAuditService;
 use App\Services\CommunicationActions\CommunicationActionLifecycleService;
 use App\Services\CommunicationActions\CommunicationActionRegistry;
 use App\Support\AppDateFormatter;
@@ -53,6 +52,8 @@ final class Customer360CommunicationActionStatusPresenter implements ProvidesCon
      */
     public function forIncident(Incident $incident, ?User $user): array
     {
+        $eventIndex = $this->lifecycleService->eventIndexForIncident($incident);
+
         return $this->registry
             ->all()
             ->map(fn ($definition): array => $this->presentAction(
@@ -61,6 +62,8 @@ final class Customer360CommunicationActionStatusPresenter implements ProvidesCon
                 actionKey: $definition->key->value,
                 name: $definition->name,
                 icon: $definition->icon,
+                latestEvent: $eventIndex['latestByAction'][$definition->key->value] ?? null,
+                lastSentEvent: $eventIndex['lastSentByAction'][$definition->key->value] ?? null,
             ))
             ->values()
             ->all();
@@ -91,13 +94,18 @@ final class Customer360CommunicationActionStatusPresenter implements ProvidesCon
         string $actionKey,
         string $name,
         string $icon,
+        ?AuditLog $latestEvent,
+        ?AuditLog $lastSentEvent,
     ): array {
         $definition = $this->registry->get($actionKey);
         $ineligibilityReason = $this->eligibilityService->ineligibilityReason($definition, $incident, $user);
         $eligible = $ineligibilityReason === null;
-        $lifecycleStatus = $this->lifecycleService->resolveStatus($incident, $actionKey, $user);
-        $lastSentEvent = $this->lastSentLifecycleEvent($incident, $actionKey);
-        $latestEvent = $this->lifecycleService->latestLifecycleEvent($incident, $actionKey);
+        $lifecycleStatus = $this->lifecycleService->resolveStatusFromLatestEvent(
+            $incident,
+            $actionKey,
+            $latestEvent,
+            $user,
+        );
         $latestStatus = $this->auditLifecycleStatus($latestEvent);
 
         if (! $eligible) {
@@ -214,19 +222,6 @@ final class Customer360CommunicationActionStatusPresenter implements ProvidesCon
             'clickable' => $clickable,
             'show_chevron' => $clickable && $status === 'available',
         ];
-    }
-
-    private function lastSentLifecycleEvent(Incident $incident, string $actionKey): ?AuditLog
-    {
-        return AuditLog::query()
-            ->where('auditable_type', $incident->getMorphClass())
-            ->where('auditable_id', $incident->id)
-            ->where('event', CommunicationActionLifecycleAuditService::EVENT)
-            ->where('new_values->action_key', $actionKey)
-            ->where('new_values->status', CommunicationActionLifecycleStatus::Sent->value)
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->first();
     }
 
     private function auditLifecycleStatus(?AuditLog $auditLog): ?CommunicationActionLifecycleStatus

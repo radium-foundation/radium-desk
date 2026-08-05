@@ -84,4 +84,24 @@ describe('mergeServiceCaseRows', () => {
         expect(document.querySelector('#service-case-row-2 .status-cell')?.textContent).toBe('Closed');
         expect(onRowsUpdated).toHaveBeenCalledWith([2]);
     });
+
+    it('does not re-init tooltips when row HTML and order are unchanged', () => {
+        const card = buildDashboardCard();
+        const initTooltips = vi.fn();
+        const row1 = document.getElementById('service-case-row-1').outerHTML;
+        const row2 = document.getElementById('service-case-row-2').outerHTML;
+
+        mergeServiceCaseRows(
+            card,
+            [
+                { incident_id: 1, html: row1 },
+                { incident_id: 2, html: row2 },
+            ],
+            false,
+            '',
+            initTooltips,
+        );
+
+        expect(initTooltips).not.toHaveBeenCalled();
+    });
 });

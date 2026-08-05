@@ -1,6 +1,18 @@
 @import 'bootstrap/dist/css/bootstrap.min.css';
 @import 'bootstrap-icons/font/bootstrap-icons.css';
 
+/*
+ * Bootstrap Icons ships font-display: block. Redeclare with the same sources so
+ * icon font download does not block first paint (swap is safe for decorative icons).
+ */
+@font-face {
+    font-family: 'bootstrap-icons';
+    font-display: swap;
+    src:
+        url('bootstrap-icons/font/fonts/bootstrap-icons.woff2') format('woff2'),
+        url('bootstrap-icons/font/fonts/bootstrap-icons.woff') format('woff');
+}
+
 :root {
     --sidebar-collapsed-width: 72px;
     --sidebar-width: 260px;
@@ -624,6 +636,7 @@ a.dashboard-u-hover-lift:focus-visible {
 
 .dashboard-kpi-strip-host {
     margin-bottom: var(--dashboard-space-1);
+    overflow: visible;
 }
 
 #dashboard-kpi-strip .dashboard-kpi-strip {
@@ -643,6 +656,12 @@ a.dashboard-u-hover-lift:focus-visible {
     background: transparent;
     border: 0;
     scrollbar-width: thin;
+}
+
+/* Allow Email Intake KPI tooltip to escape the horizontal scroller while hovered. */
+.dashboard-kpi-strip:has(.dashboard-email-intake-kpi:hover),
+.dashboard-kpi-strip:has(.dashboard-email-intake-kpi:focus-visible) {
+    overflow: visible;
 }
 
 .dashboard-kpi-strip--admin {
@@ -793,7 +812,7 @@ a.dashboard-u-hover-lift:focus-visible {
     border-radius: 0.5rem;
     background: #fff;
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-    z-index: 20;
+    z-index: 40;
     pointer-events: none;
 }
 
@@ -822,13 +841,13 @@ a.dashboard-u-hover-lift:focus-visible {
     line-height: 1.4;
 }
 
-.dashboard-email-intake-kpi__hover-row dt {
+.dashboard-email-intake-kpi__hover-label {
     margin: 0;
     font-weight: 500;
     color: var(--dashboard-color-muted);
 }
 
-.dashboard-email-intake-kpi__hover-row dd {
+.dashboard-email-intake-kpi__hover-count {
     margin: 0;
     font-weight: 700;
     color: var(--dashboard-color-text);

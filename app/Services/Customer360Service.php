@@ -141,6 +141,10 @@ class Customer360Service
 
         $actionVisibility = $this->actionVisibilityService->forIncident($incident, auth()->user());
         $order = $incident->order;
+        $communicationActionStatuses = $this->communicationActionStatusPresenter->forIncident(
+            $incident,
+            auth()->user(),
+        );
 
         if ($order === null) {
             return array_merge($this->emptyDrawerData($incident), [
@@ -161,8 +165,12 @@ class Customer360Service
                 'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
                 'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
                 'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
-                'communicationActionStatuses' => $this->communicationActionStatusPresenter->forIncident($incident, auth()->user()),
-            ], $this->overflowMenuPayload($incident, null));
+                'communicationActionStatuses' => $communicationActionStatuses,
+            ], $this->overflowMenuPayload(
+                incident: $incident,
+                order: null,
+                actionVisibility: $actionVisibility,
+            ));
         }
 
         $fullModelName = $order->displayDeviceModelName();
@@ -172,7 +180,11 @@ class Customer360Service
         $scopeCache = new CustomerScopeQueryCache($order->customer_phone);
         $summary = $scopeCache->customerSummary();
         $waitingStateCard = $this->waitingStateService->customer360Card($incident);
-        $actionVisibility = $this->actionVisibilityService->forIncident($incident, auth()->user());
+        $serialRequestState = $this->serialRequestState($order);
+        $correctSerialRequestState = $this->correctSerialRequestState($order);
+        $supportAppointments = $incident->isActive()
+            ? $incident->supportAppointments
+            : collect();
 
         return [
             'incident' => $incident,
@@ -200,23 +212,22 @@ class Customer360Service
             'isWaitingForCustomer' => $actionVisibility['isWaitingForCustomer'],
             'hideWorkflowActions' => $actionVisibility['hideWorkflowActions'],
             'hasRecommendedActions' => $actionVisibility['hasRecommendedActions'],
-            'serialRequestState' => $this->serialRequestState($order),
-            'correctSerialRequestState' => $this->correctSerialRequestState($order),
+            'serialRequestState' => $serialRequestState,
+            'correctSerialRequestState' => $correctSerialRequestState,
             'waitingStateCard' => $waitingStateCard,
-            'supportAppointments' => $incident->isActive()
-                ? $incident->supportAppointments
-                : collect(),
+            'supportAppointments' => $supportAppointments,
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
             'communicationActions' => $this->communicationActionEligibilityService->menuItems($incident, auth()->user()),
-            'communicationActionStatuses' => $this->communicationActionStatusPresenter->forIncident($incident, auth()->user()),
+            'communicationActionStatuses' => $communicationActionStatuses,
             ...$this->overflowMenuPayload(
                 $incident,
                 $order,
-                $this->serialRequestState($order),
-                $this->correctSerialRequestState($order),
-                $incident->isActive() ? $incident->supportAppointments : collect(),
+                $serialRequestState,
+                $correctSerialRequestState,
+                $supportAppointments,
+                $actionVisibility,
             ),
         ];
     }
@@ -253,6 +264,7 @@ class Customer360Service
     /**
      * @param  array{requested?: bool, requested_at_label?: string|null}  $serialRequestState
      * @param  array{requested?: bool, requested_at_label?: string|null}  $correctSerialRequestState
+     * @param  array<string, mixed>|null  $actionVisibility
      * @return array{
      *     overflowMenuGroups: list<array{label: string, items: list<array<string, mixed>>}>,
      *     paletteActions: list<array<string, mixed>>,
@@ -264,6 +276,7 @@ class Customer360Service
         array $serialRequestState = ['requested' => false],
         array $correctSerialRequestState = ['requested' => false],
         $supportAppointments = null,
+        ?array $actionVisibility = null,
     ): array {
         $user = auth()->user();
 
@@ -281,6 +294,7 @@ class Customer360Service
             $serialRequestState,
             $correctSerialRequestState,
             $supportAppointments ?? collect(),
+            $actionVisibility,
         );
 
         return [
@@ -1156,7 +1170,7 @@ class Customer360Service
             'executiveSummaryUrl' => route('dashboard.service-cases.customer-360.executive-summary', $incident),
             'timelineTabUrl' => route('dashboard.service-cases.customer-360.timeline', $incident).'?tab=1',
             'aiTabUrl' => route('dashboard.service-cases.customer-360.ai-workbench', $incident),
-            'communicationActionStatuses' => $this->communicationActionStatusPresenter->forIncident($incident, auth()->user()),
+            'communicationActionStatuses' => [],
         ];
     }
 

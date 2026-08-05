@@ -31,6 +31,7 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     const newIncidentIds = nextIds.filter((incidentId) => !currentIds.includes(incidentId));
     const hasLockedRows = currentIds.some((incidentId) => isLockedIncident(incidentId, lockedIncidentIds));
     const replacedIncidentIds = [];
+    let removedRowCount = 0;
 
     if (empty) {
         if (hasLockedRows) {
@@ -94,15 +95,21 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     currentIds.forEach((incidentId) => {
         if (!nextIds.includes(incidentId) && !isLockedIncident(incidentId, lockedIncidentIds)) {
             document.getElementById(`service-case-row-${incidentId}`)?.remove();
+            removedRowCount += 1;
         }
     });
 
-    nextIds
-        .map((incidentId) => document.getElementById(`service-case-row-${incidentId}`))
-        .filter(Boolean)
-        .forEach((row) => {
-            tbody.appendChild(row);
-        });
+    const orderUnchanged = currentIds.length === nextIds.length
+        && currentIds.every((incidentId, index) => incidentId === nextIds[index]);
+
+    if (!orderUnchanged) {
+        nextIds
+            .map((incidentId) => document.getElementById(`service-case-row-${incidentId}`))
+            .filter(Boolean)
+            .forEach((row) => {
+                tbody.appendChild(row);
+            });
+    }
 
     if (isAtTop) {
         newIncidentIds.forEach((incidentId) => {
@@ -118,7 +125,15 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     }
 
     scrollContainer.scrollTop = previousScrollTop;
-    initTooltips(tbody);
+
+    const domChanged = replacedIncidentIds.length > 0
+        || newIncidentIds.length > 0
+        || removedRowCount > 0
+        || !orderUnchanged;
+
+    if (domChanged) {
+        initTooltips(tbody);
+    }
 
     if (replacedIncidentIds.length > 0) {
         onRowsUpdated?.(replacedIncidentIds);

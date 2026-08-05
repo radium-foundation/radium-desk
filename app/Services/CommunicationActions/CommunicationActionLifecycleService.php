@@ -167,8 +167,80 @@ class CommunicationActionLifecycleService
         string $actionKey,
         ?User $user = null,
     ): CommunicationActionLifecycleStatus {
-        $latestEvent = $this->latestLifecycleEvent($incident, $actionKey);
+        return $this->resolveStatusFromLatestEvent(
+            $incident,
+            $actionKey,
+            $this->latestLifecycleEvent($incident, $actionKey),
+            $user,
+        );
+    }
 
+    public function latestLifecycleEvent(Incident $incident, string $actionKey): ?AuditLog
+    {
+        return AuditLog::query()
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', CommunicationActionLifecycleAuditService::EVENT)
+            ->where('new_values->action_key', $actionKey)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * Prefetch lifecycle audits for an incident into per-action indexes.
+     *
+     * Replaces N× latest + N× last-sent lookups with a single ordered query.
+     *
+     * @return array{
+     *     latestByAction: array<string, AuditLog>,
+     *     lastSentByAction: array<string, AuditLog>,
+     * }
+     */
+    public function eventIndexForIncident(Incident $incident): array
+    {
+        $events = AuditLog::query()
+            ->where('auditable_type', $incident->getMorphClass())
+            ->where('auditable_id', $incident->id)
+            ->where('event', CommunicationActionLifecycleAuditService::EVENT)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $latestByAction = [];
+        $lastSentByAction = [];
+
+        foreach ($events as $event) {
+            $actionKey = (string) ($event->new_values['action_key'] ?? '');
+
+            if ($actionKey === '') {
+                continue;
+            }
+
+            if (! isset($latestByAction[$actionKey])) {
+                $latestByAction[$actionKey] = $event;
+            }
+
+            if (
+                ! isset($lastSentByAction[$actionKey])
+                && ($event->new_values['status'] ?? null) === CommunicationActionLifecycleStatus::Sent->value
+            ) {
+                $lastSentByAction[$actionKey] = $event;
+            }
+        }
+
+        return [
+            'latestByAction' => $latestByAction,
+            'lastSentByAction' => $lastSentByAction,
+        ];
+    }
+
+    public function resolveStatusFromLatestEvent(
+        Incident $incident,
+        string $actionKey,
+        ?AuditLog $latestEvent,
+        ?User $user = null,
+    ): CommunicationActionLifecycleStatus {
         if ($latestEvent === null) {
             return $this->resolveAvailableStatus($incident, $actionKey, $user);
         }
@@ -186,18 +258,6 @@ class CommunicationActionLifecycleService
         }
 
         return $status;
-    }
-
-    public function latestLifecycleEvent(Incident $incident, string $actionKey): ?AuditLog
-    {
-        return AuditLog::query()
-            ->where('auditable_type', $incident->getMorphClass())
-            ->where('auditable_id', $incident->id)
-            ->where('event', CommunicationActionLifecycleAuditService::EVENT)
-            ->where('new_values->action_key', $actionKey)
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->first();
     }
 
     private function resolveAvailableStatus(

@@ -27,6 +27,8 @@ class IncomingEmailProcessorService
         private readonly IncomingEmailServiceCaseCategoryMapper $categoryMapper,
         private readonly IncomingEmailSmartRoutingService $smartRoutingService,
         private readonly ServiceCasePriorityService $priorityService,
+        private readonly IncomingEmailPriorityPhraseService $priorityPhraseService,
+        private readonly IncomingEmailIntakeCounterService $intakeCounterService,
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
     ) {}
@@ -63,6 +65,9 @@ class IncomingEmailProcessorService
 
                 return;
             }
+
+            // Priority phrase audits belong on ingest/sync only — never on dashboard reads.
+            $this->priorityPhraseService->matchAndAudit($message->fresh(), $actor);
 
             DB::transaction(function () use ($message, $actor): void {
                 $fresh = $message->fresh();
@@ -170,6 +175,9 @@ class IncomingEmailProcessorService
                 'processing_error' => $exception->getMessage(),
             ]);
 
+            // Idempotent — covers failures before the ingest audit call above.
+            $this->priorityPhraseService->matchAndAudit($message->fresh(), $actor);
+
             $this->auditLogService->log(
                 userId: $actor->id,
                 event: 'incoming_email.processing_failed',
@@ -180,6 +188,8 @@ class IncomingEmailProcessorService
             );
 
             throw $exception;
+        } finally {
+            $this->intakeCounterService->forgetDashboardWidgetCache();
         }
     }
 

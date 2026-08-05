@@ -109,6 +109,19 @@ class DashboardLiveController extends Controller
             'service_case_filter' => $serviceCaseFilter,
             'live_scope' => $workspace['live_scope'],
             'panel_title' => $workspace['panel_title'],
+            // Split for clients that prefer surgical updates; existing keys remain authoritative.
+            'fast' => [
+                ...($metrics['fast'] ?? []),
+                'rows' => $serviceCasesPayload['rows'],
+                'incident_ids' => $serviceCasesPayload['incident_ids'],
+                'total_count' => $serviceCasesPayload['total_count'],
+                'has_more' => $serviceCasesPayload['has_more'],
+                'loaded_count' => $serviceCasesPayload['loaded_count'],
+                'service_cases_empty' => $serviceCasesPayload['service_cases_empty'],
+                'service_cases_empty_html' => $serviceCasesPayload['service_cases_empty_html'],
+            ],
+            'slow' => $metrics['slow'] ?? [],
         ]);
     }
 }
+
