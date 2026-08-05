@@ -199,11 +199,13 @@ class IncomingEmailIntakePhase1Test extends TestCase
         ]);
     }
 
-    public function test_known_customer_without_open_incident_is_associated_as_historical_customer(): void
+    public function test_known_customer_with_closed_incident_reopens_same_service_case(): void
     {
         $order = $this->seedCustomerOrder('customer@example.com');
+        $owner = User::factory()->create(['is_active' => true]);
+        $owner->assignRole(RolePermissionSeeder::ROLE_AGENT);
 
-        Incident::query()->create([
+        $closed = Incident::query()->create([
             'order_id' => $order->id,
             'reference_no' => 'SC-EMAIL-CLOSED-'.uniqid(),
             'category' => 'General',
@@ -211,9 +213,40 @@ class IncomingEmailIntakePhase1Test extends TestCase
             'title' => 'Closed support case',
             'description' => 'Previously closed incident.',
             'status' => IncidentStatus::Closed,
-            'created_by' => User::factory()->create()->id,
-            'updated_by' => User::factory()->create()->id,
+            'high_priority' => false,
+            'assigned_to_user_id' => $owner->id,
+            'created_by' => $owner->id,
+            'updated_by' => $owner->id,
         ]);
+
+        $before = Incident::query()->count();
+
+        $message = $this->ingestEmail(fromEmail: 'customer@example.com');
+
+        $this->assertSame(IncomingEmailMessageStatus::Linked, $message?->status);
+        $this->assertSame($order->id, $message?->order_id);
+        $this->assertSame($closed->id, $message?->incident_id);
+        $this->assertSame($before, Incident::query()->count());
+        $this->assertSame(1, IncidentIncomingEmailLink::query()->count());
+
+        $closed->refresh();
+        $this->assertSame(IncidentStatus::Open, $closed->status);
+        $this->assertSame($owner->id, $closed->assigned_to_user_id);
+        $this->assertTrue($closed->high_priority);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'incoming_email.case_reopened',
+            'auditable_id' => $closed->id,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'incoming_email.linked',
+            'auditable_id' => $closed->id,
+        ]);
+    }
+
+    public function test_known_customer_without_any_incident_is_associated_as_historical_customer(): void
+    {
+        $order = $this->seedCustomerOrder('customer@example.com');
 
         $before = Incident::query()->count();
 

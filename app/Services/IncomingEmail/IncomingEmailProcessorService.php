@@ -22,6 +22,7 @@ class IncomingEmailProcessorService
         private readonly IncomingEmailLinkService $linkService,
         private readonly IncomingEmailHistoricalAssociationService $historicalAssociationService,
         private readonly IncomingEmailAssignmentService $assignmentService,
+        private readonly IncomingEmailClosedCaseReopenService $closedCaseReopenService,
         private readonly IncomingEmailServiceCaseCreateService $serviceCaseCreateService,
         private readonly IncomingEmailServiceCaseCategoryMapper $categoryMapper,
         private readonly ServiceCasePriorityService $priorityService,
@@ -67,9 +68,21 @@ class IncomingEmailProcessorService
                 $match = $this->customerMatcher->resolve($fresh);
                 $classification = $this->classifierService->classifyOperational($fresh, $match);
 
+                // Phase 1.1 — closed SC for matched order/thread: reopen same case (never duplicate).
+                if (($match['closed_incident'] ?? null) !== null) {
+                    $this->closedCaseReopenService->reopenLinkAndRoute(
+                        closedIncident: $match['closed_incident'],
+                        message: $fresh->fresh(),
+                        actor: $actor,
+                        classification: $classification,
+                    );
+
+                    return;
+                }
+
                 if ($match['incident'] === null) {
                     if ($match['order'] !== null && ($match['reason'] ?? null) === 'historical_customer') {
-                        // Branch B — order exists, no active SC.
+                        // Branch B — order exists, no active SC and no reopenable closed SC.
                         // Flag off (default): Historical association (unchanged).
                         // Flag on: auto-create SC + link + route for customer-facing mail only.
                         // Internal operational (Finance/HR/Vendor) still parks as Historical.

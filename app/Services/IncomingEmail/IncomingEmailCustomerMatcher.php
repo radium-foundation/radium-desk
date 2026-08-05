@@ -9,23 +9,24 @@ use App\Models\Order;
 
 class IncomingEmailCustomerMatcher
 {
+    public function __construct(
+        private readonly IncomingEmailClosedCaseReopenService $closedCaseReopenService,
+    ) {}
+
     /**
      * @return array{
      *     order: ?Order,
      *     incident: ?Incident,
+     *     closed_incident: ?Incident,
      *     reason: ?string,
      * }
      */
     public function resolve(IncomingEmailMessage $message): array
     {
-        $threadIncident = $this->findIncidentByThread($message);
+        $threadMatch = $this->resolveThread($message);
 
-        if ($threadIncident instanceof Incident) {
-            return [
-                'order' => $threadIncident->order,
-                'incident' => $threadIncident,
-                'reason' => null,
-            ];
+        if ($threadMatch !== null) {
+            return $threadMatch;
         }
 
         $candidates = $this->emailCandidates($message->from_email);
@@ -34,6 +35,7 @@ class IncomingEmailCustomerMatcher
             return [
                 'order' => null,
                 'incident' => null,
+                'closed_incident' => null,
                 'reason' => 'unknown_customer',
             ];
         }
@@ -47,6 +49,7 @@ class IncomingEmailCustomerMatcher
             return [
                 'order' => null,
                 'incident' => null,
+                'closed_incident' => null,
                 'reason' => 'unknown_customer',
             ];
         }
@@ -58,22 +61,43 @@ class IncomingEmailCustomerMatcher
             ->orderByDesc('id')
             ->first();
 
-        if (! $incident instanceof Incident) {
+        if ($incident instanceof Incident) {
+            return [
+                'order' => $order,
+                'incident' => $incident,
+                'closed_incident' => null,
+                'reason' => null,
+            ];
+        }
+
+        $closedIncident = $this->findReopenableClosedIncident($order);
+
+        if ($closedIncident instanceof Incident) {
             return [
                 'order' => $order,
                 'incident' => null,
-                'reason' => 'historical_customer',
+                'closed_incident' => $closedIncident,
+                'reason' => 'closed_service_case',
             ];
         }
 
         return [
             'order' => $order,
-            'incident' => $incident,
-            'reason' => null,
+            'incident' => null,
+            'closed_incident' => null,
+            'reason' => 'historical_customer',
         ];
     }
 
-    private function findIncidentByThread(IncomingEmailMessage $message): ?Incident
+    /**
+     * @return array{
+     *     order: ?Order,
+     *     incident: ?Incident,
+     *     closed_incident: ?Incident,
+     *     reason: ?string,
+     * }|null
+     */
+    private function resolveThread(IncomingEmailMessage $message): ?array
     {
         if ($message->thread_id === null || trim($message->thread_id) === '') {
             return null;
@@ -91,12 +115,51 @@ class IncomingEmailCustomerMatcher
             return null;
         }
 
-        return Incident::query()
+        $incident = Incident::query()
             ->with('order')
             ->whereKey($prior->incident_id)
-            ->whereIn('status', IncidentStatus::operationallyActive())
             ->lockForUpdate()
             ->first();
+
+        if (! $incident instanceof Incident) {
+            return null;
+        }
+
+        if (in_array($incident->status, IncidentStatus::operationallyActive(), true)) {
+            return [
+                'order' => $incident->order,
+                'incident' => $incident,
+                'closed_incident' => null,
+                'reason' => null,
+            ];
+        }
+
+        if ($this->closedCaseReopenService->isReopenable($incident)) {
+            return [
+                'order' => $incident->order,
+                'incident' => null,
+                'closed_incident' => $incident,
+                'reason' => 'closed_service_case',
+            ];
+        }
+
+        return null;
+    }
+
+    private function findReopenableClosedIncident(Order $order): ?Incident
+    {
+        $closed = Incident::query()
+            ->where('order_id', $order->id)
+            ->where('status', IncidentStatus::Closed)
+            ->lockForUpdate()
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $closed instanceof Incident) {
+            return null;
+        }
+
+        return $this->closedCaseReopenService->isReopenable($closed) ? $closed : null;
     }
 
     /**
