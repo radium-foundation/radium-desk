@@ -411,6 +411,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.incoming-emails.learning.apply');
     Route::post('/admin/incoming-emails/disposition', [IncomingEmailAdminController::class, 'applyDisposition'])
         ->name('admin.incoming-emails.disposition.apply');
+    Route::post('/admin/incoming-emails/review', [IncomingEmailAdminController::class, 'applyReview'])
+        ->name('admin.incoming-emails.review.apply');
 
     Route::get('/admin/ira-memory', [IraMemoryAdminController::class, 'index'])
         ->name('admin.ira-memory.index');

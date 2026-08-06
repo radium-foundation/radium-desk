@@ -1,9 +1,9 @@
 # IRA Learning Center UX Redesign
 
-**Date:** 2026-08-06 (UX Polish Sprint same day)  
-**Type:** Presentation-only (+ small Spam recovery workflow)  
+**Date:** 2026-08-06 (UX Polish Sprint same day; Review panel redesign later same day)  
+**Type:** Presentation + Review UX orchestration (backend Teaching / Disposition / Audit services unchanged)  
 **Backend:** unchanged Learning Rules / routing / processing (except Spam → Needs Review when human works mail)  
-**Canvas:** [completed-automatically-209.canvas.tsx](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/completed-automatically-209.canvas.tsx)  
+**Canvas:** [learning-center-review-panel.canvas.tsx](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/learning-center-review-panel.canvas.tsx) · [completed-automatically-209.canvas.tsx](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/completed-automatically-209.canvas.tsx)  
 **Related:** [docs/ira-learning-center-phase1.md](./ira-learning-center-phase1.md) · [docs/email-intake-disposition-workflow.md](./email-intake-disposition-workflow.md) · [docs/completed-automatically-209-investigation.md](./completed-automatically-209-investigation.md)
 
 ---
@@ -154,53 +154,42 @@ Review-and-teach workspace for inbound email — not a Gmail inbox.
     ( All ) ( System Notifications ) ( Auto Replies ) ( Own Outbound ) ( Bounces ) ( Duplicate Notifications )
 
 Needs Human                          12 shown
+┌ Review panel (opens on row select) ──────────────────────────────────┐
+│ Teach IRA (optional)     │ Disposition (required)                     │
+│ Owner / Class / Import.  │ Action + conditional fields                │
+│ Scope                    │                              [Close] [Save]│
+└──────────────────────────────────────────────────────────────────────┘
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ ☐  Sender │ Subject                    │ IRA Suggestion │ Conf │ Owner │ Rec │ ⋯ │
-│ ☐  Buyer  │ Need a quote · Looking…    │ Possible sales │ Med  │ —     │ …  │ ⋯ │
-│ ☐  ACME   │ Invoice query · Please…    │ Support enquiry│ High │ Ravi  │ …  │ ⋯ │
+│ ●  Sender │ Subject                    │ IRA Suggestion │ Conf │ Owner │ Rec │ ⋯ │
+│ ○  Buyer  │ Need a quote · Looking…    │ Possible sales │ Med  │ —     │ …  │ ⋯ │
+│ ○  ACME   │ Invoice query · Please…    │ Support enquiry│ High │ Ravi  │ …  │ ⋯ │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Sticky teach toolbar
+### Unified review panel (one Save)
 
 ```
-┌─ sticky ─────────────────────────────────────────────────────────────┐
-│ ☐ Select all  2   Assign ▾   Choose user ▾   Same sender ▾   [Apply] │
+┌─ sticky review ──────────────────────────────────────────────────────┐
+│ Need a quote · buyer@example.com                                     │
+│ Teach: Owner ▾  Classification ▾  Importance ▾  Scope ▾              │
+│ Dispose: Create Service Case ▾  Owner (optional) ▾        [Save]     │
 └──────────────────────────────────────────────────────────────────────┘
-```
-
-### Expanded row (read-only)
-
-```
-│ ☐ Buyer │ Need a quote · Looking… │ Possible sales │ Med │ — │ … │ ⋯ │
-│   Full preview          Existing customer     Service Case          │
-│   Looking for pricing…  Unknown Customer      No service case       │
-│   Matched Learning Rule  Previous confirmations                     │
-│   None                   No prior confirmation                      │
-│   Explainability: Why / examples / matched sender / rule confidence │
 ```
 
 ---
 
 ## Workflow
 
-1. Select one or more rows (or use row `⋯` → Assign / Move / Ignore / Mark Important).  
-2. Sticky toolbar appears.  
-3. Choose action value + Learning Scope.  
-4. Press **Apply** once.  
-5. Existing `/admin/incoming-emails/learning` endpoint persists the decision / Learning Rule.
+1. Click one email row (or `⋯` → Review).  
+2. Compact review panel opens with Teach + Disposition together.  
+3. Change teach fields only if needed; choose disposition.  
+4. Press **Save** once → `POST /admin/incoming-emails/review`  
+   - Teach runs only when Owner / Classification / Importance differ from baselines  
+   - Disposition always runs  
+   - Existing audit events + IRA Memory writes unchanged  
+5. Terminal disposition removes the email from Needs Human immediately.
 
-### Move To
-
-UI action `Move To` maps to existing `classification` API values:
-
-| Move To | Classification value (API) |
-|---------|----------------------------|
-| Promotions | `promotion` |
-| Spam | `spam` |
-| Completed Automatically | `automatic` |
-
-Learning Scope still applies (teach IRA on move).
+Legacy teach-only / disposition-only endpoints remain available; the Learning Center UI no longer uses dual toolbars.
 
 ---
 

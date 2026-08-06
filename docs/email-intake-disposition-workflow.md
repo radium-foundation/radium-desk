@@ -22,14 +22,17 @@ Assign and Docs previously annotated the message (and saved learning rules) but 
 | **Disposition** | Finish the email | **Yes** (except Keep Pending) |
 
 ```
-Operator reviews
+Select email
     ↓
-Teach (optional)
+Review panel (Teach optional + Disposition required)
     ↓
-Disposition (required)
+Save once
     ↓
 Completed
 ```
+
+Internally Teaching, IRA Memory, Disposition, and Audit remain separate services/events.
+UX only: one panel, one submit (`POST /admin/incoming-emails/review`).
 
 ---
 
@@ -156,12 +159,19 @@ Columns on `incoming_email_messages`:
 
 ## UI
 
-Learning Center Needs Human queue:
+Learning Center Needs Human / Review Suggested / Spam:
 
-1. **Teach** toolbar — Owner / Classification / Importance + scope → `POST …/learning`
-2. **Dispose** toolbar — Create / Link / Ignore / Spam / Promotion / Completed Automatically / Keep Pending → `POST …/disposition`
+1. **Select an email** (row click) → opens compact **Review** panel
+2. Panel shows **Teach IRA** (optional) and **Disposition** (required) together
+3. **One Save** → `POST /admin/incoming-emails/review`
+   - Teach runs only when Owner / Classification / Importance differ from baselines
+   - Disposition always runs second
+   - Same DB transaction; existing audit events unchanged
+4. No second toolbar, no second submit, no re-selection after Teach
 
-Row ⋯ menu exposes both teaching and disposition actions.
+Legacy APIs remain: `POST …/learning`, `POST …/disposition`.
+
+Mockup: [`learning-center-review-panel.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/learning-center-review-panel.canvas.tsx)
 
 ---
 
@@ -170,7 +180,7 @@ Row ⋯ menu exposes both teaching and disposition actions.
 | Action | Permission |
 |--------|------------|
 | View Learning Center | `email-intake.view` |
-| Teach / disposition POST | `email-intake.manage` |
+| Review Save / Teach / Disposition POST | `email-intake.manage` |
 
 Default grants: Admin, Operations Admin, Support Agent, Support Specialist, Customer Coordinator, Super Admin. Authorization checks permissions only (never role names).
 
@@ -179,6 +189,7 @@ Default grants: Admin, Operations Admin, Support Agent, Support Specialist, Cust
 | Method | Route | Name | Permission |
 |--------|-------|------|------------|
 | GET | `/admin/incoming-emails` | `admin.incoming-emails.index` | `email-intake.view` |
+| POST | `/admin/incoming-emails/review` | `admin.incoming-emails.review.apply` | `email-intake.manage` |
 | POST | `/admin/incoming-emails/learning` | `admin.incoming-emails.learning.apply` | `email-intake.manage` |
 | POST | `/admin/incoming-emails/disposition` | `admin.incoming-emails.disposition.apply` | `email-intake.manage` |
 
@@ -196,7 +207,8 @@ Default grants: Admin, Operations Admin, Support Agent, Support Specialist, Cust
 | `app/Services/IncomingEmail/IncomingEmailDispositionService.php` | Disposition orchestration |
 | `app/Services/IncomingEmail/IncomingEmailIntakeCounterService.php` | Queue counts + automatic subcategory breakdown |
 | `app/Services/IncomingEmail/IncomingEmailLearningActionService.php` | Teaching only (classification no longer ignores) |
-| `app/Http/Controllers/IncomingEmailAdminController.php` | `applyLearning` + `applyDisposition` |
+| `app/Http/Controllers/IncomingEmailAdminController.php` | `applyReview` + `applyLearning` + `applyDisposition` |
+| `app/Services/IncomingEmail/IncomingEmailReviewSaveService.php` | One-Save orchestration (teach-if-changed → disposition) |
 | `database/migrations/2026_08_06_130000_add_disposition_columns_to_incoming_email_messages_table.php` | Columns |
 | `tests/Feature/IncomingEmail/IncomingEmailDispositionWorkflowTest.php` | Coverage |
 
@@ -210,6 +222,9 @@ Default grants: Admin, Operations Admin, Support Agent, Support Specialist, Cust
 - Keep Pending → reason required; stays in Needs Human; shown in UI  
 - Dashboard widget updates immediately after disposition  
 - Learning rules unaffected for teach-only Docs / Assign  
+- Needs Human renders unified review panel (no dual toolbars)  
+- Review Save teaches then disposes in one request; counter −1; both audit events  
+- Review Save with unchanged teach fields runs disposition only (no learning audit)  
 
 ---
 

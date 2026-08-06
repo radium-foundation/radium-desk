@@ -1,7 +1,7 @@
 /**
- * IRA Learning Center — compact row workspace interactions.
+ * IRA Learning Center — single-email review panel.
+ * Teach (optional) + Disposition (required) share one Save.
  * Bound to [data-ira-learning-center]; no page-shell coupling.
- * Teaching (optional) and Disposition (required) are separate toolbars.
  */
 
 const MENU_GAP = 4;
@@ -9,77 +9,6 @@ const MENU_EDGE = 8;
 
 /** @type {{ root: HTMLElement, trigger: HTMLElement, menu: HTMLElement, home: HTMLElement, row: HTMLElement } | null} */
 let openMenu = null;
-
-function selectedIds(root) {
-    return Array.from(root.querySelectorAll('[data-ira-row-select]:checked')).map((el) => el.value);
-}
-
-function syncTeachPanels(root) {
-    const action = root.querySelector('[data-ira-bulk-action]')?.value || '';
-
-    root.querySelectorAll('[data-ira-panel]').forEach((panel) => {
-        const match = panel.getAttribute('data-ira-panel') === action;
-        panel.hidden = !match;
-        panel.disabled = !match;
-    });
-}
-
-function syncDispositionPanels(root) {
-    const disposition = root.querySelector('[data-ira-disposition-action]')?.value || '';
-
-    root.querySelectorAll('[data-ira-disp-panel]').forEach((panel) => {
-        const match = panel.getAttribute('data-ira-disp-panel') === disposition;
-        panel.hidden = !match;
-        panel.disabled = !match;
-        if (match && panel.tagName === 'INPUT') {
-            panel.required = true;
-        } else if (panel.tagName === 'INPUT') {
-            panel.required = false;
-        }
-    });
-}
-
-function syncSelection(root) {
-    const ids = selectedIds(root);
-    const teachToolbar = root.querySelector('[data-ira-toolbar]');
-    const disposeToolbar = root.querySelector('[data-ira-disposition-toolbar]');
-    const teachHolder = root.querySelector('[data-ira-selected-inputs]');
-    const disposeHolder = root.querySelector('[data-ira-disposition-inputs]');
-    const countEl = root.querySelector('[data-ira-selected-count]');
-    const selectAll = root.querySelector('[data-ira-select-all]');
-    const checks = Array.from(root.querySelectorAll('[data-ira-row-select]'));
-    const hiddenInputs = ids
-        .map((id) => `<input type="hidden" name="message_ids[]" value="${id}">`)
-        .join('');
-
-    if (teachHolder) {
-        teachHolder.innerHTML = hiddenInputs;
-    }
-
-    if (disposeHolder) {
-        disposeHolder.innerHTML = hiddenInputs;
-    }
-
-    if (countEl) {
-        countEl.textContent = String(ids.length);
-    }
-
-    if (teachToolbar) {
-        teachToolbar.hidden = ids.length === 0;
-    }
-
-    if (disposeToolbar) {
-        disposeToolbar.hidden = ids.length === 0;
-    }
-
-    if (selectAll && checks.length) {
-        selectAll.checked = checks.every((input) => input.checked);
-        selectAll.indeterminate = !selectAll.checked && checks.some((input) => input.checked);
-    }
-
-    syncTeachPanels(root);
-    syncDispositionPanels(root);
-}
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -221,72 +150,104 @@ function toggleRow(row) {
     }
 }
 
-function confirmSpamRecovery(row) {
-    if (!row?.hasAttribute?.('data-spam-queue')) {
-        return true;
-    }
+function syncDispositionPanels(form) {
+    const disposition = form.querySelector('[data-ira-review-disposition]')?.value || '';
 
-    return window.confirm(
-        'This email will be removed from Spam and returned to Needs Review.',
-    );
+    form.querySelectorAll('[data-ira-review-disp-panel]').forEach((panel) => {
+        const match = panel.getAttribute('data-ira-review-disp-panel') === disposition;
+        panel.hidden = !match;
+        const input = panel.querySelector('[data-ira-review-disp-input]');
+        if (!input) return;
+        input.disabled = !match;
+        if (input.tagName === 'INPUT') {
+            input.required = match;
+        }
+    });
 }
 
-function prepareRowAction(root, row, action) {
-    if (!confirmSpamRecovery(row)) {
+function clearReviewSelection(root) {
+    root.querySelectorAll('[data-ira-row].ira-lc-row--selected').forEach((row) => {
+        row.classList.remove('ira-lc-row--selected');
+        row.querySelector('[data-ira-row-select-trigger]')?.setAttribute('aria-pressed', 'false');
+    });
+}
+
+function closeReviewPanel(root) {
+    const form = root.querySelector('[data-ira-review-form]');
+    if (!form) return;
+
+    form.hidden = true;
+    form.classList.remove('ira-lc-review--open');
+    clearReviewSelection(root);
+
+    const messageInput = form.querySelector('[data-ira-review-message-id]');
+    if (messageInput) messageInput.value = '';
+
+    const disposition = form.querySelector('[data-ira-review-disposition]');
+    if (disposition) disposition.value = '';
+
+    form.querySelectorAll('[data-ira-review-teach]').forEach((el) => {
+        el.value = '';
+    });
+
+    syncDispositionPanels(form);
+}
+
+function openReviewPanel(root, row) {
+    const form = root.querySelector('[data-ira-review-form]');
+    if (!form || !row?.hasAttribute?.('data-ira-reviewable')) {
         return;
     }
 
-    root.querySelectorAll('[data-ira-row-select]').forEach((input) => {
-        input.checked = input.closest('[data-ira-row]') === row;
-    });
+    clearReviewSelection(root);
+    row.classList.add('ira-lc-row--selected');
+    row.querySelector('[data-ira-row-select-trigger]')?.setAttribute('aria-pressed', 'true');
 
-    const actionSelect = root.querySelector('[data-ira-bulk-action]');
-    if (!actionSelect) return;
+    const messageId = row.getAttribute('data-message-id') || '';
+    const ownerId = row.getAttribute('data-owner-id') || '';
+    const classification = row.getAttribute('data-classification') || '';
+    const importance = row.getAttribute('data-importance') || 'normal';
+    const subject = rowSubject(row);
+    const sender = row.getAttribute('data-sender') || row.getAttribute('data-sender-email') || '';
+    const preview = rowPreview(row);
 
-    if (action === 'importance') {
-        actionSelect.value = 'importance';
-        const importance = root.querySelector('[data-ira-panel="importance"]');
-        if (importance) importance.value = 'high';
-    } else {
-        actionSelect.value = action;
+    const messageInput = form.querySelector('[data-ira-review-message-id]');
+    if (messageInput) messageInput.value = messageId;
+
+    form.querySelector('[data-ira-baseline="assignee"]').value = ownerId;
+    form.querySelector('[data-ira-baseline="classification"]').value = classification;
+    form.querySelector('[data-ira-baseline="importance"]').value = importance;
+
+    const assignee = form.querySelector('[data-ira-review-teach="assignee"]');
+    const classificationEl = form.querySelector('[data-ira-review-teach="classification"]');
+    const importanceEl = form.querySelector('[data-ira-review-teach="importance"]');
+
+    if (assignee) assignee.value = ownerId;
+    if (classificationEl) classificationEl.value = classification;
+    if (importanceEl) importanceEl.value = importance;
+
+    const subjectEl = form.querySelector('[data-ira-review-subject]');
+    const senderEl = form.querySelector('[data-ira-review-sender]');
+    const previewEl = form.querySelector('[data-ira-review-preview]');
+    if (subjectEl) subjectEl.textContent = subject;
+    if (senderEl) senderEl.textContent = sender;
+    if (previewEl) previewEl.textContent = preview;
+
+    const dispositionOwner = form.querySelector('[data-ira-review-disp-input="create_case"]');
+    const suggested = row.getAttribute('data-suggested-assignee') || ownerId;
+    if (dispositionOwner && suggested) {
+        dispositionOwner.value = suggested;
     }
 
-    if (action === 'assign') {
-        const assignee = root.querySelector('[data-ira-panel="assign"]');
-        const suggested = row.getAttribute('data-suggested-assignee');
-        if (assignee && suggested) assignee.value = suggested;
-    }
+    const disposition = form.querySelector('[data-ira-review-disposition]');
+    if (disposition) disposition.value = '';
 
-    syncSelection(root);
-    root.querySelector('[data-ira-toolbar]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
+    syncDispositionPanels(form);
 
-function prepareDispositionAction(root, row, disposition) {
-    const workingSpam = ['create_case', 'link_case', 'keep_pending'].includes(disposition);
-    if (workingSpam && !confirmSpamRecovery(row)) {
-        return;
-    }
-
-    root.querySelectorAll('[data-ira-row-select]').forEach((input) => {
-        input.checked = input.closest('[data-ira-row]') === row;
-    });
-
-    const dispositionSelect = root.querySelector('[data-ira-disposition-action]');
-    if (!dispositionSelect) return;
-
-    dispositionSelect.value = disposition;
-
-    if (disposition === 'create_case') {
-        const assignee = root.querySelector('[data-ira-disp-panel="create_case"]');
-        const suggested = row.getAttribute('data-suggested-assignee');
-        if (assignee && suggested) assignee.value = suggested;
-    }
-
-    syncSelection(root);
-    root.querySelector('[data-ira-disposition-toolbar]')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-    });
+    form.hidden = false;
+    form.classList.add('ira-lc-review--open');
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    form.querySelector('[data-ira-review-disposition]')?.focus();
 }
 
 function menuItems(menu) {
@@ -442,9 +403,9 @@ function openRowMenu(root, trigger) {
 function handleMenuAction(event) {
     if (!openMenu) return false;
 
-    const teachEl = event.target.closest('[data-ira-row-action]');
-    const disposeEl = event.target.closest('[data-ira-disp-action]');
-    if ((!teachEl && !disposeEl) || !openMenu.menu.contains(teachEl || disposeEl)) {
+    const reviewEl = event.target.closest('[data-ira-open-review]');
+    const toggleDetails = event.target.closest('[data-ira-row-toggle-menu]');
+    if ((!reviewEl && !toggleDetails) || !openMenu.menu.contains(reviewEl || toggleDetails)) {
         return false;
     }
 
@@ -454,10 +415,10 @@ function handleMenuAction(event) {
     const { root, row } = openMenu;
     closeRowMenu();
 
-    if (disposeEl) {
-        prepareDispositionAction(root, row, disposeEl.getAttribute('data-ira-disp-action'));
-    } else if (teachEl) {
-        prepareRowAction(root, row, teachEl.getAttribute('data-ira-row-action'));
+    if (reviewEl) {
+        openReviewPanel(root, row);
+    } else if (toggleDetails) {
+        toggleRow(row);
     }
 
     return true;
@@ -469,22 +430,31 @@ function boot(root) {
     }
     root.dataset.iraBound = '1';
 
-    const selectAll = root.querySelector('[data-ira-select-all]');
+    const form = root.querySelector('[data-ira-review-form]');
 
-    selectAll?.addEventListener('change', () => {
-        root.querySelectorAll('[data-ira-row-select]').forEach((input) => {
-            input.checked = selectAll.checked;
-        });
-        syncSelection(root);
+    form?.querySelector('[data-ira-review-disposition]')?.addEventListener('change', () => {
+        syncDispositionPanels(form);
     });
 
-    root.addEventListener('change', (event) => {
-        if (
-            event.target?.matches?.(
-                '[data-ira-row-select], [data-ira-bulk-action], [data-ira-disposition-action]',
-            )
-        ) {
-            syncSelection(root);
+    form?.querySelector('[data-ira-review-close]')?.addEventListener('click', () => {
+        closeReviewPanel(root);
+    });
+
+    form?.addEventListener('submit', (event) => {
+        const messageId = form.querySelector('[data-ira-review-message-id]')?.value;
+        const disposition = form.querySelector('[data-ira-review-disposition]')?.value;
+        if (!messageId || !disposition) {
+            event.preventDefault();
+            return;
+        }
+
+        if (root.getAttribute('data-current-queue') === 'spam') {
+            const ok = window.confirm(
+                'This email will be removed from Spam and returned to Needs Review.',
+            );
+            if (!ok) {
+                event.preventDefault();
+            }
         }
     });
 
@@ -515,25 +485,22 @@ function boot(root) {
         }
 
         const stop = event.target.closest('[data-ira-stop]');
-        const rowAction = event.target.closest('[data-ira-row-action]');
-        const toggle = event.target.closest('[data-ira-row-toggle]');
+        if (stop) return;
 
-        if (rowAction) {
-            event.preventDefault();
-            const row = rowAction.closest('[data-ira-row]');
-            if (row) prepareRowAction(root, row, rowAction.getAttribute('data-ira-row-action'));
+        const selectTrigger = event.target.closest('[data-ira-row-select-trigger]');
+        if (selectTrigger) {
+            const row = selectTrigger.closest('[data-ira-row]');
+            if (row) openReviewPanel(root, row);
             return;
         }
 
-        if (stop) return;
-
+        const toggle = event.target.closest('[data-ira-row-toggle]');
         if (toggle) {
             const row = toggle.closest('[data-ira-row]');
             if (row) toggleRow(row);
         }
     });
 
-    // Actions fire from the body-ported menu (outside root).
     document.addEventListener('click', (event) => {
         if (!openMenu || openMenu.root !== root) return;
         handleMenuAction(event);
@@ -546,52 +513,23 @@ function boot(root) {
             return;
         }
 
+        if ((event.key === 'Enter' || event.key === ' ') && event.target?.matches?.('[data-ira-row-select-trigger]')) {
+            event.preventDefault();
+            const row = event.target.closest('[data-ira-row]');
+            if (row) openReviewPanel(root, row);
+            return;
+        }
+
         if ((event.key === 'Enter' || event.key === ' ') && event.target?.matches?.('[data-ira-row-toggle]')) {
             event.preventDefault();
             const row = event.target.closest('[data-ira-row]');
             if (row) toggleRow(row);
         }
+
+        if (event.key === 'Escape' && form && !form.hidden) {
+            closeReviewPanel(root);
+        }
     });
-
-    root.querySelector('[data-ira-bulk-form]')?.addEventListener('submit', (event) => {
-        if (selectedIds(root).length === 0) {
-            event.preventDefault();
-            return;
-        }
-
-        if (root.getAttribute('data-current-queue') === 'spam') {
-            const ok = window.confirm(
-                'This email will be removed from Spam and returned to Needs Review.',
-            );
-            if (!ok) {
-                event.preventDefault();
-                return;
-            }
-        }
-
-        syncSelection(root);
-    });
-
-    root.querySelector('[data-ira-disposition-form]')?.addEventListener('submit', (event) => {
-        if (selectedIds(root).length === 0) {
-            event.preventDefault();
-            return;
-        }
-
-        if (root.getAttribute('data-current-queue') === 'spam') {
-            const ok = window.confirm(
-                'This email will be removed from Spam and returned to Needs Review.',
-            );
-            if (!ok) {
-                event.preventDefault();
-                return;
-            }
-        }
-
-        syncSelection(root);
-    });
-
-    syncSelection(root);
 }
 
 document.querySelectorAll('[data-ira-learning-center]').forEach(boot);

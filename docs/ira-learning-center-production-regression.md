@@ -1,9 +1,10 @@
 # IRA Learning Center — Production Regression Investigation
 
 **Date:** 2026-08-06 (~10:06 IST)  
-**Scope:** Root-cause investigation only — **no code changes**  
+**Scope:** Originally investigation-only; disposition discoverability fixed later the same day  
 **Environment:** Production (`desk.radiumbox.com` via `tools/config.sh`)  
 **Canvas:** none  
+**Follow-up fix:** Unified Review panel — one Save runs teach-if-changed then disposition (see [`email-intake-disposition-workflow.md`](email-intake-disposition-workflow.md), mockup [`learning-center-review-panel.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/learning-center-review-panel.canvas.tsx))
 
 ---
 
@@ -11,7 +12,8 @@
 
 | Issue | Root cause | Bug? |
 |-------|------------|------|
-| **1 – Applied email stays in Needs Human** | Apply for **Docs** / **Assign** updates classification or owner **without** changing `status` away from `needs_review`. Needs Human is status-based, so the count stays 3. Matches current product docs for Docs. | **Product / UX expectation mismatch**, not cache failure |
+| **1 – Applied email stays in Needs Human** | Apply for **Docs** / **Assign** updates classification or owner **without** changing `status` away from `needs_review`. Needs Human is status-based, so the count stays 3. Matches current product docs for Docs. | **By design for Teach** — disposition is required next |
+| **1b – No visible Disposition action after Teach** | Dispose toolbar started `hidden` and only appeared after checkbox selection. Teach redirect cleared selection, so operators saw “Disposition still required” with no Dispose UI. | **UX regression — fixed** |
 | **2 – Fresh emails not arriving** | Intake is **healthy**. New mail is still ingested and auto-routed to `linked` / `ignored`. Needs Human is not growing because nothing new lands in `needs_review`. | **No intake outage** |
 
 ---

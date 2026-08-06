@@ -1,6 +1,12 @@
 @php
     $isCompletedAutomatically = !empty($card['is_completed_automatically']);
     $isSpamQueue = !empty($card['is_spam_queue']);
+    $supportsReview = in_array($queue, [
+        \App\Enums\IncomingEmailIntakeQueue::NeedsHuman,
+        \App\Enums\IncomingEmailIntakeQueue::ReviewSuggested,
+        \App\Enums\IncomingEmailIntakeQueue::Spam,
+    ], true);
+    $ownerId = $card['learning_owner_user_id'] ?? $card['suggested_assignee_user_id'] ?? '';
     $expandJson = json_encode(
         $card['expand'] ?? [],
         JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
@@ -10,18 +16,25 @@
      data-ira-row
      data-message-id="{{ $card['id'] }}"
      data-suggested-assignee="{{ $card['suggested_assignee_user_id'] ?? '' }}"
+     data-owner-id="{{ $ownerId }}"
+     data-classification="{{ $card['classification_value'] ?? '' }}"
+     data-importance="{{ $card['importance_value'] ?? 'normal' }}"
+     data-sender="{{ e($card['sender'] ?? '') }}"
+     data-sender-email="{{ e($card['sender_email'] ?? '') }}"
      data-subject="{{ e($card['subject'] ?? 'No subject') }}"
      data-preview="{{ e($card['preview_full'] ?? $card['preview'] ?? '') }}"
+     @if($supportsReview) data-ira-reviewable="1" @endif
      @if($isSpamQueue) data-spam-queue="1" @endif
      @if(!empty($card['keep_pending'])) data-keep-pending="1" @endif>
-    <div class="ira-lc-row__main" data-ira-row-toggle role="button" tabindex="0" aria-expanded="false">
-        <div class="ira-lc-row__check" data-ira-stop>
-            <input type="checkbox"
-                   class="form-check-input m-0"
-                   value="{{ $card['id'] }}"
-                   aria-label="Select email {{ $card['id'] }}"
-                   data-ira-row-select>
-        </div>
+    <div class="ira-lc-row__main"
+         @if($supportsReview) data-ira-row-select-trigger role="button" tabindex="0" aria-pressed="false" @else data-ira-row-toggle role="button" tabindex="0" aria-expanded="false" @endif>
+        @unless($supportsReview)
+            <div class="ira-lc-row__check" aria-hidden="true"></div>
+        @else
+            <div class="ira-lc-row__check ira-lc-row__check--select" aria-hidden="true">
+                <span class="ira-lc-row__select-dot"></span>
+            </div>
+        @endunless
 
         <div class="ira-lc-row__sender" title="{{ $card['sender_email'] }}">
             <span class="ira-lc-row__primary">{{ $card['sender'] }}</span>
@@ -75,38 +88,14 @@
                     ⋯
                 </button>
                 <ul class="ira-lc-menu" data-ira-menu role="menu" hidden>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="assign">Teach Owner</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="classification">Teach Classification</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="importance">Teach Importance</button>
-                    </li>
-                    <li role="separator"><hr class="dropdown-divider"></li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="create_case">Create Service Case</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="link_case">Link Existing Case</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="ignore">Ignore</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="spam">Spam</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="promotion">Promotion</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="auto_processed">Completed Automatically</button>
-                    </li>
-                    <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="keep_pending">Keep Pending</button>
-                    </li>
-                    <li role="separator"><hr class="dropdown-divider"></li>
+                    @if($supportsReview && !empty($canManageEmailIntake))
+                        <li role="none">
+                            <button type="button" class="dropdown-item" role="menuitem" data-ira-open-review>
+                                Review
+                            </button>
+                        </li>
+                        <li role="separator"><hr class="dropdown-divider"></li>
+                    @endif
                     @if($card['gmail_url'])
                         <li role="none">
                             <a class="dropdown-item" role="menuitem" href="{{ $card['gmail_url'] }}" target="_blank" rel="noopener">
@@ -125,6 +114,14 @@
                     @else
                         <li role="none"><span class="dropdown-item disabled" role="menuitem" aria-disabled="true">Open Customer360</span></li>
                     @endif
+                    @unless($supportsReview)
+                        <li role="separator"><hr class="dropdown-divider"></li>
+                        <li role="none">
+                            <button type="button" class="dropdown-item" role="menuitem" data-ira-row-toggle-menu>
+                                Toggle details
+                            </button>
+                        </li>
+                    @endunless
                 </ul>
             </div>
         </div>

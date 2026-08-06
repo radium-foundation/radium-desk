@@ -5,6 +5,7 @@ namespace Tests\Feature\IncomingEmail;
 use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailIgnoreDispositionVariant;
+use App\Enums\IncomingEmailImportance;
 use App\Enums\IncomingEmailIntakeQueue;
 use App\Enums\IncomingEmailKeepPendingReason;
 use App\Enums\IncomingEmailLearningScope;
@@ -255,6 +256,122 @@ class IncomingEmailDispositionWorkflowTest extends TestCase
         $this->assertSame(IncomingEmailClassification::Docs, $message->classification);
         $this->assertSame(IncomingEmailMessageStatus::NeedsReview, $message->status);
         $this->assertNull($message->disposition);
+    }
+
+    public function test_needs_human_renders_unified_review_panel(): void
+    {
+        $admin = $this->createAdmin('disp-visible@test.com');
+        $this->needsHumanMessage('vis-1', 'buyer@example.com', 'Need quote');
+
+        $html = (string) $this->actingAs($admin)
+            ->get(route('admin.incoming-emails.index', [
+                'queue' => IncomingEmailIntakeQueue::NeedsHuman->value,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-ira-review-form', $html);
+        $this->assertStringContainsString('data-ira-review-panel', $html);
+        $this->assertStringContainsString('data-ira-reviewable', $html);
+        $this->assertStringContainsString('Teach IRA', $html);
+        $this->assertStringContainsString('Disposition', $html);
+        $this->assertStringContainsString('Create Service Case', $html);
+        $this->assertStringContainsString('data-ira-review-save', $html);
+        $this->assertStringNotContainsString('data-ira-bulk-form', $html);
+        $this->assertStringNotContainsString('data-ira-disposition-toolbar', $html);
+    }
+
+    public function test_review_save_teaches_then_disposes_in_one_request(): void
+    {
+        $admin = $this->createAdmin('review-save@test.com');
+        $assignee = $this->createAdmin('review-owner@test.com');
+        $message = $this->needsHumanMessage('review-1', 'lead@buyer.com', 'Need pricing');
+
+        $before = app(IncomingEmailIntakeCounterService::class)->needsHumanCount();
+
+        $this->actingAs($admin)
+            ->post(route('admin.incoming-emails.review.apply'), [
+                'message_ids' => [$message->id],
+                'assignee_user_id' => $assignee->id,
+                'baseline_assignee_user_id' => null,
+                'classification' => IncomingEmailOperatorClassification::Sales->value,
+                'baseline_classification' => IncomingEmailOperatorClassification::Sales->value,
+                'importance' => null,
+                'baseline_importance' => IncomingEmailImportance::Normal->value,
+                'scope' => IncomingEmailLearningScope::SameSender->value,
+                'disposition' => IncomingEmailDisposition::CreateCase->value,
+                'disposition_assignee_user_id' => $assignee->id,
+            ])
+            ->assertRedirect(route('admin.incoming-emails.index', [
+                'queue' => IncomingEmailIntakeQueue::NeedsHuman->value,
+            ]));
+
+        $message->refresh();
+        $this->assertSame(IncomingEmailMessageStatus::Linked, $message->status);
+        $this->assertSame(IncomingEmailDisposition::CreateCase, $message->disposition);
+        $this->assertSame($assignee->id, $message->learning_owner_user_id);
+        $this->assertNotNull($message->incident_id);
+        $this->assertSame(
+            $before - 1,
+            app(IncomingEmailIntakeCounterService::class)->needsHumanCount(),
+        );
+
+        $this->assertTrue(
+            AuditLog::query()
+                ->where('event', 'incoming_email.learning_action')
+                ->where('auditable_id', $message->id)
+                ->exists(),
+        );
+        $this->assertTrue(
+            AuditLog::query()
+                ->where('event', 'incoming_email.disposition')
+                ->where('auditable_id', $message->id)
+                ->exists(),
+        );
+        $this->assertDatabaseHas('incoming_email_learning_rules', [
+            'decision_value' => (string) $assignee->id,
+        ]);
+    }
+
+    public function test_review_save_disposition_only_when_teach_unchanged(): void
+    {
+        $admin = $this->createAdmin('review-disp-only@test.com');
+        $message = $this->needsHumanMessage('review-2', 'noise@example.com', 'Ping');
+
+        $beforeRules = IncomingEmailLearningRule::query()->count();
+        $before = app(IncomingEmailIntakeCounterService::class)->needsHumanCount();
+
+        $this->actingAs($admin)
+            ->post(route('admin.incoming-emails.review.apply'), [
+                'message_ids' => [$message->id],
+                'assignee_user_id' => null,
+                'baseline_assignee_user_id' => null,
+                'classification' => IncomingEmailOperatorClassification::Sales->value,
+                'baseline_classification' => IncomingEmailOperatorClassification::Sales->value,
+                'importance' => IncomingEmailImportance::Normal->value,
+                'baseline_importance' => IncomingEmailImportance::Normal->value,
+                'scope' => IncomingEmailLearningScope::ThisEmail->value,
+                'disposition' => IncomingEmailDisposition::Spam->value,
+            ])
+            ->assertRedirect();
+
+        $message->refresh();
+        $this->assertSame(IncomingEmailMessageStatus::Ignored, $message->status);
+        $this->assertSame(IncomingEmailDisposition::Spam, $message->disposition);
+        $this->assertSame($before - 1, app(IncomingEmailIntakeCounterService::class)->needsHumanCount());
+        $this->assertSame($beforeRules, IncomingEmailLearningRule::query()->count());
+        $this->assertFalse(
+            AuditLog::query()
+                ->where('event', 'incoming_email.learning_action')
+                ->where('auditable_id', $message->id)
+                ->exists(),
+        );
+        $this->assertTrue(
+            AuditLog::query()
+                ->where('event', 'incoming_email.disposition')
+                ->where('auditable_id', $message->id)
+                ->exists(),
+        );
     }
 
     public function test_dashboard_widget_drops_after_disposition(): void

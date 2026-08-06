@@ -132,7 +132,7 @@ class IncomingEmailLearningCenterAccessTest extends TestCase
             ->get(route('admin.incoming-emails.index'))
             ->assertOk()
             ->assertSee('IRA Learning Center', false)
-            ->assertDontSee('data-ira-bulk-form', false);
+            ->assertDontSee('data-ira-review-form', false);
 
         $this->actingAs($user)
             ->post(route('admin.incoming-emails.learning.apply'), [

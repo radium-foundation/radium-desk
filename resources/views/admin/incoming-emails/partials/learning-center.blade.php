@@ -4,6 +4,11 @@
 
     $canManageEmailIntake = $canManageEmailIntake ?? false;
     $canViewGmailAdmin = Gate::check('update', SystemSetting::class);
+    $supportsReviewPanel = in_array($queue, [
+        \App\Enums\IncomingEmailIntakeQueue::NeedsHuman,
+        \App\Enums\IncomingEmailIntakeQueue::ReviewSuggested,
+        \App\Enums\IncomingEmailIntakeQueue::Spam,
+    ], true);
 @endphp
 
 <div class="ira-lc-page">
@@ -11,7 +16,9 @@
 
     <div class="ira-lc-page__intro">
         <h1 class="ira-lc-page__title">IRA Learning Center</h1>
-        <p class="ira-lc-page__lede">Teach IRA (optional), then dispose every Needs Human email — teaching alone never clears the queue.</p>
+        <p class="ira-lc-page__lede">
+            Select an email to review. Teach IRA if needed, choose a disposition, and Save once.
+        </p>
     </div>
 
     @if(session('status'))
@@ -82,7 +89,10 @@
         </div>
     @endif
 
-    <div class="ira-lc" data-ira-learning-center data-current-queue="{{ $queue->value }}">
+    <div class="ira-lc"
+         data-ira-learning-center
+         data-current-queue="{{ $queue->value }}"
+         @if($supportsReviewPanel) data-ira-review-mode="1" @endif>
         <div class="ira-lc__header">
             <div>
                 <h2 class="ira-lc__title">
@@ -95,17 +105,21 @@
                     @if($queue === \App\Enums\IncomingEmailIntakeQueue::Automatic)
                         Grouped by how IRA completed the email — routing unchanged.
                     @elseif($queue === \App\Enums\IncomingEmailIntakeQueue::ReviewSuggested)
-                        IRA is uncertain — still in Needs Human for routing; this view focuses review.
+                        IRA is uncertain — select an email to teach and dispose in one Save.
+                    @elseif($queue === \App\Enums\IncomingEmailIntakeQueue::Spam)
+                        Select an email to restore via Create / Link, or teach and dispose.
+                    @elseif($supportsReviewPanel)
+                        Select → Review (teach optional + disposition) → Save once → Completed.
                     @else
-                        Review → Teach (optional) → Disposition (required) → Completed.
+                        Browse completed or promotional mail. Routing is unchanged here.
                     @endif
                 </p>
             </div>
             <div class="ira-lc__count">{{ number_format(count($cards)) }} shown</div>
         </div>
 
-        @if($canManageEmailIntake)
-            @include('admin.incoming-emails.partials.learning-toolbar')
+        @if($canManageEmailIntake && $supportsReviewPanel)
+            @include('admin.incoming-emails.partials.learning-review-panel')
         @endif
 
         @if($cards === [])
