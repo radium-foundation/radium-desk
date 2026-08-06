@@ -302,4 +302,22 @@ return [
             )))
             : ['support@radiumbox.com'],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Closed-case reopen routing
+    |--------------------------------------------------------------------------
+    |
+    | Refund-completed reopen assigns to the Refund Desk owner (default:
+    | Shubhanshi). Successful-service reopen restores the last owner.
+    | Own-outbound echoes never reopen (see IncomingEmailIngestService).
+    |
+    */
+
+    'reopen' => [
+        'refund_desk_user_email' => strtolower(trim((string) env(
+            'INBOUND_EMAIL_REFUND_DESK_USER_EMAIL',
+            env('SERVICE_CASE_ESCALATION_LEVEL_1_EMAIL', 'shubhanshi@radiumbox.com'),
+        ))),
+    ],
 ];

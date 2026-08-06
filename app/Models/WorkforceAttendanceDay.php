@@ -13,6 +13,7 @@ class WorkforceAttendanceDay extends Model
         'user_id',
         'work_date',
         'status',
+        'status_reason',
         'calendar_status',
         'is_working_day',
         'is_company_holiday',
@@ -43,6 +44,7 @@ class WorkforceAttendanceDay extends Model
         return [
             'work_date' => 'date',
             'status' => AttendanceDayStatus::class,
+            'status_reason' => 'string',
             'calendar_status' => WorkCalendarDayStatus::class,
             'is_working_day' => 'boolean',
             'is_company_holiday' => 'boolean',

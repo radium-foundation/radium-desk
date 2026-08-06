@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\WorkforceAttendanceDay;
 use App\Services\Operations\AttendanceRegisterService;
 use App\Services\Operations\OperationsRoleService;
+use App\Services\Workforce\ShortAttendance\ShortAttendanceReviewService;
 use App\Support\Workforce\AttendanceMatrixCellMapper;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -26,6 +27,7 @@ class MonthlyAttendanceMatrixService
         private readonly AttendanceRegisterService $attendanceRegister,
         private readonly OperationsRoleService $roleService,
         private readonly AttendanceMatrixCellMapper $cellMapper,
+        private readonly ShortAttendanceReviewService $shortAttendanceReviewService,
     ) {}
 
     public function build(?Carbon $month = null, ?Carbon $at = null): AttendanceMatrixReport
@@ -39,6 +41,11 @@ class MonthlyAttendanceMatrixService
         $users = $this->trackedUsers();
         $holidaysByDate = $this->holidaysForMonth($month, $monthEnd);
         $leaveReasonsByUserDate = $this->approvedLeaveReasons($users, $month, $monthEnd);
+        $shortAttendanceOverrides = $this->shortAttendanceReviewService->decidedOverridesFor(
+            $users->pluck('id')->all(),
+            $month->copy(),
+            $monthEnd->copy(),
+        );
 
         $days = $this->buildDayHeaders($month, $monthEnd, $today, $holidaysByDate);
         $members = [];
@@ -59,6 +66,7 @@ class MonthlyAttendanceMatrixService
                 today: $today,
                 holidaysByDate: $holidaysByDate,
                 leaveReasonsByDate: $leaveReasonsByUserDate[$user->id] ?? [],
+                shortAttendanceOverrides: $shortAttendanceOverrides,
             );
 
             $teamPresent += $member->summary->presentDays;
@@ -99,6 +107,11 @@ class MonthlyAttendanceMatrixService
 
         $holidaysByDate = $this->holidaysForMonth($month, $monthEnd);
         $leaveReasonsByUserDate = $this->approvedLeaveReasons(collect([$user]), $month, $monthEnd);
+        $shortAttendanceOverrides = $this->shortAttendanceReviewService->decidedOverridesFor(
+            [$user->id],
+            $month->copy(),
+            $monthEnd->copy(),
+        );
         $days = $this->buildDayHeaders($month, $monthEnd, $today, $holidaysByDate);
 
         return $this->buildMemberRow(
@@ -110,6 +123,7 @@ class MonthlyAttendanceMatrixService
             today: $today,
             holidaysByDate: $holidaysByDate,
             leaveReasonsByDate: $leaveReasonsByUserDate[$user->id] ?? [],
+            shortAttendanceOverrides: $shortAttendanceOverrides,
         );
     }
 
@@ -117,6 +131,7 @@ class MonthlyAttendanceMatrixService
      * @param  list<AttendanceMatrixDayHeader>  $days
      * @param  Collection<string, CompanyHoliday>  $holidaysByDate
      * @param  array<string, string>  $leaveReasonsByDate
+     * @param  array<string, AttendanceMatrixCellKind>  $shortAttendanceOverrides
      */
     private function buildMemberRow(
         User $user,
@@ -127,6 +142,7 @@ class MonthlyAttendanceMatrixService
         Carbon $today,
         Collection $holidaysByDate,
         array $leaveReasonsByDate,
+        array $shortAttendanceOverrides = [],
     ): AttendanceMatrixMemberRow {
         $dayRows = $this->attendanceRegister->resolveDaysForRange(
             user: $user,
@@ -157,7 +173,13 @@ class MonthlyAttendanceMatrixService
                 'leave_reason' => $leaveReasonsByDate[$dateKey] ?? null,
             ];
 
-            $kind = $this->cellMapper->kindFor($day, $header->date, $today);
+            $overrideKey = $user->id.':'.$dateKey;
+            $kind = $this->cellMapper->kindFor(
+                $day,
+                $header->date,
+                $today,
+                $shortAttendanceOverrides[$overrideKey] ?? null,
+            );
             $cell = new AttendanceMatrixCell(
                 userId: $user->id,
                 workDate: $dateKey,
@@ -182,7 +204,8 @@ class MonthlyAttendanceMatrixService
 
             match ($kind) {
                 AttendanceMatrixCellKind::Present => $presentDays++,
-                AttendanceMatrixCellKind::Absent => $absentDays++,
+                AttendanceMatrixCellKind::Absent,
+                AttendanceMatrixCellKind::ShortAttendance => $absentDays++,
                 AttendanceMatrixCellKind::Leave => $leaveDays++,
                 AttendanceMatrixCellKind::HalfDay => $halfDayDays++,
                 AttendanceMatrixCellKind::Late => $lateDays++,

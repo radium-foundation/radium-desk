@@ -207,6 +207,23 @@ class PayrollPhase1Test extends TestCase
         $this->assertSame(1, $breakdown['extra']);
     }
 
+    public function test_short_attendance_is_payroll_absent(): void
+    {
+        $service = app(PayrollCalculationService::class);
+        $cells = [
+            $this->fakeCell(AttendanceMatrixCellKind::Present),
+            $this->fakeCell(AttendanceMatrixCellKind::ShortAttendance),
+            $this->fakeCell(AttendanceMatrixCellKind::Absent),
+        ];
+
+        $breakdown = $service->classifyCells($cells);
+
+        $this->assertEqualsWithDelta(1.0, $breakdown['payable_days'], 0.01);
+        $this->assertEqualsWithDelta(2.0, $breakdown['non_payable_days'], 0.01);
+        $this->assertSame(2, $breakdown['absent']);
+        $this->assertSame(0.0, AttendanceMatrixCellKind::ShortAttendance->payableDayFraction());
+    }
+
     public function test_payroll_index_and_detail_access(): void
     {
         $admin = $this->allowlistedAdmin();

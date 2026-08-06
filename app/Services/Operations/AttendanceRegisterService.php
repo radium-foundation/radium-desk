@@ -55,6 +55,7 @@ class AttendanceRegisterService
 
         $day = $this->persist($result);
         $this->publishAttendanceRecorded($day);
+        $this->syncShortAttendanceReview($day);
 
         return $day;
     }
@@ -266,12 +267,24 @@ class AttendanceRegisterService
             payload: [
                 'attendance_day_id' => $day->id,
                 'status' => $day->status->value,
+                'status_reason' => $day->status_reason,
+                'worked_minutes' => intdiv(max(0, (int) $day->active_duration_seconds), 60),
                 'calendar_status' => $day->calendar_status?->value,
                 'is_working_day' => (bool) $day->is_working_day,
                 'is_on_leave' => (bool) $day->is_on_leave,
                 'is_company_holiday' => (bool) $day->is_company_holiday,
             ],
         ));
+    }
+
+    /**
+     * Phase 2: keep HR review queue in sync with Phase 1 Short Attendance rows.
+     * Does not alter register status.
+     */
+    private function syncShortAttendanceReview(WorkforceAttendanceDay $day): void
+    {
+        app(\App\Services\Workforce\ShortAttendance\ShortAttendanceReviewService::class)
+            ->ensurePendingForDay($day);
     }
 
     /**

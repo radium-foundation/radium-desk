@@ -29,11 +29,15 @@ class AttendanceMatrixCellMapper
     /**
      * Map a register day (or lack thereof) into a presentation kind.
      * Does not invent attendance math — only classifies existing register values.
+     *
+     * Phase 2: optional $shortAttendanceOverride applies HR-approved final status
+     * when the register is still short_attendance (Phase 1 source of truth unchanged).
      */
     public function kindFor(
         ?WorkforceAttendanceDay $day,
         Carbon $workDate,
         Carbon $today,
+        ?AttendanceMatrixCellKind $shortAttendanceOverride = null,
     ): AttendanceMatrixCellKind {
         if ($workDate->gt($today)) {
             return AttendanceMatrixCellKind::Future;
@@ -51,6 +55,8 @@ class AttendanceMatrixCellMapper
                 : AttendanceMatrixCellKind::WeeklyOff,
             AttendanceDayStatus::Extra => AttendanceMatrixCellKind::Extra,
             AttendanceDayStatus::NotStarted => AttendanceMatrixCellKind::Absent,
+            AttendanceDayStatus::ShortAttendance => $shortAttendanceOverride
+                ?? AttendanceMatrixCellKind::ShortAttendance,
             AttendanceDayStatus::Late => AttendanceMatrixCellKind::Late,
             AttendanceDayStatus::OnTime,
             AttendanceDayStatus::Active,
@@ -97,7 +103,10 @@ class AttendanceMatrixCellMapper
             $parts[] = $day->minutes_late.' min late';
         }
 
-        if ((int) $day->active_duration_seconds > 0) {
+        if ($kind === AttendanceMatrixCellKind::ShortAttendance) {
+            $workedMinutes = intdiv(max(0, (int) $day->active_duration_seconds), 60);
+            $parts[] = $workedMinutes.' min worked';
+        } elseif ((int) $day->active_duration_seconds > 0) {
             $parts[] = 'Active '.$this->formatDuration((int) $day->active_duration_seconds);
         }
 
@@ -148,6 +157,12 @@ class AttendanceMatrixCellMapper
             'kind_label' => $kind->label(),
             'attendance_status' => $day?->status?->value,
             'attendance_status_label' => $day?->status?->label(),
+            'status_reason' => $day?->status_reason,
+            'final_kind' => $kind->value,
+            'final_kind_label' => $kind->label(),
+            'worked_minutes' => $day !== null
+                ? intdiv(max(0, (int) $day->active_duration_seconds), 60)
+                : null,
             'is_working_day' => $day?->is_working_day,
             'is_company_holiday' => $day?->is_company_holiday,
             'is_on_leave' => $day?->is_on_leave,

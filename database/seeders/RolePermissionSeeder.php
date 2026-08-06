@@ -40,6 +40,12 @@ class RolePermissionSeeder extends Seeder
      */
     public const PERMISSION_WORKFORCE_PAYROLL_REOPEN = 'workforce.payroll.reopen';
 
+    /** Short Attendance Phase 2 — HR review queue (view). */
+    public const PERMISSION_SHORT_ATTENDANCE_VIEW = 'workforce.short_attendance.view';
+
+    /** Short Attendance Phase 2 — HR review decisions (Shipra / Ops Admin). */
+    public const PERMISSION_SHORT_ATTENDANCE_REVIEW = 'workforce.short_attendance.review';
+
     public const PERMISSION_FINANCE_VIEW = 'finance.view';
 
     public const PERMISSION_FINANCE_DASHBOARD_VIEW = 'finance.dashboard.view';
@@ -262,6 +268,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.view.member',
             'workforce.self',
             'workforce.recognition.view',
+            self::PERMISSION_SHORT_ATTENDANCE_VIEW,
+            self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
@@ -303,6 +311,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             'workforce.recognition.view',
             'workforce.recognition.review',
+            self::PERMISSION_SHORT_ATTENDANCE_VIEW,
+            self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_FINANCE_VIEW,
             self::PERMISSION_CASHBOOK_VIEW,
@@ -349,6 +359,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             'workforce.recognition.view',
             'workforce.recognition.review',
+            self::PERMISSION_SHORT_ATTENDANCE_VIEW,
+            self::PERMISSION_SHORT_ATTENDANCE_REVIEW,
             self::PERMISSION_WORKFORCE_PAYROLL_MANAGE,
             self::PERMISSION_WORKFORCE_PAYROLL_REOPEN,
             self::PERMISSION_FINANCE_VIEW,

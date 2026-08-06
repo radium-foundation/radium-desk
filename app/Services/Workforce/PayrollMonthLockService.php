@@ -10,6 +10,7 @@ use App\Enums\WorkforceEventType;
 use App\Models\PayrollMonthLock;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\Workforce\ShortAttendance\ShortAttendanceReviewService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class PayrollMonthLockService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly WorkforceEventPublisher $workforceEventPublisher,
+        private readonly ShortAttendanceReviewService $shortAttendanceReviewService,
     ) {}
 
     public function isMonthLocked(Carbon $monthOrDay): bool
@@ -69,6 +71,7 @@ class PayrollMonthLockService
         $this->assertSuperAdmin($actor);
 
         $monthStart = $month->copy()->startOfMonth();
+        $this->shortAttendanceReviewService->assertNoPendingForMonth($monthStart);
         $reason = $this->normalizeReason($reason);
 
         $lock = DB::transaction(function () use ($monthStart, $actor, $reason): PayrollMonthLock {

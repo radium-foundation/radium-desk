@@ -19751,6 +19751,12 @@ button.attendance-matrix-cell:focus-visible .attendance-matrix-badge {
     border-color: #f5d0d3;
 }
 
+.attendance-matrix-badge--short {
+    color: #9a3412;
+    background: #ffedd5;
+    border-color: #fdba74;
+}
+
 /* Leave — stronger sky blue; distinct from Extra indigo */
 .attendance-matrix-badge--info {
     color: #075985;

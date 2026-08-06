@@ -118,8 +118,24 @@ class IncomingEmailIngestService
         return $message->fresh();
     }
 
+    /**
+     * Own outbound must never reopen closed cases or enter intake processing.
+     *
+     * Match when ANY of: Gmail SENT label, From ∈ configured Radium mailboxes,
+     * OutgoingEmailMessage by provider id, or OutgoingEmailMessage by RFC Message-ID.
+     */
     private function isOwnOutboundEcho(NormalizedInboundEmail $dto): bool
     {
+        if ($this->hasSentLabel($dto->labels)) {
+            return true;
+        }
+
+        $fromEmail = strtolower(trim($dto->fromEmail));
+
+        if ($fromEmail !== '' && in_array($fromEmail, $this->configuredRadiumMailboxEmails(), true)) {
+            return true;
+        }
+
         $providerMessageId = $dto->providerMessageId !== null ? trim($dto->providerMessageId) : '';
 
         if ($providerMessageId !== '') {
@@ -132,13 +148,54 @@ class IncomingEmailIngestService
             }
         }
 
-        $fromEmail = strtolower(trim($dto->fromEmail));
-        $mailboxes = array_map(
-            'strtolower',
-            array_keys(config('inbound_email.mailboxes', [])),
-        );
+        $rfcMessageId = $this->normalizeMessageId($dto->rfcMessageId);
 
-        return $fromEmail !== '' && in_array($fromEmail, $mailboxes, true);
+        if ($rfcMessageId !== null) {
+            return OutgoingEmailMessage::query()
+                ->where('rfc_message_id', $rfcMessageId)
+                ->exists();
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  list<string>  $labels
+     */
+    private function hasSentLabel(array $labels): bool
+    {
+        foreach ($labels as $label) {
+            if (strtoupper(trim((string) $label)) === 'SENT') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function configuredRadiumMailboxEmails(): array
+    {
+        $emails = [];
+
+        foreach (array_keys(config('inbound_email.mailboxes', [])) as $email) {
+            $emails[] = strtolower(trim((string) $email));
+        }
+
+        foreach (config('inbound_email.gmail.sync_mailboxes', []) as $email) {
+            $emails[] = strtolower(trim((string) $email));
+        }
+
+        foreach (config('inbound_email.reply.mailboxes', []) as $email) {
+            $emails[] = strtolower(trim((string) $email));
+        }
+
+        return array_values(array_unique(array_filter(
+            $emails,
+            static fn (string $email): bool => $email !== '',
+        )));
     }
 
     private function findExisting(NormalizedInboundEmail $dto): ?IncomingEmailMessage

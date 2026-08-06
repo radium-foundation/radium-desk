@@ -124,15 +124,23 @@ class SupportAppointmentService
         });
 
         if ($result['should_notify']) {
-            $this->sendConfirmationNotification($result['appointment'], $incident, $bookingSource);
+            $workflow = app(SupportAppointmentBookingWorkflowService::class);
+            $appointment = $result['appointment'];
 
-            $incident = app(SupportAppointmentBookingWorkflowService::class)->reopenClosedIncidentIfNeeded(
-                incident: $incident->fresh(['assignee', 'order', 'supportAppointments']),
-                appointment: $result['appointment'],
+            $workflow->recordAppointmentBooked(
+                incident: $incident->fresh(['assignee', 'order']) ?? $incident,
+                appointment: $appointment,
             );
 
-            $this->assignAfterBooking($result['appointment'], $incident, $bookingSource);
+            // Ownership must leave Ready Queue admin before customer confirmation.
+            $incident = $workflow->reopenClosedIncidentIfNeeded(
+                incident: $incident->fresh(['assignee', 'order', 'supportAppointments']),
+                appointment: $appointment,
+            );
+
+            $this->assignAfterBooking($appointment, $incident, $bookingSource);
             $this->handleWaitingStateAfterBooking($incident);
+            $this->sendConfirmationNotification($appointment, $incident, $bookingSource);
         }
 
         return $result['appointment'];
@@ -274,13 +282,16 @@ class SupportAppointmentService
                 appointment: $appointment,
             );
         } catch (Throwable $exception) {
-            Log::error('support_appointment.book.smart_assignment_unhandled', [
+            Log::error('support_appointment.book.smart_assignment_failed', [
                 'appointment_id' => $appointment->id,
                 'incident_id' => $incident->id,
                 'booking_source' => $bookingSource->value,
                 'exception' => $exception::class,
                 'message' => $exception->getMessage(),
             ]);
+
+            // Ownership transition is required before customer confirmation.
+            throw $exception;
         }
     }
 

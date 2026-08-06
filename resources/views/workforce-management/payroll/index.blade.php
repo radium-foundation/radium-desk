@@ -18,6 +18,23 @@
 
         @include('workforce-management.partials.workspace-nav', ['active' => 'payroll'])
 
+        @error('month')
+            <div class="alert alert-danger" role="alert">{{ $message }}</div>
+        @enderror
+
+        @if (($pendingShortAttendanceCount ?? 0) > 0 && ! $isFinalized)
+            <div class="alert alert-warning" role="status">
+                Cannot finalize payroll.
+                {{ $pendingShortAttendanceCount }} Short Attendance
+                {{ $pendingShortAttendanceCount === 1 ? 'review is' : 'reviews are' }}
+                still pending.
+                <a
+                    href="{{ route('workforce-management.short-attendance.index', ['period' => 'this_month', 'status' => 'pending', 'month' => $monthValue]) }}"
+                    class="alert-link"
+                >Open Review Queue</a>
+            </div>
+        @endif
+
         <section class="wm-payroll-lock" aria-label="Payroll status">
             <div class="wm-payroll-lock__status">
                 <span class="wm-toolbar__label">Payroll Status</span>

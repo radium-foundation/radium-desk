@@ -7,6 +7,7 @@ use App\Http\Requests\LockPayrollMonthRequest;
 use App\Http\Requests\UnlockPayrollMonthRequest;
 use App\Services\Workforce\DailyWorkforceEngine;
 use App\Services\Workforce\PayrollMonthLockService;
+use App\Services\Workforce\ShortAttendance\ShortAttendanceReviewService;
 use App\Support\Workforce\AttendanceManagementAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\RedirectResponse;
@@ -19,6 +20,7 @@ class MonthlyAttendanceController extends Controller
     public function __construct(
         private readonly DailyWorkforceEngine $workforceEngine,
         private readonly PayrollMonthLockService $payrollMonthLockService,
+        private readonly ShortAttendanceReviewService $shortAttendanceReviewService,
     ) {
         $this->middleware(function ($request, $next) {
             // Temporary payroll lock: team-performance.view + allowlist.
@@ -38,6 +40,9 @@ class MonthlyAttendanceController extends Controller
             'monthValue' => $month->format('Y-m'),
             'payrollLock' => $this->payrollMonthLockService->statusForMonth($month),
             'canManagePayrollLock' => $user?->hasRole(RolePermissionSeeder::ROLE_SUPERADMIN) ?? false,
+            'shortAttendanceTodayPendingCount' => $this->resolveShortAttendanceTodayPendingCount($user),
+            'showShortAttendanceMorningReminder' => $this->shortAttendanceReviewService->canView($user)
+                && $this->shortAttendanceReviewService->hasYesterdayPendingReminder(),
         ]);
     }
 
@@ -78,5 +83,14 @@ class MonthlyAttendanceController extends Controller
         }
 
         return now()->copy()->startOfMonth();
+    }
+
+    private function resolveShortAttendanceTodayPendingCount(?\App\Models\User $user): ?int
+    {
+        if (! $this->shortAttendanceReviewService->canView($user)) {
+            return null;
+        }
+
+        return $this->shortAttendanceReviewService->dashboardPendingCounts()['today'];
     }
 }

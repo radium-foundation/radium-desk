@@ -39,7 +39,10 @@ class IncomingEmailReopenTimelinePresenter
 
         $assignments = AuditLog::query()
             ->where('event', 'service_case.assigned')
-            ->where('new_values->assignment_method', 'inbound_email_reopen_previous_owner')
+            ->whereIn('new_values->assignment_method', [
+                'inbound_email_reopen_previous_owner',
+                'inbound_email_reopen_refund_desk',
+            ])
             ->whereIn('new_values->incoming_email_message_id', $messageIds)
             ->orderByDesc('id')
             ->get()
@@ -66,13 +69,22 @@ class IncomingEmailReopenTimelinePresenter
      *
      * @return list<array{label: string, value: string}>
      */
-    public function displayFields(IncomingEmailMessage $message): array
-    {
+    public function displayFields(
+        IncomingEmailMessage $message,
+        ?AuditLog $reopenAudit = null,
+    ): array {
         $occurredAt = $message->received_at ?? $message->created_at ?? now();
         $preview = $message->displayPreview();
         $sender = filled($message->from_name)
             ? $message->from_name.' <'.$message->from_email.'>'
             : (string) $message->from_email;
+
+        $reopenedBy = is_string($reopenAudit?->new_values['reopened_by_label'] ?? null)
+            ? (string) $reopenAudit->new_values['reopened_by_label']
+            : null;
+        $assignedBecause = is_string($reopenAudit?->new_values['assigned_because_label'] ?? null)
+            ? (string) $reopenAudit->new_values['assigned_because_label']
+            : null;
 
         return array_values(array_filter([
             filled($message->subject) ? [
@@ -87,6 +99,14 @@ class IncomingEmailReopenTimelinePresenter
                 'label' => 'Received',
                 'value' => AppDateFormatter::timelineDatetime($occurredAt) ?? '—',
             ],
+            filled($reopenedBy) ? [
+                'label' => 'Reopened By',
+                'value' => $reopenedBy,
+            ] : null,
+            filled($assignedBecause) ? [
+                'label' => 'Assigned Because',
+                'value' => $assignedBecause,
+            ] : null,
             filled($preview) ? [
                 'label' => 'Preview',
                 'value' => (string) $preview,

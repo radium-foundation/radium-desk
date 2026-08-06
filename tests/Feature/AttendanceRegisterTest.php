@@ -54,6 +54,7 @@ class AttendanceRegisterTest extends TestCase
             'logout_at' => Carbon::parse('2026-07-07 18:00:00', 'Asia/Kolkata'),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
             'session_duration_seconds' => 32400,
+            'active_duration_seconds' => 28800,
             'on_time_login' => true,
         ]);
 
@@ -80,6 +81,7 @@ class AttendanceRegisterTest extends TestCase
             'logout_at' => Carbon::parse('2026-07-07 18:00:00', 'Asia/Kolkata'),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
             'session_duration_seconds' => 31200,
+            'active_duration_seconds' => 28800,
             'on_time_login' => false,
         ]);
 
@@ -108,7 +110,11 @@ class AttendanceRegisterTest extends TestCase
         $this->assertSame(AttendanceDayStatus::Active, $activeRow->status);
         $this->assertNull($activeRow->finalized_at);
 
+        // Keep presence alive so worked time clears the short-attendance threshold.
+        Carbon::setTestNow(Carbon::parse('2026-07-07 12:00:00', 'Asia/Kolkata'));
+        $presence->recordActivity($agent, createIfMissing: true);
         Carbon::setTestNow(Carbon::parse('2026-07-07 18:00:00', 'Asia/Kolkata'));
+        $presence->recordActivity($agent, createIfMissing: true);
         $presence->closeSession($agent, WorkSessionEndReason::ManualLogout);
 
         $completedRow = WorkforceAttendanceDay::query()->where('user_id', $agent->id)->first();

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
 use App\Enums\LeaveRequestStatus;
@@ -59,6 +60,7 @@ class SmartAssignmentTest extends TestCase
 
         $incident->refresh();
         $this->assertSame($availableAgent->id, $incident->assigned_to_user_id);
+        $this->assertSame(AssignmentOrigin::AppointmentSmartAssignment, $incident->assignment_origin);
 
         $this->assertDatabaseHas('audit_logs', [
             'event' => 'service_case.assigned',
@@ -71,6 +73,10 @@ class SmartAssignmentTest extends TestCase
             ->first();
 
         $this->assertSame('smart', $auditLog?->new_values['assignment_method'] ?? null);
+        $this->assertSame(
+            AssignmentOrigin::AppointmentSmartAssignment->value,
+            $auditLog?->new_values['assignment_origin'] ?? null,
+        );
         $this->assertContains('Available', $auditLog?->new_values['assignment_reason']['factors'] ?? []);
     }
 

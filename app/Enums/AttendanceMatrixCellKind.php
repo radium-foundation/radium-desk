@@ -7,6 +7,7 @@ enum AttendanceMatrixCellKind: string
     case Present = 'present';
     case Late = 'late';
     case Absent = 'absent';
+    case ShortAttendance = 'short_attendance';
     case Leave = 'leave';
     case HalfDay = 'half_day';
     case Holiday = 'holiday';
@@ -21,6 +22,7 @@ enum AttendanceMatrixCellKind: string
             self::Present => 'Present',
             self::Late => 'Late',
             self::Absent => 'Absent',
+            self::ShortAttendance => 'Short Attendance',
             self::Leave => 'Leave',
             self::HalfDay => 'Half Day',
             self::Holiday => 'Holiday',
@@ -37,6 +39,7 @@ enum AttendanceMatrixCellKind: string
             self::Present => 'P',
             self::Late => 'L',
             self::Absent => 'A',
+            self::ShortAttendance => 'SA',
             self::Leave => 'V',
             self::HalfDay => 'H',
             self::Holiday => 'N',
@@ -53,6 +56,7 @@ enum AttendanceMatrixCellKind: string
             self::Present => 'success',
             self::Late => 'warning',
             self::Absent => 'danger',
+            self::ShortAttendance => 'short',
             self::Leave => 'info',
             self::HalfDay => 'half',
             self::Holiday => 'holiday',
@@ -65,6 +69,7 @@ enum AttendanceMatrixCellKind: string
     /**
      * Payroll day fraction foundation. Half Day is always 0.5 when
      * the matrix cell comes from an approved half-day leave request.
+     * Short Attendance is non-payable (same as Absent) in Phase 1.
      */
     public function payableDayFraction(): float
     {

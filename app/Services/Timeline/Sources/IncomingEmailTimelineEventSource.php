@@ -67,7 +67,7 @@ class IncomingEmailTimelineEventSource implements TimelineEventSource
             $message->attachmentMetadata(),
         )));
 
-        $summaryFields = $this->reopenPresenter->displayFields($message);
+        $summaryFields = $this->reopenPresenter->displayFields($message, $reopenAudit);
         if ($attachmentNames !== []) {
             $summaryFields[] = [
                 'label' => 'Attachments',

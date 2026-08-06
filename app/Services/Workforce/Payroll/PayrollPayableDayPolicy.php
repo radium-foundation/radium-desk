@@ -83,6 +83,8 @@ class PayrollPayableDayPolicy
                     }
                     break;
                 case AttendanceMatrixCellKind::Absent:
+                case AttendanceMatrixCellKind::ShortAttendance:
+                    // Phase 1: Short Attendance is payroll-identical to Absent.
                     $nonPayable += 1.0;
                     $counts['absent']++;
                     break;

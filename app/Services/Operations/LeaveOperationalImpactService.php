@@ -3,7 +3,6 @@
 namespace App\Services\Operations;
 
 use App\Data\Operations\LeaveOperationalImpact;
-use App\Enums\AssignmentOrigin;
 use App\Enums\IncidentStatus;
 use App\Enums\OperationQueue;
 use App\Enums\RefundStatus;
@@ -89,7 +88,7 @@ class LeaveOperationalImpactService
                 $readyCount++;
             }
 
-            if ($incident->assignment_origin === AssignmentOrigin::Auto) {
+            if ($incident->assignment_origin?->isAutomatic() ?? false) {
                 $automationOwned++;
             }
         }

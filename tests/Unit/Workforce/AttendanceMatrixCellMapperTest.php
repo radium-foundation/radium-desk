@@ -38,6 +38,7 @@ class AttendanceMatrixCellMapperTest extends TestCase
             [AttendanceDayStatus::Late, false, false, false, AttendanceMatrixCellKind::Late],
             [AttendanceDayStatus::Active, false, false, false, AttendanceMatrixCellKind::Late],
             [AttendanceDayStatus::NotStarted, true, false, null, AttendanceMatrixCellKind::Absent],
+            [AttendanceDayStatus::ShortAttendance, true, false, true, AttendanceMatrixCellKind::ShortAttendance],
             [AttendanceDayStatus::OnLeave, true, false, null, AttendanceMatrixCellKind::Leave],
             [AttendanceDayStatus::HalfDay, true, false, true, AttendanceMatrixCellKind::HalfDay],
             [AttendanceDayStatus::ScheduledOff, false, true, null, AttendanceMatrixCellKind::Holiday],
@@ -126,6 +127,10 @@ class AttendanceMatrixCellMapperTest extends TestCase
     {
         $this->assertSame('L · Late', $this->mapper->kindLegendLabel(AttendanceMatrixCellKind::Late));
         $this->assertSame('P · Present', $this->mapper->kindLegendLabel(AttendanceMatrixCellKind::Present));
+        $this->assertSame(
+            'SA · Short Attendance',
+            $this->mapper->kindLegendLabel(AttendanceMatrixCellKind::ShortAttendance),
+        );
 
         $tooltip = $this->mapper->tooltipFor(
             AttendanceMatrixCellKind::Late,
@@ -134,6 +139,28 @@ class AttendanceMatrixCellMapperTest extends TestCase
         );
 
         $this->assertStringContainsString('L · Late', $tooltip);
+    }
+
+    public function test_short_attendance_tooltip_includes_worked_minutes(): void
+    {
+        $day = new WorkforceAttendanceDay([
+            'status' => AttendanceDayStatus::ShortAttendance,
+            'status_reason' => 'short_attendance',
+            'first_login_at' => Carbon::parse('2026-07-10 09:00:00'),
+            'last_logout_at' => Carbon::parse('2026-07-10 09:18:00'),
+            'active_duration_seconds' => 18 * 60,
+            'overtime_seconds' => 0,
+        ]);
+
+        $tooltip = $this->mapper->tooltipFor(
+            AttendanceMatrixCellKind::ShortAttendance,
+            $day,
+            Carbon::parse('2026-07-10'),
+        );
+
+        $this->assertStringContainsString('SA · Short Attendance', $tooltip);
+        $this->assertStringContainsString('18 min worked', $tooltip);
+        $this->assertStringContainsString('Register: Short attendance', $tooltip);
     }
 
     public function test_drawer_payload_exposes_register_fields(): void

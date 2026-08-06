@@ -324,6 +324,7 @@ class DailyWorkforceEngineCharacterizationTest extends TestCase
             'logout_at' => $logoutAt,
             'ended_reason' => WorkSessionEndReason::ManualLogout,
             'session_duration_seconds' => (int) $loginAt->diffInSeconds($logoutAt),
+            'active_duration_seconds' => 28800,
             'on_time_login' => $onTime,
         ]);
     }

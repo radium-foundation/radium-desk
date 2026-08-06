@@ -124,8 +124,17 @@ class ServiceCaseActivityTimelineService
                     occurredAt: $occurredAt,
                     type: ServiceCaseTimelineEntry::TYPE_ASSIGNMENT,
                     actor: $actor,
-                    title: 'Pending Smart Assignment',
+                    title: 'Pending Support Assignment',
                     body: 'Waiting for available support engineer.',
+                    remark: null,
+                    dedupeKey: "audit:{$auditLog->id}",
+                ),
+                SupportAppointmentBookingWorkflowService::EVENT_APPOINTMENT_BOOKED => new ServiceCaseTimelineEntry(
+                    occurredAt: $occurredAt,
+                    type: ServiceCaseTimelineEntry::TYPE_STATUS,
+                    actor: $actor,
+                    title: 'Tech Support appointment booked.',
+                    body: SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
@@ -145,9 +154,11 @@ class ServiceCaseActivityTimelineService
                     title: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
                         ? 'Automatically reassigned to Shift Admin'
                         : 'Reassigned to '.$this->assigneeFirstName($auditLog->new_values['assigned_to_user_id'] ?? null, $incident),
-                    body: ($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
-                        ? 'Automatically reassigned after successful validation.'
-                        : null,
+                    body: ($auditLog->new_values['reason'] ?? null) === SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON
+                        ? SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON
+                        : (($auditLog->new_values['reason'] ?? null) === ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON
+                            ? 'Automatically reassigned after successful validation.'
+                            : null),
                     remark: null,
                     dedupeKey: "audit:{$auditLog->id}",
                 ),
@@ -439,9 +450,14 @@ class ServiceCaseActivityTimelineService
         $body = null;
 
         if ($isSmartAssignment) {
+            $reasonLabel = $auditLog->new_values['reason']
+                ?? $auditLog->new_values['assignment_reason']['label']
+                ?? null;
             $factors = $auditLog->new_values['assignment_reason']['factors'] ?? [];
 
-            if ($factors !== []) {
+            if ($reasonLabel === SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON) {
+                $body = SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON;
+            } elseif ($factors !== []) {
                 $body = 'Reason:'."\n".implode("\n", array_map(
                     fn (string $factor): string => '• '.$factor,
                     $factors,

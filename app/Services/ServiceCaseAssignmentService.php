@@ -789,7 +789,7 @@ class ServiceCaseAssignmentService
 
         if ($incident->assigned_to_user_id === $assignee->id
             && $incident->assignment_origin === $assignmentOrigin) {
-            if ($assignmentOrigin === AssignmentOrigin::Manual && $incident->pending_smart_assignment) {
+            if ($this->clearsPendingSmartAssignment($assignmentOrigin) && $incident->pending_smart_assignment) {
                 $incident->update([
                     'pending_smart_assignment' => false,
                     'updated_by' => $actor->id,
@@ -811,8 +811,8 @@ class ServiceCaseAssignmentService
                 'updated_by' => $actor->id,
             ];
 
-            // Manual ownership leaves the deferred smart-assignment queue.
-            if ($assignmentOrigin === AssignmentOrigin::Manual && $incident->pending_smart_assignment) {
+            // Manual / appointment-smart ownership leaves the deferred smart-assignment queue.
+            if ($this->clearsPendingSmartAssignment($assignmentOrigin) && $incident->pending_smart_assignment) {
                 $updates['pending_smart_assignment'] = false;
             }
 
@@ -1181,6 +1181,14 @@ class ServiceCaseAssignmentService
     private function normalizeTime(Carbon $at): Carbon
     {
         return $at->copy()->timezone($this->settingService->get('assignment.timezone', config('app.timezone')));
+    }
+
+    private function clearsPendingSmartAssignment(AssignmentOrigin $assignmentOrigin): bool
+    {
+        return in_array($assignmentOrigin, [
+            AssignmentOrigin::Manual,
+            AssignmentOrigin::AppointmentSmartAssignment,
+        ], true);
     }
 
     /**

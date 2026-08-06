@@ -199,6 +199,7 @@ class AttendanceRegisterFreshnessTest extends TestCase
             'logout_at' => Carbon::parse('2026-07-09 18:00:00', 'Asia/Kolkata'),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
             'session_duration_seconds' => 32400,
+            'active_duration_seconds' => 28800,
             'on_time_login' => true,
         ]);
 

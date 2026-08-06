@@ -8,6 +8,7 @@ enum AttendanceDayStatus: string
     case OnLeave = 'on_leave';
     case HalfDay = 'half_day';
     case NotStarted = 'not_started';
+    case ShortAttendance = 'short_attendance';
     case OnTime = 'on_time';
     case Late = 'late';
     case Active = 'active';
@@ -22,6 +23,7 @@ enum AttendanceDayStatus: string
             self::OnLeave => 'On leave',
             self::HalfDay => 'Half day',
             self::NotStarted => 'Not logged in',
+            self::ShortAttendance => 'Short attendance',
             self::OnTime => 'On time',
             self::Late => 'Late',
             self::Active => 'Working',

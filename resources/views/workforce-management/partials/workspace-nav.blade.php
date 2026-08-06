@@ -8,6 +8,8 @@
     $canLeave = $viewer?->can('viewAny', \App\Models\LeaveRequest::class) ?? false;
     $recognitionEnabled = (bool) config('workforce_recognition.enabled')
         && ($viewer?->can('workforce.recognition.view') ?? false);
+    $canShortAttendanceReview = app(\App\Services\Workforce\ShortAttendance\ShortAttendanceReviewService::class)
+        ->canView($viewer);
 
     $tabs = [
         'attendance' => [
@@ -15,6 +17,12 @@
             'url' => route('workforce-management.attendance.index'),
             'enabled' => true,
             'visible' => true,
+        ],
+        'short-attendance' => [
+            'label' => 'Short Attendance Review',
+            'url' => route('workforce-management.short-attendance.index', ['period' => 'today', 'status' => 'pending']),
+            'enabled' => true,
+            'visible' => $canShortAttendanceReview,
         ],
         'payroll' => [
             'label' => 'Payroll',

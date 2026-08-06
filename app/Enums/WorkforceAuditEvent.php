@@ -13,6 +13,8 @@ enum WorkforceAuditEvent: string
     case PayrollFinalized = 'workforce.payroll.finalized';
     case RecognitionCreated = 'workforce.recognition.created';
     case RecognitionDecided = 'workforce.recognition.decided';
+    case ShortAttendanceReviewCreated = 'workforce.attendance.short_review.created';
+    case ShortAttendanceReviewDecided = 'workforce.attendance.short_review.decided';
 
     public function legacyEvent(): string
     {
@@ -26,6 +28,8 @@ enum WorkforceAuditEvent: string
             self::PayrollFinalized => 'payroll.finalized',
             self::RecognitionCreated => 'recognition.created',
             self::RecognitionDecided => 'recognition.decided',
+            self::ShortAttendanceReviewCreated => 'attendance.short_review.created',
+            self::ShortAttendanceReviewDecided => 'attendance.short_review.decided',
         };
     }
 }

@@ -113,6 +113,7 @@ class PlatformDashboardServiceProvider extends ServiceProvider
 
         $manifest->registerCard($this->app->make(PlatformHealthCardProvider::class));
         $manifest->registerCard($this->app->make(PendingLeaveApprovalsCardProvider::class));
+        $manifest->registerCard($this->app->make(\App\Services\Platform\Cards\PendingShortAttendanceReviewsCardProvider::class));
 
         foreach ($this->placeholderCards() as $placeholder) {
             $manifest->registerCard($placeholder);

@@ -11,6 +11,7 @@ use App\Models\SupportAppointment;
 use App\Models\User;
 use App\Services\AutomationIdentityService;
 use App\Services\ServiceCaseAssignmentService;
+use App\Services\SupportAppointmentBookingWorkflowService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -139,11 +140,16 @@ class DeferredSmartAssignmentService
                 actor: $actor,
                 auditContext: [
                     'assignment_method' => 'smart',
-                    'assignment_reason' => $result->context,
+                    'assignment_reason' => [
+                        'label' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
+                        ...$result->context,
+                    ],
                     'assignment_trigger' => 'deferred_smart_assignment',
                     'appointment_id' => $appointment->id,
+                    'reason' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
                 ],
                 event: 'service_case.deferred_smart_assignment',
+                assignmentOrigin: AssignmentOrigin::AppointmentSmartAssignment,
             );
 
             event(new SupportAppointmentSmartAssigned(

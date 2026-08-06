@@ -35,6 +35,7 @@ readonly class AttendanceDayResult
         public ?Carbon $finalizedAt,
         public Carbon $computedAt,
         public int $sourceVersion,
+        public ?string $statusReason = null,
     ) {}
 
     /**
@@ -44,6 +45,7 @@ readonly class AttendanceDayResult
     {
         return [
             'status' => $this->status->value,
+            'status_reason' => $this->statusReason,
             'calendar_status' => $this->calendarStatus->value,
             'is_working_day' => $this->isWorkingDay,
             'is_company_holiday' => $this->isCompanyHoliday,

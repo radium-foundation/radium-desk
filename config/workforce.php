@@ -71,4 +71,22 @@ return [
         'enabled' => (bool) env('WORKFORCE_RECOGNITION_ENABLED', false),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Short Attendance daily review (Phase 2.1)
+    |--------------------------------------------------------------------------
+    |
+    | Evening in-app notification to designated HR when today's SA pending > 0.
+    | Reviewer defaults to the centralized leave approver (Shipra) when unset.
+    |
+    */
+    'short_attendance' => [
+        'evening_review_time' => (string) env('WORKFORCE_SA_EVENING_REVIEW_TIME', '18:45'),
+        // Defaults to Shipra; leave_approver.email is the shared HR mailbox fallback.
+        'reviewer_email' => strtolower(trim((string) (
+            env('WORKFORCE_SA_REVIEWER_EMAIL')
+            ?: env('WORKFORCE_LEAVE_APPROVER_EMAIL', 'shipra@radiumbox.com')
+        ))),
+    ],
+
 ];

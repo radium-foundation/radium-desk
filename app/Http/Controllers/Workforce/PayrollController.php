@@ -7,6 +7,7 @@ use App\Http\Requests\FinalizePayrollMonthRequest;
 use App\Models\User;
 use App\Services\Workforce\Payroll\PayrollRunService;
 use App\Services\Workforce\PayrollMonthLockService;
+use App\Services\Workforce\ShortAttendance\ShortAttendanceReviewService;
 use App\Support\Workforce\AttendanceManagementAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class PayrollController extends Controller
     public function __construct(
         private readonly PayrollRunService $payrollRunService,
         private readonly PayrollMonthLockService $payrollMonthLockService,
+        private readonly ShortAttendanceReviewService $shortAttendanceReviewService,
     ) {
         $this->middleware(function ($request, $next) {
             abort_unless(AttendanceManagementAccess::allowsPayroll($request->user()), 403);
@@ -32,6 +34,9 @@ class PayrollController extends Controller
         $run = $this->payrollRunService->loadFinalized($month);
         $isFinalized = $run !== null;
 
+        $this->shortAttendanceReviewService->syncPendingForMonth($month);
+        $pendingShortAttendance = $this->shortAttendanceReviewService->pendingCount($month);
+
         return view('workforce-management.payroll.index', [
             'monthValue' => $month->format('Y-m'),
             'monthLabel' => $month->format('F Y'),
@@ -40,6 +45,7 @@ class PayrollController extends Controller
             'isFinalized' => $isFinalized,
             'payrollRun' => $run,
             'canFinalizePayroll' => AttendanceManagementAccess::allowsPayroll($request->user()),
+            'pendingShortAttendanceCount' => $pendingShortAttendance,
         ]);
     }
 

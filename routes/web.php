@@ -64,6 +64,7 @@ use App\Http\Controllers\TeamPerformanceController;
 use App\Http\Controllers\Workforce\EmployeeSalaryController;
 use App\Http\Controllers\Workforce\MonthlyAttendanceController;
 use App\Http\Controllers\Workforce\PayrollController;
+use App\Http\Controllers\Workforce\ShortAttendanceReviewController;
 use App\Http\Controllers\Workforce\WorkRecognitionController;
 use App\Http\Controllers\Workforce\WorkforceMember360Controller;
 use App\Http\Controllers\Finance\BankAccountController;
@@ -318,6 +319,9 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::get('recognition/{review}', [WorkRecognitionController::class, 'show'])->name('recognition.show');
         Route::post('recognition/{review}/decide', [WorkRecognitionController::class, 'decide'])->name('recognition.decide');
         Route::post('recognition/{review}/refresh', [WorkRecognitionController::class, 'refresh'])->name('recognition.refresh');
+        Route::get('short-attendance', [ShortAttendanceReviewController::class, 'index'])->name('short-attendance.index');
+        Route::get('short-attendance/{review}', [ShortAttendanceReviewController::class, 'show'])->name('short-attendance.show');
+        Route::post('short-attendance/{review}/decide', [ShortAttendanceReviewController::class, 'decide'])->name('short-attendance.decide');
         Route::get('members/{user}', [WorkforceMember360Controller::class, 'show'])->name('members.show');
     });
 

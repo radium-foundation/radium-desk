@@ -175,6 +175,10 @@ class AttendanceCrossDaySessionTest extends TestCase
         $presence = app(PresenceEngineService::class);
         $presence->startSession($agent);
 
+        // Advance with activity so open-session ticks accumulate real active time.
+        Carbon::setTestNow(Carbon::parse('2026-07-06 11:45:00', 'Asia/Kolkata'));
+        $presence->recordActivity($agent, createIfMissing: true);
+
         WorkforceAttendanceDay::query()
             ->where('user_id', $agent->id)
             ->update([

@@ -107,7 +107,8 @@ class ContributionEngineTest extends TestCase
         $day = app(AttendanceRegisterService::class)->refreshDay($agent, Carbon::parse('2026-07-07'));
 
         $this->assertNotNull($day);
-        $this->assertSame(AttendanceDayStatus::Completed, $day->status);
+        // Phase 1: 0 worked minutes is Absent, not Present.
+        $this->assertSame(AttendanceDayStatus::NotStarted, $day->status);
     }
 
     public function test_support_pack_verdicts_from_existing_metrics(): void

@@ -332,6 +332,7 @@ class JulyAttendancePayrollRepairService
         return match ($target['status']) {
             AttendanceDayStatus::OnLeave => AttendanceMatrixCellKind::Leave,
             AttendanceDayStatus::HalfDay => AttendanceMatrixCellKind::HalfDay,
+            AttendanceDayStatus::ShortAttendance => AttendanceMatrixCellKind::ShortAttendance,
             AttendanceDayStatus::Extra => AttendanceMatrixCellKind::Extra,
             AttendanceDayStatus::ScheduledOff => $target['is_company_holiday']
                 ? AttendanceMatrixCellKind::Holiday

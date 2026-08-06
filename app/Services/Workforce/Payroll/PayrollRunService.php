@@ -13,6 +13,7 @@ use App\Models\PayrollRunLine;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\Workforce\PayrollMonthLockService;
+use App\Services\Workforce\ShortAttendance\ShortAttendanceReviewService;
 use App\Support\Workforce\AttendanceManagementAccess;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -37,6 +38,7 @@ class PayrollRunService
         private readonly PayrollMonthLockService $payrollMonthLockService,
         private readonly AuditLogService $auditLogService,
         private readonly WorkforceEventPublisher $workforceEventPublisher,
+        private readonly ShortAttendanceReviewService $shortAttendanceReviewService,
     ) {}
 
     public function createDraft(Carbon $month, ?string $notes = null): PayrollMonthRun
@@ -81,6 +83,7 @@ class PayrollRunService
         $this->assertCanFinalize($actor);
 
         $monthStart = $month->copy()->startOfMonth();
+        $this->shortAttendanceReviewService->assertNoPendingForMonth($monthStart);
         $notes = $this->normalizeNotes($notes);
 
         if (! $this->payrollMonthLockService->isMonthLocked($monthStart)) {

@@ -15,6 +15,7 @@ use App\Services\Operations\AttendanceDayCalculator;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AttendanceDayCalculatorTest extends TestCase
@@ -132,6 +133,7 @@ class AttendanceDayCalculatorTest extends TestCase
             'logout_at' => Carbon::parse('2026-07-07 18:05:00', 'Asia/Kolkata'),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
             'session_duration_seconds' => 33000,
+            'active_duration_seconds' => 28800,
             'on_time_login' => true,
         ]);
 
@@ -145,6 +147,7 @@ class AttendanceDayCalculatorTest extends TestCase
         $this->assertNotNull($result);
         $this->assertSame(AttendanceDayStatus::Completed, $result->status);
         $this->assertTrue($result->onTimeLogin);
+        $this->assertNull($result->statusReason);
     }
 
     public function test_late_for_late_closed_session(): void
@@ -160,6 +163,7 @@ class AttendanceDayCalculatorTest extends TestCase
             'logout_at' => Carbon::parse('2026-07-07 18:05:00', 'Asia/Kolkata'),
             'ended_reason' => WorkSessionEndReason::ManualLogout,
             'session_duration_seconds' => 31500,
+            'active_duration_seconds' => 28800,
             'on_time_login' => false,
         ]);
 
@@ -174,6 +178,7 @@ class AttendanceDayCalculatorTest extends TestCase
         $this->assertSame(AttendanceDayStatus::Late, $result->status);
         $this->assertFalse($result->onTimeLogin);
         $this->assertSame(20, $result->minutesLate);
+        $this->assertNull($result->statusReason);
     }
 
     public function test_active_for_open_session(): void
@@ -338,6 +343,206 @@ class AttendanceDayCalculatorTest extends TestCase
         );
 
         $this->assertNull($result);
+    }
+
+    public function test_zero_worked_minutes_with_closed_session_is_absent(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-07 18:30:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent();
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 09:00:00', 'Asia/Kolkata'),
+            'logout_at' => Carbon::parse('2026-07-07 09:00:30', 'Asia/Kolkata'),
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 30,
+            'active_duration_seconds' => 0,
+            'on_time_login' => true,
+        ]);
+
+        $result = $this->calculator->compute(
+            user: $agent,
+            workDate: Carbon::parse('2026-07-07'),
+            referenceAt: now(),
+            allowPreShiftSkip: false,
+        );
+
+        $this->assertNotNull($result);
+        $this->assertSame(AttendanceDayStatus::NotStarted, $result->status);
+        $this->assertNull($result->statusReason);
+    }
+
+    #[DataProvider('shortAttendanceMinutesProvider')]
+    public function test_short_attendance_for_worked_minutes_below_threshold(int $workedMinutes): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-07 18:30:00', 'Asia/Kolkata'));
+        config(['workforce_calendar.short_attendance_minutes' => 30]);
+
+        $agent = $this->createScheduledAgent();
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 09:00:00', 'Asia/Kolkata'),
+            'logout_at' => Carbon::parse('2026-07-07 09:30:00', 'Asia/Kolkata'),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
+            'session_duration_seconds' => $workedMinutes * 60,
+            'active_duration_seconds' => $workedMinutes * 60,
+            'on_time_login' => true,
+        ]);
+
+        $result = $this->calculator->compute(
+            user: $agent,
+            workDate: Carbon::parse('2026-07-07'),
+            referenceAt: now(),
+            allowPreShiftSkip: false,
+        );
+
+        $this->assertNotNull($result);
+        $this->assertSame(AttendanceDayStatus::ShortAttendance, $result->status);
+        $this->assertSame('short_attendance', $result->statusReason);
+        $this->assertSame($workedMinutes * 60, $result->activeDurationSeconds);
+    }
+
+    /**
+     * @return list<list<int>>
+     */
+    public static function shortAttendanceMinutesProvider(): array
+    {
+        return [
+            [5],
+            [18],
+            [29],
+        ];
+    }
+
+    public function test_exactly_threshold_minutes_follows_existing_present_logic(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-07 18:30:00', 'Asia/Kolkata'));
+        config(['workforce_calendar.short_attendance_minutes' => 30]);
+
+        $agent = $this->createScheduledAgent();
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 09:00:00', 'Asia/Kolkata'),
+            'logout_at' => Carbon::parse('2026-07-07 09:30:00', 'Asia/Kolkata'),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
+            'session_duration_seconds' => 1800,
+            'active_duration_seconds' => 1800,
+            'on_time_login' => true,
+        ]);
+
+        $result = $this->calculator->compute(
+            user: $agent,
+            workDate: Carbon::parse('2026-07-07'),
+            referenceAt: now(),
+            allowPreShiftSkip: false,
+        );
+
+        $this->assertNotNull($result);
+        $this->assertSame(AttendanceDayStatus::Completed, $result->status);
+        $this->assertNull($result->statusReason);
+    }
+
+    public function test_auto_logout_with_short_active_time_is_not_present(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-07 18:30:00', 'Asia/Kolkata'));
+        config(['workforce_calendar.short_attendance_minutes' => 30]);
+
+        $agent = $this->createScheduledAgent();
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 09:00:00', 'Asia/Kolkata'),
+            'logout_at' => Carbon::parse('2026-07-07 09:12:00', 'Asia/Kolkata'),
+            'ended_reason' => WorkSessionEndReason::AwayTimeout,
+            'session_duration_seconds' => 720,
+            'active_duration_seconds' => 600,
+            'on_time_login' => true,
+        ]);
+
+        $result = $this->calculator->compute(
+            user: $agent,
+            workDate: Carbon::parse('2026-07-07'),
+            referenceAt: now(),
+            allowPreShiftSkip: false,
+        );
+
+        $this->assertNotNull($result);
+        $this->assertSame(AttendanceDayStatus::ShortAttendance, $result->status);
+        $this->assertSame('short_attendance', $result->statusReason);
+        $this->assertNotSame(AttendanceDayStatus::Completed, $result->status);
+    }
+
+    public function test_approved_leave_still_overrides_short_attendance(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-07 18:30:00', 'Asia/Kolkata'));
+
+        $agent = $this->createScheduledAgent();
+
+        LeaveRequest::query()->create([
+            'user_id' => $agent->id,
+            'start_date' => '2026-07-07',
+            'end_date' => '2026-07-07',
+            'reason' => 'Approved leave',
+            'status' => LeaveRequestStatus::Approved,
+        ]);
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 09:00:00', 'Asia/Kolkata'),
+            'logout_at' => Carbon::parse('2026-07-07 09:10:00', 'Asia/Kolkata'),
+            'ended_reason' => WorkSessionEndReason::ManualLogout,
+            'session_duration_seconds' => 600,
+            'active_duration_seconds' => 480,
+            'on_time_login' => true,
+        ]);
+
+        $result = $this->calculator->compute(
+            user: $agent,
+            workDate: Carbon::parse('2026-07-07'),
+            referenceAt: now(),
+            allowPreShiftSkip: false,
+        );
+
+        $this->assertNotNull($result);
+        $this->assertSame(AttendanceDayStatus::OnLeave, $result->status);
+        $this->assertNull($result->statusReason);
+    }
+
+    public function test_open_session_remains_active_even_with_short_worked_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-07-07 09:10:00', 'Asia/Kolkata'));
+        config(['workforce_calendar.short_attendance_minutes' => 30]);
+
+        $agent = $this->createScheduledAgent();
+
+        WorkSession::query()->create([
+            'user_id' => $agent->id,
+            'work_date' => '2026-07-07',
+            'login_at' => Carbon::parse('2026-07-07 09:00:00', 'Asia/Kolkata'),
+            'last_activity_at' => Carbon::parse('2026-07-07 09:09:00', 'Asia/Kolkata'),
+            'last_tick_at' => Carbon::parse('2026-07-07 09:09:00', 'Asia/Kolkata'),
+            'active_duration_seconds' => 540,
+            'on_time_login' => true,
+        ]);
+
+        $result = $this->calculator->compute(
+            user: $agent,
+            workDate: Carbon::parse('2026-07-07'),
+            referenceAt: now(),
+            allowPreShiftSkip: false,
+        );
+
+        $this->assertNotNull($result);
+        $this->assertSame(AttendanceDayStatus::Active, $result->status);
+        $this->assertNull($result->statusReason);
     }
 
     /**

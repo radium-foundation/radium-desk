@@ -24,6 +24,16 @@ return [
     'attendance_calculator_version' => 1,
 
     /*
+    | Phase 1 short attendance: closed working days with worked minutes below this
+    | threshold (and above 0) are marked Short Attendance (payroll = Absent).
+    | 0 worked minutes remains plain Absent. Leave / holiday / week-off unchanged.
+    */
+    'short_attendance_minutes' => max(
+        1,
+        (int) env('ATTENDANCE_SHORT_ATTENDANCE_MINUTES', 30),
+    ),
+
+    /*
     | July 2026 HR go-live: presence tracking started 2026-07-05.
     | One-shot backfill window for pre-go-live working days (not a permanent rule).
     */

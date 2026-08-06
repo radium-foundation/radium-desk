@@ -139,7 +139,9 @@ class SupportAppointmentClosedCaseWorkflowTest extends TestCase
         $titles = $timeline->map(fn ($entry) => $entry->title)->all();
         $bodies = $timeline->map(fn ($entry) => $entry->body)->filter()->values()->all();
 
+        $this->assertContains('Tech Support appointment booked.', $titles);
         $this->assertContains('Case reopened automatically after Tech Support appointment booking.', $titles);
+        $this->assertContains('Pending Support Assignment', $titles);
         $this->assertContains('Waiting for available support engineer.', $bodies);
     }
 

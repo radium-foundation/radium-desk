@@ -27,6 +27,7 @@ enum WorkforceEventType: string
     case PayrollFinalized = 'workforce.payroll.finalized';
     case RecognitionRecommended = 'workforce.recognition.recommended';
     case RecognitionDecided = 'workforce.recognition.decided';
+    case ShortAttendanceReviewDecided = 'workforce.attendance.short_review.decided';
 
     public function isReserved(): bool
     {

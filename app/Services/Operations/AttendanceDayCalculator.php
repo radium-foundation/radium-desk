@@ -310,6 +310,18 @@ class AttendanceDayCalculator
             return AttendanceDayStatus::Active;
         }
 
+        // Phase 1: finalize closed days from effective worked time.
+        // Auto-logout alone must never produce Present — only worked minutes do.
+        $workedMinutes = intdiv(max(0, (int) $sessionMetrics['active_duration_seconds']), 60);
+
+        if ($workedMinutes === 0) {
+            return AttendanceDayStatus::NotStarted;
+        }
+
+        if ($workedMinutes < $this->shortAttendanceThresholdMinutes()) {
+            return AttendanceDayStatus::ShortAttendance;
+        }
+
         if ($sessionMetrics['on_time_login'] === false) {
             return AttendanceDayStatus::Late;
         }
@@ -326,6 +338,11 @@ class AttendanceDayCalculator
         }
 
         return AttendanceDayStatus::Completed;
+    }
+
+    private function shortAttendanceThresholdMinutes(): int
+    {
+        return max(1, (int) config('workforce_calendar.short_attendance_minutes', 30));
     }
 
     private function isAwayDuringOpenSession(WorkSession $session, Carbon $referenceAt): bool
@@ -395,6 +412,9 @@ class AttendanceDayCalculator
             ),
             computedAt: $computedAt,
             sourceVersion: $this->sourceVersion(),
+            statusReason: $status === AttendanceDayStatus::ShortAttendance
+                ? 'short_attendance'
+                : null,
         );
     }
 

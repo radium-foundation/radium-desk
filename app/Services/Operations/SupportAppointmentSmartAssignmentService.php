@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Data\Operations\SmartAssignmentResult;
+use App\Enums\AssignmentOrigin;
 use App\Events\Operations\SupportAppointmentSmartAssigned;
 use App\Models\Incident;
 use App\Models\SupportAppointment;
@@ -11,6 +12,7 @@ use App\Notifications\SmartAssignmentUnassignedNotification;
 use App\Services\AuditLogService;
 use App\Services\AutomationIdentityService;
 use App\Services\ServiceCaseAssignmentService;
+use App\Services\SupportAppointmentBookingWorkflowService;
 use App\Support\Repair\Core\RepairContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Support\Facades\Log;
@@ -37,10 +39,6 @@ class SupportAppointmentSmartAssignmentService
         ?User $actor = null,
         ?SupportAppointment $appointment = null,
     ): Incident {
-        if (! config('smart_assignment.enabled', true)) {
-            return $incident->fresh(['assignee']);
-        }
-
         $incident = $incident->fresh(['assignee', 'supportAppointments', 'order']);
 
         $appointment ??= $incident->supportAppointments
@@ -50,13 +48,23 @@ class SupportAppointmentSmartAssignmentService
             return $incident;
         }
 
+        $actor ??= $this->automationIdentity->systemUser();
         $currentAssignee = $incident->assignee;
 
+        // Support engineers keep ownership. Ready Queue admins must not.
         if ($currentAssignee !== null && $this->assignmentService->shouldRetainOperationalAssignee($incident)) {
             return $incident;
         }
 
-        $actor ??= $this->automationIdentity->systemUser();
+        if (! config('smart_assignment.enabled', true)) {
+            return $this->handleUnassigned(
+                incident: $incident,
+                appointment: $appointment,
+                actor: $actor,
+                result: SmartAssignmentResult::unassigned('smart_assignment_disabled'),
+            );
+        }
+
         $result = $this->smartAssignmentService->resolveBestAssignee(order: $incident->order);
 
         if (! $result->isAssigned()) {
@@ -76,11 +84,16 @@ class SupportAppointmentSmartAssignmentService
             actor: $actor,
             auditContext: [
                 'assignment_method' => 'smart',
-                'assignment_reason' => $result->context,
+                'assignment_reason' => [
+                    'label' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
+                    ...$result->context,
+                ],
                 'assignment_trigger' => 'support_appointment_booked',
                 'appointment_id' => $appointment->id,
+                'reason' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
             ],
             event: $isReassignment ? 'service_case.reassigned' : 'service_case.assigned',
+            assignmentOrigin: AssignmentOrigin::AppointmentSmartAssignment,
         );
 
         event(new SupportAppointmentSmartAssigned(
@@ -114,10 +127,9 @@ class SupportAppointmentSmartAssignmentService
         SmartAssignmentResult $result,
     ): Incident {
         $alreadyPending = (bool) $incident->pending_smart_assignment;
+        $previousAssigneeId = $incident->assigned_to_user_id;
 
         if (! $alreadyPending) {
-            $previousAssigneeId = $incident->assigned_to_user_id;
-
             if ($previousAssigneeId !== null) {
                 $incident = $this->assignmentService->clearAssigneeForPendingSmartAssignment(
                     incident: $incident,
@@ -126,14 +138,19 @@ class SupportAppointmentSmartAssignmentService
                         'assignment_method' => 'smart',
                         'assignment_trigger' => 'support_appointment_booked',
                         'appointment_id' => $appointment->id,
-                        'assignment_reason' => $result->context,
+                        'assignment_reason' => [
+                            'label' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
+                            ...$result->context,
+                        ],
                         'reason' => 'no_eligible_support_engineer',
+                        'assignment_origin' => AssignmentOrigin::AppointmentSmartAssignment->value,
                     ],
                 );
             }
 
             $incident->update([
                 'pending_smart_assignment' => true,
+                'assignment_origin' => AssignmentOrigin::AppointmentSmartAssignment,
                 'updated_by' => $actor->id,
             ]);
 
@@ -151,9 +168,15 @@ class SupportAppointmentSmartAssignmentService
                     'assignment_method' => 'smart',
                     'assignment_trigger' => 'support_appointment_booked',
                     'appointment_id' => $appointment->id,
-                    'assignment_reason' => $result->context,
+                    'assignment_reason' => [
+                        'label' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
+                        ...$result->context,
+                    ],
+                    'reason' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
                     'queue' => 'scheduled',
                     'ownership_retained' => false,
+                    'assignment_origin' => AssignmentOrigin::AppointmentSmartAssignment->value,
+                    'status_label' => 'Pending Support Assignment',
                 ],
             );
 
@@ -171,8 +194,14 @@ class SupportAppointmentSmartAssignmentService
                     'assignment_method' => 'smart',
                     'assignment_trigger' => 'support_appointment_booked',
                     'appointment_id' => $appointment->id,
-                    'assignment_reason' => $result->context,
+                    'assignment_reason' => [
+                        'label' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
+                        ...$result->context,
+                    ],
+                    'reason' => SupportAppointmentBookingWorkflowService::ASSIGNMENT_REASON,
                     'queue' => 'scheduled',
+                    'assignment_origin' => AssignmentOrigin::AppointmentSmartAssignment->value,
+                    'status_label' => 'Pending Support Assignment',
                 ],
             );
 

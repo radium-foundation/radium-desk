@@ -17,6 +17,34 @@
 
         @include('workforce-management.partials.workspace-nav', ['active' => 'attendance'])
 
+        @if ($showShortAttendanceMorningReminder ?? false)
+            <div class="alert alert-warning" role="status">
+                <strong>Morning reminder:</strong>
+                Yesterday still has pending Short Attendance reviews.
+                <a
+                    href="{{ route('workforce-management.short-attendance.index', ['period' => 'yesterday', 'status' => 'pending']) }}"
+                    class="alert-link"
+                >Open yesterday’s queue</a>
+            </div>
+        @endif
+
+        @if ($shortAttendanceTodayPendingCount !== null)
+            <section class="wm-summary-strip mb-3" aria-label="Today's Short Attendance">
+                <a
+                    href="{{ route('workforce-management.short-attendance.index', ['period' => 'today', 'status' => 'pending']) }}"
+                    class="wm-summary-card wm-summary-card--absent text-decoration-none"
+                >
+                    <div class="wm-summary-card__label">Today's SA</div>
+                    <div class="wm-summary-card__value" data-summary="sa-pending-today">{{ $shortAttendanceTodayPendingCount }}</div>
+                    <div class="wm-summary-card__meta">Pending Review · open today’s queue</div>
+                </a>
+            </section>
+        @endif
+
+        @error('month')
+            <div class="alert alert-danger" role="alert">{{ $message }}</div>
+        @enderror
+
         <section class="wm-payroll-lock" aria-label="Payroll lock status">
             <div class="wm-payroll-lock__status">
                 <span class="wm-toolbar__label">Payroll Lock</span>
@@ -136,6 +164,7 @@
                 <div class="attendance-matrix-legend" aria-label="Attendance legend">
                     <span class="attendance-matrix-badge attendance-matrix-badge--success" title="Present">P · Present</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--danger" title="Absent">A · Absent</span>
+                    <span class="attendance-matrix-badge attendance-matrix-badge--short" title="Short Attendance">SA · Short Attendance</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--warning" title="Late">L · Late</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--info" title="Leave">V · Leave</span>
                     <span class="attendance-matrix-badge attendance-matrix-badge--half" title="Half Day">H · Half Day</span>
