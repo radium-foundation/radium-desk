@@ -70,7 +70,11 @@
 </form>
 
 {{-- Disposition toolbar — Needs Human full set; Spam can create/link (restores to Needs Review) --}}
-@if(in_array($queue, [\App\Enums\IncomingEmailIntakeQueue::NeedsHuman, \App\Enums\IncomingEmailIntakeQueue::Spam], true))
+@if(in_array($queue, [
+    \App\Enums\IncomingEmailIntakeQueue::NeedsHuman,
+    \App\Enums\IncomingEmailIntakeQueue::ReviewSuggested,
+    \App\Enums\IncomingEmailIntakeQueue::Spam,
+], true))
 @php
     $isSpamQueueToolbar = $queue === \App\Enums\IncomingEmailIntakeQueue::Spam;
 @endphp

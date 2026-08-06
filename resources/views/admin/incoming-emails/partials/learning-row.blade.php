@@ -36,7 +36,10 @@
         </div>
 
         <div class="ira-lc-row__suggestion" title="{{ $isCompletedAutomatically ? ($card['result_label'] ?? '') : ($card['reason'] ?? '') }}">
-            {{ $card['ira_decision'] }}
+            <span class="ira-lc-row__primary">{{ $card['ira_decision'] }}</span>
+            @if($isCompletedAutomatically && !empty($card['automatic_subcategory_label']))
+                <span class="ira-lc-row__secondary">{{ $card['automatic_subcategory_label'] }}</span>
+            @endif
         </div>
 
         @if($isCompletedAutomatically)

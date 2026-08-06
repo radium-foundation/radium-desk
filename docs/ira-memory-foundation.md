@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-06  
 **Version target:** 4.0.5  
-**Status:** Architecture approved · Phase M1 implemented · Phase M2 implemented (service cutover) · M3+ not started  
+**Status:** Architecture approved · Phase M1 implemented · Phase M2 implemented (service cutover) · Phase M3 implemented (Administration → IRA Memory) · M4+ not started  
 **Canvas:** [`ira-memory-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/ira-memory-foundation.canvas.tsx)  
 **Related:**
 - [`docs/ira-learning-center-phase1.md`](ira-learning-center-phase1.md) — Learning Center (teach surface)
@@ -911,3 +911,68 @@ M2 coverage includes: teach → `ira_memories`, teach update, matcher active-onl
 | Do not start AI on M2 alone | Wait for Admin browser (M3) + approval hooks |
 
 **M2 gate for M3:** Learning Center + disposition + intake/routing regressions green; dual FK populated on apply; provenance correct. Do not begin Admin UI until this phase is signed off.
+
+---
+
+## 19. Phase M3 — Administration → IRA Memory (implemented)
+
+**Date:** 2026-08-06  
+**Status:** Implemented — corpus browser + management UI  
+**Scope completed:** Administration tab, list search/filters, detail, enable/disable, edit, merge, soft delete, Test Memory (dry-run match), explainability presenter, example/linked/related panels  
+**Explicitly not done:** AI suggestions, approval workflows, scoring, conflict detection, expiration jobs, new channel writers, M4 alias retirement
+
+### 19.1 Placement
+
+| Item | Value |
+|------|-------|
+| Route | `/admin/ira-memory` |
+| Nav | Administration workspace tab **IRA Memory** |
+| Gate | Same as Learning Center (`update` on `SystemSetting` + `inbound_email.enabled`); `IraMemoryPolicy` registered |
+| Teach surface | Unchanged — Learning Center at `/admin/incoming-emails` |
+
+### 19.2 Features shipped
+
+| Feature | Behaviour |
+|---------|-----------|
+| Search | Pattern value, reason, decision value, creator name/email, uuid |
+| Filters | Type, source, status, pattern kind, decision kind, confidence band, created-from, has usage, sort |
+| View | List → detail with overview + explainability |
+| Enable / Disable | `active` ↔ `disabled` via `IraMemoryService` |
+| Edit | Pattern, decision, memory type, reason, confidence (source / created_from immutable) |
+| Merge | Select 2+ → choose survivor → usage rollup + `duplicate_of` relation |
+| Soft delete | `status=deleted` + `deleted_at`; recoverable via Deleted filter |
+| Usage / Last used / Confidence / Source / Created from / Decision / Pattern | List + detail columns |
+| Test Memory | Paste sender/subject(/preview/mailbox); dry-run matcher; no usage recorded |
+| Example matches | Derived from `matched_ira_memory_id` / `matched_learning_rule_id` |
+| Linked rules | Sibling memories for same pattern |
+| Related memories | `ira_memory_relations` |
+
+### 19.3 Files
+
+| File | Role |
+|------|------|
+| `app/Http/Controllers/IraMemoryAdminController.php` | Admin HTTP |
+| `app/Policies/IraMemoryPolicy.php` | Dedicated policy hook |
+| `app/Services/IraMemory/IraMemoryQueryService.php` | List filters |
+| `app/Services/IraMemory/IraMemoryExplainService.php` | Why / pattern / confidence / decision |
+| `app/Services/IraMemory/IraMemoryAdminPresenter.php` | List/detail DTOs |
+| `app/Services/IraMemory/IraMemoryService.php` | `softDelete()`, `testMatch()` |
+| `resources/views/admin/ira-memory/*` | List + detail |
+| `resources/js/ira-memory-admin.js` | Merge selection + decision panels |
+| `tests/Feature/IraMemory/IraMemoryPhaseM3AdminTest.php` | Admin suite |
+
+### 19.4 Non-negotiables preserved
+
+- No AI generation
+- No intake / Learning Center / disposition workflow changes
+- No new module — extends existing `App\Services\IraMemory` namespace
+- Matcher still excludes `disabled` / `merged` / `deleted`
+
+### 19.5 Risks before Phase M4
+
+| Risk | Notes |
+|------|--------|
+| Dual FKs still written | Do not retire `matched_learning_rule_id` until M4 |
+| Soft-delete uniqueness_guard | Uses `deleted:{id}` so live upserts stay free |
+| Ops vs knowledge naming | Operations `IraMemoryService` remains unrelated |
+| Pattern edit impact | Confirm modal warns; no predicted-match count yet |

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\IncomingEmailAutomaticSubcategory;
 use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailIgnoreDispositionVariant;
 use App\Enums\IncomingEmailIgnoreLearningAction;
@@ -34,8 +35,12 @@ class IncomingEmailAdminController extends Controller
         $queue = IncomingEmailIntakeQueue::tryFrom((string) $request->query('queue', ''))
             ?? IncomingEmailIntakeQueue::NeedsHuman;
 
+        $subcategory = $queue === IncomingEmailIntakeQueue::Automatic
+            ? IncomingEmailAutomaticSubcategory::tryFrom((string) $request->query('sub', ''))
+            : null;
+
         $messages = $counters
-            ->queryForQueue($queue)
+            ->queryForQueue($queue, $subcategory)
             ->with([
                 'order:id,customer_name,customer_email',
                 'incident:id,reference_no,status',
@@ -51,6 +56,10 @@ class IncomingEmailAdminController extends Controller
 
         return view('admin.incoming-emails.index', [
             'queue' => $queue,
+            'subcategory' => $subcategory,
+            'automaticBreakdown' => $queue === IncomingEmailIntakeQueue::Automatic
+                ? $counters->automaticSubcategoryBreakdown($subcategory)
+                : [],
             'messages' => $messages,
             'cards' => $presenter->cardsFor($messages, $queue),
             'counts' => $counts,

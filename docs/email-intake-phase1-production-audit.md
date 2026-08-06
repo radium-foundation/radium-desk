@@ -49,7 +49,7 @@ Visual-only tightening of `.dashboard-email-intake-kpi__hover*` in `resources/cs
 ### Unchanged
 
 - Widget data / counters / severity colors  
-- Hover row labels (Sales / Orders / Escalations / Promotions / Spam / Auto Processed)  
+- Hover row labels (Sales / Orders / Escalations / Promotions / Spam / Completed Automatically)  
 - Blade markup structure (class names preserved for DOM patching tests)
 
 ### Deploy note
@@ -81,7 +81,7 @@ Observed production flags at audit time:
 | Ignored | **38** |
 | Promotion (promo + newsletter) | **13** |
 | Spam | **5** |
-| Auto Processed (linked + non-promo/spam ignores) | **82** |
+| Completed Automatically (linked + non-promo/spam ignores) | **82** |
 | Needs Human (in sample) | **0** |
 | Failures | **0** |
 
@@ -194,7 +194,7 @@ All three: `status = needs_review`, `incident_id = null`, `order_id = null`.
 2. Operators **did** teach IRA on 2026-08-06 (Assign / Docs).  
 3. Those Learning Center actions only update IRA fields + save rules — they **do not**:
    - create / link a service case  
-   - change `status` away from `needs_review` (except Promotion / Spam / Automatic / Ignore)  
+   - change `status` away from `needs_review` (except Promotion / Spam / Completed Automatically / Ignore)  
    - re-run the processor / auto-create path  
 
 So the tile stays at 3 even after “successful” teaching.
@@ -204,7 +204,7 @@ So the tile stays at 3 even after “successful” teaching.
 | Email | Practical disposition | Why |
 |-------|----------------------|-----|
 | 178723 Amazon Andon | **Ignore** (System Email / Always Ignore domain) or classify **Vendor** then Ignore | Marketplace ops ping, not a customer SC |
-| 178727 Shopify Order confirmed | **Ignore once** or Promotion/Automatic — **Docs alone will not clear** | Later Shopify “Order confirmed” mail already auto-links when an order match exists; this orphan has none |
+| 178727 Shopify Order confirmed | **Ignore once** or Promotion/Completed Automatically — **Docs alone will not clear** | Later Shopify “Order confirmed” mail already auto-links when an order match exists; this orphan has none |
 | 178731 Aditya Sharma | Manually **create/link SC** (or Ignore if duplicate), then clear queue | Real customer prose (“purchased Device… 2 year RD”); **no order** found by `customer_email` in production |
 
 ### Why they never leave Needs Human
@@ -213,7 +213,7 @@ So the tile stays at 3 even after “successful” teaching.
 |-------------|---------------------|---------------|
 | Assign | **No** | **No** |
 | Classification: Support / Sales / Refund / Vendor / **Docs** | **No** | **No** |
-| Classification: Promotion / Spam / Automatic | Yes → `ignored` | No |
+| Classification: Promotion / Spam / Completed Automatically | Yes → `ignored` | No |
 | Ignore (once / always / …) | Yes → `ignored` | No |
 
 There is **no Learning Center action** that means “accept as work item / create case / open C360 / mark done after assign.”
@@ -229,7 +229,7 @@ There is **no Learning Center action** that means “accept as work item / creat
 ### Recommended UX improvements (do not implement yet)
 
 1. **Assign must complete the item** — after assignee chosen: either auto-create SC + assign + link + leave Needs Human, or move to an “Assigned / Waiting case” state that is not counted as Needs Attention.  
-2. **Docs / Vendor classifications should park or ignore** (leave Needs Human) when no case is created — same family as Automatic for queue purposes, or offer “Docs → Ignore + learn”.  
+2. **Docs / Vendor classifications should park or ignore** (leave Needs Human) when no case is created — same family as Completed Automatically for queue purposes, or offer “Docs → Ignore + learn”.  
 3. **Primary CTA on Needs Human card:** “Create case” / “Link to case” / “Ignore” — teaching scope secondary.  
 4. **Show blocker explicitly:** “Stuck because Assign does not create a case” instead of looking “done” with confidence 100.  
 5. **One-shot reprocess** after teaching operational classifications (Support/Sales/Refund) so auto-create can run with the new class.  
@@ -385,7 +385,7 @@ For each of the last 100 rows:
 7. **Linked existing?** Linked status with pre-existing incident (59).  
 8. **Ignored?** `status=ignored` + `ignore_reason`.  
 9–12. **Refund / Sales / Promotion / Spam?** From classification.  
-13. **Auto processed?** Linked or ignored without human queue.  
+13. **Completed Automatically?** Linked or ignored without human queue.  
 14. **Needs Human?** `needs_review`/`failed` — 0 in sample; 3 global open analyzed above.
 
 ---

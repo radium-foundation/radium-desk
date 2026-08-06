@@ -20463,6 +20463,57 @@ body.wm360-drawer-open {
     text-align: center;
 }
 
+.ira-lc-subqueues {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: -0.25rem 0 0.85rem;
+    padding: 0.15rem 0 0.1rem;
+}
+
+.ira-lc-subqueues__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    color: #6c757d;
+    text-decoration: none;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ira-lc-subqueues__tab:hover {
+    color: #212529;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.ira-lc-subqueues__tab--active {
+    background: #495057;
+    border-color: #495057;
+    color: #fff;
+}
+
+.ira-lc-subqueues__tab--active .ira-lc-subqueues__count {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
+.ira-lc-subqueues__count {
+    min-width: 1.1rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    font-size: 0.7rem;
+    text-align: center;
+}
+
+.ira-lc__title-sub {
+    font-weight: 500;
+    color: #6c757d;
+}
+
 .ira-lc__header {
     display: flex;
     justify-content: space-between;
@@ -20918,5 +20969,85 @@ body.wm360-drawer-open {
 
     .ira-lc-toolbar__apply {
         margin-left: 0;
+    }
+}
+
+/* Administration → IRA Memory */
+.ira-memory-page {
+    max-width: 1200px;
+}
+
+.ira-memory-confidence {
+    font-weight: 600;
+}
+
+.ira-memory-confidence--high { color: #15803d; }
+.ira-memory-confidence--medium { color: #a16207; }
+.ira-memory-confidence--low { color: #b91c1c; }
+
+.ira-memory-dl dt {
+    font-weight: 600;
+    color: #6c757d;
+}
+
+.ira-memory-dl dd {
+    margin-bottom: 0.75rem;
+}
+
+.ira-memory-table code {
+    font-size: 0.85em;
+}
+
+.ira-memory-merge-bar[hidden] {
+    display: none !important;
+}
+
+.ira-memory-test-result .list-group-item {
+    background: #fbfbfc;
+}
+
+/* IRA Memory admin (read-only browse / detail) */
+.ira-mem-row {
+    cursor: pointer;
+}
+
+.ira-mem-row:focus-visible {
+    outline: 2px solid #0d6efd;
+    outline-offset: -2px;
+}
+
+.ira-mem-explain-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem 1.5rem;
+}
+
+.ira-mem-explain-item dt {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: #6c757d;
+    margin-bottom: 0.25rem;
+}
+
+.ira-mem-explain-item dd {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #212529;
+}
+
+.ira-mem-explain-item--wide {
+    grid-column: 1 / -1;
+}
+
+.ira-mem-examples .list-group-item {
+    border-left: 0;
+    border-right: 0;
+}
+
+@media (max-width: 767.98px) {
+    .ira-mem-explain-grid {
+        grid-template-columns: 1fr;
     }
 }

@@ -100,7 +100,7 @@ Needs Attention  ==  Needs Human queue COUNT(*)
 
 (same row set; different presentation).
 
-**Ignored mail** (Promotions / Spam / Auto Processed) is **not** in the big number — only in hover, from today’s `incoming_email_ignore_stats`.
+**Ignored mail** (Promotions / Spam / Completed Automatically) is **not** in the big number — only in hover, from today’s `incoming_email_ignore_stats`.
 
 **Docs** is a Learning Center classification label, **not** a dashboard queue or Needs Attention bucket.
 
@@ -228,7 +228,7 @@ If all three = 3 → **data is correct**; pipeline or triage explains “stuck�
 | Needs Human | `needs_review` / `failed` | **Yes** (entire total) |
 | Promotions | ignore stats / ignored rows | Hover only |
 | Spam | ignore stats / ignored rows | Hover only |
-| Auto Processed | ignore stats / ignored rows | Hover only |
+| Completed Automatically | ignore stats / ignored rows | Hover only |
 | Docs | classification teach label | **No** queue / not in tile |
 
 New mail that filters to ignore increments ignore stats, **not** Needs Attention. Smart-routing create/link also removes rows from Needs Human.

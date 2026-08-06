@@ -27,7 +27,7 @@ Email Intake is treated as a **platform service**, monitored from **Administrati
 1. **Today’s Operations** — Received, Processed, Needs Human, New Cases, Linked, Ignored, Failures  
 2. **Processing Pipeline** — compact Received → Filtered → Linked → New Case → Needs Human → Completed (no charts)  
 3. **Case Creation** — Support / Sales / Refund / Vendor / Docs / Unknown (hide zero buckets)  
-4. **Classification** — Support / Sales / Refund / Promotion / Spam / Docs / Completed Automatically / Needs Human  
+4. **Classification** — Support / Sales / Refund / Promotion / Spam / Docs / Completed Automatically / Needs Human / Review Suggested (uncertain IRA only; view filter)  
 5. **Assignment Health** — Assigned, Pending, Fallback only when reliable; Ownership Preserved / Assignment Failures / Queue Growing are **not** shown without trusted signals  
 6. **IRA Memory** — Used Today, New Memories, Top Memory, Average Confidence  
 7. **Exceptions** — actionable only (Needs Human, Processing Failure, Fallback Used, Stuck Emails, Gmail sync delay)  
@@ -60,12 +60,12 @@ The Dashboard **Email Intake** KPI remains the operator “work waiting” signa
 
 | Before (Phase 1.2) | After (Dashboard V2) |
 |--------------------|----------------------|
-| Four separate pills (Needs Human, Promotional, Spam, Automatic) | Single **Email Intake** KPI card |
+| Four separate pills (Needs Human, Promotional, Spam, Completed Automatically) | Single **Email Intake** KPI card |
 | Implementation categories visible by default | **Needs Attention** total front and centre |
 | Hidden at zero | Card always visible (zero state supported) |
 | Per-queue click targets | Card click → needs-human queue |
 
-Ignored mail (Promotions, Spam, Automatic) moves to **hover breakdown only**.
+Ignored mail (Promotions, Spam, Completed Automatically) moves to **hover breakdown only**.
 
 ---
 
@@ -100,7 +100,7 @@ No aggressive background fills.
 
 **Needs Attention = Sales + Orders + Priority**
 
-Does **not** include Promotions, Spam, or Automatic (those appear in hover only).
+Does **not** include Promotions, Spam, or Completed Automatically (those appear in hover only).
 
 ### Business categories
 
@@ -124,10 +124,10 @@ Priority ........... 2
 -------------------------
 Promotions......... 26
 Spam............... 12
-Automatic.......... 43
+Completed Automatically.......... 43
 ```
 
-Promotions / Spam / Automatic reuse today's `incoming_email_ignore_stats` aggregates (unchanged from Phase 1.2).
+Promotions / Spam / Completed Automatically reuse today's `incoming_email_ignore_stats` aggregates (unchanged from Phase 1.2).
 
 ---
 

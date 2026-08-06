@@ -290,6 +290,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SettingSource::class, SettingPolicy::class);
         Gate::policy(DeviceModel::class, SettingPolicy::class);
         Gate::policy(SystemSetting::class, SystemSettingPolicy::class);
+        Gate::policy(\App\Models\IraMemory::class, \App\Policies\IraMemoryPolicy::class);
 
         Paginator::useBootstrapFive();
 

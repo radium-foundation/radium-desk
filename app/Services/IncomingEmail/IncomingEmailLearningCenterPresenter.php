@@ -2,6 +2,7 @@
 
 namespace App\Services\IncomingEmail;
 
+use App\Enums\IncomingEmailAutomaticSubcategory;
 use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailImportance;
@@ -58,11 +59,22 @@ class IncomingEmailLearningCenterPresenter
         $subject = filled($message->subject) ? (string) $message->subject : 'No subject';
         $isCompletedAutomatically = $queue === IncomingEmailIntakeQueue::Automatic;
         $resultLabel = $this->completedAutomaticallyResult($message);
+        $automaticSubcategory = $isCompletedAutomatically
+            ? IncomingEmailAutomaticSubcategory::tryFromIgnoreReason($message->ignore_reason)
+                ?? (
+                    $message->classification === IncomingEmailClassification::OwnOutbound
+                        ? IncomingEmailAutomaticSubcategory::OwnOutbound
+                        : null
+                )
+            : null;
 
         return [
             'id' => $message->id,
             'queue' => $queue?->value,
             'is_completed_automatically' => $isCompletedAutomatically,
+            'is_review_suggested' => $queue === IncomingEmailIntakeQueue::ReviewSuggested,
+            'automatic_subcategory' => $automaticSubcategory?->value,
+            'automatic_subcategory_label' => $automaticSubcategory?->label(),
             'is_spam_queue' => $queue === IncomingEmailIntakeQueue::Spam
                 || (
                     $message->status === IncomingEmailMessageStatus::Ignored
@@ -121,6 +133,7 @@ class IncomingEmailLearningCenterPresenter
                 'explanation' => $suggestion['explanation'],
                 'disposition' => $message->disposition?->label(),
                 'keep_pending_reason' => $this->keepPendingLabel($message),
+                'automatic_group' => $automaticSubcategory?->label(),
             ],
         ];
     }

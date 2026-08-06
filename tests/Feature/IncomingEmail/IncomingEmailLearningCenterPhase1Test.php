@@ -122,8 +122,123 @@ class IncomingEmailLearningCenterPhase1Test extends TestCase
         $this->assertStringContainsString('Handled By', $html);
         $this->assertStringContainsString('ira-lc-row__handled', $html);
         $this->assertMatchesRegularExpression('/ira-lc-row__handled[^>]*>\s*IRA\s*</', $html);
+        $this->assertStringContainsString('System Notifications', $html);
+        $this->assertStringContainsString('Auto Replies', $html);
+        $this->assertStringContainsString('Duplicate Notifications', $html);
+        $this->assertStringContainsString('ira-lc-subqueues', $html);
         $this->assertStringNotContainsString('Suggested Owner', $html);
         $this->assertStringNotContainsString('>Confidence<', $html);
+    }
+
+    public function test_completed_automatically_subcategory_filters_by_ignore_reason(): void
+    {
+        $admin = $this->createAdmin('auto-sub@test.com');
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'auto-sub-system',
+            'from_email' => 'noreply@amazon.com',
+            'subject' => 'ASIN warning',
+            'preview' => 'System notice',
+            'status' => IncomingEmailMessageStatus::Ignored,
+            'ignore_reason' => 'known_system_email',
+            'classification' => IncomingEmailClassification::OtherIgnored,
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'auto-sub-ooo',
+            'from_email' => 'away@example.com',
+            'subject' => 'Out of office',
+            'preview' => 'I am away',
+            'status' => IncomingEmailMessageStatus::Ignored,
+            'ignore_reason' => 'auto_responder',
+            'classification' => IncomingEmailClassification::OtherIgnored,
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        $html = (string) $this->actingAs($admin)
+            ->get(route('admin.incoming-emails.index', [
+                'queue' => IncomingEmailIntakeQueue::Automatic->value,
+                'sub' => 'system_notifications',
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('ASIN warning', $html);
+        $this->assertStringContainsString('System Notifications', $html);
+        $this->assertStringNotContainsString('Out of office', $html);
+    }
+
+    public function test_review_suggested_queue_shows_only_uncertain_ira_emails(): void
+    {
+        $admin = $this->createAdmin('review-suggested@test.com');
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'review-low',
+            'from_email' => 'low@example.com',
+            'subject' => 'Uncertain mail',
+            'preview' => 'Not sure',
+            'status' => IncomingEmailMessageStatus::NeedsReview,
+            'ira_confidence' => 30,
+            'ira_decision' => 'Needs operator decision',
+            'received_at' => now(),
+        ]);
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'review-high',
+            'from_email' => 'high@example.com',
+            'subject' => 'Confident mail',
+            'preview' => 'Clear path',
+            'status' => IncomingEmailMessageStatus::NeedsReview,
+            'ira_confidence' => 90,
+            'ira_decision' => 'Support enquiry',
+            'received_at' => now(),
+        ]);
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'review-failed',
+            'from_email' => 'fail@example.com',
+            'subject' => 'Failed mail',
+            'preview' => 'Broken',
+            'status' => IncomingEmailMessageStatus::Failed,
+            'received_at' => now(),
+        ]);
+
+        $suggestedHtml = (string) $this->actingAs($admin)
+            ->get(route('admin.incoming-emails.index', [
+                'queue' => IncomingEmailIntakeQueue::ReviewSuggested->value,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Review Suggested', $suggestedHtml);
+        $this->assertStringContainsString('Uncertain mail', $suggestedHtml);
+        $this->assertStringContainsString('Failed mail', $suggestedHtml);
+        $this->assertStringNotContainsString('Confident mail', $suggestedHtml);
+
+        $needsHumanHtml = (string) $this->actingAs($admin)
+            ->get(route('admin.incoming-emails.index', [
+                'queue' => IncomingEmailIntakeQueue::NeedsHuman->value,
+            ]))
+            ->assertOk()
+            ->getContent();
+
+        // Review Suggested does not remove rows from Needs Human (routing/view partition only).
+        $this->assertStringContainsString('Uncertain mail', $needsHumanHtml);
+        $this->assertStringContainsString('Confident mail', $needsHumanHtml);
+        $this->assertStringContainsString('Failed mail', $needsHumanHtml);
     }
 
     public function test_operator_assign_creates_sender_learning_rule(): void

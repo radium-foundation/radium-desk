@@ -45,6 +45,22 @@ Completed
 | **Completed Automatically** (`auto_processed`) | Park as auto-handled ignore | Yes → `ignored` |
 | **Keep Pending** | Reason required; stays in queue | **No** — only deliberate pending |
 
+### Completed Automatically groups (Learning Center only)
+
+Operator breakdown under the Completed Automatically tab — presentation filters only:
+
+- System Notifications
+- Auto Replies
+- Own Outbound
+- Bounces
+- Duplicate Notifications
+
+Does not change how mail is ignored or routed.
+
+### Review Suggested (Learning Center only)
+
+Queue tab for emails where IRA is uncertain (`ira_confidence < 45` or processing `failed`). Still appears in Needs Human. Does not change routing.
+
 ### Docs
 
 Docs remains a **classification only**. It is never a final disposition. Operator must still Create Case, Link Case, Ignore, Spam, Promotion, Completed Automatically, or Keep Pending.
@@ -64,7 +80,7 @@ Operator may teach without disposing:
 - Importance — Normal / High / Escalation
 - Learning scope — This email / Same sender / Same domain / Same subject pattern / Always
 
-Promotion / Spam / Automatic are **not** teaching classifications in the UI anymore — they are dispositions.
+Promotion / Spam / Completed Automatically are **not** teaching classifications in the UI anymore — they are dispositions.
 
 ---
 
@@ -143,7 +159,7 @@ Columns on `incoming_email_messages`:
 Learning Center Needs Human queue:
 
 1. **Teach** toolbar — Owner / Classification / Importance + scope → `POST …/learning`
-2. **Dispose** toolbar — Create / Link / Ignore / Spam / Promotion / Auto Processed / Keep Pending → `POST …/disposition`
+2. **Dispose** toolbar — Create / Link / Ignore / Spam / Promotion / Completed Automatically / Keep Pending → `POST …/disposition`
 
 Row ⋯ menu exposes both teaching and disposition actions.
 
@@ -163,9 +179,12 @@ Row ⋯ menu exposes both teaching and disposition actions.
 | File | Role |
 |------|------|
 | `app/Enums/IncomingEmailDisposition.php` | Disposition enum |
+| `app/Enums/IncomingEmailIntakeQueue.php` | Needs Human / Review Suggested / Completed Automatically queues |
+| `app/Enums/IncomingEmailAutomaticSubcategory.php` | Completed Automatically operator groups |
 | `app/Enums/IncomingEmailKeepPendingReason.php` | Keep Pending reasons |
 | `app/Enums/IncomingEmailIgnoreDispositionVariant.php` | Ignore once / sender / domain |
 | `app/Services/IncomingEmail/IncomingEmailDispositionService.php` | Disposition orchestration |
+| `app/Services/IncomingEmail/IncomingEmailIntakeCounterService.php` | Queue counts + automatic subcategory breakdown |
 | `app/Services/IncomingEmail/IncomingEmailLearningActionService.php` | Teaching only (classification no longer ignores) |
 | `app/Http/Controllers/IncomingEmailAdminController.php` | `applyLearning` + `applyDisposition` |
 | `database/migrations/2026_08_06_130000_add_disposition_columns_to_incoming_email_messages_table.php` | Columns |
@@ -177,7 +196,7 @@ Row ⋯ menu exposes both teaching and disposition actions.
 
 - Assign + Create Case → linked, owner assigned, Needs Human −1  
 - Docs + Link Case → linked; Docs rule saved; teaching alone did not clear  
-- Ignore / Spam / Promotion / Auto Processed → ignored + disposition set  
+- Ignore / Spam / Promotion / Completed Automatically → ignored + disposition set  
 - Keep Pending → reason required; stays in Needs Human; shown in UI  
 - Dashboard widget updates immediately after disposition  
 - Learning rules unaffected for teach-only Docs / Assign  

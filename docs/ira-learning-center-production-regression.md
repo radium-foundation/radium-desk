@@ -49,7 +49,7 @@ Depends on the action:
 |--------|---------|-------------------|---------------------|
 | **Assign** | `learning_owner_user_id`, IRA explainability fields, optional rule | **No** | **Yes (stays)** |
 | **Classification → Support / Sales / Refund / Vendor / Docs** | `classification` + IRA fields + rule | **No** | **Yes (stays)** |
-| **Classification / Move To → Promotion / Spam / Auto Processed** | `classification`, `status=ignored`, `ignore_reason`, ignore stats | **Yes → `ignored`** | **No (removed)** |
+| **Classification / Move To → Promotion / Spam / Completed Automatically** | `classification`, `status=ignored`, `ignore_reason`, ignore stats | **Yes → `ignored`** | **No (removed)** |
 | **Importance** | `importance` + IRA fields | **No** | **Yes (stays)** |
 | **Ignore** (once / always / …) | `status=ignored`, classification, reason | **Yes → `ignored`** | **No (removed)** |
 
@@ -66,9 +66,9 @@ $shouldIgnore = in_array($classification, [
 
 Documented in `docs/ira-learning-center-ux-redesign.md`:
 
-> Docs … **Does not auto-ignore** (unlike Promotion / Spam / Auto Processed) — teach/label only.
+> Docs … **Does not auto-ignore** (unlike Promotion / Spam / Completed Automatically) — teach/label only.
 
-Phase 1 doc already said Promotion / Spam / Automatic remove from Needs Human; Assign / Importance / non-ignore classifications do not.
+Phase 1 doc already said Promotion / Spam / Completed Automatically remove from Needs Human; Assign / Importance / non-ignore classifications do not.
 
 ### Expected status after each action
 
@@ -77,10 +77,10 @@ Phase 1 doc already said Promotion / Spam / Automatic remove from Needs Human; A
 | Assign | `needs_review` (or `failed` if it was failed) | Unchanged |
 | Move → Promotions | `ignored` (`ignore_reason=promotions`) | Decrements |
 | Move → Spam | `ignored` (`ignore_reason=spam`) | Decrements |
-| Move → Auto Processed | `ignored` (`ignore_reason=auto_responder`) | Decrements |
+| Move → Completed Automatically | `ignored` (`ignore_reason=auto_responder`) | Decrements |
 | Classification → Docs | `needs_review` (label only) | Unchanged |
 | Classification → Support / Sales / Refund / Vendor | `needs_review` | Unchanged |
-| Classification → Spam / Promotion / Auto Processed | `ignored` | Decrements |
+| Classification → Spam / Promotion / Completed Automatically | `ignored` | Decrements |
 | Ignore * | `ignored` | Decrements |
 
 ### Cache / refresh
@@ -116,7 +116,7 @@ If the product intent is “Docs should leave Needs Human” or “Assign should
 
 Choose product intent, then implement one path:
 
-1. **If Docs should leave Needs Human** (likely UX expectation): add `Docs` to `$shouldIgnore` (or set a dedicated status/queue), and document where Docs rows live (new queue vs Auto Processed).  
+1. **If Docs should leave Needs Human** (likely UX expectation): add `Docs` to `$shouldIgnore` (or set a dedicated status/queue), and document where Docs rows live (new queue vs Completed Automatically).  
 2. **If Docs is label-only (current spec)**: keep code; fix UX copy / toast (“Labeled as Docs — still in Needs Human until Ignore or Move”). Optionally filter/badge Docs inside Needs Human.  
 3. **If Assign should clear Needs Human**: define destination (owner queue, auto-create SC, or ignore) — Phase 1 deferred “Promote taught route → Service Case”; Assign alone was never a status transition.  
 4. Do **not** “fix” by forcing cache clears — already correct.

@@ -74,7 +74,7 @@ Escalations ........ 2
 -------------------------
 Promotions......... 26
 Spam............... 12
-Automatic.......... 43
+Completed Automatically.......... 43
 ```
 
 ---

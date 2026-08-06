@@ -28,6 +28,7 @@ use App\Http\Controllers\DeviceModelAliasController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\IncidentController;
 use App\Http\Controllers\IncomingEmailAdminController;
+use App\Http\Controllers\IraMemoryAdminController;
 use App\Http\Controllers\IncomingEmailContentController;
 use App\Http\Controllers\IraOperationsBrainController;
 use App\Http\Controllers\LeaveRequestController;
@@ -403,6 +404,21 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.incoming-emails.learning.apply');
     Route::post('/admin/incoming-emails/disposition', [IncomingEmailAdminController::class, 'applyDisposition'])
         ->name('admin.incoming-emails.disposition.apply');
+
+    Route::get('/admin/ira-memory', [IraMemoryAdminController::class, 'index'])
+        ->name('admin.ira-memory.index');
+    Route::post('/admin/ira-memory/test', [IraMemoryAdminController::class, 'test'])
+        ->name('admin.ira-memory.test');
+    Route::post('/admin/ira-memory/merge', [IraMemoryAdminController::class, 'merge'])
+        ->name('admin.ira-memory.merge');
+    Route::get('/admin/ira-memory/{memory}', [IraMemoryAdminController::class, 'show'])
+        ->name('admin.ira-memory.show');
+    Route::put('/admin/ira-memory/{memory}', [IraMemoryAdminController::class, 'update'])
+        ->name('admin.ira-memory.update');
+    Route::patch('/admin/ira-memory/{memory}/toggle', [IraMemoryAdminController::class, 'toggle'])
+        ->name('admin.ira-memory.toggle');
+    Route::delete('/admin/ira-memory/{memory}', [IraMemoryAdminController::class, 'destroy'])
+        ->name('admin.ira-memory.destroy');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');

@@ -17,6 +17,7 @@ export default defineConfig({
                 'resources/js/pages/service-cases.js',
                 'resources/js/pages/refunds.js',
                 'resources/js/ira-learning-center.js',
+                'resources/js/ira-memory-admin.js',
             ],
             refresh: true,
         }),

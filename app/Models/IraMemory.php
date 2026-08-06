@@ -129,6 +129,13 @@ class IraMemory extends Model
         return $query->where('status', IraMemoryStatus::Active->value);
     }
 
+    public function resolveRouteBinding($value, $field = null)
+    {
+        return $this->where($field ?? $this->getRouteKeyName(), $value)
+            ->withTrashed()
+            ->firstOrFail();
+    }
+
     public function recordUsage(): void
     {
         $this->forceFill([

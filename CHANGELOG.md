@@ -7,6 +7,8 @@
 - IRA Learning Center row expand always shows subject and preview, with retry for extra details
 - Working a Spam email (assign, create case, or link) returns it to Needs Review instead of staying in Spam
 - Auto Processed renamed to Completed Automatically for operators, with clearer Handled By / Result columns
+- Completed Automatically shows grouped breakdown: System Notifications, Auto Replies, Own Outbound, Bounces, Duplicate Notifications
+- Review Suggested queue surfaces emails IRA is uncertain about without changing routing
 
 ## 4.0.4 — 2026-08-05 — Email Intake, Dashboard Performance & Reliability
 

@@ -41,6 +41,16 @@
         ];
     }
 
+    if (
+        \Illuminate\Support\Facades\Route::has('admin.ira-memory.index')
+        && Gate::check('viewAny', \App\Models\IraMemory::class)
+    ) {
+        $tabs['ira_memory'] = [
+            'label' => 'IRA Memory',
+            'url' => route('admin.ira-memory.index'),
+        ];
+    }
+
     if (Gate::check('viewAny', CompanyHoliday::class)) {
         $tabs['holiday_calendar'] = [
             'label' => 'Holiday Calendar',

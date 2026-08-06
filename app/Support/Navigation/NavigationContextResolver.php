@@ -291,6 +291,10 @@ class NavigationContextResolver
             return [NavigationMenu::Administration, 'administration.home', null];
         }
 
+        if ($request->routeIs('admin.ira-memory.*')) {
+            return [NavigationMenu::Administration, 'administration.home', null];
+        }
+
         if ($request->routeIs('dashboard')) {
             return [NavigationMenu::Dashboard, 'dashboard.home', null];
         }

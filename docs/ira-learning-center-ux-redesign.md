@@ -3,8 +3,8 @@
 **Date:** 2026-08-06 (UX Polish Sprint same day)  
 **Type:** Presentation-only (+ small Spam recovery workflow)  
 **Backend:** unchanged Learning Rules / routing / processing (except Spam → Needs Review when human works mail)  
-**Canvas:** none  
-**Related:** [docs/ira-learning-center-phase1.md](./ira-learning-center-phase1.md) · [docs/email-intake-disposition-workflow.md](./email-intake-disposition-workflow.md)
+**Canvas:** [completed-automatically-209.canvas.tsx](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/completed-automatically-209.canvas.tsx)  
+**Related:** [docs/ira-learning-center-phase1.md](./ira-learning-center-phase1.md) · [docs/email-intake-disposition-workflow.md](./email-intake-disposition-workflow.md) · [docs/completed-automatically-209-investigation.md](./completed-automatically-209-investigation.md)
 
 ---
 
@@ -37,26 +37,45 @@ If an operator Assigns / Teaches / Creates a case / Links a case from Spam:
 
 Completed Automatically rows hide Confidence + Suggested Owner; show **Handled By → IRA** and **Result → Completed Automatically** (or **Linked to SC#####** when a service case exists).
 
+### Completed Automatically — operator breakdown (presentation only)
+
+Internal groups under `?queue=automatic` (no routing / filter / ingest changes):
+
+| Operator group | Internal key | Source |
+|----------------|--------------|--------|
+| System Notifications | `system_notifications` | `ignore_reason=known_system_email` |
+| Auto Replies | `auto_replies` | `ignore_reason=auto_responder` |
+| Own Outbound | `own_outbound` | `ignore_reason=own_outbound` or classification `own_outbound` |
+| Bounces | `bounces` | `ignore_reason=bounce_or_delivery_subsystem` |
+| Duplicate Notifications | `duplicate_notifications` | Same subject appears 2+ times in Completed Automatically |
+
+UI: sub-chip strip under the Completed Automatically tab (`?sub=`). Rows show the group under Result. Expand shows **Automatic group**.
+
+### Review Suggested (presentation only)
+
+New queue tab `review_suggested` — **Review Suggested**.
+
+- Includes Needs Human mail where IRA recorded `ira_confidence < 45`, or `status=failed`
+- Does **not** remove those emails from Needs Human
+- Does **not** change ingest, filter, classifier, or routing
+
 ### Completed Automatically investigation (production, read-only)
 
 Population = ignored mail with Automatic queue reasons (`auto_responder`, `bounce_or_delivery_subsystem`, `known_system_email`, `own_outbound`) or `own_outbound` / `auto_processed`.
 
 | Metric | Count |
 |--------|------:|
-| Total | **7,676** |
+| Total | **7,686** |
 | Linked to orders | **0** |
 | Linked to service cases | **0** |
-| By ignore_reason: known_system_email | 6,273 |
+| By ignore_reason: known_system_email | 6,275 |
 | By ignore_reason: auto_responder | 1,360 |
-| By ignore_reason: own_outbound | 36 |
+| By ignore_reason: own_outbound | 44 |
 | By ignore_reason: bounce_or_delivery_subsystem | 7 |
-| Subject Re:/Fwd: (thread replies est.) | 388 |
-| Order-confirmation-like subjects (est.) | 327 |
-| Internal (@radiumbox / own_outbound) est. | 41 |
-| Duplicate-subject rows (sum of subjects with count>1) | 4,948 |
-| known_system subjects with help/issue/problem/complaint (possible wrongly completed est.) | 209 |
+| Duplicate-subject rows (sum of subjects with count>1) | 4,953 |
+| known_system subjects with help/issue/problem/complaint (keyword scan) | 209 |
 
-Top duplicate subjects are mostly vendor/system notifications (refunds, Delhivery, ASIN warnings), not customer support threads. No behaviour changed from this investigation.
+**209 “suspicious” follow-up:** all keyword false positives (Amazon ASIN “customer complaints”, Flipkart/GeM/Google subjects containing “help”/“issue”). 170/209 from `donotreply@amazon.com`. After excluding noreply/system senders → **0** genuine misroutes. Full write-up: [docs/completed-automatically-209-investigation.md](./completed-automatically-209-investigation.md).
 
 ---
 
@@ -130,7 +149,9 @@ Live UI: `/admin/incoming-emails?queue=needs_human`
 IRA Learning Center
 Review-and-teach workspace for inbound email — not a Gmail inbox.
 
-( Needs Human 12 )  ( Promotions 26 )  ( Spam 8 )  ( Completed Automatically 43 )
+( Needs Human 12 )  ( Review Suggested 3 )  ( Promotions 26 )  ( Spam 8 )  ( Completed Automatically 43 )
+  └ when Completed Automatically active:
+    ( All ) ( System Notifications ) ( Auto Replies ) ( Own Outbound ) ( Bounces ) ( Duplicate Notifications )
 
 Needs Human                          12 shown
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -266,15 +287,18 @@ Expected: far fewer nodes per email vs Phase 1 cards; sticky toolbar cost is O(1
 | File | Change |
 |------|--------|
 | `resources/views/admin/incoming-emails/index.blade.php` | Thin page shell (`@include` only) |
-| `resources/views/admin/incoming-emails/partials/learning-center.blade.php` | Page chrome + queue tabs + list |
+| `resources/views/admin/incoming-emails/partials/learning-center.blade.php` | Page chrome + queue tabs + automatic sub-chips + list |
 | `resources/views/admin/incoming-emails/partials/learning-toolbar.blade.php` | Sticky teach toolbar |
-| `resources/views/admin/incoming-emails/partials/learning-row.blade.php` | Compact row |
+| `resources/views/admin/incoming-emails/partials/learning-row.blade.php` | Compact row + automatic group secondary |
 | `resources/js/ira-learning-center.js` | Selection / expand / Move To mapping |
-| `resources/css/app.css` | Compact row / toolbar styles |
+| `resources/css/app.css` | Compact row / toolbar / subcategory styles |
+| `app/Enums/IncomingEmailAutomaticSubcategory.php` | Completed Automatically operator groups |
+| `app/Enums/IncomingEmailIntakeQueue.php` | Review Suggested + Completed Automatically labels |
+| `app/Services/IncomingEmail/IncomingEmailIntakeCounterService.php` | Subcategory breakdown + Review Suggested query |
 | `app/Services/IncomingEmail/IncomingEmailLearningCenterPresenter.php` | Row/expand display fields, confidence bands, Gmail/C360 links |
-| `app/Http/Controllers/IncomingEmailAdminController.php` | All queues use Learning Center view data; `return_queue` |
+| `app/Http/Controllers/IncomingEmailAdminController.php` | All queues use Learning Center view data; `return_queue`; `?sub=` |
 | `app/Services/IncomingEmail/IncomingEmailLearningActionService.php` | Allow Ignored status so all queues can teach (same route/params) |
-| `tests/Feature/IncomingEmail/IncomingEmailLearningCenterPhase1Test.php` | Asserts compact rows |
+| `tests/Feature/IncomingEmail/IncomingEmailLearningCenterPhase1Test.php` | Asserts compact rows, subcategory filter, Review Suggested |
 | `tests/Feature/IncomingEmail/IncomingEmailIntakeDashboardCountersTest.php` | Asserts Learning Center on spam queue |
 | `docs/ira-learning-center-ux-redesign.md` | This document |
 

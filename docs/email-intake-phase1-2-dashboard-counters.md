@@ -23,7 +23,8 @@ Phase 1.2 only: counters + navigation. No AI, Round Robin, reply UI, or attachme
 | 📧 Needs Human Action | `incoming_email_messages` with status `needs_review` or `failed` | Live queue requiring operator intervention |
 | P Promotional | Sum of today's `incoming_email_ignore_stats` for `promotions`, `newsletter_or_marketing` | Promotional mail ignored automatically |
 | S Spam | Sum of today's ignore stats for `spam`, `trash` | Spam ignored automatically |
-| A Automatic Replies | Sum of today's ignore stats for `auto_responder`, `bounce_or_delivery_subsystem`, `known_system_email`, `own_outbound` | Auto-replies and delivery notifications |
+| A Completed Automatically | Sum of today's ignore stats for `auto_responder`, `bounce_or_delivery_subsystem`, `known_system_email`, `own_outbound` | Emails completed automatically (auto-replies, bounces, system mail). Learning Center also shows presentation-only groups: System Notifications / Auto Replies / Own Outbound / Bounces / Duplicate Notifications |
+| R Review Suggested | Live count of Needs Human mail with `ira_confidence < 45` or `status=failed` | Presentation-only focus queue — does not change routing; rows remain in Needs Human |
 
 Counters with value **0 are hidden**.
 
@@ -44,7 +45,8 @@ Minimal pill styling aligned with existing dashboard chips. Counters appear in o
 
 Clicking a counter opens **Email Intake** admin processing screen:
 
-`GET /admin/incoming-emails?queue={needs_human|promotional|spam|automatic}`
+`GET /admin/incoming-emails?queue={needs_human|review_suggested|promotional|spam|automatic}`  
+Optional Completed Automatically filter: `&sub={system_notifications|auto_replies|own_outbound|bounces|duplicate_notifications}`
 
 Not an inbox — read-only queue table (received, from, subject, status, reason) with links to existing Gmail admin tools.
 

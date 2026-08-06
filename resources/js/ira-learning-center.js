@@ -123,6 +123,12 @@ function renderExpandBasics(container, subject, preview) {
 function renderExpandDetails(detailsEl, data) {
     const explanation = data.explanation || {};
     const examples = Array.isArray(explanation.examples) ? explanation.examples : [];
+    const automaticGroup = data.automatic_group
+        ? `<div>
+                <div class="ira-lc-expand__label">Automatic group</div>
+                <div class="ira-lc-expand__value">${escapeHtml(data.automatic_group)}</div>
+            </div>`
+        : '';
 
     detailsEl.innerHTML = `
         <div class="ira-lc-expand__grid">
@@ -142,6 +148,7 @@ function renderExpandDetails(detailsEl, data) {
                 <div class="ira-lc-expand__label">Previous confirmations</div>
                 <div class="ira-lc-expand__value">${escapeHtml(data.previous_confirmations || '—')}</div>
             </div>
+            ${automaticGroup}
         </div>
         <div class="ira-lc-expand__why">
             <div class="ira-lc-expand__label">Explainability</div>

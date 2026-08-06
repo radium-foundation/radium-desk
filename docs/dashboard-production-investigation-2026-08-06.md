@@ -39,7 +39,7 @@ This workspace is **local** (`app.env=local`, inbound email disabled, `incoming_
 | **Row set** | Every `IncomingEmailMessage` with `status IN (needs_review, failed)` — each row gets exactly one attention bucket (default Sales) |
 | **Identity** | `needs_attention` **==** Learning Center **Needs Human** `COUNT(*)` (same rows; different presentation) |
 
-Ignored mail (Promotions / Spam / Auto Processed) is **not** in the big number — only hover rows from today’s `incoming_email_ignore_stats`.
+Ignored mail (Promotions / Spam / Completed Automatically) is **not** in the big number — only hover rows from today’s `incoming_email_ignore_stats`.
 
 ### Answers to the investigation checklist
 
@@ -98,7 +98,7 @@ SELECT status, COUNT(*) FROM incoming_email_messages GROUP BY status;
 | Surface | Source | In Needs Attention? |
 |---------|--------|---------------------|
 | Needs Human | `needs_review` / `failed` | **Yes** (entire total) |
-| Promotions / Spam / Auto Processed | ignore stats / ignored rows | Hover only |
+| Promotions / Spam / Completed Automatically | ignore stats / ignored rows | Hover only |
 | Smart-routed / linked / created case | leaves Needs Human | No |
 
 New ignored mail increments ignore stats, **not** Needs Attention. Routing/linking also removes rows from Needs Human — so a healthy pipeline can keep the tile at 3 while Gmail traffic continues.

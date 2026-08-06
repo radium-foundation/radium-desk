@@ -507,7 +507,9 @@ class PlatformEmailOperationsService
                 'times_used' => (int) $top->times_used,
             ],
             'average_confidence' => $avgConfidence !== null ? (int) round((float) $avgConfidence) : null,
-            'url' => $this->learningCenterUrl('needs_human'),
+            'url' => Route::has('admin.ira-memory.index')
+                ? route('admin.ira-memory.index')
+                : $this->learningCenterUrl('needs_human'),
         ];
     }
 

@@ -151,7 +151,12 @@
 
         @if($iraMemory !== null)
             <section class="platform-email-operations__section mt-3" data-platform-searchable="ira memory email">
-                <h3 class="h6 text-muted text-uppercase mb-2">IRA Memory</h3>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h3 class="h6 text-muted text-uppercase mb-0">IRA Memory</h3>
+                    @if(! empty($iraMemory['url']))
+                        <a href="{{ $iraMemory['url'] }}" class="small">Browse memories</a>
+                    @endif
+                </div>
                 <div class="row g-2">
                     <div class="col-6 col-md-3">
                         <div class="card border-0 shadow-sm h-100">

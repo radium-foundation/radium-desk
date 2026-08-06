@@ -53,7 +53,7 @@ Each Needs Human Action card shows:
 
 Internal statuses such as `needs_review` and `unknown_customer` are **never** exposed in the Learning Center UI.
 
-Other Email Intake queues (Promotional / Spam / Automatic) keep a simple table for ops inspection.
+Other Email Intake queues (Promotional / Spam / Completed Automatically) keep a simple table for ops inspection.
 
 ---
 
@@ -67,9 +67,9 @@ Choose user → Apply → Scope
 
 ### Classification
 
-Support · Sales · Refund · Vendor · Promotion · Spam · Automatic  
+Support · Sales · Refund · Vendor · Promotion · Spam · Completed Automatically  
 
-Promotion / Spam / Automatic also remove the item from Needs Human Action (ignored).
+Promotion / Spam / Completed Automatically also remove the item from Needs Human Action (ignored).
 
 ### Importance
 
@@ -204,7 +204,7 @@ Unchanged from Email Intake admin: user can update `SystemSetting` and `inbound_
 1. **Real IRA AI suggestions** — LLM/ERA classify + assign proposals with the same explainability contract (still require operator confirm to save rules).  
 2. **Keyword rule teaching UI** — explicit keyword capture beyond subject-pattern / mailbox scopes.  
 3. **Promote taught route → Service Case** — Assign + Support/Sales/Refund can auto-create / reopen SC using Phase 1.1–1.3 spine.  
-4. **Learning Rules admin browser** — enable/disable/edit/merge duplicate rules, confidence decay.  
+4. **Learning Rules admin browser** — shipped as [Administration → IRA Memory](ira-memory-foundation.md) (`/admin/ira-memory`): search, filter, view, enable/disable, edit, merge, soft delete, Test Memory.  
 5. **Feedback loop metrics** — suggestion acceptance rate, rule precision, IRA calibration.  
 6. **Multi-decision rule packs** — one confirmation writing assign + classification + importance together.  
 

@@ -5,6 +5,7 @@ namespace App\Enums;
 enum IncomingEmailIntakeQueue: string
 {
     case NeedsHuman = 'needs_human';
+    case ReviewSuggested = 'review_suggested';
     case Promotional = 'promotional';
     case Spam = 'spam';
     case Automatic = 'automatic';
@@ -13,6 +14,7 @@ enum IncomingEmailIntakeQueue: string
     {
         return match ($this) {
             self::NeedsHuman => 'Needs Human Action',
+            self::ReviewSuggested => 'Review Suggested',
             self::Promotional => 'Promotional',
             self::Spam => 'Spam',
             self::Automatic => 'Completed Automatically',
@@ -23,6 +25,7 @@ enum IncomingEmailIntakeQueue: string
     {
         return match ($this) {
             self::NeedsHuman => '📧',
+            self::ReviewSuggested => 'R',
             self::Promotional => 'P',
             self::Spam => 'S',
             self::Automatic => 'A',
@@ -33,6 +36,7 @@ enum IncomingEmailIntakeQueue: string
     {
         return match ($this) {
             self::NeedsHuman => 'Emails waiting for an operator.',
+            self::ReviewSuggested => 'Emails IRA is uncertain about — review suggested (routing unchanged).',
             self::Promotional => 'Promotional emails ignored automatically.',
             self::Spam => 'Spam detected automatically.',
             self::Automatic => 'Emails completed automatically by IRA (no operator action needed).',
@@ -42,6 +46,14 @@ enum IncomingEmailIntakeQueue: string
     public function usesSuperscriptCount(): bool
     {
         return $this !== self::NeedsHuman;
+    }
+
+    /**
+     * Presentation-only subset of Needs Human. Does not change routing.
+     */
+    public function isReviewSuggestedView(): bool
+    {
+        return $this === self::ReviewSuggested;
     }
 
     /**
@@ -64,7 +76,7 @@ enum IncomingEmailIntakeQueue: string
                 'known_system_email',
                 'own_outbound',
             ],
-            self::NeedsHuman => [],
+            self::NeedsHuman, self::ReviewSuggested => [],
         };
     }
 
@@ -85,7 +97,7 @@ enum IncomingEmailIntakeQueue: string
             self::Automatic => [
                 IncomingEmailClassification::OwnOutbound,
             ],
-            self::NeedsHuman => [],
+            self::NeedsHuman, self::ReviewSuggested => [],
         };
     }
 
@@ -95,7 +107,7 @@ enum IncomingEmailIntakeQueue: string
     public function humanActionStatuses(): array
     {
         return match ($this) {
-            self::NeedsHuman => [
+            self::NeedsHuman, self::ReviewSuggested => [
                 IncomingEmailMessageStatus::NeedsReview,
                 IncomingEmailMessageStatus::Failed,
             ],

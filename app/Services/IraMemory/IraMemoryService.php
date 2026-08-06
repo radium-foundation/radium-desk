@@ -108,6 +108,44 @@ class IraMemoryService
         return $memory->fresh() ?? $memory;
     }
 
+    public function softDelete(IraMemory $memory): IraMemory
+    {
+        if ($memory->status === IraMemoryStatus::Merged) {
+            throw new InvalidArgumentException('Merged memories cannot be deleted; merge already retired them.');
+        }
+
+        $memory->forceFill([
+            'status' => IraMemoryStatus::Deleted,
+            'uniqueness_guard' => 'deleted:'.$memory->id,
+        ])->save();
+
+        $memory->delete();
+
+        return IraMemory::withTrashed()->find($memory->id) ?? $memory;
+    }
+
+    /**
+     * Dry-run match for admin “Test Memory” (no usage recording, no pipeline side effects).
+     *
+     * @return list<IraMemoryMatch>
+     */
+    public function testMatch(
+        ?string $fromEmail = null,
+        ?string $subject = null,
+        ?string $preview = null,
+        ?string $mailbox = null,
+        IraMemorySource $source = IraMemorySource::Email,
+    ): array {
+        $probe = new IncomingEmailMessage([
+            'from_email' => $fromEmail,
+            'subject' => $subject,
+            'preview' => $preview,
+            'mailbox' => $mailbox,
+        ]);
+
+        return $this->matcher->matchForEmailMessage($probe, $source);
+    }
+
     public function merge(IraMemory $source, IraMemory $target, ?User $actor = null): IraMemory
     {
         if ($source->is($target)) {
