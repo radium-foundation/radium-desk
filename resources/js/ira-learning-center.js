@@ -1,12 +1,8 @@
 /**
  * IRA Learning Center — compact row workspace interactions.
  * Bound to [data-ira-learning-center]; no page-shell coupling.
+ * Teaching (optional) and Disposition (required) are separate toolbars.
  */
-const MOVE_MAP = {
-    promotion: 'promotion',
-    spam: 'spam',
-    automatic: 'automatic',
-};
 
 const MENU_GAP = 4;
 const MENU_EDGE = 8;
@@ -18,37 +14,62 @@ function selectedIds(root) {
     return Array.from(root.querySelectorAll('[data-ira-row-select]:checked')).map((el) => el.value);
 }
 
-function syncPanels(root) {
+function syncTeachPanels(root) {
     const action = root.querySelector('[data-ira-bulk-action]')?.value || '';
-    const effective = action === 'move' ? 'move' : action;
 
     root.querySelectorAll('[data-ira-panel]').forEach((panel) => {
-        const match = panel.getAttribute('data-ira-panel') === effective;
+        const match = panel.getAttribute('data-ira-panel') === action;
         panel.hidden = !match;
         panel.disabled = !match;
     });
 }
 
+function syncDispositionPanels(root) {
+    const disposition = root.querySelector('[data-ira-disposition-action]')?.value || '';
+
+    root.querySelectorAll('[data-ira-disp-panel]').forEach((panel) => {
+        const match = panel.getAttribute('data-ira-disp-panel') === disposition;
+        panel.hidden = !match;
+        panel.disabled = !match;
+        if (match && panel.tagName === 'INPUT') {
+            panel.required = true;
+        } else if (panel.tagName === 'INPUT') {
+            panel.required = false;
+        }
+    });
+}
+
 function syncSelection(root) {
     const ids = selectedIds(root);
-    const toolbar = root.querySelector('[data-ira-toolbar]');
-    const holder = root.querySelector('[data-ira-selected-inputs]');
+    const teachToolbar = root.querySelector('[data-ira-toolbar]');
+    const disposeToolbar = root.querySelector('[data-ira-disposition-toolbar]');
+    const teachHolder = root.querySelector('[data-ira-selected-inputs]');
+    const disposeHolder = root.querySelector('[data-ira-disposition-inputs]');
     const countEl = root.querySelector('[data-ira-selected-count]');
     const selectAll = root.querySelector('[data-ira-select-all]');
     const checks = Array.from(root.querySelectorAll('[data-ira-row-select]'));
+    const hiddenInputs = ids
+        .map((id) => `<input type="hidden" name="message_ids[]" value="${id}">`)
+        .join('');
 
-    if (holder) {
-        holder.innerHTML = ids
-            .map((id) => `<input type="hidden" name="message_ids[]" value="${id}">`)
-            .join('');
+    if (teachHolder) {
+        teachHolder.innerHTML = hiddenInputs;
+    }
+
+    if (disposeHolder) {
+        disposeHolder.innerHTML = hiddenInputs;
     }
 
     if (countEl) {
         countEl.textContent = String(ids.length);
     }
 
-    if (toolbar) {
-        toolbar.hidden = ids.length === 0;
+    if (teachToolbar) {
+        teachToolbar.hidden = ids.length === 0;
+    }
+
+    if (disposeToolbar) {
+        disposeToolbar.hidden = ids.length === 0;
     }
 
     if (selectAll && checks.length) {
@@ -56,7 +77,8 @@ function syncSelection(root) {
         selectAll.indeterminate = !selectAll.checked && checks.some((input) => input.checked);
     }
 
-    syncPanels(root);
+    syncTeachPanels(root);
+    syncDispositionPanels(root);
 }
 
 function escapeHtml(value) {
@@ -140,9 +162,7 @@ function prepareRowAction(root, row, action) {
     const actionSelect = root.querySelector('[data-ira-bulk-action]');
     if (!actionSelect) return;
 
-    if (action === 'move') {
-        actionSelect.value = 'move';
-    } else if (action === 'importance') {
+    if (action === 'importance') {
         actionSelect.value = 'importance';
         const importance = root.querySelector('[data-ira-panel="importance"]');
         if (importance) importance.value = 'high';
@@ -158,6 +178,29 @@ function prepareRowAction(root, row, action) {
 
     syncSelection(root);
     root.querySelector('[data-ira-toolbar]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function prepareDispositionAction(root, row, disposition) {
+    root.querySelectorAll('[data-ira-row-select]').forEach((input) => {
+        input.checked = input.closest('[data-ira-row]') === row;
+    });
+
+    const dispositionSelect = root.querySelector('[data-ira-disposition-action]');
+    if (!dispositionSelect) return;
+
+    dispositionSelect.value = disposition;
+
+    if (disposition === 'create_case') {
+        const assignee = root.querySelector('[data-ira-disp-panel="create_case"]');
+        const suggested = row.getAttribute('data-suggested-assignee');
+        if (assignee && suggested) assignee.value = suggested;
+    }
+
+    syncSelection(root);
+    root.querySelector('[data-ira-disposition-toolbar]')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+    });
 }
 
 function menuItems(menu) {
@@ -313,8 +356,9 @@ function openRowMenu(root, trigger) {
 function handleMenuAction(event) {
     if (!openMenu) return false;
 
-    const actionEl = event.target.closest('[data-ira-row-action]');
-    if (!actionEl || !openMenu.menu.contains(actionEl)) {
+    const teachEl = event.target.closest('[data-ira-row-action]');
+    const disposeEl = event.target.closest('[data-ira-disp-action]');
+    if ((!teachEl && !disposeEl) || !openMenu.menu.contains(teachEl || disposeEl)) {
         return false;
     }
 
@@ -322,9 +366,13 @@ function handleMenuAction(event) {
     event.stopPropagation();
 
     const { root, row } = openMenu;
-    const action = actionEl.getAttribute('data-ira-row-action');
     closeRowMenu();
-    prepareRowAction(root, row, action);
+
+    if (disposeEl) {
+        prepareDispositionAction(root, row, disposeEl.getAttribute('data-ira-disp-action'));
+    } else if (teachEl) {
+        prepareRowAction(root, row, teachEl.getAttribute('data-ira-row-action'));
+    }
 
     return true;
 }
@@ -345,7 +393,11 @@ function boot(root) {
     });
 
     root.addEventListener('change', (event) => {
-        if (event.target?.matches?.('[data-ira-row-select], [data-ira-bulk-action]')) {
+        if (
+            event.target?.matches?.(
+                '[data-ira-row-select], [data-ira-bulk-action], [data-ira-disposition-action]',
+            )
+        ) {
             syncSelection(root);
         }
     });
@@ -403,31 +455,18 @@ function boot(root) {
     });
 
     root.querySelector('[data-ira-bulk-form]')?.addEventListener('submit', (event) => {
-        const form = event.currentTarget;
-        const actionSelect = form.querySelector('[data-ira-bulk-action]');
-        const action = actionSelect?.value || '';
-
         if (selectedIds(root).length === 0) {
             event.preventDefault();
             return;
         }
 
-        if (action === 'move') {
-            const moveTo = form.querySelector('[data-ira-panel="move"]')?.value;
-            const classification = MOVE_MAP[moveTo];
-            if (!classification) {
-                event.preventDefault();
-                return;
-            }
+        syncSelection(root);
+    });
 
-            actionSelect.value = 'classification';
-
-            const classificationField = form.querySelector('[data-ira-panel="classification"]');
-            if (classificationField) {
-                classificationField.disabled = false;
-                classificationField.hidden = false;
-                classificationField.value = classification;
-            }
+    root.querySelector('[data-ira-disposition-form]')?.addEventListener('submit', (event) => {
+        if (selectedIds(root).length === 0) {
+            event.preventDefault();
+            return;
         }
 
         syncSelection(root);

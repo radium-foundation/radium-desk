@@ -401,6 +401,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('admin.incoming-emails.index');
     Route::post('/admin/incoming-emails/learning', [IncomingEmailAdminController::class, 'applyLearning'])
         ->name('admin.incoming-emails.learning.apply');
+    Route::post('/admin/incoming-emails/disposition', [IncomingEmailAdminController::class, 'applyDisposition'])
+        ->name('admin.incoming-emails.disposition.apply');
 
     Route::get('/admin/system-settings', [OperationalSystemSettingsController::class, 'index'])
         ->name('admin.system-settings.index');

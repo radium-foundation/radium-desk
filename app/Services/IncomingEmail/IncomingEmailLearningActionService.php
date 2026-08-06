@@ -2,6 +2,7 @@
 
 namespace App\Services\IncomingEmail;
 
+use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailIgnoreLearningAction;
 use App\Enums\IncomingEmailImportance;
 use App\Enums\IncomingEmailLearningDecisionType;
@@ -85,15 +86,10 @@ class IncomingEmailLearningActionService
             decisionValue: $classification->value,
             scope: $scope,
             mutator: function (IncomingEmailMessage $message) use ($classification): void {
-                $stored = $classification->toStoredClassification();
-                $shouldIgnore = in_array($classification, [
-                    IncomingEmailOperatorClassification::Promotion,
-                    IncomingEmailOperatorClassification::Spam,
-                    IncomingEmailOperatorClassification::Automatic,
-                ], true);
-
-                $attributes = [
-                    'classification' => $stored,
+                // Teaching only — never disposes. Promotion / Spam / Automatic
+                // leave the queue via IncomingEmailDispositionService.
+                $message->update([
+                    'classification' => $classification->toStoredClassification(),
                     'ira_decision' => $classification->label(),
                     'ira_confidence' => 100,
                     'ira_reason' => 'Operator classified as '.$classification->label().'.',
@@ -105,25 +101,7 @@ class IncomingEmailLearningActionService
                         'previous_operator_confirmation' => true,
                         'rule_confidence' => 100,
                     ],
-                ];
-
-                if ($shouldIgnore) {
-                    $reason = match ($classification) {
-                        IncomingEmailOperatorClassification::Promotion => 'promotions',
-                        IncomingEmailOperatorClassification::Spam => 'spam',
-                        IncomingEmailOperatorClassification::Automatic => 'auto_responder',
-                        default => 'operator_classification',
-                    };
-
-                    $attributes['status'] = IncomingEmailMessageStatus::Ignored;
-                    $attributes['ignore_reason'] = $reason;
-                    $attributes['processed_at'] = now();
-                    $attributes['processing_error'] = null;
-
-                    IncomingEmailIgnoreStat::incrementReason($reason);
-                }
-
-                $message->update($attributes);
+                ]);
             },
         );
     }
@@ -188,12 +166,18 @@ class IncomingEmailLearningActionService
                 $reason = $ignoreAction->ignoreReason();
                 $classification = $ignoreAction->toStoredClassification();
 
+                // Legacy learning ignore still disposes (terminal). Prefer
+                // IncomingEmailDispositionService from the Learning Center UI.
                 $message->update([
                     'status' => IncomingEmailMessageStatus::Ignored,
                     'ignore_reason' => $reason,
                     'classification' => $classification,
                     'processed_at' => now(),
                     'processing_error' => null,
+                    'disposition' => IncomingEmailDisposition::Ignore,
+                    'disposition_reason' => null,
+                    'disposed_at' => now(),
+                    'disposed_by_user_id' => $actor->id,
                     'ira_decision' => $ignoreAction->label(),
                     'ira_confidence' => 100,
                     'ira_reason' => 'Operator chose '.$ignoreAction->label().'.',
@@ -218,6 +202,19 @@ class IncomingEmailLearningActionService
                         'classification' => $classification->value,
                         'source' => 'learning_center',
                         'ignore_action' => $ignoreAction->value,
+                    ],
+                );
+
+                $this->auditLogService->log(
+                    userId: $actor->id,
+                    event: 'incoming_email.disposition',
+                    auditable: $message->fresh(),
+                    newValues: [
+                        'disposition' => IncomingEmailDisposition::Ignore->value,
+                        'completed' => true,
+                        'completed_at' => now()->toIso8601String(),
+                        'completed_by' => $actor->id,
+                        'source' => 'learning_ignore_action',
                     ],
                 );
             },

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\IncomingEmailClassification;
+use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailImportance;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IntakeChannel;
@@ -43,6 +44,10 @@ class IncomingEmailMessage extends Model
         'ira_reason',
         'ira_explanation',
         'matched_learning_rule_id',
+        'disposition',
+        'disposition_reason',
+        'disposed_at',
+        'disposed_by_user_id',
         'incident_id',
         'order_id',
         'processed_at',
@@ -56,6 +61,7 @@ class IncomingEmailMessage extends Model
             'status' => IncomingEmailMessageStatus::class,
             'classification' => IncomingEmailClassification::class,
             'importance' => IncomingEmailImportance::class,
+            'disposition' => IncomingEmailDisposition::class,
             'to_emails' => 'array',
             'headers' => 'array',
             'labels' => 'array',
@@ -63,6 +69,7 @@ class IncomingEmailMessage extends Model
             'ira_explanation' => 'array',
             'received_at' => 'datetime',
             'processed_at' => 'datetime',
+            'disposed_at' => 'datetime',
             'attachment_count' => 'integer',
             'ira_confidence' => 'integer',
         ];
@@ -91,6 +98,11 @@ class IncomingEmailMessage extends Model
     public function matchedLearningRule(): BelongsTo
     {
         return $this->belongsTo(IncomingEmailLearningRule::class, 'matched_learning_rule_id');
+    }
+
+    public function disposedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'disposed_by_user_id');
     }
 
     public function incidentLink(): HasOne

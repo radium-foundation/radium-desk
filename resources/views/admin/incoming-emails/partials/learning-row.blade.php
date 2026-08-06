@@ -1,7 +1,8 @@
 <div class="ira-lc-row"
      data-ira-row
      data-message-id="{{ $card['id'] }}"
-     data-suggested-assignee="{{ $card['suggested_assignee_user_id'] ?? '' }}">
+     data-suggested-assignee="{{ $card['suggested_assignee_user_id'] ?? '' }}"
+     @if(!empty($card['keep_pending'])) data-keep-pending="1" @endif>
     <div class="ira-lc-row__main" data-ira-row-toggle role="button" tabindex="0" aria-expanded="false">
         <div class="ira-lc-row__check" data-ira-stop>
             <input type="checkbox"
@@ -13,6 +14,9 @@
 
         <div class="ira-lc-row__sender" title="{{ $card['sender_email'] }}">
             <span class="ira-lc-row__primary">{{ $card['sender'] }}</span>
+            @if(!empty($card['keep_pending_label']))
+                <span class="ira-lc-row__secondary">Pending: {{ $card['keep_pending_label'] }}</span>
+            @endif
         </div>
 
         <div class="ira-lc-row__subject">
@@ -51,16 +55,35 @@
                 </button>
                 <ul class="ira-lc-menu" data-ira-menu role="menu" hidden>
                     <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="assign">Assign</button>
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="assign">Teach Owner</button>
                     </li>
                     <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="move">Move</button>
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="classification">Teach Classification</button>
                     </li>
                     <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="ignore">Ignore</button>
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="importance">Teach Importance</button>
+                    </li>
+                    <li role="separator"><hr class="dropdown-divider"></li>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="create_case">Create Service Case</button>
                     </li>
                     <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="importance">Mark Important</button>
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="link_case">Link Existing Case</button>
+                    </li>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="ignore">Ignore</button>
+                    </li>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="spam">Spam</button>
+                    </li>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="promotion">Promotion</button>
+                    </li>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="auto_processed">Auto Processed</button>
+                    </li>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="keep_pending">Keep Pending</button>
                     </li>
                     <li role="separator"><hr class="dropdown-divider"></li>
                     @if($card['gmail_url'])

@@ -45,6 +45,29 @@ enum IncomingEmailOperatorClassification: string
         };
     }
 
+    /**
+     * Promotion / Spam / Automatic are dispositions, not teaching classifications.
+     * Docs remains a classification only (never a final disposition).
+     */
+    public function isTeachingClassification(): bool
+    {
+        return match ($this) {
+            self::Promotion, self::Spam, self::Automatic => false,
+            default => true,
+        };
+    }
+
+    /**
+     * @return list<self>
+     */
+    public static function teachingCases(): array
+    {
+        return array_values(array_filter(
+            self::cases(),
+            static fn (self $case): bool => $case->isTeachingClassification(),
+        ));
+    }
+
     public static function fromStored(?IncomingEmailClassification $classification): ?self
     {
         if ($classification === null) {

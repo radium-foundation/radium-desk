@@ -1,7 +1,7 @@
 <div class="ira-lc-page">
     <div class="ira-lc-page__intro">
         <h1 class="ira-lc-page__title">IRA Learning Center</h1>
-        <p class="ira-lc-page__lede">Review-and-teach workspace for inbound email — not a Gmail inbox.</p>
+        <p class="ira-lc-page__lede">Teach IRA (optional), then dispose every Needs Human email — teaching alone never clears the queue.</p>
     </div>
 
     @if(session('status'))
@@ -46,7 +46,7 @@
         <div class="ira-lc__header">
             <div>
                 <h2 class="ira-lc__title">{{ $queue->label() }}</h2>
-                <p class="ira-lc__subtitle">Teach IRA — review, decide, apply once.</p>
+                <p class="ira-lc__subtitle">Review → Teach (optional) → Disposition (required) → Completed.</p>
             </div>
             <div class="ira-lc__count">{{ number_format(count($cards)) }} shown</div>
         </div>

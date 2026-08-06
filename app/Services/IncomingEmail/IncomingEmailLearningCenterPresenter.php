@@ -2,7 +2,9 @@
 
 namespace App\Services\IncomingEmail;
 
+use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailImportance;
+use App\Enums\IncomingEmailKeepPendingReason;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IncomingEmailOperatorClassification;
 use App\Models\IncomingEmailMessage;
@@ -83,9 +85,11 @@ class IncomingEmailLearningCenterPresenter
             'customer_360_url' => $message->incident_id
                 ? route('dashboard.service-cases.customer-360', $message->incident_id)
                 : null,
+            'keep_pending' => $message->disposition === IncomingEmailDisposition::KeepPending,
+            'keep_pending_label' => $this->keepPendingLabel($message),
             'expand' => [
                 'preview' => $fullPreview,
-                'customer' => $suggestion['reason'],
+                'why' => $suggestion['reason'],
                 'customer_label' => $this->customerLabel($message),
                 'service_case' => $this->serviceCaseLabel($message),
                 'matched_learning_rule' => $this->matchedRuleLabel($message),
@@ -94,8 +98,21 @@ class IncomingEmailLearningCenterPresenter
                     $rule?->times_used,
                 ),
                 'explanation' => $suggestion['explanation'],
+                'disposition' => $message->disposition?->label(),
+                'keep_pending_reason' => $this->keepPendingLabel($message),
             ],
         ];
+    }
+
+    private function keepPendingLabel(IncomingEmailMessage $message): ?string
+    {
+        if ($message->disposition !== IncomingEmailDisposition::KeepPending) {
+            return null;
+        }
+
+        $reason = IncomingEmailKeepPendingReason::tryFrom((string) $message->disposition_reason);
+
+        return $reason?->label() ?? 'Kept pending';
     }
 
     private function confidenceBand(int $confidence): string

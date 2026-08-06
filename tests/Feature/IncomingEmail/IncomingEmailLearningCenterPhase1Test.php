@@ -117,10 +117,14 @@ class IncomingEmailLearningCenterPhase1Test extends TestCase
             ])
             ->assertRedirect(route('admin.incoming-emails.index', [
                 'queue' => IncomingEmailIntakeQueue::NeedsHuman->value,
-            ]));
+            ]))
+            ->assertSessionHas('status');
 
         $message->refresh();
         $this->assertSame($assignee->id, $message->learning_owner_user_id);
+        // Teaching Assign must NOT leave Needs Human.
+        $this->assertSame(IncomingEmailMessageStatus::NeedsReview, $message->status);
+        $this->assertNull($message->disposition);
 
         $this->assertDatabaseHas('incoming_email_learning_rules', [
             'rule_type' => IncomingEmailLearningRuleType::Sender->value,

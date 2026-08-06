@@ -804,14 +804,14 @@ a.dashboard-u-hover-lift:focus-visible {
     display: none;
     position: absolute;
     left: 50%;
-    bottom: calc(100% + 0.5rem);
+    bottom: calc(100% + 0.35rem);
     transform: translateX(-50%);
-    min-width: 12rem;
-    padding: 0.625rem 0.75rem;
+    min-width: 10.5rem;
+    padding: 0.4rem 0.55rem;
     border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 0.5rem;
+    border-radius: 0.4rem;
     background: #fff;
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
     z-index: 40;
     pointer-events: none;
 }
@@ -822,29 +822,34 @@ a.dashboard-u-hover-lift:focus-visible {
 }
 
 .dashboard-email-intake-kpi__hover-title {
-    font-size: 0.6875rem;
+    font-size: 13px;
     font-weight: 700;
     color: var(--dashboard-color-text);
-    margin-bottom: 0.375rem;
+    line-height: 1.2;
+    margin-bottom: 0.2rem;
 }
 
 .dashboard-email-intake-kpi__hover-list {
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
 }
 
 .dashboard-email-intake-kpi__hover-row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 0.75rem;
-    font-size: 0.6875rem;
-    line-height: 1.4;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: 0.75rem;
+    font-size: 13px;
+    line-height: 1.25;
 }
 
 .dashboard-email-intake-kpi__hover-label {
     margin: 0;
     font-weight: 500;
     color: var(--dashboard-color-muted);
+    min-width: 0;
 }
 
 .dashboard-email-intake-kpi__hover-count {
@@ -852,11 +857,12 @@ a.dashboard-u-hover-lift:focus-visible {
     font-weight: 700;
     color: var(--dashboard-color-text);
     font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 .dashboard-email-intake-kpi__hover-divider {
     height: 1px;
-    margin: 0.375rem 0;
+    margin: 0.2rem 0;
     background: rgba(148, 163, 184, 0.25);
 }
 
@@ -20481,6 +20487,26 @@ body.wm360-drawer-open {
     border-radius: 0.5rem;
     backdrop-filter: blur(8px);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.ira-lc-toolbar--dispose {
+    top: 4rem;
+    z-index: 19;
+    background: #f8f9fa;
+    border-color: rgba(33, 37, 41, 0.16);
+}
+
+.ira-lc-toolbar__mode {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6c757d;
+    white-space: nowrap;
+}
+
+.ira-lc-toolbar__mode--dispose {
+    color: #212529;
 }
 
 .ira-lc-toolbar__inner {
