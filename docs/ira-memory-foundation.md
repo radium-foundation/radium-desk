@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-06  
 **Version target:** 4.0.5  
-**Status:** Architecture approved · Phase M1 implemented (schema + adapter foundation) · M2+ not started  
+**Status:** Architecture approved · Phase M1 implemented · Phase M2 implemented (service cutover) · M3+ not started  
 **Canvas:** [`ira-memory-foundation.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/ira-memory-foundation.canvas.tsx)  
 **Related:**
 - [`docs/ira-learning-center-phase1.md`](ira-learning-center-phase1.md) — Learning Center (teach surface)
@@ -769,8 +769,8 @@ Row IDs are unchanged. `matched_ira_memory_id` is backfilled from `matched_learn
 | `App\Models\IncomingEmailLearningRule` | Facade extending `IraMemory`; legacy attributes `rule_type` / `match_value` / `decision_type` / `created_by` / `enabled` |
 | `App\Models\Builders\IncomingEmailLearningRuleBuilder` | Remaps legacy where-clause column names so `IncomingEmailLearningRulesService` stays unchanged |
 | VIEW `incoming_email_learning_rules` | Legacy read shape for SQL / tests |
-| `incoming_email_messages.matched_learning_rule_id` | Still written by runtime (unchanged) |
-| `incoming_email_messages.matched_ira_memory_id` | Column present; historical rows mirrored; **runtime apply does not write it yet** (M2) |
+| `incoming_email_messages.matched_learning_rule_id` | Still written by runtime (unchanged in M1) |
+| `incoming_email_messages.matched_ira_memory_id` | Column present; historical rows mirrored in M1; **runtime dual-write added in M2** (see §18) |
 
 Enums added: `IraMemoryType`, `IraMemorySource`, `IraMemoryStatus`, `IraMemoryPatternKind`, `IraMemoryDecisionKind`, `IraMemoryCreatedFrom`, `IraMemoryRelationType`.
 
@@ -827,3 +827,87 @@ Data rows are preserved (not deleted). Prefer rollback only in non-prod or immed
 | Do not start Admin UI / AI on incomplete dual-write | Wait for M2 adapter cutover review |
 
 **M1 gate for M2:** approved after review. Do not begin M2 until this phase is signed off.
+
+---
+
+## 18. Phase M2 — Service Cutover (implemented)
+
+**Date:** 2026-08-06  
+**Status:** Implemented — knowledge service cutover only  
+**Scope completed:** `IraMemoryService` / `IraMemoryMatcher`, Learning Center + disposition write path via `upsertFromTeaching`, canonical active-memory matcher, dual FK apply (`matched_learning_rule_id` + `matched_ira_memory_id`), correct `created_from` provenance  
+**Explicitly not done (deferred to M3+):** Administration → IRA Memory UI, explain/admin presenters, AI, retire `matched_learning_rule_id` / facade
+
+### 18.1 Cutover strategy
+
+1. Introduce `App\Services\IraMemory\IraMemoryService` as the canonical CRUD / teach / merge / activate / disable / match / usage API.
+2. Introduce `App\Services\IraMemory\IraMemoryMatcher` reading only `ira_memories` where `status=active` (and email `source`).
+3. Keep `IncomingEmailLearningRulesService` as the email adapter:
+   - `upsertFromOperatorTeaching()` → `IraMemoryService::upsertFromTeaching()`
+   - `matchesFor()` / `applyBeforeIntelligence()` → Memory matcher + dual FK write
+4. HTTP Learning Center / disposition endpoints unchanged.
+5. Compatibility facade `IncomingEmailLearningRule` remains for legacy reads, view assertions, and transitional callers.
+6. On apply and teach-link: write **both** `matched_learning_rule_id` and `matched_ira_memory_id` (same id after expand-in-place rename).
+
+### 18.2 Created-from provenance
+
+| Path | `created_from` |
+|------|----------------|
+| Learning Center teach | `learning_center` |
+| Disposition ignore/spam/promo persist | `disposition` |
+| Direct `IraMemoryService` system seed | `system_seed` (caller-supplied) |
+| M1 backfill | `migration` (unchanged) |
+| Manual / import helpers | `manual_edit` / `import` (caller-supplied) |
+
+Re-teaching an existing live memory updates decision/confidence/creator and re-activates; it does **not** overwrite `created_from`.
+
+### 18.3 Compatibility
+
+| Piece | M2 behaviour |
+|-------|----------------|
+| `IncomingEmailLearningRule` | Still operational facade over `ira_memories` |
+| VIEW `incoming_email_learning_rules` | Unchanged |
+| Learning Center HTTP | Unchanged routes/payloads |
+| Disposition HTTP | Unchanged routes/payloads |
+| Processor order | Unchanged (Memory match still before intelligence) |
+| Audit events | Still `incoming_email.learning_rule_*` (M4 may add `ira.memory_*`) |
+
+### 18.4 Files changed
+
+| File | Change |
+|------|--------|
+| `app/Services/IraMemory/IraMemoryService.php` | New — create/update/upsertFromTeaching/merge/activate/disable/match/usage |
+| `app/Services/IraMemory/IraMemoryMatcher.php` | New — canonical active `ira_memories` matcher |
+| `app/Services/IraMemory/IraMemoryMatch.php` | New — match DTO |
+| `app/Services/IncomingEmail/IncomingEmailLearningRulesService.php` | Adapter over IraMemoryService; dual FK on apply |
+| `app/Services/IncomingEmail/IncomingEmailLearningActionService.php` | Pass `created_from=learning_center`; dual FK on teach |
+| `app/Services/IncomingEmail/IncomingEmailDispositionService.php` | Pass `created_from=disposition`; dual FK on persist |
+| `tests/Feature/IraMemory/IraMemoryPhaseM2ServiceCutoverTest.php` | New M2 suite |
+| `docs/ira-memory-foundation.md` | This Phase M2 section |
+
+**Unchanged (intentional):** Learning Center UI, disposition UI, processor pipeline order, smart-routing algorithm, AI, Admin IRA Memory UI (M3).
+
+### 18.5 Tests
+
+| Suite | Result |
+|-------|--------|
+| `tests/Feature/IraMemory/IraMemoryPhaseM2ServiceCutoverTest.php` | Passed (9) |
+| `tests/Feature/IraMemory/IraMemoryPhaseM1MigrationTest.php` | Passed |
+| `tests/Feature/IncomingEmail/IncomingEmailLearningCenterPhase1Test.php` | Passed |
+| `tests/Feature/IncomingEmail/IncomingEmailDispositionWorkflowTest.php` | Passed |
+| `tests/Feature/IncomingEmail/IncomingEmailSmartRoutingTest.php` | Passed |
+
+M2 coverage includes: teach → `ira_memories`, teach update, matcher active-only, dual ID apply + usage, legacy facade/view, assign → learning owner (sales path input), Learning Center regression, disposition `created_from`, merge/activate/disable.
+
+### 18.6 Known risks before Phase M3
+
+| Risk | Notes |
+|------|--------|
+| Dual FKs must stay in sync | M3/M4 must not write only one column until legacy FK retired |
+| Facade still writable | Prefer `IraMemoryService` for new code; direct facade creates default `created_from=learning_center` |
+| Ops vs knowledge `IraMemoryService` naming | `App\Services\Operations\IraMemoryService` is ops snapshots — unrelated to knowledge layer |
+| Merge uniqueness_guard | Merged sources use `merged:{id}`; live unique index remains for `live` rows |
+| No Admin UI yet | Operators still manage knowledge only via Learning Center / disposition teach |
+| Sales consumers of `matched_ira_memory_id` | Dual-write now populates the column; confirm assignment consumers prefer learning owner / Memory assign decision consistently |
+| Do not start AI on M2 alone | Wait for Admin browser (M3) + approval hooks |
+
+**M2 gate for M3:** Learning Center + disposition + intake/routing regressions green; dual FK populated on apply; provenance correct. Do not begin Admin UI until this phase is signed off.

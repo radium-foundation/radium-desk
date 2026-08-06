@@ -7,6 +7,7 @@ use App\Enums\Assignment\AssignmentCapability;
 use App\Enums\Assignment\AssignmentQueue;
 use App\Enums\Assignment\AssignmentTrigger;
 use App\Enums\Assignment\EmailAssignmentClassification;
+use App\Enums\AssignmentOrigin;
 use App\Models\Incident;
 use App\Services\ServiceCaseAssignmentService;
 use App\Support\Assignment\AssignmentCapabilityResolver;
@@ -69,6 +70,10 @@ class EmailTriageAssignmentStrategy implements AssignmentStrategy
             return $incident;
         }
 
+        $origin = $capability === AssignmentCapability::SalesLeadHandler
+            ? AssignmentOrigin::Sales
+            : AssignmentOrigin::Auto;
+
         return $this->assignmentService->assignWithAuditContext(
             incident: $incident,
             assignee: $assignee,
@@ -78,6 +83,7 @@ class EmailTriageAssignmentStrategy implements AssignmentStrategy
                 'assignment_capability' => $capability->value,
                 'email_classification' => $request->emailClassification?->value,
             ],
+            assignmentOrigin: $origin,
         );
     }
 }

@@ -4,7 +4,7 @@
 **Environment:** Production (`desk.radiumbox.com`) via SSH + `php artisan tinker`  
 **Window:** 2026-08-05 18:00:00 IST → 2026-08-06 14:03:52 IST  
 **Snapshot:** ~2026-08-06 14:04 IST  
-**Scope:** Read-only production investigation — **no code changes**  
+**Scope:** Production investigation (read-only at capture time) + ownership-preservation fix + Sales Lead assignment fix  
 **Canvas:** [`service-case-auto-assignment-audit.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/service-case-auto-assignment-audit.canvas.tsx)
 
 **Related:**
@@ -22,6 +22,8 @@
 Assignment is dominated by **Ready Queue shift-admin** (683) and **Support RR / appointment smart** (226). **IRA Learning Rule, Refund workflow, and Sales workflow assigned 0 new cases.**
 
 The critical defect in this window: **all 5 email-created Sales Lead cases are still unassigned** because `assignment.communication_intake_primary_user_id` and `fallback` are both **0**, and `inbound_email.smart_routing_enabled` is **false**.
+
+**Sales Lead fix status:** New creates use **Sales Queue RR → Sales Admin fallback** (never owner null). Communication Intake config is no longer required for Sales Lead. The 5 historical production cases still need one-time reassignment.
 
 ---
 
@@ -186,7 +188,7 @@ Inference from first `service_case.assigned` / `reassigned` audit (`override_rea
 
 1. **Email Sales Leads unassigned (5)** — should have gone to Sales / communication intake owner; went nowhere.
 2. **Missed-call failures (2 open)** — Support intake expected; failed with `no_active_support_agents` at 09:08 / 09:14 IST.
-3. **Support→Ready steals (42)** — Support engineer briefly owns case, then Ready validation reassigns to shift admin. Looks like sticky admin ownership overriding Support RR.
+3. **Support→Ready steals (42)** — Support engineer briefly owns case, then Ready validation reassigns to shift admin. Looks like sticky admin ownership overriding Support RR. **Fixed:** Ready Queue must not overwrite human ownership for Support / Appointment / Refund / Sales / Manual origins (see [Ownership preservation fix](#ownership-preservation-fix)).
 4. **SC27350** — closed unassigned, then email reopen left owner null (intake unconfigured) despite live customer emails.
 
 ### Unassigned breakdown (123)
@@ -489,8 +491,8 @@ Cohort counts for the markdown:
 
 ## Root causes
 
-1. **Email auto-assign dead** — Communication intake primary/fallback settings are both `0`. Every new email Sales Lead (and any reopen with null owner, e.g. SC27350) cannot get an owner via `IncomingEmailAssignmentService`.
-2. **Sales smart routing off** — `inbound_email.smart_routing_enabled=false`, so `IncomingEmailSmartRoutingAssignmentService` (sales RR / refund team / previous owner) never runs for new creates.
+1. **Email Sales Lead auto-assign dead** — Communication intake primary/fallback were both `0`, and Sales Lead create path depended on them. **Fixed:** Sales Lead now uses Sales RR → Sales Admin fallback (independent of intake config / Smart Routing). Non-sales email reopens with null owner (e.g. SC27350 General) still use Communication Intake.
+2. **Sales smart routing off** — `inbound_email.smart_routing_enabled=false` meant sales RR never ran for unmatched mail. **Mitigated for Sales Lead creates:** auto-create path now uses the same Sales RR strategy even when Smart Routing is off.
 3. **Support agent availability gaps** — At least three creates logged `no_active_support_agents` (evening Cashfree path + morning missed calls).
 4. **Ready Queue concentrates on shift admins** — By design (`day_shift_admin` / `night_shift_admin`), but 683 first-assigns + 42 Support→Ready steals create sticky admin ownership and manual correction load.
 5. **Cashfree incomplete identity** — 84 unassigned `awaiting_product_details` are waiting on validation/manual correction; not an assign-engine miss for Ready-eligible cases.
@@ -498,14 +500,98 @@ Cohort counts for the markdown:
 
 ---
 
-## Recommendations (investigation only — no fixes applied)
+## Recommendations
 
-1. **Configure** `assignment.communication_intake_primary_user_id` and `fallback` immediately so email creates/reopens cannot stay ownerless.
-2. Decide whether **Sales Lead** should use communication intake, Sales RR (`smart_routing`), or Learning Center disposition before auto-create — today's path creates INQ cases that nobody owns.
+1. ~~Configure Communication Intake for Sales Lead~~ — **superseded** (see [Sales Lead assignment fix](#sales-lead-assignment-fix)).
+2. Configure `assignment.inbound_email_sales_round_robin_user_ids` (and optionally `assignment.sales_lead_handler_user_id`) so Sales RR is preferred before shift-admin fallback.
 3. Review **Support availability** around 09:00 IST (missed-call failures) and evening Support fallback for non-Ready Cashfree.
-4. Measure whether **Support→Ready reassignment** should preserve Support ownership when the case is already human-owned (sticky ownership policy).
-5. Triage the **5 open Sales Lead** cases and **2 open missed-call** failures manually today.
+4. ~~Measure whether **Support→Ready reassignment** should preserve Support ownership~~ — **done** (see [Ownership preservation fix](#ownership-preservation-fix)).
+5. Triage the **5 open Sales Lead** cases and **2 open missed-call** failures manually today (historical; create-path fixed going forward).
 6. Keep Ready shift-admin settings explicit; volume on Avinash/Shipra is expected with current config but may need capacity planning.
+
+---
+
+## Sales Lead assignment fix
+
+**Date applied:** 2026-08-06  
+**Defect addressed:** All 5 email-created Sales Leads left unassigned when Communication Intake primary/fallback were unset and Smart Routing was off.
+
+### Strategy
+
+Unknown Customer + `possible_sales_lead` (category **Sales Lead**):
+
+1. **Sales Queue Round Robin** (`assignment.inbound_email_sales_round_robin_user_ids`)
+2. If RR unavailable (empty pool / all inactive) → **Sales Admin** (`assignment.sales_lead_handler_user_id` → Ready Queue admin → shift admin → actor)
+3. **Never leave owner null**
+
+| Smart Routing | IRA Memory / learning owner | Assignment |
+|---|---|---|
+| Enabled | Present | May override RR (`decision_source=ira_memory`) |
+| Enabled | Absent | Sales RR → Sales Admin fallback |
+| Disabled | Ignored | Sales RR → Sales Admin fallback |
+
+Communication Intake primary/fallback is **not** used for Sales Lead cases.
+
+### Audit fields (`service_case.assigned`)
+
+| Field | Examples |
+|---|---|
+| `assignment_strategy` | `sales_queue_round_robin` |
+| `fallback_used` | `true` / `false` |
+| `reason` | `sales_round_robin` / `sales_rr_unavailable` / `ira_memory_override` |
+| `decision_source` | `sales_rr` / `sales_fallback` / `ira_memory` |
+| `override_reason` | `sales_fallback` (when RR unavailable) |
+
+`incoming_email.routed.assignment_source` mirrors: `sales_round_robin` / `sales_fallback` / `ira_memory`.
+
+### Implementation
+
+- `app/Services/IncomingEmail/IncomingEmailSalesAssignmentService.php` — resilient Sales Lead assigner
+- `IncomingEmailAssignmentService::routeLinkedEmail` — Sales Lead → sales strategy (not Communication Intake)
+- `IncomingEmailSmartRoutingAssignmentService::assignSalesRoundRobin` — delegates with IRA override allowed when Smart Routing is on
+- Tests: `tests/Feature/IncomingEmail/IncomingEmailSalesLeadAssignmentTest.php`
+
+---
+
+## Ownership preservation fix
+
+**Date applied:** 2026-08-06  
+**Defect addressed:** 42 Support → Ready ownership steals in this window (`reassignToShiftAdminAfterValidation` after identity validation).
+
+### Rule
+
+If a case has a **current owner** and `assignment_origin` is one of:
+
+| Origin | Value |
+|---|---|
+| Support | `support` |
+| Appointment | `appointment_smart_assignment` |
+| Refund | `refund` |
+| Sales | `sales` |
+| Manual | `manual` |
+
+then Ready Queue **must not overwrite ownership**.
+
+Ready Queue may still update priority, SLA posture, and queue membership. Never the owner.
+
+### Exceptions (ownership may change)
+
+- Supervisor / manual override (`ServiceCaseAssignmentService::reassign`, `override_reason=manual_reassign`)
+- Explicit transfer / escalate (manual assignment paths)
+
+### Audit
+
+When Ready validation would have stolen ownership, emit:
+
+`ready_queue_owner_preserved`
+
+with `preserved_origin` and reason `ready_queue_must_not_overwrite_human_ownership`.
+
+### Implementation notes
+
+- Support / Refund / Sales assign paths now persist distinct origins (previously collapsed into `auto`).
+- `AssignmentOrigin::Auto` agent ownership may still move to shift admin on Ready validation (legacy auto path).
+- Tests: `tests/Feature/ReadyQueueOwnerPreservationTest.php` (Support / Appointment / Refund / Manual preserve + supervisor override).
 
 ---
 
@@ -515,4 +601,4 @@ Cohort counts for the markdown:
 - Assignment path inferred from `audit_logs` events `service_case.assigned|reassigned|unassigned`.
 - Ready Queue membership via `OperationsQueueClassifier` on openish statuses at snapshot time.
 - Email detail via `incoming_email_messages` linked to the five `source=email` incidents.
-- No code, config, or data writes were performed.
+- Investigation snapshot was read-only; ownership-preservation and Sales Lead assignment fixes applied afterward in application code.

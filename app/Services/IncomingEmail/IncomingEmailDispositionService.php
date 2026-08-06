@@ -11,6 +11,7 @@ use App\Enums\IncomingEmailKeepPendingReason;
 use App\Enums\IncomingEmailLearningDecisionType;
 use App\Enums\IncomingEmailLearningScope;
 use App\Enums\IncomingEmailMessageStatus;
+use App\Enums\IraMemoryCreatedFrom;
 use App\Models\Incident;
 use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailLearningRule;
@@ -365,11 +366,15 @@ class IncomingEmailDispositionService
                     decisionType: IncomingEmailLearningDecisionType::Ignore,
                     decisionValue: $learningDecisionValue,
                     actor: $actor,
+                    createdFrom: IraMemoryCreatedFrom::Disposition,
                 );
 
                 if ($rule instanceof IncomingEmailLearningRule) {
                     $rulesSaved++;
-                    $message->update(['matched_learning_rule_id' => $rule->id]);
+                    $message->update([
+                        'matched_learning_rule_id' => $rule->id,
+                        'matched_ira_memory_id' => $rule->id,
+                    ]);
                 }
             }
         }

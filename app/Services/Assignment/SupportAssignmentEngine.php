@@ -5,6 +5,7 @@ namespace App\Services\Assignment;
 use App\Data\Assignment\SupportAssignmentRequest;
 use App\Data\Assignment\SupportAssignmentResult;
 use App\Enums\Assignment\SupportAssignmentStrategyType;
+use App\Enums\AssignmentOrigin;
 use App\Models\Incident;
 use App\Services\ServiceCaseAssignmentService;
 use App\Support\Assignment\Availability\SupportAssignmentAvailabilityResolver;
@@ -103,6 +104,7 @@ class SupportAssignmentEngine
                 assignee: $assignee,
                 actor: $request->actor,
                 auditContext: $request->auditContext,
+                assignmentOrigin: AssignmentOrigin::Support,
             );
         }
 

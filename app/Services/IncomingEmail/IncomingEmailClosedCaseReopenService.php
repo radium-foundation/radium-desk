@@ -279,7 +279,7 @@ class IncomingEmailClosedCaseReopenService
                 'incoming_email_message_id' => $message->id,
             ],
             event: 'service_case.assigned',
-            assignmentOrigin: AssignmentOrigin::Auto,
+            assignmentOrigin: AssignmentOrigin::Support,
         );
     }
 
@@ -317,7 +317,7 @@ class IncomingEmailClosedCaseReopenService
                 'incoming_email_message_id' => $message->id,
             ],
             event: 'service_case.assigned',
-            assignmentOrigin: AssignmentOrigin::Auto,
+            assignmentOrigin: AssignmentOrigin::Refund,
         );
     }
 

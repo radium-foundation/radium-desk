@@ -212,6 +212,8 @@ class ServiceCaseAssignmentEligibilityService
                 return;
             }
 
+            // Ready may refresh queue/SLA visibility, but must not steal Support /
+            // Appointment / Refund / Sales / Manual ownership (preserves + audits).
             if ($assignee !== null && $this->isAgentUser($assignee)) {
                 $this->assignmentService->reassignToShiftAdminAfterValidation(
                     incident: $incident,

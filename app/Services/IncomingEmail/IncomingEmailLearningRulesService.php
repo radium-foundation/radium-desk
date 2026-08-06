@@ -11,22 +11,29 @@ use App\Enums\IncomingEmailLearningRuleType;
 use App\Enums\IncomingEmailLearningScope;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IncomingEmailOperatorClassification;
+use App\Enums\IraMemoryCreatedFrom;
+use App\Enums\IraMemoryDecisionKind;
+use App\Enums\IraMemoryPatternKind;
 use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailLearningRule;
 use App\Models\IncomingEmailMessage;
+use App\Models\IraMemory;
 use App\Models\User;
 use App\Services\AuditLogService;
-use Illuminate\Support\Collection;
+use App\Services\IraMemory\IraMemoryService;
 use Illuminate\Support\Str;
 
 /**
- * Persistent operator-taught rules. Evaluated in the processor BEFORE any AI step.
- * AI never invents rules — operators confirm suggestions and rules are saved here.
+ * Email Learning Rules adapter over IRA Memory.
+ *
+ * Public API unchanged for Learning Center / disposition / processor.
+ * Persistence and matching go through IraMemoryService.
  */
 class IncomingEmailLearningRulesService
 {
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly IraMemoryService $iraMemoryService,
     ) {}
 
     /**
@@ -34,42 +41,15 @@ class IncomingEmailLearningRulesService
      */
     public function matchesFor(IncomingEmailMessage $message): array
     {
-        $candidates = $this->candidateValues($message);
-
-        if ($candidates === []) {
-            return [];
-        }
-
-        /** @var Collection<int, IncomingEmailLearningRule> $rules */
-        $rules = IncomingEmailLearningRule::query()
-            ->enabled()
-            ->where(function ($query) use ($candidates): void {
-                foreach ($candidates as $index => [$type, $value]) {
-                    $method = $index === 0 ? 'where' : 'orWhere';
-                    $query->{$method}(function ($nested) use ($type, $value): void {
-                        $nested->where('rule_type', $type->value)
-                            ->where('match_value', $value);
-                    });
-                }
-            })
-            ->orderByDesc('confidence')
-            ->orderByDesc('times_used')
-            ->orderBy('id')
-            ->get();
-
         $matches = [];
 
-        foreach ($rules as $rule) {
-            $matchedValue = $this->matchedValueForRule($rule, $candidates);
-
-            if ($matchedValue === null) {
-                continue;
-            }
+        foreach ($this->iraMemoryService->match($message) as $memoryMatch) {
+            $rule = $this->asLearningRule($memoryMatch->memory);
 
             $matches[] = new IncomingEmailLearningRuleMatch(
                 rule: $rule,
-                matchedOn: $rule->rule_type->label(),
-                matchedValue: $matchedValue,
+                matchedOn: $memoryMatch->matchedOn,
+                matchedValue: $memoryMatch->matchedValue,
             );
         }
 
@@ -99,6 +79,7 @@ class IncomingEmailLearningRulesService
             $this->applyMatch($message, $match, $actor);
             $applied[] = [
                 'rule_id' => $match->rule->id,
+                'memory_id' => $match->rule->id,
                 'rule_type' => $match->rule->rule_type->value,
                 'match_value' => $match->matchedValue,
                 'decision_type' => $match->rule->decision_type->value,
@@ -106,7 +87,7 @@ class IncomingEmailLearningRulesService
                 'confidence' => $match->rule->confidence,
             ];
 
-            $match->rule->recordUsage();
+            $this->iraMemoryService->recordUsage($match->rule);
 
             if ($match->rule->decision_type === IncomingEmailLearningDecisionType::Classification) {
                 $operator = IncomingEmailOperatorClassification::tryFrom($match->rule->decision_value);
@@ -154,6 +135,7 @@ class IncomingEmailLearningRulesService
         string $decisionValue,
         User $actor,
         int $confidence = 90,
+        IraMemoryCreatedFrom $createdFrom = IraMemoryCreatedFrom::LearningCenter,
     ): ?IncomingEmailLearningRule {
         if (! $scope->createsPersistentRule()) {
             return null;
@@ -171,19 +153,18 @@ class IncomingEmailLearningRulesService
             return null;
         }
 
-        $rule = IncomingEmailLearningRule::query()->updateOrCreate(
-            [
-                'rule_type' => $ruleType->value,
-                'match_value' => $matchValue,
-                'decision_type' => $decisionType->value,
-            ],
-            [
-                'decision_value' => $decisionValue,
-                'confidence' => max(1, min(100, $confidence)),
-                'created_by' => $actor->id,
-                'enabled' => true,
-            ],
+        $memory = $this->iraMemoryService->upsertFromTeaching(
+            patternKind: IraMemoryPatternKind::from($ruleType->value),
+            patternValue: $matchValue,
+            decisionKind: IraMemoryDecisionKind::from($decisionType->value),
+            decisionValue: $decisionValue,
+            actor: $actor,
+            createdFrom: $createdFrom,
+            confidence: $confidence,
+            sourceMessage: $message,
         );
+
+        $rule = $this->asLearningRule($memory);
 
         $this->auditLogService->log(
             userId: $actor->id,
@@ -197,10 +178,12 @@ class IncomingEmailLearningRulesService
                 'confidence' => $rule->confidence,
                 'source_message_id' => $message->id,
                 'scope' => $scope->value,
+                'created_from' => $memory->created_from?->value,
+                'ira_memory_id' => $memory->id,
             ],
         );
 
-        return $rule->fresh();
+        return $rule;
     }
 
     public function normalizeSubjectPattern(?string $subject): string
@@ -222,73 +205,6 @@ class IncomingEmailLearningRulesService
         }
 
         return Str::after($email, '@') ?: null;
-    }
-
-    /**
-     * @return list<array{0: IncomingEmailLearningRuleType, 1: string}>
-     */
-    private function candidateValues(IncomingEmailMessage $message): array
-    {
-        $candidates = [];
-
-        $sender = Str::lower(trim((string) $message->from_email));
-
-        if ($sender !== '') {
-            $candidates[] = [IncomingEmailLearningRuleType::Sender, $sender];
-        }
-
-        $domain = $this->senderDomain($message->from_email);
-
-        if ($domain !== null) {
-            $candidates[] = [IncomingEmailLearningRuleType::SenderDomain, $domain];
-        }
-
-        $subjectPattern = $this->normalizeSubjectPattern($message->subject);
-
-        if ($subjectPattern !== '') {
-            $candidates[] = [IncomingEmailLearningRuleType::SubjectPattern, $subjectPattern];
-        }
-
-        $mailbox = Str::lower(trim((string) $message->mailbox));
-
-        if ($mailbox !== '') {
-            $candidates[] = [IncomingEmailLearningRuleType::Mailbox, $mailbox];
-        }
-
-        $haystack = Str::lower(trim(
-            ((string) $message->subject).' '.((string) $message->preview),
-        ));
-
-        if ($haystack !== '') {
-            $keywordRules = IncomingEmailLearningRule::query()
-                ->enabled()
-                ->where('rule_type', IncomingEmailLearningRuleType::Keyword->value)
-                ->get(['id', 'rule_type', 'match_value']);
-
-            foreach ($keywordRules as $keywordRule) {
-                $keyword = Str::lower(trim((string) $keywordRule->match_value));
-
-                if ($keyword !== '' && str_contains($haystack, $keyword)) {
-                    $candidates[] = [IncomingEmailLearningRuleType::Keyword, $keyword];
-                }
-            }
-        }
-
-        return $candidates;
-    }
-
-    /**
-     * @param  list<array{0: IncomingEmailLearningRuleType, 1: string}>  $candidates
-     */
-    private function matchedValueForRule(IncomingEmailLearningRule $rule, array $candidates): ?string
-    {
-        foreach ($candidates as [$type, $value]) {
-            if ($type === $rule->rule_type && $value === $rule->match_value) {
-                return $value;
-            }
-        }
-
-        return null;
     }
 
     private function matchValueForScope(
@@ -325,10 +241,12 @@ class IncomingEmailLearningRulesService
             'previous_operator_confirmation' => true,
             'rule_confidence' => $rule->confidence,
             'rule_id' => $rule->id,
+            'ira_memory_id' => $rule->id,
         ];
 
         $attributes = [
             'matched_learning_rule_id' => $rule->id,
+            'matched_ira_memory_id' => $rule->id,
             'ira_decision' => $this->decisionLabel($rule),
             'ira_confidence' => $rule->confidence,
             'ira_reason' => 'Learning rule: '.$rule->rule_type->label().' → '.$rule->decision_type->label(),
@@ -435,6 +353,7 @@ class IncomingEmailLearningRulesService
                 'classification' => $classification->value,
                 'source' => 'learning_rule',
                 'rule_id' => $rule->id,
+                'ira_memory_id' => $rule->id,
             ],
         );
     }
@@ -450,5 +369,19 @@ class IncomingEmailLearningRulesService
             IncomingEmailLearningDecisionType::Ignore => IncomingEmailIgnoreLearningAction::tryFrom($rule->decision_value)?->label()
                 ?? 'Ignore',
         };
+    }
+
+    private function asLearningRule(IraMemory $memory): IncomingEmailLearningRule
+    {
+        if ($memory instanceof IncomingEmailLearningRule) {
+            return $memory;
+        }
+
+        $rule = new IncomingEmailLearningRule;
+        $rule->exists = true;
+        $rule->setRawAttributes($memory->getAttributes(), true);
+        $rule->syncOriginal();
+
+        return $rule;
     }
 }

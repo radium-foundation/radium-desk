@@ -9,6 +9,7 @@ use App\Enums\IncomingEmailLearningDecisionType;
 use App\Enums\IncomingEmailLearningScope;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IncomingEmailOperatorClassification;
+use App\Enums\IraMemoryCreatedFrom;
 use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailLearningRule;
 use App\Models\IncomingEmailMessage;
@@ -257,11 +258,15 @@ class IncomingEmailLearningActionService
                 decisionType: $decisionType,
                 decisionValue: $decisionValue,
                 actor: $actor,
+                createdFrom: IraMemoryCreatedFrom::LearningCenter,
             );
 
             if ($rule instanceof IncomingEmailLearningRule) {
                 $rulesSaved++;
-                $message->update(['matched_learning_rule_id' => $rule->id]);
+                $message->update([
+                    'matched_learning_rule_id' => $rule->id,
+                    'matched_ira_memory_id' => $rule->id,
+                ]);
             }
         }
 

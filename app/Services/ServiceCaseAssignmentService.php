@@ -27,6 +27,8 @@ class ServiceCaseAssignmentService
 {
     private const ROUND_ROBIN_CURSOR_KEY = 'assignment.agent_round_robin_last_user_id';
 
+    public const READY_QUEUE_OWNER_PRESERVED_EVENT = 'ready_queue_owner_preserved';
+
     /** @var array<int, bool> */
     private array $manualOwnershipReadyVisibilityMemo = [];
 
@@ -187,6 +189,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
+            assignmentOrigin: AssignmentOrigin::Support,
         );
     }
 
@@ -219,6 +222,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
+            assignmentOrigin: AssignmentOrigin::Support,
         );
     }
 
@@ -252,6 +256,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.assigned',
+            assignmentOrigin: AssignmentOrigin::Support,
             extraNewValues: [
                 'assignment_method' => 'inquiry_round_robin',
             ],
@@ -324,6 +329,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: 'service_case.reassigned',
+            assignmentOrigin: AssignmentOrigin::Support,
             extraNewValues: [
                 'reason' => 'validation_failed_support_queue',
             ],
@@ -498,6 +504,7 @@ class ServiceCaseAssignmentService
             assignee: $assignee,
             actor: $actor,
             event: $event,
+            assignmentOrigin: AssignmentOrigin::Support,
             extraNewValues: $extraNewValues,
         );
     }
@@ -516,7 +523,9 @@ class ServiceCaseAssignmentService
             return $incident;
         }
 
-        if ($this->hasManualSupportOwnership($incident)) {
+        if ($this->shouldPreserveOwnerFromReadyQueue($incident)) {
+            $this->recordReadyQueueOwnerPreserved($incident, $actor);
+
             return $incident;
         }
 
@@ -538,6 +547,34 @@ class ServiceCaseAssignmentService
             extraNewValues: [
                 'reason' => ServiceCaseAssignmentEligibilityService::AUTOMATIC_REASSIGNMENT_REASON,
                 ...$this->shiftAdminOverrideContext(),
+            ],
+        );
+    }
+
+    public function shouldPreserveOwnerFromReadyQueue(Incident $incident): bool
+    {
+        if ($incident->assigned_to_user_id === null) {
+            return false;
+        }
+
+        return $incident->assignment_origin?->protectsReadyQueueOwnership() ?? false;
+    }
+
+    private function recordReadyQueueOwnerPreserved(Incident $incident, User $actor): void
+    {
+        $this->auditLogService->log(
+            userId: $actor->id,
+            event: self::READY_QUEUE_OWNER_PRESERVED_EVENT,
+            auditable: $incident,
+            oldValues: [
+                'assigned_to_user_id' => $incident->assigned_to_user_id,
+                'assignment_origin' => $incident->assignment_origin?->value,
+            ],
+            newValues: [
+                'assigned_to_user_id' => $incident->assigned_to_user_id,
+                'assignment_origin' => $incident->assignment_origin?->value,
+                'reason' => 'ready_queue_must_not_overwrite_human_ownership',
+                'preserved_origin' => $incident->assignment_origin?->value,
             ],
         );
     }

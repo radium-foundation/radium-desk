@@ -22,6 +22,7 @@ class IncomingEmailSmartRoutingAssignmentService
         private readonly ServiceCaseAssignmentService $assignmentService,
         private readonly UniversalAssignmentEngine $assignmentEngine,
         private readonly IncomingEmailAssignmentService $emailAssignmentService,
+        private readonly IncomingEmailSalesAssignmentService $salesAssignmentService,
         private readonly SettingService $settingService,
         private readonly AuditLogService $auditLogService,
     ) {}
@@ -50,7 +51,7 @@ class IncomingEmailSmartRoutingAssignmentService
                     $at,
                 ),
                 IncomingEmailSmartRoute::RefundEnquiry => $this->assignRefundTeam($incident, $actor, $at),
-                IncomingEmailSmartRoute::SalesEnquiry => $this->assignSalesRoundRobin($incident, $actor, $at),
+                IncomingEmailSmartRoute::SalesEnquiry => $this->assignSalesRoundRobin($incident, $message, $actor, $at),
                 IncomingEmailSmartRoute::SupportEnquiry => $this->assignSupportRoundRobin($incident, $actor, $at),
                 default => [$incident, 'none', null],
             };
@@ -105,7 +106,7 @@ class IncomingEmailSmartRoutingAssignmentService
                     'previous_owner_user_id' => $previousOwner->id,
                 ],
                 event: 'service_case.assigned',
-                assignmentOrigin: AssignmentOrigin::Auto,
+                assignmentOrigin: AssignmentOrigin::Support,
             );
 
             return [$assigned, 'previous_account_owner', null];
@@ -127,7 +128,7 @@ class IncomingEmailSmartRoutingAssignmentService
                 'intake_channel' => 'email',
             ],
             event: 'service_case.assigned',
-            assignmentOrigin: AssignmentOrigin::Auto,
+            assignmentOrigin: AssignmentOrigin::Support,
         );
 
         return [$assigned, 'support_round_robin', $assignee->id];
@@ -163,7 +164,7 @@ class IncomingEmailSmartRoutingAssignmentService
                 'intake_channel' => 'email',
             ],
             event: 'service_case.assigned',
-            assignmentOrigin: AssignmentOrigin::Auto,
+            assignmentOrigin: AssignmentOrigin::Refund,
         );
 
         return [$assigned, 'refund_team_round_robin', $assignee->id];
@@ -172,52 +173,20 @@ class IncomingEmailSmartRoutingAssignmentService
     /**
      * @return array{0: Incident, 1: string, 2: ?int}
      */
-    private function assignSalesRoundRobin(Incident $incident, User $actor, Carbon $at): array
-    {
-        $userIds = $this->userIdsFromSetting(
-            (string) config('inbound_email.assignment_settings.sales_round_robin_user_ids'),
-        );
-        $cursorKey = (string) config('inbound_email.assignment_settings.sales_round_robin_cursor');
-
-        if ($userIds === []) {
-            $assigned = $this->assignmentEngine->assignForEmailClassification(
-                incident: $incident,
-                actor: $actor,
-                classification: EmailAssignmentClassification::SalesLead,
-                at: $at,
-            );
-
-            return [
-                $assigned,
-                'sales_lead_capability',
-                $assigned->assigned_to_user_id,
-            ];
-        }
-
-        $assignee = $this->assignmentService->resolveAgentViaRoundRobinFromPool(
-            userIds: $userIds,
-            cursorSettingKey: $cursorKey,
+    private function assignSalesRoundRobin(
+        Incident $incident,
+        IncomingEmailMessage $message,
+        User $actor,
+        Carbon $at,
+    ): array {
+        // Smart Routing path: IRA Memory may override Sales RR.
+        return $this->salesAssignmentService->assignSalesLead(
+            incident: $incident,
+            actor: $actor,
+            message: $message,
+            allowIraMemoryOverride: true,
             at: $at,
         );
-
-        if ($assignee === null) {
-            return [$incident, 'sales_round_robin_unresolved', null];
-        }
-
-        $assigned = $this->assignmentService->assignWithAuditContext(
-            incident: $incident,
-            assignee: $assignee,
-            actor: $actor,
-            auditContext: [
-                'assignment_method' => 'inbound_email_sales_round_robin',
-                'assignment_reason' => 'sales_round_robin',
-                'intake_channel' => 'email',
-            ],
-            event: 'service_case.assigned',
-            assignmentOrigin: AssignmentOrigin::Auto,
-        );
-
-        return [$assigned, 'sales_round_robin', $assignee->id];
     }
 
     /**

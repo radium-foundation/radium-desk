@@ -20,8 +20,9 @@ use Illuminate\Support\Facades\Log;
  * Email Phase 1.1 — communication follows customer ownership.
  *
  * Existing Incident/Service Case assignee always wins (notify only).
- * Unassigned matched cases use Communication Intake primary → fallback.
- * Never round-robins. Never reassigns.
+ * Unassigned Sales Lead cases use Sales Queue RR → Sales Admin fallback.
+ * Other unassigned matched cases use Communication Intake primary → fallback.
+ * Never reassigns an existing owner.
  */
 class IncomingEmailAssignmentService
 {
@@ -31,6 +32,7 @@ class IncomingEmailAssignmentService
 
     public function __construct(
         private readonly ServiceCaseAssignmentService $assignmentService,
+        private readonly IncomingEmailSalesAssignmentService $salesAssignmentService,
         private readonly WorkforceAuthorityService $workforceAuthority,
         private readonly PresenceEngineService $presenceEngine,
         private readonly SettingService $settingService,
@@ -55,7 +57,19 @@ class IncomingEmailAssignmentService
             return $incident;
         }
 
-        $incident = $this->assignCommunicationIntake($incident, $actor, $at);
+        if ($this->isSalesLeadCase($incident)) {
+            // IRA Memory override only when Smart Routing is enabled.
+            [$incident] = $this->salesAssignmentService->assignSalesLead(
+                incident: $incident,
+                actor: $actor,
+                message: $message,
+                allowIraMemoryOverride: (bool) config('inbound_email.smart_routing_enabled', false),
+                at: $at,
+            );
+        } else {
+            $incident = $this->assignCommunicationIntake($incident, $actor, $at);
+        }
+
         $this->notifyOwnerOfNewEmail($incident->fresh(['assignee']), $message);
         $this->notifyHighPriorityIfNeeded($incident, $actor);
 
@@ -74,7 +88,23 @@ class IncomingEmailAssignmentService
             return $incident;
         }
 
+        if ($this->isSalesLeadCase($incident)) {
+            [$incident] = $this->salesAssignmentService->assignSalesLead(
+                incident: $incident,
+                actor: $actor,
+                allowIraMemoryOverride: (bool) config('inbound_email.smart_routing_enabled', false),
+                at: $at,
+            );
+
+            return $incident;
+        }
+
         return $this->assignCommunicationIntake($incident, $actor, $at);
+    }
+
+    private function isSalesLeadCase(Incident $incident): bool
+    {
+        return strcasecmp(trim((string) $incident->category), 'Sales Lead') === 0;
     }
 
     public function notifyOwnerOfNewEmail(Incident $incident, IncomingEmailMessage $message): void
