@@ -11,7 +11,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 /**
- * Operator-facing card payloads for the IRA Learning Center.
+ * Operator-facing row payloads for the IRA Learning Center.
  * Never exposes internal statuses like needs_review / unknown_customer.
  */
 class IncomingEmailLearningCenterPresenter
@@ -28,6 +28,7 @@ class IncomingEmailLearningCenterPresenter
     {
         $messages->loadMissing([
             'order:id,customer_name,customer_email',
+            'incident:id,reference_no,status',
             'learningOwner:id,name,first_name,last_name',
             'suggestedAssignee:id,name,first_name,last_name',
             'matchedLearningRule.creator:id,name,first_name,last_name',
@@ -45,7 +46,10 @@ class IncomingEmailLearningCenterPresenter
     public function cardFor(IncomingEmailMessage $message): array
     {
         $suggestion = $this->buildSuggestion($message);
-        $preview = $this->twoLinePreview($message->displayPreview());
+        $fullPreview = $this->fullPreview($message->displayPreview());
+        $confidence = (int) $suggestion['confidence'];
+        $confidenceBand = $this->confidenceBand($confidence);
+        $rule = $message->matchedLearningRule;
 
         return [
             'id' => $message->id,
@@ -53,11 +57,17 @@ class IncomingEmailLearningCenterPresenter
             'sender_email' => $message->from_email,
             'customer' => $this->customerLabel($message),
             'subject' => filled($message->subject) ? (string) $message->subject : 'No subject',
-            'preview' => $preview,
+            'preview' => Str::limit($fullPreview, 90),
+            'preview_full' => $fullPreview,
             'received_at' => $message->received_at,
+            'received_label' => $message->received_at
+                ? display_app_datetime($message->received_at)
+                : '—',
             'ira_decision' => $suggestion['decision'],
-            'confidence' => $suggestion['confidence'],
-            'confidence_label' => $suggestion['confidence'].'%',
+            'confidence' => $confidence,
+            'confidence_band' => $confidenceBand,
+            'confidence_label' => $confidenceBand,
+            'confidence_percent' => $confidence.'%',
             'suggested_assignee' => $suggestion['suggested_assignee'],
             'suggested_assignee_user_id' => $suggestion['suggested_assignee_user_id'],
             'reason' => $suggestion['reason'],
@@ -66,7 +76,39 @@ class IncomingEmailLearningCenterPresenter
             'classification_label' => IncomingEmailOperatorClassification::fromStored($message->classification)?->label(),
             'explanation' => $suggestion['explanation'],
             'learning_owner' => $this->userLabel($message->learningOwner),
+            'service_case' => $this->serviceCaseLabel($message),
+            'matched_learning_rule' => $this->matchedRuleLabel($message),
+            'previous_confirmations' => $this->previousConfirmationsLabel($suggestion['explanation'], $rule?->times_used),
+            'gmail_url' => $this->gmailUrl($message),
+            'customer_360_url' => $message->incident_id
+                ? route('dashboard.service-cases.customer-360', $message->incident_id)
+                : null,
+            'expand' => [
+                'preview' => $fullPreview,
+                'customer' => $suggestion['reason'],
+                'customer_label' => $this->customerLabel($message),
+                'service_case' => $this->serviceCaseLabel($message),
+                'matched_learning_rule' => $this->matchedRuleLabel($message),
+                'previous_confirmations' => $this->previousConfirmationsLabel(
+                    $suggestion['explanation'],
+                    $rule?->times_used,
+                ),
+                'explanation' => $suggestion['explanation'],
+            ],
         ];
+    }
+
+    private function confidenceBand(int $confidence): string
+    {
+        if ($confidence >= 75) {
+            return 'High';
+        }
+
+        if ($confidence >= 45) {
+            return 'Medium';
+        }
+
+        return 'Low';
     }
 
     /**
@@ -141,6 +183,9 @@ class IncomingEmailLearningCenterPresenter
             $operatorClass === IncomingEmailOperatorClassification::Refund => 'Possible refund enquiry',
             $operatorClass === IncomingEmailOperatorClassification::Support => 'Support enquiry',
             $operatorClass === IncomingEmailOperatorClassification::Vendor => 'Vendor / ops mail',
+            $operatorClass === IncomingEmailOperatorClassification::Promotion => 'Promotion',
+            $operatorClass === IncomingEmailOperatorClassification::Spam => 'Spam',
+            $operatorClass === IncomingEmailOperatorClassification::Automatic => 'Automatic',
             $message->order_id !== null => 'Customer email needs routing',
             default => 'Needs operator decision',
         };
@@ -242,6 +287,68 @@ class IncomingEmailLearningCenterPresenter
         return 'Unknown Customer';
     }
 
+    private function serviceCaseLabel(IncomingEmailMessage $message): string
+    {
+        $incident = $message->incident;
+
+        if ($incident === null) {
+            return 'No service case';
+        }
+
+        $number = filled($incident->reference_no)
+            ? (string) $incident->reference_no
+            : '#'.$incident->id;
+
+        return 'Service Case '.$number;
+    }
+
+    private function matchedRuleLabel(IncomingEmailMessage $message): string
+    {
+        $rule = $message->matchedLearningRule;
+
+        if ($rule === null) {
+            return 'None';
+        }
+
+        return $rule->rule_type->label().' → '.$rule->decision_type->label()
+            .' ('.$rule->match_value.')';
+    }
+
+    /**
+     * @param  array<string, mixed>  $explanation
+     */
+    private function previousConfirmationsLabel(array $explanation, ?int $timesUsed): string
+    {
+        if (! ($explanation['previous_operator_confirmation'] ?? false)) {
+            return 'No prior confirmation';
+        }
+
+        if ($timesUsed !== null && $timesUsed > 0) {
+            return 'Yes · used '.$timesUsed.'×';
+        }
+
+        return 'Yes · operator confirmed';
+    }
+
+    private function gmailUrl(IncomingEmailMessage $message): ?string
+    {
+        $rfc = trim((string) $message->rfc_message_id);
+
+        if ($rfc !== '') {
+            $normalized = trim($rfc, '<>');
+
+            return 'https://mail.google.com/mail/u/0/#search/rfc822msgid:'.$normalized;
+        }
+
+        if (filled($message->from_email) && filled($message->subject)) {
+            $query = 'from:'.$message->from_email.' subject:'.$message->subject;
+
+            return 'https://mail.google.com/mail/u/0/#search/'.rawurlencode($query);
+        }
+
+        return null;
+    }
+
     private function userLabel(?User $user): ?string
     {
         if ($user === null) {
@@ -255,7 +362,7 @@ class IncomingEmailLearningCenterPresenter
         return $user->name;
     }
 
-    private function twoLinePreview(?string $preview): string
+    private function fullPreview(?string $preview): string
     {
         $text = trim(preg_replace('/\s+/', ' ', (string) $preview) ?? '');
 
@@ -263,6 +370,6 @@ class IncomingEmailLearningCenterPresenter
             return 'No preview available.';
         }
 
-        return Str::limit($text, 180);
+        return Str::limit($text, 600);
     }
 }

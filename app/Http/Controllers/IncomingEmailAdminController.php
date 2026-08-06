@@ -34,6 +34,7 @@ class IncomingEmailAdminController extends Controller
             ->queryForQueue($queue)
             ->with([
                 'order:id,customer_name,customer_email',
+                'incident:id,reference_no,status',
                 'learningOwner:id,name,first_name,last_name',
                 'suggestedAssignee:id,name,first_name,last_name',
                 'matchedLearningRule.creator:id,name,first_name,last_name',
@@ -42,15 +43,14 @@ class IncomingEmailAdminController extends Controller
             ->get();
 
         $counts = $counters->counts();
-        $isLearningCenter = $queue === IncomingEmailIntakeQueue::NeedsHuman;
 
         return view('admin.incoming-emails.index', [
             'queue' => $queue,
             'messages' => $messages,
-            'cards' => $isLearningCenter ? $presenter->cardsFor($messages) : [],
+            'cards' => $presenter->cardsFor($messages),
             'counts' => $counts,
             'queues' => IncomingEmailIntakeQueue::cases(),
-            'isLearningCenter' => $isLearningCenter,
+            'isLearningCenter' => true,
             'assignableUsers' => $assignmentService->reassignableAdmins(),
             'learningScopes' => IncomingEmailLearningScope::cases(),
             'operatorClassifications' => IncomingEmailOperatorClassification::cases(),
@@ -72,6 +72,7 @@ class IncomingEmailAdminController extends Controller
             'message_ids' => ['required', 'array', 'min:1'],
             'message_ids.*' => ['integer', 'distinct'],
             'scope' => ['required', Rule::enum(IncomingEmailLearningScope::class)],
+            'return_queue' => ['nullable', Rule::enum(IncomingEmailIntakeQueue::class)],
             'assignee_user_id' => [
                 Rule::requiredIf($action === 'assign'),
                 'nullable',
@@ -126,9 +127,12 @@ class IncomingEmailAdminController extends Controller
             ),
         };
 
+        $returnQueue = IncomingEmailIntakeQueue::tryFrom((string) ($validated['return_queue'] ?? ''))
+            ?? IncomingEmailIntakeQueue::NeedsHuman;
+
         return redirect()
             ->route('admin.incoming-emails.index', [
-                'queue' => IncomingEmailIntakeQueue::NeedsHuman->value,
+                'queue' => $returnQueue->value,
             ])
             ->with('status', sprintf(
                 'Applied to %d email(s). Saved %d learning rule(s).',

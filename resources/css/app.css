@@ -20334,137 +20334,396 @@ body.wm360-drawer-open {
     }
 }
 
-/* IRA Learning Center — Email Intake Needs Human Action */
-.ira-learning-center__cards {
-    display: grid;
-    gap: 0.75rem;
+/* IRA Learning Center — compact operator workspace */
+.ira-lc-page {
+    max-width: 1280px;
 }
 
-.ira-learning-card {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 0.75rem;
-    padding: 1rem;
-    background: #fff;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+.ira-lc-page__intro {
+    margin-bottom: 1rem;
 }
 
-.ira-learning-card__select {
-    padding-top: 0.15rem;
-}
-
-.ira-learning-card__meta,
-.ira-learning-card__decision-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 0.75rem;
-}
-
-.ira-learning-card__label {
-    font-size: 0.6875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #6c757d;
-    margin-bottom: 0.15rem;
-}
-
-.ira-learning-card__value {
-    font-size: 0.9rem;
-    font-weight: 600;
-    line-height: 1.3;
-}
-
-.ira-learning-card__value--muted,
-.ira-learning-card__sub {
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: #6c757d;
-}
-
-.ira-learning-card__subject {
-    font-size: 1rem;
+.ira-lc-page__title {
+    font-size: 1.25rem;
     font-weight: 650;
-    margin-bottom: 0.35rem;
+    margin: 0 0 0.2rem;
+    letter-spacing: -0.01em;
 }
 
-.ira-learning-card__preview {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    margin-bottom: 0.75rem;
-    color: #495057;
+.ira-lc-page__lede {
+    margin: 0;
+    color: #6c757d;
     font-size: 0.875rem;
-    line-height: 1.4;
 }
 
-.ira-learning-card__decision {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #0d6efd;
-}
-
-.ira-learning-card__confidence {
-    font-size: 0.95rem;
-    font-weight: 700;
-}
-
-.ira-learning-card__reason {
+.ira-lc-page__links {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: baseline;
-    margin-bottom: 0.5rem;
-    font-size: 0.875rem;
-}
-
-.ira-learning-card__explain {
+    gap: 0.85rem;
     margin-bottom: 0.85rem;
     font-size: 0.8125rem;
 }
 
-.ira-learning-card__explain summary {
-    cursor: pointer;
-    color: #0d6efd;
-    user-select: none;
-}
-
-.ira-learning-card__explain-dl {
-    margin: 0.5rem 0 0;
-    display: grid;
-    gap: 0.4rem;
-}
-
-.ira-learning-card__explain-dl dt {
-    font-weight: 600;
+.ira-lc-page__links a {
     color: #6c757d;
+    text-decoration: none;
 }
 
-.ira-learning-card__explain-dl dd {
+.ira-lc-page__links a:hover {
+    color: #212529;
+}
+
+.ira-lc-queues {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+}
+
+.ira-lc-queues__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    color: #495057;
+    text-decoration: none;
+    background: transparent;
+    border: 1px solid transparent;
+}
+
+.ira-lc-queues__tab:hover {
+    background: rgba(0, 0, 0, 0.03);
+    color: #212529;
+}
+
+.ira-lc-queues__tab--active {
+    background: #212529;
+    color: #fff;
+}
+
+.ira-lc-queues__tab--active .ira-lc-queues__count {
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+
+.ira-lc-queues__count {
+    min-width: 1.25rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.ira-lc__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    margin-bottom: 0.65rem;
+}
+
+.ira-lc__title {
+    font-size: 0.95rem;
+    font-weight: 650;
     margin: 0;
 }
 
-.ira-learning-card__actions {
+.ira-lc__subtitle {
+    margin: 0.1rem 0 0;
+    font-size: 0.78rem;
+    color: #6c757d;
+}
+
+.ira-lc__count {
+    font-size: 0.78rem;
+    color: #6c757d;
+}
+
+.ira-lc__empty {
+    padding: 1.25rem 0.25rem;
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+
+.ira-lc-toolbar {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 20;
+    margin-bottom: 0.65rem;
+    padding: 0.55rem 0.7rem;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 0.5rem;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.ira-lc-toolbar__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.ira-lc-toolbar__select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-right: 0.35rem;
+    font-size: 0.8125rem;
+    color: #495057;
+    white-space: nowrap;
+}
+
+.ira-lc-toolbar__selected {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: #212529;
+    color: #fff;
+    font-size: 0.7rem;
+}
+
+.ira-lc-toolbar__select {
+    width: auto;
+    min-width: 7.5rem;
+    max-width: 11rem;
+}
+
+.ira-lc-toolbar__apply {
+    margin-left: auto;
+}
+
+.ira-lc-list {
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: #fff;
+}
+
+.ira-lc-list__head,
+.ira-lc-row__main {
     display: grid;
-    gap: 0.65rem;
+    grid-template-columns:
+        32px
+        minmax(120px, 0.9fr)
+        minmax(220px, 2fr)
+        minmax(120px, 1fr)
+        72px
+        minmax(90px, 0.8fr)
+        120px
+        36px;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0 0.65rem;
+}
+
+.ira-lc-list__head {
+    min-height: 36px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #8a9199;
+    background: #fafbfc;
+}
+
+.ira-lc-row {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.045);
+}
+
+.ira-lc-row:last-child {
+    border-bottom: 0;
+}
+
+.ira-lc-row__main {
+    min-height: 60px;
+    cursor: pointer;
+}
+
+.ira-lc-row__main:hover {
+    background: rgba(0, 0, 0, 0.015);
+}
+
+.ira-lc-row--open > .ira-lc-row__main {
+    background: rgba(13, 110, 253, 0.03);
+}
+
+.ira-lc-row__check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ira-lc-row__primary {
+    display: block;
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: #212529;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ira-lc-row__secondary {
+    display: block;
+    font-size: 0.75rem;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ira-lc-row__suggestion,
+.ira-lc-row__owner,
+.ira-lc-row__received {
+    font-size: 0.8rem;
+    color: #343a40;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ira-lc-row__suggestion {
+    font-weight: 550;
+}
+
+.ira-lc-row__received {
+    color: #6c757d;
+    font-size: 0.75rem;
+}
+
+.ira-lc-conf {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+.ira-lc-conf--high { color: #198754; }
+.ira-lc-conf--medium { color: #9a6b00; }
+.ira-lc-conf--low { color: #6c757d; }
+
+.ira-lc-menu-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #6c757d;
+    line-height: 1;
+    border-radius: 0.35rem;
+}
+
+.ira-lc-menu-btn:hover,
+.ira-lc-menu-btn:focus {
+    background: rgba(0, 0, 0, 0.05);
+    color: #212529;
+}
+
+.ira-lc-menu {
+    font-size: 0.8125rem;
+    min-width: 11rem;
+}
+
+.ira-lc-row__expand {
+    padding: 0 0.85rem 0.85rem 2.4rem;
+    background: #fbfbfc;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.ira-lc-expand__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.ira-lc-expand__label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #8a9199;
+    margin-bottom: 0.2rem;
+}
+
+.ira-lc-expand__value {
+    font-size: 0.8125rem;
+    color: #343a40;
+    line-height: 1.4;
+}
+
+.ira-lc-expand__why {
     padding-top: 0.65rem;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.ira-learning-card__action-form .form-select-sm {
-    min-width: 8.5rem;
-    max-width: 14rem;
+.ira-lc-expand__examples {
+    margin: 0.35rem 0 0.5rem;
+    padding-left: 1.1rem;
+    font-size: 0.8rem;
+    color: #495057;
 }
 
-@media (max-width: 767.98px) {
-    .ira-learning-card {
-        grid-template-columns: 1fr;
+.ira-lc-expand__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1rem;
+    font-size: 0.75rem;
+    color: #6c757d;
+}
+
+@media (max-width: 991.98px) {
+    .ira-lc-list__head {
+        display: none;
     }
 
-    .ira-learning-card__select {
-        order: -1;
+    .ira-lc-row__main {
+        grid-template-columns: 32px 1fr 36px;
+        grid-template-areas:
+            "check sender actions"
+            "check subject actions"
+            "check meta actions";
+        min-height: auto;
+        padding-top: 0.65rem;
+        padding-bottom: 0.65rem;
+        gap: 0.2rem 0.5rem;
+    }
+
+    .ira-lc-row__check { grid-area: check; align-self: start; padding-top: 0.15rem; }
+    .ira-lc-row__sender { grid-area: sender; }
+    .ira-lc-row__subject { grid-area: subject; }
+    .ira-lc-row__actions { grid-area: actions; align-self: start; }
+    .ira-lc-row__suggestion,
+    .ira-lc-row__confidence,
+    .ira-lc-row__owner,
+    .ira-lc-row__received {
+        grid-area: meta;
+    }
+
+    .ira-lc-row__suggestion { display: inline; }
+    .ira-lc-row__confidence,
+    .ira-lc-row__owner,
+    .ira-lc-row__received {
+        display: inline;
+        margin-left: 0.55rem;
+    }
+
+    .ira-lc-row__expand {
+        padding-left: 0.85rem;
+    }
+
+    .ira-lc-toolbar__apply {
+        margin-left: 0;
     }
 }

@@ -290,11 +290,13 @@ class IncomingEmailLearningActionService
             ]);
         }
 
+        // All Learning Center queues can teach IRA (Needs Human + ignored queues).
         $messages = IncomingEmailMessage::query()
             ->whereIn('id', $ids)
             ->whereIn('status', [
                 IncomingEmailMessageStatus::NeedsReview,
                 IncomingEmailMessageStatus::Failed,
+                IncomingEmailMessageStatus::Ignored,
             ])
             ->get();
 

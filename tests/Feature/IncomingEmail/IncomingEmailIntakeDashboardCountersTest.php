@@ -25,6 +25,7 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutVite();
 
         config([
             'inbound_email.enabled' => true,
@@ -158,6 +159,7 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
 
         $this->assertStringContainsString('IRA Learning Center', $humanHtml);
         $this->assertStringContainsString('human@example.com', $humanHtml);
+        $this->assertStringContainsString('data-ira-row', $humanHtml);
         $this->assertStringNotContainsString('Spam offer', $humanHtml);
         $this->assertStringNotContainsString('needs_review', $humanHtml);
         $this->assertStringNotContainsString('unknown_customer', $humanHtml);
@@ -168,6 +170,7 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('Spam offer', $spamHtml);
+        $this->assertStringContainsString('data-ira-row', $spamHtml);
         $this->assertStringNotContainsString('human@example.com', $spamHtml);
     }
 

@@ -29,6 +29,7 @@ class IncomingEmailLearningCenterPhase1Test extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->withoutVite();
 
         config([
             'inbound_email.enabled' => true,
@@ -78,14 +79,16 @@ class IncomingEmailLearningCenterPhase1Test extends TestCase
 
         $this->assertStringContainsString('IRA Learning Center', $html);
         $this->assertStringContainsString('Buyer One', $html);
-        $this->assertStringContainsString('Unknown Customer', $html);
         $this->assertStringContainsString('Need a quote', $html);
-        $this->assertStringContainsString('IRA Decision', $html);
+        $this->assertStringContainsString('IRA Suggestion', $html);
         $this->assertStringContainsString('Confidence', $html);
-        $this->assertStringContainsString('Suggested Assignee', $html);
-        $this->assertStringContainsString('Why this suggestion?', $html);
+        $this->assertStringContainsString('Suggested Owner', $html);
+        $this->assertStringContainsString('data-ira-row', $html);
+        $this->assertStringContainsString('Unknown Customer', $html);
+        $this->assertStringContainsString('data-expand-json', $html);
         $this->assertStringNotContainsString('needs_review', $html);
         $this->assertStringNotContainsString('unknown_customer', $html);
+        $this->assertStringNotContainsString('ira-learning-card__actions', $html);
     }
 
     public function test_operator_assign_creates_sender_learning_rule(): void
