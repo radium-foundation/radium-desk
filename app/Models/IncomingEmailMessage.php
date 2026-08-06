@@ -7,11 +7,11 @@ use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailImportance;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IntakeChannel;
+use App\Services\IncomingEmail\IncomingEmailPreviewExtractor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Services\IncomingEmail\IncomingEmailPreviewExtractor;
 
 class IncomingEmailMessage extends Model
 {
@@ -44,6 +44,7 @@ class IncomingEmailMessage extends Model
         'ira_reason',
         'ira_explanation',
         'matched_learning_rule_id',
+        'matched_ira_memory_id',
         'disposition',
         'disposition_reason',
         'disposed_at',
@@ -98,6 +99,11 @@ class IncomingEmailMessage extends Model
     public function matchedLearningRule(): BelongsTo
     {
         return $this->belongsTo(IncomingEmailLearningRule::class, 'matched_learning_rule_id');
+    }
+
+    public function matchedIraMemory(): BelongsTo
+    {
+        return $this->belongsTo(IraMemory::class, 'matched_ira_memory_id');
     }
 
     public function disposedBy(): BelongsTo
