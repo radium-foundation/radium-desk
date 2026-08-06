@@ -156,8 +156,11 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
             ->assertOk()
             ->getContent();
 
-        $this->assertStringContainsString('Needs review', $humanHtml);
+        $this->assertStringContainsString('IRA Learning Center', $humanHtml);
+        $this->assertStringContainsString('human@example.com', $humanHtml);
         $this->assertStringNotContainsString('Spam offer', $humanHtml);
+        $this->assertStringNotContainsString('needs_review', $humanHtml);
+        $this->assertStringNotContainsString('unknown_customer', $humanHtml);
 
         $spamHtml = (string) $this->actingAs($admin)
             ->get(route('admin.incoming-emails.index', ['queue' => IncomingEmailIntakeQueue::Spam->value]))
@@ -165,7 +168,7 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
             ->getContent();
 
         $this->assertStringContainsString('Spam offer', $spamHtml);
-        $this->assertStringNotContainsString('Needs review', $spamHtml);
+        $this->assertStringNotContainsString('human@example.com', $spamHtml);
     }
 
     public function test_ingested_spam_increments_counter_and_appears_in_spam_admin_filter(): void

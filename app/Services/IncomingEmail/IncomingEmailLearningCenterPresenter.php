@@ -1,0 +1,268 @@
+<?php
+
+namespace App\Services\IncomingEmail;
+
+use App\Enums\IncomingEmailImportance;
+use App\Enums\IncomingEmailMessageStatus;
+use App\Enums\IncomingEmailOperatorClassification;
+use App\Models\IncomingEmailMessage;
+use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+
+/**
+ * Operator-facing card payloads for the IRA Learning Center.
+ * Never exposes internal statuses like needs_review / unknown_customer.
+ */
+class IncomingEmailLearningCenterPresenter
+{
+    public function __construct(
+        private readonly IncomingEmailLearningRulesService $learningRulesService,
+    ) {}
+
+    /**
+     * @param  Collection<int, IncomingEmailMessage>  $messages
+     * @return list<array<string, mixed>>
+     */
+    public function cardsFor(Collection $messages): array
+    {
+        $messages->loadMissing([
+            'order:id,customer_name,customer_email',
+            'learningOwner:id,name,first_name,last_name',
+            'suggestedAssignee:id,name,first_name,last_name',
+            'matchedLearningRule.creator:id,name,first_name,last_name',
+        ]);
+
+        return $messages
+            ->map(fn (IncomingEmailMessage $message): array => $this->cardFor($message))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function cardFor(IncomingEmailMessage $message): array
+    {
+        $suggestion = $this->buildSuggestion($message);
+        $preview = $this->twoLinePreview($message->displayPreview());
+
+        return [
+            'id' => $message->id,
+            'sender' => $this->senderLabel($message),
+            'sender_email' => $message->from_email,
+            'customer' => $this->customerLabel($message),
+            'subject' => filled($message->subject) ? (string) $message->subject : 'No subject',
+            'preview' => $preview,
+            'received_at' => $message->received_at,
+            'ira_decision' => $suggestion['decision'],
+            'confidence' => $suggestion['confidence'],
+            'confidence_label' => $suggestion['confidence'].'%',
+            'suggested_assignee' => $suggestion['suggested_assignee'],
+            'suggested_assignee_user_id' => $suggestion['suggested_assignee_user_id'],
+            'reason' => $suggestion['reason'],
+            'importance' => ($message->importance ?? IncomingEmailImportance::Normal)->label(),
+            'importance_value' => ($message->importance ?? IncomingEmailImportance::Normal)->value,
+            'classification_label' => IncomingEmailOperatorClassification::fromStored($message->classification)?->label(),
+            'explanation' => $suggestion['explanation'],
+            'learning_owner' => $this->userLabel($message->learningOwner),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     decision: string,
+     *     confidence: int,
+     *     suggested_assignee: string,
+     *     suggested_assignee_user_id: int|null,
+     *     reason: string,
+     *     explanation: array{
+     *         why: string,
+     *         examples: list<string>,
+     *         matched_sender: ?string,
+     *         matched_keyword: ?string,
+     *         previous_operator_confirmation: bool,
+     *         rule_confidence: ?int
+     *     }
+     * }
+     */
+    private function buildSuggestion(IncomingEmailMessage $message): array
+    {
+        if (filled($message->ira_decision)) {
+            $explanation = is_array($message->ira_explanation) ? $message->ira_explanation : [];
+
+            return [
+                'decision' => (string) $message->ira_decision,
+                'confidence' => (int) ($message->ira_confidence ?? 50),
+                'suggested_assignee' => $this->userLabel($message->suggestedAssignee)
+                    ?? $this->userLabel($message->learningOwner)
+                    ?? 'Unassigned',
+                'suggested_assignee_user_id' => $message->suggested_assignee_user_id
+                    ?? $message->learning_owner_user_id,
+                'reason' => (string) ($message->ira_reason ?: 'Waiting for operator review.'),
+                'explanation' => $this->normalizeExplanation($explanation, $message),
+            ];
+        }
+
+        $matches = $this->learningRulesService->matchesFor($message);
+        $assignMatch = collect($matches)->first(
+            static fn ($match) => $match->rule->decision_type->value === 'assign',
+        );
+
+        if ($assignMatch !== null) {
+            $assignee = User::query()->find((int) $assignMatch->rule->decision_value);
+
+            return [
+                'decision' => 'Assign to teammate',
+                'confidence' => (int) $assignMatch->rule->confidence,
+                'suggested_assignee' => $this->userLabel($assignee) ?? 'Unassigned',
+                'suggested_assignee_user_id' => $assignee?->id,
+                'reason' => 'Matches learning rule for '.$assignMatch->matchedOn.'.',
+                'explanation' => [
+                    'why' => 'An operator-confirmed learning rule matches this email.',
+                    'examples' => [
+                        'Matched '.$assignMatch->matchedOn.': '.$assignMatch->matchedValue,
+                        'Times used: '.$assignMatch->rule->times_used,
+                    ],
+                    'matched_sender' => $message->from_email,
+                    'matched_keyword' => $assignMatch->rule->rule_type->value === 'keyword'
+                        ? $assignMatch->matchedValue
+                        : null,
+                    'previous_operator_confirmation' => true,
+                    'rule_confidence' => $assignMatch->rule->confidence,
+                ],
+            ];
+        }
+
+        $operatorClass = IncomingEmailOperatorClassification::fromStored($message->classification);
+        $decision = match (true) {
+            $message->status === IncomingEmailMessageStatus::Failed => 'Needs recovery',
+            $operatorClass === IncomingEmailOperatorClassification::Sales => 'Possible sales enquiry',
+            $operatorClass === IncomingEmailOperatorClassification::Refund => 'Possible refund enquiry',
+            $operatorClass === IncomingEmailOperatorClassification::Support => 'Support enquiry',
+            $operatorClass === IncomingEmailOperatorClassification::Vendor => 'Vendor / ops mail',
+            $message->order_id !== null => 'Customer email needs routing',
+            default => 'Needs operator decision',
+        };
+
+        $reason = match (true) {
+            $message->status === IncomingEmailMessageStatus::Failed => 'Automatic processing could not finish.',
+            $message->order_id !== null => 'Matched a customer order but needs human routing.',
+            $operatorClass === IncomingEmailOperatorClassification::Sales => 'Looks like a new purchase enquiry.',
+            default => 'No confident automatic route was available.',
+        };
+
+        $confidence = match (true) {
+            $message->status === IncomingEmailMessageStatus::Failed => 20,
+            $message->order_id !== null => 70,
+            $operatorClass !== null => 55,
+            default => 35,
+        };
+
+        return [
+            'decision' => $decision,
+            'confidence' => $confidence,
+            'suggested_assignee' => $this->userLabel($message->suggestedAssignee)
+                ?? $this->userLabel($message->learningOwner)
+                ?? 'Unassigned',
+            'suggested_assignee_user_id' => $message->suggested_assignee_user_id
+                ?? $message->learning_owner_user_id,
+            'reason' => $reason,
+            'explanation' => [
+                'why' => $reason,
+                'examples' => array_values(array_filter([
+                    $message->from_email ? 'Sender: '.$message->from_email : null,
+                    $operatorClass ? 'Suggested class: '.$operatorClass->label() : null,
+                    $message->mailbox ? 'Mailbox: '.$message->mailbox : null,
+                ])),
+                'matched_sender' => $message->from_email,
+                'matched_keyword' => null,
+                'previous_operator_confirmation' => false,
+                'rule_confidence' => null,
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $explanation
+     * @return array{
+     *     why: string,
+     *     examples: list<string>,
+     *     matched_sender: ?string,
+     *     matched_keyword: ?string,
+     *     previous_operator_confirmation: bool,
+     *     rule_confidence: ?int
+     * }
+     */
+    private function normalizeExplanation(array $explanation, IncomingEmailMessage $message): array
+    {
+        $examples = $explanation['examples'] ?? [];
+
+        if (! is_array($examples)) {
+            $examples = [];
+        }
+
+        return [
+            'why' => (string) ($explanation['why'] ?? $message->ira_reason ?? 'Waiting for operator review.'),
+            'examples' => array_values(array_map('strval', $examples)),
+            'matched_sender' => isset($explanation['matched_sender'])
+                ? (string) $explanation['matched_sender']
+                : $message->from_email,
+            'matched_keyword' => isset($explanation['matched_keyword']) && $explanation['matched_keyword'] !== null
+                ? (string) $explanation['matched_keyword']
+                : null,
+            'previous_operator_confirmation' => (bool) ($explanation['previous_operator_confirmation'] ?? false),
+            'rule_confidence' => isset($explanation['rule_confidence'])
+                ? (int) $explanation['rule_confidence']
+                : ($message->ira_confidence !== null ? (int) $message->ira_confidence : null),
+        ];
+    }
+
+    private function senderLabel(IncomingEmailMessage $message): string
+    {
+        if (filled($message->from_name)) {
+            return (string) $message->from_name;
+        }
+
+        return filled($message->from_email) ? (string) $message->from_email : 'Unknown sender';
+    }
+
+    private function customerLabel(IncomingEmailMessage $message): string
+    {
+        $order = $message->order;
+
+        if ($order !== null && filled($order->customer_name)) {
+            return (string) $order->customer_name;
+        }
+
+        if ($order !== null && filled($order->customer_email)) {
+            return (string) $order->customer_email;
+        }
+
+        return 'Unknown Customer';
+    }
+
+    private function userLabel(?User $user): ?string
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        if (method_exists($user, 'firstName') && filled($user->firstName())) {
+            return $user->firstName();
+        }
+
+        return $user->name;
+    }
+
+    private function twoLinePreview(?string $preview): string
+    {
+        $text = trim(preg_replace('/\s+/', ' ', (string) $preview) ?? '');
+
+        if ($text === '') {
+            return 'No preview available.';
+        }
+
+        return Str::limit($text, 180);
+    }
+}

@@ -28,6 +28,7 @@ class IncomingEmailProcessorService
         private readonly IncomingEmailSmartRoutingService $smartRoutingService,
         private readonly ServiceCasePriorityService $priorityService,
         private readonly IncomingEmailPriorityPhraseService $priorityPhraseService,
+        private readonly IncomingEmailLearningRulesService $learningRulesService,
         private readonly IncomingEmailIntakeCounterService $intakeCounterService,
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
@@ -66,13 +67,26 @@ class IncomingEmailProcessorService
                 return;
             }
 
+            // Learning rules run BEFORE AI / deterministic intelligence.
+            // AI never invents rules — only operator-confirmed rules execute here.
+            $learningResult = $this->learningRulesService->applyBeforeIntelligence($message->fresh(), $actor);
+
+            if ($learningResult->stopProcessing) {
+                return;
+            }
+
             // Priority phrase audits belong on ingest/sync only — never on dashboard reads.
             $this->priorityPhraseService->matchAndAudit($message->fresh(), $actor);
 
-            DB::transaction(function () use ($message, $actor): void {
+            DB::transaction(function () use ($message, $actor, $learningResult): void {
                 $fresh = $message->fresh();
                 $match = $this->customerMatcher->resolve($fresh);
-                $classification = $this->classifierService->classifyOperational($fresh, $match);
+                $classification = $learningResult->classificationOverride
+                    ?? $this->classifierService->classifyOperational($fresh, $match);
+
+                if ($learningResult->importanceOverride !== null && $fresh->importance !== $learningResult->importanceOverride) {
+                    $fresh->update(['importance' => $learningResult->importanceOverride]);
+                }
 
                 // Phase 1.1 — closed SC for matched order/thread: reopen same case (never duplicate).
                 if (($match['closed_incident'] ?? null) !== null) {

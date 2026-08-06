@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\IncomingEmailClassification;
+use App\Enums\IncomingEmailImportance;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IntakeChannel;
 use Illuminate\Database\Eloquent\Model;
@@ -34,6 +35,14 @@ class IncomingEmailMessage extends Model
         'status',
         'ignore_reason',
         'classification',
+        'importance',
+        'learning_owner_user_id',
+        'suggested_assignee_user_id',
+        'ira_decision',
+        'ira_confidence',
+        'ira_reason',
+        'ira_explanation',
+        'matched_learning_rule_id',
         'incident_id',
         'order_id',
         'processed_at',
@@ -46,13 +55,16 @@ class IncomingEmailMessage extends Model
             'intake_channel' => IntakeChannel::class,
             'status' => IncomingEmailMessageStatus::class,
             'classification' => IncomingEmailClassification::class,
+            'importance' => IncomingEmailImportance::class,
             'to_emails' => 'array',
             'headers' => 'array',
             'labels' => 'array',
             'raw_payload' => 'array',
+            'ira_explanation' => 'array',
             'received_at' => 'datetime',
             'processed_at' => 'datetime',
             'attachment_count' => 'integer',
+            'ira_confidence' => 'integer',
         ];
     }
 
@@ -64,6 +76,21 @@ class IncomingEmailMessage extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    public function learningOwner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'learning_owner_user_id');
+    }
+
+    public function suggestedAssignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'suggested_assignee_user_id');
+    }
+
+    public function matchedLearningRule(): BelongsTo
+    {
+        return $this->belongsTo(IncomingEmailLearningRule::class, 'matched_learning_rule_id');
     }
 
     public function incidentLink(): HasOne

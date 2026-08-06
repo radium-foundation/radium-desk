@@ -2,16 +2,29 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\IncomingEmailIgnoreLearningAction;
+use App\Enums\IncomingEmailImportance;
 use App\Enums\IncomingEmailIntakeQueue;
+use App\Enums\IncomingEmailLearningScope;
+use App\Enums\IncomingEmailOperatorClassification;
 use App\Models\SystemSetting;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
+use App\Services\IncomingEmail\IncomingEmailLearningActionService;
+use App\Services\IncomingEmail\IncomingEmailLearningCenterPresenter;
+use App\Services\ServiceCaseAssignmentService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class IncomingEmailAdminController extends Controller
 {
-    public function index(Request $request, IncomingEmailIntakeCounterService $counters): View
-    {
+    public function index(
+        Request $request,
+        IncomingEmailIntakeCounterService $counters,
+        IncomingEmailLearningCenterPresenter $presenter,
+        ServiceCaseAssignmentService $assignmentService,
+    ): View {
         $this->authorizeEmailAdmin($request);
 
         $queue = IncomingEmailIntakeQueue::tryFrom((string) $request->query('queue', ''))
@@ -19,17 +32,109 @@ class IncomingEmailAdminController extends Controller
 
         $messages = $counters
             ->queryForQueue($queue)
+            ->with([
+                'order:id,customer_name,customer_email',
+                'learningOwner:id,name,first_name,last_name',
+                'suggestedAssignee:id,name,first_name,last_name',
+                'matchedLearningRule.creator:id,name,first_name,last_name',
+            ])
             ->limit(100)
             ->get();
 
         $counts = $counters->counts();
+        $isLearningCenter = $queue === IncomingEmailIntakeQueue::NeedsHuman;
 
         return view('admin.incoming-emails.index', [
             'queue' => $queue,
             'messages' => $messages,
+            'cards' => $isLearningCenter ? $presenter->cardsFor($messages) : [],
             'counts' => $counts,
             'queues' => IncomingEmailIntakeQueue::cases(),
+            'isLearningCenter' => $isLearningCenter,
+            'assignableUsers' => $assignmentService->reassignableAdmins(),
+            'learningScopes' => IncomingEmailLearningScope::cases(),
+            'operatorClassifications' => IncomingEmailOperatorClassification::cases(),
+            'importanceOptions' => IncomingEmailImportance::cases(),
+            'ignoreActions' => IncomingEmailIgnoreLearningAction::cases(),
         ]);
+    }
+
+    public function applyLearning(
+        Request $request,
+        IncomingEmailLearningActionService $learningActions,
+    ): RedirectResponse {
+        $this->authorizeEmailAdmin($request);
+
+        $action = (string) $request->input('action');
+
+        $validated = $request->validate([
+            'action' => ['required', Rule::in(['assign', 'classification', 'importance', 'ignore'])],
+            'message_ids' => ['required', 'array', 'min:1'],
+            'message_ids.*' => ['integer', 'distinct'],
+            'scope' => ['required', Rule::enum(IncomingEmailLearningScope::class)],
+            'assignee_user_id' => [
+                Rule::requiredIf($action === 'assign'),
+                'nullable',
+                'integer',
+                'exists:users,id',
+            ],
+            'classification' => [
+                Rule::requiredIf($action === 'classification'),
+                'nullable',
+                Rule::enum(IncomingEmailOperatorClassification::class),
+            ],
+            'importance' => [
+                Rule::requiredIf($action === 'importance'),
+                'nullable',
+                Rule::enum(IncomingEmailImportance::class),
+            ],
+            'ignore_action' => [
+                Rule::requiredIf($action === 'ignore'),
+                'nullable',
+                Rule::enum(IncomingEmailIgnoreLearningAction::class),
+            ],
+        ]);
+
+        $scope = IncomingEmailLearningScope::from($validated['scope']);
+        $messageIds = array_map('intval', $validated['message_ids']);
+        $actor = $request->user();
+
+        $result = match ($validated['action']) {
+            'assign' => $learningActions->applyAssign(
+                messageIds: $messageIds,
+                assigneeUserId: (int) $validated['assignee_user_id'],
+                scope: $scope,
+                actor: $actor,
+            ),
+            'classification' => $learningActions->applyClassification(
+                messageIds: $messageIds,
+                classification: IncomingEmailOperatorClassification::from((string) $validated['classification']),
+                scope: $scope,
+                actor: $actor,
+            ),
+            'importance' => $learningActions->applyImportance(
+                messageIds: $messageIds,
+                importance: IncomingEmailImportance::from((string) $validated['importance']),
+                scope: $scope,
+                actor: $actor,
+            ),
+            'ignore' => $learningActions->applyIgnore(
+                messageIds: $messageIds,
+                ignoreAction: IncomingEmailIgnoreLearningAction::from((string) $validated['ignore_action']),
+                scope: $scope,
+                actor: $actor,
+            ),
+        };
+
+        return redirect()
+            ->route('admin.incoming-emails.index', [
+                'queue' => IncomingEmailIntakeQueue::NeedsHuman->value,
+            ])
+            ->with('status', sprintf(
+                'Applied to %d email(s). Saved %d learning rule(s).',
+                $result['applied'],
+                $result['rules_saved'],
+            ));
     }
 
     private function authorizeEmailAdmin(Request $request): void
