@@ -15,7 +15,7 @@ enum IncomingEmailIntakeQueue: string
             self::NeedsHuman => 'Needs Human Action',
             self::Promotional => 'Promotional',
             self::Spam => 'Spam',
-            self::Automatic => 'Auto Processed',
+            self::Automatic => 'Completed Automatically',
         };
     }
 
@@ -35,7 +35,7 @@ enum IncomingEmailIntakeQueue: string
             self::NeedsHuman => 'Emails waiting for an operator.',
             self::Promotional => 'Promotional emails ignored automatically.',
             self::Spam => 'Spam detected automatically.',
-            self::Automatic => 'Auto-processed replies and delivery notifications.',
+            self::Automatic => 'Emails completed automatically by IRA (no operator action needed).',
         };
     }
 

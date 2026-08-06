@@ -27,7 +27,7 @@ Email Intake is treated as a **platform service**, monitored from **Administrati
 1. **Today’s Operations** — Received, Processed, Needs Human, New Cases, Linked, Ignored, Failures  
 2. **Processing Pipeline** — compact Received → Filtered → Linked → New Case → Needs Human → Completed (no charts)  
 3. **Case Creation** — Support / Sales / Refund / Vendor / Docs / Unknown (hide zero buckets)  
-4. **Classification** — Support / Sales / Refund / Promotion / Spam / Docs / Auto Processed / Needs Human  
+4. **Classification** — Support / Sales / Refund / Promotion / Spam / Docs / Completed Automatically / Needs Human  
 5. **Assignment Health** — Assigned, Pending, Fallback only when reliable; Ownership Preserved / Assignment Failures / Queue Growing are **not** shown without trusted signals  
 6. **IRA Memory** — Used Today, New Memories, Top Memory, Average Confidence  
 7. **Exceptions** — actionable only (Needs Human, Processing Failure, Fallback Used, Stuck Emails, Gmail sync delay)  

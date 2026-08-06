@@ -4,6 +4,9 @@
 
 - Platform adds an Email Operations section for inbound email health, pipeline, exceptions, and recent activity
 - Email Operations metrics open existing Learning Center, case, and Gmail failure screens — no duplicate tools
+- IRA Learning Center row expand always shows subject and preview, with retry for extra details
+- Working a Spam email (assign, create case, or link) returns it to Needs Review instead of staying in Spam
+- Auto Processed renamed to Completed Automatically for operators, with clearer Handled By / Result columns
 
 ## 4.0.4 — 2026-08-05 — Email Intake, Dashboard Performance & Reliability
 

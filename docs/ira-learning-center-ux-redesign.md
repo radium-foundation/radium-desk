@@ -1,10 +1,62 @@
 # IRA Learning Center UX Redesign
 
-**Date:** 2026-08-06  
-**Type:** Presentation-only  
-**Backend:** unchanged Learning Rules / routing / processing  
+**Date:** 2026-08-06 (UX Polish Sprint same day)  
+**Type:** Presentation-only (+ small Spam recovery workflow)  
+**Backend:** unchanged Learning Rules / routing / processing (except Spam → Needs Review when human works mail)  
 **Canvas:** none  
-**Related:** [docs/ira-learning-center-phase1.md](./ira-learning-center-phase1.md)
+**Related:** [docs/ira-learning-center-phase1.md](./ira-learning-center-phase1.md) · [docs/email-intake-disposition-workflow.md](./email-intake-disposition-workflow.md)
+
+---
+
+## UX Polish Sprint (pre–IRA Memory M3)
+
+No AI / routing architecture changes.
+
+### Row expansion
+
+- Expand always shows **Subject** + **Preview** from the stored snippet (`data-subject` / `data-preview`).
+- Preview clamps to **5 lines** with overflow ellipsis.
+- Additional explainability JSON is best-effort; on parse failure show **Unable to load additional details.** + **Retry** (never blank the whole panel).
+- Root cause of blank “Unable to load details”: Blade `{{ e(json) }}` double-escaped quotes (`&amp;quot;`), so `JSON.parse` failed. Encode once via `{{ $json }}`.
+
+### Spam human-work recovery
+
+If an operator Assigns / Teaches / Creates a case / Links a case from Spam:
+
+1. Confirm: *“This email will be removed from Spam and returned to Needs Review.”*
+2. Backend restores `status=needs_review`, clears spam ignore markers, then applies the action.
+3. Human-owned mail never remains in Spam.
+
+### Completed Automatically (operator label)
+
+| Surface | Internal value | Operator label |
+|---------|----------------|----------------|
+| Queue tab | `automatic` | **Completed Automatically** |
+| Disposition | `auto_processed` | **Completed Automatically** |
+| Classification | `automatic` | **Completed Automatically** |
+
+Completed Automatically rows hide Confidence + Suggested Owner; show **Handled By → IRA** and **Result → Completed Automatically** (or **Linked to SC#####** when a service case exists).
+
+### Completed Automatically investigation (production, read-only)
+
+Population = ignored mail with Automatic queue reasons (`auto_responder`, `bounce_or_delivery_subsystem`, `known_system_email`, `own_outbound`) or `own_outbound` / `auto_processed`.
+
+| Metric | Count |
+|--------|------:|
+| Total | **7,676** |
+| Linked to orders | **0** |
+| Linked to service cases | **0** |
+| By ignore_reason: known_system_email | 6,273 |
+| By ignore_reason: auto_responder | 1,360 |
+| By ignore_reason: own_outbound | 36 |
+| By ignore_reason: bounce_or_delivery_subsystem | 7 |
+| Subject Re:/Fwd: (thread replies est.) | 388 |
+| Order-confirmation-like subjects (est.) | 327 |
+| Internal (@radiumbox / own_outbound) est. | 41 |
+| Duplicate-subject rows (sum of subjects with count>1) | 4,948 |
+| known_system subjects with help/issue/problem/complaint (possible wrongly completed est.) | 209 |
+
+Top duplicate subjects are mostly vendor/system notifications (refunds, Delhivery, ASIN warnings), not customer support threads. No behaviour changed from this investigation.
 
 ---
 
@@ -78,7 +130,7 @@ Live UI: `/admin/incoming-emails?queue=needs_human`
 IRA Learning Center
 Review-and-teach workspace for inbound email — not a Gmail inbox.
 
-( Needs Human 12 )  ( Promotions 26 )  ( Spam 8 )  ( Auto Processed 43 )
+( Needs Human 12 )  ( Promotions 26 )  ( Spam 8 )  ( Completed Automatically 43 )
 
 Needs Human                          12 shown
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -125,7 +177,7 @@ UI action `Move To` maps to existing `classification` API values:
 |---------|----------------------------|
 | Promotions | `promotion` |
 | Spam | `spam` |
-| Auto Processed | `automatic` |
+| Completed Automatically | `automatic` |
 
 Learning Scope still applies (teach IRA on move).
 
@@ -139,21 +191,21 @@ Operator-facing classification option for business-document mail (invoice, PO, q
 
 - Dropdown value: `docs`
 - Stored classification: `docs` (string column; no schema migration)
-- Does **not** auto-ignore (unlike Promotion / Spam / Auto Processed)
+- Does **not** auto-ignore (unlike Promotion / Spam / Completed Automatically)
 - No document intelligence in this phase — teach/label only
 
-### Auto Processed
+### Completed Automatically
 
-Every operator-facing “Automatic” label is **Auto Processed**.
+Every operator-facing “Automatic” label is **Completed Automatically** (was “Auto Processed”).
 
 | Surface | Internal value | Label |
 |---------|----------------|-------|
-| Classification dropdown | `automatic` | Auto Processed |
-| Move To | `automatic` | Auto Processed |
-| Queue tab | `automatic` | Auto Processed |
-| Dashboard KPI hover ignored row | `automatic` | Auto Processed |
+| Classification dropdown | `automatic` | Completed Automatically |
+| Disposition | `auto_processed` | Completed Automatically |
+| Queue tab | `automatic` | Completed Automatically |
+| Dashboard KPI hover ignored row | `automatic` | Completed Automatically |
 
-APIs, enums case names, and routing keys stay `automatic`.
+APIs, enums case names, and routing keys stay `automatic` / `auto_processed`.
 
 ### Compact dropdowns
 

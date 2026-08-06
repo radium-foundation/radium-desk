@@ -54,16 +54,32 @@
         @include('admin.incoming-emails.partials.learning-toolbar')
 
         @if($cards === [])
-            <div class="ira-lc__empty">No emails in this queue.</div>
+            <div class="ira-lc__empty">
+                @if($queue === \App\Enums\IncomingEmailIntakeQueue::NeedsHuman)
+                    Nothing waiting for a human decision.
+                @elseif($queue === \App\Enums\IncomingEmailIntakeQueue::Automatic)
+                    No emails completed automatically in this view.
+                @elseif($queue === \App\Enums\IncomingEmailIntakeQueue::Spam)
+                    Spam queue is clear.
+                @else
+                    No emails in this queue.
+                @endif
+            </div>
         @else
             <div class="ira-lc-list" data-ira-list>
                 <div class="ira-lc-list__head">
                     <div class="ira-lc-row__check"></div>
                     <div>Sender</div>
                     <div>Subject</div>
-                    <div>IRA Suggestion</div>
-                    <div>Confidence</div>
-                    <div>Suggested Owner</div>
+                    @if($queue === \App\Enums\IncomingEmailIntakeQueue::Automatic)
+                        <div>Result</div>
+                        <div>Handled By</div>
+                        <div></div>
+                    @else
+                        <div>IRA Suggestion</div>
+                        <div>Confidence</div>
+                        <div>Suggested Owner</div>
+                    @endif
                     <div>Received</div>
                     <div></div>
                 </div>

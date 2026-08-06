@@ -42,12 +42,16 @@ Completed
 | **Ignore** | Ignore once / Always ignore sender / Always ignore domain | Yes → `ignored` |
 | **Spam** | Mark spam + ignore | Yes → `ignored` |
 | **Promotion** | Mark promotional + ignore | Yes → `ignored` |
-| **Auto Processed** | Park as auto-handled ignore | Yes → `ignored` |
+| **Completed Automatically** (`auto_processed`) | Park as auto-handled ignore | Yes → `ignored` |
 | **Keep Pending** | Reason required; stays in queue | **No** — only deliberate pending |
 
 ### Docs
 
-Docs remains a **classification only**. It is never a final disposition. Operator must still Create Case, Link Case, Ignore, Spam, Promotion, Auto Processed, or Keep Pending.
+Docs remains a **classification only**. It is never a final disposition. Operator must still Create Case, Link Case, Ignore, Spam, Promotion, Completed Automatically, or Keep Pending.
+
+### Spam recovery
+
+Assign / Create Case / Link Case from the Spam queue restores the message to **Needs Review** first (after operator confirmation). Human-owned mail must not remain in Spam.
 
 ---
 

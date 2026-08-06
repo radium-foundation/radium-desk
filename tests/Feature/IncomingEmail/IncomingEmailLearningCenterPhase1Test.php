@@ -84,11 +84,46 @@ class IncomingEmailLearningCenterPhase1Test extends TestCase
         $this->assertStringContainsString('Confidence', $html);
         $this->assertStringContainsString('Suggested Owner', $html);
         $this->assertStringContainsString('data-ira-row', $html);
+        $this->assertStringContainsString('data-subject=', $html);
+        $this->assertStringContainsString('data-preview=', $html);
         $this->assertStringContainsString('Unknown Customer', $html);
         $this->assertStringContainsString('data-expand-json', $html);
+        $this->assertStringContainsString('Looking for pricing', $html);
         $this->assertStringNotContainsString('needs_review', $html);
         $this->assertStringNotContainsString('unknown_customer', $html);
         $this->assertStringNotContainsString('ira-learning-card__actions', $html);
+        $this->assertStringContainsString('Completed Automatically', $html);
+    }
+
+    public function test_completed_automatically_queue_hides_confidence_and_owner(): void
+    {
+        $admin = $this->createAdmin('auto-ui@test.com');
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'auto-ui-1',
+            'from_email' => 'noreply@shop.com',
+            'subject' => 'Order shipped',
+            'preview' => 'Your package is on the way.',
+            'status' => IncomingEmailMessageStatus::Ignored,
+            'classification' => IncomingEmailClassification::OwnOutbound,
+            'ignore_reason' => 'auto_responder',
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        $html = (string) $this->actingAs($admin)
+            ->get(route('admin.incoming-emails.index', ['queue' => IncomingEmailIntakeQueue::Automatic->value]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Completed Automatically', $html);
+        $this->assertStringContainsString('Handled By', $html);
+        $this->assertStringContainsString('ira-lc-row__handled', $html);
+        $this->assertMatchesRegularExpression('/ira-lc-row__handled[^>]*>\s*IRA\s*</', $html);
+        $this->assertStringNotContainsString('Suggested Owner', $html);
+        $this->assertStringNotContainsString('>Confidence<', $html);
     }
 
     public function test_operator_assign_creates_sender_learning_rule(): void

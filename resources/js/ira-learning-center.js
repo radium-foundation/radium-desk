@@ -89,47 +89,105 @@ function escapeHtml(value) {
         .replace(/"/g, '&quot;');
 }
 
-function renderExpand(container, data) {
+function rowSubject(row) {
+    return row.getAttribute('data-subject') || 'No subject';
+}
+
+function rowPreview(row) {
+    const preview = row.getAttribute('data-preview');
+    if (preview && preview.trim() !== '') {
+        return preview;
+    }
+
+    return 'No preview available.';
+}
+
+function renderExpandBasics(container, subject, preview) {
+    container.innerHTML = `
+        <div class="ira-lc-expand">
+            <div class="ira-lc-expand__basics">
+                <div>
+                    <div class="ira-lc-expand__label">Subject</div>
+                    <div class="ira-lc-expand__value">${escapeHtml(subject)}</div>
+                </div>
+                <div>
+                    <div class="ira-lc-expand__label">Preview</div>
+                    <div class="ira-lc-expand__preview">${escapeHtml(preview)}</div>
+                </div>
+            </div>
+            <div class="ira-lc-expand__details" data-ira-expand-details></div>
+        </div>
+    `;
+}
+
+function renderExpandDetails(detailsEl, data) {
     const explanation = data.explanation || {};
     const examples = Array.isArray(explanation.examples) ? explanation.examples : [];
 
-    container.innerHTML = `
-        <div class="ira-lc-expand">
-            <div class="ira-lc-expand__grid">
-                <div>
-                    <div class="ira-lc-expand__label">Full preview</div>
-                    <div class="ira-lc-expand__value">${escapeHtml(data.preview)}</div>
-                </div>
-                <div>
-                    <div class="ira-lc-expand__label">Existing customer</div>
-                    <div class="ira-lc-expand__value">${escapeHtml(data.customer_label)}</div>
-                </div>
-                <div>
-                    <div class="ira-lc-expand__label">Existing Service Case</div>
-                    <div class="ira-lc-expand__value">${escapeHtml(data.service_case)}</div>
-                </div>
-                <div>
-                    <div class="ira-lc-expand__label">Matched Learning Rule</div>
-                    <div class="ira-lc-expand__value">${escapeHtml(data.matched_learning_rule)}</div>
-                </div>
-                <div>
-                    <div class="ira-lc-expand__label">Previous confirmations</div>
-                    <div class="ira-lc-expand__value">${escapeHtml(data.previous_confirmations)}</div>
-                </div>
+    detailsEl.innerHTML = `
+        <div class="ira-lc-expand__grid">
+            <div>
+                <div class="ira-lc-expand__label">Existing customer</div>
+                <div class="ira-lc-expand__value">${escapeHtml(data.customer_label || '—')}</div>
             </div>
-            <div class="ira-lc-expand__why">
-                <div class="ira-lc-expand__label">Explainability</div>
-                <div class="ira-lc-expand__value"><strong>Why:</strong> ${escapeHtml(explanation.why || data.why || '—')}</div>
-                ${examples.length ? `<ul class="ira-lc-expand__examples">${examples.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
-                <div class="ira-lc-expand__meta">
-                    <span>Matched sender: ${escapeHtml(explanation.matched_sender || '—')}</span>
-                    <span>Matched keyword: ${escapeHtml(explanation.matched_keyword || '—')}</span>
-                    <span>Previous confirmation: ${explanation.previous_operator_confirmation ? 'Yes' : 'No'}</span>
-                    <span>Rule confidence: ${explanation.rule_confidence != null ? escapeHtml(explanation.rule_confidence) + '%' : '—'}</span>
-                </div>
+            <div>
+                <div class="ira-lc-expand__label">Existing Service Case</div>
+                <div class="ira-lc-expand__value">${escapeHtml(data.service_case || '—')}</div>
+            </div>
+            <div>
+                <div class="ira-lc-expand__label">Matched Learning Rule</div>
+                <div class="ira-lc-expand__value">${escapeHtml(data.matched_learning_rule || '—')}</div>
+            </div>
+            <div>
+                <div class="ira-lc-expand__label">Previous confirmations</div>
+                <div class="ira-lc-expand__value">${escapeHtml(data.previous_confirmations || '—')}</div>
+            </div>
+        </div>
+        <div class="ira-lc-expand__why">
+            <div class="ira-lc-expand__label">Explainability</div>
+            <div class="ira-lc-expand__value"><strong>Why:</strong> ${escapeHtml(explanation.why || data.why || '—')}</div>
+            ${examples.length ? `<ul class="ira-lc-expand__examples">${examples.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : ''}
+            <div class="ira-lc-expand__meta">
+                <span>Matched sender: ${escapeHtml(explanation.matched_sender || '—')}</span>
+                <span>Matched keyword: ${escapeHtml(explanation.matched_keyword || '—')}</span>
+                <span>Previous confirmation: ${explanation.previous_operator_confirmation ? 'Yes' : 'No'}</span>
+                <span>Rule confidence: ${explanation.rule_confidence != null ? escapeHtml(explanation.rule_confidence) + '%' : '—'}</span>
             </div>
         </div>
     `;
+}
+
+function renderExpandDetailsError(detailsEl) {
+    detailsEl.innerHTML = `
+        <div class="ira-lc-expand__error">
+            <span>Unable to load additional details.</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-ira-expand-retry>Retry</button>
+        </div>
+    `;
+}
+
+function loadExpandDetails(row, expand) {
+    const detailsEl = expand.querySelector('[data-ira-expand-details]');
+    if (!detailsEl) return;
+
+    const raw = expand.getAttribute('data-expand-json');
+    if (!raw) {
+        if (expand.dataset.detailsOk === '1') {
+            return;
+        }
+        renderExpandDetailsError(detailsEl);
+        return;
+    }
+
+    try {
+        const data = JSON.parse(raw);
+        renderExpandDetails(detailsEl, data || {});
+        expand.dataset.detailsOk = '1';
+        expand.removeAttribute('data-expand-json');
+    } catch (e) {
+        expand.dataset.detailsOk = '0';
+        renderExpandDetailsError(detailsEl);
+    }
 }
 
 function toggleRow(row) {
@@ -142,19 +200,35 @@ function toggleRow(row) {
     expand.hidden = !opening;
     toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
 
-    if (opening && !expand.dataset.rendered) {
-        try {
-            const data = JSON.parse(expand.getAttribute('data-expand-json') || '{}');
-            renderExpand(expand, data);
-            expand.dataset.rendered = '1';
-            expand.removeAttribute('data-expand-json');
-        } catch (e) {
-            expand.textContent = 'Unable to load details.';
-        }
+    if (!opening) {
+        return;
+    }
+
+    if (!expand.dataset.basicsRendered) {
+        renderExpandBasics(expand, rowSubject(row), rowPreview(row));
+        expand.dataset.basicsRendered = '1';
+    }
+
+    if (expand.dataset.detailsOk !== '1') {
+        loadExpandDetails(row, expand);
     }
 }
 
+function confirmSpamRecovery(row) {
+    if (!row?.hasAttribute?.('data-spam-queue')) {
+        return true;
+    }
+
+    return window.confirm(
+        'This email will be removed from Spam and returned to Needs Review.',
+    );
+}
+
 function prepareRowAction(root, row, action) {
+    if (!confirmSpamRecovery(row)) {
+        return;
+    }
+
     root.querySelectorAll('[data-ira-row-select]').forEach((input) => {
         input.checked = input.closest('[data-ira-row]') === row;
     });
@@ -181,6 +255,11 @@ function prepareRowAction(root, row, action) {
 }
 
 function prepareDispositionAction(root, row, disposition) {
+    const workingSpam = ['create_case', 'link_case', 'keep_pending'].includes(disposition);
+    if (workingSpam && !confirmSpamRecovery(row)) {
+        return;
+    }
+
     root.querySelectorAll('[data-ira-row-select]').forEach((input) => {
         input.checked = input.closest('[data-ira-row]') === row;
     });
@@ -403,6 +482,19 @@ function boot(root) {
     });
 
     root.addEventListener('click', (event) => {
+        const retry = event.target.closest('[data-ira-expand-retry]');
+        if (retry) {
+            event.preventDefault();
+            event.stopPropagation();
+            const row = retry.closest('[data-ira-row]');
+            const expand = row?.querySelector('[data-ira-expand]');
+            if (row && expand) {
+                expand.dataset.detailsOk = '0';
+                loadExpandDetails(row, expand);
+            }
+            return;
+        }
+
         if (handleMenuAction(event)) {
             return;
         }
@@ -460,6 +552,16 @@ function boot(root) {
             return;
         }
 
+        if (root.getAttribute('data-current-queue') === 'spam') {
+            const ok = window.confirm(
+                'This email will be removed from Spam and returned to Needs Review.',
+            );
+            if (!ok) {
+                event.preventDefault();
+                return;
+            }
+        }
+
         syncSelection(root);
     });
 
@@ -467,6 +569,16 @@ function boot(root) {
         if (selectedIds(root).length === 0) {
             event.preventDefault();
             return;
+        }
+
+        if (root.getAttribute('data-current-queue') === 'spam') {
+            const ok = window.confirm(
+                'This email will be removed from Spam and returned to Needs Review.',
+            );
+            if (!ok) {
+                event.preventDefault();
+                return;
+            }
         }
 
         syncSelection(root);

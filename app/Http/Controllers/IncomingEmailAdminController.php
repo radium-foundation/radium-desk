@@ -52,7 +52,7 @@ class IncomingEmailAdminController extends Controller
         return view('admin.incoming-emails.index', [
             'queue' => $queue,
             'messages' => $messages,
-            'cards' => $presenter->cardsFor($messages),
+            'cards' => $presenter->cardsFor($messages, $queue),
             'counts' => $counts,
             'queues' => IncomingEmailIntakeQueue::cases(),
             'isLearningCenter' => true,

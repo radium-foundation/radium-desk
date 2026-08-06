@@ -1,7 +1,18 @@
+@php
+    $isCompletedAutomatically = !empty($card['is_completed_automatically']);
+    $isSpamQueue = !empty($card['is_spam_queue']);
+    $expandJson = json_encode(
+        $card['expand'] ?? [],
+        JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
+    );
+@endphp
 <div class="ira-lc-row"
      data-ira-row
      data-message-id="{{ $card['id'] }}"
      data-suggested-assignee="{{ $card['suggested_assignee_user_id'] ?? '' }}"
+     data-subject="{{ e($card['subject'] ?? 'No subject') }}"
+     data-preview="{{ e($card['preview_full'] ?? $card['preview'] ?? '') }}"
+     @if($isSpamQueue) data-spam-queue="1" @endif
      @if(!empty($card['keep_pending'])) data-keep-pending="1" @endif>
     <div class="ira-lc-row__main" data-ira-row-toggle role="button" tabindex="0" aria-expanded="false">
         <div class="ira-lc-row__check" data-ira-stop>
@@ -24,20 +35,27 @@
             <span class="ira-lc-row__secondary">{{ $card['preview'] }}</span>
         </div>
 
-        <div class="ira-lc-row__suggestion" title="{{ $card['reason'] }}">
+        <div class="ira-lc-row__suggestion" title="{{ $isCompletedAutomatically ? ($card['result_label'] ?? '') : ($card['reason'] ?? '') }}">
             {{ $card['ira_decision'] }}
         </div>
 
-        <div class="ira-lc-row__confidence"
-             title="{{ $card['confidence_percent'] }}">
-            <span class="ira-lc-conf ira-lc-conf--{{ strtolower($card['confidence_band']) }}">
-                {{ $card['confidence_band'] }}
-            </span>
-        </div>
+        @if($isCompletedAutomatically)
+            <div class="ira-lc-row__confidence ira-lc-row__handled" title="Handled by IRA">
+                IRA
+            </div>
+            <div class="ira-lc-row__owner" aria-hidden="true"></div>
+        @else
+            <div class="ira-lc-row__confidence"
+                 title="{{ $card['confidence_percent'] }}">
+                <span class="ira-lc-conf ira-lc-conf--{{ strtolower($card['confidence_band']) }}">
+                    {{ $card['confidence_band'] }}
+                </span>
+            </div>
 
-        <div class="ira-lc-row__owner" title="{{ $card['suggested_assignee'] }}">
-            {{ $card['suggested_assignee'] }}
-        </div>
+            <div class="ira-lc-row__owner" title="{{ $card['suggested_assignee'] }}">
+                {{ $card['suggested_assignee'] }}
+            </div>
+        @endif
 
         <div class="ira-lc-row__received" title="{{ $card['received_label'] }}">
             {{ $card['received_label'] }}
@@ -80,7 +98,7 @@
                         <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="promotion">Promotion</button>
                     </li>
                     <li role="none">
-                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="auto_processed">Auto Processed</button>
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="auto_processed">Completed Automatically</button>
                     </li>
                     <li role="none">
                         <button type="button" class="dropdown-item" role="menuitem" data-ira-disp-action="keep_pending">Keep Pending</button>
@@ -112,5 +130,5 @@
     <div class="ira-lc-row__expand"
          data-ira-expand
          hidden
-         data-expand-json="{{ e(json_encode($card['expand'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)) }}"></div>
+         data-expand-json="{{ $expandJson ?: '{}' }}"></div>
 </div>

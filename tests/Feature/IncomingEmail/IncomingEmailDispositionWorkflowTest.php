@@ -274,6 +274,84 @@ class IncomingEmailDispositionWorkflowTest extends TestCase
         $this->assertSame(0, $widgetAfter['needs_attention']);
     }
 
+    public function test_assigning_spam_restores_needs_review(): void
+    {
+        $admin = $this->createAdmin('spam-assign@test.com');
+        $assignee = $this->createAdmin('spam-owner@test.com');
+
+        $message = IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'spam-assign-1',
+            'from_email' => 'junk@example.com',
+            'subject' => 'Cheap pills',
+            'preview' => 'Buy now',
+            'status' => IncomingEmailMessageStatus::Ignored,
+            'classification' => IncomingEmailClassification::Spam,
+            'ignore_reason' => 'spam',
+            'disposition' => IncomingEmailDisposition::Spam,
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.incoming-emails.learning.apply'), [
+                'action' => 'assign',
+                'message_ids' => [$message->id],
+                'assignee_user_id' => $assignee->id,
+                'scope' => IncomingEmailLearningScope::ThisEmail->value,
+                'return_queue' => IncomingEmailIntakeQueue::Spam->value,
+            ])
+            ->assertRedirect();
+
+        $message->refresh();
+        $this->assertSame(IncomingEmailMessageStatus::NeedsReview, $message->status);
+        $this->assertNull($message->ignore_reason);
+        $this->assertSame($assignee->id, $message->learning_owner_user_id);
+        $this->assertSame(IncomingEmailClassification::UnknownCustomer, $message->classification);
+
+        $this->assertTrue(
+            AuditLog::query()
+                ->where('event', 'incoming_email.spam_restored_to_needs_review')
+                ->where('auditable_id', $message->id)
+                ->exists(),
+        );
+    }
+
+    public function test_create_case_from_spam_restores_then_creates(): void
+    {
+        $admin = $this->createAdmin('spam-case@test.com');
+
+        $message = IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'spam-case-1',
+            'from_email' => 'maybe-customer@example.com',
+            'subject' => 'Need help with order',
+            'preview' => 'Please help',
+            'status' => IncomingEmailMessageStatus::Ignored,
+            'classification' => IncomingEmailClassification::Spam,
+            'ignore_reason' => 'spam',
+            'disposition' => IncomingEmailDisposition::Spam,
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->post(route('admin.incoming-emails.disposition.apply'), [
+                'disposition' => IncomingEmailDisposition::CreateCase->value,
+                'message_ids' => [$message->id],
+                'return_queue' => IncomingEmailIntakeQueue::Spam->value,
+            ])
+            ->assertRedirect();
+
+        $message->refresh();
+        $this->assertSame(IncomingEmailMessageStatus::Linked, $message->status);
+        $this->assertSame(IncomingEmailDisposition::CreateCase, $message->disposition);
+        $this->assertNotNull($message->incident_id);
+        $this->assertNotSame(IncomingEmailClassification::Spam, $message->classification);
+    }
+
     private function needsHumanMessage(string $providerId, string $from, string $subject): IncomingEmailMessage
     {
         return IncomingEmailMessage::query()->create([

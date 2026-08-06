@@ -372,7 +372,7 @@ class PlatformEmailOperationsService
             'promotion' => 'Promotion',
             'spam' => 'Spam',
             'docs' => 'Docs',
-            'automatic' => 'Auto Processed',
+            'automatic' => 'Completed Automatically',
         ];
 
         $queueMap = [

@@ -20,7 +20,7 @@ enum IncomingEmailDisposition: string
             self::Ignore => 'Ignore',
             self::Spam => 'Spam',
             self::Promotion => 'Promotion',
-            self::AutoProcessed => 'Auto Processed',
+            self::AutoProcessed => 'Completed Automatically',
             self::KeepPending => 'Keep Pending',
         };
     }

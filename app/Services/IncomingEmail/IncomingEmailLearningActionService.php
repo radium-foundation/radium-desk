@@ -23,6 +23,7 @@ class IncomingEmailLearningActionService
     public function __construct(
         private readonly IncomingEmailLearningRulesService $learningRulesService,
         private readonly IncomingEmailIntakeCounterService $intakeCounterService,
+        private readonly IncomingEmailSpamRecoveryService $spamRecovery,
         private readonly AuditLogService $auditLogService,
     ) {}
 
@@ -50,7 +51,10 @@ class IncomingEmailLearningActionService
             decisionType: IncomingEmailLearningDecisionType::Assign,
             decisionValue: (string) $assignee->id,
             scope: $scope,
-            mutator: function (IncomingEmailMessage $message) use ($assignee): void {
+            mutator: function (IncomingEmailMessage $message) use ($assignee, $actor): void {
+                $this->spamRecovery->restoreToNeedsReview($message, $actor);
+                $message->refresh();
+
                 $message->update([
                     'learning_owner_user_id' => $assignee->id,
                     'suggested_assignee_user_id' => $assignee->id,
@@ -86,9 +90,13 @@ class IncomingEmailLearningActionService
             decisionType: IncomingEmailLearningDecisionType::Classification,
             decisionValue: $classification->value,
             scope: $scope,
-            mutator: function (IncomingEmailMessage $message) use ($classification): void {
+            mutator: function (IncomingEmailMessage $message) use ($classification, $actor): void {
                 // Teaching only — never disposes. Promotion / Spam / Automatic
                 // leave the queue via IncomingEmailDispositionService.
+                // Human teaching on Spam restores Needs Review first.
+                $this->spamRecovery->restoreToNeedsReview($message, $actor);
+                $message->refresh();
+
                 $message->update([
                     'classification' => $classification->toStoredClassification(),
                     'ira_decision' => $classification->label(),
@@ -123,7 +131,10 @@ class IncomingEmailLearningActionService
             decisionType: IncomingEmailLearningDecisionType::Importance,
             decisionValue: $importance->value,
             scope: $scope,
-            mutator: function (IncomingEmailMessage $message) use ($importance): void {
+            mutator: function (IncomingEmailMessage $message) use ($importance, $actor): void {
+                $this->spamRecovery->restoreToNeedsReview($message, $actor);
+                $message->refresh();
+
                 $message->update([
                     'importance' => $importance,
                     'ira_decision' => $importance->label().' importance',

@@ -39,6 +39,7 @@ class IncomingEmailDispositionService
         private readonly IncomingEmailServiceCaseCategoryMapper $categoryMapper,
         private readonly IncomingEmailLearningRulesService $learningRulesService,
         private readonly IncomingEmailIntakeCounterService $intakeCounterService,
+        private readonly IncomingEmailSpamRecoveryService $spamRecovery,
         private readonly AuditLogService $auditLogService,
     ) {}
 
@@ -51,7 +52,7 @@ class IncomingEmailDispositionService
         User $actor,
         ?int $assigneeUserId = null,
     ): array {
-        $messages = $this->pendingMessages($messageIds);
+        $messages = $this->workableMessages($messageIds, $actor);
         $cases = [];
 
         foreach ($messages as $message) {
@@ -132,7 +133,7 @@ class IncomingEmailDispositionService
         ?int $assigneeUserId = null,
     ): array {
         $incident = $this->resolveIncidentByReference($caseReference);
-        $messages = $this->pendingMessages($messageIds);
+        $messages = $this->workableMessages($messageIds, $actor);
         $cases = [];
         $assignee = $assigneeUserId !== null
             ? User::query()->whereKey($assigneeUserId)->where('is_active', true)->first()
@@ -478,6 +479,45 @@ class IncomingEmailDispositionService
         }
 
         return $incident;
+    }
+
+    /**
+     * Needs Human messages, plus Spam-queue ignored messages restored first.
+     *
+     * @param  list<int>  $messageIds
+     * @return Collection<int, IncomingEmailMessage>
+     */
+    private function workableMessages(array $messageIds, User $actor): Collection
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $messageIds))));
+
+        if ($ids === []) {
+            throw ValidationException::withMessages([
+                'message_ids' => 'Select at least one email.',
+            ]);
+        }
+
+        $candidates = IncomingEmailMessage::query()
+            ->whereIn('id', $ids)
+            ->where(function ($query): void {
+                $query->whereIn('status', [
+                    IncomingEmailMessageStatus::NeedsReview,
+                    IncomingEmailMessageStatus::Failed,
+                ])->orWhere(function ($spam): void {
+                    $spam->where('status', IncomingEmailMessageStatus::Ignored)
+                        ->where(function ($inner): void {
+                            $inner->where('classification', IncomingEmailClassification::Spam)
+                                ->orWhereIn('ignore_reason', ['spam', 'trash']);
+                        });
+                });
+            })
+            ->get();
+
+        foreach ($candidates as $message) {
+            $this->spamRecovery->restoreToNeedsReview($message, $actor);
+        }
+
+        return $this->pendingMessages($ids);
     }
 
     /**

@@ -2,8 +2,10 @@
 
 namespace App\Services\IncomingEmail;
 
+use App\Enums\IncomingEmailClassification;
 use App\Enums\IncomingEmailDisposition;
 use App\Enums\IncomingEmailImportance;
+use App\Enums\IncomingEmailIntakeQueue;
 use App\Enums\IncomingEmailKeepPendingReason;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Enums\IncomingEmailOperatorClassification;
@@ -26,7 +28,7 @@ class IncomingEmailLearningCenterPresenter
      * @param  Collection<int, IncomingEmailMessage>  $messages
      * @return list<array<string, mixed>>
      */
-    public function cardsFor(Collection $messages): array
+    public function cardsFor(Collection $messages, ?IncomingEmailIntakeQueue $queue = null): array
     {
         $messages->loadMissing([
             'order:id,customer_name,customer_email',
@@ -34,10 +36,11 @@ class IncomingEmailLearningCenterPresenter
             'learningOwner:id,name,first_name,last_name',
             'suggestedAssignee:id,name,first_name,last_name',
             'matchedLearningRule.creator:id,name,first_name,last_name',
+            'disposedBy:id,name,first_name,last_name',
         ]);
 
         return $messages
-            ->map(fn (IncomingEmailMessage $message): array => $this->cardFor($message))
+            ->map(fn (IncomingEmailMessage $message): array => $this->cardFor($message, $queue))
             ->values()
             ->all();
     }
@@ -45,27 +48,44 @@ class IncomingEmailLearningCenterPresenter
     /**
      * @return array<string, mixed>
      */
-    public function cardFor(IncomingEmailMessage $message): array
+    public function cardFor(IncomingEmailMessage $message, ?IncomingEmailIntakeQueue $queue = null): array
     {
         $suggestion = $this->buildSuggestion($message);
         $fullPreview = $this->fullPreview($message->displayPreview());
         $confidence = (int) $suggestion['confidence'];
         $confidenceBand = $this->confidenceBand($confidence);
         $rule = $message->matchedLearningRule;
+        $subject = filled($message->subject) ? (string) $message->subject : 'No subject';
+        $isCompletedAutomatically = $queue === IncomingEmailIntakeQueue::Automatic;
+        $resultLabel = $this->completedAutomaticallyResult($message);
 
         return [
             'id' => $message->id,
+            'queue' => $queue?->value,
+            'is_completed_automatically' => $isCompletedAutomatically,
+            'is_spam_queue' => $queue === IncomingEmailIntakeQueue::Spam
+                || (
+                    $message->status === IncomingEmailMessageStatus::Ignored
+                    && (
+                        $message->classification === IncomingEmailClassification::Spam
+                        || in_array((string) $message->ignore_reason, ['spam', 'trash'], true)
+                    )
+                ),
             'sender' => $this->senderLabel($message),
             'sender_email' => $message->from_email,
             'customer' => $this->customerLabel($message),
-            'subject' => filled($message->subject) ? (string) $message->subject : 'No subject',
+            'subject' => $subject,
             'preview' => Str::limit($fullPreview, 90),
             'preview_full' => $fullPreview,
             'received_at' => $message->received_at,
             'received_label' => $message->received_at
                 ? display_app_datetime($message->received_at)
                 : '—',
-            'ira_decision' => $suggestion['decision'],
+            'ira_decision' => $isCompletedAutomatically
+                ? $resultLabel
+                : $suggestion['decision'],
+            'handled_by' => $isCompletedAutomatically ? 'IRA' : null,
+            'result_label' => $isCompletedAutomatically ? $resultLabel : null,
             'confidence' => $confidence,
             'confidence_band' => $confidenceBand,
             'confidence_label' => $confidenceBand,
@@ -88,6 +108,7 @@ class IncomingEmailLearningCenterPresenter
             'keep_pending' => $message->disposition === IncomingEmailDisposition::KeepPending,
             'keep_pending_label' => $this->keepPendingLabel($message),
             'expand' => [
+                'subject' => $subject,
                 'preview' => $fullPreview,
                 'why' => $suggestion['reason'],
                 'customer_label' => $this->customerLabel($message),
@@ -102,6 +123,21 @@ class IncomingEmailLearningCenterPresenter
                 'keep_pending_reason' => $this->keepPendingLabel($message),
             ],
         ];
+    }
+
+    private function completedAutomaticallyResult(IncomingEmailMessage $message): string
+    {
+        $incident = $message->incident;
+
+        if ($incident !== null) {
+            $number = filled($incident->reference_no)
+                ? (string) $incident->reference_no
+                : 'SC'.$incident->id;
+
+            return 'Linked to '.$number;
+        }
+
+        return 'Completed Automatically';
     }
 
     private function keepPendingLabel(IncomingEmailMessage $message): ?string
@@ -203,7 +239,7 @@ class IncomingEmailLearningCenterPresenter
             $operatorClass === IncomingEmailOperatorClassification::Docs => 'Docs',
             $operatorClass === IncomingEmailOperatorClassification::Promotion => 'Promotion',
             $operatorClass === IncomingEmailOperatorClassification::Spam => 'Spam',
-            $operatorClass === IncomingEmailOperatorClassification::Automatic => 'Auto Processed',
+            $operatorClass === IncomingEmailOperatorClassification::Automatic => 'Completed Automatically',
             $message->order_id !== null => 'Customer email needs routing',
             default => 'Needs operator decision',
         };
@@ -382,12 +418,13 @@ class IncomingEmailLearningCenterPresenter
 
     private function fullPreview(?string $preview): string
     {
-        $text = trim(preg_replace('/\s+/', ' ', (string) $preview) ?? '');
+        $text = trim((string) preg_replace("/[ \t]+/u", ' ', (string) $preview));
+        $text = trim((string) preg_replace("/\n{3,}/u", "\n\n", $text));
 
         if ($text === '') {
             return 'No preview available.';
         }
 
-        return Str::limit($text, 600);
+        return Str::limit($text, 1200);
     }
 }

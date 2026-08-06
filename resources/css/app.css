@@ -20800,6 +20800,34 @@ body.wm360-drawer-open {
     border-top: 1px solid rgba(0, 0, 0, 0.04);
 }
 
+.ira-lc-expand__basics {
+    display: grid;
+    gap: 0.65rem;
+    margin-bottom: 0.75rem;
+}
+
+.ira-lc-expand__preview {
+    font-size: 0.8125rem;
+    color: #343a40;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.ira-lc-expand__error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: #6c757d;
+    padding-top: 0.35rem;
+}
+
 .ira-lc-expand__grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -20820,6 +20848,12 @@ body.wm360-drawer-open {
     font-size: 0.8125rem;
     color: #343a40;
     line-height: 1.4;
+}
+
+.ira-lc-row__handled {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #495057;
 }
 
 .ira-lc-expand__why {

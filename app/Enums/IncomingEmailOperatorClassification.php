@@ -27,7 +27,7 @@ enum IncomingEmailOperatorClassification: string
             self::Docs => 'Docs',
             self::Promotion => 'Promotion',
             self::Spam => 'Spam',
-            self::Automatic => 'Auto Processed',
+            self::Automatic => 'Completed Automatically',
         };
     }
 

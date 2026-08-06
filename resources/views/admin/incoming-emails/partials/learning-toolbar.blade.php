@@ -69,8 +69,11 @@
     </div>
 </form>
 
-{{-- Disposition toolbar — required to leave Needs Human (except Keep Pending) --}}
-@if($queue === \App\Enums\IncomingEmailIntakeQueue::NeedsHuman)
+{{-- Disposition toolbar — Needs Human full set; Spam can create/link (restores to Needs Review) --}}
+@if(in_array($queue, [\App\Enums\IncomingEmailIntakeQueue::NeedsHuman, \App\Enums\IncomingEmailIntakeQueue::Spam], true))
+@php
+    $isSpamQueueToolbar = $queue === \App\Enums\IncomingEmailIntakeQueue::Spam;
+@endphp
 <form method="POST"
       action="{{ route('admin.incoming-emails.disposition.apply') }}"
       class="ira-lc-toolbar ira-lc-toolbar--dispose"
@@ -82,20 +85,24 @@
     <div data-ira-disposition-inputs></div>
 
     <div class="ira-lc-toolbar__inner">
-        <span class="ira-lc-toolbar__mode ira-lc-toolbar__mode--dispose">Dispose</span>
+        <span class="ira-lc-toolbar__mode ira-lc-toolbar__mode--dispose">
+            {{ $isSpamQueueToolbar ? 'Work' : 'Dispose' }}
+        </span>
 
         <select name="disposition"
                 class="form-select form-select-sm ira-lc-toolbar__select"
                 data-ira-disposition-action
                 required>
-            <option value="">Disposition…</option>
+            <option value="">{{ $isSpamQueueToolbar ? 'Action…' : 'Disposition…' }}</option>
             <option value="create_case">Create Service Case</option>
             <option value="link_case">Link Existing Case</option>
-            <option value="ignore">Ignore</option>
-            <option value="spam">Spam</option>
-            <option value="promotion">Promotion</option>
-            <option value="auto_processed">Auto Processed</option>
-            <option value="keep_pending">Keep Pending</option>
+            @unless($isSpamQueueToolbar)
+                <option value="ignore">Ignore</option>
+                <option value="spam">Spam</option>
+                <option value="promotion">Promotion</option>
+                <option value="auto_processed">Completed Automatically</option>
+                <option value="keep_pending">Keep Pending</option>
+            @endunless
         </select>
 
         <select name="assignee_user_id"
@@ -117,29 +124,31 @@
                hidden
                disabled>
 
-        <select name="ignore_variant"
-                class="form-select form-select-sm ira-lc-toolbar__select"
-                data-ira-disp-panel="ignore"
-                hidden
-                disabled>
-            @foreach($ignoreDispositionVariants as $option)
-                <option value="{{ $option->value }}">{{ $option->label() }}</option>
-            @endforeach
-        </select>
+        @unless($isSpamQueueToolbar)
+            <select name="ignore_variant"
+                    class="form-select form-select-sm ira-lc-toolbar__select"
+                    data-ira-disp-panel="ignore"
+                    hidden
+                    disabled>
+                @foreach($ignoreDispositionVariants as $option)
+                    <option value="{{ $option->value }}">{{ $option->label() }}</option>
+                @endforeach
+            </select>
 
-        <select name="keep_pending_reason"
-                class="form-select form-select-sm ira-lc-toolbar__select"
-                data-ira-disp-panel="keep_pending"
-                hidden
-                disabled>
-            <option value="">Reason required…</option>
-            @foreach($keepPendingReasons as $option)
-                <option value="{{ $option->value }}">{{ $option->label() }}</option>
-            @endforeach
-        </select>
+            <select name="keep_pending_reason"
+                    class="form-select form-select-sm ira-lc-toolbar__select"
+                    data-ira-disp-panel="keep_pending"
+                    hidden
+                    disabled>
+                <option value="">Reason required…</option>
+                @foreach($keepPendingReasons as $option)
+                    <option value="{{ $option->value }}">{{ $option->label() }}</option>
+                @endforeach
+            </select>
+        @endunless
 
         <button type="submit" class="btn btn-sm btn-dark ira-lc-toolbar__apply">
-            Complete
+            {{ $isSpamQueueToolbar ? 'Continue' : 'Complete' }}
         </button>
     </div>
 </form>
