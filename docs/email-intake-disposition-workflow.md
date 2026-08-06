@@ -165,12 +165,22 @@ Row ⋯ menu exposes both teaching and disposition actions.
 
 ---
 
+## Permissions
+
+| Action | Permission |
+|--------|------------|
+| View Learning Center | `email-intake.view` |
+| Teach / disposition POST | `email-intake.manage` |
+
+Default grants: Admin, Operations Admin, Support Agent, Support Specialist, Customer Coordinator, Super Admin. Authorization checks permissions only (never role names).
+
 ## Routes
 
-| Method | Route | Name |
-|--------|-------|------|
-| POST | `/admin/incoming-emails/learning` | `admin.incoming-emails.learning.apply` |
-| POST | `/admin/incoming-emails/disposition` | `admin.incoming-emails.disposition.apply` |
+| Method | Route | Name | Permission |
+|--------|-------|------|------------|
+| GET | `/admin/incoming-emails` | `admin.incoming-emails.index` | `email-intake.view` |
+| POST | `/admin/incoming-emails/learning` | `admin.incoming-emails.learning.apply` | `email-intake.manage` |
+| POST | `/admin/incoming-emails/disposition` | `admin.incoming-emails.disposition.apply` | `email-intake.manage` |
 
 ---
 

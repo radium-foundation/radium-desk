@@ -12,6 +12,7 @@ use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\Operations\OperationsRoleService;
 use App\Support\Finance\FinanceAccess;
+use App\Support\IncomingEmail\IncomingEmailAccess;
 use App\Support\Workforce\AttendanceManagementAccess;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Http\Request;
@@ -80,6 +81,15 @@ class NavigationContextResolver
                 : null,
             ($user?->can(RolePermissionSeeder::PERMISSION_CASHBOOK_VIEW) ?? false)
                 ? $this->sidebarItem('operations.cash_book', 'Cash Book', 'bi-journal-text', route('cash-book.index'), $context)
+                : null,
+            IncomingEmailAccess::allowsView($user)
+                ? $this->sidebarItem(
+                    'operations.learning_center',
+                    'Learning Center',
+                    'bi-mailbox',
+                    route('admin.incoming-emails.index'),
+                    $context,
+                )
                 : null,
         ]));
 
@@ -321,6 +331,10 @@ class NavigationContextResolver
 
         if ($request->routeIs('cash-book.*')) {
             return [NavigationMenu::Operations, 'operations.cash_book', null];
+        }
+
+        if ($request->routeIs('admin.incoming-emails.*')) {
+            return [NavigationMenu::Operations, 'operations.learning_center', null];
         }
 
         if ($request->routeIs('my-workforce.*')) {

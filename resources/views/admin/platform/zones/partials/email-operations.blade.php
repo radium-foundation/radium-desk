@@ -280,9 +280,25 @@
         </section>
     @endif
 
-    @if(is_array($links) && $links !== [])
+    @php
+        $canViewLearningCenter = \App\Support\IncomingEmail\IncomingEmailAccess::allowsView(auth()->user());
+        $visibleLinks = collect(is_array($links) ? $links : [])
+            ->filter(function ($link) use ($canViewLearningCenter): bool {
+                if (! is_array($link)) {
+                    return false;
+                }
+
+                $url = (string) ($link['url'] ?? '');
+                $isLearningCenterLink = str_contains($url, '/admin/incoming-emails');
+
+                return ! $isLearningCenterLink || $canViewLearningCenter;
+            })
+            ->values()
+            ->all();
+    @endphp
+    @if($visibleLinks !== [])
         <div class="d-flex flex-wrap gap-2 mt-3">
-            @foreach($links as $link)
+            @foreach($visibleLinks as $link)
                 <a href="{{ $link['url'] ?? '#' }}" class="btn btn-sm btn-outline-secondary">
                     {{ $link['label'] ?? 'Open' }}
                 </a>

@@ -86,6 +86,8 @@ class AdministrationHomeTest extends TestCase
 
     public function test_administration_workspace_tabs_link_to_existing_routes(): void
     {
+        config(['inbound_email.enabled' => true]);
+
         $admin = $this->createAdmin();
 
         $response = $this->actingAs($admin)->get(route('admin.administration.index'));
@@ -93,6 +95,8 @@ class AdministrationHomeTest extends TestCase
         $response->assertOk();
         $response->assertSee(route('users.index'), false);
         $response->assertSee(route('admin.system-settings.index'), false);
+        $response->assertSee(route('admin.incoming-emails.index'), false);
+        $response->assertSee('Learning Center', false);
         $response->assertSee(route('admin.workforce.holidays.index'), false);
     }
 

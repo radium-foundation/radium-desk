@@ -1,4 +1,14 @@
+@php
+    use App\Models\SystemSetting;
+    use Illuminate\Support\Facades\Gate;
+
+    $canManageEmailIntake = $canManageEmailIntake ?? false;
+    $canViewGmailAdmin = Gate::check('update', SystemSetting::class);
+@endphp
+
 <div class="ira-lc-page">
+    @include('navigation.administration-workspace-nav', ['active' => 'learning_center'])
+
     <div class="ira-lc-page__intro">
         <h1 class="ira-lc-page__title">IRA Learning Center</h1>
         <p class="ira-lc-page__lede">Teach IRA (optional), then dispose every Needs Human email — teaching alone never clears the queue.</p>
@@ -62,11 +72,15 @@
         </div>
     @endif
 
-    <div class="ira-lc-page__links">
-        <a href="{{ route('admin.gmail.logs') }}">Gmail Sync Logs</a>
-        <a href="{{ route('admin.gmail.failed-messages') }}">Failed Messages</a>
-        <a href="{{ route('admin.platform.index') }}">Platform</a>
-    </div>
+    @if($canViewGmailAdmin)
+        <div class="ira-lc-page__links">
+            <a href="{{ route('admin.gmail.logs') }}">Gmail Sync Logs</a>
+            <a href="{{ route('admin.gmail.failed-messages') }}">Failed Messages</a>
+            @can('platform-dashboard.view')
+                <a href="{{ route('admin.platform.index') }}">Platform</a>
+            @endcan
+        </div>
+    @endif
 
     <div class="ira-lc" data-ira-learning-center data-current-queue="{{ $queue->value }}">
         <div class="ira-lc__header">
@@ -90,7 +104,9 @@
             <div class="ira-lc__count">{{ number_format(count($cards)) }} shown</div>
         </div>
 
-        @include('admin.incoming-emails.partials.learning-toolbar')
+        @if($canManageEmailIntake)
+            @include('admin.incoming-emails.partials.learning-toolbar')
+        @endif
 
         @if($cards === [])
             <div class="ira-lc__empty">

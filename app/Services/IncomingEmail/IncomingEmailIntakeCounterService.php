@@ -9,8 +9,8 @@ use App\Enums\IncomingEmailIntakeQueue;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailMessage;
-use App\Models\SystemSetting;
 use App\Models\User;
+use App\Support\IncomingEmail\IncomingEmailAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -228,11 +228,7 @@ class IncomingEmailIntakeCounterService
 
     public function canView(?User $user): bool
     {
-        if (! config('inbound_email.enabled')) {
-            return false;
-        }
-
-        return $user !== null && $user->can('update', SystemSetting::class);
+        return IncomingEmailAccess::allowsView($user);
     }
 
     public function needsHumanCount(): int

@@ -8,7 +8,6 @@ use App\Enums\IncomingEmailIntakeQueue;
 use App\Enums\IncomingEmailMessageStatus;
 use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailMessage;
-use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\IncomingEmail\IncomingEmailIngestService;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
@@ -103,10 +102,10 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
         $this->assertSame(4, collect($counters)->firstWhere('queue', IncomingEmailIntakeQueue::Promotional->value)['count']);
     }
 
-    public function test_agent_without_email_admin_permission_does_not_see_widget(): void
+    public function test_user_without_email_intake_permission_does_not_see_widget(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $employee = User::factory()->create();
+        $employee->assignRole(RolePermissionSeeder::ROLE_EMPLOYEE);
 
         IncomingEmailMessage::query()->create([
             'mailbox' => 'support@radiumbox.com',
@@ -119,10 +118,29 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
             'received_at' => now(),
         ]);
 
-        $this->assertNull(app(IncomingEmailIntakeCounterService::class)->dashboardWidget($agent));
+        $this->assertNull(app(IncomingEmailIntakeCounterService::class)->dashboardWidget($employee));
 
-        $html = (string) $this->actingAs($agent)->get(route('dashboard'))->assertOk()->getContent();
+        $html = (string) $this->actingAs($employee)->get(route('dashboard'))->assertOk()->getContent();
         $this->assertStringNotContainsString('data-email-intake-kpi', $html);
+    }
+
+    public function test_support_agent_with_email_intake_permission_sees_widget(): void
+    {
+        $agent = User::factory()->create();
+        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+
+        IncomingEmailMessage::query()->create([
+            'mailbox' => 'support@radiumbox.com',
+            'provider' => 'fixture',
+            'provider_message_id' => 'agent-visible-1',
+            'from_email' => 'visible@example.com',
+            'subject' => 'Visible',
+            'preview' => 'Visible',
+            'status' => IncomingEmailMessageStatus::NeedsReview,
+            'received_at' => now(),
+        ]);
+
+        $this->assertNotNull(app(IncomingEmailIntakeCounterService::class)->dashboardWidget($agent));
     }
 
     public function test_admin_index_filters_needs_human_and_spam_queues(): void
@@ -215,7 +233,8 @@ class IncomingEmailIntakeDashboardCountersTest extends TestCase
             'assignment.communication_intake_primary_user_id' => (string) $admin->id,
         ]);
 
-        $this->assertTrue($admin->can('update', SystemSetting::class));
+        $this->assertTrue($admin->can(RolePermissionSeeder::PERMISSION_EMAIL_INTAKE_VIEW));
+        $this->assertTrue($admin->can(RolePermissionSeeder::PERMISSION_EMAIL_INTAKE_MANAGE));
 
         return $admin;
     }

@@ -144,7 +144,7 @@ Recorded fields: matched phrase, matched rule, rule source, mailbox, message id.
 
 ## Permissions
 
-Unchanged from Phase 1.2: visible when `inbound_email.enabled` and user can update `SystemSetting`.
+Visible when `inbound_email.enabled` and the user has `email-intake.view` (same gate as Learning Center). Mutating Learning Center actions require `email-intake.manage`.
 
 ---
 

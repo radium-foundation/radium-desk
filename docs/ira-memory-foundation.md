@@ -437,7 +437,7 @@ Administration
 Learning Center stays at `/admin/incoming-emails` (queue workspace).  
 IRA Memory lives at a new admin route, e.g. `/admin/ira-memory`.
 
-Permissions: same gate as Learning Center initially (`update` on `SystemSetting` + inbound email enabled), with a dedicated policy hook reserved (`IraMemoryPolicy`) so channel expansion does not stay tied to email config forever.
+Permissions: IRA Memory admin currently uses `update` on `SystemSetting` + inbound email enabled (`IraMemoryPolicy`). Learning Center uses dedicated `email-intake.view` / `email-intake.manage` permissions. Memory keeps its own policy hook so channel expansion does not stay tied to email intake forever.
 
 ### 8.2 List features (Phase 1 product)
 
@@ -927,7 +927,7 @@ M2 coverage includes: teach → `ira_memories`, teach update, matcher active-onl
 |------|-------|
 | Route | `/admin/ira-memory` |
 | Nav | Administration workspace tab **IRA Memory** |
-| Gate | Same as Learning Center (`update` on `SystemSetting` + `inbound_email.enabled`); `IraMemoryPolicy` registered |
+| Gate | `update` on `SystemSetting` + `inbound_email.enabled` (Learning Center now uses `email-intake.*`); `IraMemoryPolicy` registered |
 | Teach surface | Unchanged — Learning Center at `/admin/incoming-emails` |
 
 ### 19.2 Features shipped

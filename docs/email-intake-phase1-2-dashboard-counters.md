@@ -57,9 +57,9 @@ Not an inbox — read-only queue table (received, from, subject, status, reason)
 Visible only when:
 
 - `inbound_email.enabled` is true, and
-- User can update `SystemSetting` (same gate as Gmail admin sync)
+- User has `email-intake.view` (Learning Center / Email Intake access)
 
-Agents without email administration access do not see counters.
+Default roles with access: Admin, Operations Admin, Support Agent, Support Specialist, Customer Coordinator, Super Admin. Users without `email-intake.view` do not see counters.
 
 ---
 

@@ -156,16 +156,28 @@ Suggestions may come from:
 
 ## Permissions
 
-Unchanged from Email Intake admin: user can update `SystemSetting` and `inbound_email.enabled` is on.
+Learning Center uses dedicated Email Intake permissions (not `system-settings.manage`):
+
+| Permission | Purpose |
+|------------|---------|
+| `email-intake.view` | Open Learning Center (GET) |
+| `email-intake.manage` | Teach / disposition actions (POST) |
+
+Default grants: Admin, Operations Admin, Support Agent (`agent`), Support Specialist, Customer Coordinator, Super Admin. Future roles are granted through permissions only — authorization never checks role names.
+
+Also requires `inbound_email.enabled`. Unauthorized access returns **403**; feature disabled returns **404**.
+
+Navigation: Operations sidebar **Learning Center** and Administration workspace tab are shown only when the user has `email-intake.view`.
 
 ---
 
 ## Routes
 
-| Method | Path | Name |
-|--------|------|------|
-| GET | `/admin/incoming-emails` | `admin.incoming-emails.index` |
-| POST | `/admin/incoming-emails/learning` | `admin.incoming-emails.learning.apply` |
+| Method | Path | Name | Permission |
+|--------|------|------|------------|
+| GET | `/admin/incoming-emails` | `admin.incoming-emails.index` | `email-intake.view` |
+| POST | `/admin/incoming-emails/learning` | `admin.incoming-emails.learning.apply` | `email-intake.manage` |
+| POST | `/admin/incoming-emails/disposition` | `admin.incoming-emails.disposition.apply` | `email-intake.manage` |
 
 ---
 
@@ -177,13 +189,15 @@ Unchanged from Email Intake admin: user can update `SystemSetting` and `inbound_
 | `app/Services/IncomingEmail/IncomingEmailLearningRulesService.php` | Match / apply / upsert rules |
 | `app/Services/IncomingEmail/IncomingEmailLearningActionService.php` | Operator teach actions + bulk |
 | `app/Services/IncomingEmail/IncomingEmailLearningCenterPresenter.php` | Operator-facing card payloads |
-| `app/Http/Controllers/IncomingEmailAdminController.php` | Index + applyLearning |
+| `app/Http/Controllers/IncomingEmailAdminController.php` | Index + applyLearning + applyDisposition |
+| `app/Support/IncomingEmail/IncomingEmailAccess.php` | `email-intake.view` / `email-intake.manage` checks |
 | `resources/views/admin/incoming-emails/partials/learning-center.blade.php` | Learning Center shell + bulk |
 | `resources/views/admin/incoming-emails/partials/learning-card.blade.php` | Compact operator card |
 | `resources/views/admin/incoming-emails/index.blade.php` (scripts) | Bulk select / action panels |
 | `database/migrations/2026_08_06_120000_create_incoming_email_learning_rules_table.php` | Rules table |
 | `database/migrations/2026_08_06_120100_add_learning_center_columns_to_incoming_email_messages_table.php` | Message enrichment |
 | `tests/Feature/IncomingEmail/IncomingEmailLearningCenterPhase1Test.php` | Phase 1 coverage |
+| `tests/Feature/IncomingEmail/IncomingEmailLearningCenterAccessTest.php` | Permission matrix + 403 coverage |
 
 ---
 

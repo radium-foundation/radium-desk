@@ -74,6 +74,10 @@ class RolePermissionSeeder extends Seeder
 
     public const PERMISSION_EMAIL_REPLY = 'email.reply';
 
+    public const PERMISSION_EMAIL_INTAKE_VIEW = 'email-intake.view';
+
+    public const PERMISSION_EMAIL_INTAKE_MANAGE = 'email-intake.manage';
+
     /**
      * @var list<string>
      */
@@ -84,6 +88,8 @@ class RolePermissionSeeder extends Seeder
         self::PERMISSION_CASHBOOK_MANAGE,
         self::PERMISSION_CASHBOOK_HISTORICAL,
         self::PERMISSION_EMAIL_REPLY,
+        self::PERMISSION_EMAIL_INTAKE_VIEW,
+        self::PERMISSION_EMAIL_INTAKE_MANAGE,
     ];
 
     /**
@@ -160,6 +166,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
+            self::PERMISSION_EMAIL_INTAKE_VIEW,
+            self::PERMISSION_EMAIL_INTAKE_MANAGE,
         ],
         self::ROLE_SUPPORT_SPECIALIST => [
             'orders.view',
@@ -177,6 +185,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
+            self::PERMISSION_EMAIL_INTAKE_VIEW,
+            self::PERMISSION_EMAIL_INTAKE_MANAGE,
         ],
         self::ROLE_CUSTOMER_COORDINATOR => [
             'orders.view',
@@ -194,6 +204,8 @@ class RolePermissionSeeder extends Seeder
             'workforce.self',
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
+            self::PERMISSION_EMAIL_INTAKE_VIEW,
+            self::PERMISSION_EMAIL_INTAKE_MANAGE,
         ],
         self::ROLE_ESCALATION_SPECIALIST => [
             'orders.view',
@@ -275,6 +287,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_CASHBOOK_MANAGE,
             self::PERMISSION_EMAIL_REPLY,
+            self::PERMISSION_EMAIL_INTAKE_VIEW,
+            self::PERMISSION_EMAIL_INTAKE_MANAGE,
         ],
         self::ROLE_OPERATIONS_ADMIN => [
             'dashboard.hardware.view',
@@ -318,6 +332,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_VIEW,
             self::PERMISSION_CASHBOOK_CREATE,
             self::PERMISSION_EMAIL_REPLY,
+            self::PERMISSION_EMAIL_INTAKE_VIEW,
+            self::PERMISSION_EMAIL_INTAKE_MANAGE,
         ],
         self::ROLE_SUPERADMIN => [
             'dashboard.hardware.view',
@@ -369,6 +385,8 @@ class RolePermissionSeeder extends Seeder
             self::PERMISSION_CASHBOOK_MANAGE,
             self::PERMISSION_CASHBOOK_HISTORICAL,
             self::PERMISSION_EMAIL_REPLY,
+            self::PERMISSION_EMAIL_INTAKE_VIEW,
+            self::PERMISSION_EMAIL_INTAKE_MANAGE,
         ],
     ];
 

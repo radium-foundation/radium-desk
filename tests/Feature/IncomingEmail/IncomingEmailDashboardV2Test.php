@@ -9,7 +9,6 @@ use App\Models\AuditLog;
 use App\Models\IncomingEmailIgnoreStat;
 use App\Models\IncomingEmailMessage;
 use App\Models\Order;
-use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\IncomingEmail\IncomingEmailAttentionCategoryService;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
@@ -316,14 +315,14 @@ class IncomingEmailDashboardV2Test extends TestCase
         $this->assertSame('red', $service->severityForCount(20));
     }
 
-    public function test_agent_without_email_admin_permission_does_not_see_widget(): void
+    public function test_user_without_email_intake_permission_does_not_see_widget(): void
     {
-        $agent = User::factory()->create();
-        $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+        $employee = User::factory()->create();
+        $employee->assignRole(RolePermissionSeeder::ROLE_EMPLOYEE);
 
-        $this->assertNull(app(IncomingEmailIntakeCounterService::class)->dashboardWidget($agent));
+        $this->assertNull(app(IncomingEmailIntakeCounterService::class)->dashboardWidget($employee));
 
-        $html = (string) $this->actingAs($agent)->get(route('dashboard'))->assertOk()->getContent();
+        $html = (string) $this->actingAs($employee)->get(route('dashboard'))->assertOk()->getContent();
         $this->assertStringNotContainsString('data-email-intake-kpi', $html);
     }
 
@@ -395,7 +394,8 @@ class IncomingEmailDashboardV2Test extends TestCase
             'assignment.communication_intake_primary_user_id' => (string) $admin->id,
         ]);
 
-        $this->assertTrue($admin->can('update', SystemSetting::class));
+        $this->assertTrue($admin->can(RolePermissionSeeder::PERMISSION_EMAIL_INTAKE_VIEW));
+        $this->assertTrue($admin->can(RolePermissionSeeder::PERMISSION_EMAIL_INTAKE_MANAGE));
 
         return $admin;
     }

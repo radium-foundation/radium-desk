@@ -11,12 +11,12 @@ use App\Enums\IncomingEmailIntakeQueue;
 use App\Enums\IncomingEmailKeepPendingReason;
 use App\Enums\IncomingEmailLearningScope;
 use App\Enums\IncomingEmailOperatorClassification;
-use App\Models\SystemSetting;
 use App\Services\IncomingEmail\IncomingEmailDispositionService;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
 use App\Services\IncomingEmail\IncomingEmailLearningActionService;
 use App\Services\IncomingEmail\IncomingEmailLearningCenterPresenter;
 use App\Services\ServiceCaseAssignmentService;
+use App\Support\IncomingEmail\IncomingEmailAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -30,7 +30,7 @@ class IncomingEmailAdminController extends Controller
         IncomingEmailLearningCenterPresenter $presenter,
         ServiceCaseAssignmentService $assignmentService,
     ): View {
-        $this->authorizeEmailAdmin($request);
+        $this->authorizeEmailIntakeView($request);
 
         $queue = IncomingEmailIntakeQueue::tryFrom((string) $request->query('queue', ''))
             ?? IncomingEmailIntakeQueue::NeedsHuman;
@@ -65,6 +65,7 @@ class IncomingEmailAdminController extends Controller
             'counts' => $counts,
             'queues' => IncomingEmailIntakeQueue::cases(),
             'isLearningCenter' => true,
+            'canManageEmailIntake' => IncomingEmailAccess::allowsManage($request->user()),
             'assignableUsers' => $assignmentService->reassignableAdmins(),
             'learningScopes' => IncomingEmailLearningScope::cases(),
             'operatorClassifications' => IncomingEmailOperatorClassification::teachingCases(),
@@ -80,7 +81,7 @@ class IncomingEmailAdminController extends Controller
         Request $request,
         IncomingEmailLearningActionService $learningActions,
     ): RedirectResponse {
-        $this->authorizeEmailAdmin($request);
+        $this->authorizeEmailIntakeManage($request);
 
         $action = (string) $request->input('action');
 
@@ -170,7 +171,7 @@ class IncomingEmailAdminController extends Controller
         Request $request,
         IncomingEmailDispositionService $dispositions,
     ): RedirectResponse {
-        $this->authorizeEmailAdmin($request);
+        $this->authorizeEmailIntakeManage($request);
 
         $disposition = (string) $request->input('disposition');
 
@@ -259,9 +260,15 @@ class IncomingEmailAdminController extends Controller
             ->with('status', $status);
     }
 
-    private function authorizeEmailAdmin(Request $request): void
+    private function authorizeEmailIntakeView(Request $request): void
     {
-        abort_unless($request->user()?->can('update', SystemSetting::class), 403);
-        abort_unless(config('inbound_email.enabled'), 404);
+        abort_unless(IncomingEmailAccess::featureEnabled(), 404);
+        abort_unless(IncomingEmailAccess::allowsView($request->user()), 403);
+    }
+
+    private function authorizeEmailIntakeManage(Request $request): void
+    {
+        abort_unless(IncomingEmailAccess::featureEnabled(), 404);
+        abort_unless(IncomingEmailAccess::allowsManage($request->user()), 403);
     }
 }

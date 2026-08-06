@@ -8,6 +8,7 @@
     use App\Models\User;
     use App\Support\Administration\PerformanceIntelligenceAccess;
     use App\Support\Administration\PlatformConfigurationAccess;
+    use App\Support\IncomingEmail\IncomingEmailAccess;
     use Database\Seeders\RolePermissionSeeder;
     use Illuminate\Support\Facades\Gate;
 
@@ -17,6 +18,7 @@
         || $user?->can('system-settings.manage');
     $canManagePlatformConfiguration = PlatformConfigurationAccess::canManage($user);
     $canViewPerformanceIntelligence = PerformanceIntelligenceAccess::canView($user);
+    $canViewLearningCenter = IncomingEmailAccess::allowsView($user);
 
     $tabs = [];
 
@@ -38,6 +40,16 @@
         $tabs['operational_settings'] = [
             'label' => 'Operational Settings',
             'url' => route('admin.system-settings.index'),
+        ];
+    }
+
+    if (
+        $canViewLearningCenter
+        && \Illuminate\Support\Facades\Route::has('admin.incoming-emails.index')
+    ) {
+        $tabs['learning_center'] = [
+            'label' => 'Learning Center',
+            'url' => route('admin.incoming-emails.index'),
         ];
     }
 

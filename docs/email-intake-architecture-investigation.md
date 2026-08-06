@@ -112,7 +112,9 @@ Reply supports free text + preview/edit of selected notification templates. Pres
 |------------|---------|
 | Reply | `email.reply` (admin / ops admin / superadmin) **or** assigned SC owner |
 | Read content / attachments | Incident/Order `view` via content controller |
-| Gmail admin sync | `SystemSetting` update authorization (broad) |
+| Learning Center / Email Intake (view) | `email-intake.view` |
+| Learning Center teach / disposition | `email-intake.manage` |
+| Gmail admin sync | `SystemSetting` update authorization (broad; separate from Learning Center) |
 
 ---
 
@@ -378,10 +380,12 @@ Assignment-side “future email classification” enums/strategies are stubs, no
 |--------|-----|
 | Read linked email content | Users who can view related Incident/Order |
 | Reply | `email.reply` roles **or** SC assignee |
+| Learning Center view | `email-intake.view` (Admin, Ops Admin, Support roles by default) |
+| Learning Center teach / disposition | `email-intake.manage` |
 | Assign (intake) | System automation via Intake settings |
 | Delete email | **No Desk delete product** (Gmail retains authority) |
 | View attachments | Same as read content (+ download endpoint) |
-| Admin sync | System settings updaters |
+| Admin sync | System settings updaters (not Learning Center) |
 
 ---
 
