@@ -13,6 +13,7 @@ enum IncomingEmailClassification: string
     case VendorAction = 'vendor_action';
     case FinanceAction = 'finance_action';
     case HrAction = 'hr_action';
+    case Docs = 'docs';
     case Spam = 'spam';
     case Promotional = 'promotional';
     case Social = 'social';
@@ -50,6 +51,7 @@ enum IncomingEmailClassification: string
             self::VendorAction => 'Vendor action',
             self::FinanceAction => 'Finance action',
             self::HrAction => 'HR action',
+            self::Docs => 'Docs',
             self::Spam => 'Spam',
             self::Promotional => 'Promotional',
             self::Social => 'Social',

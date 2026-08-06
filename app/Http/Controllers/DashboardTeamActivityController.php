@@ -17,12 +17,14 @@ class DashboardTeamActivityController extends Controller
         $user = $request->user();
 
         if (! $user->can('teamActivity.view') || ! config('dashboard-team-activity.enabled', true)) {
+            // Not a genuine empty roster — client must not treat this as "no members".
             return response()->json([
                 'html' => null,
-                'empty' => true,
+                'empty' => false,
+                'error' => 'forbidden',
                 'generated_at' => now()->toIso8601String(),
                 'agent_count' => 0,
-            ]);
+            ], 403);
         }
 
         $expanded = $request->input('expanded', []);
@@ -39,6 +41,7 @@ class DashboardTeamActivityController extends Controller
             return response()->json([
                 'html' => null,
                 'empty' => true,
+                'reason' => 'roster_empty',
                 'generated_at' => now()->toIso8601String(),
                 'agent_count' => 0,
             ]);

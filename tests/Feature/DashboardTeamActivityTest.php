@@ -83,15 +83,37 @@ class DashboardTeamActivityTest extends TestCase
         $this->assertStringContainsString('team-activity-status__dot', $html);
     }
 
-    public function test_team_activity_refresh_returns_empty_payload_without_permission(): void
+    public function test_team_activity_refresh_returns_forbidden_without_permission(): void
     {
         $user = User::factory()->create();
         // Permission-less user: no role assigned.
         $this->actingAs($user)
             ->getJson(route('dashboard.team-activity'))
+            ->assertForbidden()
+            ->assertJsonPath('empty', false)
+            ->assertJsonPath('error', 'forbidden')
+            ->assertJsonPath('html', null);
+    }
+
+    public function test_team_activity_refresh_marks_genuine_empty_roster(): void
+    {
+        $admin = User::factory()->create(['is_active' => true]);
+        $admin->assignRole(RolePermissionSeeder::ROLE_OPERATIONS_ADMIN);
+
+        $this->mock(TeamActivityPanelService::class, function ($mock): void {
+            $mock->shouldReceive('build')
+                ->once()
+                ->andReturn(\App\Data\TeamActivityPanel::empty());
+            $mock->shouldNotReceive('render');
+        });
+
+        $this->actingAs($admin)
+            ->getJson(route('dashboard.team-activity'))
             ->assertOk()
             ->assertJsonPath('empty', true)
-            ->assertJsonPath('html', null);
+            ->assertJsonPath('reason', 'roster_empty')
+            ->assertJsonPath('html', null)
+            ->assertJsonPath('agent_count', 0);
     }
 
     public function test_team_activity_refresh_returns_panel_html_for_agents(): void

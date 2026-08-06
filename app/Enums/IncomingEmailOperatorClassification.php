@@ -12,6 +12,7 @@ enum IncomingEmailOperatorClassification: string
     case Sales = 'sales';
     case Refund = 'refund';
     case Vendor = 'vendor';
+    case Docs = 'docs';
     case Promotion = 'promotion';
     case Spam = 'spam';
     case Automatic = 'automatic';
@@ -23,9 +24,10 @@ enum IncomingEmailOperatorClassification: string
             self::Sales => 'Sales',
             self::Refund => 'Refund',
             self::Vendor => 'Vendor',
+            self::Docs => 'Docs',
             self::Promotion => 'Promotion',
             self::Spam => 'Spam',
-            self::Automatic => 'Automatic',
+            self::Automatic => 'Auto Processed',
         };
     }
 
@@ -36,6 +38,7 @@ enum IncomingEmailOperatorClassification: string
             self::Sales => IncomingEmailClassification::PossibleSalesLead,
             self::Refund => IncomingEmailClassification::Refund,
             self::Vendor => IncomingEmailClassification::VendorAction,
+            self::Docs => IncomingEmailClassification::Docs,
             self::Promotion => IncomingEmailClassification::Promotional,
             self::Spam => IncomingEmailClassification::Spam,
             self::Automatic => IncomingEmailClassification::OtherIgnored,
@@ -58,6 +61,7 @@ enum IncomingEmailOperatorClassification: string
             IncomingEmailClassification::VendorAction,
             IncomingEmailClassification::FinanceAction,
             IncomingEmailClassification::HrAction => self::Vendor,
+            IncomingEmailClassification::Docs => self::Docs,
             IncomingEmailClassification::Promotional,
             IncomingEmailClassification::Marketing,
             IncomingEmailClassification::Newsletter => self::Promotion,

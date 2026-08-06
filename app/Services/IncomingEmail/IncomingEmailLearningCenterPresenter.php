@@ -183,9 +183,10 @@ class IncomingEmailLearningCenterPresenter
             $operatorClass === IncomingEmailOperatorClassification::Refund => 'Possible refund enquiry',
             $operatorClass === IncomingEmailOperatorClassification::Support => 'Support enquiry',
             $operatorClass === IncomingEmailOperatorClassification::Vendor => 'Vendor / ops mail',
+            $operatorClass === IncomingEmailOperatorClassification::Docs => 'Docs',
             $operatorClass === IncomingEmailOperatorClassification::Promotion => 'Promotion',
             $operatorClass === IncomingEmailOperatorClassification::Spam => 'Spam',
-            $operatorClass === IncomingEmailOperatorClassification::Automatic => 'Automatic',
+            $operatorClass === IncomingEmailOperatorClassification::Automatic => 'Auto Processed',
             $message->order_id !== null => 'Customer email needs routing',
             default => 'Needs operator decision',
         };

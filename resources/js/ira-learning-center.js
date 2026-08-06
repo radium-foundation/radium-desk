@@ -8,6 +8,12 @@ const MOVE_MAP = {
     automatic: 'automatic',
 };
 
+const MENU_GAP = 4;
+const MENU_EDGE = 8;
+
+/** @type {{ root: HTMLElement, trigger: HTMLElement, menu: HTMLElement, home: HTMLElement, row: HTMLElement } | null} */
+let openMenu = null;
+
 function selectedIds(root) {
     return Array.from(root.querySelectorAll('[data-ira-row-select]:checked')).map((el) => el.value);
 }
@@ -154,6 +160,175 @@ function prepareRowAction(root, row, action) {
     root.querySelector('[data-ira-toolbar]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+function menuItems(menu) {
+    return Array.from(menu.querySelectorAll('[role="menuitem"]')).filter(
+        (item) => !item.classList.contains('disabled') && item.getAttribute('aria-disabled') !== 'true',
+    );
+}
+
+function positionOpenMenu() {
+    if (!openMenu) return;
+
+    const { trigger, menu } = openMenu;
+    const rect = trigger.getBoundingClientRect();
+    const menuWidth = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const spaceBelow = viewportH - rect.bottom - MENU_GAP;
+    const spaceAbove = rect.top - MENU_GAP;
+    const openUp = menuHeight > spaceBelow && spaceAbove > spaceBelow;
+
+    let top = openUp ? rect.top - menuHeight - MENU_GAP : rect.bottom + MENU_GAP;
+    let left = rect.right - menuWidth;
+
+    left = Math.max(MENU_EDGE, Math.min(left, viewportW - menuWidth - MENU_EDGE));
+    top = Math.max(MENU_EDGE, Math.min(top, viewportH - menuHeight - MENU_EDGE));
+
+    menu.style.top = `${Math.round(top)}px`;
+    menu.style.left = `${Math.round(left)}px`;
+    menu.dataset.placement = openUp ? 'top' : 'bottom';
+}
+
+function closeRowMenu() {
+    if (!openMenu) return;
+
+    const { trigger, menu, home } = openMenu;
+
+    menu.hidden = true;
+    menu.classList.remove('ira-lc-menu--open');
+    menu.removeAttribute('data-placement');
+    menu.style.top = '';
+    menu.style.left = '';
+    menu.style.minWidth = '';
+
+    if (menu.parentElement !== home) {
+        home.appendChild(menu);
+    }
+
+    trigger.setAttribute('aria-expanded', 'false');
+    openMenu = null;
+
+    document.removeEventListener('pointerdown', onMenuPointerDown, true);
+    document.removeEventListener('keydown', onMenuKeyDown, true);
+    window.removeEventListener('resize', onMenuViewportChange);
+    window.removeEventListener('scroll', onMenuViewportChange, true);
+}
+
+function onMenuPointerDown(event) {
+    if (!openMenu) return;
+
+    const target = event.target;
+    if (openMenu.menu.contains(target) || openMenu.trigger.contains(target)) {
+        return;
+    }
+
+    closeRowMenu();
+}
+
+function onMenuViewportChange() {
+    if (!openMenu) return;
+    closeRowMenu();
+}
+
+function onMenuKeyDown(event) {
+    if (!openMenu) return;
+
+    const items = menuItems(openMenu.menu);
+    const active = document.activeElement;
+    const index = items.indexOf(active);
+
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        const trigger = openMenu.trigger;
+        closeRowMenu();
+        trigger.focus();
+        return;
+    }
+
+    if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        const next = items[(index + 1 + items.length) % items.length] || items[0];
+        next?.focus();
+        return;
+    }
+
+    if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const prev = items[(index - 1 + items.length) % items.length] || items[items.length - 1];
+        prev?.focus();
+        return;
+    }
+
+    if (event.key === 'Home') {
+        event.preventDefault();
+        items[0]?.focus();
+        return;
+    }
+
+    if (event.key === 'End') {
+        event.preventDefault();
+        items[items.length - 1]?.focus();
+        return;
+    }
+
+    if (event.key === 'Tab') {
+        closeRowMenu();
+    }
+}
+
+function openRowMenu(root, trigger) {
+    const wrap = trigger.closest('.ira-lc-menu-wrap');
+    const menu = wrap?.querySelector('[data-ira-menu]');
+    const row = trigger.closest('[data-ira-row]');
+
+    if (!wrap || !menu || !row) return;
+
+    if (openMenu?.trigger === trigger) {
+        closeRowMenu();
+        return;
+    }
+
+    closeRowMenu();
+
+    const minWidth = Math.max(wrap.offsetWidth, 152);
+    document.body.appendChild(menu);
+    menu.hidden = false;
+    menu.classList.add('ira-lc-menu--open');
+    menu.style.minWidth = `${minWidth}px`;
+
+    openMenu = { root, trigger, menu, home: wrap, row };
+    trigger.setAttribute('aria-expanded', 'true');
+
+    positionOpenMenu();
+
+    document.addEventListener('pointerdown', onMenuPointerDown, true);
+    document.addEventListener('keydown', onMenuKeyDown, true);
+    window.addEventListener('resize', onMenuViewportChange);
+    window.addEventListener('scroll', onMenuViewportChange, true);
+
+    menuItems(menu)[0]?.focus();
+}
+
+function handleMenuAction(event) {
+    if (!openMenu) return false;
+
+    const actionEl = event.target.closest('[data-ira-row-action]');
+    if (!actionEl || !openMenu.menu.contains(actionEl)) {
+        return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const { root, row } = openMenu;
+    const action = actionEl.getAttribute('data-ira-row-action');
+    closeRowMenu();
+    prepareRowAction(root, row, action);
+
+    return true;
+}
+
 function boot(root) {
     if (root.dataset.iraBound === '1') {
         return;
@@ -176,6 +351,18 @@ function boot(root) {
     });
 
     root.addEventListener('click', (event) => {
+        if (handleMenuAction(event)) {
+            return;
+        }
+
+        const menuTrigger = event.target.closest('[data-ira-menu-trigger]');
+        if (menuTrigger && root.contains(menuTrigger)) {
+            event.preventDefault();
+            event.stopPropagation();
+            openRowMenu(root, menuTrigger);
+            return;
+        }
+
         const stop = event.target.closest('[data-ira-stop]');
         const rowAction = event.target.closest('[data-ira-row-action]');
         const toggle = event.target.closest('[data-ira-row-toggle]');
@@ -195,7 +382,19 @@ function boot(root) {
         }
     });
 
+    // Actions fire from the body-ported menu (outside root).
+    document.addEventListener('click', (event) => {
+        if (!openMenu || openMenu.root !== root) return;
+        handleMenuAction(event);
+    });
+
     root.addEventListener('keydown', (event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target?.matches?.('[data-ira-menu-trigger]')) {
+            event.preventDefault();
+            openRowMenu(root, event.target);
+            return;
+        }
+
         if ((event.key === 'Enter' || event.key === ' ') && event.target?.matches?.('[data-ira-row-toggle]')) {
             event.preventDefault();
             const row = event.target.closest('[data-ira-row]');

@@ -78,7 +78,7 @@ Live UI: `/admin/incoming-emails?queue=needs_human`
 IRA Learning Center
 Review-and-teach workspace for inbound email — not a Gmail inbox.
 
-( Needs Human 12 )  ( Promotions 26 )  ( Spam 8 )  ( Automatic 43 )
+( Needs Human 12 )  ( Promotions 26 )  ( Spam 8 )  ( Auto Processed 43 )
 
 Needs Human                          12 shown
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -121,13 +121,57 @@ Needs Human                          12 shown
 
 UI action `Move To` maps to existing `classification` API values:
 
-| Move To | Classification |
-|---------|----------------|
+| Move To | Classification value (API) |
+|---------|----------------------------|
 | Promotions | `promotion` |
 | Spam | `spam` |
-| Automatic | `automatic` |
+| Auto Processed | `automatic` |
 
 Learning Scope still applies (teach IRA on move).
+
+---
+
+## Classification UX refinements
+
+### Docs
+
+Operator-facing classification option for business-document mail (invoice, PO, quotation, statement, challan, credit/debit note, certificates, similar).
+
+- Dropdown value: `docs`
+- Stored classification: `docs` (string column; no schema migration)
+- Does **not** auto-ignore (unlike Promotion / Spam / Auto Processed)
+- No document intelligence in this phase — teach/label only
+
+### Auto Processed
+
+Every operator-facing “Automatic” label is **Auto Processed**.
+
+| Surface | Internal value | Label |
+|---------|----------------|-------|
+| Classification dropdown | `automatic` | Auto Processed |
+| Move To | `automatic` | Auto Processed |
+| Queue tab | `automatic` | Auto Processed |
+| Dashboard KPI hover ignored row | `automatic` | Auto Processed |
+
+APIs, enums case names, and routing keys stay `automatic`.
+
+### Compact dropdowns
+
+Learning Center selects / row menus tightened toward GitHub–Linear density:
+
+- Font ~13px (`0.8125rem`)
+- Control / menu row height ~34px
+- Reduced padding and popup width (`max-width` / `min-width` ~9.5rem)
+- Checkmark / flex alignment preserved on `.dropdown-item`
+
+### Row action menu (no clipping)
+
+The row `⋯` menu is ported to `document.body` with `position: fixed` so `.ira-lc-list { overflow: hidden }` cannot clip it.
+
+- Opens below when space exists; flips above near the viewport bottom
+- Clamped to viewport edges (no horizontal scroll)
+- Outside click / ESC / scroll / resize close it
+- Arrow keys move between items; compact shadow + short fade animation
 
 ### Row menu
 

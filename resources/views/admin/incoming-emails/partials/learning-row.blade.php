@@ -40,45 +40,46 @@
         </div>
 
         <div class="ira-lc-row__actions" data-ira-stop>
-            <div class="dropdown">
+            <div class="ira-lc-menu-wrap">
                 <button type="button"
                         class="btn btn-sm ira-lc-menu-btn"
-                        data-bs-toggle="dropdown"
+                        data-ira-menu-trigger
+                        aria-haspopup="menu"
                         aria-expanded="false"
                         aria-label="Row actions">
                     ⋯
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end ira-lc-menu">
-                    <li>
-                        <button type="button" class="dropdown-item" data-ira-row-action="assign">Assign</button>
+                <ul class="ira-lc-menu" data-ira-menu role="menu" hidden>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="assign">Assign</button>
                     </li>
-                    <li>
-                        <button type="button" class="dropdown-item" data-ira-row-action="move">Move</button>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="move">Move</button>
                     </li>
-                    <li>
-                        <button type="button" class="dropdown-item" data-ira-row-action="ignore">Ignore</button>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="ignore">Ignore</button>
                     </li>
-                    <li>
-                        <button type="button" class="dropdown-item" data-ira-row-action="importance">Mark Important</button>
+                    <li role="none">
+                        <button type="button" class="dropdown-item" role="menuitem" data-ira-row-action="importance">Mark Important</button>
                     </li>
-                    <li><hr class="dropdown-divider"></li>
+                    <li role="separator"><hr class="dropdown-divider"></li>
                     @if($card['gmail_url'])
-                        <li>
-                            <a class="dropdown-item" href="{{ $card['gmail_url'] }}" target="_blank" rel="noopener">
+                        <li role="none">
+                            <a class="dropdown-item" role="menuitem" href="{{ $card['gmail_url'] }}" target="_blank" rel="noopener">
                                 Open Gmail
                             </a>
                         </li>
                     @else
-                        <li><span class="dropdown-item disabled">Open Gmail</span></li>
+                        <li role="none"><span class="dropdown-item disabled" role="menuitem" aria-disabled="true">Open Gmail</span></li>
                     @endif
                     @if($card['customer_360_url'])
-                        <li>
-                            <a class="dropdown-item" href="{{ $card['customer_360_url'] }}" target="_blank" rel="noopener">
+                        <li role="none">
+                            <a class="dropdown-item" role="menuitem" href="{{ $card['customer_360_url'] }}" target="_blank" rel="noopener">
                                 Open Customer360
                             </a>
                         </li>
                     @else
-                        <li><span class="dropdown-item disabled">Open Customer360</span></li>
+                        <li role="none"><span class="dropdown-item disabled" role="menuitem" aria-disabled="true">Open Customer360</span></li>
                     @endif
                 </ul>
             </div>

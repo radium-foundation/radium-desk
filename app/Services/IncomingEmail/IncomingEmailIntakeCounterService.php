@@ -237,7 +237,10 @@ class IncomingEmailIntakeCounterService
                 'ignored' => [
                     ['label' => 'Promotions', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Promotional->value] ?? 0],
                     ['label' => 'Spam', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Spam->value] ?? 0],
-                    ['label' => 'Automatic', 'count' => $ignoredCounts[IncomingEmailIntakeQueue::Automatic->value] ?? 0],
+                    [
+                        'label' => IncomingEmailIntakeQueue::Automatic->label(),
+                        'count' => $ignoredCounts[IncomingEmailIntakeQueue::Automatic->value] ?? 0,
+                    ],
                 ],
             ],
         ];

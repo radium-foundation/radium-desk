@@ -62,7 +62,7 @@
                 disabled>
             <option value="promotion">Promotions</option>
             <option value="spam">Spam</option>
-            <option value="automatic">Automatic</option>
+            <option value="automatic">Auto Processed</option>
         </select>
 
         <select name="ignore_action"

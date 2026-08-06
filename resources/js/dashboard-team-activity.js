@@ -5,6 +5,92 @@ const PANEL_COLLAPSED_KEY = 'radium.teamActivityPanel.collapsed';
 const EXPANDED_AGENTS_KEY = 'radium.teamActivityPanel.expandedAgents';
 const TOOLTIP_RUNTIME_ATTRS = ['aria-describedby', 'data-bs-original-title'];
 
+const HYDRATE_LOADING_HTML = `
+    <p class="team-activity-empty text-muted small mb-0" data-team-activity-hydrate-loading>
+        Loading team activity…
+    </p>
+`.trim();
+
+const HYDRATE_ERROR_HTML = `
+    <div class="team-activity-hydrate-error" data-team-activity-hydrate-error role="alert">
+        <p class="team-activity-hydrate-error__message text-muted small mb-0">
+            Unable to load team activity. Retry.
+        </p>
+        <button type="button"
+                class="team-activity-hydrate-error__retry btn btn-sm btn-outline-secondary"
+                data-team-activity-retry>
+            Retry
+        </button>
+    </div>
+`.trim();
+
+const EMPTY_ROSTER_HTML = `
+    <p class="team-activity-empty text-muted small mb-0" data-team-activity-empty-roster>
+        No team members to show.
+    </p>
+`.trim();
+
+const eventElement = (event) => {
+    const target = event?.target;
+
+    if (target instanceof Element) {
+        return target;
+    }
+
+    return target?.parentElement instanceof Element ? target.parentElement : null;
+};
+
+const isDevEnvironment = () => Boolean(import.meta.env?.DEV);
+
+const warnTeamActivity = (message, detail = undefined) => {
+    if (!isDevEnvironment()) {
+        return;
+    }
+
+    if (detail === undefined) {
+        console.warn(`[team-activity] ${message}`);
+
+        return;
+    }
+
+    console.warn(`[team-activity] ${message}`, detail);
+};
+
+const showPanelBodyMessage = (panel, html) => {
+    const body = panel.querySelector('[data-team-activity-panel-body]');
+
+    if (!body) {
+        return;
+    }
+
+    body.innerHTML = html;
+};
+
+const hasHydratedRoster = (panel) => Boolean(
+    panel.querySelector('[data-team-activity-agent], [data-team-activity-list], [data-team-activity-empty-roster]'),
+);
+
+const shouldShowHydrateLoading = (panel, { force = false } = {}) => {
+    if (panel.querySelector('[data-team-activity-hydrate-error]')) {
+        return true;
+    }
+
+    if (panel.dataset.teamActivityLazy === '1') {
+        return true;
+    }
+
+    if (force && !hasHydratedRoster(panel)) {
+        return true;
+    }
+
+    return Boolean(panel.querySelector('[data-team-activity-hydrate-loading]'));
+};
+
+const markPanelHydrated = (panel) => {
+    delete panel.dataset.teamActivityLazy;
+    panel.dataset.teamActivityHydrated = '1';
+};
+
 const stablePanelHtml = (htmlOrElement) => {
     const template = document.createElement('template');
 
@@ -27,6 +113,13 @@ const stablePanelHtml = (htmlOrElement) => {
             node.removeAttribute(attr);
         });
     });
+
+    // Server HTML always ships collapsed attrs; ignore them for equality.
+    root.classList.remove('is-collapsed');
+    root.removeAttribute('data-team-activity-collapsed');
+    root.removeAttribute('data-team-activity-bound');
+    root.removeAttribute('data-team-activity-lazy');
+    root.removeAttribute('data-team-activity-hydrated');
 
     return root.outerHTML.replace(/\s+/g, ' ').trim();
 };
@@ -191,23 +284,42 @@ const applyPanelHtml = (pageRoot, panel, html) => {
     const nextPanel = template.content.querySelector('[data-team-activity-panel]');
 
     if (!nextPanel) {
-        return;
+        return null;
     }
 
     const wasCollapsed = isPanelCollapsed(panel);
 
     panel.replaceWith(nextPanel);
     setPanelCollapsed(nextPanel, wasCollapsed);
+    markPanelHydrated(nextPanel);
     restoreExpandedRows(nextPanel);
     bindPanelInteractions(pageRoot, nextPanel);
     initTooltips(nextPanel);
+
+    return nextPanel;
 };
 
-const refreshTeamActivity = async (pageRoot, panel) => {
+const showHydrateError = (panel, reason, detail = undefined) => {
+    showPanelBodyMessage(panel, HYDRATE_ERROR_HTML);
+    warnTeamActivity(reason, detail);
+};
+
+const applyGenuineEmptyRoster = (panel) => {
+    showPanelBodyMessage(panel, EMPTY_ROSTER_HTML);
+    markPanelHydrated(panel);
+};
+
+const refreshTeamActivity = async (pageRoot, panel, { force = false } = {}) => {
     const refreshUrl = panel.dataset.teamActivityRefreshUrl;
 
     if (!refreshUrl || document.hidden || refreshInFlight || isPanelCollapsed(panel) || !isUserActive(panel)) {
         return;
+    }
+
+    const hadRoster = hasHydratedRoster(panel);
+
+    if (shouldShowHydrateLoading(panel, { force })) {
+        showPanelBodyMessage(panel, HYDRATE_LOADING_HTML);
     }
 
     refreshInFlight = true;
@@ -228,30 +340,81 @@ const refreshTeamActivity = async (pageRoot, panel) => {
             credentials: 'same-origin',
         });
 
-        if (!response.ok) {
-            return;
-        }
-
-        const data = await response.json();
         const currentPanel = pageRoot.querySelector('[data-team-activity-panel]');
 
-        if (!currentPanel) {
+        if (!currentPanel || isPanelCollapsed(currentPanel)) {
             return;
         }
 
-        if (data.empty || !data.html) {
-            currentPanel.remove();
+        if (!response.ok) {
+            // Keep an already-hydrated roster visible during poll failures.
+            if (hadRoster && !currentPanel.querySelector('[data-team-activity-hydrate-loading], [data-team-activity-hydrate-error]')) {
+                warnTeamActivity(`poll failed with HTTP ${response.status}`);
+
+                return;
+            }
+
+            showHydrateError(currentPanel, `hydrate failed with HTTP ${response.status}`);
 
             return;
         }
 
-        if (stablePanelHtml(data.html) === stablePanelHtml(currentPanel)) {
+        let data;
+
+        try {
+            data = await response.json();
+        } catch (error) {
+            if (hadRoster && !currentPanel.querySelector('[data-team-activity-hydrate-loading], [data-team-activity-hydrate-error]')) {
+                warnTeamActivity('poll returned invalid JSON', error);
+
+                return;
+            }
+
+            showHydrateError(currentPanel, 'hydrate returned invalid JSON', error);
+
+            return;
+        }
+
+        // Genuine empty roster only — never remove the shell/widget.
+        if (data.empty === true) {
+            applyGenuineEmptyRoster(currentPanel);
+
+            return;
+        }
+
+        if (!data.html) {
+            if (hadRoster && !currentPanel.querySelector('[data-team-activity-hydrate-loading], [data-team-activity-hydrate-error]')) {
+                warnTeamActivity('poll returned success without html');
+
+                return;
+            }
+
+            showHydrateError(currentPanel, 'hydrate returned success without html');
+
+            return;
+        }
+
+        if (!force && stablePanelHtml(data.html) === stablePanelHtml(currentPanel)) {
+            markPanelHydrated(currentPanel);
+
             return;
         }
 
         applyPanelHtml(pageRoot, currentPanel, data.html);
-    } catch {
-        // Ignore transient network errors during background refresh.
+    } catch (error) {
+        const currentPanel = pageRoot.querySelector('[data-team-activity-panel]');
+
+        if (!currentPanel || isPanelCollapsed(currentPanel)) {
+            return;
+        }
+
+        if (hadRoster && !currentPanel.querySelector('[data-team-activity-hydrate-loading], [data-team-activity-hydrate-error]')) {
+            warnTeamActivity('poll network error', error);
+
+            return;
+        }
+
+        showHydrateError(currentPanel, 'hydrate network error', error);
     } finally {
         refreshInFlight = false;
     }
@@ -301,27 +464,54 @@ const bindPanelInteractions = (pageRoot, panel) => {
     panel.dataset.teamActivityBound = '1';
 
     panel.addEventListener('click', (event) => {
-        const panelToggle = event.target.closest?.('[data-team-activity-panel-toggle]');
+        // Always use the listener's panel (currentTarget). Closed-over nodes go stale after replaceWith.
+        const activePanel = event.currentTarget instanceof Element
+            ? event.currentTarget
+            : pageRoot.querySelector('[data-team-activity-panel]');
 
-        if (panelToggle) {
+        if (!(activePanel instanceof Element)) {
+            return;
+        }
+
+        const target = eventElement(event);
+        const retryButton = target?.closest('[data-team-activity-retry]');
+
+        if (retryButton && activePanel.contains(retryButton)) {
             event.preventDefault();
-            const nextCollapsed = !panel.classList.contains('is-collapsed');
-            setPanelCollapsed(panel, nextCollapsed);
+            event.stopPropagation();
+            recordUserActivity();
 
-            if (nextCollapsed) {
-                clearPollTimeout();
-            } else if (activeController && !activeController.signal.aborted) {
-                recordUserActivity();
-                void refreshTeamActivity(pageRoot, panel);
+            if (activeController && !activeController.signal.aborted) {
+                void refreshTeamActivity(pageRoot, activePanel, { force: true });
                 startPolling(pageRoot, activeController);
             }
 
             return;
         }
 
-        const rowToggle = event.target.closest?.('[data-team-activity-row-toggle]');
+        const panelToggle = target?.closest('[data-team-activity-panel-toggle]');
 
-        if (!rowToggle || !panel.contains(rowToggle)) {
+        if (panelToggle && activePanel.contains(panelToggle)) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const nextCollapsed = !activePanel.classList.contains('is-collapsed');
+            setPanelCollapsed(activePanel, nextCollapsed);
+
+            if (nextCollapsed) {
+                clearPollTimeout();
+            } else if (activeController && !activeController.signal.aborted) {
+                recordUserActivity();
+                void refreshTeamActivity(pageRoot, activePanel, { force: true });
+                startPolling(pageRoot, activeController);
+            }
+
+            return;
+        }
+
+        const rowToggle = target?.closest('[data-team-activity-row-toggle]');
+
+        if (!rowToggle || !activePanel.contains(rowToggle)) {
             return;
         }
 
@@ -332,7 +522,8 @@ const bindPanelInteractions = (pageRoot, panel) => {
         }
 
         event.preventDefault();
-        toggleRowExpanded(panel, row, pageRoot);
+        event.stopPropagation();
+        toggleRowExpanded(activePanel, row, pageRoot);
     });
 };
 
@@ -370,7 +561,9 @@ export const initDashboardTeamActivity = (pageRoot) => {
             return;
         }
 
-        if (event.target.closest('[data-team-activity-panel]')) {
+        const target = eventElement(event);
+
+        if (target?.closest('[data-team-activity-panel]')) {
             return;
         }
 
@@ -386,7 +579,9 @@ export const initDashboardTeamActivity = (pageRoot) => {
             return;
         }
 
-        if (event.target.closest('input[type="search"]')) {
+        const target = eventElement(event);
+
+        if (target?.closest('input[type="search"]')) {
             setPanelCollapsed(activePanel, true);
             clearPollTimeout();
         }
@@ -411,7 +606,7 @@ export const initDashboardTeamActivity = (pageRoot) => {
 
     if (!collapsed) {
         // SSR ships a shell only; always hydrate when restored expanded.
-        void refreshTeamActivity(pageRoot, panel);
+        void refreshTeamActivity(pageRoot, panel, { force: true });
         startPolling(pageRoot, controller);
     }
 
