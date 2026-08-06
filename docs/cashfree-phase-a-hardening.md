@@ -3,7 +3,8 @@
 **Date:** 2026-08-05  
 **Inputs:** [cashfree-integrity-root-cause.md](./cashfree-integrity-root-cause.md), [performance-release-blockers.md](./performance-release-blockers.md)  
 **Scope:** Test harness isolation, Platform Health visibility, webhook pre-flight, self-test service  
-**No Canvas.**
+**No Canvas.**  
+**See also:** [cashfree-integration-data-inventory.md](./cashfree-integration-data-inventory.md) — complete API/webhook/field inventory (used vs ignored).
 
 ---
 

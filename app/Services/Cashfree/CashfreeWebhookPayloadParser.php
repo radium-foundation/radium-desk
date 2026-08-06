@@ -148,6 +148,56 @@ class CashfreeWebhookPayloadParser
             ?? $this->scalarValue(data_get($payload, 'payment_status'));
     }
 
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>|null
+     */
+    public function orderTags(array $payload): ?array
+    {
+        $tags = data_get($payload, 'data.order.order_tags')
+            ?? data_get($payload, 'order_tags');
+
+        return is_array($tags) ? $tags : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function orderTagProductName(array $payload): ?string
+    {
+        return $this->orderTagScalar($payload, 'product_name');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function orderTagRdServiceName(array $payload): ?string
+    {
+        return $this->orderTagScalar($payload, 'rd_service_name');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function orderTagSerialNo(array $payload): ?string
+    {
+        return $this->orderTagScalar($payload, 'serial_no');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function orderTagScalar(array $payload, string $key): ?string
+    {
+        $tags = $this->orderTags($payload);
+
+        if ($tags === null) {
+            return null;
+        }
+
+        return $this->scalarValue($tags[$key] ?? null);
+    }
+
     private function scalarValue(mixed $value): ?string
     {
         if (! is_scalar($value)) {

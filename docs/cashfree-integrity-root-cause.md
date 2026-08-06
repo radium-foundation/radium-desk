@@ -3,7 +3,8 @@
 **Date:** 2026-08-05  
 **Inputs:** [performance-release-blockers.md](./performance-release-blockers.md)  
 **Suites:** `CashfreePaymentIntegrityTest`, `CashfreeWebhookReliabilityTest`, `OutboxProcessingTest`  
-**Constraints:** No test fixes, no dashboard code changes, no Canvas.
+**Constraints:** No test fixes, no dashboard code changes, no Canvas.  
+**See also:** [cashfree-integration-data-inventory.md](./cashfree-integration-data-inventory.md) — complete API/webhook/field inventory (used vs ignored).
 
 ---
 

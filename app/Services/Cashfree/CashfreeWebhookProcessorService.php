@@ -14,8 +14,10 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\IncidentReferenceService;
 use App\Services\Inquiry\InquiryOrderLinkService;
+use App\Services\OrderIdentityLifecycleService;
 use App\Services\Outbox\OutboxProcessorService;
 use App\Services\Assignment\UniversalAssignmentEngine;
+use App\Services\RadiumBox\RadiumBoxOrderSearchResponseMapper;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +35,10 @@ class CashfreeWebhookProcessorService
 
     public const AUDIT_EVENT_SYSTEM_USER_MISSING = 'cashfree.system_user_missing';
 
+    public const IDENTITY_SOURCE_ORDER_TAGS = 'cashfree_order_tags';
+
+    public const AUDIT_EVENT_ORDER_TAGS_IMPORTED = 'cashfree.order_tags_imported';
+
     public function __construct(
         private readonly CashfreeWebhookPayloadParser $payloadParser,
         private readonly IncidentReferenceService $incidentReferenceService,
@@ -43,6 +49,8 @@ class CashfreeWebhookProcessorService
         private readonly InquiryOrderLinkService $inquiryOrderLinkService,
         private readonly CashfreeHealthService $cashfreeHealthService,
         private readonly AuditLogService $auditLogService,
+        private readonly RadiumBoxOrderSearchResponseMapper $fieldNormalizer,
+        private readonly OrderIdentityLifecycleService $identityLifecycle,
     ) {}
 
     public function process(CashfreeWebhookLog $webhookLog): CashfreeWebhookLog
@@ -155,7 +163,9 @@ class CashfreeWebhookProcessorService
                 return null;
             }
 
-            $order = $this->createOrder($payload, $cfPaymentId, $systemUser);
+            $created = $this->createOrder($payload, $cfPaymentId, $systemUser);
+            $order = $created['order'];
+            $importedFields = $created['imported_fields'];
             $phone = $this->payloadParser->customerPhone($payload);
             $linkableIncident = $this->inquiryOrderLinkService->findLinkableInquiryIncident($order, $phone);
 
@@ -164,6 +174,8 @@ class CashfreeWebhookProcessorService
             } else {
                 $incident = $this->createServiceRequest($order, $payload, $systemUser, $referenceNo);
             }
+
+            $this->finalizeOrderTagIdentity($order, $systemUser, $importedFields);
 
             $this->markProcessed($webhookLog, $incident);
             $this->reliabilityMetrics->recordOrderCreated();
@@ -277,8 +289,9 @@ class CashfreeWebhookProcessorService
 
     /**
      * @param  array<string, mixed>  $payload
+     * @return array{order: Order, imported_fields: array<string, mixed>}
      */
-    private function createOrder(array $payload, string $cfPaymentId, User $systemUser): Order
+    private function createOrder(array $payload, string $cfPaymentId, User $systemUser): array
     {
         $orderId = $this->payloadParser->orderId($payload);
 
@@ -287,15 +300,19 @@ class CashfreeWebhookProcessorService
         }
 
         $paymentDate = $this->payloadParser->paymentDate($payload);
+        $identity = $this->resolveOrderTagIdentity($payload, $systemUser);
 
-        return Order::query()->create([
+        $order = Order::query()->create([
             'order_id' => $orderId,
             'customer_name' => $this->payloadParser->customerName($payload),
             'customer_email' => $this->payloadParser->customerEmail($payload),
             'customer_phone' => $this->payloadParser->customerPhone($payload),
-            'serial_number' => null,
-            'product_name' => null,
-            'device_model' => null,
+            'serial_number' => $identity['attributes']['serial_number'] ?? null,
+            'serial_entered_at' => $identity['attributes']['serial_entered_at'] ?? null,
+            'serial_entered_by_user_id' => $identity['attributes']['serial_entered_by_user_id'] ?? null,
+            'product_name' => $identity['attributes']['product_name'] ?? null,
+            'device_model' => $identity['attributes']['device_model'] ?? null,
+            'service_history' => $identity['attributes']['service_history'] ?? null,
             'cashfree_payment_id' => $cfPaymentId,
             'payment_amount' => $this->payloadParser->paymentAmount($payload),
             'payment_method' => $this->payloadParser->paymentMethod($payload),
@@ -307,6 +324,102 @@ class CashfreeWebhookProcessorService
             'created_by' => $systemUser->id,
             'updated_by' => $systemUser->id,
         ]);
+
+        return [
+            'order' => $order,
+            'imported_fields' => $identity['imported_fields'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{
+     *     attributes: array<string, mixed>,
+     *     imported_fields: array<string, mixed>,
+     * }
+     */
+    private function resolveOrderTagIdentity(array $payload, User $systemUser): array
+    {
+        $attributes = [];
+        $importedFields = [];
+
+        $productName = $this->fieldNormalizer->normalizeOptionalString(
+            $this->payloadParser->orderTagProductName($payload),
+        );
+
+        if ($productName !== null) {
+            $attributes['product_name'] = $productName;
+            $attributes['device_model'] = $productName;
+            $importedFields['product_name'] = $productName;
+            $importedFields['device_model'] = $productName;
+        }
+
+        $serviceHistory = $this->fieldNormalizer->normalizeHistory(
+            $this->payloadParser->orderTagRdServiceName($payload),
+        );
+
+        if ($serviceHistory !== null) {
+            $attributes['service_history'] = $serviceHistory;
+            $importedFields['service_history'] = $serviceHistory;
+            $importedFields['rd_service_name'] = $serviceHistory[0] ?? null;
+        }
+
+        $serialNumber = $this->fieldNormalizer->normalizeSerialNumber(
+            $this->payloadParser->orderTagSerialNo($payload),
+        );
+
+        if ($serialNumber !== null) {
+            $existingOwner = Order::query()
+                ->where('serial_number', $serialNumber)
+                ->first(['id', 'order_id', 'serial_number']);
+
+            if ($existingOwner !== null) {
+                Log::warning('[Cashfree Webhook] Skipping order_tags serial_no; already owned by another order.', [
+                    'serial_number' => $serialNumber,
+                    'existing_owner_order_id' => $existingOwner->order_id,
+                    'existing_owner_db_id' => $existingOwner->id,
+                    'incoming_order_id' => $this->payloadParser->orderId($payload),
+                ]);
+            } else {
+                $attributes['serial_number'] = $serialNumber;
+                $attributes['serial_entered_at'] = now();
+                $attributes['serial_entered_by_user_id'] = $systemUser->id;
+                $importedFields['serial_number'] = $serialNumber;
+            }
+        }
+
+        return [
+            'attributes' => $attributes,
+            'imported_fields' => $importedFields,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $importedFields
+     */
+    private function finalizeOrderTagIdentity(Order $order, User $systemUser, array $importedFields): void
+    {
+        if ($importedFields === []) {
+            return;
+        }
+
+        $this->auditLogService->log(
+            userId: $systemUser->id,
+            event: self::AUDIT_EVENT_ORDER_TAGS_IMPORTED,
+            auditable: $order,
+            oldValues: null,
+            newValues: [
+                'source' => self::IDENTITY_SOURCE_ORDER_TAGS,
+                'fields' => array_keys($importedFields),
+                ...$importedFields,
+            ],
+        );
+
+        $this->identityLifecycle->afterOrderCreatedWithIdentity(
+            order: $order->fresh() ?? $order,
+            actor: $systemUser,
+            source: self::IDENTITY_SOURCE_ORDER_TAGS,
+        );
     }
 
     /**

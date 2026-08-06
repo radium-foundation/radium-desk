@@ -11,8 +11,11 @@
     $canManualSync = (bool) ($device['can_manual_sync'] ?? false);
     $showDiagnostics = (bool) ($device['show_sync_diagnostics'] ?? false);
     $warranty = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? null;
+    $servicePlan = $device['service_plan']
+        ?? collect($activeServices)->firstWhere('label', 'Service Plan')['status']
+        ?? null;
     $modelShort = $device['model_short'] ?? null;
-    $modelCanonical = $device['model_canonical'] ?? null;
+    $modelCanonical = $device['model_canonical'] ?? ($device['product_name'] ?? null);
     $syncLabel = match (true) {
         $isPending => 'Syncing',
         $isFailed => 'Sync failed',
@@ -76,6 +79,13 @@
                 @endif
             </span>
         </div>
+
+        @if(filled($servicePlan))
+            <div class="c360-device-card-row">
+                <span class="c360-device-card-row-label">Service Plan</span>
+                <span class="c360-device-card-row-value">{{ $servicePlan }}</span>
+            </div>
+        @endif
 
         <div class="c360-device-card-row">
             <span class="c360-device-card-row-label">{{ ($device['is_inquiry'] ?? false) ? 'Case' : 'Order' }}</span>

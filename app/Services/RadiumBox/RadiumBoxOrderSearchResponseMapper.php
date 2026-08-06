@@ -261,7 +261,10 @@ class RadiumBoxOrderSearchResponseMapper
     /**
      * @return array<int, mixed>|null
      */
-    private function normalizeHistory(mixed $value): ?array
+    /**
+     * @return array<int, mixed>|null
+     */
+    public function normalizeHistory(mixed $value): ?array
     {
         if (is_array($value)) {
             return $value !== [] ? array_values($value) : null;
@@ -365,7 +368,7 @@ class RadiumBoxOrderSearchResponseMapper
         return null;
     }
 
-    private function normalizeSerialNumber(mixed $value): ?string
+    public function normalizeSerialNumber(mixed $value): ?string
     {
         if (! is_string($value)) {
             return null;
@@ -376,7 +379,7 @@ class RadiumBoxOrderSearchResponseMapper
         return $serialNumber !== '' ? $serialNumber : null;
     }
 
-    private function normalizeDeviceModel(mixed $value): ?string
+    public function normalizeDeviceModel(mixed $value): ?string
     {
         return $this->normalizeOptionalString($value);
     }
@@ -388,7 +391,7 @@ class RadiumBoxOrderSearchResponseMapper
         return $normalized !== null ? strtolower($normalized) : null;
     }
 
-    private function normalizeOptionalString(mixed $value): ?string
+    public function normalizeOptionalString(mixed $value): ?string
     {
         if (is_int($value) || is_float($value)) {
             $value = (string) $value;

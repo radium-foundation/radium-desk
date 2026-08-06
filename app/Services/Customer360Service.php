@@ -674,6 +674,8 @@ class Customer360Service
         return [
             'model_short' => DeviceModelFormatter::shortDisplay($fullModelName),
             'model_canonical' => $fullModelName,
+            'product_name' => filled($order->product_name) ? $order->product_name : $fullModelName,
+            'service_plan' => $this->servicePlanLabel($order),
             'serial_number' => $order->serial_number,
             'serial_sync_status' => $syncStatus->value,
             'sync_status_label' => $syncStatus->label(),
@@ -780,24 +782,56 @@ class Customer360Service
         $warranty = $this->normalizeServiceStatus($enrichmentMetadata['warranty'] ?? null);
         $amc = $this->normalizeServiceStatus($enrichmentMetadata['amc'] ?? null);
         $rdService = $this->rdServiceStatusResolver->resolve($incident, $order);
+        $servicePlan = $this->servicePlanLabel($order);
 
-        return [
+        $services = [
             [
                 'label' => 'RD Service',
                 'status' => $rdService['status'],
                 'variant' => $rdService['variant'],
             ],
-            [
-                'label' => 'Warranty',
-                'status' => $warranty,
-                'variant' => $warranty === 'Not Available' ? 'neutral' : 'info',
-            ],
-            [
-                'label' => 'AMC',
-                'status' => $amc,
-                'variant' => $amc === 'Not Available' ? 'neutral' : 'info',
-            ],
         ];
+
+        if ($servicePlan !== null) {
+            $services[] = [
+                'label' => 'Service Plan',
+                'status' => $servicePlan,
+                'variant' => 'info',
+            ];
+        }
+
+        $services[] = [
+            'label' => 'Warranty',
+            'status' => $warranty,
+            'variant' => $warranty === 'Not Available' ? 'neutral' : 'info',
+        ];
+
+        $services[] = [
+            'label' => 'AMC',
+            'status' => $amc,
+            'variant' => $amc === 'Not Available' ? 'neutral' : 'info',
+        ];
+
+        return $services;
+    }
+
+    private function servicePlanLabel(Order $order): ?string
+    {
+        $history = $order->service_history;
+
+        if (! is_array($history) || $history === []) {
+            return null;
+        }
+
+        $first = $history[0] ?? null;
+
+        if (! is_scalar($first)) {
+            return null;
+        }
+
+        $label = trim((string) $first);
+
+        return $label !== '' ? $label : null;
     }
 
     /**

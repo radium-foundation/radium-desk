@@ -34,7 +34,9 @@ class RadiumBoxService
     public function needsEnrichment(Order $order): bool
     {
         return ! $order->isSerialLocked()
-            || (! $order->hasDeviceModelAssigned() && ! filled($order->device_model));
+            || (! $order->hasDeviceModelAssigned() && ! filled($order->device_model))
+            || ! filled($order->product_name)
+            || ! $this->hasServiceHistory($order);
     }
 
     /**
@@ -141,7 +143,7 @@ class RadiumBoxService
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     private function buildUpdates(Order $order, RadiumBoxOrderEnrichment $enrichment): array
     {
@@ -171,6 +173,14 @@ class RadiumBoxService
             $updates['device_model'] = $enrichment->deviceModel;
         }
 
+        if (! filled($order->product_name) && filled($enrichment->deviceModel)) {
+            $updates['product_name'] = $enrichment->deviceModel;
+        }
+
+        if (! $this->hasServiceHistory($order) && is_array($enrichment->serviceHistory) && $enrichment->serviceHistory !== []) {
+            $updates['service_history'] = $enrichment->serviceHistory;
+        }
+
         $updates = [
             ...$updates,
             ...$this->identityProtection->buildExternalIdentityUpdates($order, [
@@ -181,6 +191,13 @@ class RadiumBoxService
         ];
 
         return $updates;
+    }
+
+    private function hasServiceHistory(Order $order): bool
+    {
+        $history = $order->service_history;
+
+        return is_array($history) && $history !== [];
     }
 
     private function findSerialOwner(Order $order, string $serialNumber): ?Order

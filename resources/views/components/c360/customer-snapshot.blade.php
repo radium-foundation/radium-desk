@@ -9,6 +9,7 @@
 
     $warrantyRaw = collect($activeServices)->firstWhere('label', 'Warranty')['status'] ?? ($healthCard['warranty_status'] ?? null);
     $amcRaw = collect($activeServices)->firstWhere('label', 'AMC')['status'] ?? null;
+    $servicePlanRaw = collect($activeServices)->firstWhere('label', 'Service Plan')['status'] ?? null;
     $lastPayment = $healthCard['last_payment'] ?? null;
     $lastWhatsapp = $healthCard['last_whatsapp'] ?? [];
     $lastEmail = $healthCard['last_email'] ?? [];
@@ -220,6 +221,18 @@
                               title="{{ AppDateFormatter::timelineDatetime($lastPayment['occurred_at']) }}">
                             {{ AppDateFormatter::timelineRelative($lastPayment['occurred_at']) }}
                         </time>
+                    </div>
+                @endif
+
+                @if(filled($servicePlanRaw))
+                    <div class="c360-snapshot-service-item">
+                        <span class="c360-snapshot-field-label">
+                            <i class="bi bi-calendar2-check" aria-hidden="true"></i>
+                            Service Plan
+                        </span>
+                        <span class="c360-snapshot-status-chip c360-snapshot-status-chip--info">
+                            {{ $servicePlanRaw }}
+                        </span>
                     </div>
                 @endif
 

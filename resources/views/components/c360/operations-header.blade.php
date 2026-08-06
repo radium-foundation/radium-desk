@@ -48,9 +48,15 @@
 
     $product = $order !== null && filled($order->product_name ?? null)
         ? $order->product_name
-        : ($device['model_short'] ?? $device['model_canonical'] ?? null);
+        : ($device['product_name'] ?? $device['model_short'] ?? $device['model_canonical'] ?? null);
 
     $serial = $device['serial_number'] ?? ($order->serial_number ?? null);
+    $servicePlan = $device['service_plan'] ?? null;
+    if ($servicePlan === null && $order !== null && is_array($order->service_history ?? null) && ($order->service_history[0] ?? null) !== null) {
+        $servicePlanCandidate = $order->service_history[0];
+        $servicePlan = is_scalar($servicePlanCandidate) ? trim((string) $servicePlanCandidate) : null;
+        $servicePlan = $servicePlan !== '' ? $servicePlan : null;
+    }
     $customerName = filled($healthCard['name'] ?? null)
         ? $healthCard['name']
         : ($order->customer_name ?? null);
@@ -92,6 +98,12 @@
             <span class="c360-ops-header-meta-item" role="listitem">
                 <span class="c360-ops-header-meta-label">Serial</span>
                 <span class="c360-ops-header-meta-value font-monospace">{{ $serial }}</span>
+            </span>
+        @endif
+        @if(filled($servicePlan))
+            <span class="c360-ops-header-meta-item" role="listitem">
+                <span class="c360-ops-header-meta-label">Service Plan</span>
+                <span class="c360-ops-header-meta-value">{{ $servicePlan }}</span>
             </span>
         @endif
         @if(filled($customerName))
