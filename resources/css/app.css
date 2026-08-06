@@ -10614,6 +10614,24 @@ body.customer-360-drawer-open {
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
 }
 
+.platform-email-operations__kpi {
+    color: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.platform-email-operations__kpi:hover,
+.platform-email-operations__kpi:focus {
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.08);
+}
+
+.platform-email-operations__kpi--alert {
+    box-shadow: inset 3px 0 0 var(--bs-warning, #ffc107);
+}
+
+.platform-email-operations__pipe-step {
+    font-weight: 500;
+}
+
 .status-badge {
     display: inline-flex;
     align-items: center;

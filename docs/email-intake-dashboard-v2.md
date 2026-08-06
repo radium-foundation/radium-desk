@@ -1,6 +1,6 @@
 # Email Intake Dashboard V2
 
-**Date:** 2026-08-05  
+**Date:** 2026-08-05 (Platform Email Operations added 2026-08-06)  
 **Priority:** P1  
 **Type:** Presentation improvement  
 **Source of truth:** [docs/email-intake-architecture-investigation.md](./email-intake-architecture-investigation.md)  
@@ -9,11 +9,50 @@
 
 ---
 
+## Platform Email Operations
+
+Email Intake is treated as a **platform service**, monitored from **Administration → Platform** as a left-nav zone (same shell as Platform Health, Integration Health, Cashfree, etc.).
+
+| Rule | Detail |
+|------|--------|
+| Entry point | Existing Platform page (`admin.platform.index`) |
+| Zone key | `email_operations` |
+| Not | A new dashboard, workspace, or Dashboard KPI expand |
+| Design | Existing Platform spacing, typography, and card language |
+| Load | Lazy zone refresh after first paint (Platform zone framework) |
+| Cache | `platform:email-operations:overview` (Priority 3 TTL); invalidated with intake widget cache |
+
+### Sections (trusted metrics only)
+
+1. **Today’s Operations** — Received, Processed, Needs Human, New Cases, Linked, Ignored, Failures  
+2. **Processing Pipeline** — compact Received → Filtered → Linked → New Case → Needs Human → Completed (no charts)  
+3. **Case Creation** — Support / Sales / Refund / Vendor / Docs / Unknown (hide zero buckets)  
+4. **Classification** — Support / Sales / Refund / Promotion / Spam / Docs / Auto Processed / Needs Human  
+5. **Assignment Health** — Assigned, Pending, Fallback only when reliable; Ownership Preserved / Assignment Failures / Queue Growing are **not** shown without trusted signals  
+6. **IRA Memory** — Used Today, New Memories, Top Memory, Average Confidence  
+7. **Exceptions** — actionable only (Needs Human, Processing Failure, Fallback Used, Stuck Emails, Gmail sync delay)  
+8. **Recent Activity** — latest intake events; click opens Learning Center, Gmail failures, or Customer 360
+
+### Drill-downs (existing screens only)
+
+| Metric | Destination |
+|--------|-------------|
+| Needs Human / Classification / Assignment | IRA Learning Center queues |
+| New Cases / Case Creation | Active cases / dashboard workspace |
+| Failures | Gmail Failed Messages (fallback: Needs Human queue) |
+| Integration context | Platform Integration Health (`#platform-zone-integration_health`) |
+
+Service: `PlatformEmailOperationsService` · Zone: `EmailOperationsZone` · Partial: `admin.platform.zones.partials.email-operations`.
+
+---
+
 ## Objective
 
 Replace the four floating implementation counters (📧 P S A) with **one operator-focused KPI card** that answers: *“What email work is waiting?”*
 
 Presentation + attention categorization only. No Gmail, inbox, routing, or workflow changes.
+
+The Dashboard **Email Intake** KPI remains the operator “work waiting” signal. **Platform → Email Operations** is the admin/ops health surface for the same intake pipeline.
 
 ---
 
@@ -125,21 +164,26 @@ Unchanged from Phase 1.2: visible when `inbound_email.enabled` and user can upda
 | `app/Enums/IncomingEmailAttentionCategory.php` | Sales / Orders / Priority |
 | `app/Services/IncomingEmail/IncomingEmailPriorityPhraseService.php` | Phrase rules + audit |
 | `app/Services/IncomingEmail/IncomingEmailAttentionCategoryService.php` | Backlog categorization + counts |
-| `app/Services/IncomingEmail/IncomingEmailIntakeCounterService.php` | `dashboardWidget()` payload |
+| `app/Services/IncomingEmail/IncomingEmailIntakeCounterService.php` | `dashboardWidget()` payload + Platform cache invalidation |
 | `resources/views/dashboard/partials/email-intake-kpi-card.blade.php` | KPI card + hover |
 | `resources/views/dashboard/partials/kpi-strip.blade.php` | Admin mount |
 | `resources/views/dashboard/partials/recent-service-cases.blade.php` | Agent mount |
 | `app/Services/DashboardService.php` | `email_intake_widget` in stats |
-| `resources/css/app.css` | Card + severity + hover styles |
+| `resources/css/app.css` | Card + severity + hover styles; Platform Email Operations KPI accents |
 | `config/inbound_email.php` | `priority_phrases` |
 | `tests/Feature/IncomingEmail/IncomingEmailDashboardV2Test.php` | V2 coverage |
 | `tests/Unit/IncomingEmail/IncomingEmailPriorityPhraseServiceTest.php` | Phrase unit tests |
+| `app/Enums/PlatformZoneId.php` | `EmailOperations` zone id |
+| `app/Services/Platform/PlatformEmailOperationsService.php` | Trusted Platform aggregates |
+| `app/Services/Platform/Zones/EmailOperationsZone.php` | Platform left-nav zone |
+| `resources/views/admin/platform/zones/partials/email-operations.blade.php` | Zone HTML |
+| `tests/Feature/Platform/EmailOperationsZoneTest.php` | Platform zone coverage |
 
 Removed: `resources/views/dashboard/partials/email-intake-counters.blade.php`
 
 ### Intentionally untouched
 
-Gmail sync, smart routing processor, admin queue filters, reply UI, attachments.
+Gmail sync, smart routing processor, admin queue filters, reply UI, attachments. No separate Email Operations product area or Dashboard slide-down workspace.
 
 ---
 

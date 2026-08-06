@@ -31,9 +31,14 @@ class PlatformProductionHardeningTest extends TestCase
         $this->assertSame(300, PlatformCachePolicy::ttlForZone('performance'));
         $this->assertSame(300, PlatformCachePolicy::ttlForZone('automation'));
         $this->assertSame(300, PlatformCachePolicy::ttlForZone('communications'));
+        $this->assertSame(300, PlatformCachePolicy::ttlForZone('email_operations'));
         $this->assertSame(300, PlatformCachePolicy::ttlForZone('finance_overview'));
         $this->assertSame(300, PlatformCachePolicy::ttlForZone('operations_overview'));
         $this->assertSame(300, PlatformCachePolicy::ttlForZone('tools'));
+        $this->assertSame(
+            [PlatformCachePolicy::KEY_EMAIL_OPERATIONS_OVERVIEW],
+            PlatformCachePolicy::relatedOverviewKeys('email_operations'),
+        );
     }
 
     public function test_synthetic_warming_actor_warms_without_users(): void

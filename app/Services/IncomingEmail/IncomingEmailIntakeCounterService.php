@@ -55,6 +55,14 @@ class IncomingEmailIntakeCounterService
     public function forgetDashboardWidgetCache(?Carbon $statDate = null): void
     {
         Cache::forget($this->dashboardWidgetCacheKey($statDate ?? now()));
+
+        // Keep Platform Email Operations in sync with intake counter invalidation.
+        try {
+            app(\App\Services\Platform\PlatformCacheInvalidator::class)
+                ->invalidateZone('email_operations');
+        } catch (\Throwable) {
+            Cache::forget(\App\Services\Platform\PlatformCachePolicy::KEY_EMAIL_OPERATIONS_OVERVIEW);
+        }
     }
 
     public function severityForCount(int $count): string

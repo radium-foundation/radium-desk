@@ -13,6 +13,7 @@ enum PlatformZoneId: string
     case OperationsOverview = 'operations_overview';
     case FinanceOverview = 'finance_overview';
     case Communications = 'communications';
+    case EmailOperations = 'email_operations';
     case Tools = 'tools';
 
     public function label(): string
@@ -27,6 +28,7 @@ enum PlatformZoneId: string
             self::OperationsOverview => 'Operations Overview',
             self::FinanceOverview => 'Finance Overview',
             self::Communications => 'Communications',
+            self::EmailOperations => 'Email Operations',
             self::Tools => 'Tools & Diagnostics',
         };
     }
@@ -40,7 +42,7 @@ enum PlatformZoneId: string
             self::CriticalAlerts, self::ExecutiveSnapshot, self::PlatformHealth => 1,
             self::IntegrationHealth => 2,
             self::Performance, self::Automation => 3,
-            self::Communications, self::FinanceOverview, self::OperationsOverview => 4,
+            self::Communications, self::EmailOperations, self::FinanceOverview, self::OperationsOverview => 4,
             self::Tools => 5,
         };
     }
@@ -55,6 +57,7 @@ enum PlatformZoneId: string
             self::Performance => 50,
             self::Automation => 60,
             self::Communications => 70,
+            self::EmailOperations => 75,
             self::FinanceOverview => 80,
             self::OperationsOverview => 90,
             self::Tools => 100,
@@ -73,6 +76,7 @@ enum PlatformZoneId: string
             self::OperationsOverview => 'bi-sliders',
             self::FinanceOverview => 'bi-cash-stack',
             self::Communications => 'bi-chat-dots',
+            self::EmailOperations => 'bi-envelope-open',
             self::Tools => 'bi-tools',
         };
     }

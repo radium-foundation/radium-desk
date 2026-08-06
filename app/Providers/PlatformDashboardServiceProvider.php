@@ -40,6 +40,7 @@ use App\Services\Platform\Warmers\AutomationSnapshotWarmer;
 use App\Services\Platform\Warmers\CommunicationsSnapshotWarmer;
 use App\Services\Platform\Warmers\CriticalAlertsSnapshotWarmer;
 use App\Services\Platform\Warmers\ExecutiveSnapshotWarmer;
+use App\Services\Platform\Warmers\EmailOperationsSnapshotWarmer;
 use App\Services\Platform\Warmers\FinanceSnapshotWarmer;
 use App\Services\Platform\Warmers\IntegrationHealthSnapshotWarmer;
 use App\Services\Platform\Warmers\OperationsSnapshotWarmer;
@@ -50,6 +51,7 @@ use App\Services\Platform\Warmers\PlatformSnapshotWarmingService;
 use App\Services\Platform\Zones\AutomationZone;
 use App\Services\Platform\Zones\CommunicationsZone;
 use App\Services\Platform\Zones\CriticalAlertsZone;
+use App\Services\Platform\Zones\EmailOperationsZone;
 use App\Services\Platform\Zones\ExecutiveSnapshotZone;
 use App\Services\Platform\Zones\FinanceOverviewZone;
 use App\Services\Platform\Zones\IntegrationHealthZone;
@@ -178,6 +180,7 @@ class PlatformDashboardServiceProvider extends ServiceProvider
             PerformanceSnapshotWarmer::class,
             AutomationSnapshotWarmer::class,
             CommunicationsSnapshotWarmer::class,
+            EmailOperationsSnapshotWarmer::class,
             FinanceSnapshotWarmer::class,
             OperationsSnapshotWarmer::class,
         ];
@@ -196,6 +199,7 @@ class PlatformDashboardServiceProvider extends ServiceProvider
             PerformanceZone::class,
             AutomationZone::class,
             CommunicationsZone::class,
+            EmailOperationsZone::class,
             FinanceOverviewZone::class,
             OperationsOverviewZone::class,
             ToolsZone::class,

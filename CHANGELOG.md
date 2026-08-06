@@ -1,5 +1,10 @@
 # Changelog
 
+## 4.0.5 — 2026-08-06 — Platform Email Operations
+
+- Platform adds an Email Operations section for inbound email health, pipeline, exceptions, and recent activity
+- Email Operations metrics open existing Learning Center, case, and Gmail failure screens — no duplicate tools
+
 ## 4.0.4 — 2026-08-05 — Email Intake, Dashboard Performance & Reliability
 
 ### ✨ New

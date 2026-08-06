@@ -22,6 +22,7 @@ class PlatformToolsCatalogService
                     $this->link('Platform Dashboard', 'admin.platform.index'),
                     $this->anchor('Platform Health', 'admin.platform.index', 'platform-health'),
                     $this->anchor('Integration Health', 'admin.platform.index', 'platform-zone-integration_health'),
+                    $this->anchor('Email Operations', 'admin.platform.index', 'platform-zone-email_operations'),
                     $this->anchor('Performance', 'admin.platform.index', 'platform-zone-performance'),
                     $this->anchor('Automation', 'admin.platform.index', 'platform-zone-automation'),
                     $this->anchor('Critical Alerts', 'admin.platform.index', 'platform-zone-critical_alerts'),

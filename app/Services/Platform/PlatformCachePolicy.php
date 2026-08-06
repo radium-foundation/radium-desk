@@ -43,6 +43,8 @@ final class PlatformCachePolicy
 
     public const KEY_FINANCE_OVERVIEW = 'platform:finance:overview';
 
+    public const KEY_EMAIL_OPERATIONS_OVERVIEW = 'platform:email-operations:overview';
+
     public const KEY_OPERATIONS_OVERVIEW = 'platform:operations-overview:overview';
 
     public const KEY_ZONE_SNAPSHOT_PREFIX = 'platform:zone:';
@@ -79,6 +81,7 @@ final class PlatformCachePolicy
             self::KEY_AUTOMATION_OVERVIEW,
             self::KEY_COMMUNICATIONS_OVERVIEW,
             self::KEY_FINANCE_OVERVIEW,
+            self::KEY_EMAIL_OPERATIONS_OVERVIEW,
             self::KEY_OPERATIONS_OVERVIEW => self::TTL_PRIORITY_3,
             default => str_starts_with($cacheKey, self::KEY_INTEGRATION_ITEM_PREFIX)
                 ? self::TTL_PRIORITY_2
@@ -115,6 +118,7 @@ final class PlatformCachePolicy
             'automation' => [self::KEY_AUTOMATION_OVERVIEW],
             'communications' => [self::KEY_COMMUNICATIONS_OVERVIEW],
             'finance_overview' => [self::KEY_FINANCE_OVERVIEW],
+            'email_operations' => [self::KEY_EMAIL_OPERATIONS_OVERVIEW],
             'operations_overview' => [self::KEY_OPERATIONS_OVERVIEW],
             'executive_snapshot' => [self::KEY_OVERALL_HEALTH],
             default => [],

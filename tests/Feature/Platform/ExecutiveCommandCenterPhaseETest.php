@@ -47,12 +47,14 @@ class ExecutiveCommandCenterPhaseETest extends TestCase
             ->assertSee('data-platform-zone="performance"', false)
             ->assertSee('data-platform-zone="automation"', false)
             ->assertSee('data-platform-zone="communications"', false)
+            ->assertSee('data-platform-zone="email_operations"', false)
             ->assertSee('data-platform-zone="finance_overview"', false)
             ->assertSee('data-platform-zone="operations_overview"', false)
             ->assertSee('data-platform-zone="tools"', false)
             ->assertSee('Tools &amp; Diagnostics', false)
             ->assertSee('Performance', false)
             ->assertSee('Communications', false)
+            ->assertSee('Email Operations', false)
             ->assertSee('Finance Overview', false)
             ->assertSee('Operations Overview', false);
     }
@@ -117,6 +119,7 @@ class ExecutiveCommandCenterPhaseETest extends TestCase
                 'performance',
                 'automation',
                 'communications',
+                'email_operations',
                 'finance_overview',
                 'operations_overview',
                 'tools',
