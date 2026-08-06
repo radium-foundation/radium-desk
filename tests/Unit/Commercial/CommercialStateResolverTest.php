@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Commercial;
 
+use App\Enums\ApprovedRefundMethod;
 use App\Enums\CommercialAction;
 use App\Enums\CommercialState;
 use App\Enums\IncidentSource;
@@ -12,6 +13,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
 use App\Models\User;
+use App\Services\Commercial\CommercialServiceRestorationService;
 use App\Services\Commercial\CommercialStateResolver;
 use App\Services\IncidentReferenceService;
 use Database\Seeders\RolePermissionSeeder;
@@ -142,6 +144,35 @@ class CommercialStateResolverTest extends TestCase
         $this->assertSame(CommercialState::RefundCompleted, $snapshot->state);
     }
 
+    public function test_active_wallet_restoration_yields_service_restored_and_unblocks_actions(): void
+    {
+        [$incident, $order, $agent] = $this->createIncident();
+        $admin = User::factory()->create();
+        $admin->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $refund = $this->createRefund(
+            $order,
+            $incident,
+            $agent,
+            RefundStatus::Closed,
+            ApprovedRefundMethod::Wallet,
+        );
+
+        app(CommercialServiceRestorationService::class)->restore($order, $refund, $admin, [
+            'finance_verified' => true,
+            'wallet_reversed_externally' => true,
+            'wallet_reversal_reference' => 'RD273105-REV',
+        ]);
+
+        $snapshot = app(CommercialStateResolver::class)->forIncident($incident->fresh());
+
+        $this->assertSame(CommercialState::ServiceRestored, $snapshot->state);
+        $this->assertSame([], $snapshot->blockedActions);
+        $this->assertTrue($snapshot->allowsCommercialWork());
+        $this->assertSame('Service restored', $snapshot->dashboardBadgeLabel);
+        $this->assertNotNull($snapshot->restorationId);
+    }
+
     public function test_refund_initiated_outranks_case_closed(): void
     {
         [$incident, $order, $agent] = $this->createIncident(status: IncidentStatus::Closed);
@@ -225,6 +256,7 @@ class CommercialStateResolverTest extends TestCase
         Incident $incident,
         User $agent,
         RefundStatus $status,
+        ?ApprovedRefundMethod $method = null,
     ): RefundRequest {
         return RefundRequest::query()->create([
             'order_id' => $order->id,
@@ -233,6 +265,7 @@ class CommercialStateResolverTest extends TestCase
             'amount' => 1500,
             'reason' => 'Customer requested refund for commercial state test.',
             'status' => $status,
+            'approved_refund_method' => $method,
             'requested_by' => $agent->id,
         ]);
     }

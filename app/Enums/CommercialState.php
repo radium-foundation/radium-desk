@@ -5,7 +5,9 @@ namespace App\Enums;
 /**
  * First-class commercial posture for a service case (BR-04).
  *
- * Priority (highest first): RefundCompleted → RefundInitiated → CaseClosed → Open.
+ * Priority (highest first): RefundCompleted → RefundInitiated → CaseClosed → ServiceRestored → Open.
+ * ServiceRestored is returned instead of RefundCompleted when an active
+ * commercial_service_restorations row exists for that order/refund pair.
  */
 enum CommercialState: string
 {
@@ -13,6 +15,7 @@ enum CommercialState: string
     case CaseClosed = 'case_closed';
     case RefundInitiated = 'refund_initiated';
     case RefundCompleted = 'refund_completed';
+    case ServiceRestored = 'service_restored';
 
     public function label(): string
     {
@@ -21,6 +24,7 @@ enum CommercialState: string
             self::CaseClosed => 'Case Closed',
             self::RefundInitiated => 'Refund Initiated',
             self::RefundCompleted => 'Refund Completed',
+            self::ServiceRestored => 'Service Restored',
         };
     }
 
@@ -31,6 +35,7 @@ enum CommercialState: string
             self::CaseClosed => 'success',
             self::RefundInitiated => 'warning',
             self::RefundCompleted => 'danger',
+            self::ServiceRestored => 'info',
         };
     }
 
@@ -40,13 +45,14 @@ enum CommercialState: string
             self::RefundCompleted => 400,
             self::RefundInitiated => 300,
             self::CaseClosed => 200,
+            self::ServiceRestored => 150,
             self::Open => 100,
         };
     }
 
     public function allowsCommercialWork(): bool
     {
-        return $this === self::Open;
+        return in_array($this, [self::Open, self::ServiceRestored], true);
     }
 
     public function isRefundBlocking(): bool

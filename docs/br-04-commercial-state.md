@@ -2,7 +2,7 @@
 
 **Status:** Implemented  
 **Depends on:** BR-03 Context Transparency (foundation)  
-**Last updated:** 2026-07-29
+**Last updated:** 2026-08-06
 
 ---
 
@@ -12,10 +12,11 @@ An agent should immediately know whether commercial work is allowed on a case. C
 
 Priority (highest first):
 
-1. **Refund Completed**
+1. **Refund Completed** (unless an active commercial service restoration exists for that order/refund)
 2. **Refund Initiated**
 3. **Case Closed**
-4. **Open**
+4. **Service Restored** (active wallet-reverse attestation — commercial actions allowed)
+5. **Open**
 
 ---
 
@@ -40,6 +41,7 @@ Future states (Replacement Approved, Warranty Replacement, Exchange, Chargeback)
 | State | Assign Ref No | Paid Service | Paid Appointment | Charge Customer |
 |-------|---------------|--------------|------------------|-----------------|
 | Open | allowed | allowed | allowed | allowed |
+| Service Restored | allowed | allowed | allowed | allowed |
 | Case Closed | not gated here* | not gated here* | not gated here* | not gated here* |
 | Refund Initiated | blocked | blocked | blocked | allowed |
 | Refund Completed | blocked | blocked | blocked | blocked |
@@ -91,3 +93,41 @@ When disabled, banners and commercial gates are skipped (legacy behavior).
 - `tests/Feature/Commercial/CommercialStateGoldenTest.php`
 
 Verify: open allows everything; closed allows reopen; refund initiated/completed block commercial actions.
+
+---
+
+## Service restoration after external wallet reverse (implemented 2026-08-06)
+
+**Case driver:** SC28430 / RD3454444 / REF-2026-000020  
+**Goal:** After Finance reverses RD Wallet externally, Ops Admin can attest in Desk so commercial actions reopen — **without** mutating `refund_requests`.
+
+### Blocking field (unchanged)
+
+Derived `commercial_state = refund_completed` from terminal `refund_requests.status`. No stored commercial column. Order/case status and business holds are not the commercial gate.
+
+### Implementation
+
+| Piece | Location |
+|-------|----------|
+| Table | `commercial_service_restorations` (append-only; `revoked_at` soft-ends active row) |
+| Model / service | `CommercialServiceRestoration`, `CommercialServiceRestorationService` |
+| Permission | `commercial.service.restore` — Admin, Operations Admin, Super Admin |
+| Resolver | `CommercialStateResolver::resolve()` → if completed refund + active restoration → `ServiceRestored` |
+| UI | C360 Commercial State card — “Restore Commercial Service” (wallet + refund completed only) |
+| Routes | `dashboard.service-cases.customer-360.commercial-service-restore` (+ revoke) |
+| Audit | `commercial.service_restored`, `commercial.service_restoration_revoked` |
+
+### Rules
+
+- Wallet refunds only (`approved_refund_method = wallet`)
+- Both checkboxes required: Finance Verified + Wallet Reversed Externally
+- Wallet reversal reference required
+- One active restoration per `(order_id, refund_request_id)` (app-enforced)
+- Never edit `refund_requests`, payments, Cashfree, or wallet systems
+- Revoke re-applies `refund_completed` block
+
+### Tests
+
+- `tests/Unit/Commercial/CommercialStateResolverTest.php`
+- `tests/Feature/Commercial/CommercialStateGoldenTest.php`
+- `tests/Feature/Commercial/CommercialServiceRestorationTest.php`

@@ -3,11 +3,13 @@
 namespace App\Services\Commercial;
 
 use App\Data\Commercial\CommercialStateSnapshot;
+use App\Enums\ApprovedRefundMethod;
 use App\Enums\CommercialAction;
 use App\Enums\CommercialState;
 use App\Enums\IncidentStatus;
 use App\Enums\RefundStatus;
 use App\Models\AuditLog;
+use App\Models\CommercialServiceRestoration;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\RefundRequest;
@@ -42,6 +44,10 @@ class CommercialStateResolver
         CommercialAction::PaidAppointment,
         CommercialAction::ChargeCustomer,
     ];
+
+    public function __construct(
+        private readonly CommercialServiceRestorationService $restorationService,
+    ) {}
 
     public function enabled(): bool
     {
@@ -103,7 +109,7 @@ class CommercialStateResolver
             CommercialState::RefundInitiated => 'Commercial decision pending — '.$action->label().' is unavailable while a refund is in progress.',
             CommercialState::RefundCompleted => 'Commercially closed — '.$action->label().' is unavailable after a refund was completed.',
             CommercialState::CaseClosed => $action->label().' is unavailable on a closed service case.',
-            CommercialState::Open => null,
+            CommercialState::ServiceRestored, CommercialState::Open => null,
         };
     }
 
@@ -117,6 +123,14 @@ class CommercialStateResolver
         ]);
 
         if ($completedRefund instanceof RefundRequest) {
+            $restoration = $order instanceof Order
+                ? $this->restorationService->activeFor($order, $completedRefund)
+                : null;
+
+            if ($restoration instanceof CommercialServiceRestoration) {
+                return $this->serviceRestoredSnapshot($incident, $order, $completedRefund, $restoration);
+            }
+
             return $this->refundCompletedSnapshot($incident, $order, $completedRefund);
         }
 
@@ -248,6 +262,7 @@ class CommercialStateResolver
             dashboardBadgeLabel: 'Refund pending',
             refundId: $refund->id,
             refundReference: $refund->reference_no,
+            approvedRefundMethod: $refund->approved_refund_method?->value,
         );
     }
 
@@ -281,6 +296,39 @@ class CommercialStateResolver
             resolvedDurationLabel: $this->resolutionDurationLabel($incident, $completedAt, $order),
             refundId: $refund->id,
             refundReference: $refund->reference_no,
+            approvedRefundMethod: $refund->approved_refund_method?->value,
+        );
+    }
+
+    private function serviceRestoredSnapshot(
+        Incident $incident,
+        ?Order $order,
+        RefundRequest $refund,
+        CommercialServiceRestoration $restoration,
+    ): CommercialStateSnapshot {
+        $details = [
+            ['label' => 'Refund Ref', 'value' => $refund->reference_no ?: '—'],
+            ['label' => 'Wallet Reverse Ref', 'value' => $restoration->wallet_reversal_reference ?: '—'],
+            ['label' => 'Restored By', 'value' => $restoration->recordedBy?->name ?? '—'],
+            ['label' => 'Restored On', 'value' => AppDateFormatter::datetime($restoration->recorded_at) ?? '—'],
+            ['label' => 'Status', 'value' => 'Service Restored After Wallet Reverse'],
+        ];
+
+        return new CommercialStateSnapshot(
+            state: CommercialState::ServiceRestored,
+            headline: 'Service Restored',
+            summary: 'Finance verified an external wallet reversal. Assign Reference and paid commercial actions are available again. Original refund history is unchanged.',
+            details: $details,
+            blockedActions: [],
+            showBanner: true,
+            allowsReopen: $this->isCaseClosed($incident),
+            timelineIsHistorical: false,
+            dashboardBadgeLabel: 'Service restored',
+            refundId: $refund->id,
+            refundReference: $refund->reference_no,
+            restorationId: $restoration->id,
+            approvedRefundMethod: $refund->approved_refund_method?->value
+                ?? ApprovedRefundMethod::Wallet->value,
         );
     }
 

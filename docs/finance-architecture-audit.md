@@ -77,9 +77,10 @@ Status vocabulary: **Implemented** · **Partial** · **Stub** · **Unused** · *
 
 | Layer | Finding |
 |-------|---------|
-| Status | **Missing** (label-only **placeholder**) |
+| Status | **Missing** in Desk (label-only **placeholder**); real RD Wallet is **external** (RadiumBox admin) |
 | Evidence | `ApprovedRefundMethod::Wallet`; refund execute form “wallet ref” copy; `ManualRefundExecutor` handles all methods |
-| Missing | Balance store, ledger, top-up/debit APIs, reconciliation, ownership of refund clearing for wallet method |
+| Missing in Desk | Balance store, ledger, top-up/debit APIs, reconciliation, ownership of refund clearing for wallet method |
+| Deep dive | [RD Wallet investigation (2026-08-06)](#rd-wallet-investigation-2026-08-06-sc28430) below |
 
 ### Payments (Customer)
 
@@ -427,6 +428,252 @@ Priorities: production value, lowest risk, highest business impact. **Do not inv
 
 ---
 
+## RD Wallet investigation (2026-08-06, SC28430)
+
+**Scope:** Read-only — Desk codebase + production DB. No code changes. No production writes. No wallet credit/debit/reverse performed.  
+**Trigger:** Can Finance safely reverse the ₹617 wallet refund for **REF-2026-000020** / **RD3454444** so service can continue on **SC28430**?  
+**Related case report:** [`docs/sc28430-refund-service-investigation.md`](./sc28430-refund-service-investigation.md)
+
+### Verdict
+
+| Question | Answer |
+|----------|--------|
+| Is RD Wallet implemented in Desk? | **No** |
+| Ledger type in Desk for customer wallet? | **Does not exist** (N/A) |
+| Where does wallet money live? | **External — RadiumBox admin** (`https://admin.radiumbox.com`), outside this repo’s API surface |
+| Can Desk reverse the ₹617 credit? | **No** — no wallet debit/reverse/adjustment API or UI |
+| Does Desk store transaction `#RD273105`? | **No** — only a free-text remark on SC28021; refund row stores `execution_reference_no = REF-2026-000020` |
+| Safe to reverse for SC28430? | **Only via RadiumBox wallet tools**, after live balance verify; then Desk commercial exception for service. Desk alone cannot do it. |
+
+---
+
+### 1. Wallet architecture (Desk)
+
+```
+Customer pays (Cashfree)
+    ↓
+Order + Service Case
+    ↓
+Refund requested (method = wallet)     ← Desk enum only
+    ↓
+Ops credits RD Wallet OUTSIDE Desk     ← RadiumBox admin (not integrated)
+    ↓
+Desk ManualRefundExecutor.complete()   ← stores REF ref; provider=manual
+    ↓
+Optional: RefundJournalService         ← Desk GL (bank clearing), not wallet ledger
+    ↓
+CommercialState = refund_completed     ← blocks paid service / Assign Ref
+```
+
+**What Desk has (wallet-adjacent only):**
+
+| Layer | Exists? | Location |
+|-------|---------|----------|
+| Wallet tables | **No** | Production `SHOW TABLES` → zero `wallet*` tables |
+| Wallet models | **No** | — |
+| Wallet services / controllers / routes | **No** | No `/finance/wallet` |
+| Wallet APIs | **No** | RadiumBox client = `GET /api/search/order` only |
+| Refund method label | **Yes** | `ApprovedRefundMethod::Wallet`, `CustomerPreferredRefundMethod::Wallet`, `config/refunds.php` |
+| Manual complete | **Yes** | `ManualRefundExecutor` — requires reference or txn id string; **no external call** |
+| Finance GL on refund | **Yes** (generic) | `RefundJournalService` → Dr 5100 / Cr 1100 bank clearing — **ignores method** |
+| Wallet reconciliation | **No** | — |
+
+**RadiumBox integration in Desk (non-wallet):**
+
+| Item | Value |
+|------|-------|
+| Base URL | `https://admin.radiumbox.com` |
+| Enabled (prod) | `true` |
+| HTTP methods used | Order enrichment search only |
+| Wallet env vars | None |
+
+---
+
+### 2. Database design
+
+#### Desk (this product)
+
+| Domain | Tables | Role vs wallet |
+|--------|--------|----------------|
+| Refund workflow | `refund_requests` | Stores `approved_refund_method=wallet`, execution strings — **not** a wallet ledger |
+| Finance GL | `finance_accounts`, `finance_journals`, `finance_journal_lines` | Company double-entry books — **not** customer stored-value |
+| Cash book | `cash_book_entries` (+ journal links) | Physical cash — has **journal reverse** on edit/delete |
+| Customer wallet | — | **Missing** |
+
+#### External RD Wallet
+
+Not in Desk schema. Ops references like `#RD273105` are RadiumBox-side identifiers. Desk cannot query balance, list ledger lines, or post debit via current integration.
+
+---
+
+### 3. Ledger implementation — which model?
+
+| System | Model | Notes |
+|--------|-------|-------|
+| **RD customer wallet** | **Unknown / external (D — something else from Desk’s POV)** | Not A/B/C inside Desk — **no implementation**. Ops treat credits as RadiumBox wallet movements (likely a ledger there, but **not observable** from Desk code/API). |
+| **Desk Finance GL** | **A + cached read (hybrid)** | Immutable journals + lines; `AccountBalanceReadModel` = `SUM(debit/credit)` with cache prefix `finance:account-balance:` |
+| **Desk refund “wallet” path** | **Manual attestation** | Completing a wallet refund does **not** post a wallet ledger row; it only marks `refund_requests` completed/closed |
+
+**Preferred accounting method if wallet is ever built in Desk:** append-only ledger (**A**): credit + compensating debit (or reversing entry), never mutate historical rows — same pattern as `CashBookEntryService::reverseCurrentJournal()`.
+
+---
+
+### 4. Wallet credit for REF-2026-000020 / RD273105
+
+#### Desk refund row (`refund_requests.id = 20`)
+
+| Field | Value |
+|-------|-------|
+| Refund reference | **REF-2026-000020** |
+| Amount | ₹617.00 |
+| Method | `wallet` |
+| Desk status | `closed` |
+| Execution reference | **REF-2026-000020** (not RD273105) |
+| Execution / refund transaction id | **null** |
+| Execution remarks | **null** |
+| Provider (audit) | `manual` |
+| Executed by | Shipra (user 3) |
+| Executed at | 2026-07-19 23:41:21 IST |
+| Desk finance journal | **None** (`source_type=refund`, `source_id=20` empty — refund pre-dates ledger foundation 2026-08-02) |
+
+#### External wallet reference `#RD273105`
+
+| Field | Value |
+|-------|-------|
+| Transaction ID in Desk | **Not stored** |
+| Where found | Remark #17519 on **SC28021** (2026-08-06 15:09 IST), author Avinash — workspace close note |
+| Claimed content | “Wallet Refund for Order ID RD3454444 with reference #RD273105, Amount ₹617 credited to the wallet” / success ~19 Jul 23:39 |
+| Linked in `refund_requests` | **No** |
+| Verifiable via Desk/RadiumBox API from this app | **No** |
+
+**Implication:** Desk can prove “refund marked completed as wallet.” It **cannot** prove live wallet ledger state for `#RD273105` without a human check in RadiumBox admin (or a future API).
+
+Production pattern: **119** completed/closed wallet refunds; recent samples all set `execution_reference_no` to the Desk `REF-…` number and leave gateway/wallet txn ids null — external wallet refs are routinely **not** persisted on the refund row.
+
+---
+
+### 5. How “balance” is calculated (by system)
+
+| System | Calculation |
+|--------|-------------|
+| RD Wallet balance | **Outside Desk** — unknown formula here (likely RadiumBox ledger sum or stored balance). Desk has **zero** wallet balance cache/table. |
+| Desk GL account balance | Real-time sum of journal lines (debit/credit by account type), optionally **cached** (`AccountBalanceReadModel`) |
+| Desk refund “already refunded” | Sum of non-rejected refund request amounts on the order (`countsTowardAlreadyRefunded`) — workflow math, not wallet |
+
+---
+
+### 6. Reverse capability — does it already exist?
+
+| Search term | In Desk? | Where |
+|-------------|----------|-------|
+| Wallet reversal | **No** | — |
+| Wallet debit | **No** | — |
+| Wallet adjustment / correction | **No** | — |
+| Wallet rollback / compensation | **No** | — |
+| Negative wallet transaction | **No** | — |
+| Admin / Finance wallet tools | **No** | Finance wallet UI missing |
+| Refund undo / reopen reverse credit | **No** | Completed/closed refunds are terminal |
+| Cash book journal reverse | **Yes** | `CashBookEntryService::reverseCurrentJournal()` — **not wallet** |
+| `FinanceJournalSourceType::ManualAdjustment` | Enum only | **Unused** in production flows |
+| RadiumBox wallet reverse API | **Not integrated** | Client has order search only |
+
+**Every Desk “usage” of wallet today:**
+
+1. Enums + `config/refunds.php` labels  
+2. Refund create/approve/complete UI (method = wallet)  
+3. `ManualRefundExecutor` (manual ref attestation)  
+4. Tests asserting wallet method on refunds  
+5. Investigation/docs mentioning external wallet tools  
+6. Nav icon `bi-wallet2` (cosmetic)  
+
+**No module has performed an automated wallet reversal, adjustment, or manual debit inside Desk.**
+
+---
+
+### 7. Accounting preference for reversing +617
+
+| Approach | Preferred? | Notes |
+|----------|------------|-------|
+| Mutate / delete the +617 history row | **No** | Breaks audit; Desk GL forbids mutating posted journals |
+| Post compensating **−617** (debit) linked to original credit | **Yes** | Append-only; matches Cash Book reverse pattern and proper ledger practice |
+| Desk GL reversing journal for REF-20 | N/A today | No original refund journal was posted for id 20 |
+| Desk “cancel refund” status flip | **Insufficient** | Does not move RadiumBox wallet money; can falsely open commercial path |
+
+---
+
+### 8. SC28430 — safest operational sequence (if Finance wants service)
+
+Desk **cannot** execute steps 2–3. Those are RadiumBox/finance ops.
+
+```
+1. Verify wallet (RadiumBox admin)
+      · Open customer wallet for phone 7643082915 / email suraj7502492@gmail.com
+      · Locate credit #RD273105 (or equivalent) for RD3454444 / ₹617
+      · Confirm available balance ≥ ₹617 and credit not already spent/withdrawn
+      ↓
+2. Reverse wallet (RadiumBox admin only)
+      · Post compensating debit / reverse ₹617 against that credit
+      · Capture proof: screenshot + txn id + new balance (= prior − 617)
+      · Paste proof on SC28430 remark (human)
+      ↓
+3. Do NOT Cashfree-refund payment 6023342207
+      · Do NOT complete a second Desk refund
+      ↓
+4. Commercial state (Desk policy exception)
+      · Order remains commercially refund_completed until product allows override
+      · Only after wallet reverse proof: authorized override / controlled path
+        to allow Assign Ref / paid service on RD3454444
+      · Document who approved the exception
+      ↓
+5. Reference Number → continue service on SC28430 / RD3454444
+      · Assign Ref only after steps 1–4
+      · Keep SC13834 historical; work the open recovery case
+```
+
+**If wallet balance &lt; ₹617 or credit already spent:** stop. Do not serve on original payment without a **new** payment (or customer accepts reduced/no service). Do not invent a Desk reverse.
+
+**If reverse is slow and customer needs service now:** new paid order (keep wallet as refund) — see SC28430 Option C.
+
+---
+
+### 9. Risk analysis
+
+| Scenario | Effect |
+|----------|--------|
+| Wallet already spent / withdrawn | Reverse fails or overdraws; serving on RD3454444 = **free service + spent refund** |
+| Partial balance (&lt; ₹617) | Full reverse impossible; need finance decision (partial debit + top-up payment, or new order) |
+| Multiple refunds on same customer/order | Desk already blocks double refund via `countsTowardAlreadyRefunded`; wallet side may have multiple credits — reverse the **specific** #RD273105 credit only |
+| Concurrent adjustments | Race between bank withdrawal and reverse → confirm balance under lock/process in RadiumBox; serialize ops |
+| Desk-only status change without RadiumBox debit | Commercial opens while wallet still funded → **service + refund** |
+| Cashfree refund after wallet credit | **Double payout** (wallet + bank) |
+| Relying on remark #RD273105 without RadiumBox verify | Remark is attestation, not a ledger row — may be wrong/stale |
+
+---
+
+### 10. Deliverables checklist
+
+| # | Item | Result |
+|---|------|--------|
+| 1 | Wallet architecture | Desk = method label + manual complete; money movement = external RadiumBox |
+| 2 | Database design | No wallet tables in Desk; refund_requests holds method/status only |
+| 3 | Ledger implementation | RD Wallet not in Desk; Desk GL is separate double-entry (hybrid cached sums) |
+| 4 | Existing reverse capability | None for wallet; Cash Book journal reverse only |
+| 5 | Whether reversal already exists | **No** in Desk; must be RadiumBox ops |
+| 6 | Safest SC28430 procedure | §8 — verify → RadiumBox reverse → proof → commercial exception → Ref/service |
+| 7 | Recommendation | **Do not reverse from Desk.** Reverse only in RadiumBox after balance check. Prefer compensating −617. Until then, do not Assign Ref / serve on RD3454444. |
+
+---
+
+### Recommendation (SC28430)
+
+1. Treat Desk as **source of truth for refund workflow status**, not for wallet money.  
+2. Treat RadiumBox admin as **source of truth for wallet balance/ledger**.  
+3. Safe path to continue service: **RadiumBox debit ₹617 (compensating entry) → proof on SC28430 → then commercial exception → Assign Ref.**  
+4. Do **not** build an emergency Desk wallet reverse for this case; do **not** mutate history; do **not** Cashfree-refund again.  
+5. Product gap remains P3: Wallet balances + reconciliation (+ API) only if business requires Desk-owned stored-value.
+
+---
+
 ## Stop
 
-Investigation complete. No code was implemented as part of this audit.
+Investigation complete (including 2026-08-06 RD Wallet / SC28430 addendum). No code was implemented. No production wallet transactions were created or reversed.

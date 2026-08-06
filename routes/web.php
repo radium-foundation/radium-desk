@@ -13,6 +13,7 @@ use App\Http\Controllers\CashfreeWebhookLogController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\CompanyHolidayController;
 use App\Http\Controllers\ConversationWorkspaceController;
+use App\Http\Controllers\CommercialServiceRestorationController;
 use App\Http\Controllers\Customer360Controller;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DashboardActivityController;
@@ -129,6 +130,12 @@ Route::middleware(['auth', 'active'])->group(function () {
         ->name('bonvoice.click-to-call');
     Route::post('dashboard/service-cases/{incident}/customer-360/radiumbox-sync', [Customer360Controller::class, 'radiumBoxSync'])
         ->name('dashboard.service-cases.customer-360.radiumbox-sync');
+    Route::post('dashboard/service-cases/{incident}/customer-360/commercial-service-restore/{refund}', [CommercialServiceRestorationController::class, 'store'])
+        ->middleware('permission:'.\Database\Seeders\RolePermissionSeeder::PERMISSION_COMMERCIAL_SERVICE_RESTORE)
+        ->name('dashboard.service-cases.customer-360.commercial-service-restore');
+    Route::post('dashboard/service-cases/{incident}/customer-360/commercial-service-restore/{restoration}/revoke', [CommercialServiceRestorationController::class, 'revoke'])
+        ->middleware('permission:'.\Database\Seeders\RolePermissionSeeder::PERMISSION_COMMERCIAL_SERVICE_RESTORE)
+        ->name('dashboard.service-cases.customer-360.commercial-service-restore.revoke');
     Route::get('dashboard/service-cases/{incident}/customer-360/device', [Customer360Controller::class, 'device'])
         ->name('dashboard.service-cases.customer-360.device');
     Route::get('dashboard/service-cases/{incident}/customer-360/timeline', [Customer360Controller::class, 'timeline'])

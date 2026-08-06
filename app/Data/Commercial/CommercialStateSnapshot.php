@@ -31,6 +31,8 @@ readonly class CommercialStateSnapshot
         public ?string $resolvedDurationLabel = null,
         public ?int $refundId = null,
         public ?string $refundReference = null,
+        public ?int $restorationId = null,
+        public ?string $approvedRefundMethod = null,
         public ContextScope $contextScope = ContextScope::Case,
     ) {}
 
@@ -61,6 +63,8 @@ readonly class CommercialStateSnapshot
      *     resolved_duration_label: ?string,
      *     refund_id: ?int,
      *     refund_reference: ?string,
+     *     restoration_id: ?int,
+     *     approved_refund_method: ?string,
      *     context_scope: string,
      * }
      */
@@ -85,6 +89,8 @@ readonly class CommercialStateSnapshot
             'resolved_duration_label' => $this->resolvedDurationLabel,
             'refund_id' => $this->refundId,
             'refund_reference' => $this->refundReference,
+            'restoration_id' => $this->restorationId,
+            'approved_refund_method' => $this->approvedRefundMethod,
             'context_scope' => $this->contextScope->value,
         ];
     }

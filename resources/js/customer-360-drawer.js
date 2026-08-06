@@ -1150,10 +1150,140 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
         });
     };
 
+    const bindCommercialServiceRestorationActions = () => {
+        contentHost.querySelectorAll('[data-commercial-restore-form]').forEach((form) => {
+            if (!(form instanceof HTMLFormElement) || form.dataset.bound === '1') {
+                return;
+            }
+
+            form.dataset.bound = '1';
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const submitButton = form.querySelector('[data-commercial-restore-submit]');
+                const errorHost = form.querySelector('[data-commercial-restore-error]');
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                const incidentId = form.dataset.incidentId?.trim() ?? '';
+
+                if (errorHost instanceof HTMLElement) {
+                    errorHost.hidden = true;
+                    errorHost.textContent = '';
+                }
+
+                if (submitButton instanceof HTMLButtonElement) {
+                    submitButton.disabled = true;
+                }
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                        },
+                        body: new FormData(form),
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok || !payload.success) {
+                        const message = payload.message
+                            ?? payload.errors?.finance_verified?.[0]
+                            ?? payload.errors?.wallet_reversed_externally?.[0]
+                            ?? payload.errors?.wallet_reversal_reference?.[0]
+                            ?? 'Unable to restore commercial service.';
+
+                        if (errorHost instanceof HTMLElement) {
+                            errorHost.hidden = false;
+                            errorHost.textContent = message;
+                        }
+
+                        showToast?.(message, 'danger');
+
+                        return;
+                    }
+
+                    const modalElement = form.closest('.modal');
+                    if (modalElement && window.bootstrap?.Modal) {
+                        window.bootstrap.Modal.getInstance(modalElement)?.hide();
+                    }
+
+                    showToast?.(payload.message ?? 'Commercial service restored.');
+                    document.dispatchEvent(new CustomEvent('customer360:refresh', {
+                        detail: { incidentId: payload.incident_id ?? incidentId },
+                    }));
+                } catch (error) {
+                    logCustomer360Failure(form.action, null, 'commercial-restore', error);
+                    showToast?.('Unable to restore commercial service.', 'danger');
+                } finally {
+                    if (submitButton instanceof HTMLButtonElement) {
+                        submitButton.disabled = false;
+                    }
+                }
+            });
+        });
+
+        contentHost.querySelectorAll('[data-commercial-revoke-button]').forEach((button) => {
+            if (!(button instanceof HTMLButtonElement) || button.dataset.bound === '1') {
+                return;
+            }
+
+            button.dataset.bound = '1';
+            button.addEventListener('click', async () => {
+                const revokeUrl = button.dataset.commercialRevokeUrl?.trim() ?? '';
+                const incidentId = button.dataset.incidentId?.trim() ?? '';
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                if (revokeUrl === '' || button.disabled) {
+                    return;
+                }
+
+                if (!window.confirm('Revoke commercial service restoration and re-block Assign Reference?')) {
+                    return;
+                }
+
+                button.disabled = true;
+
+                try {
+                    const response = await fetch(revokeUrl, {
+                        method: 'POST',
+                        headers: {
+                            Accept: 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+                        },
+                        body: JSON.stringify({}),
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+
+                    if (!response.ok || !payload.success) {
+                        showToast?.(payload.message ?? 'Unable to revoke restoration.', 'danger');
+
+                        return;
+                    }
+
+                    showToast?.(payload.message ?? 'Commercial restoration revoked.');
+                    document.dispatchEvent(new CustomEvent('customer360:refresh', {
+                        detail: { incidentId: payload.incident_id ?? incidentId },
+                    }));
+                } catch (error) {
+                    logCustomer360Failure(revokeUrl, null, 'commercial-revoke', error);
+                    showToast?.('Unable to revoke restoration.', 'danger');
+                } finally {
+                    button.disabled = false;
+                }
+            });
+        });
+    };
+
     const finalizeDrawerContent = () => {
         try {
             bindCockpitInteractions();
             bindDeviceSectionInteractions();
+            bindCommercialServiceRestorationActions();
             bindWorkbenchActions();
             verifyAiDomIntegrity(contentHost);
             syncTabState();

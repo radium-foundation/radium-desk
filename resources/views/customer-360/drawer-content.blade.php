@@ -41,7 +41,10 @@
             :waitingStateCard="$waitingStateCard ?? null"
         />
 
-        <x-c360.commercial-state :commercial-state="$commercialState ?? null" />
+        <x-c360.commercial-state
+            :commercial-state="$commercialState ?? null"
+            :incident="$incident"
+        />
 
         <x-c360.quick-action-toolbar
             :incident="$incident"

@@ -22,8 +22,11 @@ use App\Services\Bonvoice\BonvoiceCustomerContactIntelligenceService;
 use App\Services\Customer360\Customer360ActionVisibilityService;
 use App\Services\Customer360\Customer360RecentCommunicationService;
 use App\Services\Customer360\Intelligence\CaseIntelligenceEngine;
+use App\Enums\ApprovedRefundMethod;
+use App\Enums\CommercialState;
 use App\Services\Commercial\CommercialStateResolver;
 use App\Services\CommunicationActions\CommunicationActionEligibilityService;
+use Database\Seeders\RolePermissionSeeder;
 use App\Services\Operations\OperationsAdvisorService;
 use App\Services\Interakt\RequestCorrectSerialCommunicationHistoryService;
 use App\Services\Interakt\RequestCorrectSerialEligibilityService;
@@ -1183,8 +1186,34 @@ class Customer360Service
             return null;
         }
 
-        return $this->commercialStatePresenter->present(
+        $presented = $this->commercialStatePresenter->present(
             $this->commercialStateResolver->forIncident($incident),
         );
+
+        $user = auth()->user();
+        $canRestore = $user?->can(RolePermissionSeeder::PERMISSION_COMMERCIAL_SERVICE_RESTORE) ?? false;
+        $refundId = $presented['refund_id'] ?? null;
+        $isWalletRefundCompleted = ($presented['state'] ?? null) === CommercialState::RefundCompleted->value
+            && ($presented['approved_refund_method'] ?? null) === ApprovedRefundMethod::Wallet->value
+            && filled($refundId);
+        $isServiceRestored = ($presented['state'] ?? null) === CommercialState::ServiceRestored->value
+            && filled($presented['restoration_id'] ?? null);
+
+        $presented['can_restore_commercial_service'] = $canRestore && $isWalletRefundCompleted;
+        $presented['can_revoke_commercial_service_restoration'] = $canRestore && $isServiceRestored;
+        $presented['restore_url'] = $isWalletRefundCompleted
+            ? route('dashboard.service-cases.customer-360.commercial-service-restore', [
+                'incident' => $incident,
+                'refund' => $refundId,
+            ])
+            : null;
+        $presented['revoke_url'] = $isServiceRestored
+            ? route('dashboard.service-cases.customer-360.commercial-service-restore.revoke', [
+                'incident' => $incident,
+                'restoration' => $presented['restoration_id'],
+            ])
+            : null;
+
+        return $presented;
     }
 }
