@@ -368,15 +368,39 @@ class RadiumBoxOrderSearchResponseMapper
         return null;
     }
 
+    public const SERIAL_NUMBER_MAX_LENGTH = 100;
+
+    /**
+     * Normalize a device serial for Desk storage.
+     *
+     * Rules: cast scalars → trim → collapse whitespace → first token → uppercase
+     * → enforce {@see SERIAL_NUMBER_MAX_LENGTH}. Returns null when empty/invalid
+     * after normalization (callers must not fail payment on null).
+     */
     public function normalizeSerialNumber(mixed $value): ?string
     {
+        if (is_int($value) || is_float($value)) {
+            $value = (string) $value;
+        }
+
         if (! is_string($value)) {
             return null;
         }
 
-        $serialNumber = strtoupper(trim($value));
+        $collapsed = preg_replace('/\s+/u', ' ', trim($value)) ?? '';
 
-        return $serialNumber !== '' ? $serialNumber : null;
+        if ($collapsed === '') {
+            return null;
+        }
+
+        $token = explode(' ', $collapsed, 2)[0];
+        $serialNumber = strtoupper($token);
+
+        if ($serialNumber === '' || strlen($serialNumber) > self::SERIAL_NUMBER_MAX_LENGTH) {
+            return null;
+        }
+
+        return $serialNumber;
     }
 
     public function normalizeDeviceModel(mixed $value): ?string

@@ -6,6 +6,7 @@ use App\Enums\CommunicationActionKey;
 use App\Enums\WorkspaceContext;
 use App\Enums\IncidentSource;
 use App\Enums\IncidentStatus;
+use App\Jobs\SendServiceReferenceDriverGuideBatchJob;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\AuditLog;
 use App\Models\DeviceModel;
@@ -305,7 +306,16 @@ class ReferenceNumberAddedDriverInstallationGuideTest extends TestCase
         $this->assertSame('TXN-BATCH-QUEUED', $firstOrder->fresh()->transaction_id);
         $this->assertSame('TXN-BATCH-QUEUED', $secondOrder->fresh()->transaction_id);
 
-        Queue::assertPushed(SendServiceReferenceDriverGuideJob::class, 2);
+        Queue::assertNotPushed(SendServiceReferenceDriverGuideJob::class);
+        Queue::assertPushed(SendServiceReferenceDriverGuideBatchJob::class, 1);
+        Queue::assertPushed(SendServiceReferenceDriverGuideBatchJob::class, function (SendServiceReferenceDriverGuideBatchJob $job) use ($firstOrder, $secondOrder, $admin): bool {
+            $orderIds = array_column($job->items, 'order_id');
+
+            return $job->actorId === $admin->id
+                && $orderIds === [$firstOrder->id, $secondOrder->id]
+                && $job->items[0]['service_reference'] === 'TXN-BATCH-QUEUED'
+                && $job->items[1]['service_reference'] === 'TXN-BATCH-QUEUED';
+        });
         Http::assertNothingSent();
 
         $this->assertDatabaseMissing('audit_logs', [

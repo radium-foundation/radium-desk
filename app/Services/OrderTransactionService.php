@@ -9,7 +9,9 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
 use App\Notifications\TransactionCompletedNotification;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Commercial\CommercialStateResolver;
+use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\TeamMemberActivityService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -28,6 +30,10 @@ class OrderTransactionService
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly CustomerVerificationService $customerVerificationService,
         private readonly CommercialStateResolver $commercialStateResolver,
+        private readonly AssignReferenceBatchCoalescer $batchCoalescer,
+        private readonly DashboardSnapshotStore $dashboardSnapshotStore,
+        private readonly AutomationOperationsSnapshotInvalidator $automationSnapshotInvalidator,
+        private readonly SettingService $settingService,
     ) {}
 
     public function assignTransactionId(
@@ -65,10 +71,14 @@ class OrderTransactionService
         $this->customerVerificationService->assertCanCompleteService($order, $actor);
         $this->assertNoActiveBusinessHoldOnOrder($order);
 
-        $this->dashboardBroadcastService->beginKpiCoalesce($actor);
+        $batchActive = $this->batchCoalescer->isActive();
+
+        if (! $batchActive) {
+            $this->dashboardBroadcastService->beginKpiCoalesce($actor);
+        }
 
         try {
-            $freshOrder = DB::transaction(function () use ($order, $transactionId, $actor, $broadcast): Order {
+            $freshOrder = DB::transaction(function () use ($order, $transactionId, $actor, $broadcast, $batchActive): Order {
                 $oldValues = [
                     'transaction_id' => $order->transaction_id,
                     'completed_at' => $order->completed_at?->toIso8601String(),
@@ -121,7 +131,13 @@ class OrderTransactionService
                 $orderId = $freshOrder->id;
                 $actorId = $actor->id;
 
-                DB::afterCommit(function () use ($orderId, $transactionId, $actorId, $broadcast): void {
+                DB::afterCommit(function () use ($orderId, $transactionId, $actorId, $broadcast, $batchActive): void {
+                    if ($batchActive) {
+                        $this->batchCoalescer->deferNotification($orderId, $transactionId, $actorId);
+
+                        return;
+                    }
+
                     $committedOrder = Order::query()
                         ->with(['transactionAssigner'])
                         ->find($orderId);
@@ -152,7 +168,9 @@ class OrderTransactionService
                 return $freshOrder;
             });
         } catch (Throwable $exception) {
-            $this->dashboardBroadcastService->cancelKpiCoalesce();
+            if (! $batchActive) {
+                $this->dashboardBroadcastService->cancelKpiCoalesce();
+            }
 
             throw $exception;
         }
@@ -167,6 +185,12 @@ class OrderTransactionService
     ): void {
         $orderId = $order->id;
         $actorId = $actor->id;
+
+        if ($this->batchCoalescer->isActive()) {
+            $this->batchCoalescer->deferDriverGuide($orderId, $serviceReference, $actorId);
+
+            return;
+        }
 
         DB::afterCommit(function () use ($orderId, $serviceReference, $actorId): void {
             SendServiceReferenceDriverGuideJob::dispatch($orderId, $serviceReference, $actorId)
@@ -247,182 +271,220 @@ class OrderTransactionService
             'started_at' => $batchStartedAt->toIso8601String(),
         ]);
 
-        foreach ($ordersToUpdate as $orderId) {
-            $order = Order::query()->find($orderId);
-
-            if ($order === null || ! $actor->can('assignTransaction', $order)) {
-                continue;
-            }
-
-            $primaryIncident = $incidentsByOrderId->get($orderId)?->first();
-
-            Log::info('bulk_assign.order.started', [
-                'batch_id' => $batchId,
-                'order_id' => $order->order_id,
-                'case_id' => $primaryIncident?->id,
-                'reference_number' => $primaryIncident?->reference_no,
-            ]);
-
-            try {
-                $this->assignTransactionId(
-                    $order,
-                    $transactionId,
-                    $actor,
-                    broadcast: false,
-                );
-
-                Log::info('bulk_assign.order.committed', [
-                    'batch_id' => $batchId,
-                    'order_id' => $order->order_id,
-                    'case_id' => $primaryIncident?->id,
-                    'reference_number' => $primaryIncident?->reference_no,
-                ]);
-            } catch (Throwable $exception) {
-                $failureMessage = $exception instanceof ValidationException
-                    ? (string) (collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
-                    : $exception->getMessage();
-
-                $orderFailureMessages[$orderId] = $failureMessage;
-
-                Log::error('bulk_assign.order.failed', [
-                    'batch_id' => $batchId,
-                    'order_id' => $order->order_id,
-                    'case_id' => $primaryIncident?->id,
-                    'reference_number' => $primaryIncident?->reference_no,
-                    'exception' => $exception::class,
-                    'message' => $failureMessage,
-                    'stack_trace' => $exception->getTraceAsString(),
-                ]);
-            }
-        }
-
-        Log::info('bulk_assign.batch.finished', [
-            'batch_id' => $batchId,
-            'total_orders' => count($ordersToUpdate),
-            'started_at' => $batchStartedAt->toIso8601String(),
-            'finished_at' => now()->toIso8601String(),
-            'duration_ms' => (int) round((microtime(true) - $batchTimerStartedAt) * 1000),
-        ]);
-
-        $refreshedIncidents = Incident::query()
-            ->with(['order.transactionAssigner', 'creator', 'assignee'])
-            ->whereIn('id', $incidentIds)
-            ->get()
-            ->keyBy('id');
+        $this->batchCoalescer->begin();
+        $this->dashboardBroadcastService->beginKpiCoalesce($actor);
 
         /** @var list<string> $postProcessingWarnings */
         $postProcessingWarnings = [];
-
         $rows = [];
-
-        foreach ($incidentIds as $incidentId) {
-            $incident = $refreshedIncidents->get($incidentId);
-
-            if ($incident === null) {
-                continue;
-            }
-
-            try {
-                $rows[] = [
-                    'incident_id' => $incident->id,
-                    'html' => view(
-                        'dashboard.partials.service-case-row',
-                        $this->dashboardService->serviceCaseRowViewData($incident, $actor),
-                    )->render(),
-                ];
-            } catch (Throwable $exception) {
-                $this->logPostProcessingFailure($batchId, 'replace_rows.render', $exception);
-
-                if (! in_array(self::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
-                    $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
-                }
-            }
-        }
-
         $succeededIncidentIds = [];
         $failedIncidents = [];
+        $batchCompletedCleanly = false;
 
-        foreach ($incidentIds as $incidentId) {
-            $incident = $refreshedIncidents->get($incidentId);
+        try {
+            foreach ($ordersToUpdate as $orderId) {
+                $order = Order::query()->find($orderId);
 
-            if ($incident === null) {
-                $failedIncidents[] = [
-                    'incident_id' => $incidentId,
-                    'message' => 'Service case not found.',
-                ];
+                if ($order === null || ! $actor->can('assignTransaction', $order)) {
+                    continue;
+                }
 
-                continue;
-            }
+                $primaryIncident = $incidentsByOrderId->get($orderId)?->first();
 
-            if ($incident->order !== null
-                && $incident->order->transaction_id === $transactionId
-                && $incident->order->isTransactionLocked()) {
-                $succeededIncidentIds[] = $incidentId;
+                Log::info('bulk_assign.order.started', [
+                    'batch_id' => $batchId,
+                    'order_id' => $order->order_id,
+                    'case_id' => $primaryIncident?->id,
+                    'reference_number' => $primaryIncident?->reference_no,
+                ]);
 
-                continue;
-            }
+                try {
+                    $this->assignTransactionId(
+                        $order,
+                        $transactionId,
+                        $actor,
+                        broadcast: false,
+                    );
 
-            if ($incident->order === null) {
-                $failedIncidents[] = [
-                    'incident_id' => $incidentId,
-                    'message' => 'This service case has no order.',
-                ];
+                    Log::info('bulk_assign.order.committed', [
+                        'batch_id' => $batchId,
+                        'order_id' => $order->order_id,
+                        'case_id' => $primaryIncident?->id,
+                        'reference_number' => $primaryIncident?->reference_no,
+                    ]);
+                } catch (Throwable $exception) {
+                    $failureMessage = $exception instanceof ValidationException
+                        ? (string) (collect($exception->errors())->flatten()->first() ?? $exception->getMessage())
+                        : $exception->getMessage();
 
-                continue;
-            }
+                    $orderFailureMessages[$orderId] = $failureMessage;
 
-            if ($incident->order->isTransactionLocked()) {
-                $failedIncidents[] = [
-                    'incident_id' => $incidentId,
-                    'message' => 'This order is already completed and locked.',
-                ];
-
-                continue;
-            }
-
-            if (! $actor->can('assignTransaction', $incident->order)) {
-                $failedIncidents[] = [
-                    'incident_id' => $incidentId,
-                    'message' => 'This action is unauthorized.',
-                ];
-
-                continue;
-            }
-
-            if (! $this->customerVerificationService->canCompleteService($incident->order)) {
-                $failedIncidents[] = [
-                    'incident_id' => $incidentId,
-                    'message' => 'Customer verification required before completing service.',
-                ];
-
-                continue;
-            }
-
-            if (isset($orderFailureMessages[$incident->order->id])) {
-                $failedIncidents[] = [
-                    'incident_id' => $incidentId,
-                    'message' => $orderFailureMessages[$incident->order->id],
-                ];
-
-                continue;
-            }
-
-            $failedIncidents[] = [
-                'incident_id' => $incidentId,
-                'message' => 'Unable to assign transaction ID.',
-            ];
-        }
-
-        if ($succeededIncidentIds !== []) {
-            try {
-                $this->dashboardBroadcastService->transactionsAssigned($succeededIncidentIds, $actor);
-            } catch (Throwable $exception) {
-                $this->logPostProcessingFailure($batchId, 'transactionsAssigned', $exception);
-
-                if (! in_array(self::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
-                    $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
+                    Log::error('bulk_assign.order.failed', [
+                        'batch_id' => $batchId,
+                        'order_id' => $order->order_id,
+                        'case_id' => $primaryIncident?->id,
+                        'reference_number' => $primaryIncident?->reference_no,
+                        'exception' => $exception::class,
+                        'message' => $failureMessage,
+                        'stack_trace' => $exception->getTraceAsString(),
+                    ]);
                 }
             }
+
+            $coalesceStats = $this->batchCoalescer->stats();
+
+            // One snapshot forget + one automation dirty mark before row/KPI rebuild.
+            $this->batchCoalescer->flushInvalidations(
+                $this->dashboardSnapshotStore,
+                $this->automationSnapshotInvalidator,
+            );
+
+            $refreshedIncidents = Incident::query()
+                ->with(['order.transactionAssigner', 'creator', 'assignee'])
+                ->whereIn('id', $incidentIds)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($incidentIds as $incidentId) {
+                $incident = $refreshedIncidents->get($incidentId);
+
+                if ($incident === null) {
+                    continue;
+                }
+
+                try {
+                    $rows[] = [
+                        'incident_id' => $incident->id,
+                        'html' => view(
+                            'dashboard.partials.service-case-row',
+                            $this->dashboardService->serviceCaseRowViewData($incident, $actor),
+                        )->render(),
+                    ];
+                } catch (Throwable $exception) {
+                    $this->logPostProcessingFailure($batchId, 'replace_rows.render', $exception);
+
+                    if (! in_array(self::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
+                        $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
+                    }
+                }
+            }
+
+            foreach ($incidentIds as $incidentId) {
+                $incident = $refreshedIncidents->get($incidentId);
+
+                if ($incident === null) {
+                    $failedIncidents[] = [
+                        'incident_id' => $incidentId,
+                        'message' => 'Service case not found.',
+                    ];
+
+                    continue;
+                }
+
+                if ($incident->order !== null
+                    && $incident->order->transaction_id === $transactionId
+                    && $incident->order->isTransactionLocked()) {
+                    $succeededIncidentIds[] = $incidentId;
+
+                    continue;
+                }
+
+                if ($incident->order === null) {
+                    $failedIncidents[] = [
+                        'incident_id' => $incidentId,
+                        'message' => 'This service case has no order.',
+                    ];
+
+                    continue;
+                }
+
+                if ($incident->order->isTransactionLocked()) {
+                    $failedIncidents[] = [
+                        'incident_id' => $incidentId,
+                        'message' => 'This order is already completed and locked.',
+                    ];
+
+                    continue;
+                }
+
+                if (! $actor->can('assignTransaction', $incident->order)) {
+                    $failedIncidents[] = [
+                        'incident_id' => $incidentId,
+                        'message' => 'This action is unauthorized.',
+                    ];
+
+                    continue;
+                }
+
+                if (! $this->customerVerificationService->canCompleteService($incident->order)) {
+                    $failedIncidents[] = [
+                        'incident_id' => $incidentId,
+                        'message' => 'Customer verification required before completing service.',
+                    ];
+
+                    continue;
+                }
+
+                if (isset($orderFailureMessages[$incident->order->id])) {
+                    $failedIncidents[] = [
+                        'incident_id' => $incidentId,
+                        'message' => $orderFailureMessages[$incident->order->id],
+                    ];
+
+                    continue;
+                }
+
+                $failedIncidents[] = [
+                    'incident_id' => $incidentId,
+                    'message' => 'Unable to assign transaction ID.',
+                ];
+            }
+
+            if ($succeededIncidentIds !== []) {
+                try {
+                    $this->dashboardBroadcastService->transactionsAssigned($succeededIncidentIds, $actor);
+                } catch (Throwable $exception) {
+                    $this->logPostProcessingFailure($batchId, 'transactionsAssigned', $exception);
+
+                    if (! in_array(self::DASHBOARD_REFRESH_WARNING, $postProcessingWarnings, true)) {
+                        $postProcessingWarnings[] = self::DASHBOARD_REFRESH_WARNING;
+                    }
+                }
+            }
+
+            // One TransactionCompletedNotification fan-out pass + one DriverGuide batch job.
+            $this->batchCoalescer->flushCommunications($this->settingService);
+            $this->dashboardBroadcastService->flushKpiCoalesce();
+            $batchCompletedCleanly = true;
+
+            Log::info('bulk_assign.batch.finished', [
+                'batch_id' => $batchId,
+                'total_orders' => count($ordersToUpdate),
+                'succeeded_incident_ids' => count($succeededIncidentIds),
+                'started_at' => $batchStartedAt->toIso8601String(),
+                'finished_at' => now()->toIso8601String(),
+                'duration_ms' => (int) round((microtime(true) - $batchTimerStartedAt) * 1000),
+                'coalesce' => $coalesceStats,
+            ]);
+        } catch (Throwable $exception) {
+            $this->dashboardBroadcastService->cancelKpiCoalesce();
+
+            throw $exception;
+        } finally {
+            // Preserve committed side-effects even when post-processing throws.
+            if (! $batchCompletedCleanly && $this->batchCoalescer->isActive()) {
+                try {
+                    $this->batchCoalescer->flushInvalidations(
+                        $this->dashboardSnapshotStore,
+                        $this->automationSnapshotInvalidator,
+                    );
+                    $this->batchCoalescer->flushCommunications($this->settingService);
+                } catch (Throwable $flushException) {
+                    $this->logPostProcessingFailure($batchId, 'coalescer.flush', $flushException);
+                }
+            }
+
+            $this->batchCoalescer->end();
         }
 
         return [

@@ -40,6 +40,26 @@ class RadiumBoxOrderSearchResponseMapperTest extends TestCase
         $this->assertSame('Expired', $enrichment->amc);
     }
 
+    public function test_normalize_serial_number_collapses_whitespace_and_takes_first_token(): void
+    {
+        $padded = '7071331'.str_repeat(' ', 138).'7071331';
+
+        $this->assertSame('7071331', $this->mapper->normalizeSerialNumber($padded));
+        $this->assertSame('M250546898', $this->mapper->normalizeSerialNumber(' m250546898 '));
+        $this->assertSame('ABC123', $this->mapper->normalizeSerialNumber("abc123\t\ndef456"));
+    }
+
+    public function test_normalize_serial_number_returns_null_when_token_exceeds_db_max(): void
+    {
+        $this->assertNull($this->mapper->normalizeSerialNumber(str_repeat('A', 101)));
+        $this->assertNull($this->mapper->normalizeSerialNumber('   '));
+        $this->assertNull($this->mapper->normalizeSerialNumber(null));
+        $this->assertSame(
+            str_repeat('B', 100),
+            $this->mapper->normalizeSerialNumber(str_repeat('b', 100)),
+        );
+    }
+
     public function test_it_maps_legacy_import_fields_from_production_style_payload(): void
     {
         $enrichment = $this->mapper->map($this->productionStylePayload(), 'RD3395988');

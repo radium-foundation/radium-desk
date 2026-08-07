@@ -96,8 +96,16 @@ class ServiceCaseStatusService
 
             // Snapshot membership changes with status — always invalidate,
             // independent of Hybrid Realtime / broadcast / Reverb flags.
-            $this->dashboardSnapshotStore->forget();
-            $this->snapshotInvalidator->markCaseOrOrderChanged();
+            // Batch Assign Reference coalesces these into one flush per request.
+            $batchCoalescer = app(AssignReferenceBatchCoalescer::class);
+
+            if ($batchCoalescer->isActive()) {
+                $batchCoalescer->noteDashboardSnapshotInvalidation();
+                $batchCoalescer->noteAutomationDirty();
+            } else {
+                $this->dashboardSnapshotStore->forget();
+                $this->snapshotInvalidator->markCaseOrOrderChanged();
+            }
 
             if ($status === IncidentStatus::Closed) {
                 $this->waitingStateService->clearActiveIfPresent(

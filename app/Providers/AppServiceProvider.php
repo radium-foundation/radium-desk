@@ -117,6 +117,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(DashboardSnapshotStore::class);
         $this->app->scoped(SettingService::class);
         $this->app->scoped(SystemSettingsAdminCollection::class);
+        $this->app->scoped(\App\Services\AssignReferenceBatchCoalescer::class);
         $this->app->scoped(DashboardBroadcastService::class);
         $this->app->scoped(OperationsQueueClassifier::class);
         $this->app->scoped(ServiceCaseAutomationStatusService::class);

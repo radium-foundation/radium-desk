@@ -135,6 +135,194 @@ class CashfreeOrderTagsIngestTest extends TestCase
         $this->assertSame(['1 Year Unlimited'], $order->service_history);
     }
 
+    public function test_padded_duplicate_serial_tag_does_not_block_payment_and_uses_first_token(): void
+    {
+        $paddedSerial = '7071331'.str_repeat(' ', 138).'7071331';
+        $this->assertSame(152, strlen($paddedSerial));
+
+        $payload = $this->successfulPayloadWithTags(
+            cfPaymentId: '6183507506',
+            orderId: 'RD3478853',
+            orderTags: [
+                'product_name' => 'MFS110',
+                'rd_service_name' => '1 Year Unlimited',
+                'serial_no' => $paddedSerial,
+            ],
+        );
+
+        $this->postJson('/api/webhooks/cashfree', $payload)
+            ->assertOk()
+            ->assertExactJson(['status' => 'ok']);
+
+        $log = CashfreeWebhookLog::query()->where('cf_payment_id', '6183507506')->first();
+        $this->assertNotNull($log);
+        $this->assertSame(CashfreeWebhookLog::STATUS_PROCESSED, $log->processing_status);
+        $this->assertNull($log->processing_error);
+        $this->assertNotNull($log->incident_id);
+
+        $order = Order::query()->where('cashfree_payment_id', '6183507506')->first();
+        $this->assertNotNull($order);
+        $this->assertSame('RD3478853', $order->order_id);
+        $this->assertSame('7071331', $order->serial_number);
+        $this->assertSame('MFS110', $order->product_name);
+        $this->assertSame(['1 Year Unlimited'], $order->service_history);
+
+        $this->assertSame(1, Incident::query()->where('order_id', $order->id)->count());
+
+        $this->assertNull(
+            AuditLog::query()
+                ->where('event', CashfreeWebhookProcessorService::AUDIT_EVENT_INVALID_ORDER_TAG)
+                ->where('auditable_id', $order->id)
+                ->first()
+        );
+    }
+
+    public function test_overlong_serial_token_stores_null_audits_and_still_creates_order_and_case(): void
+    {
+        $overlong = str_repeat('A', 101);
+
+        $payload = $this->successfulPayloadWithTags(
+            cfPaymentId: '6183507600',
+            orderId: 'RD3478854',
+            orderTags: [
+                'product_name' => 'MFS110',
+                'rd_service_name' => '1 Year Unlimited',
+                'serial_no' => $overlong,
+            ],
+        );
+
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+
+        $order = Order::query()->where('cashfree_payment_id', '6183507600')->first();
+        $this->assertNotNull($order);
+        $this->assertNull($order->serial_number);
+        $this->assertSame('MFS110', $order->product_name);
+
+        $incident = Incident::query()->where('order_id', $order->id)->first();
+        $this->assertNotNull($incident);
+
+        $log = CashfreeWebhookLog::query()->where('cf_payment_id', '6183507600')->first();
+        $this->assertSame(CashfreeWebhookLog::STATUS_PROCESSED, $log?->processing_status);
+
+        $audit = AuditLog::query()
+            ->where('event', CashfreeWebhookProcessorService::AUDIT_EVENT_INVALID_ORDER_TAG)
+            ->where('auditable_type', $order->getMorphClass())
+            ->where('auditable_id', $order->id)
+            ->first();
+
+        $this->assertNotNull($audit);
+        $this->assertSame('serial_no', $audit->new_values['tag'] ?? null);
+        $this->assertSame('invalid_after_normalize', $audit->new_values['reason'] ?? null);
+        $this->assertSame('6183507600', $audit->new_values['cf_payment_id'] ?? null);
+    }
+
+    public function test_overlong_product_name_tag_is_skipped_without_failing_payment(): void
+    {
+        $overlongProduct = str_repeat('P', 256);
+
+        $payload = $this->successfulPayloadWithTags(
+            cfPaymentId: '6183507601',
+            orderId: 'RD3478855',
+            orderTags: [
+                'product_name' => $overlongProduct,
+                'rd_service_name' => '1 Year Unlimited',
+                'serial_no' => '7071332',
+            ],
+        );
+
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+
+        $order = Order::query()->where('cashfree_payment_id', '6183507601')->first();
+        $this->assertNotNull($order);
+        $this->assertNull($order->product_name);
+        $this->assertNull($order->device_model);
+        $this->assertSame('7071332', $order->serial_number);
+        $this->assertSame(['1 Year Unlimited'], $order->service_history);
+
+        $audit = AuditLog::query()
+            ->where('event', CashfreeWebhookProcessorService::AUDIT_EVENT_INVALID_ORDER_TAG)
+            ->where('auditable_id', $order->id)
+            ->first();
+
+        $this->assertNotNull($audit);
+        $this->assertSame('product_name', $audit->new_values['tag'] ?? null);
+        $this->assertSame('exceeds_max_length', $audit->new_values['reason'] ?? null);
+    }
+
+    public function test_historical_recovery_heals_failed_webhook_with_padded_serial_tag(): void
+    {
+        $paddedSerial = '7071331'.str_repeat(' ', 138).'7071331';
+        $payload = $this->successfulPayloadWithTags(
+            cfPaymentId: '6183507506',
+            orderId: 'RD3478853',
+            orderTags: [
+                'product_name' => 'MFS110',
+                'rd_service_name' => '1 Year Unlimited',
+                'serial_no' => $paddedSerial,
+            ],
+        );
+
+        $log = CashfreeWebhookLog::query()->create([
+            'webhook_version' => '2025-01-01',
+            'cf_payment_id' => '6183507506',
+            'request_headers' => [],
+            'request_payload' => $payload,
+            'raw_body' => json_encode($payload, JSON_THROW_ON_ERROR),
+            'received_at' => now(),
+            'processing_status' => CashfreeWebhookLog::STATUS_FAILED,
+            'processing_error' => 'SQLSTATE[22001]: Data too long for column \'serial_number\'',
+            'processed_at' => now(),
+        ]);
+
+        $result = app(CashfreeWebhookProcessorService::class)->process($log->fresh());
+
+        $this->assertSame(CashfreeWebhookLog::STATUS_PROCESSED, $result->processing_status);
+        $this->assertNull($result->processing_error);
+
+        $order = Order::query()->where('cashfree_payment_id', '6183507506')->first();
+        $this->assertNotNull($order);
+        $this->assertSame('7071331', $order->serial_number);
+        $this->assertNotNull(Incident::query()->where('order_id', $order->id)->first());
+    }
+
+    public function test_duplicate_owned_serial_tag_skips_serial_but_creates_order(): void
+    {
+        Order::query()->create([
+            'order_id' => 'RD-OWNER-1',
+            'serial_number' => '7071333',
+            'cashfree_payment_id' => 'existing-owner',
+            'status' => 'active',
+            'created_by' => 1,
+            'updated_by' => 1,
+        ]);
+
+        $payload = $this->successfulPayloadWithTags(
+            cfPaymentId: '6183507602',
+            orderId: 'RD3478856',
+            orderTags: [
+                'product_name' => 'MFS110',
+                'rd_service_name' => '1 Year Unlimited',
+                'serial_no' => '7071333',
+            ],
+        );
+
+        $this->postJson('/api/webhooks/cashfree', $payload)->assertOk();
+
+        $order = Order::query()->where('cashfree_payment_id', '6183507602')->first();
+        $this->assertNotNull($order);
+        $this->assertNull($order->serial_number);
+        $this->assertSame('MFS110', $order->product_name);
+        $this->assertNotNull(Incident::query()->where('order_id', $order->id)->first());
+
+        $audit = AuditLog::query()
+            ->where('event', CashfreeWebhookProcessorService::AUDIT_EVENT_INVALID_ORDER_TAG)
+            ->where('auditable_id', $order->id)
+            ->first();
+
+        $this->assertNotNull($audit);
+        $this->assertSame('serial_already_owned', $audit->new_values['reason'] ?? null);
+    }
+
     public function test_null_order_tags_keeps_identity_empty(): void
     {
         $this->postJson(

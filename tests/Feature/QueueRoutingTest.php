@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\QueueWorkerMode;
 use App\Infrastructure\Queue\QueueRouting;
 use App\Jobs\RadiumBoxOrderEnrichmentJob;
+use App\Jobs\SendServiceReferenceDriverGuideBatchJob;
 use App\Jobs\SendServiceReferenceDriverGuideJob;
 use App\Models\Order;
 use App\Models\User;

@@ -39,6 +39,11 @@ class CashfreeWebhookProcessorService
 
     public const AUDIT_EVENT_ORDER_TAGS_IMPORTED = 'cashfree.order_tags_imported';
 
+    public const AUDIT_EVENT_INVALID_ORDER_TAG = 'cashfree.invalid_order_tag';
+
+    /** Matches Laravel default string columns for product_name / device_model. */
+    private const ORDER_TAG_STRING_MAX_LENGTH = 255;
+
     public function __construct(
         private readonly CashfreeWebhookPayloadParser $payloadParser,
         private readonly IncidentReferenceService $incidentReferenceService,
@@ -166,6 +171,7 @@ class CashfreeWebhookProcessorService
             $created = $this->createOrder($payload, $cfPaymentId, $systemUser);
             $order = $created['order'];
             $importedFields = $created['imported_fields'];
+            $invalidTags = $created['invalid_tags'];
             $phone = $this->payloadParser->customerPhone($payload);
             $linkableIncident = $this->inquiryOrderLinkService->findLinkableInquiryIncident($order, $phone);
 
@@ -175,7 +181,13 @@ class CashfreeWebhookProcessorService
                 $incident = $this->createServiceRequest($order, $payload, $systemUser, $referenceNo);
             }
 
-            $this->finalizeOrderTagIdentity($order, $systemUser, $importedFields);
+            $this->finalizeOrderTagIdentity(
+                order: $order,
+                systemUser: $systemUser,
+                importedFields: $importedFields,
+                invalidTags: $invalidTags,
+                cfPaymentId: $cfPaymentId,
+            );
 
             $this->markProcessed($webhookLog, $incident);
             $this->reliabilityMetrics->recordOrderCreated();
@@ -289,7 +301,11 @@ class CashfreeWebhookProcessorService
 
     /**
      * @param  array<string, mixed>  $payload
-     * @return array{order: Order, imported_fields: array<string, mixed>}
+     * @return array{
+     *     order: Order,
+     *     imported_fields: array<string, mixed>,
+     *     invalid_tags: list<array{tag: string, reason: string, raw: string|null, normalized: string|null}>
+     * }
      */
     private function createOrder(array $payload, string $cfPaymentId, User $systemUser): array
     {
@@ -328,98 +344,203 @@ class CashfreeWebhookProcessorService
         return [
             'order' => $order,
             'imported_fields' => $identity['imported_fields'],
+            'invalid_tags' => $identity['invalid_tags'],
         ];
     }
 
     /**
+     * Order tags are optional metadata. Invalid / oversized / conflicting tags
+     * must never abort payment persistence — store null and audit instead.
+     *
      * @param  array<string, mixed>  $payload
      * @return array{
      *     attributes: array<string, mixed>,
      *     imported_fields: array<string, mixed>,
+     *     invalid_tags: list<array{tag: string, reason: string, raw: string|null, normalized: string|null}>
      * }
      */
     private function resolveOrderTagIdentity(array $payload, User $systemUser): array
     {
         $attributes = [];
         $importedFields = [];
+        $invalidTags = [];
 
-        $productName = $this->fieldNormalizer->normalizeOptionalString(
-            $this->payloadParser->orderTagProductName($payload),
-        );
+        $rawProductName = $this->payloadParser->orderTagProductName($payload);
 
-        if ($productName !== null) {
-            $attributes['product_name'] = $productName;
-            $attributes['device_model'] = $productName;
-            $importedFields['product_name'] = $productName;
-            $importedFields['device_model'] = $productName;
-        }
+        if ($rawProductName !== null) {
+            $productName = $this->fieldNormalizer->normalizeOptionalString($rawProductName);
 
-        $serviceHistory = $this->fieldNormalizer->normalizeHistory(
-            $this->payloadParser->orderTagRdServiceName($payload),
-        );
-
-        if ($serviceHistory !== null) {
-            $attributes['service_history'] = $serviceHistory;
-            $importedFields['service_history'] = $serviceHistory;
-            $importedFields['rd_service_name'] = $serviceHistory[0] ?? null;
-        }
-
-        $serialNumber = $this->fieldNormalizer->normalizeSerialNumber(
-            $this->payloadParser->orderTagSerialNo($payload),
-        );
-
-        if ($serialNumber !== null) {
-            $existingOwner = Order::query()
-                ->where('serial_number', $serialNumber)
-                ->first(['id', 'order_id', 'serial_number']);
-
-            if ($existingOwner !== null) {
-                Log::warning('[Cashfree Webhook] Skipping order_tags serial_no; already owned by another order.', [
-                    'serial_number' => $serialNumber,
-                    'existing_owner_order_id' => $existingOwner->order_id,
-                    'existing_owner_db_id' => $existingOwner->id,
-                    'incoming_order_id' => $this->payloadParser->orderId($payload),
-                ]);
+            if ($productName === null) {
+                $invalidTags[] = $this->invalidOrderTag(
+                    tag: 'product_name',
+                    reason: 'invalid_after_normalize',
+                    raw: $rawProductName,
+                );
+            } elseif (strlen($productName) > self::ORDER_TAG_STRING_MAX_LENGTH) {
+                $invalidTags[] = $this->invalidOrderTag(
+                    tag: 'product_name',
+                    reason: 'exceeds_max_length',
+                    raw: $rawProductName,
+                    normalized: $productName,
+                );
             } else {
-                $attributes['serial_number'] = $serialNumber;
-                $attributes['serial_entered_at'] = now();
-                $attributes['serial_entered_by_user_id'] = $systemUser->id;
-                $importedFields['serial_number'] = $serialNumber;
+                $attributes['product_name'] = $productName;
+                $attributes['device_model'] = $productName;
+                $importedFields['product_name'] = $productName;
+                $importedFields['device_model'] = $productName;
+            }
+        }
+
+        $rawServiceName = $this->payloadParser->orderTagRdServiceName($payload);
+
+        if ($rawServiceName !== null) {
+            $serviceHistory = $this->fieldNormalizer->normalizeHistory($rawServiceName);
+            $serviceEntry = is_array($serviceHistory) ? ($serviceHistory[0] ?? null) : null;
+
+            if ($serviceHistory === null || ! is_string($serviceEntry) || $serviceEntry === '') {
+                $invalidTags[] = $this->invalidOrderTag(
+                    tag: 'rd_service_name',
+                    reason: 'invalid_after_normalize',
+                    raw: $rawServiceName,
+                );
+            } elseif (strlen($serviceEntry) > self::ORDER_TAG_STRING_MAX_LENGTH) {
+                $invalidTags[] = $this->invalidOrderTag(
+                    tag: 'rd_service_name',
+                    reason: 'exceeds_max_length',
+                    raw: $rawServiceName,
+                    normalized: $serviceEntry,
+                );
+            } else {
+                $attributes['service_history'] = $serviceHistory;
+                $importedFields['service_history'] = $serviceHistory;
+                $importedFields['rd_service_name'] = $serviceEntry;
+            }
+        }
+
+        $rawSerial = $this->payloadParser->orderTagSerialNo($payload);
+
+        if ($rawSerial !== null) {
+            $serialNumber = $this->fieldNormalizer->normalizeSerialNumber($rawSerial);
+
+            if ($serialNumber === null) {
+                $invalidTags[] = $this->invalidOrderTag(
+                    tag: 'serial_no',
+                    reason: 'invalid_after_normalize',
+                    raw: $rawSerial,
+                );
+            } else {
+                $existingOwner = Order::query()
+                    ->where('serial_number', $serialNumber)
+                    ->first(['id', 'order_id', 'serial_number']);
+
+                if ($existingOwner !== null) {
+                    Log::warning('[Cashfree Webhook] Skipping order_tags serial_no; already owned by another order.', [
+                        'serial_number' => $serialNumber,
+                        'existing_owner_order_id' => $existingOwner->order_id,
+                        'existing_owner_db_id' => $existingOwner->id,
+                        'incoming_order_id' => $this->payloadParser->orderId($payload),
+                    ]);
+
+                    $invalidTags[] = $this->invalidOrderTag(
+                        tag: 'serial_no',
+                        reason: 'serial_already_owned',
+                        raw: $rawSerial,
+                        normalized: $serialNumber,
+                    );
+                } else {
+                    $attributes['serial_number'] = $serialNumber;
+                    $attributes['serial_entered_at'] = now();
+                    $attributes['serial_entered_by_user_id'] = $systemUser->id;
+                    $importedFields['serial_number'] = $serialNumber;
+                }
             }
         }
 
         return [
             'attributes' => $attributes,
             'imported_fields' => $importedFields,
+            'invalid_tags' => $invalidTags,
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $importedFields
+     * @return array{tag: string, reason: string, raw: string|null, normalized: string|null}
      */
-    private function finalizeOrderTagIdentity(Order $order, User $systemUser, array $importedFields): void
+    private function invalidOrderTag(
+        string $tag,
+        string $reason,
+        ?string $raw,
+        ?string $normalized = null,
+    ): array {
+        return [
+            'tag' => $tag,
+            'reason' => $reason,
+            'raw' => $this->truncateForAudit($raw),
+            'normalized' => $this->truncateForAudit($normalized),
+        ];
+    }
+
+    private function truncateForAudit(?string $value): ?string
     {
-        if ($importedFields === []) {
-            return;
+        if ($value === null) {
+            return null;
         }
 
-        $this->auditLogService->log(
-            userId: $systemUser->id,
-            event: self::AUDIT_EVENT_ORDER_TAGS_IMPORTED,
-            auditable: $order,
-            oldValues: null,
-            newValues: [
-                'source' => self::IDENTITY_SOURCE_ORDER_TAGS,
-                'fields' => array_keys($importedFields),
-                ...$importedFields,
-            ],
-        );
+        return strlen($value) > 200 ? substr($value, 0, 200).'…' : $value;
+    }
 
-        $this->identityLifecycle->afterOrderCreatedWithIdentity(
-            order: $order->fresh() ?? $order,
-            actor: $systemUser,
-            source: self::IDENTITY_SOURCE_ORDER_TAGS,
-        );
+    /**
+     * @param  array<string, mixed>  $importedFields
+     * @param  list<array{tag: string, reason: string, raw: string|null, normalized: string|null}>  $invalidTags
+     */
+    private function finalizeOrderTagIdentity(
+        Order $order,
+        User $systemUser,
+        array $importedFields,
+        array $invalidTags = [],
+        ?string $cfPaymentId = null,
+    ): void {
+        if ($importedFields !== []) {
+            $this->auditLogService->log(
+                userId: $systemUser->id,
+                event: self::AUDIT_EVENT_ORDER_TAGS_IMPORTED,
+                auditable: $order,
+                oldValues: null,
+                newValues: [
+                    'source' => self::IDENTITY_SOURCE_ORDER_TAGS,
+                    'fields' => array_keys($importedFields),
+                    ...$importedFields,
+                ],
+            );
+
+            $this->identityLifecycle->afterOrderCreatedWithIdentity(
+                order: $order->fresh() ?? $order,
+                actor: $systemUser,
+                source: self::IDENTITY_SOURCE_ORDER_TAGS,
+            );
+        }
+
+        foreach ($invalidTags as $invalidTag) {
+            $this->auditLogService->log(
+                userId: $systemUser->id,
+                event: self::AUDIT_EVENT_INVALID_ORDER_TAG,
+                auditable: $order,
+                oldValues: null,
+                newValues: [
+                    'source' => self::IDENTITY_SOURCE_ORDER_TAGS,
+                    'order_id' => $order->order_id,
+                    'cf_payment_id' => $cfPaymentId,
+                    ...$invalidTag,
+                ],
+            );
+
+            Log::warning('[Cashfree Webhook] Ignoring invalid optional order_tag; payment continues.', [
+                'order_id' => $order->order_id,
+                'cf_payment_id' => $cfPaymentId,
+                'tag' => $invalidTag['tag'],
+                'reason' => $invalidTag['reason'],
+            ]);
+        }
     }
 
     /**
