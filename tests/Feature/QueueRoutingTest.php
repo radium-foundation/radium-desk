@@ -86,6 +86,26 @@ class QueueRoutingTest extends TestCase
         });
     }
 
+    public function test_driver_guide_batch_job_uses_notifications_queue(): void
+    {
+        Queue::fake();
+
+        SendServiceReferenceDriverGuideBatchJob::dispatch(
+            items: [
+                ['order_id' => 19023, 'service_reference' => 'TXN-QUEUE-BATCH-1'],
+                ['order_id' => 19024, 'service_reference' => 'TXN-QUEUE-BATCH-1'],
+            ],
+            actorId: 2,
+        );
+
+        Queue::assertPushedOn(QueueRouting::notifications(), SendServiceReferenceDriverGuideBatchJob::class);
+        Queue::assertPushed(SendServiceReferenceDriverGuideBatchJob::class, function (SendServiceReferenceDriverGuideBatchJob $job): bool {
+            return $job->actorId === 2
+                && count($job->items) === 2
+                && $job->queue === QueueRouting::notifications();
+        });
+    }
+
     public function test_backfill_sync_command_routes_to_maintenance_queue(): void
     {
         Queue::fake();
