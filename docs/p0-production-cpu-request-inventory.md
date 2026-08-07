@@ -866,7 +866,8 @@ assignTransactionIdToIncidents
   → render rows + classify + transactionsAssigned (unchanged once)
   → flushCommunications
        TransactionCompletedNotification × committed orders (same recipients)
-       SendServiceReferenceDriverGuideBatchJob × 1 (ordered items)
+       SendServiceReferenceDriverGuideBatchJob × ceil(n / DRIVERGUIDE_BATCH_SIZE)
+         (ordered chunks; default size 20 — see p0-driverguide-batch-chunking-investigation.md)
   → flushKpiCoalesce (once)
 ```
 
@@ -874,10 +875,10 @@ Single assign path unchanged: per-order DriverGuide job + immediate afterCommit 
 
 ### Benchmarks (35-order batch)
 
-| Metric | Before (prod 2026-08-07) | After (Phase 9) |
+| Metric | Before (prod 2026-08-07) | After (Phase 9 + chunking) |
 |--------|--------------------------:|----------------:|
-| Queue jobs (DriverGuide) | **35** single jobs | **1** batch job |
-| DriverGuide queue wall (serial worker) | **~175–280s** (35 × 5–8s) | **~175–280s** work inside 1 job (same sends; less queue overhead) |
+| Queue jobs (DriverGuide) | **35** single jobs | **ceil(n/20)** chunk jobs (e.g. 35 → 2) |
+| DriverGuide queue wall (serial worker) | **~175–280s** (35 × 5–8s) | **same total send work**; continuous hold ≤ ~chunk×6.3s |
 | Snapshot `forget()` during closes | **≈35+** | **1** coalesced (+ ≤1 broadcast) |
 | Automation dirty marks | **≈35+** | **1** |
 | `TransactionCompletedNotification` | 35 afterCommit passes | **1 flush pass** (same notification count) |
