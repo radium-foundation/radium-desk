@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.0.6 — 2026-08-07 — Performance Hardening & Production Reliability
+
+### Infrastructure
+
+- OPcache max file size corrected so large PHP files are eligible for caching again
+- LiteSpeed and PHP worker configuration audited against production CPU load
+
+### Performance
+
+- Driver Guide batch sends now process in configurable chunks to reduce long queue monopolization
+- Scheduler cadence consolidated to cut unnecessary background wake-ups
+- Automation snapshots refresh incrementally with event-driven invalidation
+- Assign Reference batch work coalesces side effects and Driver Guide dispatch
+
+### Reliability
+
+- Platform Health heartbeat file no longer tracked in Git, preventing deploy pull failures
+- Dashboard KPI zero-display regression investigated and root-caused
+- Production CPU spikes attributed across HTTP workers, queues, and request paths
+- Redis migration readiness assessed against current cache and queue usage
+- Operations Live architecture mapped for safe follow-on optimization
+
 ## 4.0.5 — 2026-08-06 — Platform Email Operations
 
 - Platform adds an Email Operations section for inbound email health, pipeline, exceptions, and recent activity
