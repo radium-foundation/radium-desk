@@ -99,6 +99,13 @@ class RadiumBoxOrderEnrichmentSyncStore
 
     public function markPending(int $orderId): void
     {
+        if ($this->status($orderId) === RadiumBoxEnrichmentSyncStatus::Pending) {
+            // Already in flight — refresh timestamp only; skip duplicate "waiting" automation.
+            $this->touchPending($orderId);
+
+            return;
+        }
+
         $metadata = $this->metadata($orderId) ?? [];
 
         $this->persist($orderId, [
@@ -109,6 +116,25 @@ class RadiumBoxOrderEnrichmentSyncStore
         ]);
 
         $this->recordAutomationEvent($orderId, 'waiting');
+    }
+
+    /**
+     * Refresh pending updated_at without resetting attempts or firing automation events.
+     */
+    public function touchPending(int $orderId): void
+    {
+        $record = $this->read($orderId) ?? [
+            'status' => RadiumBoxEnrichmentSyncStatus::Pending->value,
+            'metadata' => [],
+            'last_sync_error' => null,
+        ];
+
+        $this->persist($orderId, [
+            'status' => RadiumBoxEnrichmentSyncStatus::Pending->value,
+            'metadata' => is_array($record['metadata'] ?? null) ? $record['metadata'] : [],
+            'updated_at' => now()->toIso8601String(),
+            'last_sync_error' => $record['last_sync_error'] ?? null,
+        ]);
     }
 
     /**

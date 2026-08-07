@@ -22,6 +22,27 @@ export const initPresenceHeartbeat = () => {
     const intervalMs = parseInterval(root.dataset.presenceHeartbeatInterval, 120) * 1000;
     let lastInteractionPingAt = 0;
     let timerId = null;
+    let currentIntervalMs = intervalMs;
+
+    const clearTimer = () => {
+        if (timerId === null) {
+            return;
+        }
+
+        window.clearInterval(timerId);
+        timerId = null;
+    };
+
+    const startTimer = (nextIntervalMs = currentIntervalMs) => {
+        currentIntervalMs = nextIntervalMs;
+        clearTimer();
+
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
+        timerId = window.setInterval(sendHeartbeat, currentIntervalMs);
+    };
 
     const sendHeartbeat = async () => {
         if (document.visibilityState !== 'visible') {
@@ -57,12 +78,7 @@ export const initPresenceHeartbeat = () => {
 
             const data = await response.json();
             const nextInterval = parseInterval(data.next_heartbeat_seconds, 120) * 1000;
-
-            if (timerId !== null) {
-                window.clearInterval(timerId);
-            }
-
-            timerId = window.setInterval(sendHeartbeat, nextInterval);
+            startTimer(nextInterval);
         } catch (error) {
             logRefreshLifecycle(document.getElementById('dashboard-page'), 'presence_heartbeat_request_failed', {
                 source: 'presence-heartbeat',
@@ -73,6 +89,10 @@ export const initPresenceHeartbeat = () => {
     };
 
     const maybePingFromInteraction = () => {
+        if (document.visibilityState !== 'visible') {
+            return;
+        }
+
         const now = Date.now();
 
         if (now - lastInteractionPingAt < 60000) {
@@ -90,11 +110,16 @@ export const initPresenceHeartbeat = () => {
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             sendHeartbeat();
+            startTimer();
+
+            return;
         }
+
+        clearTimer();
     });
 
     sendHeartbeat();
-    timerId = window.setInterval(sendHeartbeat, intervalMs);
+    startTimer();
 };
 
 const configEnabled = () => {

@@ -3,8 +3,9 @@
      data-customer-360-drawer
      data-operations-widget="customer-360"
      aria-label="Customer 360"
-     data-timeline-poll-ms="{{ $customer360TimelinePollIntervalMs ?? 30000 }}"
-     data-device-sync-poll-ms="{{ $customer360DeviceSyncPollIntervalMs ?? 10000 }}"
+     data-timeline-poll-ms="{{ $customer360TimelinePollIntervalMs ?? 45000 }}"
+     data-device-sync-poll-ms="{{ $customer360DeviceSyncPollIntervalMs ?? 15000 }}"
+     data-email-thread-poll-ms="30000"
      aria-hidden="true"
      role="dialog"
      aria-modal="true"

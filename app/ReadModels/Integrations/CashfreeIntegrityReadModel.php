@@ -50,6 +50,14 @@ class CashfreeIntegrityReadModel
         return $this->integrityService->paidWithoutDeskOrderCount();
     }
 
+    /**
+     * @return array{count: int, order_ids: list<string>}
+     */
+    public function missingPaidOrderSample(int $limit = 5): array
+    {
+        return $this->integrityService->missingPaidOrderSample($limit);
+    }
+
     public function activeFailedWebhookCount(): int
     {
         return $this->integrityService->activeFailedWebhookCount();

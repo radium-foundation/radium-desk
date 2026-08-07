@@ -2,6 +2,11 @@ import { getWorkspaceSession } from './workspace/session';
 import { maybeShowIncomingCallCardFromNotification } from './incoming-call-bridge';
 import { maybeHandleIncomingCallInteraction } from './incoming-call-interaction';
 import { logRefreshLifecycle } from './dashboard-refresh-lifecycle';
+import { createVisibilityAwarePoller } from './polling/visibility-aware-poller';
+import { isRealtimeTransportConnected } from './realtime-transport-status';
+
+/** Safety-net interval while Ably/Reverb delivers NotificationCreated. */
+const REALTIME_CONNECTED_POLL_MS = 60_000;
 
 const animateNotificationBell = () => {
     const bellButton = document.querySelector('.notification-bell-btn');
@@ -79,6 +84,7 @@ const updateUnreadBadge = (root, unreadCount) => {
 };
 
 let pendingBellHtml = null;
+let activePoller = null;
 
 const flushPendingBellHtml = () => {
     if (!pendingBellHtml) {
@@ -108,6 +114,17 @@ const bindNotificationDropdownSession = (root) => {
         session.release('notification-dropdown');
         flushPendingBellHtml();
     });
+};
+
+const resolveNotificationPollIntervalMs = (root) => {
+    const configuredMs = Number(root?.dataset.pollInterval ?? 20000);
+    const baseMs = Number.isFinite(configuredMs) && configuredMs > 0 ? configuredMs : 20000;
+
+    if (isRealtimeTransportConnected()) {
+        return Math.max(baseMs, REALTIME_CONNECTED_POLL_MS);
+    }
+
+    return baseMs;
 };
 
 const pollNotifications = async (state) => {
@@ -182,19 +199,24 @@ export const initLiveNotifications = () => {
     }
 
     bindNotificationDropdownSession(root);
+    activePoller?.stop?.();
 
-    const intervalMs = Number(root.dataset.pollInterval ?? 20000);
     const state = {
         unreadCount: null,
         since: null,
     };
 
-    const tick = () => {
-        pollNotifications(state);
-    };
+    activePoller = createVisibilityAwarePoller({
+        getIntervalMs: () => resolveNotificationPollIntervalMs(root),
+        tick: () => pollNotifications(state),
+        runImmediately: true,
+    });
+};
 
-    window.setInterval(tick, intervalMs);
-    tick();
+export const resetLiveNotificationsForTests = () => {
+    activePoller?.stop?.();
+    activePoller = null;
+    pendingBellHtml = null;
 };
 
 export {
@@ -203,6 +225,7 @@ export {
     flushPendingBellHtml,
     pollNotifications,
     replaceNotificationBell,
+    resolveNotificationPollIntervalMs,
     showBrowserNotification,
     updateUnreadBadge,
 };

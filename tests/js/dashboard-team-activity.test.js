@@ -9,7 +9,7 @@ describe('dashboard team activity', () => {
         <div class="team-activity-panel"
              data-team-activity-panel
              data-team-activity-refresh-url="/dashboard/team-activity"
-             data-team-activity-poll-interval-ms="30000"
+             data-team-activity-poll-interval-ms="60000"
              data-team-activity-user-idle-ms="300000"
              data-team-activity-collapsed="0"
              ${lazy ? 'data-team-activity-lazy="1"' : ''}
@@ -274,7 +274,7 @@ describe('dashboard team activity', () => {
         await flushMicrotasks();
         fetchMock.mockClear();
 
-        await vi.advanceTimersByTimeAsync(30000);
+        await vi.advanceTimersByTimeAsync(60000);
 
         expect(fetchMock).toHaveBeenCalled();
         const calledUrl = String(fetchMock.mock.calls[0][0]);
@@ -406,7 +406,7 @@ describe('dashboard team activity', () => {
 
         expect(pageRoot.querySelector('.agent-version')?.textContent).toBe('stable');
 
-        await vi.advanceTimersByTimeAsync(30000);
+        await vi.advanceTimersByTimeAsync(60000);
         await flushMicrotasks();
 
         expect(pageRoot.querySelector('[data-team-activity-panel]')).not.toBeNull();
@@ -484,8 +484,11 @@ describe('dashboard team activity', () => {
 
         const pageRoot = document.getElementById('dashboard-page');
         initDashboardTeamActivity(pageRoot);
+        pageRoot.querySelector('[data-team-activity-panel-toggle]').click();
+        await flushMicrotasks();
+        fetchMock.mockClear();
 
-        await vi.advanceTimersByTimeAsync(30000);
+        await vi.advanceTimersByTimeAsync(60000);
 
         expect(fetchMock).not.toHaveBeenCalled();
 

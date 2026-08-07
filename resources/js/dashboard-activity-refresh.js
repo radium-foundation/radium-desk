@@ -1,14 +1,15 @@
 import { initDashboardActivityStreams } from './dashboard-activity-streams';
+import { createVisibilityAwarePoller } from './polling/visibility-aware-poller';
 
 const REFRESH_CONTROLLER = Symbol('dashboardActivityRefreshController');
 
 let refreshInFlight = false;
-let pollTimeoutId = null;
+let activePoller = null;
 
 const readPollIntervalMs = (feed) => {
-    const intervalMs = Number(feed?.dataset.activityPollIntervalMs ?? 30000);
+    const intervalMs = Number(feed?.dataset.activityPollIntervalMs ?? 60000);
 
-    return intervalMs > 0 ? intervalMs : 30000;
+    return intervalMs > 0 ? intervalMs : 60000;
 };
 
 const applyActivityHtml = (pageRoot, feed, html) => {
@@ -72,40 +73,6 @@ const refreshActivityFeed = async (pageRoot, feed) => {
     }
 };
 
-const scheduleNextPoll = (pageRoot, feed, controller) => {
-    if (controller.signal.aborted) {
-        return;
-    }
-
-    if (pollTimeoutId !== null) {
-        window.clearTimeout(pollTimeoutId);
-        pollTimeoutId = null;
-    }
-
-    const activeFeed = pageRoot.querySelector('[data-dashboard-activity-feed]');
-
-    if (!activeFeed) {
-        return;
-    }
-
-    pollTimeoutId = window.setTimeout(async () => {
-        pollTimeoutId = null;
-
-        if (controller.signal.aborted) {
-            return;
-        }
-
-        const feedToRefresh = pageRoot.querySelector('[data-dashboard-activity-feed]');
-
-        if (!feedToRefresh) {
-            return;
-        }
-
-        await refreshActivityFeed(pageRoot, feedToRefresh);
-        scheduleNextPoll(pageRoot, feedToRefresh, controller);
-    }, readPollIntervalMs(activeFeed));
-};
-
 export const initDashboardActivityRefresh = (pageRoot) => {
     const feed = pageRoot?.querySelector?.('[data-dashboard-activity-feed]');
 
@@ -114,17 +81,30 @@ export const initDashboardActivityRefresh = (pageRoot) => {
     }
 
     pageRoot[REFRESH_CONTROLLER]?.destroy?.();
+    activePoller?.stop?.();
 
-    const controller = new AbortController();
+    activePoller = createVisibilityAwarePoller({
+        getIntervalMs: () => {
+            const activeFeed = pageRoot.querySelector('[data-dashboard-activity-feed]');
+
+            return readPollIntervalMs(activeFeed);
+        },
+        shouldRun: () => Boolean(pageRoot.querySelector('[data-dashboard-activity-feed]')),
+        tick: async () => {
+            const feedToRefresh = pageRoot.querySelector('[data-dashboard-activity-feed]');
+
+            if (!feedToRefresh) {
+                return;
+            }
+
+            await refreshActivityFeed(pageRoot, feedToRefresh);
+        },
+    });
 
     const refreshController = {
         destroy: () => {
-            controller.abort();
-
-            if (pollTimeoutId !== null) {
-                window.clearTimeout(pollTimeoutId);
-                pollTimeoutId = null;
-            }
+            activePoller?.stop?.();
+            activePoller = null;
 
             if (pageRoot[REFRESH_CONTROLLER] === refreshController) {
                 delete pageRoot[REFRESH_CONTROLLER];
@@ -133,16 +113,12 @@ export const initDashboardActivityRefresh = (pageRoot) => {
     };
 
     pageRoot[REFRESH_CONTROLLER] = refreshController;
-    scheduleNextPoll(pageRoot, feed, controller);
 
     return refreshController;
 };
 
 export const resetDashboardActivityRefreshStateForTests = () => {
     refreshInFlight = false;
-
-    if (pollTimeoutId !== null) {
-        window.clearTimeout(pollTimeoutId);
-        pollTimeoutId = null;
-    }
+    activePoller?.stop?.();
+    activePoller = null;
 };

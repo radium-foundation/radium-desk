@@ -24,6 +24,7 @@ use App\Services\SerialValidation\SerialPlaceholderService;
 use App\Services\SerialValidation\SerialValidationService;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -74,18 +75,22 @@ class OrderIdentityRepairService
         $validationFailures = ($groups['Validator rule'] ?? 0)
             + ($groups['Product mapping mismatch'] ?? 0);
 
-        $lastRepairRun = AuditLog::query()
+        $repairAgg = AuditLog::query()
             ->where('event', self::AUDIT_EVENT)
-            ->latest('created_at')
-            ->value('created_at');
+            ->selectRaw('COUNT(*) as aggregate_count, MAX(created_at) as last_repair_run')
+            ->first();
+
+        $lastRepairRun = $repairAgg?->last_repair_run;
 
         return new OrderIdentityRepairStatistics(
-            totalRepaired: AuditLog::query()->where('event', self::AUDIT_EVENT)->count(),
+            totalRepaired: (int) ($repairAgg?->aggregate_count ?? 0),
             duplicateConflicts: $groups['Duplicate serial'] ?? 0,
             waitingCustomerSerial: $groups['Waiting for customer serial'] ?? 0,
             validationFailures: $validationFailures,
             notFound: $groups['RadiumBox not found'] ?? 0,
-            lastRepairRun: $lastRepairRun,
+            lastRepairRun: is_string($lastRepairRun) && $lastRepairRun !== ''
+                ? Carbon::parse($lastRepairRun)
+                : ($lastRepairRun instanceof Carbon ? $lastRepairRun : null),
         );
     }
 

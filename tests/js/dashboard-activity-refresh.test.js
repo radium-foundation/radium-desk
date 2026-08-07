@@ -21,7 +21,7 @@ describe('dashboard activity refresh', () => {
         const initialHtml = `
             <div data-dashboard-activity-feed
                  data-activity-refresh-url="/dashboard/activity"
-                 data-activity-poll-interval-ms="30000"
+                 data-activity-poll-interval-ms="60000"
                  aria-label="My Activity">
                 <span class="activity-version">v1</span>
             </div>
@@ -29,7 +29,7 @@ describe('dashboard activity refresh', () => {
         const updatedHtml = `
             <div data-dashboard-activity-feed
                  data-activity-refresh-url="/dashboard/activity"
-                 data-activity-poll-interval-ms="30000"
+                 data-activity-poll-interval-ms="60000"
                  aria-label="My Activity">
                 <span class="activity-version">v2</span>
             </div>
@@ -50,7 +50,7 @@ describe('dashboard activity refresh', () => {
         const pageRoot = document.getElementById('dashboard-page');
         initDashboardActivityRefresh(pageRoot);
 
-        await vi.advanceTimersByTimeAsync(30000);
+        await vi.advanceTimersByTimeAsync(60000);
 
         expect(fetchMock).toHaveBeenCalledWith('/dashboard/activity', expect.objectContaining({
             credentials: 'same-origin',

@@ -21,4 +21,11 @@ return [
         'enabled' => filter_var(env('RADIUMBOX_AUTO_SYNC_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
         'min_interval_minutes' => (int) env('RADIUMBOX_AUTO_SYNC_MIN_INTERVAL_MINUTES', 30),
     ],
+
+    /*
+    | Short-lived cache for background (queue) order lookups. Dedupes recovery /
+    | duplicate-job HTTP within the TTL. Set 0 to disable. Retriable failures
+    | are never cached.
+    */
+    'background_lookup_cache_seconds' => (int) env('RADIUMBOX_BACKGROUND_LOOKUP_CACHE_SECONDS', 300),
 ];

@@ -7,12 +7,16 @@ use App\Infrastructure\IntegrationHealth\IntegrationHealthRegistry;
 use App\Infrastructure\IntegrationHealth\Probes\CashfreeIntegrationHealthProbe;
 use App\Infrastructure\IntegrationHealth\Probes\PlaceholderIntegrationHealthProbe;
 use App\Infrastructure\IntegrationHealth\Probes\RadiumBoxIntegrationHealthProbe;
+use App\Infrastructure\Queue\QueueMetricsService;
 use Illuminate\Support\ServiceProvider;
 
 class InfrastructureServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // One capture() per request/command — Platform Health + Automation share it.
+        $this->app->scoped(QueueMetricsService::class);
+
         $this->app->singleton(IntegrationHealthRegistry::class, function (): IntegrationHealthRegistry {
             $registry = new IntegrationHealthRegistry;
 

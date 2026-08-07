@@ -44,11 +44,28 @@ class AutomationOperationsSnapshotBuilder
 
     public function build(): AutomationOperationsDashboardData
     {
+        return $this->buildDetailed()['data'];
+    }
+
+    /**
+     * @return array{
+     *     data: AutomationOperationsDashboardData,
+     *     incident_stubs: list<array{
+     *         created_at: ?string,
+     *         status: string,
+     *         assigned_to_user_id: ?int,
+     *         automation_pending_until: ?string
+     *     }>
+     * }
+     */
+    public function buildDetailed(): array
+    {
         $activeIncidents = $this->healthService->activeIncidents();
         $statusByIncidentId = $this->statusesFor($activeIncidents);
-        $analysis = $this->validationCollector->collect($statusByIncidentId);
+        $orders = $this->uniqueOrdersFromIncidents($activeIncidents);
+        $analysis = $this->validationCollector->collectFromOrders($orders, $statusByIncidentId);
 
-        return new AutomationOperationsDashboardData(
+        $data = new AutomationOperationsDashboardData(
             healthCounts: array_merge(
                 $this->healthService->countsFor($activeIncidents, $statusByIncidentId),
                 $this->cashfreeReliabilityMetrics->dashboardCounts(),
@@ -62,6 +79,11 @@ class AutomationOperationsSnapshotBuilder
             validationByValidatorRule: $analysis->failuresByValidatorRule,
             validationByCategory: $analysis->failuresByGroup,
         );
+
+        return [
+            'data' => $data,
+            'incident_stubs' => $this->incidentStubs($activeIncidents, $statusByIncidentId),
+        ];
     }
 
     /**
@@ -77,6 +99,52 @@ class AutomationOperationsSnapshotBuilder
         }
 
         return $statusByIncidentId;
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $activeIncidents
+     * @return Collection<int, Order>
+     */
+    private function uniqueOrdersFromIncidents(Collection $activeIncidents): Collection
+    {
+        return $activeIncidents
+            ->filter(fn (Incident $incident): bool => $incident->order !== null)
+            ->groupBy(fn (Incident $incident): int => (int) $incident->order_id)
+            ->map(function (Collection $incidents): Order {
+                /** @var Order $order */
+                $order = $incidents->first()->order;
+                $order->setRelation('incidents', $incidents->values());
+
+                return $order;
+            })
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, Incident>  $activeIncidents
+     * @param  array<int, ServiceCaseAutomationStatus>  $statusByIncidentId
+     * @return list<array{
+     *     created_at: ?string,
+     *     status: string,
+     *     assigned_to_user_id: ?int,
+     *     automation_pending_until: ?string
+     * }>
+     */
+    private function incidentStubs(Collection $activeIncidents, array $statusByIncidentId): array
+    {
+        return $activeIncidents
+            ->map(function (Incident $incident) use ($statusByIncidentId): array {
+                $status = $statusByIncidentId[$incident->id] ?? ServiceCaseAutomationStatus::Completed;
+
+                return [
+                    'created_at' => $incident->created_at?->toIso8601String(),
+                    'status' => $status->value,
+                    'assigned_to_user_id' => $incident->assigned_to_user_id,
+                    'automation_pending_until' => $incident->automation_pending_until?->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**
@@ -105,6 +173,7 @@ class AutomationOperationsSnapshotBuilder
                     'product' => $this->productLabel($order?->device_model, $order?->product_name),
                     'agent_name' => $incident->assignee?->name ?? 'Unassigned',
                     'age' => $incident->created_at?->diffForHumans() ?? '—',
+                    'created_at_iso' => $incident->created_at?->toIso8601String(),
                 ];
             })
             ->all();
@@ -178,8 +247,10 @@ class AutomationOperationsSnapshotBuilder
             return [];
         }
 
+        $orderIds = collect($filtered)->pluck('internalId')->unique()->values()->all();
+
         $orders = Order::query()
-            ->whereIn('id', collect($filtered)->pluck('internalId'))
+            ->whereIn('id', $orderIds)
             ->get(['id', 'customer_name'])
             ->keyBy('id');
 

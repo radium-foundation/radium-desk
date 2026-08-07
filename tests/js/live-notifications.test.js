@@ -1,17 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     bindNotificationDropdownSession,
     flushPendingBellHtml,
+    initLiveNotifications,
     pollNotifications,
+    resetLiveNotificationsForTests,
+    resolveNotificationPollIntervalMs,
     updateUnreadBadge,
 } from '../../resources/js/live-notifications';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
+import {
+    resetRealtimeTransportStatusForTests,
+    setRealtimeTransportConnected,
+} from '../../resources/js/realtime-transport-status';
 
 describe('live notifications session integration', () => {
     beforeEach(() => {
         resetWorkspaceSession();
+        resetRealtimeTransportStatusForTests();
+        resetLiveNotificationsForTests();
         document.body.innerHTML = `
-            <div id="notification-bell-root" data-poll-url="/notifications/poll">
+            <div id="notification-bell-root" data-poll-url="/notifications/poll" data-poll-interval="45000">
                 <div class="dropdown">
                     <button type="button" class="notification-bell-btn">
                         <span aria-hidden="true"><i class="bi bi-bell"></i></span>
@@ -23,6 +32,17 @@ describe('live notifications session integration', () => {
                 </div>
             </div>
         `;
+    });
+
+    afterEach(() => {
+        resetLiveNotificationsForTests();
+        resetRealtimeTransportStatusForTests();
+        vi.unstubAllGlobals();
+        vi.useRealTimers();
+        Object.defineProperty(document, 'hidden', {
+            configurable: true,
+            get: () => false,
+        });
     });
 
     it('updates only the unread badge while the dropdown session is active', async () => {
@@ -116,5 +136,47 @@ describe('live notifications session integration', () => {
 
         updateUnreadBadge(root, 0);
         expect(root.querySelector('.notification-count-badge')).toBeNull();
+    });
+
+    it('uses a 60s safety-net interval while realtime transport is connected', () => {
+        const root = document.getElementById('notification-bell-root');
+
+        expect(resolveNotificationPollIntervalMs(root)).toBe(45000);
+
+        setRealtimeTransportConnected(true);
+        expect(resolveNotificationPollIntervalMs(root)).toBe(60000);
+    });
+
+    it('pauses notification polling while the document is hidden', async () => {
+        vi.useFakeTimers();
+        let hidden = false;
+        Object.defineProperty(document, 'hidden', {
+            configurable: true,
+            get: () => hidden,
+        });
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                unread_count: 1,
+                bell_html: document.getElementById('notification-bell-root').innerHTML,
+                new_notifications: [],
+            }),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        initLiveNotifications();
+        await Promise.resolve();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        hidden = true;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(120000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        hidden = false;
+        document.dispatchEvent(new Event('visibilitychange'));
+        await Promise.resolve();
+        expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 });

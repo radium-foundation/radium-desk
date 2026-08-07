@@ -11,7 +11,7 @@
      data-team-activity-panel
      data-operations-widget="team-activity"
      data-team-activity-refresh-url="{{ route('dashboard.team-activity') }}"
-     data-team-activity-poll-interval-ms="{{ (int) config('dashboard-team-activity.poll_interval_ms', 30000) }}"
+     data-team-activity-poll-interval-ms="{{ (int) config('dashboard-team-activity.poll_interval_ms', 60000) }}"
      data-team-activity-user-idle-ms="{{ (int) config('dashboard-team-activity.user_idle_ms', 300000) }}"
      data-team-activity-collapsed="1"
      @if($isShell) data-team-activity-lazy="1" @endif

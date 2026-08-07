@@ -19,9 +19,16 @@ class AutomationSnapshotCommand extends Command
 
     public function handle(): int
     {
-        $snapshot = $this->snapshotService->refresh();
+        $started = hrtime(true);
+        $result = $this->snapshotService->refreshDetailed();
+        $elapsedMs = round((hrtime(true) - $started) / 1e6, 1);
+        $snapshot = $result['snapshot'];
 
-        $this->info('Automation operations snapshot refreshed.');
+        $this->info($result['rebuilt']
+            ? 'Automation operations snapshot refreshed.'
+            : 'Automation operations snapshot reused (content unchanged; time fields updated).');
+        $this->line('Mode: '.($result['rebuilt'] ? 'full-rebuild' : 'incremental'));
+        $this->line('Elapsed: '.$elapsedMs.'ms');
         $this->line('Automation pending: '.($snapshot->healthCounts['automation_pending'] ?? 0));
         $this->line('Validation failures tracked: '.array_sum($snapshot->validationByCategory));
 

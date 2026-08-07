@@ -60,4 +60,30 @@ readonly class CashfreeWebhookReliabilitySnapshot
             'captured_at' => $this->capturedAt->toIso8601String(),
         ];
     }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public static function fromArray(array $data): self
+    {
+        $lastOrderCreatedAt = $data['last_order_created_at'] ?? null;
+        $capturedAt = $data['captured_at'] ?? null;
+
+        return new self(
+            ordersCreated: (int) ($data['orders_created'] ?? 0),
+            outboxPending: (int) ($data['outbox_pending'] ?? 0),
+            outboxFailed: (int) ($data['outbox_failed'] ?? 0),
+            outboxCompletedToday: (int) ($data['outbox_completed_today'] ?? 0),
+            outboxRetryCount: (int) ($data['outbox_retry_count'] ?? 0),
+            paidWithoutDeskOrderCount: (int) ($data['paid_without_desk_order_count'] ?? 0),
+            activeFailedWebhooks: (int) ($data['active_failed_webhooks'] ?? 0),
+            historicalResolvedFailures: (int) ($data['historical_resolved_failures'] ?? 0),
+            lastOrderCreatedAt: is_string($lastOrderCreatedAt) && $lastOrderCreatedAt !== ''
+                ? Carbon::parse($lastOrderCreatedAt)
+                : null,
+            capturedAt: is_string($capturedAt) && $capturedAt !== ''
+                ? Carbon::parse($capturedAt)
+                : now(),
+        );
+    }
 }

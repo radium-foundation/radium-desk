@@ -35,6 +35,26 @@ class OperationsSystemHealthService
     }
 
     /**
+     * Single-component lookup for callers that only need one system check (e.g. watchdog).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function componentFor(string $key, ?OperationsDashboardSnapshot $snapshot = null): ?array
+    {
+        return match ($key) {
+            'automation_runtime' => $this->automationRuntime($snapshot),
+            'scheduler' => $this->scheduler($snapshot),
+            'queue_worker' => $this->queueWorker($snapshot),
+            'notification_dispatcher' => $this->notificationDispatcher($snapshot),
+            'email' => $this->email($snapshot),
+            'whatsapp' => $this->whatsapp($snapshot),
+            'telegram' => $this->telegram($snapshot),
+            'desktop' => $this->desktopNotifications($snapshot),
+            default => null,
+        };
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function automationRuntime(?OperationsDashboardSnapshot $snapshot): array

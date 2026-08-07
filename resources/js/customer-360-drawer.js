@@ -194,8 +194,8 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     initServiceCaseEmailWorkspace();
     initServiceCaseWhatsAppPanel();
 
-    const deviceSyncPollMs = Number(drawer.dataset.deviceSyncPollMs ?? 10000);
-    const timelinePollMs = Number(drawer.dataset.timelinePollMs ?? 30000);
+    const deviceSyncPollMs = Number(drawer.dataset.deviceSyncPollMs ?? 15000);
+    const timelinePollMs = Number(drawer.dataset.timelinePollMs ?? 45000);
 
     let activeIncidentId = null;
     let fetchController = null;
@@ -207,6 +207,7 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     let previouslyFocusedElement = null;
     let devicePollTimer = null;
     let timelinePollTimer = null;
+    let timelineRefreshListener = null;
     let cockpitApi = null;
     let conversationWorkspaceApi = null;
     const lazyTabState = {
@@ -245,6 +246,11 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
     };
 
     const stopTimelinePolling = () => {
+        if (timelineRefreshListener) {
+            document.removeEventListener('customer360:timeline-refreshed', timelineRefreshListener);
+            timelineRefreshListener = null;
+        }
+
         if (timelinePollTimer === null) {
             return;
         }
@@ -341,9 +347,15 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         const generation = contentGeneration;
 
-        devicePollTimer = setInterval(() => {
+        const pollDevice = () => {
+            if (document.hidden) {
+                return;
+            }
+
             refreshDeviceSection(refreshUrl, generation);
-        }, deviceSyncPollMs);
+        };
+
+        devicePollTimer = setInterval(pollDevice, deviceSyncPollMs);
     };
 
     const refreshTimelineSection = async (refreshUrl, generation = contentGeneration) => {
@@ -402,9 +414,27 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
 
         const generation = contentGeneration;
 
-        timelinePollTimer = setInterval(() => {
+        const pollTimeline = () => {
+            if (document.hidden) {
+                return;
+            }
+
             refreshTimelineSection(refreshUrl, generation);
-        }, timelinePollMs);
+        };
+
+        // Email-thread poll already refreshes the timeline when new mail arrives —
+        // reset the timer so we don't immediately duplicate that request.
+        timelineRefreshListener = () => {
+            if (timelinePollTimer === null || generation !== contentGeneration) {
+                return;
+            }
+
+            clearInterval(timelinePollTimer);
+            timelinePollTimer = setInterval(pollTimeline, timelinePollMs);
+        };
+
+        document.addEventListener('customer360:timeline-refreshed', timelineRefreshListener);
+        timelinePollTimer = setInterval(pollTimeline, timelinePollMs);
     };
 
     const setLoading = (isLoading) => {
@@ -1630,6 +1660,22 @@ export const initCustomer360Drawer = ({ pageRoot, showToast, initTooltips } = {}
             conversationWorkspace: event.detail?.conversationWorkspace === true,
             callId: typeof event.detail?.callId === 'string' ? event.detail.callId : null,
         });
+    }, { signal: customer360RefreshAbortController.signal });
+
+    document.addEventListener('visibilitychange', () => {
+        if (!drawer.classList.contains('is-open')) {
+            return;
+        }
+
+        if (document.hidden) {
+            stopTimelinePolling();
+            stopDeviceSyncPolling();
+
+            return;
+        }
+
+        configureTimelinePolling();
+        configureDeviceSyncPolling();
     }, { signal: customer360RefreshAbortController.signal });
 
     const autoOpenIncidentId = root.dataset.openCustomer360IncidentId?.trim() ?? '';

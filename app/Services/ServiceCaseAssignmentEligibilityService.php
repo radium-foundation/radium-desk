@@ -24,6 +24,12 @@ class ServiceCaseAssignmentEligibilityService
 {
     public const AUTOMATIC_REASSIGNMENT_REASON = 'automatic_validation_success';
 
+    /** @var array<int, bool> */
+    private array $passesValidationMemo = [];
+
+    /** @var array<int, SerialValidationSeverity|null> */
+    private array $validationSeverityMemo = [];
+
     public function __construct(
         private readonly ServiceCaseAssignmentService $assignmentService,
         private readonly ReadyQueueAssignmentStrategy $readyQueueStrategy,
@@ -49,6 +55,40 @@ class ServiceCaseAssignmentEligibilityService
     }
 
     public function passesValidationForOrder(Order $order): bool
+    {
+        $orderId = (int) $order->getKey();
+
+        if ($orderId > 0 && array_key_exists($orderId, $this->passesValidationMemo)) {
+            return $this->passesValidationMemo[$orderId];
+        }
+
+        $passes = $this->computePassesValidationForOrder($order);
+
+        if ($orderId > 0) {
+            $this->passesValidationMemo[$orderId] = $passes;
+        }
+
+        return $passes;
+    }
+
+    public function validationSeverityForOrder(Order $order): ?SerialValidationSeverity
+    {
+        $orderId = (int) $order->getKey();
+
+        if ($orderId > 0 && array_key_exists($orderId, $this->validationSeverityMemo)) {
+            return $this->validationSeverityMemo[$orderId];
+        }
+
+        $severity = $this->computeValidationSeverityForOrder($order);
+
+        if ($orderId > 0) {
+            $this->validationSeverityMemo[$orderId] = $severity;
+        }
+
+        return $severity;
+    }
+
+    private function computePassesValidationForOrder(Order $order): bool
     {
         if (! filled(trim((string) $order->serial_number))) {
             return false;
@@ -78,7 +118,7 @@ class ServiceCaseAssignmentEligibilityService
         return $this->radiumBoxVerificationSucceeded($order);
     }
 
-    public function validationSeverityForOrder(Order $order): ?SerialValidationSeverity
+    private function computeValidationSeverityForOrder(Order $order): ?SerialValidationSeverity
     {
         if (! filled(trim((string) $order->serial_number))) {
             return null;

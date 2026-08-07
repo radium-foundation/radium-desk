@@ -36,6 +36,7 @@ final class WatchdogCriticalAlertGate
         }
 
         $remaining = [];
+        $forgetKeys = [];
         foreach ($tracked as $key) {
             if (! is_string($key) || $key === '') {
                 continue;
@@ -46,7 +47,11 @@ final class WatchdogCriticalAlertGate
                 continue;
             }
 
-            Cache::forget($this->stateKey($key));
+            $forgetKeys[] = $this->stateKey($key);
+        }
+
+        foreach ($forgetKeys as $forgetKey) {
+            Cache::forget($forgetKey);
         }
 
         Cache::put($this->indexKey(), array_values(array_unique($remaining)), $this->ttl());
@@ -78,19 +83,23 @@ final class WatchdogCriticalAlertGate
 
     public function markNotified(ProductionCriticalAlert $alert): void
     {
+        $ttl = $this->ttl();
+
         Cache::put($this->stateKey($alert->key), [
             'fingerprint' => $alert->fingerprint(),
             'severity' => $alert->severity(),
             'notified_at' => now()->toIso8601String(),
-        ], $this->ttl());
+        ], $ttl);
 
         $tracked = Cache::get($this->indexKey(), []);
         if (! is_array($tracked)) {
             $tracked = [];
         }
 
-        $tracked[] = $alert->key;
-        Cache::put($this->indexKey(), array_values(array_unique($tracked)), $this->ttl());
+        if (! in_array($alert->key, $tracked, true)) {
+            $tracked[] = $alert->key;
+            Cache::put($this->indexKey(), array_values($tracked), $ttl);
+        }
     }
 
     private function stateKey(string $alertKey): string

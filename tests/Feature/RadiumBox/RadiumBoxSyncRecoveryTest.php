@@ -66,12 +66,15 @@ class RadiumBoxSyncRecoveryTest extends TestCase
         $order->update([
             'radiumbox_sync_status' => RadiumBoxEnrichmentSyncStatus::Pending,
             'radiumbox_last_sync_at' => now()->subMinutes(45),
-            'radiumbox_sync_attempts' => 1,
+            'radiumbox_sync_attempts' => 3,
         ]);
 
         Artisan::call('radiumbox:recover-sync');
 
         Queue::assertPushed(RadiumBoxOrderEnrichmentJob::class, fn (RadiumBoxOrderEnrichmentJob $job): bool => $job->orderId === $order->id);
+        // Recovery must not wipe attempt counters (max_recovery_attempts).
+        $this->assertSame(3, $syncStore->attemptCount($order->id));
+        $this->assertSame(RadiumBoxEnrichmentSyncStatus::Pending, $syncStore->status($order->id));
     }
 
     public function test_scheduler_skips_orders_at_retry_limit(): void

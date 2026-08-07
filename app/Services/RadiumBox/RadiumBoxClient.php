@@ -7,6 +7,7 @@ use App\Services\RadiumBox\Exceptions\RadiumBoxInvalidResponseException;
 use App\Services\RadiumBox\Exceptions\RadiumBoxOrderNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -48,7 +49,32 @@ class RadiumBoxClient
             );
         }
 
-        return $this->performOrderLookup($orderId);
+        $ttl = max(0, (int) config('radiumbox.background_lookup_cache_seconds', 300));
+
+        if ($ttl === 0) {
+            return $this->performOrderLookup($orderId);
+        }
+
+        $cacheKey = $this->backgroundLookupCacheKey($orderId);
+        $cached = Cache::get($cacheKey);
+
+        if ($cached instanceof RadiumBoxOrderEnrichmentFetchResult && ! $cached->retriable) {
+            return $cached;
+        }
+
+        $result = $this->performOrderLookup($orderId);
+
+        // Cache only definitive outcomes so retries still hit the API on transient errors.
+        if (! $result->retriable) {
+            Cache::put($cacheKey, $result, $ttl);
+        }
+
+        return $result;
+    }
+
+    private function backgroundLookupCacheKey(string $orderId): string
+    {
+        return 'radiumbox:bg-lookup:'.$orderId;
     }
 
     private function performOrderLookup(string $orderId): RadiumBoxOrderEnrichmentFetchResult

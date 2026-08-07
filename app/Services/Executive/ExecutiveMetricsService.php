@@ -13,6 +13,9 @@ class ExecutiveMetricsService
     /** @var array<string, ExecutiveMetricsSnapshot> */
     private array $resolvedSnapshots = [];
 
+    /** @var array<string, true> Keys forced at least once in this request/command. */
+    private array $forcedThisRequest = [];
+
     /**
      * @param  list<ExecutiveMetricProvider>  $providers
      */
@@ -30,8 +33,12 @@ class ExecutiveMetricsService
         $dayKey = $this->dayKey($period);
         $memoryKey = $this->memoryKey($period, $dayKey);
 
-        if (! $force && isset($this->resolvedSnapshots[$memoryKey])) {
-            return $this->resolvedSnapshots[$memoryKey];
+        // force bypasses Redis/cache, not in-request memo — 8 executive cards
+        // must share one context build per warm/refresh cycle.
+        if (isset($this->resolvedSnapshots[$memoryKey])) {
+            if (! $force || isset($this->forcedThisRequest[$memoryKey])) {
+                return $this->resolvedSnapshots[$memoryKey];
+            }
         }
 
         if (! $force) {
@@ -47,6 +54,10 @@ class ExecutiveMetricsService
         $snapshot = $this->buildSnapshot($period);
         $this->cache->put($snapshot, $dayKey);
         $this->resolvedSnapshots[$memoryKey] = $snapshot;
+
+        if ($force) {
+            $this->forcedThisRequest[$memoryKey] = true;
+        }
 
         return $snapshot;
     }

@@ -17,6 +17,14 @@ class CashfreeWebhookReliabilityMetrics
 
     private const KEY_LAST_ORDER_CREATED_AT = self::CACHE_PREFIX.'last_order_created_at';
 
+    public const SNAPSHOT_CACHE_KEY = self::CACHE_PREFIX.'dashboard_snapshot';
+
+    /**
+     * Longer than the 1-minute automation cron so consecutive ticks reuse the expensive
+     * integrity classification. Automation ops KPIs already refresh on a snapshot TTL.
+     */
+    public const SNAPSHOT_TTL_SECONDS = 120;
+
     public function __construct(
         private readonly CashfreeIntegrityReadModel $integrityReadModel,
     ) {}
@@ -25,9 +33,37 @@ class CashfreeWebhookReliabilityMetrics
     {
         $this->increment(self::KEY_ORDERS_CREATED);
         Cache::put(self::KEY_LAST_ORDER_CREATED_AT, now()->toIso8601String(), now()->addDays(30));
+        Cache::forget(self::SNAPSHOT_CACHE_KEY);
     }
 
     public function snapshot(): CashfreeWebhookReliabilitySnapshot
+    {
+        $cached = Cache::get(self::SNAPSHOT_CACHE_KEY);
+
+        if (is_array($cached)) {
+            return CashfreeWebhookReliabilitySnapshot::fromArray($cached);
+        }
+
+        $snapshot = $this->buildSnapshot();
+        Cache::put(self::SNAPSHOT_CACHE_KEY, $snapshot->toArray(), self::SNAPSHOT_TTL_SECONDS);
+
+        return $snapshot;
+    }
+
+    public function paidWithoutDeskOrderCount(): int
+    {
+        return $this->integrityReadModel->paidWithoutDeskOrderCount();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function dashboardCounts(): array
+    {
+        return $this->snapshot()->dashboardCounts();
+    }
+
+    private function buildSnapshot(): CashfreeWebhookReliabilitySnapshot
     {
         $classification = $this->integrityReadModel->classifyFailedWebhooks();
 
@@ -43,19 +79,6 @@ class CashfreeWebhookReliabilityMetrics
             lastOrderCreatedAt: $this->cachedTimestamp(self::KEY_LAST_ORDER_CREATED_AT),
             capturedAt: now(),
         );
-    }
-
-    public function paidWithoutDeskOrderCount(): int
-    {
-        return $this->integrityReadModel->paidWithoutDeskOrderCount();
-    }
-
-    /**
-     * @return array<string, int>
-     */
-    public function dashboardCounts(): array
-    {
-        return $this->snapshot()->dashboardCounts();
     }
 
     private function outboxPendingCount(): int

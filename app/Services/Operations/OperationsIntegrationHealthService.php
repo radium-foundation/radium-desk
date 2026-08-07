@@ -39,6 +39,24 @@ class OperationsIntegrationHealthService
     }
 
     /**
+     * Single-card lookup for callers that only need one integration (e.g. watchdog).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function card(string $key, ?OperationsDashboardSnapshot $snapshot = null): ?array
+    {
+        return match ($key) {
+            'cashfree' => $this->cashfreeCard($snapshot),
+            'gmail' => $this->gmailHealthService->card(),
+            'interakt' => $this->interaktCard($snapshot),
+            'meta_flow' => $this->metaFlowCard(),
+            'zeptomail' => $this->zeptomailCard($snapshot),
+            'telegram' => $this->telegramCard($snapshot),
+            default => null,
+        };
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function cashfreeCard(?OperationsDashboardSnapshot $snapshot): array

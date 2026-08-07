@@ -31,6 +31,7 @@ import {
     cancelHybridKpiReconcile,
     scheduleHybridKpiReconcile,
 } from './hybrid-kpi-reconcile';
+import { setRealtimeTransportConnected } from './realtime-transport-status';
 
 const SERVICE_CASE_EVENTS = [
     'ServiceCaseCreated',
@@ -806,6 +807,8 @@ export const initLiveDashboardReverb = ({
         }
 
         destroyed = true;
+        reverbConnected = false;
+        setRealtimeTransportConnected(false);
         cancelHybridKpiReconcile();
         stopStaleWatchdog();
         stopPolling();
@@ -845,6 +848,7 @@ export const initLiveDashboardReverb = ({
         }
 
         reverbConnected = false;
+        setRealtimeTransportConnected(false);
         const liveConnection = echo.connector?.pusher?.connection;
 
         if (! liveConnection) {
@@ -905,6 +909,7 @@ export const initLiveDashboardReverb = ({
             getConnected: () => reverbConnected,
             setConnected: (value) => {
                 reverbConnected = value;
+                setRealtimeTransportConnected(value);
             },
             onWebSocketConnected: () => {
                 resetStaleWatchdogState();

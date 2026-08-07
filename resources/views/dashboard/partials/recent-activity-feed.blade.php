@@ -6,7 +6,7 @@
      data-dashboard-activity-feed
      data-operations-widget="my-activity"
      data-activity-refresh-url="{{ route('dashboard.activity') }}"
-     data-activity-poll-interval-ms="{{ (int) config('dashboard-activity.poll_interval_ms', 30000) }}"
+     data-activity-poll-interval-ms="{{ (int) config('dashboard-activity.poll_interval_ms', 60000) }}"
      aria-label="My Activity">
     <h2 class="dashboard-section-title dashboard-section-title--secondary mb-0">My Activity</h2>
 

@@ -931,8 +931,8 @@ const refreshOperationsDashboard = async (
 let pollIntervalId = null;
 let pollCount = 0;
 let pollPageRoot = null;
-let pollIntervalMs = 30000;
-let pollFullRefreshIntervalMs = 120000;
+let pollIntervalMs = 45000;
+let pollFullRefreshIntervalMs = 180000;
 let pollVisibilityHandler = null;
 
 const stopOperationsPolling = () => {
@@ -1209,8 +1209,8 @@ const initOperationsDashboard = async () => {
         await loadLazyTab(pageRoot, 'system', { force: true });
     }
 
-    const intervalMs = Number(pageRoot.dataset.liveInterval ?? 30000);
-    const fullRefreshIntervalMs = Number(pageRoot.dataset.liveFullInterval ?? 120000);
+    const intervalMs = Number(pageRoot.dataset.liveInterval ?? 45000);
+    const fullRefreshIntervalMs = Number(pageRoot.dataset.liveFullInterval ?? 180000);
     startPolling(pageRoot, intervalMs, fullRefreshIntervalMs);
     guardAgainstStaleLazyPlaceholders(pageRoot);
 };

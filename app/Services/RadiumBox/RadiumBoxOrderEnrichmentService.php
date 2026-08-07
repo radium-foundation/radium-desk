@@ -2,6 +2,7 @@
 
 namespace App\Services\RadiumBox;
 
+use App\Data\EnrichmentPersistenceResult;
 use App\Data\RadiumBox\RadiumBoxManualSyncResult;
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Enums\RadiumBoxSyncSource;
@@ -33,27 +34,57 @@ class RadiumBoxOrderEnrichmentService
     /**
      * Enqueue live enrichment (Cashfree / auto-sync / Customer360 / missed-call).
      * Defaults to the critical queue so onboarding is never starved.
+     *
+     * Skips when status is already Pending (job in flight) unless $force is true.
+     * Job-level ShouldBeUnique provides a second dedupe layer.
      */
-    public function dispatch(Order $order, ?string $queue = null): void
+    public function dispatch(Order $order, ?string $queue = null, bool $force = false): bool
     {
+        $status = $this->syncStore->status($order->id);
+
+        if (! $force && $status === RadiumBoxEnrichmentSyncStatus::Pending) {
+            return false;
+        }
+
         $this->syncStore->markPending($order->id);
 
         RadiumBoxOrderEnrichmentJob::dispatch($order->id)
             ->onQueue($queue ?? QueueRouting::critical());
+
+        return true;
+    }
+
+    /**
+     * Enqueue when the order still needs enrichment. Skips inquiry / complete orders.
+     */
+    public function dispatchIfNeeded(Order $order, ?string $queue = null): bool
+    {
+        if ($order->isInquiryOrder() || ! filled($order->order_id)) {
+            return false;
+        }
+
+        if (! $this->radiumBoxService->needsEnrichment($order)) {
+            return false;
+        }
+
+        return $this->dispatch($order, $queue);
     }
 
     /**
      * Enqueue recovery/backfill enrichment on the maintenance queue.
      */
-    public function dispatchToMaintenance(Order $order): void
+    public function dispatchToMaintenance(Order $order, bool $force = false): bool
     {
-        $this->dispatch($order, QueueRouting::maintenance());
+        return $this->dispatch($order, QueueRouting::maintenance(), $force);
     }
 
+    /**
+     * Re-queue enrichment for recovery/backfill without wiping attempt counters.
+     * Preserves max_recovery_attempts accounting across scheduler cycles.
+     */
     public function retryOrderEnrichment(Order $order): void
     {
-        $this->syncStore->forget($order->id);
-        $this->dispatchToMaintenance($order->fresh());
+        $this->dispatchToMaintenance($order->fresh(), force: true);
     }
 
     public function manualSync(Order $order, User $actor): RadiumBoxManualSyncResult
@@ -253,6 +284,12 @@ class RadiumBoxOrderEnrichmentService
         }
 
         $previousStatus = $this->syncStore->status($order->id)->value;
+
+        if (! $this->radiumBoxService->needsEnrichment($order)) {
+            $this->finalizeAlreadyEnrichedOrder($order, $attempt, $startedAt, $previousStatus);
+
+            return;
+        }
 
         try {
             $result = $this->runSyncAttempt($order, $attempt);
@@ -484,6 +521,55 @@ class RadiumBoxOrderEnrichmentService
         }
 
         $this->runIdentityLifecycle($order);
+    }
+
+    /**
+     * Clear Pending/Failed without HTTP when enrichment fields are already present.
+     * Preserves post-sync Ready Queue recovery when status was not yet Synced.
+     */
+    private function finalizeAlreadyEnrichedOrder(
+        Order $order,
+        int $attempt,
+        float $startedAt,
+        string $previousStatus,
+    ): void {
+        $wasSynced = $previousStatus === RadiumBoxEnrichmentSyncStatus::Synced->value;
+
+        if (! $wasSynced) {
+            $emptyFetch = new RadiumBoxOrderEnrichmentFetchResult(retriable: false);
+            $emptyPersistence = new EnrichmentPersistenceResult(
+                updated: false,
+                fieldsApplied: [],
+                serialApplied: false,
+                deviceModelApplied: false,
+                warrantyApplied: false,
+                activationYearApplied: false,
+                amcApplied: false,
+            );
+
+            $this->syncStore->markSynced($order->id, ['lookup_result' => 'already_enriched']);
+            $this->runPostSyncLifecycleIfNeeded($order->fresh(), [
+                'outcome' => [
+                    'applied' => false,
+                    'enrichment' => null,
+                    'fetch_result' => $emptyFetch,
+                    'persistence' => $emptyPersistence,
+                ],
+                'fetch_result' => $emptyFetch,
+                'metadata' => ['lookup_result' => 'already_enriched'],
+            ]);
+        }
+
+        $this->logAttempt(
+            orderId: $order->id,
+            attempt: $attempt,
+            durationMs: $this->durationMs($startedAt),
+            result: 'skipped',
+            metadata: ['lookup_result' => 'already_enriched'],
+            syncSource: RadiumBoxSyncSource::Background,
+            previousStatus: $previousStatus,
+            newStatus: RadiumBoxEnrichmentSyncStatus::Synced->value,
+        );
     }
 
     /**

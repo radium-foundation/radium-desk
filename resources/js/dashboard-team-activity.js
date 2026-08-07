@@ -183,9 +183,9 @@ const writeExpandedAgentIds = (ids) => {
 };
 
 const readPollIntervalMs = (panel) => {
-    const intervalMs = Number(panel?.dataset.teamActivityPollIntervalMs ?? 30000);
+    const intervalMs = Number(panel?.dataset.teamActivityPollIntervalMs ?? 60000);
 
-    return intervalMs > 0 ? intervalMs : 30000;
+    return intervalMs > 0 ? intervalMs : 60000;
 };
 
 const readUserIdleMs = (panel) => {
@@ -547,9 +547,22 @@ export const initDashboardTeamActivity = (pageRoot) => {
     bindPanelInteractions(pageRoot, panel);
 
     const visibilityHandler = () => {
-        if (!document.hidden) {
-            recordUserActivity();
+        const activePanel = pageRoot.querySelector('[data-team-activity-panel]');
+
+        if (document.hidden) {
+            clearPollTimeout();
+
+            return;
         }
+
+        recordUserActivity();
+
+        if (!activePanel || isPanelCollapsed(activePanel) || controller.signal.aborted) {
+            return;
+        }
+
+        void refreshTeamActivity(pageRoot, activePanel);
+        startPolling(pageRoot, controller);
     };
 
     document.addEventListener('visibilitychange', visibilityHandler, { signal: controller.signal });

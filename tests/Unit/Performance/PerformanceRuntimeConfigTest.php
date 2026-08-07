@@ -26,7 +26,7 @@ class PerformanceRuntimeConfigTest extends TestCase
         $config = app(PerformanceRuntimeConfig::class);
 
         $this->assertSame(30000, $config->dashboardPollIntervalMs());
-        $this->assertSame(20000, $config->notificationPollIntervalMs());
+        $this->assertSame(45000, $config->notificationPollIntervalMs());
         $this->assertSame(120, $config->presenceHeartbeatIntervalSeconds());
     }
 

@@ -15,6 +15,8 @@ use Illuminate\Support\Collection;
 
 class CashfreePaymentIntegrityService
 {
+    private const LOOKUP_CHUNK_SIZE = 500;
+
     public function __construct(
         private readonly CashfreeWebhookPayloadParser $payloadParser,
     ) {}
@@ -46,6 +48,32 @@ class CashfreePaymentIntegrityService
         return $this->missingPaidOrders($this->successfulPaymentLogsByCfPaymentId())->count();
     }
 
+    /**
+     * Single-pass missing paid-order count + sample IDs (avoids reconcile() double scan).
+     *
+     * @return array{count: int, order_ids: list<string>}
+     */
+    public function missingPaidOrderSample(int $limit = 5): array
+    {
+        $missingOrders = $this->missingPaidOrders($this->successfulPaymentLogsByCfPaymentId());
+
+        $orderIds = $missingOrders
+            ->take(max(0, $limit))
+            ->map(function (array $entry): string {
+                $record = $this->toMissingRecord($entry);
+
+                return (string) ($record->orderId ?? $record->cfPaymentId ?? '');
+            })
+            ->filter()
+            ->values()
+            ->all();
+
+        return [
+            'count' => $missingOrders->count(),
+            'order_ids' => $orderIds,
+        ];
+    }
+
     public function activeFailedWebhookCount(): int
     {
         return $this->classifyFailedWebhooks()->activeFailedWebhooks;
@@ -58,12 +86,16 @@ class CashfreePaymentIntegrityService
 
     public function classifyFailedWebhooks(): CashfreeFailedWebhookClassificationReport
     {
-        $records = CashfreeWebhookLog::query()
+        $logs = CashfreeWebhookLog::query()
             ->where('processing_status', CashfreeWebhookLog::STATUS_FAILED)
             ->orderBy('processed_at')
             ->orderBy('id')
-            ->get()
-            ->map(fn (CashfreeWebhookLog $log): CashfreeFailedWebhookRecord => $this->classifyFailedLog($log))
+            ->get();
+
+        $index = $this->buildAssessmentIndex($logs);
+
+        $records = $logs
+            ->map(fn (CashfreeWebhookLog $log): CashfreeFailedWebhookRecord => $this->classifyFailedLog($log, $index))
             ->values();
 
         $countsByCategory = [];
@@ -101,7 +133,14 @@ class CashfreePaymentIntegrityService
         );
     }
 
-    public function classifyFailedLog(CashfreeWebhookLog $log): CashfreeFailedWebhookRecord
+    /**
+     * @param  array{
+     *     payment_ids: array<string, true>,
+     *     order_ids: array<string, true>,
+     *     processed_payment_log_ids: array<string, list<int>>
+     * }|null  $index
+     */
+    public function classifyFailedLog(CashfreeWebhookLog $log, ?array $index = null): CashfreeFailedWebhookRecord
     {
         $payload = $log->request_payload ?? [];
 
@@ -113,7 +152,7 @@ class CashfreePaymentIntegrityService
             );
         }
 
-        $assessment = $this->assessLog($log);
+        $assessment = $this->assessLog($log, $index);
 
         $category = match ($assessment['reason']) {
             'cashfree_payment_id_exists', 'order_id_exists' => CashfreeWebhookFailureCategory::PaymentExistsInDesk,
@@ -132,9 +171,14 @@ class CashfreePaymentIntegrityService
     }
 
     /**
+     * @param  array{
+     *     payment_ids: array<string, true>,
+     *     order_ids: array<string, true>,
+     *     processed_payment_log_ids: array<string, list<int>>
+     * }|null  $index
      * @return array{log: CashfreeWebhookLog, disposition: CashfreeHistoricalRecoveryDisposition, reason: string}
      */
-    public function assessLog(CashfreeWebhookLog $log): array
+    public function assessLog(CashfreeWebhookLog $log, ?array $index = null): array
     {
         $payload = $log->request_payload ?? [];
 
@@ -148,24 +192,17 @@ class CashfreePaymentIntegrityService
             return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::Unsafe, 'missing_cf_payment_id');
         }
 
-        if (Order::query()->where('cashfree_payment_id', $cfPaymentId)->exists()) {
+        if ($this->paymentIdExists($cfPaymentId, $index)) {
             return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::AlreadyExists, 'cashfree_payment_id_exists');
         }
 
         $businessOrderId = $this->payloadParser->orderId($payload);
 
-        if ($businessOrderId !== null && Order::query()->where('order_id', $businessOrderId)->exists()) {
+        if ($businessOrderId !== null && $this->businessOrderIdExists($businessOrderId, $index)) {
             return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::AlreadyExists, 'order_id_exists');
         }
 
-        $processedSibling = CashfreeWebhookLog::query()
-            ->where('cf_payment_id', $cfPaymentId)
-            ->where('id', '!=', $log->id)
-            ->where('processing_status', CashfreeWebhookProcessorService::STATUS_PROCESSED)
-            ->whereNotNull('incident_id')
-            ->exists();
-
-        if ($processedSibling) {
+        if ($this->processedSiblingExists($cfPaymentId, $log->id, $index)) {
             return $this->assessment($log, CashfreeHistoricalRecoveryDisposition::AlreadyExists, 'processed_webhook_exists');
         }
 
@@ -213,14 +250,203 @@ class CashfreePaymentIntegrityService
      */
     private function missingPaidOrders(Collection $successfulPayments): Collection
     {
+        $index = $this->buildAssessmentIndex($successfulPayments->values());
+
         return $successfulPayments
-            ->map(fn (CashfreeWebhookLog $log): array => $this->assessLog($log))
+            ->map(fn (CashfreeWebhookLog $log): array => $this->assessLog($log, $index))
             ->filter(function (array $entry): bool {
                 return ! in_array($entry['disposition'], [
                     CashfreeHistoricalRecoveryDisposition::AlreadyExists,
                 ], true);
             })
             ->values();
+    }
+
+    /**
+     * @param  Collection<int, CashfreeWebhookLog>  $logs
+     * @return array{
+     *     payment_ids: array<string, true>,
+     *     order_ids: array<string, true>,
+     *     processed_payment_log_ids: array<string, list<int>>
+     * }
+     */
+    private function buildAssessmentIndex(Collection $logs): array
+    {
+        $paymentIds = [];
+        $orderIds = [];
+
+        foreach ($logs as $log) {
+            $payload = $log->request_payload ?? [];
+
+            if (! $this->payloadParser->isSuccessfulPayment($payload)) {
+                continue;
+            }
+
+            $cfPaymentId = $this->resolveCfPaymentId($log);
+
+            if ($cfPaymentId !== null) {
+                $paymentIds[$cfPaymentId] = true;
+            }
+
+            $businessOrderId = $this->payloadParser->orderId($payload);
+
+            if ($businessOrderId !== null) {
+                $orderIds[$businessOrderId] = true;
+            }
+        }
+
+        return [
+            'payment_ids' => $this->existingCashfreePaymentIds(array_keys($paymentIds)),
+            'order_ids' => $this->existingBusinessOrderIds(array_keys($orderIds)),
+            'processed_payment_log_ids' => $this->processedCashfreePaymentLogIds(array_keys($paymentIds)),
+        ];
+    }
+
+    /**
+     * @param  list<string>  $paymentIds
+     * @return array<string, true>
+     */
+    private function existingCashfreePaymentIds(array $paymentIds): array
+    {
+        $existing = [];
+
+        foreach (array_chunk($paymentIds, self::LOOKUP_CHUNK_SIZE) as $chunk) {
+            if ($chunk === []) {
+                continue;
+            }
+
+            Order::query()
+                ->whereIn('cashfree_payment_id', $chunk)
+                ->pluck('cashfree_payment_id')
+                ->each(function (mixed $id) use (&$existing): void {
+                    $key = trim((string) $id);
+
+                    if ($key !== '') {
+                        $existing[$key] = true;
+                    }
+                });
+        }
+
+        return $existing;
+    }
+
+    /**
+     * @param  list<string>  $orderIds
+     * @return array<string, true>
+     */
+    private function existingBusinessOrderIds(array $orderIds): array
+    {
+        $existing = [];
+
+        foreach (array_chunk($orderIds, self::LOOKUP_CHUNK_SIZE) as $chunk) {
+            if ($chunk === []) {
+                continue;
+            }
+
+            Order::query()
+                ->whereIn('order_id', $chunk)
+                ->pluck('order_id')
+                ->each(function (mixed $id) use (&$existing): void {
+                    $key = trim((string) $id);
+
+                    if ($key !== '') {
+                        $existing[$key] = true;
+                    }
+                });
+        }
+
+        return $existing;
+    }
+
+    /**
+     * @param  list<string>  $paymentIds
+     * @return array<string, list<int>>
+     */
+    private function processedCashfreePaymentLogIds(array $paymentIds): array
+    {
+        $processed = [];
+
+        foreach (array_chunk($paymentIds, self::LOOKUP_CHUNK_SIZE) as $chunk) {
+            if ($chunk === []) {
+                continue;
+            }
+
+            CashfreeWebhookLog::query()
+                ->whereIn('cf_payment_id', $chunk)
+                ->where('processing_status', CashfreeWebhookProcessorService::STATUS_PROCESSED)
+                ->whereNotNull('incident_id')
+                ->get(['id', 'cf_payment_id'])
+                ->each(function (CashfreeWebhookLog $row) use (&$processed): void {
+                    $key = trim((string) $row->cf_payment_id);
+
+                    if ($key === '') {
+                        return;
+                    }
+
+                    $processed[$key][] = (int) $row->id;
+                });
+        }
+
+        return $processed;
+    }
+
+    /**
+     * @param  array{
+     *     payment_ids: array<string, true>,
+     *     order_ids: array<string, true>,
+     *     processed_payment_log_ids: array<string, list<int>>
+     * }|null  $index
+     */
+    private function paymentIdExists(string $cfPaymentId, ?array $index): bool
+    {
+        if ($index !== null) {
+            return isset($index['payment_ids'][$cfPaymentId]);
+        }
+
+        return Order::query()->where('cashfree_payment_id', $cfPaymentId)->exists();
+    }
+
+    /**
+     * @param  array{
+     *     payment_ids: array<string, true>,
+     *     order_ids: array<string, true>,
+     *     processed_payment_log_ids: array<string, list<int>>
+     * }|null  $index
+     */
+    private function businessOrderIdExists(string $businessOrderId, ?array $index): bool
+    {
+        if ($index !== null) {
+            return isset($index['order_ids'][$businessOrderId]);
+        }
+
+        return Order::query()->where('order_id', $businessOrderId)->exists();
+    }
+
+    /**
+     * @param  array{
+     *     payment_ids: array<string, true>,
+     *     order_ids: array<string, true>,
+     *     processed_payment_log_ids: array<string, list<int>>
+     * }|null  $index
+     */
+    private function processedSiblingExists(string $cfPaymentId, int $logId, ?array $index): bool
+    {
+        if ($index !== null) {
+            foreach ($index['processed_payment_log_ids'][$cfPaymentId] ?? [] as $processedLogId) {
+                if ((int) $processedLogId !== $logId) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        return CashfreeWebhookLog::query()
+            ->where('cf_payment_id', $cfPaymentId)
+            ->where('id', '!=', $logId)
+            ->where('processing_status', CashfreeWebhookProcessorService::STATUS_PROCESSED)
+            ->whereNotNull('incident_id')
+            ->exists();
     }
 
     /**

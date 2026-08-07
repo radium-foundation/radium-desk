@@ -3,6 +3,7 @@
 namespace App\Services\Operations;
 
 use App\Data\Operations\ProductionCriticalAlert;
+use App\Data\Platform\PlatformHealthSnapshot;
 use App\Enums\AutomationExecutionStatus;
 use App\Enums\OperationsHealthStatus;
 use App\Enums\PlatformHealthStatus;
@@ -12,11 +13,11 @@ use App\Models\CashfreeWebhookLog;
 use App\Models\InteraktMessage;
 use App\Models\InteraktWebhookLog;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
-use App\Services\Cashfree\CashfreePaymentIntegrityService;
 use App\Services\Platform\Health\PlatformHealthSnapshotService;
+use Illuminate\Contracts\Http\Kernel as HttpKernel;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -28,9 +29,15 @@ class ProductionWatchdogService
 
     private const ERROR_SPIKE_THRESHOLD = 10;
 
+    /** @var array<string, bool> */
+    private array $tableExistsMemo = [];
+
+    private bool $sharedHealthSnapshotResolved = false;
+
+    private ?PlatformHealthSnapshot $sharedHealthSnapshot = null;
+
     public function __construct(
         private readonly CashfreeIntegrityReadModel $cashfreeIntegrityReadModel,
-        private readonly CashfreePaymentIntegrityService $cashfreeIntegrityService,
         private readonly OperationsIntegrationHealthService $integrationHealthService,
         private readonly OperationsSystemHealthService $systemHealthService,
         private readonly OperationsRadiumBoxHealthService $radiumBoxHealthService,
@@ -110,17 +117,10 @@ class ProductionWatchdogService
     private function cashfreeAlerts(): array
     {
         $alerts = [];
-        $paidMissing = $this->cashfreeIntegrityReadModel->paidWithoutDeskOrderCount();
+        $missingSample = $this->cashfreeIntegrityReadModel->missingPaidOrderSample(5);
+        $paidMissing = $missingSample['count'];
 
         if ($paidMissing > 0) {
-            // reconcile() remains on the owner — sample IDs are reporting, not a shared integrity KPI.
-            $missingRecords = collect($this->cashfreeIntegrityService->reconcile()->missingOrders)
-                ->take(5)
-                ->map(fn ($record): string => (string) ($record->orderId ?? $record->cfPaymentId ?? ''))
-                ->filter()
-                ->values()
-                ->all();
-
             $alerts[] = new ProductionCriticalAlert(
                 key: 'cashfree:paid_missing_order',
                 label: 'Cashfree',
@@ -129,7 +129,7 @@ class ProductionWatchdogService
                     $paidMissing,
                 ),
                 affectedCount: $paidMissing,
-                orderIds: $missingRecords,
+                orderIds: $missingSample['order_ids'],
             );
         }
 
@@ -160,32 +160,31 @@ class ProductionWatchdogService
             return $fromSnapshot;
         }
 
-        foreach ($this->systemHealthService->components() as $component) {
-            if (($component['key'] ?? '') !== 'queue_worker') {
-                continue;
-            }
+        $component = $this->systemHealthService->componentFor('queue_worker');
+        if ($component === null) {
+            return [];
+        }
 
-            $status = OperationsHealthStatus::tryFrom((string) ($component['status'] ?? ''));
+        $status = OperationsHealthStatus::tryFrom((string) ($component['status'] ?? ''));
 
-            if ($status === OperationsHealthStatus::Failed) {
-                return [
-                    new ProductionCriticalAlert(
-                        key: 'queue:dead_letter',
-                        label: 'Queue',
-                        message: (string) ($component['detail'] ?? 'Queue worker has failed jobs.'),
-                    ),
-                ];
-            }
+        if ($status === OperationsHealthStatus::Failed) {
+            return [
+                new ProductionCriticalAlert(
+                    key: 'queue:dead_letter',
+                    label: 'Queue',
+                    message: (string) ($component['detail'] ?? 'Queue worker has failed jobs.'),
+                ),
+            ];
+        }
 
-            if ($status === OperationsHealthStatus::Warning) {
-                return [
-                    new ProductionCriticalAlert(
-                        key: 'queue:backlog',
-                        label: 'Queue',
-                        message: (string) ($component['detail'] ?? 'Queue backlog requires attention.'),
-                    ),
-                ];
-            }
+        if ($status === OperationsHealthStatus::Warning) {
+            return [
+                new ProductionCriticalAlert(
+                    key: 'queue:backlog',
+                    label: 'Queue',
+                    message: (string) ($component['detail'] ?? 'Queue backlog requires attention.'),
+                ),
+            ];
         }
 
         return [];
@@ -198,7 +197,7 @@ class ProductionWatchdogService
      */
     private function queueAlertsFromSharedSnapshot(): ?array
     {
-        $snapshot = $this->platformHealthSnapshot->current();
+        $snapshot = $this->sharedHealthSnapshot();
         if ($snapshot === null) {
             return null;
         }
@@ -242,7 +241,7 @@ class ProductionWatchdogService
      */
     private function automationAlerts(): array
     {
-        if (! Schema::hasTable('automation_executions')) {
+        if (! $this->tableExists('automation_executions')) {
             return [];
         }
 
@@ -261,7 +260,7 @@ class ProductionWatchdogService
      */
     private function automationAlertsFromSharedSnapshot(): ?array
     {
-        $snapshot = $this->platformHealthSnapshot->current();
+        $snapshot = $this->sharedHealthSnapshot();
         if ($snapshot === null) {
             return null;
         }
@@ -336,7 +335,7 @@ class ProductionWatchdogService
      */
     private function bonvoiceAlerts(): array
     {
-        if (! Schema::hasTable('bonvoice_webhook_logs')) {
+        if (! $this->tableExists('bonvoice_webhook_logs')) {
             return [];
         }
 
@@ -425,45 +424,43 @@ class ProductionWatchdogService
      */
     private function interaktAlerts(): array
     {
-        foreach ($this->integrationHealthService->cards() as $card) {
-            if (($card['key'] ?? '') !== 'interakt') {
-                continue;
-            }
+        // Lean single-card lookup — full cards() also rebuilt Cashfree/Gmail/ZeptoMail/Telegram
+        // (including up to 2000 audit_logs rows) on every 5-minute cron tick.
+        $card = $this->integrationHealthService->card('interakt');
 
+        if ($card !== null) {
             $status = OperationsHealthStatus::tryFrom((string) ($card['status'] ?? ''));
 
-            if ($status !== OperationsHealthStatus::Warning && $status !== OperationsHealthStatus::Failed) {
-                continue;
+            if ($status === OperationsHealthStatus::Warning || $status === OperationsHealthStatus::Failed) {
+                $recentFailures = 0;
+
+                if ($this->tableExists('interakt_messages')) {
+                    $recentFailures = InteraktMessage::query()
+                        ->where('created_at', '>=', now()->subHours(24))
+                        ->whereNotNull('channel_failure_reason')
+                        ->count();
+                }
+
+                $threshold = max(1, (int) config('ira.watchdog.interakt_failure_threshold', 3));
+
+                if ($recentFailures < $threshold && $status !== OperationsHealthStatus::Failed) {
+                    return [];
+                }
+
+                return [
+                    new ProductionCriticalAlert(
+                        key: 'interakt:failures',
+                        label: 'Interakt',
+                        message: $recentFailures > 0
+                            ? sprintf('%d WhatsApp delivery failure(s) in the last 24 hours.', $recentFailures)
+                            : (string) ($card['detail'] ?? 'Interakt integration requires attention.'),
+                        affectedCount: $recentFailures,
+                    ),
+                ];
             }
-
-            $recentFailures = 0;
-
-            if (Schema::hasTable('interakt_messages')) {
-                $recentFailures = InteraktMessage::query()
-                    ->where('created_at', '>=', now()->subHours(24))
-                    ->whereNotNull('channel_failure_reason')
-                    ->count();
-            }
-
-            $threshold = max(1, (int) config('ira.watchdog.interakt_failure_threshold', 3));
-
-            if ($recentFailures < $threshold && $status !== OperationsHealthStatus::Failed) {
-                return [];
-            }
-
-            return [
-                new ProductionCriticalAlert(
-                    key: 'interakt:failures',
-                    label: 'Interakt',
-                    message: $recentFailures > 0
-                        ? sprintf('%d WhatsApp delivery failure(s) in the last 24 hours.', $recentFailures)
-                        : (string) ($card['detail'] ?? 'Interakt integration requires attention.'),
-                    affectedCount: $recentFailures,
-                ),
-            ];
         }
 
-        if (Schema::hasTable('interakt_webhook_logs')) {
+        if ($this->tableExists('interakt_webhook_logs')) {
             $webhookFailures = InteraktWebhookLog::query()
                 ->where('processing_status', InteraktWebhookLog::STATUS_FAILED)
                 ->where('received_at', '>=', now()->subHours(24))
@@ -488,25 +485,29 @@ class ProductionWatchdogService
     }
 
     /**
+     * Probe /up in-process (same route semantics) instead of outbound HTTP with
+     * timeout(10)->retry(2), which under CPU load timed out twice (~21s) and
+     * amplified load via self-HTTP retries.
+     *
      * @return list<ProductionCriticalAlert>
      */
     private function siteHealthAlerts(): array
     {
-        $healthUrl = rtrim((string) config('app.url'), '/').'/up';
+        $healthPath = '/up';
 
         try {
-            // Retries absorb transient network/DNS/Cloudflare blips that would
-            // otherwise produce false-positive "unreachable" alerts.
-            $response = Http::timeout(10)
-                ->retry(2, 500)
-                ->get($healthUrl);
+            /** @var HttpKernel $kernel */
+            $kernel = app(HttpKernel::class);
+            $request = Request::create($healthPath, 'GET');
+            $response = $kernel->handle($request);
+            $status = $response->getStatusCode();
 
-            if ($response->successful()) {
+            if ($status >= 200 && $status < 300) {
                 return [];
             }
         } catch (\Throwable $e) {
             Log::warning('Production watchdog site health probe failed.', [
-                'health_url' => $healthUrl,
+                'health_path' => $healthPath,
                 'exception' => $e::class,
                 'message' => $e->getMessage(),
                 'timestamp' => now()->toIso8601String(),
@@ -527,7 +528,7 @@ class ProductionWatchdogService
                 label: 'Site Health',
                 message: sprintf(
                     'Application health check returned HTTP %d.',
-                    $response->status(),
+                    $status,
                 ),
             ),
         ];
@@ -538,7 +539,7 @@ class ProductionWatchdogService
      */
     private function errorSpikeAlerts(): array
     {
-        if (! Schema::hasTable('cashfree_webhook_logs')) {
+        if (! $this->tableExists('cashfree_webhook_logs')) {
             return [];
         }
 
@@ -548,12 +549,14 @@ class ProductionWatchdogService
             ->where('processed_at', '>=', $since)
             ->count();
 
-        $spikeCount += BonvoiceWebhookLog::query()
-            ->where('processing_status', BonvoiceWebhookLog::STATUS_FAILED)
-            ->where('received_at', '>=', $since)
-            ->count();
+        if ($this->tableExists('bonvoice_webhook_logs')) {
+            $spikeCount += BonvoiceWebhookLog::query()
+                ->where('processing_status', BonvoiceWebhookLog::STATUS_FAILED)
+                ->where('received_at', '>=', $since)
+                ->count();
+        }
 
-        if (Schema::hasTable('interakt_webhook_logs')) {
+        if ($this->tableExists('interakt_webhook_logs')) {
             $spikeCount += InteraktWebhookLog::query()
                 ->where('processing_status', InteraktWebhookLog::STATUS_FAILED)
                 ->where('received_at', '>=', $since)
@@ -611,5 +614,20 @@ class ProductionWatchdogService
     private function uptimeCacheKey(string $date): string
     {
         return self::UPTIME_CACHE_PREFIX.$date;
+    }
+
+    private function sharedHealthSnapshot(): ?PlatformHealthSnapshot
+    {
+        if (! $this->sharedHealthSnapshotResolved) {
+            $this->sharedHealthSnapshot = $this->platformHealthSnapshot->current();
+            $this->sharedHealthSnapshotResolved = true;
+        }
+
+        return $this->sharedHealthSnapshot;
+    }
+
+    private function tableExists(string $table): bool
+    {
+        return $this->tableExistsMemo[$table] ??= Schema::hasTable($table);
     }
 }

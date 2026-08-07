@@ -11,7 +11,7 @@ return [
     */
     'enabled' => (bool) env('DASHBOARD_TEAM_ACTIVITY_ENABLED', true),
 
-    'poll_interval_ms' => 30000,
+    'poll_interval_ms' => 60000,
 
     'user_idle_ms' => 5 * 60 * 1000,
 

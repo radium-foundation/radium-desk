@@ -78,6 +78,8 @@ class PlatformDashboardServiceProvider extends ServiceProvider
         $this->app->singleton(PlatformOverallHealthService::class);
         $this->app->singleton(PlatformSnapshotWarmerRegistry::class);
         $this->app->singleton(PlatformSnapshotWarmingService::class);
+        // One infra probe() per request/command (zone + card share the instance).
+        $this->app->scoped(\App\Services\Platform\Health\PlatformHealthSnapshotService::class);
 
         $this->app->singleton(PlatformHealthRegistry::class, function ($app): PlatformHealthRegistry {
             $registry = new PlatformHealthRegistry;

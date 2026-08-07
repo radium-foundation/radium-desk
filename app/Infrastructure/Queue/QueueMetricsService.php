@@ -18,8 +18,14 @@ class QueueMetricsService
 
     private const PROCESSING_SAMPLE_LIMIT = 100;
 
+    private ?QueueMetricsSnapshot $capturedThisRequest = null;
+
     public function capture(): QueueMetricsSnapshot
     {
+        if ($this->capturedThisRequest !== null) {
+            return $this->capturedThisRequest;
+        }
+
         $snapshot = new QueueMetricsSnapshot(
             pendingJobs: $this->countPendingJobs(),
             failedJobs: $this->countFailedJobs(),
@@ -31,6 +37,7 @@ class QueueMetricsService
         );
 
         Cache::put(self::CACHE_KEY, $snapshot->toArray(), now()->addDay());
+        $this->capturedThisRequest = $snapshot;
 
         return $snapshot;
     }

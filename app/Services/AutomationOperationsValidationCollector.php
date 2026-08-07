@@ -21,6 +21,9 @@ use Illuminate\Database\Eloquent\Builder;
 
 class AutomationOperationsValidationCollector
 {
+    /** @var array<int, array<string, mixed>|null> */
+    private array $metadataMemo = [];
+
     public function __construct(
         private readonly SerialValidationService $serialValidationService,
         private readonly SerialPlaceholderService $placeholderService,
@@ -34,12 +37,26 @@ class AutomationOperationsValidationCollector
      */
     public function collect(?array $statusByIncidentId = null): OrderIdentityValidationAnalysisBatchResult
     {
+        return $this->collectFromOrders($this->ordersQuery()->cursor(), $statusByIncidentId);
+    }
+
+    /**
+     * @param  iterable<int, Order>  $orders
+     * @param  array<int, ServiceCaseAutomationStatus>|null  $statusByIncidentId
+     */
+    public function collectFromOrders(iterable $orders, ?array $statusByIncidentId = null): OrderIdentityValidationAnalysisBatchResult
+    {
         $startedAt = microtime(true);
         $duplicateSerialKeys = $this->duplicateSerialKeys();
         $failures = [];
         $ordersScanned = 0;
+        $this->metadataMemo = [];
 
-        foreach ($this->ordersQuery()->cursor() as $order) {
+        foreach ($orders as $order) {
+            if (! $order instanceof Order) {
+                continue;
+            }
+
             $ordersScanned++;
 
             if (! $this->shouldAnalyzeOrder($order, $duplicateSerialKeys)) {
@@ -175,14 +192,26 @@ class AutomationOperationsValidationCollector
 
     private function isRadiumBoxNotFound(Order $order): bool
     {
-        if ($this->syncStore->status($order->id) !== RadiumBoxEnrichmentSyncStatus::Failed) {
+        if ($this->syncStore->status($order->id, $order) !== RadiumBoxEnrichmentSyncStatus::Failed) {
             return false;
         }
 
-        $metadata = $this->syncStore->metadata($order->id);
+        $metadata = $this->metadataFor($order->id);
 
         return is_array($metadata)
             && ($metadata['lookup_result'] ?? null) === 'order_not_found';
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function metadataFor(int $orderId): ?array
+    {
+        if (array_key_exists($orderId, $this->metadataMemo)) {
+            return $this->metadataMemo[$orderId];
+        }
+
+        return $this->metadataMemo[$orderId] = $this->syncStore->metadata($orderId);
     }
 
     private function resolveFailureGroup(
@@ -266,7 +295,7 @@ class AutomationOperationsValidationCollector
             return OrderIdentityValidationRecommendation::WaitingForCustomerSerial;
         }
 
-        $syncStatus = $this->syncStore->status($order->id);
+        $syncStatus = $this->syncStore->status($order->id, $order);
 
         if ($validation->isFail()
             && $syncStatus === RadiumBoxEnrichmentSyncStatus::Synced) {
@@ -290,7 +319,7 @@ class AutomationOperationsValidationCollector
         }
 
         if ($this->isRadiumBoxNotFound($order)) {
-            $metadata = $this->syncStore->metadata($order->id);
+            $metadata = $this->metadataFor($order->id);
             $lastError = is_array($metadata) ? ($metadata['last_error'] ?? null) : null;
 
             return is_string($lastError) && $lastError !== ''
@@ -316,7 +345,7 @@ class AutomationOperationsValidationCollector
 
     private function radiumBoxSyncLabel(Order $order): string
     {
-        $status = $this->syncStore->status($order->id);
+        $status = $this->syncStore->status($order->id, $order);
 
         return match ($status) {
             RadiumBoxEnrichmentSyncStatus::NotSynced => 'Not Synced',

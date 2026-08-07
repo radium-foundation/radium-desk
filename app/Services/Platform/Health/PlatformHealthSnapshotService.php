@@ -21,6 +21,8 @@ class PlatformHealthSnapshotService
 {
     public const CACHE_KEY = PlatformCachePolicy::KEY_PLATFORM_HEALTH_SNAPSHOT;
 
+    private ?PlatformHealthSnapshot $probedThisRequest = null;
+
     public function __construct(
         private readonly PlatformHealthRegistry $registry,
         private readonly PlatformZoneSnapshotStore $zoneSnapshotStore,
@@ -28,6 +30,10 @@ class PlatformHealthSnapshotService
 
     public function probe(): PlatformHealthSnapshot
     {
+        if ($this->probedThisRequest !== null) {
+            return $this->probedThisRequest;
+        }
+
         $components = $this->registry->probeAll();
         $status = self::aggregateOverall($components);
 
@@ -41,6 +47,7 @@ class PlatformHealthSnapshotService
         );
 
         $this->store($snapshot);
+        $this->probedThisRequest = $snapshot;
 
         return $snapshot;
     }
@@ -149,6 +156,7 @@ class PlatformHealthSnapshotService
 
     public function forget(): void
     {
+        $this->probedThisRequest = null;
         PlatformCacheAudit::forget(self::class, 'forget', self::CACHE_KEY);
         Cache::forget(self::CACHE_KEY);
         PlatformCacheAudit::forget(self::class, 'forget', PlatformCachePolicy::KEY_PLATFORM_HEALTH_OVERVIEW);

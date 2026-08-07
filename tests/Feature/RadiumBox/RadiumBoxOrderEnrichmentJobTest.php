@@ -95,6 +95,7 @@ class RadiumBoxOrderEnrichmentJobTest extends TestCase
                     'rd_order' => [
                         'serial_no' => 'M250546898',
                         'product_name' => 'Access FM220U L1',
+                        'service_history' => [['ticket' => 'T1']],
                     ],
                 ],
             ]),
@@ -107,11 +108,14 @@ class RadiumBoxOrderEnrichmentJobTest extends TestCase
             'is_active' => true,
         ]);
 
+        // Serial + model locked; still needs product_name / service_history → HTTP runs,
+        // but must not overwrite operator-entered identity fields.
         $order = Order::query()->create([
             'order_id' => 'RD3433380',
             'serial_number' => 'LOCAL-SERIAL-1',
             'device_model' => 'Manual Model',
             'device_model_id' => $deviceModel->id,
+            'product_name' => null,
             'status' => 'active',
             'created_by' => $agent->id,
         ]);
@@ -123,8 +127,7 @@ class RadiumBoxOrderEnrichmentJobTest extends TestCase
         $this->assertSame('LOCAL-SERIAL-1', $order->serial_number);
         $this->assertSame('Manual Model', $order->device_model);
         $this->assertSame($deviceModel->id, $order->device_model_id);
-
-        Http::assertNothingSent();
+        $this->assertSame('Access FM220U L1', $order->product_name);
     }
 
     public function test_retriable_failure_schedules_retry_and_marks_failed_after_exhaustion(): void
@@ -182,6 +185,7 @@ class RadiumBoxOrderEnrichmentJobTest extends TestCase
             'device_model' => null,
             'status' => 'active',
             'created_by' => $agent->id,
+            'radiumbox_sync_attempts' => 4,
         ]);
 
         $syncStore = app(RadiumBoxOrderEnrichmentSyncStore::class);
@@ -194,6 +198,15 @@ class RadiumBoxOrderEnrichmentJobTest extends TestCase
         });
 
         $this->assertSame(RadiumBoxEnrichmentSyncStatus::Pending, $syncStore->status($order->id));
+        $this->assertSame(4, $syncStore->attemptCount($order->id));
+    }
+
+    public function test_job_declares_unique_id_per_order(): void
+    {
+        $job = new RadiumBoxOrderEnrichmentJob(42);
+
+        $this->assertSame('42', $job->uniqueId());
+        $this->assertSame(7200, $job->uniqueFor);
     }
 
     public function test_order_not_found_is_marked_synced_without_retry(): void

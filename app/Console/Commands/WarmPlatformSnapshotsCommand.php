@@ -16,14 +16,19 @@ class WarmPlatformSnapshotsCommand extends Command
         $result = $warming->warmAll();
 
         $this->info(sprintf(
-            'Warmed %d warmer(s); failed %d; actor=%s',
+            'Warmed %d; skipped %d (fresh); failed %d; actor=%s',
             count($result['warmed']),
+            count($result['skipped'] ?? []),
             count($result['failed']),
             $result['actor_id'] ?? 'none',
         ));
 
         if ($result['warmed'] !== []) {
             $this->line('Warmed: '.implode(', ', $result['warmed']));
+        }
+
+        if (($result['skipped'] ?? []) !== []) {
+            $this->line('Skipped: '.implode(', ', $result['skipped']));
         }
 
         if ($result['failed'] !== []) {

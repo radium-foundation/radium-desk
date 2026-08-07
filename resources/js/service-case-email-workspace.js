@@ -14,7 +14,14 @@ import {
 
 const csrfToken = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 const replySendUrl = (messageId) => `/dashboard/incoming-email-messages/${messageId}/reply`;
-const POLL_MS = 20000;
+const DEFAULT_POLL_MS = 30000;
+
+const readEmailThreadPollMs = () => {
+    const drawer = document.querySelector('[data-customer-360-drawer]');
+    const configured = Number(drawer?.dataset.emailThreadPollMs ?? DEFAULT_POLL_MS);
+
+    return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_POLL_MS;
+};
 
 const formatWhen = (iso) => {
     if (! iso) {
@@ -45,6 +52,7 @@ const state = {
     hasMoreOlder: false,
     loadingOlder: false,
     pollTimer: null,
+    visibilityBound: false,
     focusIncomingId: null,
 };
 
@@ -315,7 +323,7 @@ const stopPolling = () => {
 const pollForNewer = async () => {
     const elements = getElements();
 
-    if (! elements || ! state.threadUrl || state.sending) {
+    if (! elements || ! state.threadUrl || state.sending || document.hidden) {
         return;
     }
 
@@ -363,7 +371,34 @@ const pollForNewer = async () => {
 
 const startPolling = () => {
     stopPolling();
-    state.pollTimer = window.setInterval(pollForNewer, POLL_MS);
+    bindEmailPollingVisibility();
+
+    if (document.hidden) {
+        return;
+    }
+
+    state.pollTimer = window.setInterval(pollForNewer, readEmailThreadPollMs());
+};
+
+const bindEmailPollingVisibility = () => {
+    if (state.visibilityBound) {
+        return;
+    }
+
+    state.visibilityBound = true;
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            stopPolling();
+
+            return;
+        }
+
+        if (state.threadUrl) {
+            void pollForNewer();
+            startPolling();
+        }
+    });
 };
 
 const loadOlderMessages = async (elements) => {

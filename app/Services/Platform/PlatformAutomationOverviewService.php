@@ -4,6 +4,7 @@ namespace App\Services\Platform;
 
 use App\Enums\PlatformHealthStatus;
 use App\Services\Operations\AutomationHealthService;
+use App\Services\Platform\Health\PlatformHealthSnapshotService;
 use App\Services\Platform\Health\QueueHealthProvider;
 use App\Services\Platform\Health\SchedulerHealthProvider;
 use App\Services\Platform\PlatformCachePolicy;
@@ -27,6 +28,7 @@ class PlatformAutomationOverviewService
         private readonly AutomationHealthService $automationHealth,
         private readonly SchedulerHealthProvider $schedulerHealth,
         private readonly QueueHealthProvider $queueHealth,
+        private readonly PlatformHealthSnapshotService $healthSnapshot,
     ) {}
 
     /**
@@ -186,12 +188,25 @@ class PlatformAutomationOverviewService
     /**
      * Runtime health only: scheduler heartbeat + queue worker probes.
      *
+     * Reuses the Platform Health snapshot when present (same warm cycle) so
+     * queue/jobs tables are not captured a second time.
+     *
      * @return array<string, mixed>
      */
     private function schedulerWorkersItem(): array
     {
-        $scheduler = $this->schedulerHealth->probe();
-        $queue = $this->queueHealth->probe();
+        $scheduler = null;
+        $queue = null;
+
+        $shared = $this->healthSnapshot->current();
+        if ($shared !== null) {
+            $scheduler = $shared->component('scheduler');
+            $queue = $shared->component('queue');
+        }
+
+        $scheduler ??= $this->schedulerHealth->probe();
+        $queue ??= $this->queueHealth->probe();
+
         $status = PlatformHealthStatus::worst($scheduler->status, $queue->status);
 
         return [

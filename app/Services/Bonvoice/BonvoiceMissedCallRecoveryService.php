@@ -588,10 +588,6 @@ class BonvoiceMissedCallRecoveryService
 
     private function dispatchOrderEnrichmentIfEligible(Order $order): void
     {
-        if ($order->isInquiryOrder()) {
-            return;
-        }
-
-        $this->radiumBoxOrderEnrichmentService->dispatch($order);
+        $this->radiumBoxOrderEnrichmentService->dispatchIfNeeded($order);
     }
 }

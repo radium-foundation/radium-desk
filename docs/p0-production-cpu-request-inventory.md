@@ -1,20 +1,19 @@
 # P0 Production CPU — Request Inventory & Attribution
 
-**Status:** Phase 1 + Phase 2 code shipped (local); production re-measure pending deploy  
+**Status:** Phase 1–7 code shipped (local); production re-measure pending deploy  
 **Date:** 2026-08-07  
-**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook budget tests  
+**Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook / watchdog / JS poller / RadiumBox queue / automation snapshot / platform warm tests  
 **Canvas:** [`p0-production-cpu-request-inventory.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-production-cpu-request-inventory.canvas.tsx)  
+**Phase 7 canvas:** [`p0-platform-snapshots-warm-optimization.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-platform-snapshots-warm-optimization.canvas.tsx)  
 **Companion polling matrix:** [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md)
 
 ---
 
 ## Verdict
 
-Hostinger CPU saturation is **cost-dominated by `/dashboard/live`**, not by raw RPS alone.
+After Phase 1 deploy, production remasure shows Hostinger account CPU is **cron-dominated**. The largest single consumer was **`platform:snapshots:warm` (~11.6s / ~28% account CPU every minute)** — Phase 7 cuts that amortized cost by **~80%+** (dedupe + skip-when-fresh).
 
-Even with **Ably connected** and live polling in **heartbeat mode (60s)**, each live request still costs **~1–2.5s**, **~5k–8.5k DB queries**, and **~500 KB** JSON — primarily because `CACHE_STORE=database` turns every `SettingService` / RadiumBox cache lookup into a SQL `SELECT`, and SLA classification walks ~**995** active incidents.
-
-Secondary: **`/api/webhooks/interakt`** (~4.3/min) runs **synchronous unbounded outbox drain** in the HTTP request, with received→processed delays of **54–168s** under burst. Tertiary: **`/notifications/poll`** at 20s on every authenticated page (~24/min) — cheap per call, high volume.
+Earlier inventory (pre–Phase 1) correctly attributed live polls: `/dashboard/live` was **~1–2.5s / 5k–8.5k SQL** via `SettingService` stampede + RadiumBox N+1; Phase 1 fixed that path. Secondary: **`/api/webhooks/interakt`** — Phase 2 enqueue-only. Cron **`watchdog:send-critical-alerts`** — Phase 3. **`/notifications/poll`** — Phase 4. **`queue:work` / RadiumBox** — Phase 5. Cron **`automation:snapshot`** — Phase 6.
 
 ---
 
@@ -45,13 +44,13 @@ Secondary: **`/api/webhooks/interakt`** (~4.3/min) runs **synchronous unbounded 
 |----------|-------------:|-------:|-------:|-----------:|------------|----------------------|----------------------|-----------------------|
 | `GET /dashboard/live` | **5–15** | **1475** | **~2400** | **5089–8512** | **Critical** | Critical | Keep 60s heartbeat; fallback **30s** (not 20s) | **P0** |
 | `POST /api/webhooks/interakt` | **4.3** (peak 21) | ~20–200* → **~15ms local after Phase 2** | **100000+*** (pre–Phase 2) | 14–22+ → **~3 ack** | **High → Low after Phase 2** | Critical | N/A (push) — enqueue-only + cron | **P0 done** |
-| `GET /notifications/poll` | **24** | **61** | **~62** | **7** | Medium | High | **45–60s** or pause when Echo connected | **P1** |
-| `GET /dashboard/team-activity` | 0–6 | n/m | n/m | high (≤120 in tests) | High when expanded | Medium | **60s** while expanded | **P1** |
-| `GET /dashboard/activity` | ~12 | n/m | n/m | medium | Medium | Low–Med | Merge into live / **60–120s** | **P1** |
-| `POST /presence/heartbeat` | 4 | n/m | n/m | low | Low | High (WFM) | Keep **120s** | P2 |
-| `GET /admin/operations/live` | 0–2 | n/m | n/m | section-cached | Medium | High (admin) | 45–60s / full 180s | P2 |
-| C360 timeline / device | 0–10 | n/m | n/m | high timeline | Medium | Medium | 45–60s; pause when hidden | P2 |
-| Email thread poll | 0–3 | n/m | n/m | medium | Low–Med | High while open | 30–45s | P2 |
+| `GET /notifications/poll` | **24 → ~8** | **61** | **~62** | **7** | Medium → Low | High | **45s** / **60s** Ably safety-net; pause hidden | **P1 done** |
+| `GET /dashboard/team-activity` | 0–6 → 0–3 | n/m | n/m | high (≤120 in tests) | High when expanded | Medium | **60s** while expanded; pause hidden | **P1 done** |
+| `GET /dashboard/activity` | ~12 → 0–1 | n/m | n/m | medium | Medium | Low–Med | **60s** (legacy); pause hidden | **P1 done** |
+| `POST /presence/heartbeat` | 4 | n/m | n/m | low | Low | High (WFM) | Keep **120s**; pause timer hidden | **P2 done** |
+| `GET /admin/operations/live` | 0–2 → ~1.3 | n/m | n/m | section-cached | Medium | High (admin) | **45s** / full **180s** | **P2 done** |
+| C360 timeline / device | 0–10 → 0–5 | n/m | n/m | high timeline | Medium | Medium | **45s / 15s**; pause when hidden | **P2 done** |
+| Email thread poll | 0–3 → ~2 | n/m | n/m | medium | Low–Med | High while open | **30s**; pause hidden | **P2 done** |
 
 \*Interakt: synthetic store+`processAggregate` ≈ **20ms**. Production `received_at→processed_at`: most same-second; **15/269** in last hour delayed **54–168s** (outbox lock / CPU starvation).
 
@@ -80,17 +79,26 @@ Secondary: **`/api/webhooks/interakt`** (~4.3/min) runs **synchronous unbounded 
 
 Ably **fallback** (20s live): +10–15 → **≈ 60–70 req/min**.
 
-### Optimized (recommendations only — not applied)
+### Optimized (Phase 4 polling applied — `/dashboard/live` unchanged)
 
 | Change | Effect |
 |--------|--------|
-| Notifications 45–60s or Ably-gated | 24 → 8–10 |
-| Merge My Activity into live | 12 → 0–3 |
-| Team Activity 60s | 6 → 3 |
-| Pause C360 when hidden | −2–4 |
-| **Total** | **≈ 22–28 req/min** |
+| Notifications: pause when hidden + 60s safety-net while Ably connected; balanced default 45s | 24 → **8** |
+| My Activity: 60s + pause when hidden (legacy path only; Team Activity is primary) | 12 → **0–1** |
+| Team Activity: 60s + stop timer when hidden | 6 → **3** |
+| OCC: 45s / full 180s (already paused when hidden) | 2 → **~1.3** |
+| C360 timeline/device + email: slower defaults + pause when hidden; email refresh resets timeline timer | 0–10 → **0–5** |
+| Presence: stop interval while hidden (catch-up on visible) | 4 → **4** (visible) / **0** (hidden) |
+| **Total (visible, Ably healthy)** | **≈ 26–32 req/min** |
+| **With typical hidden/background tabs** | **≈ 18–26 req/min** |
 
-**Important:** Cutting live from ~8.5k queries to &lt;100 (Redis + request-memo settings + batched RadiumBox) is a larger CPU win than the RPM cut.
+| Metric | Current (pre–Phase 4) | Optimized (Phase 4) |
+|--------|----------------------:|--------------------:|
+| Periodic req/min (8 sessions, Ably OK) | **≈ 48–55** | **≈ 26–32** |
+| Notification share | 24 | 8 |
+| `/dashboard/live` | 6 (heartbeat) | 6 (unchanged) |
+
+**Important:** Cutting live from ~8.5k queries to &lt;100 (Phase 1 memo + warm path) remains the larger CPU win per request; Phase 4 cuts always-on RPS without changing live UX.
 
 ---
 
@@ -99,15 +107,15 @@ Ably **fallback** (20s live): +10–15 → **≈ 60–70 req/min**.
 | # | URL | Caller | Poll interval | Avg ms | P95 ms | DB queries | Cache hits/misses | Response size | Overlap | Multi-tab duplicates |
 |---|-----|--------|---------------|-------:|-------:|-----------:|-------------------|--------------:|---------|----------------------|
 | 1 | `GET /dashboard/live` | Operator Dashboard (`live-dashboard-polling.js`) | Heartbeat **60s** (300s after 5m idle); fast fallback **20s**; hidden pauses | 1475 | ~2400 | 5089–8512 | Snapshot hit warm; **6442×** `app.settings.all` DB-cache gets; email widget cache | ~499 KB | Yes (notif/activity/presence) | **Yes** — no leader election |
-| 2 | `GET /notifications/poll` | Global navbar (`live-notifications.js`) | **20s**; fetch skipped if hidden | 61 | ~62 | 7 | None | ~6 KB | Yes | **Yes** |
-| 3 | `POST /presence/heartbeat` | Global shell | **120s** + visibility | n/m | n/m | low | — | &lt;1 KB | Low | **Yes** |
-| 4 | `GET /dashboard/activity` | My Activity | **30s** | n/m | n/m | medium | None | 5–40 KB est. | Yes w/ live | **Yes** |
-| 5 | `GET /dashboard/team-activity` | Team Activity (expanded) | **30s** | n/m | n/m | high | None | 20–150 KB est. | Yes | **Yes** |
-| 6 | `GET /admin/operations/live` | OCC | 30s / full 120s | n/m | n/m | section cache | 30s section | 30–200 KB est. | Admin | **Yes** |
+| 2 | `GET /notifications/poll` | Global navbar (`live-notifications.js`) | **45s** (balanced); **60s** Ably safety-net; timer paused when hidden | 61 | ~62 | 7 | None | ~6 KB | Yes | **Yes** |
+| 3 | `POST /presence/heartbeat` | Global shell | **120s**; timer paused when hidden | n/m | n/m | low | — | &lt;1 KB | Low | **Yes** |
+| 4 | `GET /dashboard/activity` | My Activity (legacy) | **60s**; timer paused when hidden | n/m | n/m | medium | None | 5–40 KB est. | Yes w/ live | **Yes** |
+| 5 | `GET /dashboard/team-activity` | Team Activity (expanded) | **60s**; timer paused when hidden | n/m | n/m | high | None | 20–150 KB est. | Yes | **Yes** |
+| 6 | `GET /admin/operations/live` | OCC | **45s** / full **180s**; paused when hidden | n/m | n/m | section cache | 30s section | 30–200 KB est. | Admin | **Yes** |
 | 7 | `GET /admin/platform/zones/{zone}` | Platform | 60s stale/priority | n/m | n/m | zone snapshots | Redis-recommended; DB today | 5–80 KB | Admin | **Yes** |
-| 8 | C360 timeline refresh | Customer360 drawer | **30s** | n/m | n/m | high | Request-only | 10–80 KB | With live if open | **Yes** |
-| 9 | C360 device sync | Customer360 | **10s** while syncing | n/m | n/m | medium | — | 5–30 KB | With live | **Yes** |
-| 10 | Email thread | Email workspace | **20s** hardcoded | n/m | n/m | medium | — | 5–100 KB | With C360 | **Yes** |
+| 8 | C360 timeline refresh | Customer360 drawer | **45s**; paused when hidden | n/m | n/m | high | Request-only | 10–80 KB | With live if open | **Yes** |
+| 9 | C360 device sync | Customer360 | **15s** while syncing; paused when hidden | n/m | n/m | medium | — | 5–30 KB | With live | **Yes** |
+| 10 | Email thread | Email workspace | **30s**; paused when hidden | n/m | n/m | medium | — | 5–100 KB | With C360 | **Yes** |
 
 **Event-driven (not periodic):** `GET /dashboard/live/rows` (Ably row patch).
 
@@ -247,8 +255,11 @@ Docs claimed “return 200 quickly”; code drained the outbox before responding
 | P0 | Redis (or request memo) for `SettingService` / stop DB-cache stampede on live | Remove ~6400 queries/live |
 | P0 | Batch RadiumBox sync reads; eager-load `closeOutcomes` for row render | Remove ~777+ N+1 SELECTs/live |
 | P0 | ~~Interakt: `processAggregate` (or ack-then-cron) instead of unbounded `process()`~~ **Done (Phase 2: enqueue-only)** | Cut webhook CPU & 3s SLA risk |
+| P0 | ~~`watchdog:send-critical-alerts` (~21s)~~ **Done (Phase 3)** | Remove ~10% account CPU cron stall |
+| P0 | ~~`queue:work` RadiumBox duplicate jobs / retry storms~~ **Done (Phase 5)** | Cut enrichment HTTP + critical-queue CPU |
+| P0 | ~~`automation:snapshot` (~6.5s / 28k SQL)~~ **Done (Phase 6)** | Remove ~16% account CPU cron stall |
 | P1 | Drop unused live aggregates (`automation_health`, unused SLA/approval splits) | Less CPU per poll for admins |
-| P1 | Pause/slow `/notifications/poll` when Ably delivers | −50–70% notification RPS |
+| P1 | ~~Pause/slow `/notifications/poll` when Ably delivers~~ **Done (Phase 4)** | −50–70% notification RPS |
 | P1 | Merge My Activity into live payload | −12 req/min |
 | P1 | Live ETag / snapshot version short-circuit | Skip Blade when unchanged |
 | P2 | Raise fallback live interval 20s → 30s | −33% live RPS in outage |
@@ -312,7 +323,10 @@ Performance-only. No Redis, polling, Reverb, Ready Queue, UX, or business-rule c
 | **Payload size (~500 KB)** | Row HTML in JSON; needs ETag/304 or row-diff / lighter row payload (P1) |
 | **PHP walk of ~995 active incidents** | Snapshot filter/SLA classification still O(active set) CPU even with 1 settings read |
 | ~~**Interakt `process()` unbounded sync drain**~~ | **Fixed in Phase 2** (enqueue-only + cron) |
-| **`/notifications/poll` @ 20s** | Volume P1; cheap per call |
+| ~~**`watchdog:send-critical-alerts` ~21s**~~ | **Fixed in Phase 3** (in-process `/up`, lean collectors, Cashfree batch) |
+| ~~**`automation:snapshot` ~6.5s / 28k SQL**~~ | **Fixed in Phase 6** (Cashfree batch + fingerprint skip) |
+| ~~**`queue:work` RadiumBox duplicates / retry storms**~~ | **Fixed in Phase 5** (unique job, Pending skip, attempt preserve, lookup cache) |
+| ~~**`/notifications/poll` @ 20s**~~ | **Fixed in Phase 4** (45–60s + Ably/hidden pause) |
 | **Redis for cache store** | Optional later; Phase 1 memo removes the stampede without Redis |
 | **My Activity / Team Activity overlap** | Separate pollers (P1) |
 
@@ -412,16 +426,444 @@ Core Interakt + Outbox + signature + enqueue budget: **31/34** in `InteraktWebho
 
 ---
 
+## Phase 3 — `watchdog:send-critical-alerts` (implemented)
+
+Performance-only. Alert keys, thresholds, fingerprint gate semantics, and Telegram copy unchanged.
+
+### Before (production, 2026-08-07)
+
+| Metric | Value |
+|--------|------:|
+| Wall time | **21208 ms** |
+| Schedule | every **5** minutes |
+| Est. account CPU share | **~10%** (cost units 4242 in TOP20 model) |
+| Dominant stall | Outbound `Http::timeout(10)->retry(2)` to `app.url/up` under load → ~2×10s timeouts |
+
+### Root causes
+
+| Issue | Detail |
+|-------|--------|
+| Self-HTTP site probe | `siteHealthAlerts()` called production URL with 10s timeout + 2 retries; under CPU starvation this alone ≈ **21s** and amplified load |
+| Duplicate integration scan | `interaktAlerts()` called `integrationHealthService->cards()` → rebuilt Cashfree + Gmail + ZeptoMail + Telegram (incl. up to **2000** `audit_logs`) every tick for one Interakt card |
+| Duplicate queue scan | Legacy queue path called `systemHealthService->components()` (8 components) for `queue_worker` only |
+| Duplicate Cashfree scan | `paidWithoutDeskOrderCount()` then full `reconcile()` when missing &gt; 0; `classifyFailedWebhooks()` / `assessLog()` N+1 `exists()` per failed log |
+| Repeated snapshot / schema | `platformHealthSnapshot->current()` twice; `Schema::hasTable` per collector |
+| Notification generation | Unchanged fingerprint gate already suppresses repeats; gate index writes tightened slightly |
+
+### Architecture after
+
+```
+watchdog:send-critical-alerts
+  → collectCriticalAlerts()
+      cashfree: missingPaidOrderSample (one pass) + batched assess index
+      queue/automation: shared Platform Health snapshot (memoized) or lean componentFor/card
+      interakt: integrationHealthService->card('interakt') only
+      site: in-process Kernel handle GET /up (no outbound HTTP / no retries)
+      … bonvoice / radiumbox / error-spike COUNTs
+  → WatchdogCriticalAlertGate::syncResolved + shouldNotify (fingerprint)
+  → Telegram dispatch only when gate allows
+```
+
+### Benchmarks
+
+| Metric | Before (prod) | After (local) |
+|--------|---------------|---------------|
+| Wall time | **21208 ms** | **~7–153 ms** (3-run avg **~56 ms**; budget test **&lt;3000 ms**) |
+| Outbound HTTP for `/up` | Yes (timeout×retry) | **None** (`Http::assertNothingSent`) |
+| Integration cards built | All 6 | **Interakt only** |
+| System components built (legacy) | All 8 | **queue_worker only** |
+| Cashfree missing-order passes | 1–2 (+ N+1 assess) | **1** + batched order/payment lookups |
+| Alert behaviour | — | Same keys / thresholds / fingerprint suppress (existing suite green) |
+
+### CPU reduction
+
+| Scope | Before | After | Reduction |
+|-------|-------:|------:|----------:|
+| Command wall | 21208 ms | ~56 ms avg | **~99.7%** |
+| Amortized cost units (/5m) | 4242 (~10% TOP20) | ~11 | **~99.7%** of this consumer |
+| Host impact | Top-5 CPU cron | Negligible vs warmers/queue | Removes ~10pp from prior TOP20 share |
+
+Production re-measure pending deploy (confirm &lt;3s on Hostinger under load).
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/Services/Operations/ProductionWatchdogService.php` | In-process `/up`; lean Interakt/queue paths; snapshot + schema memo; Cashfree sample |
+| `app/Services/Operations/OperationsIntegrationHealthService.php` | `card($key)` single-card API |
+| `app/Services/Operations/OperationsSystemHealthService.php` | `componentFor($key)` single-component API |
+| `app/Services/Cashfree/CashfreePaymentIntegrityService.php` | `missingPaidOrderSample()`; batched assess index (no N+1 `exists`) |
+| `app/ReadModels/Integrations/CashfreeIntegrityReadModel.php` | Delegate `missingPaidOrderSample()` |
+| `app/Services/Operations/WatchdogCriticalAlertGate.php` | Batch forgets; skip redundant index rewrite |
+| `tests/Feature/WatchdogCriticalAlertsPerformanceTest.php` | &lt;3s budget + no outbound HTTP |
+
+### Regression (local)
+
+`WatchdogCriticalAlertsPerformanceTest` + `ProductionWatchdogTest` + `IntelligentAutomationAlertSemanticsTest` + `CashfreeIntegrityReadModelTest`: **24 passed**.
+
+---
+
+## Phase 4 — Remaining polling optimization (implemented)
+
+Performance-only. **`/dashboard/live` not modified.** UX preserved for active/visible tabs: Ably still delivers notifications instantly; HTTP becomes a slower safety net. Hidden tabs stop timers (not just skip fetch).
+
+### What changed
+
+| Area | Before | After |
+|------|--------|-------|
+| Notifications | `setInterval` 20s; skip fetch if hidden | Visibility-aware poller; **60s** while Ably/Reverb connected; **45s** balanced default; catch-up on visible |
+| Team Activity | 30s; skip fetch if hidden (timer kept firing) | **60s**; **stop timer** when hidden; catch-up on visible |
+| My Activity | 30s; skip fetch if hidden | **60s**; pause timer when hidden |
+| OCC | 30s / full 120s; already paused when hidden | **45s / 180s** |
+| C360 timeline / device | 30s / 10s; continued while hidden | **45s / 15s**; pause when hidden; email timeline refresh resets timer (dedupe) |
+| Email thread | Hardcoded 20s; continued while hidden | **30s**; pause when hidden |
+| Presence | Interval kept firing while hidden | Interval cleared while hidden; catch-up on visible |
+| Duplicate / overlap | Independent intervals; notif HTTP + Ably both hot | Shared `visibility-aware-poller`; notification HTTP gated under Ably |
+
+### Req/min summary (deliverable)
+
+| | Req/min |
+|--|--------:|
+| **Current** (pre–Phase 4 model, Ably healthy, ~8 sessions) | **≈ 48–55** |
+| **Optimized** (Phase 4, same scenario, tabs visible) | **≈ 26–32** |
+| **Delta** | **≈ −40–45%** periodic RPS (live unchanged) |
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `resources/js/polling/visibility-aware-poller.js` | Shared pause-when-hidden single-flight poller |
+| `resources/js/realtime-transport-status.js` | Shared Ably/Reverb connected flag for adaptive notification interval |
+| `resources/js/live-notifications.js` | Visibility-aware + Ably-gated adaptive interval |
+| `resources/js/live-dashboard-reverb.js` | Set/clear transport status on connect/teardown (no live HTTP changes) |
+| `resources/js/dashboard-activity-refresh.js` | Visibility-aware 60s poller |
+| `resources/js/dashboard-team-activity.js` | Stop timer when hidden; 60s default |
+| `resources/js/customer-360-drawer.js` | Pause when hidden; email→timeline timer reset |
+| `resources/js/service-case-email-workspace.js` | 30s + pause when hidden |
+| `resources/js/presence-heartbeat.js` | Clear interval while hidden |
+| `resources/js/operations-dashboard.js` | Default fallbacks 45s / 180s |
+| `config/performance.php` | Balanced/low_resource + fallbacks |
+| `config/system_settings.php` | Defaults / recommended intervals |
+| `config/dashboard-activity.php` | 60s |
+| `config/dashboard-team-activity.php` | 60s |
+| `database/migrations/2026_08_07_123000_optimize_balanced_polling_intervals.php` | Bump prod settings that still match old balanced values |
+| Blade hosts (navbar, C360, OCC, activity panels) | Dataset fallbacks |
+| JS/PHP tests | Interval + hidden-tab coverage |
+
+### Rollback notes
+
+1. Revert Phase 4 JS/config commits.
+2. Migration `down()` restores previous balanced numeric values when current value equals the new default.
+3. `/dashboard/live` path was never touched — no live rollback needed.
+
+### Regression (local)
+
+- JS: `visibility-aware-poller`, `live-notifications`, `dashboard-activity-refresh`, `dashboard-team-activity` — **28/28 passed**
+- PHP: `PerformanceRuntimeConfigTest`, `PerformanceSettingsServiceTest`, `PerformanceSystemSettingsTest` — **11/11 passed**
+
+---
+
+## Phase 5 — `queue:work` RadiumBox jobs (implemented)
+
+Performance-only. Enrichment field application, Ready Queue / identity lifecycle, Cashfree onboarding path, and job retry backoff **unchanged**. Reduces redundant CPU/HTTP on the critical queue.
+
+### Before (production remeasure, 2026-08-07)
+
+| Metric | Value |
+|--------|------:|
+| Est. account CPU share | **~12%** (`queue:work`, #3 consumer) |
+| Peak process CPU | **59%** at top-of-minute (`:02` UTC) |
+| Wall (10s-capped `queue:work` test) | **2667 ms** |
+| Jobs pending | **0** (completes; CPU is work cost, not backlog) |
+| Recovery scan | **1316** orders / 15m → **11** recovered (**1315 ms**) |
+| Daily enrichment starts (audit) | **~1652+** (`enrichment_started`) |
+| Scheduler recoveries / day | **587+** |
+| Job config | `tries=4`, backoff 60/300/1800s, queue **`critical`** |
+
+Sources: [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md), [radiumbox-api-success-rate-degradation-investigation.md](./radiumbox-api-success-rate-degradation-investigation.md).
+
+### Investigation findings
+
+| Pattern | Finding |
+|---------|---------|
+| Duplicate jobs | No `ShouldBeUnique`; `dispatch()` always enqueued. Cashfree + Bonvoice + stale-pending recovery could pile N jobs per `orderId`. Auto-sync already gated on `Pending`. |
+| Retry storms | `retryOrderEnrichment()` called `forget()` → reset `radiumbox_sync_attempts` to 0 every 15m → `max_recovery_attempts=10` never enforced. |
+| Unnecessary sync | `process()` always wrote attempt/audit then called API layer; already-enriched orders still paid DB + lifecycle when HTTP was skipped inside `RadiumBoxService`. |
+| Repeated API calls | Background path bypassed request cache; every job attempt = HTTP (5s timeout). Workspace path had request-scoped cache only. |
+| Batch opportunities | Recovery/backfill already dispatch individual jobs (required for per-order lifecycle). Win is **dedupe + lookup TTL**, not multi-order API batch (API is per-orderid). |
+| Queue starvation | Only `RadiumBoxOrderEnrichmentJob` uses `critical` (ahead of notifications/default/maintenance). Duplicate critical jobs delay notification drain within the 55s cron worker. |
+
+### Architecture after
+
+```
+dispatch / dispatchIfNeeded
+  → skip if Pending (unless force recovery)
+  → markPending (idempotent touch if already Pending)
+  → RadiumBoxOrderEnrichmentJob (ShouldBeUnique per orderId, uniqueFor=7200)
+
+process(orderId)
+  → if !needsEnrichment: markSynced (if needed) + lifecycle once; no HTTP / no attempt++
+  → else: existing enrich → persist → lifecycle (identical outcomes)
+
+radiumbox:recover-sync
+  → retryOrderEnrichment WITHOUT forget()  // preserves attempt counters
+  → force redispatch (unique lock drops true duplicates)
+
+background lookup
+  → Cache TTL 300s for non-retriable results only
+```
+
+### Benchmarks
+
+| Metric | Before | After (local) |
+|--------|--------|---------------|
+| Duplicate `dispatch()` while Pending | **2+ jobs** | **1 job** (`RadiumBoxQueuePhase5PerformanceTest`) |
+| Already-enriched `process()` | Attempt++ + audit + HTTP skip inside service | **0 HTTP**, attempts unchanged, **&lt;50 ms** |
+| Same orderid lookup twice within TTL | **2 HTTP** | **1 HTTP** (300s cache) |
+| Recovery redispatch attempt count | Reset to **0** via `forget()` | **Preserved** (max_recovery_attempts effective) |
+| Bonvoice missed-call on complete order | Always `dispatch()` | `dispatchIfNeeded()` — no job |
+| Enrichment success path fields / Ready Queue | — | **Identical** (no business-rule changes) |
+
+### Expected production CPU effect (pending re-measure)
+
+| Lever | Expected impact |
+|-------|-----------------|
+| Job uniqueness + Pending skip | Remove duplicate critical-queue HTTP (~2s avg API) |
+| Attempt-preserving recovery | Stop unbounded 15m re-dispatch loops on permanently missing orders after 10 attempts |
+| Already-enriched early exit | Cut wasted DB/audit on redundant jobs |
+| Background lookup cache (5m) | Collapse recovery/duplicate bursts to one API call per orderid window |
+| Critical-queue depth | Less starvation of `notifications` / `default` within `--max-time=55` |
+
+Modeled: material cut of the **~12%** `queue:work` share and **59%** top-of-minute spike when duplicate/recovery storms were active. Confirm after deploy with the same SSH wall/CPU probes as [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md).
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/Jobs/RadiumBoxOrderEnrichmentJob.php` | `ShouldBeUnique` + `uniqueId()` / `uniqueFor=7200` |
+| `app/Services/RadiumBox/RadiumBoxOrderEnrichmentService.php` | Pending skip; `dispatchIfNeeded`; early already-enriched exit; recovery without `forget()` |
+| `app/Services/RadiumBox/RadiumBoxOrderEnrichmentSyncStore.php` | Idempotent `markPending` / `touchPending` |
+| `app/Services/RadiumBox/RadiumBoxClient.php` | 300s background lookup cache (non-retriable only) |
+| `app/Services/Bonvoice/BonvoiceMissedCallRecoveryService.php` | Use `dispatchIfNeeded` |
+| `config/radiumbox.php` | `background_lookup_cache_seconds` (default 300; `0` disables) |
+| `tests/Feature/RadiumBox/RadiumBoxQueuePhase5PerformanceTest.php` | Dedupe / skip / cache / attempt budgets |
+| `tests/Feature/RadiumBox/RadiumBoxOrderEnrichmentJobTest.php` | Unique id + overwrite + attempt preserve |
+| `tests/Feature/RadiumBox/RadiumBoxSyncRecoveryTest.php` | Stale pending preserves attempts |
+
+### Rollback notes
+
+1. Revert Phase 5 job/service/client/config commits.
+2. Set `RADIUMBOX_BACKGROUND_LOOKUP_CACHE_SECONDS=0` to disable lookup cache only.
+3. No migrations. In-flight unique locks expire after `uniqueFor` (7200s) or cache flush.
+
+### Regression (local)
+
+Focused RadiumBox job / recovery / auto-sync / Cashfree paid / Bonvoice enrichment dispatch: **32 passed**.
+
+---
+
+## Phase 6 — `automation:snapshot` (implemented)
+
+Performance-only. Dashboard fields, validation categories, health counts, and Cashfree KPI meanings unchanged. Waiting-age / `waiting_over_*` still advance every minute via stub refresh when content is unchanged.
+
+### Why it rebuilt every minute
+
+| Factor | Detail |
+|--------|--------|
+| Scheduler | `automation:snapshot` → `everyMinute()` + `withoutOverlapping()` |
+| Refresh API | Command always called `refresh()` → `builder->build()` (no content check) |
+| Cache TTL | `automation.operations.snapshot` TTL = **60s** — expires as the next cron tick arrives, so the cache never helped the cron itself |
+
+### Before (production, 2026-08-07)
+
+| Metric | Value |
+|--------|------:|
+| Wall time | **6450 ms** (remeasure earlier: 6607 ms) |
+| SQL queries | **28073** |
+| Est. account CPU share | **~16%** (cost units 6607 in TOP20 model) |
+| Top SQL | **25729×** `exists(orders.cashfree_payment_id = ?)` |
+
+### Root causes
+
+| Issue | Detail |
+|-------|--------|
+| Cashfree N+1 | `dashboardCounts()` → `classifyFailedWebhooks()` + `paidWithoutDeskOrderCount()` each called `assessLog()` with per-row `Order::exists()` — **~25.5k** unique payment IDs |
+| Duplicate order scan | `ValidationCollector` re-queried all orders with active incidents via `whereHas` + cursor while `activeIncidents()` already loaded them |
+| Sync store N+1 | `syncStore->status($orderId)` without preloaded `Order` → per-order SELECT + cache GET (~514 each) |
+| Duplicate validation | `statusFor` + collector + repair-candidate paths re-ran serial validation for the same orders |
+| Repair stats | Separate `COUNT(*)` + `MAX(created_at)` on `audit_logs` |
+| No incremental path | Quiet minutes still paid full rebuild |
+
+### Architecture after
+
+```
+automation:snapshot
+  → contentFingerprint()          // cheap aggregates (incidents/orders/audits/outbox/cashfree)
+  → if fingerprint unchanged:
+        applyTimeDependentFields()  // waiting_over_* + age strings from stubs
+        put cache (60s)             // incremental
+  → else full build:
+        activeIncidents()
+        statusesFor()               // eligibility memo
+        collectFromOrders(unique orders from incidents)  // no whereHas rescan
+        Cashfree reliability snapshot (batched assess + 120s cache)
+        repair statistics (single aggregate query)
+        store snapshot + incident stubs
+```
+
+### Benchmarks
+
+| Metric | Before (prod) | After |
+|--------|---------------|-------|
+| Wall time (full) | **6450 ms** | Local budget &lt;400 queries; Cashfree payment `exists` **&lt;20** (`AutomationSnapshotPerformanceTest`, 120 cases + 40 failed webhooks) |
+| Wall time (incremental / unchanged) | same full cost every minute | **&lt;40 SQL** local; command reports `incremental` |
+| Cashfree payment exists checks | **25729** | Batched `whereIn` chunks (prod probe: batched classify **23 ms / 3 SQL** for 163 failed logs; batched paid scan **~2.1s / 105 SQL** for 25.5k payments vs prior exists storm) |
+| Cashfree reliability reuse | none | **120s** snapshot cache shared with other callers |
+| Quiet-minute rebuild | always | **Skipped** when fingerprint matches (time fields still updated) |
+
+Production re-measure pending deploy (confirm full rebuild ≪6s and incremental minutes near-zero on Hostinger).
+
+### CPU reduction (expected)
+
+| Scope | Before | After (expected) | Reduction |
+|-------|-------:|-----------------:|----------:|
+| Cold full rebuild SQL | 28073 | hundreds (batched) | **~98%+** of exists storm |
+| Quiet minute (fingerprint hit) | 6450 ms | fingerprint + stub refresh only | **~95%+** wall |
+| Amortized cron share | ~16% TOP20 | small vs warmers | Removes major every-minute artisan spike |
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/Services/Cashfree/CashfreePaymentIntegrityService.php` | Batched assessment index for classify / missing-paid (shared with Phase 3) |
+| `app/Services/Cashfree/CashfreeWebhookReliabilityMetrics.php` | 120s dashboard snapshot cache; invalidate on `recordOrderCreated` |
+| `app/Data/CashfreeWebhookReliabilitySnapshot.php` | `fromArray()` for cache hydrate |
+| `app/Services/AutomationOperationsSnapshotService.php` | Content fingerprint + incremental time-field refresh + meta stubs |
+| `app/Services/AutomationOperationsSnapshotBuilder.php` | `buildDetailed()`; reuse unique orders from active incidents; waiting-queue `created_at_iso` |
+| `app/Services/AutomationOperationsValidationCollector.php` | `collectFromOrders()`; pass `Order` into sync store; metadata memo |
+| `app/Services/ServiceCaseAssignmentEligibilityService.php` | Request-scoped passes/severity memo |
+| `app/Services/OrderIdentityRepairService.php` | Single aggregate query for repair statistics |
+| `app/Console/Commands/AutomationSnapshotCommand.php` | Report full vs incremental + elapsed ms |
+| `tests/Feature/AutomationSnapshotPerformanceTest.php` | Full &lt;400 queries; incremental &lt;40; Cashfree exists budget |
+
+### Rollback notes
+
+1. Revert Phase 6 service/command/test changes.
+2. No migrations. Cache keys `automation.operations.snapshot(.meta)` and `cashfree:webhook:reliability:dashboard_snapshot` expire naturally.
+3. Fingerprint skip only affects rebuild cost — KPIs still refresh ages/`waiting_over_*` each minute.
+
+### Regression (local)
+
+`AutomationSnapshotPerformanceTest` + `AutomationOperationsDashboardTest` + Cashfree integrity/reliability + watchdog Cashfree path: **41 passed** in filtered runs above.
+
+---
+
+## Phase 7 — `platform:snapshots:warm` (implemented)
+
+Performance-only. No UI, business-rule, or schema changes. Snapshot payloads unchanged when a warmer runs; incremental path skips rebuild while TTL-fresh caches remain valid.
+
+**Canvas:** [`p0-platform-snapshots-warm-optimization.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-platform-snapshots-warm-optimization.canvas.tsx)
+
+### Root cause
+
+Production remasure ranked this cron **#1 (~28% account CPU)** at **~11.6s wall / 72–88% process CPU every minute**. The warmer rebuilt all 10 Priority zones every 60s even though P1 TTL is **120s** and P3 TTL is **300s**, and duplicated expensive work inside each cycle:
+
+| Duplicate | Occurrences per warm |
+|-----------|---------------------:|
+| Platform health full probe | 2× |
+| Executive KPI context (7 SQL) | **8×** (one `force:true` per card) |
+| Overall health compute+store | 2× |
+| Queue `jobs`/`failed_jobs` capture | 3–4× |
+| Scheduler probe | 2× |
+
+### Before / after (local)
+
+| Run | Before wall | After wall | Before SQL | After SQL |
+|-----|------------:|-----------:|-----------:|----------:|
+| Cold `warmAll` | **205 ms** | **125 ms** (−39%) | **331** | **245** (−26%) |
+| 2nd warm (caches fresh) | **66 ms** | **8 ms** (−88%) | **267** | **24** (−91%) |
+| Executive zone alone | — | — | **79** (8× context) | **16** (1× context) |
+
+Local DB is sparse (email/integration cheap); production wall is dominated by the same duplicate patterns on large tables. Relative gains scale up on Hostinger.
+
+### Amortized CPU (production estimate)
+
+Before: **11613 ms every minute**.
+
+After (deduped cold + skip-when-fresh):
+
+| Minute | Behavior | Est. wall |
+|-------:|----------|----------:|
+| 0 | Full cold (deduped) | ~5.0 s |
+| 1 | All fresh → skip | ~0.2 s |
+| 2 | P1 only (120s TTL) | ~2.0 s |
+| 3 | Skip | ~0.2 s |
+| 4 | P1 only | ~2.0 s |
+| 5 | P1 + P3 (300s TTL) | ~5.0 s |
+
+**5-minute average ≈ 1.9 s/min → ~84% CPU reduction** for this command (target ≥70%). Production confirmation pending deploy.
+
+### SQL reduction drivers
+
+| Driver | Change | Effect |
+|--------|--------|--------|
+| Executive 8× stampede | `ExecutiveMetricsService` in-request force memo | 8 context builds → **1** |
+| Double platform health | Warmer no longer pre-probes before zone refresh | Probe **1×** / warm |
+| Double overall health | Critical-alerts warmer defers to zone | Compute **1×** |
+| Queue capture fan-out | Scoped `QueueMetricsService` + capture memo | **1** capture / command |
+| Automation re-probe | Scheduler item reads platform health snapshot | No 2nd queue/scheduler probe |
+| Over-warming | Skip warmer when zone + overview still fresh | Honors 120s/300s TTL |
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| `app/Services/Executive/ExecutiveMetricsService.php` | Force bypasses Redis only; in-request memo after first force |
+| `app/Services/Platform/Warmers/PlatformHealthSnapshotWarmer.php` | Single zone refresh (no double probe) |
+| `app/Services/Platform/Warmers/CriticalAlertsSnapshotWarmer.php` | Remove duplicate overall-health pre-compute |
+| `app/Services/Platform/Warmers/PlatformSnapshotWarmingService.php` | Skip-when-fresh; return `skipped[]` |
+| `app/Console/Commands/WarmPlatformSnapshotsCommand.php` | Report skipped warmers |
+| `app/Infrastructure/Queue/QueueMetricsService.php` | Request/command capture memo |
+| `app/Services/Platform/Health/PlatformHealthSnapshotService.php` | Request/command probe memo |
+| `app/Services/Platform/PlatformAutomationOverviewService.php` | Reuse health snapshot for scheduler/queue item |
+| `app/Providers/InfrastructureServiceProvider.php` | Scoped `QueueMetricsService` |
+| `app/Providers/PlatformDashboardServiceProvider.php` | Scoped `PlatformHealthSnapshotService` |
+| `tests/Feature/Platform/PlatformSnapshotWarmPerformanceTest.php` | Cold query budget + incremental skip |
+| `tests/Unit/Executive/ExecutiveMetricsForceMemoTest.php` | 8× force → 1 context assert |
+
+### Remaining bottlenecks
+
+| Item | Why it remains |
+|------|----------------|
+| **Cold email_operations / integration_health** | Still many COUNT/live probes when TTL expires |
+| **`CACHE_STORE=database`** | Warm path Cache::put/get is SQL; Redis would cut further |
+| **Production re-benchmark** | Confirm wall + `%CPU` after deploy |
+
+### Regression (local)
+
+`PlatformSnapshotWarmPerformanceTest` + `ExecutiveMetricsForceMemoTest` + platform hardening / health unification / queue metrics: **26 passed**.
+
+---
+
 ## Sources
 
-- Production SSH probes 2026-08-07 (tinker HttpKernel timing, query log grouping, Interakt counts)
+- Production SSH probes 2026-08-07 (tinker HttpKernel timing, query log grouping, Interakt counts, automation:snapshot 6450ms/28073 SQL)
+- Production remasure: [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md) (`platform:snapshots:warm` = 11613 ms)
 - Local Phase 1 warm budget: `tests/Feature/DashboardLivePhase1PerformanceTest.php`
 - Local Phase 2 webhook budget: `tests/Feature/InteraktWebhookEnqueueOnlyPerformanceTest.php`
+- Local Phase 3 watchdog budget: `tests/Feature/WatchdogCriticalAlertsPerformanceTest.php`
+- Local Phase 4 JS pollers: `tests/js/visibility-aware-poller.test.js`, `live-notifications.test.js`
+- Local Phase 5 RadiumBox queue budget: `tests/Feature/RadiumBox/RadiumBoxQueuePhase5PerformanceTest.php`
+- Local Phase 6 automation snapshot budget: `tests/Feature/AutomationSnapshotPerformanceTest.php`
+- Local Phase 7 platform warm budget: `tests/Feature/Platform/PlatformSnapshotWarmPerformanceTest.php`
 - `app/Http/Controllers/DashboardLiveController.php`
 - `app/Services/DashboardService.php`, `OperatorDashboardCache.php`
 - `app/Models/Incident.php` (`slaStatus` → `SettingService`)
 - `app/Services/SettingService.php` (`app.settings.all`)
 - `app/Http/Controllers/Webhooks/InteraktWebhookController.php`
 - `app/Services/Outbox/OutboxProcessorService.php`
-- `resources/js/live-dashboard-polling.js`, `live-notifications.js`
-- Related: [radium-desk-performance-audit.md](./radium-desk-performance-audit.md), [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md)
+- `app/Services/Operations/ProductionWatchdogService.php`
+- `app/Services/Platform/Warmers/PlatformSnapshotWarmingService.php`
+- `app/Jobs/RadiumBoxOrderEnrichmentJob.php`, `app/Services/RadiumBox/RadiumBoxOrderEnrichmentService.php`
+- `resources/js/live-dashboard-polling.js`, `live-notifications.js`, `polling/visibility-aware-poller.js`
+- Related: [radium-desk-performance-audit.md](./radium-desk-performance-audit.md), [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md), [p0-cpu-incident-remeasure.md](./p0-cpu-incident-remeasure.md), [radiumbox-api-success-rate-degradation-investigation.md](./radiumbox-api-success-rate-degradation-investigation.md)
