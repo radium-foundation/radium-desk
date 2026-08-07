@@ -402,6 +402,9 @@ class CashfreeOrderTagsIngestTest extends TestCase
             'radiumbox.base_url' => 'https://admin.radiumbox.com',
         ]);
 
+        // Prevent sync-queue execution of the Cashfree fallback job before Http::fake().
+        \Illuminate\Support\Facades\Queue::fake();
+
         $this->postJson('/api/webhooks/cashfree', $this->successfulPayloadWithTags(
             cfPaymentId: '6179000002',
             orderId: 'RD3479002',

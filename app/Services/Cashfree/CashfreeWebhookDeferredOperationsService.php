@@ -74,7 +74,7 @@ class CashfreeWebhookDeferredOperationsService
         match ($operation) {
             self::OPERATION_AUTOMATION_MONITOR => $this->automationMonitor->recordPaymentReceived($incident, $actor),
             self::OPERATION_DASHBOARD_BROADCAST => $this->dashboardBroadcastService->serviceCaseCreated($incident, $actor),
-            self::OPERATION_RADIUMBOX_ENRICHMENT => $this->radiumBoxOrderEnrichmentService->dispatch($order),
+            self::OPERATION_RADIUMBOX_ENRICHMENT => $this->radiumBoxOrderEnrichmentService->dispatchAfterCashfreePayment($order),
             default => throw new RuntimeException('Unknown Cashfree deferred operation: '.$operation),
         };
     }

@@ -13,6 +13,7 @@ use App\Jobs\RadiumBoxOrderEnrichmentJob;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Cashfree\CashfreeRadiumBoxBypassMetrics;
 use App\Services\OrderIdentityLifecycleService;
 use App\Services\RadiumBox\Exceptions\RadiumBoxEnrichmentRetryException;
 use App\Services\ServiceCaseAssignmentEligibilityService;
@@ -22,6 +23,10 @@ use Illuminate\Support\Facades\Log;
 
 class RadiumBoxOrderEnrichmentService
 {
+    public const LOOKUP_RESULT_CASHFREE_ORDER_TAGS = 'cashfree_order_tags';
+
+    public const SYNC_SOURCE_CASHFREE_ORDER_TAGS = 'cashfree_order_tags';
+
     public function __construct(
         private readonly RadiumBoxService $radiumBoxService,
         private readonly RadiumBoxOrderEnrichmentSyncStore $syncStore,
@@ -29,6 +34,7 @@ class RadiumBoxOrderEnrichmentService
         private readonly RadiumBoxSyncAuditService $syncAuditService,
         private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly CashfreeRadiumBoxBypassMetrics $cashfreeRadiumBoxBypassMetrics,
     ) {}
 
     /**
@@ -68,6 +74,35 @@ class RadiumBoxOrderEnrichmentService
         }
 
         return $this->dispatch($order, $queue);
+    }
+
+    /**
+     * Cashfree paid-order path: if order_tags already satisfy enrichment completeness,
+     * mark SYNCED without a RadiumBox job; otherwise dispatch as today.
+     *
+     * Returns true when a RadiumBox job was queued.
+     */
+    public function dispatchAfterCashfreePayment(Order $order): bool
+    {
+        $order = $order->fresh();
+
+        if ($order === null || $order->isInquiryOrder() || ! filled($order->order_id)) {
+            return false;
+        }
+
+        if (! $this->radiumBoxService->needsEnrichment($order)) {
+            $this->finalizeCashfreeTagEnrichment($order);
+
+            return false;
+        }
+
+        $dispatched = $this->dispatch($order);
+
+        if ($dispatched) {
+            $this->cashfreeRadiumBoxBypassMetrics->recordFallbackDispatch();
+        }
+
+        return $dispatched;
     }
 
     /**
@@ -521,6 +556,74 @@ class RadiumBoxOrderEnrichmentService
         }
 
         $this->runIdentityLifecycle($order);
+    }
+
+    /**
+     * Mark Cashfree tag-complete orders SYNCED without calling RadiumBox.
+     * Manual sync, backfill, and recovery continue to use their existing paths.
+     */
+    private function finalizeCashfreeTagEnrichment(Order $order): void
+    {
+        $previousStatus = $this->syncStore->status($order->id);
+        $metadata = [
+            'lookup_result' => self::LOOKUP_RESULT_CASHFREE_ORDER_TAGS,
+            'radiumbox_job_bypassed' => true,
+        ];
+
+        $this->cashfreeRadiumBoxBypassMetrics->recordBypass();
+
+        if ($previousStatus === RadiumBoxEnrichmentSyncStatus::Synced) {
+            Log::info('RadiumBox enrichment already SYNCED; Cashfree order_tags complete.', [
+                'order_id' => $order->order_id,
+                'order_db_id' => $order->id,
+                'sync_source' => self::SYNC_SOURCE_CASHFREE_ORDER_TAGS,
+                'lookup_result' => self::LOOKUP_RESULT_CASHFREE_ORDER_TAGS,
+                'radiumbox_job_bypassed' => true,
+            ]);
+
+            return;
+        }
+
+        $emptyFetch = new RadiumBoxOrderEnrichmentFetchResult(retriable: false);
+        $emptyPersistence = new EnrichmentPersistenceResult(
+            updated: false,
+            fieldsApplied: [],
+            serialApplied: false,
+            deviceModelApplied: false,
+            warrantyApplied: false,
+            activationYearApplied: false,
+            amcApplied: false,
+        );
+
+        $this->syncStore->markSynced($order->id, $metadata);
+        $this->runPostSyncLifecycleIfNeeded($order->fresh(), [
+            'outcome' => [
+                'applied' => false,
+                'enrichment' => null,
+                'fetch_result' => $emptyFetch,
+                'persistence' => $emptyPersistence,
+            ],
+            'fetch_result' => $emptyFetch,
+            'metadata' => $metadata,
+        ]);
+
+        $this->syncAuditService->recordEnrichmentCompleted(
+            $order->fresh(),
+            self::SYNC_SOURCE_CASHFREE_ORDER_TAGS,
+            0,
+            [],
+            $metadata,
+        );
+
+        Log::info('RadiumBox enrichment bypassed; Cashfree order_tags complete.', [
+            'order_id' => $order->order_id,
+            'order_db_id' => $order->id,
+            'previous_sync_status' => $previousStatus->value,
+            'new_sync_status' => RadiumBoxEnrichmentSyncStatus::Synced->value,
+            'sync_source' => self::SYNC_SOURCE_CASHFREE_ORDER_TAGS,
+            'lookup_result' => self::LOOKUP_RESULT_CASHFREE_ORDER_TAGS,
+            'radiumbox_job_bypassed' => true,
+        ]);
     }
 
     /**

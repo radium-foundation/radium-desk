@@ -136,7 +136,7 @@ class CashfreePaymentIntegrityTest extends TestCase
         Queue::fake();
 
         $this->partialMock(RadiumBoxOrderEnrichmentService::class, function ($mock): void {
-            $mock->shouldReceive('dispatch')
+            $mock->shouldReceive('dispatchAfterCashfreePayment')
                 ->once()
                 ->andThrow(new RuntimeException('enrichment dispatch failed'));
         });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.9 — 2026-08-07 — Cashfree-First Enrichment
+
+- Implemented Cashfree-first enrichment for paid orders, using webhook order tags to complete eligible orders without RadiumBox lookup.
+- Added automatic fallback to RadiumBox enrichment only when required order data is incomplete.
+- Reduced unnecessary queue jobs and external API calls while preserving existing manual sync, recovery, and legacy repair workflows.
+
 ## 4.0.8 — 2026-08-07 — Operations Live Query Efficiency
 
 - Eliminated repeated waiting-state and order database queries during Operations Live team performance evaluation by batching operational queries and eager-loading related data.
