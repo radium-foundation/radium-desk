@@ -1,10 +1,11 @@
 # P0 Production CPU — Request Inventory & Attribution
 
-**Status:** Phase 1–7 code shipped (local); production re-measure pending deploy  
+**Status:** Phase 1–8 shipped (Phase 8 = event-driven automation snapshot infrastructure)  
 **Date:** 2026-08-07  
 **Method:** Code inventory + production SSH probes (`tools/config.sh` → `desk.radiumbox.com`) + local warm-path / webhook / watchdog / JS poller / RadiumBox queue / automation snapshot / platform warm tests  
 **Canvas:** [`p0-production-cpu-request-inventory.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-production-cpu-request-inventory.canvas.tsx)  
 **Phase 7 canvas:** [`p0-platform-snapshots-warm-optimization.canvas.tsx`](/Users/ravi/.cursor/projects/Users-ravi-radium-service-desk/canvases/p0-platform-snapshots-warm-optimization.canvas.tsx)  
+**Post-deploy remeasure:** [p0-production-remeasure-after-optimizations.md](./p0-production-remeasure-after-optimizations.md)  
 **Companion polling matrix:** [periodic-polling-endpoints-investigation.md](./periodic-polling-endpoints-investigation.md)
 
 ---
@@ -721,40 +722,111 @@ automation:snapshot
 | Cashfree reliability reuse | none | **120s** snapshot cache shared with other callers |
 | Quiet-minute rebuild | always | **Skipped** when fingerprint matches (time fields still updated) |
 
-Production re-measure pending deploy (confirm full rebuild ≪6s and incremental minutes near-zero on Hostinger).
+Production remeasure ([p0-production-remeasure-after-optimizations.md](./p0-production-remeasure-after-optimizations.md)): fingerprint **rarely hit** under live traffic (outbox + `orders.updated_at` churn) → still **11–15s full-rebuild** when the cron ran. Superseded by **Phase 8** event-driven dirty flags.
 
-### CPU reduction (expected)
+### Rollback notes (Phase 6)
 
-| Scope | Before | After (expected) | Reduction |
-|-------|-------:|-----------------:|----------:|
-| Cold full rebuild SQL | 28073 | hundreds (batched) | **~98%+** of exists storm |
-| Quiet minute (fingerprint hit) | 6450 ms | fingerprint + stub refresh only | **~95%+** wall |
-| Amortized cron share | ~16% TOP20 | small vs warmers | Removes major every-minute artisan spike |
+1. Revert Phase 6 service/command/test changes.
+2. No migrations. Cache keys `automation.operations.snapshot(.meta)` and `cashfree:webhook:reliability:dashboard_snapshot` expire naturally.
+
+---
+
+## Phase 8 — `automation:snapshot` event-driven infrastructure (implemented)
+
+Performance-only. **No UI / business-logic / schema changes.** Dashboard DTO, routes, and KPI meanings unchanged. Phase 1 of the redesign: infrastructure + schedule; specialized per-metric mutators beyond Cashfree/RecentEvents come later.
+
+### Root cause (why Phase 6 still full-rebuilt in production)
+
+| Factor | Detail |
+|--------|--------|
+| Monolithic fingerprint | Single hash over incidents + orders + audits + **outbox pending/failed** + Cashfree counters |
+| Outbox churn | `outbox:process` every minute moves pending/failed → fingerprint miss every tick |
+| Enrichment churn | RadiumBox `persist()` bumps `orders.updated_at` / sync columns on active cases |
+| Assignment / grace | Concurrent writes move `incidents.max_updated_at` and automation audit `MAX(id)` |
+| Fingerprint gaps | Duplicate-serial set, paid-without-order, completed-today outbox not fully covered — but volatility alone was enough to miss |
+| Stuck mutex (ops) | Remeasure also found `withoutOverlapping` stuck since ~05:55 — separate defect; Phase 8 uses short overlap TTLs (5 / 20 min) |
+
+Quiet local tests hit incremental; live Hostinger did not.
+
+### Event dependency map (dirty slices)
+
+| Slice | Snapshot fields | Write hubs that mark dirty |
+|-------|-----------------|----------------------------|
+| `Health` | Automation health counts, waiting/unassigned/grace (time fields from stubs) | Assignment, status change/close, grace begin, automation monitor events, Cashfree order create, RadiumBox fail, repair |
+| `Validation` | validationBy*, duplicateSerialConflicts, radiumBoxNotFoundQueue | Same case/order hubs + repair |
+| `RecentEvents` | recentAutomationEvents feed | Monitor audits, assignment, grace, repair |
+| `Cashfree` | cashfree_* keys in healthCounts | `CashfreeWebhookReliabilityMetrics::recordOrderCreated` (+ soft-merged every light tick) |
+| `Repair` | repairStatistics | `OrderIdentityRepairService` |
+| `All` | everything | `--reconcile` / forced full rebuild |
+
+Attendance/presence do **not** write snapshot fields directly (only via reassignment → assignment hub).
+
+### New architecture
+
+```
+Write hubs
+  → AutomationOperationsSnapshotInvalidator::markDirty(slice…)
+       (cache key automation.operations.snapshot.dirty — no schema)
+
+Every minute:  automation:snapshot          (light tick)
+  → if no cache OR dirty Health/Validation/Repair/All OR dirty age ≥120s
+        full rebuild, clear dirty
+  → else
+        merge Cashfree KPIs (120s sub-cache)
+        rebuild RecentEvents if dirty
+        applyTimeDependentFields(stubs)
+        put cache TTL 900s
+
+Every 15 min:  automation:snapshot --reconcile
+  → force full rebuild (missed-event safety net)
+  → log warning if fingerprint changed while dirty was empty
+```
+
+`get()` serves cache + time fields; if dirty, runs `refreshDetailed()` so the Pipeline UI never waits a full 15 minutes after a marked write.
+
+### Benchmarks
+
+| Path | Before (prod remasure / Phase 6) | After (Phase 8 local) |
+|------|----------------------------------:|----------------------:|
+| Quiet minute | **11–15s full rebuild** (fingerprint miss) | **`incremental`**, &lt;80 SQL (`AutomationSnapshotPhase8InfrastructureTest`) |
+| Dirty Health/Validation | same full cost | **1 full rebuild** then clear flags (coalesced) |
+| Reconcile | every minute | **every 15 minutes** only |
+| Full rebuild SQL budget | 28073 → ~193 prod / &lt;400 local (Phase 6) | unchanged builder; fewer invocations |
+| Amortized cron CPU | ~16% TOP20 every minute | Quiet minutes ≈ Cashfree merge + stubs; full pass only on events or */15 |
 
 ### Files changed
 
 | File | Change |
 |------|--------|
-| `app/Services/Cashfree/CashfreePaymentIntegrityService.php` | Batched assessment index for classify / missing-paid (shared with Phase 3) |
-| `app/Services/Cashfree/CashfreeWebhookReliabilityMetrics.php` | 120s dashboard snapshot cache; invalidate on `recordOrderCreated` |
-| `app/Data/CashfreeWebhookReliabilitySnapshot.php` | `fromArray()` for cache hydrate |
-| `app/Services/AutomationOperationsSnapshotService.php` | Content fingerprint + incremental time-field refresh + meta stubs |
-| `app/Services/AutomationOperationsSnapshotBuilder.php` | `buildDetailed()`; reuse unique orders from active incidents; waiting-queue `created_at_iso` |
-| `app/Services/AutomationOperationsValidationCollector.php` | `collectFromOrders()`; pass `Order` into sync store; metadata memo |
-| `app/Services/ServiceCaseAssignmentEligibilityService.php` | Request-scoped passes/severity memo |
-| `app/Services/OrderIdentityRepairService.php` | Single aggregate query for repair statistics |
-| `app/Console/Commands/AutomationSnapshotCommand.php` | Report full vs incremental + elapsed ms |
-| `tests/Feature/AutomationSnapshotPerformanceTest.php` | Full &lt;400 queries; incremental &lt;40; Cashfree exists budget |
+| `app/Enums/AutomationSnapshotSlice.php` | Dirty-slice enum |
+| `app/Services/Automation/AutomationOperationsSnapshotInvalidator.php` | Cache-backed dirty flags |
+| `app/Services/Automation/AutomationOperationsIncrementalUpdater.php` | Light-slice merge + full-rebuild gate |
+| `app/Services/AutomationOperationsSnapshotService.php` | Event-driven refresh; TTL 900s; reconcile API |
+| `app/Services/AutomationOperationsSnapshotBuilder.php` | `recentAutomationEvents()` public for light slice |
+| `app/Console/Commands/AutomationSnapshotCommand.php` | `--reconcile`; mode reporting |
+| `bootstrap/app.php` | everyMinute light + everyFifteenMinutes `--reconcile`; short overlap TTLs; background |
+| Write hubs | Monitor, grace, assignment, status, Cashfree reliability, RadiumBox fail, repair → `markDirty` |
+| `tests/Feature/AutomationSnapshotPhase8InfrastructureTest.php` | Quiet / dirty / reconcile / coalesce |
+| `tests/Feature/SchedulerHardeningTest.php` | Light + reconcile schedule assertions |
+
+### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| Missed dirty mark → stale KPIs | 15m `--reconcile`; dirty-age ≥120s forces full rebuild; reconcile logs `missed_invalidation` |
+| HTTP `get()` full rebuild under dirty | Admin Pipeline only; coalesced dirty; prefer light cron drain |
+| Stuck schedule mutex | Overlap TTL 5m (light) / 20m (reconcile) vs prior 24h default |
+| Cashfree soft-merge every minute | Uses existing 120s sub-cache — cheap when warm |
 
 ### Rollback notes
 
-1. Revert Phase 6 service/command/test changes.
-2. No migrations. Cache keys `automation.operations.snapshot(.meta)` and `cashfree:webhook:reliability:dashboard_snapshot` expire naturally.
-3. Fingerprint skip only affects rebuild cost — KPIs still refresh ages/`waiting_over_*` each minute.
+1. Revert Phase 8 service/enum/command/schedule/hub wiring + tests.
+2. No migrations. Dirty key `automation.operations.snapshot.dirty` expires (1h TTL) or `Cache::forget`.
+3. Restoring every-minute full rebuild is sufficient emergency rollback.
 
 ### Regression (local)
 
-`AutomationSnapshotPerformanceTest` + `AutomationOperationsDashboardTest` + Cashfree integrity/reliability + watchdog Cashfree path: **41 passed** in filtered runs above.
+`AutomationSnapshotPhase8InfrastructureTest` + `AutomationSnapshotPerformanceTest` + automation dashboard cache/command + schedule light/reconcile: **9 passed**.
 
 ---
 

@@ -289,7 +289,7 @@ class AutomationOperationsDashboardTest extends TestCase
 
         $this->artisan('automation:snapshot')
             ->assertSuccessful()
-            ->expectsOutput('Automation operations snapshot refreshed.');
+            ->expectsOutput('Automation operations snapshot rebuilt (dirty slices required full pass).');
 
         $this->assertTrue(Cache::has(AutomationOperationsSnapshotService::CACHE_KEY));
 

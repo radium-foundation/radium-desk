@@ -4,6 +4,7 @@ namespace App\Services\RadiumBox;
 
 use App\Enums\RadiumBoxEnrichmentSyncStatus;
 use App\Models\Order;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\ServiceCaseAutomationMonitorService;
 use Illuminate\Support\Facades\Cache;
 
@@ -24,6 +25,7 @@ class RadiumBoxOrderEnrichmentSyncStore
 
     public function __construct(
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
     ) {}
 
     public function status(int $orderId, ?Order $preloadedOrder = null): RadiumBoxEnrichmentSyncStatus
@@ -165,6 +167,9 @@ class RadiumBoxOrderEnrichmentSyncStore
             'updated_at' => now()->toIso8601String(),
             'last_sync_error' => $errorMessage,
         ]);
+
+        // No automation monitor event on failed sync — mark dirty explicitly.
+        $this->snapshotInvalidator->markCaseOrOrderChanged();
     }
 
     public function forget(int $orderId): void

@@ -8,6 +8,7 @@ use App\Models\Incident;
 use App\Models\Order;
 use App\Models\SupportAppointment;
 use App\Models\User;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\TeamMemberActivityService;
 use Database\Seeders\RolePermissionSeeder;
@@ -21,6 +22,7 @@ class ServiceCaseStatusService
         private readonly DashboardBroadcastService $dashboardBroadcastService,
         private readonly IncidentWaitingStateService $waitingStateService,
         private readonly DashboardSnapshotStore $dashboardSnapshotStore,
+        private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
     ) {}
 
     /**
@@ -95,6 +97,7 @@ class ServiceCaseStatusService
             // Snapshot membership changes with status — always invalidate,
             // independent of Hybrid Realtime / broadcast / Reverb flags.
             $this->dashboardSnapshotStore->forget();
+            $this->snapshotInvalidator->markCaseOrOrderChanged();
 
             if ($status === IncidentStatus::Closed) {
                 $this->waitingStateService->clearActiveIfPresent(

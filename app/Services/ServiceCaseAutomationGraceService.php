@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Data\Assignment\AssignmentRequest;
 use App\Enums\Assignment\AssignmentTrigger;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Support\Assignment\Strategies\ReadyQueueAssignmentStrategy;
 use App\Support\Assignment\Strategies\SupportQueueAssignmentStrategy;
 use Illuminate\Support\Carbon;
@@ -24,6 +25,7 @@ class ServiceCaseAutomationGraceService
         private readonly SupportQueueAssignmentStrategy $supportQueueStrategy,
         private readonly ServiceCaseAssignmentEligibilityService $eligibilityService,
         private readonly ServiceCaseAutomationMonitorService $automationMonitor,
+        private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
     ) {}
 
     public function beginGracePeriod(Incident $incident, User $actor, ?Carbon $at = null): Incident
@@ -60,6 +62,8 @@ class ServiceCaseAutomationGraceService
                 'grace_period_seconds' => $graceSeconds,
             ],
         );
+
+        $this->snapshotInvalidator->markCaseOrOrderChanged();
 
         return $this->tryAssignAfterValidation($freshIncident, $actor, $at)
             ?? $freshIncident->fresh(['assignee', 'order']);

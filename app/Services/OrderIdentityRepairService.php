@@ -16,6 +16,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\RadiumBox\RadiumBoxClient;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichment;
 use App\Services\RadiumBox\RadiumBoxOrderEnrichmentFetchResult;
@@ -58,6 +59,7 @@ class OrderIdentityRepairService
         private readonly OrderIdentityLifecycleService $identityLifecycle,
         private readonly AuditLogService $auditLogService,
         private readonly OrderIdentityProtectionService $identityProtection,
+        private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
     ) {}
 
     public function countPendingRepairs(bool $activeOnly = false): int
@@ -483,6 +485,8 @@ class OrderIdentityRepairService
                     'note' => 'Repaired by legacy identity command',
                 ],
             );
+
+            $this->snapshotInvalidator->markRepairChanged();
 
             $this->identityLifecycle->afterIdentityChanged(
                 order: $freshOrder,

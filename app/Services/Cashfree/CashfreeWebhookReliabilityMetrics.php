@@ -6,6 +6,7 @@ use App\Data\CashfreeWebhookReliabilitySnapshot;
 use App\Enums\OutboxEventStatus;
 use App\Models\OutboxEvent;
 use App\ReadModels\Integrations\CashfreeIntegrityReadModel;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 
@@ -27,6 +28,7 @@ class CashfreeWebhookReliabilityMetrics
 
     public function __construct(
         private readonly CashfreeIntegrityReadModel $integrityReadModel,
+        private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
     ) {}
 
     public function recordOrderCreated(): void
@@ -34,6 +36,8 @@ class CashfreeWebhookReliabilityMetrics
         $this->increment(self::KEY_ORDERS_CREATED);
         Cache::put(self::KEY_LAST_ORDER_CREATED_AT, now()->toIso8601String(), now()->addDays(30));
         Cache::forget(self::SNAPSHOT_CACHE_KEY);
+        $this->snapshotInvalidator->markCashfreeChanged();
+        $this->snapshotInvalidator->markCaseOrOrderChanged();
     }
 
     public function snapshot(): CashfreeWebhookReliabilitySnapshot

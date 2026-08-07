@@ -81,9 +81,19 @@ return Application::configure(basePath: dirname(__DIR__))
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/ira-assignment-telegram-batches.log'));
 
+        // Light tick: drain dirty slices + time fields + Cashfree KPI merge.
+        // Full rebuilds are event-driven (dirty Health/Validation/Repair) or
+        // the 15-minute --reconcile safety net below.
         $schedule->command('automation:snapshot')
             ->everyMinute()
-            ->withoutOverlapping()
+            ->withoutOverlapping(5)
+            ->runInBackground()
+            ->appendOutputTo(storage_path('logs/automation-snapshot.log'));
+
+        $schedule->command('automation:snapshot --reconcile')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping(20)
+            ->runInBackground()
             ->appendOutputTo(storage_path('logs/automation-snapshot.log'));
 
         $schedule->command('executive:snapshot')

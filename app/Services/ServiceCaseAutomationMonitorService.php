@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Incident;
 use App\Models\Order;
 use App\Models\User;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use Illuminate\Support\Facades\Cache;
 
 class ServiceCaseAutomationMonitorService
@@ -26,6 +27,7 @@ class ServiceCaseAutomationMonitorService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly AutomationIdentityService $automationIdentity,
+        private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
     ) {}
 
     public function recordPaymentReceived(Incident $incident, User $actor): void
@@ -166,5 +168,7 @@ class ServiceCaseAutomationMonitorService
             oldValues: [],
             newValues: $newValues,
         );
+
+        $this->snapshotInvalidator->markCaseOrOrderChanged();
     }
 }

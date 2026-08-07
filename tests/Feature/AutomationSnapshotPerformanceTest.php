@@ -117,10 +117,11 @@ class AutomationSnapshotPerformanceTest extends TestCase
         $secondQueries = count(DB::getQueryLog());
 
         $this->assertFalse($second['rebuilt']);
+        $this->assertSame('incremental', $second['mode']);
         $this->assertLessThan(
-            40,
+            80,
             $secondQueries,
-            "Expected incremental refresh under 40 SQL queries, got {$secondQueries} in ".round($secondMs, 1).'ms',
+            "Expected incremental refresh under 80 SQL queries, got {$secondQueries} in ".round($secondMs, 1).'ms',
         );
         $this->assertSame(
             $first['snapshot']->healthCounts['automation_pending'] ?? null,

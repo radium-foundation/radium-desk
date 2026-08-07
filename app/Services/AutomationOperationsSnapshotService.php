@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Data\AutomationOperationsDashboardData;
+use App\Enums\AutomationSnapshotSlice;
 use App\Enums\IncidentStatus;
 use App\Enums\OutboxEventStatus;
 use App\Enums\ServiceCaseAutomationStatus;
@@ -10,9 +11,12 @@ use App\Models\AuditLog;
 use App\Models\CashfreeWebhookLog;
 use App\Models\Incident;
 use App\Models\OutboxEvent;
+use App\Services\Automation\AutomationOperationsIncrementalUpdater;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AutomationOperationsSnapshotService
 {
@@ -20,67 +24,100 @@ class AutomationOperationsSnapshotService
 
     public const META_CACHE_KEY = 'automation.operations.snapshot.meta';
 
-    public const TTL_SECONDS = 60;
+    /**
+     * Long enough to survive between 15-minute reconciles; event-driven dirty
+     * + light ticks refresh content without relying on short TTL expiry.
+     */
+    public const TTL_SECONDS = 900;
 
     public function __construct(
         private readonly AutomationOperationsSnapshotBuilder $builder,
+        private readonly AutomationOperationsSnapshotInvalidator $invalidator,
+        private readonly AutomationOperationsIncrementalUpdater $incrementalUpdater,
     ) {}
 
     public function get(): AutomationOperationsDashboardData
     {
         $cached = Cache::get(self::CACHE_KEY);
+        $meta = Cache::get(self::META_CACHE_KEY);
 
-        if (is_array($cached)) {
-            return AutomationOperationsDashboardData::fromCacheArray($cached);
+        if (is_array($cached) && is_array($meta) && is_array($meta['incident_stubs'] ?? null)) {
+            if ($this->invalidator->isDirty()) {
+                return $this->refreshDetailed()['snapshot'];
+            }
+
+            return $this->applyTimeDependentFields(
+                AutomationOperationsDashboardData::fromCacheArray($cached),
+                $meta['incident_stubs'],
+            );
         }
 
         return $this->refresh();
     }
 
     /**
-     * @return array{snapshot: AutomationOperationsDashboardData, rebuilt: bool, fingerprint: string}
+     * @return array{
+     *     snapshot: AutomationOperationsDashboardData,
+     *     rebuilt: bool,
+     *     mode: string,
+     *     fingerprint: string,
+     *     dirty_slices: list<string>
+     * }
      */
-    public function refreshDetailed(): array
+    public function refreshDetailed(bool $forceReconcile = false): array
     {
-        $fingerprint = $this->contentFingerprint();
-        $meta = Cache::get(self::META_CACHE_KEY);
+        $dirtyBefore = array_map(
+            static fn (AutomationSnapshotSlice $slice): string => $slice->value,
+            $this->invalidator->dirtySlices(),
+        );
+
         $cached = Cache::get(self::CACHE_KEY);
+        $meta = Cache::get(self::META_CACHE_KEY);
+        $hasCache = is_array($cached) && is_array($meta) && is_array($meta['incident_stubs'] ?? null);
 
-        if (
-            is_array($meta)
-            && is_array($cached)
-            && ($meta['fingerprint'] ?? null) === $fingerprint
-            && is_array($meta['incident_stubs'] ?? null)
-        ) {
-            $snapshot = $this->applyTimeDependentFields(
-                AutomationOperationsDashboardData::fromCacheArray($cached),
-                $meta['incident_stubs'],
+        if (! $hasCache || $this->incrementalUpdater->shouldFullRebuild($forceReconcile)) {
+            return $this->fullRebuild(
+                mode: $forceReconcile ? 'reconcile' : 'full-rebuild',
+                dirtyBefore: $dirtyBefore,
             );
-
-            Cache::put(self::CACHE_KEY, $snapshot->toCacheArray(), self::TTL_SECONDS);
-            Cache::put(self::META_CACHE_KEY, $meta, self::TTL_SECONDS);
-
-            return [
-                'snapshot' => $snapshot,
-                'rebuilt' => false,
-                'fingerprint' => $fingerprint,
-            ];
         }
 
-        $built = $this->builder->buildDetailed();
-        $snapshot = $built['data'];
+        $snapshot = AutomationOperationsDashboardData::fromCacheArray($cached);
+        $applied = [];
+
+        // Cashfree KPIs always soft-refresh on light ticks (120s sub-cache; cheap).
+        $snapshot = $this->incrementalUpdater->mergeCashfreeKpis($snapshot);
+        $applied[] = AutomationSnapshotSlice::Cashfree->value;
+
+        if (in_array(AutomationSnapshotSlice::RecentEvents, $this->invalidator->dirtySlices(), true)
+            || in_array(AutomationSnapshotSlice::All, $this->invalidator->dirtySlices(), true)
+        ) {
+            $snapshot = $this->incrementalUpdater->replaceRecentEvents($snapshot);
+            $applied[] = AutomationSnapshotSlice::RecentEvents->value;
+            $this->invalidator->clearSlices([AutomationSnapshotSlice::RecentEvents]);
+        }
+
+        $snapshot = $this->applyTimeDependentFields($snapshot, $meta['incident_stubs']);
+
+        $fingerprint = $this->contentFingerprint();
 
         Cache::put(self::CACHE_KEY, $snapshot->toCacheArray(), self::TTL_SECONDS);
         Cache::put(self::META_CACHE_KEY, [
+            ...$meta,
             'fingerprint' => $fingerprint,
-            'incident_stubs' => $built['incident_stubs'],
-            'built_at' => now()->toIso8601String(),
+            'last_light_at' => now()->toIso8601String(),
+            'last_mode' => 'incremental',
+            'last_slices' => $applied,
         ], self::TTL_SECONDS);
+
+        $this->invalidator->clearSlices([AutomationSnapshotSlice::Cashfree]);
 
         return [
             'snapshot' => $snapshot,
-            'rebuilt' => true,
+            'rebuilt' => false,
+            'mode' => 'incremental',
             'fingerprint' => $fingerprint,
+            'dirty_slices' => $dirtyBefore,
         ];
     }
 
@@ -89,9 +126,14 @@ class AutomationOperationsSnapshotService
         return $this->refreshDetailed()['snapshot'];
     }
 
+    public function reconcile(): AutomationOperationsDashboardData
+    {
+        return $this->refreshDetailed(forceReconcile: true)['snapshot'];
+    }
+
     /**
-     * Cheap content fingerprint — skips full rebuild when underlying data is unchanged.
-     * Time-based waiting counters are refreshed from cached stubs without rescanning.
+     * Cheap content fingerprint — used for reconcile diagnostics / missed-event detection.
+     * No longer the primary gate for skipping rebuilds (event-driven dirty flags are).
      */
     public function contentFingerprint(): string
     {
@@ -163,6 +205,62 @@ class AutomationOperationsSnapshotService
             (string) $outboxFailed,
             (string) $ordersCreated,
         ]));
+    }
+
+    /**
+     * @param  list<string>  $dirtyBefore
+     * @return array{
+     *     snapshot: AutomationOperationsDashboardData,
+     *     rebuilt: bool,
+     *     mode: string,
+     *     fingerprint: string,
+     *     dirty_slices: list<string>
+     * }
+     */
+    private function fullRebuild(string $mode, array $dirtyBefore): array
+    {
+        $previousFingerprint = null;
+        $previousMeta = Cache::get(self::META_CACHE_KEY);
+
+        if (is_array($previousMeta)) {
+            $previousFingerprint = $previousMeta['fingerprint'] ?? null;
+        }
+
+        $built = $this->builder->buildDetailed();
+        $snapshot = $built['data'];
+        $fingerprint = $this->contentFingerprint();
+
+        if (
+            $mode === 'reconcile'
+            && $dirtyBefore === []
+            && is_string($previousFingerprint)
+            && $previousFingerprint !== ''
+            && $previousFingerprint !== $fingerprint
+        ) {
+            Log::warning('automation.operations.snapshot.missed_invalidation', [
+                'previous_fingerprint' => $previousFingerprint,
+                'fingerprint' => $fingerprint,
+            ]);
+        }
+
+        Cache::put(self::CACHE_KEY, $snapshot->toCacheArray(), self::TTL_SECONDS);
+        Cache::put(self::META_CACHE_KEY, [
+            'fingerprint' => $fingerprint,
+            'incident_stubs' => $built['incident_stubs'],
+            'built_at' => now()->toIso8601String(),
+            'last_mode' => $mode,
+            'last_slices' => [AutomationSnapshotSlice::All->value],
+        ], self::TTL_SECONDS);
+
+        $this->invalidator->clear();
+
+        return [
+            'snapshot' => $snapshot,
+            'rebuilt' => true,
+            'mode' => $mode,
+            'fingerprint' => $fingerprint,
+            'dirty_slices' => $dirtyBefore,
+        ];
     }
 
     /**

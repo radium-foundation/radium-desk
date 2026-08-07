@@ -12,6 +12,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Notifications\ServiceCaseAssignedNotification;
 use App\Notifications\ServiceCaseReassignedNotification;
+use App\Services\Automation\AutomationOperationsSnapshotInvalidator;
 use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Operations\IraCommunicationService;
 use App\Services\Operations\OperationsAssignmentEligibilityService;
@@ -40,6 +41,7 @@ class ServiceCaseAssignmentService
         private readonly OperationsAssignmentEligibilityService $assignmentEligibilityService,
         private readonly OperationsRoleService $operationsRoleService,
         private readonly DashboardSnapshotStore $dashboardSnapshotStore,
+        private readonly AutomationOperationsSnapshotInvalidator $snapshotInvalidator,
     ) {}
 
     public function resolveAssignee(?Carbon $at = null): User
@@ -487,6 +489,8 @@ class ServiceCaseAssignmentService
             ],
         );
 
+        $this->snapshotInvalidator->markCaseOrOrderChanged();
+
         return $freshIncident;
     }
 
@@ -889,6 +893,7 @@ class ServiceCaseAssignmentService
             app(\App\Services\Operations\TeamMemberActivityService::class)->recordStatusChange($assignee);
 
             $this->dashboardSnapshotStore->forget();
+            $this->snapshotInvalidator->markCaseOrOrderChanged();
 
             return $freshIncident;
         });

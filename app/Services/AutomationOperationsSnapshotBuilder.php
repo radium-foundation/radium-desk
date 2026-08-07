@@ -275,9 +275,11 @@ class AutomationOperationsSnapshotBuilder
     }
 
     /**
+     * Rebuild only the recent-events feed (Phase 8 light incremental slice).
+     *
      * @return list<array<string, mixed>>
      */
-    private function recentAutomationEvents(): array
+    public function recentAutomationEvents(): array
     {
         $candidateLogs = AuditLog::query()
             ->whereIn('event', self::BASE_AUTOMATION_EVENTS)
