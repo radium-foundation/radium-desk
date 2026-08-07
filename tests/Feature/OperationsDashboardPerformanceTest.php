@@ -311,6 +311,76 @@ class OperationsDashboardPerformanceTest extends TestCase
         );
     }
 
+    public function test_team_performance_quality_scan_does_not_n_plus_one_waiting_or_orders(): void
+    {
+        Cache::flush();
+        app(DashboardSnapshotStore::class)->forget();
+
+        $creator = User::factory()->create(['is_active' => true]);
+        $creator->assignRole(RolePermissionSeeder::ROLE_ADMIN);
+
+        $agents = [];
+        for ($agentIndex = 1; $agentIndex <= 3; $agentIndex++) {
+            $agent = User::factory()->create([
+                'name' => 'Perf Agent '.$agentIndex,
+                'is_active' => true,
+            ]);
+            $agent->assignRole(RolePermissionSeeder::ROLE_AGENT);
+            $agents[] = $agent;
+
+            for ($caseIndex = 1; $caseIndex <= 8; $caseIndex++) {
+                $order = Order::query()->create([
+                    'order_id' => 'RB-N1-'.$agentIndex.'-'.$caseIndex,
+                    'serial_number' => null,
+                    'product_name' => 'MFS110',
+                    'device_model' => 'MFS110',
+                    'status' => 'active',
+                    'created_by' => $creator->id,
+                ]);
+
+                $incident = Incident::query()->create([
+                    'order_id' => $order->id,
+                    'reference_no' => app(IncidentReferenceService::class)->generate(),
+                    'category' => 'General',
+                    'source' => IncidentSource::Call,
+                    'title' => 'N+1 case '.$agentIndex.'-'.$caseIndex,
+                    'description' => 'N+1 case '.$agentIndex.'-'.$caseIndex,
+                    'status' => IncidentStatus::Open,
+                    'created_by' => $creator->id,
+                    'updated_by' => $creator->id,
+                    'assigned_to_user_id' => $agent->id,
+                ]);
+
+                \App\Models\IncidentWaitingState::query()->create([
+                    'incident_id' => $incident->id,
+                    'waiting_reason' => \App\Enums\WaitingReason::SerialNumber,
+                    'started_at' => now()->subHour(),
+                    'sla_paused' => true,
+                    'reminder_policy_key' => 'request_serial',
+                    'created_by' => $creator->id,
+                    'updated_by' => $creator->id,
+                ]);
+            }
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        app(\App\Services\Operations\TeamPerformanceMetricsService::class)->teamMetrics();
+
+        $queries = collect(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $waitingById = $queries->filter(fn (array $query): bool => str_contains(strtolower($query['query']), 'incident_waiting_states')
+            && str_contains(strtolower($query['query']), 'incident_id` = ?'))->count();
+        $ordersById = $queries->filter(fn (array $query): bool => (str_contains(strtolower($query['query']), 'from `orders`')
+                || str_contains(strtolower($query['query']), 'from "orders"'))
+            && str_contains(strtolower($query['query']), 'id` = ?'))->count();
+
+        $this->assertSame(0, $waitingById, 'Quality scan must not lazy-load activeWaitingState per incident.');
+        $this->assertSame(0, $ordersById, 'Quality scan must not lazy-load order per incident.');
+    }
+
     public function test_first_paint_build_includes_support_team_and_queue_bundles(): void
     {
         Cache::flush();

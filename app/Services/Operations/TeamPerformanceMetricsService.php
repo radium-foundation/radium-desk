@@ -23,6 +23,14 @@ class TeamPerformanceMetricsService
     /** @var array<string, list<TeamMemberPerformanceMetrics>> */
     private array $teamMetricsCache = [];
 
+    /**
+     * Request-scoped operationally-active incidents for quality/overdue scans.
+     * Eager-loaded once so teamMetrics() does not N+1 order/waiting per member.
+     *
+     * @var Collection<int, Incident>|null
+     */
+    private ?Collection $activeIncidentsForQuality = null;
+
     public function __construct(
         private readonly PerformancePeriodService $periodService,
         private readonly WorkCalendarService $workCalendarService,
@@ -290,7 +298,11 @@ class TeamPerformanceMetricsService
      */
     private function buildQualityMetrics(User $user, PerformancePeriodRange $range): array
     {
-        $completedCases = $this->completedCasesQuery($user, $range)->get();
+        // slaStatus()/hasSlaPaused()/isPendingAdmin() touch order + activeWaitingState.
+        // Eager-load once per collection — avoids per-incident N+1 on ops/live IRA path.
+        $completedCases = $this->completedCasesQuery($user, $range)
+            ->with(['order', 'activeWaitingState', 'assignee'])
+            ->get();
         $slaEvaluated = 0;
         $slaSuccessful = 0;
 
@@ -311,11 +323,9 @@ class TeamPerformanceMetricsService
             }
         }
 
-        $overdueCases = Incident::query()
-            ->where('assigned_to_user_id', $user->id)
-            ->whereIn('status', IncidentStatus::operationallyActive())
-            ->get()
-            ->filter(fn (Incident $incident): bool => $incident->slaStatus() === ServiceCaseSlaStatus::Overdue)
+        $overdueCases = $this->activeIncidentsForQuality()
+            ->filter(fn (Incident $incident): bool => (int) $incident->assigned_to_user_id === (int) $user->id
+                && $incident->slaStatus() === ServiceCaseSlaStatus::Overdue)
             ->count();
 
         $reopenedCases = AuditLog::query()
@@ -386,6 +396,17 @@ class TeamPerformanceMetricsService
             ->where('updated_by', $user->id)
             ->whereIn('status', [IncidentStatus::Closed, IncidentStatus::Resolved])
             ->whereBetween('updated_at', [$range->start, $range->end]);
+    }
+
+    /**
+     * @return Collection<int, Incident>
+     */
+    private function activeIncidentsForQuality(): Collection
+    {
+        return $this->activeIncidentsForQuality ??= Incident::query()
+            ->with(['order', 'activeWaitingState', 'assignee'])
+            ->whereIn('status', IncidentStatus::operationallyActive())
+            ->get();
     }
 
     private function formatMinutesLabel(int $minutes): string

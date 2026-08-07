@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.8 — 2026-08-07 — Operations Live Query Efficiency
+
+- Eliminated repeated waiting-state and order database queries during Operations Live team performance evaluation by batching operational queries and eager-loading related data.
+- Optimized team performance quality scans to remove N+1 query patterns while preserving existing dashboard behavior and business logic.
+- Improved cold Operations Live performance through more efficient database access with no UI or functional changes.
+
 ## 4.0.7 — 2026-08-07 — Operations Live Performance
 
 - Optimized Operations Live full refresh to load only the bundles required for requested dashboard sections instead of rebuilding all bundles.
