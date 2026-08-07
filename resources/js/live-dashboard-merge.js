@@ -14,6 +14,39 @@ const getCurrentIncidentIds = (tbody) => Array.from(tbody.querySelectorAll('tr[i
 
 const isLockedIncident = (incidentId, lockedIncidentIds) => lockedIncidentIds.includes(Number(incidentId));
 
+const upsertServiceCaseRow = (tbody, incidentId, html, replacedIncidentIds) => {
+    const existingRow = document.getElementById(`service-case-row-${incidentId}`);
+
+    if (existingRow) {
+        const newRow = parseRowHtml(html);
+
+        if (newRow && existingRow.outerHTML !== html) {
+            existingRow.replaceWith(newRow);
+            replacedIncidentIds.push(incidentId);
+        }
+
+        return 'replaced';
+    }
+
+    const newRow = parseRowHtml(html);
+
+    if (newRow) {
+        tbody.appendChild(newRow);
+        replacedIncidentIds.push(incidentId);
+
+        return 'added';
+    }
+
+    tbody.insertAdjacentHTML('beforeend', html);
+    replacedIncidentIds.push(incidentId);
+
+    return 'added';
+};
+
+/**
+ * Authoritative snapshot merge: upsert listed rows, remove unlocked rows absent
+ * from the payload, and reorder to match the server list.
+ */
 const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, options = {}) => {
     const lockedIncidentIds = options.lockedIncidentIds ?? [];
     const onRowsUpdated = options.onRowsUpdated;
@@ -66,30 +99,7 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
             return;
         }
 
-        const existingRow = document.getElementById(`service-case-row-${incidentId}`);
-
-        if (existingRow) {
-            const newRow = parseRowHtml(html);
-
-            if (newRow && existingRow.outerHTML !== html) {
-                existingRow.replaceWith(newRow);
-                replacedIncidentIds.push(incidentId);
-            }
-
-            return;
-        }
-
-        const newRow = parseRowHtml(html);
-
-        if (newRow) {
-            tbody.appendChild(newRow);
-            replacedIncidentIds.push(incidentId);
-
-            return;
-        }
-
-        tbody.insertAdjacentHTML('beforeend', html);
-        replacedIncidentIds.push(incidentId);
+        upsertServiceCaseRow(tbody, incidentId, html, replacedIncidentIds);
     });
 
     currentIds.forEach((incidentId) => {
@@ -140,6 +150,66 @@ const mergeServiceCaseRows = (card, rows, empty, emptyHtml, initTooltips, option
     }
 };
 
+/**
+ * Partial patch merge: upsert/replace listed rows only.
+ * Never deletes rows simply because they are absent from the payload.
+ */
+const patchServiceCaseRows = (card, rows, initTooltips, options = {}) => {
+    const lockedIncidentIds = options.lockedIncidentIds ?? [];
+    const onRowsUpdated = options.onRowsUpdated;
+    const scrollContainer = card.querySelector('#dashboard-service-cases-scroll');
+    const tbody = card.querySelector('#dashboard-service-cases-body');
+
+    if (!scrollContainer || !tbody || !Array.isArray(rows) || rows.length === 0) {
+        return;
+    }
+
+    const previousScrollTop = scrollContainer.scrollTop;
+    const isAtTop = previousScrollTop <= 8;
+    const currentIds = getCurrentIncidentIds(tbody);
+    const replacedIncidentIds = [];
+    const newIncidentIds = [];
+
+    document.getElementById(DASHBOARD_EMPTY_ROW_ID)?.remove();
+    syncDashboardTableEmptyPresentation(card);
+
+    rows.forEach(({ incident_id: incidentId, html }) => {
+        if (isLockedIncident(incidentId, lockedIncidentIds)) {
+            return;
+        }
+
+        const existed = currentIds.includes(Number(incidentId));
+        const result = upsertServiceCaseRow(tbody, incidentId, html, replacedIncidentIds);
+
+        if (result === 'added' && !existed) {
+            newIncidentIds.push(Number(incidentId));
+        }
+    });
+
+    if (isAtTop) {
+        newIncidentIds.forEach((incidentId) => {
+            const row = document.getElementById(`service-case-row-${incidentId}`);
+
+            if (row) {
+                row.classList.add('dashboard-row-fade-in');
+                row.addEventListener('animationend', () => {
+                    row.classList.remove('dashboard-row-fade-in');
+                }, { once: true });
+            }
+        });
+    }
+
+    scrollContainer.scrollTop = previousScrollTop;
+
+    if (replacedIncidentIds.length > 0 || newIncidentIds.length > 0) {
+        initTooltips(tbody);
+    }
+
+    if (replacedIncidentIds.length > 0) {
+        onRowsUpdated?.(replacedIncidentIds);
+    }
+};
+
 const appendServiceCaseRows = (card, rows, initTooltips) => {
     const tbody = card.querySelector('#dashboard-service-cases-body');
 
@@ -169,4 +239,4 @@ const appendServiceCaseRows = (card, rows, initTooltips) => {
     initTooltips(tbody);
 };
 
-export { mergeServiceCaseRows, appendServiceCaseRows };
+export { mergeServiceCaseRows, patchServiceCaseRows, appendServiceCaseRows };

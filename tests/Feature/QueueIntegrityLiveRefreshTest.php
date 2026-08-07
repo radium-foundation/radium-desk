@@ -217,6 +217,35 @@ class QueueIntegrityLiveRefreshTest extends TestCase
             ->assertJsonPath('refresh.remove_row', null);
     }
 
+    public function test_inline_assign_reference_returns_remove_row_for_ready_queue_completed_case(): void
+    {
+        $admin = $this->createAdminUser('admin@example.com');
+        $order = $this->createValidatedOrder($admin, 'RD-INLINE-QUEUE-1');
+        $incident = $this->createIncident($order, $admin, assignee: $admin);
+
+        app(DashboardSnapshotStore::class)->forget();
+        $this->assertTrue($this->adminReadyQueueContains($incident));
+
+        $response = $this->actingAs($admin)
+            ->postJson(route('orders.transaction.store', $order), [
+                'transaction_id' => 'TX-INLINE-QUEUE',
+                'incident_id' => $incident->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('incident_id', $incident->id)
+            ->assertJsonPath('remove_row.incident_id', $incident->id)
+            ->assertJsonPath('remove_rows.0.incident_id', $incident->id)
+            ->assertJsonPath('row_html', null);
+
+        $fresh = $this->freshIncident($incident);
+
+        $this->assertTrue(app(ServiceCaseAssignmentService::class)->shouldRemoveFromAdminReadyQueue($fresh));
+        $this->assertNotEmpty($response->json('kpi_strip_html'));
+
+        app(DashboardSnapshotStore::class)->forget();
+        $this->assertFalse($this->adminReadyQueueContains($fresh));
+    }
+
     private function configureAssignmentSettings(int $dayAdminId): void
     {
         app(SettingService::class)->setMany([

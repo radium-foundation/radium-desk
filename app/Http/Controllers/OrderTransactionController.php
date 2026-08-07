@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\DashboardService;
 use App\Services\OrderTransactionService;
+use App\Services\ServiceCaseAssignmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,7 @@ class OrderTransactionController extends Controller
     public function __construct(
         private readonly OrderTransactionService $orderTransactionService,
         private readonly DashboardService $dashboardService,
+        private readonly ServiceCaseAssignmentService $assignmentService,
     ) {}
 
     public function store(UpdateOrderTransactionRequest $request, Order $order): RedirectResponse|JsonResponse
@@ -47,18 +49,26 @@ class OrderTransactionController extends Controller
 
             if ($request->filled('incident_id')) {
                 $incident = Incident::query()
-                    ->with(['order.transactionAssigner', 'creator', 'assignee'])
+                    ->with(['order.transactionAssigner', 'creator', 'assignee', 'activeWaitingState', 'supportAppointments'])
                     ->where('order_id', $order->id)
                     ->find($request->integer('incident_id'));
             }
 
             $user = $request->user();
+            $shouldRemoveFromReadyQueue = $incident !== null
+                && $this->assignmentService->shouldRemoveFromAdminReadyQueue($incident);
 
             return response()->json([
                 'message' => 'Transaction ID saved. Order marked as completed.',
                 'order_id' => $order->id,
                 'incident_id' => $incident?->id,
-                'row_html' => $incident
+                'remove_row' => $shouldRemoveFromReadyQueue
+                    ? ['incident_id' => $incident->id]
+                    : null,
+                'remove_rows' => $shouldRemoveFromReadyQueue
+                    ? [['incident_id' => $incident->id]]
+                    : [],
+                'row_html' => ($incident && ! $shouldRemoveFromReadyQueue)
                     ? view(
                         'dashboard.partials.service-case-row',
                         $this->dashboardService->serviceCaseRowViewData($incident, $user),

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     applyDashboardRefresh,
     applyFilterCounts,
+    applyPartialDashboardUpdate,
     flushPendingDashboardRefresh,
     queueDashboardRefresh,
     refreshDashboard,
@@ -10,6 +11,26 @@ import {
     stopPolling,
 } from '../../resources/js/live-dashboard';
 import { getWorkspaceSession, resetWorkspaceSession } from '../../resources/js/workspace/session';
+
+const multiRowDashboardHtml = `
+    <div id="dashboard-page" data-live-url="/dashboard/live" data-live-filter="action_required" data-live-queue="action_required"></div>
+    <div id="dashboard-kpi-strip">stats-old</div>
+    <div class="dashboard-service-cases-card" data-service-cases-loaded="3">
+        <span data-dashboard-case-filter-count="all">(3)</span>
+        <span data-dashboard-case-filter-count="action_required">(3)</span>
+        <span data-dashboard-case-filter-count="pending_admin">(0)</span>
+        <div id="dashboard-service-cases-scroll">
+            <table>
+                <thead><tr><th>Ref</th></tr></thead>
+                <tbody id="dashboard-service-cases-body">
+                    <tr id="service-case-row-10"><td>SC00010</td></tr>
+                    <tr id="service-case-row-11"><td>SC00011</td></tr>
+                    <tr id="service-case-row-12"><td>SC00012</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+`;
 
 describe('live dashboard refresh session integration', () => {
     beforeEach(() => {
@@ -578,9 +599,200 @@ describe('live dashboard refresh session integration', () => {
             rows: [],
             service_cases_empty: true,
             service_cases_empty_html: '',
+            authoritative: true,
         });
 
         expect(document.querySelector('#service-case-row-10')).toBeNull();
         expect(document.querySelector('[data-dashboard-case-filter-count="pending_admin"]')?.textContent).toBe('(0)');
+    });
+});
+
+describe('live dashboard partial patch semantics', () => {
+    beforeEach(() => {
+        resetWorkspaceSession();
+        stopPolling();
+        document.body.innerHTML = multiRowDashboardHtml;
+        vi.stubGlobal('fetch', vi.fn());
+        vi.stubGlobal('requestAnimationFrame', (callback) => {
+            callback(0);
+
+            return 1;
+        });
+    });
+
+    afterEach(() => {
+        stopPolling();
+        resetLiveDashboardRefreshStateForTests();
+        resetWorkspaceSession();
+        vi.unstubAllGlobals();
+    });
+
+    it('partial patch updates one row without deleting siblings', async () => {
+        await applyPartialDashboardUpdate({
+            rows: [{
+                incident_id: 11,
+                html: '<tr id="service-case-row-11"><td>SC00011 patched</td></tr>',
+            }],
+            service_case_filter_counts: {
+                action_required: 3,
+            },
+        });
+
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+        expect(document.querySelector('#service-case-row-11 td')?.textContent).toBe('SC00011 patched');
+        expect(document.querySelector('#service-case-row-12')).not.toBeNull();
+        expect(document.querySelector('[data-dashboard-case-filter-count="action_required"]')?.textContent).toBe('(3)');
+    });
+
+    it('remove_incident_ids deletes only the listed rows', async () => {
+        await applyPartialDashboardUpdate({
+            remove_incident_ids: [11],
+            service_case_filter_counts: {
+                action_required: 2,
+            },
+        });
+
+        expect(document.querySelector('#service-case-row-10')).not.toBeNull();
+        expect(document.querySelector('#service-case-row-11')).toBeNull();
+        expect(document.querySelector('#service-case-row-12')).not.toBeNull();
+    });
+
+    it('buffers partial patches during workspace session and flushes without snapshot wipe', async () => {
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        await applyPartialDashboardUpdate({
+            rows: [{
+                incident_id: 10,
+                html: '<tr id="service-case-row-10"><td>SC00010 buffered</td></tr>',
+            }],
+            remove_incident_ids: [12],
+            service_case_filter_counts: {
+                action_required: 2,
+            },
+        });
+
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010');
+        expect(document.querySelector('#service-case-row-12')).not.toBeNull();
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 buffered');
+        expect(document.querySelector('#service-case-row-11')).not.toBeNull();
+        expect(document.querySelector('#service-case-row-12')).toBeNull();
+    });
+
+    it('preserves remove_incident_ids across multiple queued partials', async () => {
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        await applyPartialDashboardUpdate({
+            remove_incident_ids: [11],
+        });
+        await applyPartialDashboardUpdate({
+            rows: [{
+                incident_id: 10,
+                html: '<tr id="service-case-row-10"><td>SC00010 multi</td></tr>',
+            }],
+            remove_incident_ids: [12],
+        });
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 multi');
+        expect(document.querySelector('#service-case-row-11')).toBeNull();
+        expect(document.querySelector('#service-case-row-12')).toBeNull();
+    });
+
+    it('does not let a 1-row partial overwrite a queued full snapshot', async () => {
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        queueDashboardRefresh({
+            authoritative: true,
+            kpi_strip_html: 'stats-full',
+            service_case_filter_counts: {
+                action_required: 3,
+            },
+            rows: [
+                { incident_id: 10, html: '<tr id="service-case-row-10"><td>SC00010 full</td></tr>' },
+                { incident_id: 11, html: '<tr id="service-case-row-11"><td>SC00011 full</td></tr>' },
+                { incident_id: 12, html: '<tr id="service-case-row-12"><td>SC00012 full</td></tr>' },
+            ],
+            service_cases_empty: false,
+            loaded_count: 3,
+            total_count: 3,
+        });
+
+        await applyPartialDashboardUpdate({
+            rows: [{
+                incident_id: 10,
+                html: '<tr id="service-case-row-10"><td>SC00010 patch</td></tr>',
+            }],
+        });
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.querySelector('#service-case-row-10 td')?.textContent).toBe('SC00010 patch');
+        expect(document.querySelector('#service-case-row-11 td')?.textContent).toBe('SC00011 full');
+        expect(document.querySelector('#service-case-row-12 td')?.textContent).toBe('SC00012 full');
+    });
+
+    it('lets a later full snapshot replace earlier partial patches', async () => {
+        const session = getWorkspaceSession();
+        session.acquire('workspace-modal');
+
+        await applyPartialDashboardUpdate({
+            rows: [{
+                incident_id: 10,
+                html: '<tr id="service-case-row-10"><td>SC00010 stale patch</td></tr>',
+            }],
+        });
+
+        queueDashboardRefresh({
+            authoritative: true,
+            kpi_strip_html: 'stats-snapshot',
+            service_case_filter_counts: {
+                action_required: 2,
+            },
+            rows: [
+                { incident_id: 11, html: '<tr id="service-case-row-11"><td>SC00011 snap</td></tr>' },
+                { incident_id: 12, html: '<tr id="service-case-row-12"><td>SC00012 snap</td></tr>' },
+            ],
+            service_cases_empty: false,
+            loaded_count: 2,
+            total_count: 2,
+        });
+
+        session.release('workspace-modal');
+        await flushPendingDashboardRefresh();
+
+        expect(document.getElementById('dashboard-kpi-strip')?.textContent).toBe('stats-snapshot');
+        expect(document.querySelector('#service-case-row-10')).toBeNull();
+        expect(document.querySelector('#service-case-row-11 td')?.textContent).toBe('SC00011 snap');
+        expect(document.querySelector('#service-case-row-12 td')?.textContent).toBe('SC00012 snap');
+    });
+
+    it('authoritative snapshot merge still removes absent rows', async () => {
+        await applyDashboardRefresh({
+            authoritative: true,
+            kpi_strip_html: 'stats-snap',
+            service_case_filter_counts: {
+                action_required: 1,
+            },
+            rows: [
+                { incident_id: 11, html: '<tr id="service-case-row-11"><td>SC00011 only</td></tr>' },
+            ],
+            service_cases_empty: false,
+            loaded_count: 1,
+            total_count: 1,
+        });
+
+        expect(document.querySelector('#service-case-row-10')).toBeNull();
+        expect(document.querySelector('#service-case-row-11 td')?.textContent).toBe('SC00011 only');
+        expect(document.querySelector('#service-case-row-12')).toBeNull();
     });
 });

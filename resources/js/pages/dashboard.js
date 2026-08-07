@@ -184,8 +184,18 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
                     return;
                 }
 
-                if (data.row_html && data.incident_id) {
-                    getWorkspaceSession().release('inline-transaction');
+                const removeIncidentIds = [
+                    ...(data.remove_row?.incident_id !== undefined ? [Number(data.remove_row.incident_id)] : []),
+                    ...((data.remove_rows ?? []).map((row) => Number(row.incident_id))),
+                ].filter((id) => Number.isFinite(id) && id > 0);
+
+                getWorkspaceSession().release('inline-transaction');
+
+                if (removeIncidentIds.length > 0) {
+                    Array.from(new Set(removeIncidentIds)).forEach((id) => {
+                        removeServiceCaseRow(id);
+                    });
+                } else if (data.row_html && data.incident_id) {
                     replaceServiceCaseRow(data.incident_id, data.row_html);
                     batchSession.updateToolbar();
                 }
@@ -196,7 +206,7 @@ const initDashboardTransactions = ({ pageRoot, openBatchModal, onRowUpdated, leg
 
                 showAppToast(data.message ?? 'Service reference saved.');
 
-                // Success replaces the row; only release if the editor cell remains.
+                // Success replaces/removes the row; only release if the editor cell remains.
                 if (cell.isConnected) {
                     releaseSavingState();
                 }

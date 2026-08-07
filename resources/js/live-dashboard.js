@@ -1,4 +1,4 @@
-import { mergeServiceCaseRows } from './live-dashboard-merge';
+import { mergeServiceCaseRows, patchServiceCaseRows } from './live-dashboard-merge';
 import { initTooltips } from './tooltips';
 import { isDashboardSearchActive } from './dashboard-search-mode';
 import { getWorkspaceSession } from './workspace/session';
@@ -18,6 +18,52 @@ import {
     logRefreshLifecycle,
     setRefreshLifecycleState,
 } from './dashboard-refresh-lifecycle';
+
+const uniqueIncidentIds = (incidentIds = []) => Array.from(new Set(
+    incidentIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0),
+));
+
+const upsertPatchRowsByIncidentId = (previousRows = [], nextRows = []) => {
+    const byId = new Map();
+
+    previousRows.forEach((row) => {
+        const incidentId = Number(row?.incident_id);
+
+        if (Number.isFinite(incidentId) && incidentId > 0) {
+            byId.set(incidentId, row);
+        }
+    });
+
+    nextRows.forEach((row) => {
+        const incidentId = Number(row?.incident_id);
+
+        if (Number.isFinite(incidentId) && incidentId > 0) {
+            byId.set(incidentId, row);
+        }
+    });
+
+    return Array.from(byId.values());
+};
+
+const isAuthoritativeRefreshPayload = (data) => {
+    if (!data || typeof data !== 'object') {
+        return false;
+    }
+
+    if (data.authoritative === true || data.service_cases_empty === true) {
+        return true;
+    }
+
+    // Explicit partials never become snapshots.
+    if (data.authoritative === false || data.partial === true) {
+        return false;
+    }
+
+    // Legacy full-refresh queues set rows without a partial marker.
+    return Array.isArray(data.rows) && data.patch_rows === undefined;
+};
 
 const splitOperationalKpiStripHtml = (kpiStripHtml) => {
     if (!kpiStripHtml) {
@@ -187,6 +233,21 @@ const applyRows = (rows, options = {}) => {
         ?? getWorkspaceSession().getLockedIncidentIds();
 
     const replacedIncidentIds = [];
+    const onRowsUpdated = (ids) => {
+        replacedIncidentIds.push(...ids);
+        dashboardRefreshHooks.onRowsUpdated?.(ids);
+    };
+
+    if (options.mode === 'patch') {
+        patchServiceCaseRows(
+            card,
+            rows,
+            initTooltips,
+            { lockedIncidentIds, onRowsUpdated },
+        );
+
+        return replacedIncidentIds;
+    }
 
     mergeServiceCaseRows(
         card,
@@ -196,10 +257,7 @@ const applyRows = (rows, options = {}) => {
         initTooltips,
         {
             lockedIncidentIds,
-            onRowsUpdated: (ids) => {
-                replacedIncidentIds.push(...ids);
-                dashboardRefreshHooks.onRowsUpdated?.(ids);
-            },
+            onRowsUpdated,
         },
     );
 
@@ -214,6 +272,29 @@ const removeRows = (incidentIds, lockedIncidentIds) => {
 
         document.getElementById(`service-case-row-${incidentId}`)?.remove();
     });
+};
+
+const applyPaginationFromRefresh = (data, { hasAuthoritativeRows = false } = {}) => {
+    const activeFilter = document.getElementById('dashboard-page')?.dataset.liveFilter
+        ?? document.getElementById('dashboard-page')?.dataset.liveQueue
+        ?? 'action_required';
+    const paginationUpdate = {};
+
+    if (hasAuthoritativeRows) {
+        paginationUpdate.loaded = data.loaded_count ?? data.rows.length;
+    } else if (data.loaded_count !== undefined) {
+        paginationUpdate.loaded = data.loaded_count;
+    }
+
+    if (data.total_count !== undefined) {
+        paginationUpdate.total = data.total_count;
+    } else if (data.service_case_filter_counts?.[activeFilter] !== undefined) {
+        paginationUpdate.total = data.service_case_filter_counts[activeFilter];
+    }
+
+    if (Object.keys(paginationUpdate).length > 0) {
+        setServiceCasePagination(paginationUpdate);
+    }
 };
 
 const applyDashboardRefresh = (data) => new Promise((resolve) => {
@@ -233,8 +314,23 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_queued', {
                 reason: 'workspace_session_active',
             });
-            queueDashboardRefresh(data);
+            queueDashboardRefresh({
+                ...data,
+                authoritative: data?.authoritative !== false,
+            });
             resolve();
+
+            return;
+        }
+
+        // Non-authoritative buffered payloads must use patch semantics.
+        if (!isAuthoritativeRefreshPayload(data)) {
+            void applyPartialDashboardUpdate({
+                ...data,
+                rows: data.patch_rows ?? data.rows,
+                authoritative: false,
+                partial: true,
+            }).then(resolve);
 
             return;
         }
@@ -245,6 +341,7 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             rowCount: hasRows ? data.rows.length : null,
             hasRows,
             hasKpiStrip: data?.kpi_strip_html !== undefined,
+            authoritative: true,
         });
 
         applyKpis(data.kpi_strip_html);
@@ -260,7 +357,7 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             return;
         }
 
-        // KPI-only / partial queued payloads omit `rows`. Never coerce missing rows to [] —
+        // KPI-only payloads omit `rows`. Never coerce missing rows to [] —
         // that would delete every unlocked DOM row while leaving the badge count correct.
         if (hasRows) {
             applyRows(data.rows, {
@@ -269,26 +366,17 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
             });
         }
 
-        const activeFilter = document.getElementById('dashboard-page')?.dataset.liveFilter
-            ?? document.getElementById('dashboard-page')?.dataset.liveQueue
-            ?? 'action_required';
-        const paginationUpdate = {};
+        const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
 
-        if (hasRows) {
-            paginationUpdate.loaded = data.loaded_count ?? data.rows.length;
-        } else if (data.loaded_count !== undefined) {
-            paginationUpdate.loaded = data.loaded_count;
+        if (data.remove_incident_ids?.length) {
+            removeRows(data.remove_incident_ids, lockedIncidentIds);
         }
 
-        if (data.total_count !== undefined) {
-            paginationUpdate.total = data.total_count;
-        } else if (data.service_case_filter_counts?.[activeFilter] !== undefined) {
-            paginationUpdate.total = data.service_case_filter_counts[activeFilter];
+        if (data.patch_rows?.length) {
+            applyRows(data.patch_rows, { lockedIncidentIds, mode: 'patch' });
         }
 
-        if (Object.keys(paginationUpdate).length > 0) {
-            setServiceCasePagination(paginationUpdate);
-        }
+        applyPaginationFromRefresh(data, { hasAuthoritativeRows: hasRows });
 
         logRefreshLifecycle(syncRefreshLifecycleState(pageRoot), 'applyDashboardRefresh_completed', {
             rowCount: hasRows ? data.rows.length : null,
@@ -299,7 +387,10 @@ const applyDashboardRefresh = (data) => new Promise((resolve) => {
 });
 
 const buildQueuedPartialRefreshPayload = (data) => {
-    const payload = {};
+    const payload = {
+        authoritative: false,
+        partial: true,
+    };
 
     // Omit undefined keys so workspace queue merges cannot wipe earlier KPI/count
     // payloads with a later rows-only partial update.
@@ -311,12 +402,15 @@ const buildQueuedPartialRefreshPayload = (data) => {
         payload.service_case_filter_counts = data.service_case_filter_counts;
     }
 
-    // Only include an authoritative row set when the caller supplied one.
-    // Missing rows must stay missing so flush does not wipe the grid.
-    if (Array.isArray(data.rows)) {
-        payload.rows = data.rows;
-        payload.service_cases_empty = data.service_cases_empty;
-        payload.service_cases_empty_html = data.service_cases_empty_html;
+    // Partial row lists are patches — never authoritative snapshots.
+    if (Array.isArray(data.rows) && data.rows.length > 0) {
+        payload.patch_rows = data.rows;
+    } else if (Array.isArray(data.patch_rows) && data.patch_rows.length > 0) {
+        payload.patch_rows = data.patch_rows;
+    }
+
+    if (Array.isArray(data.remove_incident_ids) && data.remove_incident_ids.length > 0) {
+        payload.remove_incident_ids = uniqueIncidentIds(data.remove_incident_ids);
     }
 
     if (data.loaded_count !== undefined) {
@@ -346,6 +440,9 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
         }
 
         const lockedIncidentIds = getWorkspaceSession().getLockedIncidentIds();
+        const patchRows = Array.isArray(data.patch_rows)
+            ? data.patch_rows
+            : (Array.isArray(data.rows) ? data.rows : []);
 
         applyKpis(data.kpi_strip_html);
         document.dispatchEvent(new CustomEvent('dashboard:live-refresh', { detail: data }));
@@ -355,9 +452,11 @@ const applyPartialDashboardUpdate = (data) => new Promise((resolve) => {
             removeRows(data.remove_incident_ids, lockedIncidentIds);
         }
 
-        if (data.rows?.length) {
-            applyRows(data.rows, { lockedIncidentIds });
+        if (patchRows.length > 0) {
+            applyRows(patchRows, { lockedIncidentIds, mode: 'patch' });
         }
+
+        applyPaginationFromRefresh(data, { hasAuthoritativeRows: false });
 
         resolve();
     });
@@ -368,15 +467,89 @@ const mergePendingDashboardRefresh = (previous, next) => {
         return next;
     }
 
-    // Merge defined keys only. A later rows-only partial must not clobber earlier
-    // kpi_strip_html / service_case_filter_counts with undefined via object spread.
     const merged = { ...previous };
+    const nextIsAuthoritative = isAuthoritativeRefreshPayload(next);
 
-    Object.entries(next).forEach(([key, value]) => {
-        if (value !== undefined) {
-            merged[key] = value;
+    if (next.kpi_strip_html !== undefined) {
+        merged.kpi_strip_html = next.kpi_strip_html;
+    }
+
+    if (next.service_case_filter_counts !== undefined) {
+        merged.service_case_filter_counts = next.service_case_filter_counts;
+    }
+
+    if (next.loaded_count !== undefined) {
+        merged.loaded_count = next.loaded_count;
+    }
+
+    if (next.total_count !== undefined) {
+        merged.total_count = next.total_count;
+    }
+
+    if (nextIsAuthoritative && Array.isArray(next.rows)) {
+        merged.authoritative = true;
+        merged.partial = false;
+        merged.rows = next.rows;
+        merged.service_cases_empty = next.service_cases_empty;
+        merged.service_cases_empty_html = next.service_cases_empty_html;
+        // Full snapshot is complete; drop stale patches/removes from earlier partials.
+        delete merged.patch_rows;
+        delete merged.remove_incident_ids;
+
+        return merged;
+    }
+
+    // Partial merge: never replace an authoritative rows[] with a smaller patch.
+    merged.authoritative = previous.authoritative === true;
+    merged.partial = previous.partial === true || next.partial === true || next.authoritative === false;
+
+    const nextPatchRows = Array.isArray(next.patch_rows)
+        ? next.patch_rows
+        : (next.authoritative === false && Array.isArray(next.rows) ? next.rows : []);
+
+    if (nextPatchRows.length > 0) {
+        if (merged.authoritative === true && Array.isArray(merged.rows)) {
+            const byId = new Map(
+                merged.rows.map((row) => [Number(row.incident_id), row]),
+            );
+
+            nextPatchRows.forEach((row) => {
+                byId.set(Number(row.incident_id), row);
+            });
+
+            merged.rows = Array.from(byId.values());
+        } else {
+            merged.patch_rows = upsertPatchRowsByIncidentId(merged.patch_rows ?? [], nextPatchRows);
+            merged.authoritative = false;
+            merged.partial = true;
+            delete merged.rows;
         }
-    });
+    }
+
+    if (Array.isArray(next.remove_incident_ids) && next.remove_incident_ids.length > 0) {
+        const removeIds = uniqueIncidentIds([
+            ...(merged.remove_incident_ids ?? []),
+            ...next.remove_incident_ids,
+        ]);
+
+        merged.remove_incident_ids = removeIds;
+
+        if (Array.isArray(merged.rows)) {
+            merged.rows = merged.rows.filter(
+                (row) => !removeIds.includes(Number(row.incident_id)),
+            );
+        }
+
+        if (Array.isArray(merged.patch_rows)) {
+            merged.patch_rows = merged.patch_rows.filter(
+                (row) => !removeIds.includes(Number(row.incident_id)),
+            );
+
+            if (merged.patch_rows.length === 0) {
+                delete merged.patch_rows;
+            }
+        }
+    }
 
     return merged;
 };
@@ -401,7 +574,19 @@ const flushPendingDashboardRefresh = async () => {
 
     const data = pendingDashboardRefresh;
     pendingDashboardRefresh = null;
-    await applyDashboardRefresh(data);
+
+    if (isAuthoritativeRefreshPayload(data)) {
+        await applyDashboardRefresh(data);
+
+        return;
+    }
+
+    await applyPartialDashboardUpdate({
+        ...data,
+        rows: data.patch_rows ?? data.rows,
+        authoritative: false,
+        partial: true,
+    });
 };
 
 const buildLiveRefreshQuery = (pageRoot, loadedCount = 0) => buildDashboardLiveQuery(pageRoot, {
@@ -577,12 +762,18 @@ const refreshDashboard = async (pageRoot, source = 'unknown', options = {}) => {
                 source,
                 reason: 'workspace_session_active',
             });
-            queueDashboardRefresh(data);
+            queueDashboardRefresh({
+                ...data,
+                authoritative: true,
+            });
 
             return data;
         }
 
-        await applyDashboardRefresh(data);
+        await applyDashboardRefresh({
+            ...data,
+            authoritative: true,
+        });
 
         return data;
     } catch (error) {
