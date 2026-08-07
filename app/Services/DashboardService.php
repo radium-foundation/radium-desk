@@ -7,6 +7,7 @@ use App\Enums\OperationQueue;
 use App\Enums\ServiceCaseSlaStatus;
 use App\Models\AuditLog;
 use App\Models\Incident;
+use App\Models\Order;
 use App\Models\User;
 use App\ReadModels\Cases\CaseQueueReadModel;
 use App\Services\Dashboard\AgentNextAppointmentResolver;
@@ -16,10 +17,12 @@ use App\Services\Dashboard\DashboardSnapshotStore;
 use App\Services\Dashboard\OperatorDashboardCache;
 use App\Services\IncomingEmail\IncomingEmailIntakeCounterService;
 use App\Services\Operations\OperationsRoleService;
+use App\Services\RadiumBox\RadiumBoxOrderEnrichmentSyncStore;
 use App\Support\Dashboard\DashboardIncidentSortComparator;
 use App\Support\Dashboard\RecentActivityPresenter;
 use App\Support\Dashboard\ScheduledAppointmentRowBadgePresenter;
 use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -59,11 +62,29 @@ class DashboardService
      */
     public function fastChangingStatsFor(User $user): array
     {
+        return $this->buildFastChangingStats($user, leanForKpiStrip: false);
+    }
+
+    /**
+     * Stats required to render `dashboard.partials.kpi-strip` (and agent cards).
+     * Skips aggregates that are not displayed there (still available via statsFor()).
+     *
+     * @return array<string, mixed>
+     */
+    public function fastChangingStatsForKpiStrip(User $user): array
+    {
+        return $this->buildFastChangingStats($user, leanForKpiStrip: true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildFastChangingStats(User $user, bool $leanForKpiStrip): array
+    {
         $onlineUsers = $this->onlineUsers();
         $snapshot = $this->snapshot();
         $activeIncidents = $snapshot->activeIncidents();
         $activeKpis = $this->kpiAggregator->activeIncidentKpis($activeIncidents, $user);
-        $incidentStatusCounts = $this->kpiAggregator->incidentStatusCounts();
         $operationalKpis = $this->caseQueue()->operationalKpiCounts(
             $this->resolveKpiScopeUser($user),
             $snapshot,
@@ -76,13 +97,17 @@ class DashboardService
             'open_cases' => $operationalKpis['open_cases'],
             'waiting_cases' => $operationalKpis['waiting_cases'],
             'open_incidents' => $operationalKpis['open_cases'],
-            'resolved_incidents' => $incidentStatusCounts['resolved'],
-            'closed_incidents' => $incidentStatusCounts['closed'],
             'my_active_cases' => $activeKpis['my_active_cases'],
             'waiting_for_admin' => $activeKpis['waiting_for_admin'],
             'high_priority_cases' => $activeKpis['high_priority_cases'],
             'total_active_cases' => $activeKpis['total_active_cases'],
         ];
+
+        if (! $leanForKpiStrip) {
+            $incidentStatusCounts = $this->kpiAggregator->incidentStatusCounts();
+            $stats['resolved_incidents'] = $incidentStatusCounts['resolved'];
+            $stats['closed_incidents'] = $incidentStatusCounts['closed'];
+        }
 
         $stats['email_intake_widget'] = app(IncomingEmailIntakeCounterService::class)
             ->dashboardWidget($user);
@@ -102,34 +127,42 @@ class DashboardService
             $refundCounts = $this->kpiAggregator->refundStatusCounts();
 
             $stats['pending_refunds'] = $refundCounts['pending'];
-            $stats['approved_refunds'] = $refundCounts['approved'];
-            $stats['rejected_refunds'] = $refundCounts['rejected'];
+
+            if (! $leanForKpiStrip) {
+                $stats['approved_refunds'] = $refundCounts['approved'];
+                $stats['rejected_refunds'] = $refundCounts['rejected'];
+            }
         }
 
-        if ($user->can('approvals.view')) {
-            $stats['pending_approvals'] = $this->kpiAggregator->approvalCounts()['open'];
-        }
+        if (! $leanForKpiStrip) {
+            if ($user->can('approvals.view')) {
+                $stats['pending_approvals'] = $this->kpiAggregator->approvalCounts()['open'];
+            }
 
-        if ($user->hasAnyRole([RolePermissionSeeder::ROLE_ADMIN, RolePermissionSeeder::ROLE_SUPERADMIN])) {
-            $stats['approval_numbers'] = $this->kpiAggregator->approvalCounts()['total'];
-            $stats['automation_health'] = app(ServiceCaseAutomationHealthService::class)
-                ->countsFor($activeIncidents);
+            if ($user->hasAnyRole([RolePermissionSeeder::ROLE_ADMIN, RolePermissionSeeder::ROLE_SUPERADMIN])) {
+                $stats['approval_numbers'] = $this->kpiAggregator->approvalCounts()['total'];
+                $stats['automation_health'] = app(ServiceCaseAutomationHealthService::class)
+                    ->countsFor($activeIncidents);
+            }
         }
 
         if ($user->can('incidents.view')) {
-            // H4-6E: identical SLA summary counts via CaseQueueReadModel (DashboardSnapshot owner).
+            // KPI strip only renders overdue_cases; service/hardware splits remain for full statsFor().
             $slaCounts = $this->caseQueue()->slaCounts(snapshot: $snapshot);
-            $serviceSla = $this->caseQueue()->serviceSlaCounts(snapshot: $snapshot);
-            $hardwareSla = $this->caseQueue()->hardwareSlaCounts(snapshot: $snapshot);
-
             $stats = [
                 ...$stats,
                 ...$slaCounts,
-                'service_overdue_cases' => $serviceSla['overdue_cases'],
-                'service_warning_cases' => $serviceSla['warning_cases'],
-                'hardware_overdue_cases' => $hardwareSla['overdue_cases'],
-                'hardware_warning_cases' => $hardwareSla['warning_cases'],
             ];
+
+            if (! $leanForKpiStrip) {
+                $serviceSla = $this->caseQueue()->serviceSlaCounts(snapshot: $snapshot);
+                $hardwareSla = $this->caseQueue()->hardwareSlaCounts(snapshot: $snapshot);
+
+                $stats['service_overdue_cases'] = $serviceSla['overdue_cases'];
+                $stats['service_warning_cases'] = $serviceSla['warning_cases'];
+                $stats['hardware_overdue_cases'] = $hardwareSla['overdue_cases'];
+                $stats['hardware_warning_cases'] = $hardwareSla['warning_cases'];
+            }
         }
 
         return $stats;
@@ -433,6 +466,30 @@ class DashboardService
      */
     public function mapServiceCaseRows(Collection $cases, User $user, ?string $dashboardOperationQueue = null): array
     {
+        if ($cases->isNotEmpty()) {
+            // recentServiceCases() returns a Support collection; eager-load via Eloquent wrapper.
+            $eloquentCases = $cases instanceof EloquentCollection
+                ? $cases
+                : new EloquentCollection($cases->all());
+
+            $eloquentCases->loadMissing([
+                'order.refundRequests.requester',
+                'order.refundRequests.reviewer',
+                'order.refundRequests.executor',
+                'refundRequests.requester',
+                'refundRequests.reviewer',
+                'refundRequests.executor',
+                'closeOutcomes.closer',
+                'assignee',
+            ]);
+
+            $orders = $eloquentCases
+                ->map(fn (Incident $incident): mixed => $incident->order)
+                ->filter(fn (mixed $order): bool => $order instanceof Order);
+
+            app(RadiumBoxOrderEnrichmentSyncStore::class)->warmFromOrders($orders);
+        }
+
         return $cases
             ->map(fn (Incident $serviceCase): array => [
                 'incident_id' => $serviceCase->id,
@@ -552,20 +609,26 @@ class DashboardService
         ?string $requestedQueue = null,
         ?string $legacyView = null,
         ?string $legacyFilter = null,
+        ?User $assignedToForFilterCounts = null,
     ): array {
-        $context = $this->dashboardPersonalization->resolveLiveDashboardContext(
-            $user,
-            $requestedQueue,
-            $legacyView,
-            $legacyFilter,
-        );
+        if ($assignedToForFilterCounts !== null) {
+            $assignedTo = $assignedToForFilterCounts;
+        } else {
+            $context = $this->dashboardPersonalization->resolveLiveDashboardContext(
+                $user,
+                $requestedQueue,
+                $legacyView,
+                $legacyFilter,
+            );
+            $assignedTo = $context['assigned_to'];
+        }
 
-        $fast = $this->fastChangingStatsFor($user);
+        $fast = $this->fastChangingStatsForKpiStrip($user);
         $slow = $this->slowChangingStatsFor($user);
         $stats = [...$fast, ...$slow];
 
         $filterCounts = $user->can('incidents.view')
-            ? $this->serviceCaseFilterCounts($context['assigned_to'], $user)
+            ? $this->serviceCaseFilterCounts($assignedTo, $user)
             : [];
         $onlineUsers = $this->onlineUsersPayload($stats);
 

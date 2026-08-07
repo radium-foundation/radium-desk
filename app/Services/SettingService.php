@@ -12,6 +12,9 @@ class SettingService
 {
     private const CACHE_KEY = 'app.settings.all';
 
+    /** @var array<string, string|null>|null Request-scoped memo of Cache::rememberForever payload. */
+    private ?array $resolved = null;
+
     public function get(string $key, mixed $default = null): mixed
     {
         $value = $this->remember()[$key] ?? null;
@@ -67,15 +70,23 @@ class SettingService
      */
     public function remember(): array
     {
-        return Cache::rememberForever(self::CACHE_KEY, function (): array {
+        if ($this->resolved !== null) {
+            return $this->resolved;
+        }
+
+        /** @var array<string, string|null> $settings */
+        $settings = Cache::rememberForever(self::CACHE_KEY, function (): array {
             return Setting::query()
                 ->pluck('value', 'key')
                 ->all();
         });
+
+        return $this->resolved = $settings;
     }
 
     public function forget(): void
     {
+        $this->resolved = null;
         Cache::forget(self::CACHE_KEY);
     }
 

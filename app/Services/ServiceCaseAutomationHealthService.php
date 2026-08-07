@@ -169,7 +169,7 @@ class ServiceCaseAutomationHealthService
             return true;
         }
 
-        $syncStatus = $this->syncStore->status($incident->order->id);
+        $syncStatus = $this->syncStore->status($incident->order->id, $incident->order);
 
         if ($syncStatus === RadiumBoxEnrichmentSyncStatus::Pending) {
             return true;

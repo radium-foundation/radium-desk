@@ -28,17 +28,57 @@ class RadiumBoxOrderEnrichmentSyncStore
 
     public function status(int $orderId, ?Order $preloadedOrder = null): RadiumBoxEnrichmentSyncStatus
     {
-        $record = $this->read($orderId, $preloadedOrder);
-
-        if ($record === null) {
-            return RadiumBoxEnrichmentSyncStatus::NotSynced;
+        // Prefer columns already on the Eloquent model — avoids per-call Order SELECT + cache GET.
+        if (
+            $preloadedOrder !== null
+            && (int) $preloadedOrder->getKey() === $orderId
+            && Order::supportsRadiumBoxSyncTracking()
+        ) {
+            return $this->statusFromOrderAttributes($preloadedOrder);
         }
 
-        $status = $record['status'] ?? null;
+        if (array_key_exists($orderId, $this->readMemo)) {
+            return $this->statusFromRecord($this->readMemo[$orderId]);
+        }
 
-        return is_string($status)
-            ? (RadiumBoxEnrichmentSyncStatus::tryFrom($status) ?? RadiumBoxEnrichmentSyncStatus::NotSynced)
-            : RadiumBoxEnrichmentSyncStatus::NotSynced;
+        $record = $this->read($orderId, $preloadedOrder);
+
+        return $this->statusFromRecord($record);
+    }
+
+    /**
+     * Warm request memo from already-loaded orders (no cache / DB round-trips).
+     *
+     * @param  iterable<int, Order>  $orders
+     */
+    public function warmFromOrders(iterable $orders): void
+    {
+        if (! Order::supportsRadiumBoxSyncTracking()) {
+            return;
+        }
+
+        foreach ($orders as $order) {
+            if (! $order instanceof Order) {
+                continue;
+            }
+
+            $orderId = (int) $order->getKey();
+
+            if ($orderId <= 0 || array_key_exists($orderId, $this->readMemo)) {
+                continue;
+            }
+
+            $status = $order->radiumbox_sync_status ?? RadiumBoxEnrichmentSyncStatus::NotSynced;
+
+            $this->readMemo[$orderId] = [
+                'status' => $status instanceof RadiumBoxEnrichmentSyncStatus
+                    ? $status->value
+                    : (string) $status,
+                'metadata' => [],
+                'updated_at' => $order->radiumbox_last_sync_at?->toIso8601String(),
+                'last_sync_error' => $order->radiumbox_last_sync_error,
+            ];
+        }
     }
 
     /**
@@ -310,6 +350,34 @@ class RadiumBoxOrderEnrichmentSyncStore
     private function cacheKey(int $orderId): string
     {
         return self::CACHE_PREFIX.$orderId;
+    }
+
+    private function statusFromOrderAttributes(Order $order): RadiumBoxEnrichmentSyncStatus
+    {
+        $status = $order->radiumbox_sync_status ?? RadiumBoxEnrichmentSyncStatus::NotSynced;
+
+        if ($status instanceof RadiumBoxEnrichmentSyncStatus) {
+            return $status;
+        }
+
+        return RadiumBoxEnrichmentSyncStatus::tryFrom((string) $status)
+            ?? RadiumBoxEnrichmentSyncStatus::NotSynced;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $record
+     */
+    private function statusFromRecord(?array $record): RadiumBoxEnrichmentSyncStatus
+    {
+        if ($record === null) {
+            return RadiumBoxEnrichmentSyncStatus::NotSynced;
+        }
+
+        $status = $record['status'] ?? null;
+
+        return is_string($status)
+            ? (RadiumBoxEnrichmentSyncStatus::tryFrom($status) ?? RadiumBoxEnrichmentSyncStatus::NotSynced)
+            : RadiumBoxEnrichmentSyncStatus::NotSynced;
     }
 
     private function recordAutomationEvent(int $orderId, string $type): void

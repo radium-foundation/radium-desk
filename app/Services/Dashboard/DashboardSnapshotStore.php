@@ -41,8 +41,15 @@ class DashboardSnapshotStore
                     'order.deviceModel',
                     'order.transactionAssigner',
                     'order.legacyImporter',
-                    'order.refundRequests',
-                    'refundRequests',
+                    // Nested refund actors are serializable (User alias); avoids CommercialState N+1.
+                    'order.refundRequests.requester',
+                    'order.refundRequests.reviewer',
+                    'order.refundRequests.executor',
+                    'refundRequests.requester',
+                    'refundRequests.reviewer',
+                    'refundRequests.executor',
+                    // closeOutcomes intentionally omitted from snapshot cache (no payload alias yet);
+                    // mapServiceCaseRows() batch-loads them for visible rows only.
                     'creator',
                     'assignee.roles',
                     'activeWaitingState',

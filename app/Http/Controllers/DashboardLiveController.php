@@ -63,11 +63,10 @@ class DashboardLiveController extends Controller
         $limit = max($pageSize, min($request->integer('limit', $pageSize), 500));
 
         // Read-only live refresh — no transaction (avoids holding a DB connection unnecessarily).
+        // Pass assignedTo so liveMetricsFor does not re-resolve workspace/context.
         $metrics = $this->dashboardService->liveMetricsFor(
             $user,
-            $workspace['requested_queue'],
-            $workspace['legacy_view'],
-            $workspace['legacy_filter'],
+            assignedToForFilterCounts: $assignedTo,
         );
         $filterCounts = $metrics['service_case_filter_counts'];
 
